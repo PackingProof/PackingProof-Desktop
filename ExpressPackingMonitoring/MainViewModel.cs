@@ -370,6 +370,24 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void ToggleMode() { CurrentMode = CurrentMode == "发货" ? "退货" : "发货"; ShowToast($"已切换为: {CurrentMode}"); Speak(CurrentMode == "发货" ? "切换发货" : "切换退货"); }
 
+        private void PauseSpeechForRecording() => _speechService?.PauseForRecording();
+
+        private void ResumeSpeechWhenCameraIdle()
+        {
+            if (_speechService == null || _isDisposed) return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(800);
+                    if (_isDisposed || IsRecording || IsBusy) return;
+                    _speechService.ResumeAfterRecording();
+                }
+                catch { }
+            });
+        }
+
         // ========================== 核心逻辑：恢复 MAN_ 前缀 ==========================
         private async void ToggleRecording() 
         {
@@ -379,13 +397,15 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try 
             {
+                PauseSpeechForRecording();
+
                 if (IsRecording) 
                 {
                     await InternalStopRecordingAsync();
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
-                    Speak("停止录制");
+                    Speak("停止录制", cancelPrevious: false);
                     return;
                 }
                 else 
@@ -431,6 +451,8 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally 
             { 
+                if (!IsRecording)
+                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release(); 
             }
         }
@@ -465,6 +487,8 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!await _recorderLock.WaitAsync(0)) return;
             try
             {
+                PauseSpeechForRecording();
+
                 // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×3）
                 _speechService?.Stop();
                 if (IsRecording) await InternalStopRecordingAsync();
@@ -521,6 +545,8 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
+                if (!IsRecording)
+                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
             }
         }
@@ -542,17 +568,20 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!await _recorderLock.WaitAsync(0)) return;
             try
             {
+                PauseSpeechForRecording();
                 await InternalStopRecordingAsync();
                 if (isManual)
                 {
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
-                    Speak("停止录制");
+                    Speak("停止录制", cancelPrevious: false);
                 }
             }
             finally
             {
+                if (!IsRecording)
+                    ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
             }
         }
