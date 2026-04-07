@@ -953,7 +953,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         _consecutiveRestartFailures = 0;
                         ShowToast("✅ 摄像头已重连，录制继续");
-                        Speak("摄像头已重连");
+                        Speak("摄像头已连接");
                     }
                     else
                     {
@@ -969,7 +969,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         else
                         {
-                            SpeakWarning("摄像头断开，正在尝试重连");
+                            SpeakWarning("摄像头断开，正在尝试连接");
                         }
                     }
                 }
