@@ -145,6 +145,7 @@ namespace ExpressPackingMonitoring
             writer.Dispose();
 
             var wavInfo = ReadWavInfo(wavPath);
+            var wavTimeline = ReadWavTimeline(wavPath);
             var mp4Info = ProbeMp4Mux(mkvPath, wavPath, mp4Path, seconds, config.AudioSyncOffsetMs);
             bool ok = stoppedException == null
                 && videoInfo.Exited
@@ -154,6 +155,8 @@ namespace ExpressPackingMonitoring
                 && gapCount == 0
                 && wavInfo.Valid
                 && wavInfo.DurationSeconds >= seconds * 0.8
+                && wavTimeline.Valid
+                && !LooksLikeShortPulseThenSilence(wavInfo.DurationSeconds, wavTimeline.ActiveWindowCount, wavTimeline.MaxConsecutiveActiveWindows, wavTimeline.LastActiveSecond)
                 && mp4Info.Valid;
             log.AppendLine($"Packets={packets}");
             log.AppendLine($"RawBytes={rawBytes}");
@@ -166,6 +169,12 @@ namespace ExpressPackingMonitoring
             log.AppendLine($"WavBytes={wavInfo.FileBytes}");
             log.AppendLine($"WavDurationSeconds={wavInfo.DurationSeconds:F2}");
             log.AppendLine($"WavError={wavInfo.Error ?? "(none)"}");
+            log.AppendLine($"WavTimelineValid={wavTimeline.Valid}");
+            log.AppendLine($"WavFirstActiveSecond={wavTimeline.FirstActiveSecond:F1}");
+            log.AppendLine($"WavLastActiveSecond={wavTimeline.LastActiveSecond:F1}");
+            log.AppendLine($"WavActiveWindows={wavTimeline.ActiveWindowCount}");
+            log.AppendLine($"WavMaxConsecutiveActiveWindows={wavTimeline.MaxConsecutiveActiveWindows}");
+            log.AppendLine($"WavTimelineError={wavTimeline.Error ?? "(none)"}");
             log.AppendLine($"MkvPath={mkvPath}");
             log.AppendLine($"MkvBytes={(File.Exists(mkvPath) ? new FileInfo(mkvPath).Length : 0)}");
             log.AppendLine($"MkvVideoExited={videoInfo.Exited}");
@@ -338,6 +347,78 @@ namespace ExpressPackingMonitoring
             {
                 return (false, File.Exists(wavPath) ? new FileInfo(wavPath).Length : 0, 0, ex.Message);
             }
+        }
+
+        private static (bool Valid, double FirstActiveSecond, double LastActiveSecond, int ActiveWindowCount, int MaxConsecutiveActiveWindows, string? Error) ReadWavTimeline(string wavPath)
+        {
+            try
+            {
+                if (!File.Exists(wavPath))
+                    return (false, -1, -1, 0, 0, "File not found.");
+
+                using var reader = new WaveFileReader(wavPath);
+                int bytesPerSecond = Math.Max(1, reader.WaveFormat.AverageBytesPerSecond);
+                int blockAlign = Math.Max(1, reader.WaveFormat.BlockAlign);
+                int windowBytes = bytesPerSecond;
+                windowBytes -= windowBytes % blockAlign;
+                if (windowBytes <= 0) windowBytes = bytesPerSecond;
+
+                byte[] buffer = new byte[windowBytes];
+                int windowIndex = 0;
+                double firstActiveSecond = -1;
+                double lastActiveSecond = -1;
+                int activeWindowCount = 0;
+                int consecutiveActiveWindows = 0;
+                int maxConsecutiveActiveWindows = 0;
+
+                while (true)
+                {
+                    int totalRead = 0;
+                    while (totalRead < buffer.Length)
+                    {
+                        int read = reader.Read(buffer, totalRead, buffer.Length - totalRead);
+                        if (read <= 0) break;
+                        totalRead += read;
+                    }
+                    if (totalRead <= 0) break;
+
+                    double start = windowIndex;
+                    double end = Math.Min(reader.TotalTime.TotalSeconds, start + (double)totalRead / bytesPerSecond);
+                    if (MainViewModel.TryGetAudioPeak(buffer, totalRead, reader.WaveFormat, out short peak) && peak > 32)
+                    {
+                        if (firstActiveSecond < 0)
+                            firstActiveSecond = start;
+                        lastActiveSecond = end;
+                        activeWindowCount++;
+                        consecutiveActiveWindows++;
+                        if (consecutiveActiveWindows > maxConsecutiveActiveWindows)
+                            maxConsecutiveActiveWindows = consecutiveActiveWindows;
+                    }
+                    else
+                    {
+                        consecutiveActiveWindows = 0;
+                    }
+                    windowIndex++;
+                }
+
+                return (true, firstActiveSecond, lastActiveSecond, activeWindowCount, maxConsecutiveActiveWindows, null);
+            }
+            catch (Exception ex)
+            {
+                return (false, -1, -1, 0, 0, ex.Message);
+            }
+        }
+
+        private static bool LooksLikeShortPulseThenSilence(double durationSeconds, int activeWindowCount, int maxConsecutiveActiveWindows, double lastActiveSecond)
+        {
+            if (durationSeconds < 30 || lastActiveSecond < 0)
+                return false;
+
+            double trailingSilentSeconds = durationSeconds - lastActiveSecond;
+            return activeWindowCount > 0
+                && activeWindowCount <= 4
+                && maxConsecutiveActiveWindows <= 2
+                && trailingSilentSeconds >= 5;
         }
 
         private static AppConfig LoadConfig()
