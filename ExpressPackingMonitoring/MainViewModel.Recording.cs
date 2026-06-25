@@ -732,6 +732,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioRestarting = false;
                     _lastAudioDataAt = DateTime.Now;
                     _audioBytesWritten = 0;
+                    _audioPeakSinceLastCheck = 0;
+                    _audioBytesSinceLastCheck = 0;
+                    _silentAudioCheckCount = 0;
                     _audioMonitorCts = new CancellationTokenSource();
                 }
 
@@ -812,6 +815,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     if (_audioWriter == null || e.BytesRecorded <= 0) return;
                     PadAudioGapIfNeeded(DateTime.Now);
+                    UpdateAudioLevelStats(e.Buffer, e.BytesRecorded, _audioWriter.WaveFormat);
                     _audioWriter.Write(e.Buffer, 0, e.BytesRecorded);
                     _audioWriter.Flush();
                     _audioBytesWritten += e.BytesRecorded;
@@ -859,6 +863,74 @@ namespace ExpressPackingMonitoring.ViewModels
             WriteAudioDiagnostic($"补齐录音间隙: {gapMs:F0}ms, silenceBytes={silenceBytes}");
         }
 
+        private void UpdateAudioLevelStats(byte[] buffer, int bytesRecorded, WaveFormat format)
+        {
+            short peak;
+            bool knownFormat = TryGetAudioPeak(buffer, bytesRecorded, format, out peak);
+
+            if (knownFormat && peak > _audioPeakSinceLastCheck)
+                _audioPeakSinceLastCheck = peak;
+            else if (!knownFormat)
+                _audioPeakSinceLastCheck = short.MaxValue;
+
+            _audioBytesSinceLastCheck += bytesRecorded;
+        }
+
+        private static bool TryGetAudioPeak(byte[] buffer, int bytesRecorded, WaveFormat format, out short peak)
+        {
+            peak = 0;
+
+            if (format.Encoding == WaveFormatEncoding.IeeeFloat && format.BitsPerSample == 32)
+            {
+                for (int i = 0; i + 3 < bytesRecorded; i += 4)
+                {
+                    float sample = BitConverter.ToSingle(buffer, i);
+                    int scaled = (int)Math.Clamp(Math.Abs(sample) * short.MaxValue, 0, short.MaxValue);
+                    if (scaled > peak) peak = (short)scaled;
+                }
+                return true;
+            }
+
+            if (format.Encoding != WaveFormatEncoding.Pcm)
+                return false;
+
+            if (format.BitsPerSample == 16)
+            {
+                for (int i = 0; i + 1 < bytesRecorded; i += 2)
+                {
+                    short sample = BitConverter.ToInt16(buffer, i);
+                    short abs = sample == short.MinValue ? short.MaxValue : (short)Math.Abs(sample);
+                    if (abs > peak) peak = abs;
+                }
+                return true;
+            }
+
+            if (format.BitsPerSample == 24)
+            {
+                for (int i = 0; i + 2 < bytesRecorded; i += 3)
+                {
+                    int sample = buffer[i] | (buffer[i + 1] << 8) | (buffer[i + 2] << 16);
+                    if ((sample & 0x800000) != 0) sample |= unchecked((int)0xFF000000);
+                    int scaled = Math.Min(short.MaxValue, Math.Abs(sample >> 8));
+                    if (scaled > peak) peak = (short)scaled;
+                }
+                return true;
+            }
+
+            if (format.BitsPerSample == 32)
+            {
+                for (int i = 0; i + 3 < bytesRecorded; i += 4)
+                {
+                    int sample = BitConverter.ToInt32(buffer, i);
+                    int scaled = Math.Min(short.MaxValue, Math.Abs(sample >> 16));
+                    if (scaled > peak) peak = (short)scaled;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
         private async Task AudioCaptureMonitorLoop(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
@@ -870,14 +942,33 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     DateTime lastDataAt;
                     bool shouldMonitor;
+                    short peak;
+                    long bytes;
+                    int silentCount;
                     lock (_audioLock)
                     {
                         shouldMonitor = !_audioStopRequested && _audioWriter != null && _audioCapture != null;
                         lastDataAt = _lastAudioDataAt;
+                        peak = _audioPeakSinceLastCheck;
+                        bytes = _audioBytesSinceLastCheck;
+                        _audioPeakSinceLastCheck = 0;
+                        _audioBytesSinceLastCheck = 0;
+
+                        if (shouldMonitor && bytes > 0 && peak <= 2)
+                            _silentAudioCheckCount++;
+                        else if (bytes > 0 && peak > 2)
+                            _silentAudioCheckCount = 0;
+                        silentCount = _silentAudioCheckCount;
                     }
 
                     if (shouldMonitor && (DateTime.Now - lastDataAt).TotalSeconds > 5)
                         RestartAudioCapture("no-data");
+                    else if (shouldMonitor && bytes > 0)
+                    {
+                        WriteAudioDiagnostic($"音频电平: peak={peak}, bytes={bytes}, silentCount={silentCount}");
+                        if (silentCount >= 3)
+                            RestartAudioCapture("silent-data");
+                    }
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
@@ -931,6 +1022,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     _audioCapture = capture;
                     _lastAudioDataAt = DateTime.Now;
+                    _audioPeakSinceLastCheck = 0;
+                    _audioBytesSinceLastCheck = 0;
+                    _silentAudioCheckCount = 0;
                 }
 
                 capture.StartRecording();
