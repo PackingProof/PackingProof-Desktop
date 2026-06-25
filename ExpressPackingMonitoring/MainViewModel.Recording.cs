@@ -961,9 +961,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         _audioPeakSinceLastCheck = 0;
                         _audioBytesSinceLastCheck = 0;
 
-                        if (shouldMonitor && bytes > 0 && peak <= 2)
+                        if (shouldMonitor && bytes > 0 && peak <= 1)
                             _silentAudioCheckCount++;
-                        else if (bytes > 0 && peak > 2)
+                        else if (bytes > 0 && peak > 1)
                             _silentAudioCheckCount = 0;
                         silentCount = _silentAudioCheckCount;
                     }
@@ -972,8 +972,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         RestartAudioCapture("no-data");
                     else if (shouldMonitor && bytes > 0)
                     {
-                        WriteAudioDiagnostic($"音频电平: peak={peak}, bytes={bytes}, silentCount={silentCount}");
-                        if (silentCount >= 3)
+                        WriteAudioDiagnostic($"音频电平: peak={peak}, bytes={bytes}, silentCount={silentCount}, silentRestartThreshold=5");
+                        if (silentCount >= 5)
                             RestartAudioCapture("silent-data");
                     }
                 }
