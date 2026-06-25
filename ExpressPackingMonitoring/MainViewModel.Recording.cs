@@ -650,7 +650,7 @@ namespace ExpressPackingMonitoring.ViewModels
             bool hasAudio = withAudio && Config.EnableAudioRecording && HasConfiguredAudioDevice();
             if (hasAudio)
             {
-                args += $" -thread_queue_size 256 -use_wallclock_as_timestamps 1 -f dshow -audio_buffer_size 50 -i audio=\"{EscapeDShowDeviceName(GetAudioDeviceInputName())}\"";
+                args += $" -thread_queue_size 256 -use_wallclock_as_timestamps 1 -f dshow -audio_buffer_size 50 -i audio=\"{EscapeDShowDeviceName(Config.AudioDeviceName)}\"";
             }
 
             if (encoder == "h264_nvenc") args += $" -c:v h264_nvenc -pix_fmt yuv420p -preset p4 -rc vbr -cq {cqp} -b:v 0 -g {gop} -max_muxing_queue_size 1024";
@@ -716,13 +716,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
             return !string.IsNullOrWhiteSpace(Config.AudioDeviceName)
                 && string.Equals(name, Config.AudioDeviceName, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private string GetAudioDeviceInputName()
-        {
-            return !string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker)
-                ? Config.AudioDeviceMoniker
-                : Config.AudioDeviceName;
         }
 
         private static string EscapeDShowDeviceName(string deviceName)
