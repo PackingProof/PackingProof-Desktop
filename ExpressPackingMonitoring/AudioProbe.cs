@@ -24,7 +24,10 @@ namespace ExpressPackingMonitoring
             string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.log");
             try
             {
-                var result = Run(seconds, logPath);
+                int repeat = ParseRepeat(args);
+                var result = repeat <= 1
+                    ? Run(seconds, logPath, "audio_probe")
+                    : RunRepeated(seconds, repeat, logPath);
                 exitCode = result ? 0 : 2;
             }
             catch (Exception ex)
@@ -35,6 +38,14 @@ namespace ExpressPackingMonitoring
             return true;
         }
 
+        private static int ParseRepeat(string[] args)
+        {
+            int index = Array.FindIndex(args, a => string.Equals(a, "--repeat", StringComparison.OrdinalIgnoreCase));
+            if (index >= 0 && index + 1 < args.Length && int.TryParse(args[index + 1], out int repeat))
+                return Math.Clamp(repeat, 1, 20);
+            return 1;
+        }
+
         private static int ParseSeconds(string[] args)
         {
             int index = Array.FindIndex(args, a => string.Equals(a, "--audio-probe", StringComparison.OrdinalIgnoreCase));
@@ -43,16 +54,38 @@ namespace ExpressPackingMonitoring
             return 15;
         }
 
-        private static bool Run(int seconds, string logPath)
+        private static bool RunRepeated(int seconds, int repeat, string summaryLogPath)
+        {
+            var summary = new StringBuilder();
+            summary.AppendLine($"Audio probe repeated run: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            summary.AppendLine($"DurationSeconds={seconds}");
+            summary.AppendLine($"Repeat={repeat}");
+
+            bool allOk = true;
+            for (int i = 1; i <= repeat; i++)
+            {
+                string prefix = $"audio_probe_{i:00}";
+                string runLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{prefix}.log");
+                bool ok = Run(seconds, runLogPath, prefix);
+                allOk &= ok;
+                summary.AppendLine($"Run{i:00}={(ok ? "OK" : "FAILED")}; Log={runLogPath}");
+            }
+
+            summary.AppendLine($"Result={(allOk ? "OK" : "FAILED")}");
+            File.WriteAllText(summaryLogPath, summary.ToString(), Encoding.UTF8);
+            return allOk;
+        }
+
+        private static bool Run(int seconds, string logPath, string filePrefix)
         {
             var config = LoadConfig();
             using var enumerator = new MMDeviceEnumerator();
             var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             using var device = ResolveAudioEndpoint(config, devices);
-            string wavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.wav");
-            string mkvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.mkv");
-            string mp4Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.mp4");
-            string decodedWavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe_decoded.wav");
+            string wavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.wav");
+            string mkvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.mkv");
+            string mp4Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.mp4");
+            string decodedWavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}_decoded.wav");
             try { if (File.Exists(wavPath)) File.Delete(wavPath); } catch { }
             try { if (File.Exists(mkvPath)) File.Delete(mkvPath); } catch { }
             try { if (File.Exists(mp4Path)) File.Delete(mp4Path); } catch { }
