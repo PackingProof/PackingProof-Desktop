@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <SelfContained>true</SelfContained>
+    <SelfContained>false</SelfContained>
     <UseRidGraph>true</UseRidGraph>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
@@ -13,10 +13,10 @@
     <UseWPF>true</UseWPF>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);NU1701;MVVMTK0045;MSB3277</NoWarn>
-    <DefaultItemExcludes>$(DefaultItemExcludes);bin_publish_tmp\**;obj_publish_tmp\**;publish-test\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin_publish_tmp\**;obj_publish_tmp\**;publish-test\**;publish-size-*\**;bin\Release\publish\**</DefaultItemExcludes>
     
-    <!-- 单文件打包相关配置 -->
-    <PublishSingleFile>true</PublishSingleFile>
+    <!-- 原生依赖较多，单文件会显著增大体积；发布目录打包为 zip 更小 -->
+    <PublishSingleFile>false</PublishSingleFile>
     <!-- 对于包含原生库的项目，设为 false 可以将 C++ dll 解压，以防止DllNotFoundException -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- 只保留中文资源，去掉其他语言的卫星程序集 -->
@@ -100,6 +100,9 @@
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('System.Drawing.Design'))" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'Accessibility'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.VisualBasic'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb' Or '%(Extension)' == '.xml' Or '%(Extension)' == '.lib'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('libvlc\win-x86\'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').Contains('\include\'))" />
     </ItemGroup>
   </Target>
 
@@ -113,27 +116,30 @@
 
   <Target Name="IncludeLibVlcFilesForPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
     <ItemGroup>
-      <ResolvedFileToPublish Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlc.dll">
-        <RelativePath>libvlc\win-x64\libvlc.dll</RelativePath>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('libvlc\'))" />
+
+      <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlc.dll" />
+      <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlccore.dll" />
+      <LibVlcX64Plugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*" />
+      <LibVlcX64Lua Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\lua\**\*" />
+      <LibVlcX64Hrtf Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\hrtfs\**\*" />
+
+      <ResolvedFileToPublish Include="@(LibVlcX64Dll)">
+        <RelativePath>libvlc\win-x64\%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlccore.dll">
-        <RelativePath>libvlc\win-x64\libvlccore.dll</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-      </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*">
+      <ResolvedFileToPublish Include="@(LibVlcX64Plugin)">
         <RelativePath>libvlc\win-x64\plugins\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\lua\**\*">
+      <ResolvedFileToPublish Include="@(LibVlcX64Lua)">
         <RelativePath>libvlc\win-x64\lua\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\hrtfs\**\*">
+      <ResolvedFileToPublish Include="@(LibVlcX64Hrtf)">
         <RelativePath>libvlc\win-x64\hrtfs\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>

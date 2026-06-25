@@ -122,8 +122,8 @@ cd ExpressPackingMonitoring
 # 编译运行
 dotnet run --project ExpressPackingMonitoring
 
-# 发布为合并为独立exe（减少额外依赖，适合打包站直接部署）
-dotnet publish ExpressPackingMonitoring -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+# 发布为目录包（体积更小，适合压缩为 zip 分发）
+dotnet publish ExpressPackingMonitoring -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false
 ```
 
 ### 核心功能启用指南
