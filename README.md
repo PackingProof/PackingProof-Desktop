@@ -123,7 +123,7 @@ cd ExpressPackingMonitoring
 dotnet run --project ExpressPackingMonitoring
 
 # 发布为目录包（体积更小，适合压缩为 zip 分发）
-dotnet publish ExpressPackingMonitoring -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false
+dotnet publish ExpressPackingMonitoring -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false
 ```
 
 ### 核心功能启用指南
