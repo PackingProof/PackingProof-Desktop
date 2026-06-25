@@ -1798,6 +1798,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 using var reader = new WaveFileReader(decodedWavPath);
+                WriteAudioDiagnostic($"MP4 解码音轨: duration={reader.TotalTime.TotalSeconds:F2}s, format={reader.WaveFormat}, bytes={reader.Length}", audioLogPath);
                 var timeline = LogAudioPeakTimeline(reader, audioLogPath, "MP4");
                 if (!IsAudioTimelineUsable(reader.TotalTime.TotalSeconds, timeline.FirstActiveSecond, timeline.LastActiveSecond, timeline.ActiveWindowCount, timeline.MaxConsecutiveActiveWindows, out string reason))
                 {
