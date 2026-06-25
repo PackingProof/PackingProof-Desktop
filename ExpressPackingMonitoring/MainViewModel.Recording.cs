@@ -795,6 +795,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             lock (_audioLock)
             {
+                try { writer?.Flush(); } catch { }
                 try { writer?.Dispose(); } catch { }
             }
 
@@ -820,6 +821,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             capture.DataAvailable += (_, e) =>
             {
+                string? diagnosticMessage = null;
                 lock (_audioLock)
                 {
                     if (_audioWriter == null || e.BytesRecorded <= 0) return;
@@ -827,21 +829,24 @@ namespace ExpressPackingMonitoring.ViewModels
                     byte[]? pcmBytes = ConvertCaptureBufferToPcm16(e.Buffer, e.BytesRecorded, capture.WaveFormat, _audioWriter.WaveFormat, ref selectedChannel);
                     if (pcmBytes == null || pcmBytes.Length == 0)
                     {
-                        WriteAudioDiagnostic($"麦克风格式暂不支持转换: format={capture.WaveFormat}, bytes={e.BytesRecorded}");
-                        return;
+                        diagnosticMessage = $"麦克风格式暂不支持转换: format={capture.WaveFormat}, bytes={e.BytesRecorded}";
                     }
-                    if (selectedChannel != _audioSelectedSourceChannel)
+                    else
                     {
-                        _audioSelectedSourceChannel = selectedChannel;
-                        WriteAudioDiagnostic($"麦克风输入通道已锁定: channel={selectedChannel}, sourceChannels={capture.WaveFormat.Channels}");
+                        if (selectedChannel != _audioSelectedSourceChannel)
+                        {
+                            _audioSelectedSourceChannel = selectedChannel;
+                            diagnosticMessage = $"麦克风输入通道已选择: channel={selectedChannel}, sourceChannels={capture.WaveFormat.Channels}";
+                        }
+                        PadAudioGapIfNeeded(DateTime.Now);
+                        UpdateAudioLevelStats(pcmBytes, pcmBytes.Length, _audioWriter.WaveFormat);
+                        _audioWriter.Write(pcmBytes, 0, pcmBytes.Length);
+                        _audioBytesWritten += pcmBytes.Length;
+                        _lastAudioDataAt = DateTime.Now;
                     }
-                    PadAudioGapIfNeeded(DateTime.Now);
-                    UpdateAudioLevelStats(pcmBytes, pcmBytes.Length, _audioWriter.WaveFormat);
-                    _audioWriter.Write(pcmBytes, 0, pcmBytes.Length);
-                    _audioWriter.Flush();
-                    _audioBytesWritten += pcmBytes.Length;
-                    _lastAudioDataAt = DateTime.Now;
                 }
+                if (!string.IsNullOrEmpty(diagnosticMessage))
+                    WriteAudioDiagnostic(diagnosticMessage);
             };
             capture.RecordingStopped += (_, e) =>
             {
