@@ -78,6 +78,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private double _audioResamplePosition;
         private short _audioPreviousSourceSample;
         private bool _audioHasPreviousSourceSample;
+        private bool _audioCaptureUnstable;
+        private int _audioGapCount;
+        private double _audioMaxGapMs;
+        private long _audioGapPaddingBytes;
 
         private Mat _previousCheckFrame = new Mat();
         private BitmapSource _videoFrame;

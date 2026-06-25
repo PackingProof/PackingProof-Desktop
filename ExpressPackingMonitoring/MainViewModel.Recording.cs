@@ -755,6 +755,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioResamplePosition = 0;
                     _audioPreviousSourceSample = 0;
                     _audioHasPreviousSourceSample = false;
+                    _audioCaptureUnstable = false;
+                    _audioGapCount = 0;
+                    _audioMaxGapMs = 0;
+                    _audioGapPaddingBytes = 0;
                     _audioWriteFailed = false;
                     _audioWriteQueueFullLogged = false;
                     _audioWriteQueueFullReported = false;
@@ -882,7 +886,14 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 if (IsCompletedAudioFileUsable(audioFilePath))
+                {
+                    if (_audioCaptureUnstable)
+                    {
+                        _audioFailedForCurrentRecording = true;
+                        WriteAudioDiagnostic($"WAV 采集不稳定，跳过 MP4 合成并保留诊断文件: gaps={_audioGapCount}, maxGapMs={_audioMaxGapMs:F0}, paddedBytes={_audioGapPaddingBytes}");
+                    }
                     return audioFilePath;
+                }
             }
             catch { }
 
@@ -1010,6 +1021,11 @@ namespace ExpressPackingMonitoring.ViewModels
             silenceBytes -= silenceBytes % blockAlign;
             if (silenceBytes <= 0) return null;
 
+            _audioGapCount++;
+            _audioGapPaddingBytes += silenceBytes;
+            if (gapMs > _audioMaxGapMs)
+                _audioMaxGapMs = gapMs;
+
             byte[] silence = new byte[Math.Min(silenceBytes, bytesPerSecond)];
             int remaining = silenceBytes;
             while (remaining > 0)
@@ -1025,6 +1041,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioBytesWritten += EnqueueAudioBytes(partialSilence);
                 }
                 remaining -= chunk;
+            }
+            bool unstable = gapMs >= 3000 || _audioGapPaddingBytes >= bytesPerSecond * 5L;
+            if (unstable)
+            {
+                _audioCaptureUnstable = true;
+                _audioFailedForCurrentRecording = true;
+                return $"录音采集断流过长: gapMs={gapMs:F0}, gaps={_audioGapCount}, paddedBytes={_audioGapPaddingBytes}, maxGapMs={_audioMaxGapMs:F0}";
             }
             Debug.WriteLine($"[Audio] 补齐录音间隙: {gapMs:F0}ms");
             return $"补齐录音间隙: {gapMs:F0}ms, silenceBytes={silenceBytes}";
