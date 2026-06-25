@@ -362,7 +362,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 string fileName = $"{CurrentOrderId}_{DateTime.Now:yyyyMMdd_HHmmss}_{CurrentMode}.mkv";
                 string filePath = Path.Combine(dateFolder, fileName);
                 string audioFilePath = Path.ChangeExtension(filePath, ".wav");
-                _currentAudioLogPath = Path.ChangeExtension(filePath, ".audio.log");
+                string audioLogPath = Path.ChangeExtension(filePath, ".audio.log");
+                _currentAudioLogPath = audioLogPath;
                 _currentVideoFilePath = filePath;
                 _stopReason = "手动";
                 _recordingOrderId = CurrentOrderId;
@@ -374,6 +375,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (string.IsNullOrEmpty(ffmpegPath))
                 {
                     ShowToast("⚠ 未找到 FFmpeg，无法录制");
+                    ClearCurrentAudioLogPath(audioLogPath);
                     return;
                 }
 
@@ -385,6 +387,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         WriteAudioDiagnostic("麦克风录音启动失败");
                         ShowToast("⚠ 麦克风录音启动失败");
                         SpeakWarning("麦克风录音启动失败");
+                        ClearCurrentAudioLogPath(audioLogPath);
                         return;
                     }
                 }
@@ -405,6 +408,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_writeTask.IsCompleted) 
                 {
                     DeleteAudioTempFile(StopAudioRecording());
+                    ClearCurrentAudioLogPath(audioLogPath);
                     Debug.WriteLine("[MainVM] 启动检测：_writeTask 已结束，FFmpeg 启动失败");
                     // 注意：此处不应手动 IsRecording = false，BackgroundFFmpegRecordingLoop 内部会处理 UI 状态重置。
                     return; 
@@ -1305,6 +1309,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
             }
             catch { }
+        }
+
+        private void ClearCurrentAudioLogPath(string? audioLogPath)
+        {
+            if (string.Equals(_currentAudioLogPath, audioLogPath, StringComparison.OrdinalIgnoreCase))
+                _currentAudioLogPath = null;
         }
 
         private static string FindFFmpeg()
