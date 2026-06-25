@@ -850,13 +850,43 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try
             {
-                if (File.Exists(audioFilePath) && new FileInfo(audioFilePath).Length > 44)
+                if (IsCompletedAudioFileUsable(audioFilePath))
                     return audioFilePath;
             }
             catch { }
 
             DeleteAudioTempFile(audioFilePath);
             return null;
+        }
+
+        private bool IsCompletedAudioFileUsable(string audioFilePath)
+        {
+            if (!File.Exists(audioFilePath) || new FileInfo(audioFilePath).Length <= 44)
+                return false;
+
+            try
+            {
+                using var reader = new WaveFileReader(audioFilePath);
+                long dataBytes = reader.Length;
+                long expectedBytes = _audioBytesWritten;
+                long toleranceBytes = Math.Max(reader.WaveFormat.AverageBytesPerSecond, expectedBytes / 100);
+                double durationSeconds = reader.TotalTime.TotalSeconds;
+                bool byteCountOk = expectedBytes <= 0 || Math.Abs(dataBytes - expectedBytes) <= toleranceBytes;
+                bool durationOk = durationSeconds > 0 && durationSeconds < TimeSpan.FromHours(12).TotalSeconds;
+
+                if (!byteCountOk || !durationOk)
+                {
+                    WriteAudioDiagnostic($"WAV 完整性校验失败: dataBytes={dataBytes}, expectedBytes={expectedBytes}, duration={durationSeconds:F1}s, tolerance={toleranceBytes}");
+                    return false;
+                }
+                WriteAudioDiagnostic($"WAV 完整性校验通过: dataBytes={dataBytes}, duration={durationSeconds:F1}s");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                WriteAudioDiagnostic($"WAV 完整性校验异常: {ex.Message}");
+                return false;
+            }
         }
 
         private WasapiCapture CreateWasapiCapture(MMDevice device)
