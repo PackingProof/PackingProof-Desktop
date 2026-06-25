@@ -757,6 +757,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioHasPreviousSourceSample = false;
                     _audioWriteFailed = false;
                     _audioWriteQueueFullLogged = false;
+                    _audioWriteQueueFullReported = false;
                     _audioMonitorCts = new CancellationTokenSource();
                 }
 
@@ -845,6 +846,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 writeFailed = true;
                 WriteAudioDiagnostic("WAV 写入超时，放弃本次音频");
+            }
+            if (_audioWriteQueueFullLogged && !_audioWriteQueueFullReported)
+            {
+                _audioWriteQueueFullReported = true;
+                WriteAudioDiagnostic("WAV 写入队列已满，放弃本次音频");
             }
             if (writeTask == null)
             {
@@ -1027,10 +1033,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void MarkAudioWriteQueueFull()
         {
             _audioWriteFailed = true;
-            if (_audioWriteQueueFullLogged) return;
-
             _audioWriteQueueFullLogged = true;
-            WriteAudioDiagnostic("WAV 写入队列已满，放弃本次音频");
         }
 
         private void AudioFileWriteLoop(WaveFileWriter writer, BlockingCollection<byte[]> queue)
@@ -1352,6 +1355,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     long bytes;
                     int silentCount;
                     bool shouldLogLevel;
+                    bool shouldReportQueueFull;
                     lock (_audioLock)
                     {
                         shouldMonitor = !_audioStopRequested && _audioWriter != null && _audioCapture != null;
@@ -1370,7 +1374,13 @@ namespace ExpressPackingMonitoring.ViewModels
                         silentCount = _silentAudioCheckCount;
                         _audioMonitorLogTick++;
                         shouldLogLevel = silentCount > 0 || _audioMonitorLogTick % 5 == 0;
+                        shouldReportQueueFull = _audioWriteQueueFullLogged && !_audioWriteQueueFullReported;
+                        if (shouldReportQueueFull)
+                            _audioWriteQueueFullReported = true;
                     }
+
+                    if (shouldReportQueueFull)
+                        WriteAudioDiagnostic("WAV 写入队列已满，放弃本次音频");
 
                     if (shouldMonitor && (DateTime.Now - lastDataAt).TotalSeconds > 5)
                     {
