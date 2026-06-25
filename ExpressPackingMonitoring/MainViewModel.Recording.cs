@@ -1293,11 +1293,60 @@ namespace ExpressPackingMonitoring.ViewModels
                 string summary = $"WAV 时长={reader.TotalTime.TotalSeconds:F1}s 大小={new FileInfo(audioPath).Length} bytes 写入字节={_audioBytesWritten}";
                 Debug.WriteLine($"[Audio] {summary}");
                 WriteAudioDiagnostic(summary, audioLogPath);
+                LogAudioPeakTimeline(reader, audioLogPath);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Audio] WAV 检查失败: {ex.Message}");
                 WriteAudioDiagnostic($"WAV 检查失败: {ex.Message}");
+            }
+        }
+
+        private void LogAudioPeakTimeline(WaveFileReader reader, string? audioLogPath)
+        {
+            try
+            {
+                reader.Position = 0;
+                int bytesPerSecond = Math.Max(1, reader.WaveFormat.AverageBytesPerSecond);
+                int blockAlign = Math.Max(1, reader.WaveFormat.BlockAlign);
+                int windowBytes = bytesPerSecond * 5;
+                windowBytes -= windowBytes % blockAlign;
+                if (windowBytes <= 0) windowBytes = bytesPerSecond;
+
+                byte[] buffer = new byte[windowBytes];
+                int windowIndex = 0;
+                double lastActiveSecond = -1;
+                var parts = new List<string>();
+
+                while (true)
+                {
+                    int totalRead = 0;
+                    while (totalRead < buffer.Length)
+                    {
+                        int read = reader.Read(buffer, totalRead, buffer.Length - totalRead);
+                        if (read <= 0) break;
+                        totalRead += read;
+                    }
+                    if (totalRead <= 0) break;
+
+                    short peak;
+                    bool known = TryGetAudioPeak(buffer, totalRead, reader.WaveFormat, out peak);
+                    double start = windowIndex * 5.0;
+                    double end = Math.Min(reader.TotalTime.TotalSeconds, start + (double)totalRead / bytesPerSecond);
+                    parts.Add(known ? $"{start:F0}-{end:F0}s={peak}" : $"{start:F0}-{end:F0}s=unknown");
+                    if (known && peak > 16)
+                        lastActiveSecond = end;
+                    windowIndex++;
+                }
+
+                string timeline = $"WAV 分段峰值: {string.Join("; ", parts)}; lastActive={lastActiveSecond:F1}s; activeThreshold=16";
+                Debug.WriteLine($"[Audio] {timeline}");
+                WriteAudioDiagnostic(timeline, audioLogPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Audio] WAV 分段峰值检查失败: {ex.Message}");
+                WriteAudioDiagnostic($"WAV 分段峰值检查失败: {ex.Message}", audioLogPath);
             }
         }
 
