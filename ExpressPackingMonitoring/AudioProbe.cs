@@ -49,8 +49,10 @@ namespace ExpressPackingMonitoring
             var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             using var device = ResolveAudioEndpoint(config, devices);
             string wavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.wav");
+            string mkvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.mkv");
             string mp4Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.mp4");
             try { if (File.Exists(wavPath)) File.Delete(wavPath); } catch { }
+            try { if (File.Exists(mkvPath)) File.Delete(mkvPath); } catch { }
             try { if (File.Exists(mp4Path)) File.Delete(mp4Path); } catch { }
 
             var log = new StringBuilder();
@@ -135,7 +137,7 @@ namespace ExpressPackingMonitoring
             writer.Dispose();
 
             var wavInfo = ReadWavInfo(wavPath);
-            var mp4Info = ProbeMp4Mux(wavPath, mp4Path, seconds);
+            var mp4Info = ProbeMp4Mux(wavPath, mp4Path, seconds, config.AudioSyncOffsetMs);
             bool ok = stoppedException == null
                 && packets > 0
                 && bytes > 0
@@ -154,6 +156,7 @@ namespace ExpressPackingMonitoring
             log.AppendLine($"WavBytes={wavInfo.FileBytes}");
             log.AppendLine($"WavDurationSeconds={wavInfo.DurationSeconds:F2}");
             log.AppendLine($"WavError={wavInfo.Error ?? "(none)"}");
+            log.AppendLine($"MkvPath={mkvPath}");
             log.AppendLine($"Mp4Path={mp4Path}");
             log.AppendLine($"Mp4Valid={mp4Info.Valid}");
             log.AppendLine($"Mp4Bytes={mp4Info.FileBytes}");
@@ -165,13 +168,19 @@ namespace ExpressPackingMonitoring
             return ok;
         }
 
-        private static (bool Valid, long FileBytes, bool AudioDecodeOk, string? Error) ProbeMp4Mux(string wavPath, string mp4Path, int seconds)
+        private static (bool Valid, long FileBytes, bool AudioDecodeOk, string? Error) ProbeMp4Mux(string wavPath, string mp4Path, int seconds, int audioSyncOffsetMs)
         {
             string? ffmpegPath = FindFFmpeg();
             if (string.IsNullOrEmpty(ffmpegPath))
                 return (false, 0, false, "ffmpeg.exe not found.");
 
-            string muxArgs = $"-y -f lavfi -i \"testsrc2=size=320x180:rate=10:duration={seconds}\" -i \"{wavPath}\" -map 0:v:0 -map 1:a:0 -c:v libx264 -preset ultrafast -crf 35 -c:a aac -b:a 128k -shortest \"{mp4Path}\"";
+            string mkvPath = Path.ChangeExtension(mp4Path, ".mkv");
+            string videoArgs = $"-y -f lavfi -i \"testsrc2=size=320x180:rate=10:duration={seconds}\" -an -c:v libx264 -preset ultrafast -crf 35 \"{mkvPath}\"";
+            var video = RunProcess(ffmpegPath, videoArgs, Math.Max(15000, seconds * 3000));
+            if (!video.Exited || video.ExitCode != 0 || !File.Exists(mkvPath) || new FileInfo(mkvPath).Length <= 0)
+                return (false, 0, false, $"Video MKV failed: exited={video.Exited}, exitCode={video.ExitCode}, stderr={TrimForLog(video.Stderr)}");
+
+            string muxArgs = MainViewModel.BuildMkvToMp4Args(mkvPath, wavPath, mp4Path, audioSyncOffsetMs);
             var mux = RunProcess(ffmpegPath, muxArgs, Math.Max(15000, seconds * 3000));
             if (!mux.Exited || mux.ExitCode != 0 || !File.Exists(mp4Path) || new FileInfo(mp4Path).Length <= 0)
                 return (false, File.Exists(mp4Path) ? new FileInfo(mp4Path).Length : 0, false, $"Mux failed: exited={mux.Exited}, exitCode={mux.ExitCode}, stderr={TrimForLog(mux.Stderr)}");

@@ -1649,7 +1649,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
-                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path),
+                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -1703,12 +1703,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private string BuildMkvToMp4Args(string mkvPath, string? audioPath, string mp4Path)
+        internal static string BuildMkvToMp4Args(string mkvPath, string? audioPath, string mp4Path, int audioSyncOffsetMs)
         {
             if (string.IsNullOrEmpty(audioPath) || !File.Exists(audioPath))
                 return $"-y -i \"{mkvPath}\" -vcodec copy -acodec copy \"{mp4Path}\"";
 
-            int offsetMs = Math.Clamp(Config.AudioSyncOffsetMs, -5000, 5000);
+            int offsetMs = Math.Clamp(audioSyncOffsetMs, -5000, 5000);
             string audioMap = "[a]";
             string filter;
 
