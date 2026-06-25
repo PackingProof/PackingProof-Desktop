@@ -1224,7 +1224,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
-                    Arguments = $"-v error -i \"{mp4Path}\" -map 0:a:0 -t 1 -f null NUL",
+                    Arguments = $"-v error -i \"{mp4Path}\" -map 0:a:0 -f null NUL",
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -1239,7 +1239,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 string stderr = process.StandardError.ReadToEnd();
-                bool exited = process.WaitForExit(10000);
+                bool exited = process.WaitForExit(60000);
 
                 if (!exited)
                 {
@@ -1254,6 +1254,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     Debug.WriteLine($"[MkvToMp4] 音轨校验失败: {stderr}");
                     WriteAudioDiagnostic($"MP4 音轨校验失败: {stderr}");
                 }
+                if (ok)
+                    WriteAudioDiagnostic("MP4 音轨完整解码校验通过");
                 return ok;
             }
             catch (Exception ex)
