@@ -157,6 +157,7 @@ namespace ExpressPackingMonitoring
             log.AppendLine($"WavDurationSeconds={wavInfo.DurationSeconds:F2}");
             log.AppendLine($"WavError={wavInfo.Error ?? "(none)"}");
             log.AppendLine($"MkvPath={mkvPath}");
+            log.AppendLine($"MkvBytes={(File.Exists(mkvPath) ? new FileInfo(mkvPath).Length : 0)}");
             log.AppendLine($"Mp4Path={mp4Path}");
             log.AppendLine($"Mp4Valid={mp4Info.Valid}");
             log.AppendLine($"Mp4Bytes={mp4Info.FileBytes}");
@@ -175,8 +176,7 @@ namespace ExpressPackingMonitoring
                 return (false, 0, false, "ffmpeg.exe not found.");
 
             string mkvPath = Path.ChangeExtension(mp4Path, ".mkv");
-            string videoArgs = $"-y -f lavfi -i \"testsrc2=size=320x180:rate=10:duration={seconds}\" -an -c:v libx264 -preset ultrafast -crf 35 \"{mkvPath}\"";
-            var video = RunProcess(ffmpegPath, videoArgs, Math.Max(15000, seconds * 3000));
+            var video = WriteSyntheticMkv(ffmpegPath, mkvPath, seconds);
             if (!video.Exited || video.ExitCode != 0 || !File.Exists(mkvPath) || new FileInfo(mkvPath).Length <= 0)
                 return (false, 0, false, $"Video MKV failed: exited={video.Exited}, exitCode={video.ExitCode}, stderr={TrimForLog(video.Stderr)}");
 
@@ -190,6 +190,78 @@ namespace ExpressPackingMonitoring
             bool decodeOk = decode.Exited && decode.ExitCode == 0;
             string? error = decodeOk ? null : $"Audio decode failed: exited={decode.Exited}, exitCode={decode.ExitCode}, stderr={TrimForLog(decode.Stderr)}";
             return (decodeOk, new FileInfo(mp4Path).Length, decodeOk, error);
+        }
+
+        private static (bool Exited, int ExitCode, string Stderr) WriteSyntheticMkv(string ffmpegPath, string mkvPath, int seconds)
+        {
+            const int width = 320;
+            const int height = 180;
+            const int fps = 10;
+            string args = MainViewModel.BuildFFmpegArgs(width, height, fps, mkvPath, "libx264", false, 35);
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = args,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardInput = true,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+                return (false, -1, "Process failed to start.");
+
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            byte[] frame = new byte[width * height * 3];
+            int totalFrames = seconds * fps;
+            try
+            {
+                var stopwatch = Stopwatch.StartNew();
+                for (int i = 0; i < totalFrames; i++)
+                {
+                    FillBgrFrame(frame, width, height, i);
+                    process.StandardInput.BaseStream.Write(frame, 0, frame.Length);
+                    double targetMs = (i + 1) * 1000.0 / fps;
+                    int sleepMs = (int)(targetMs - stopwatch.Elapsed.TotalMilliseconds);
+                    if (sleepMs > 0)
+                        Thread.Sleep(sleepMs);
+                }
+                process.StandardInput.Close();
+            }
+            catch (Exception ex)
+            {
+                try { process.Kill(); } catch { }
+                return (false, -1, $"Pipe write failed: {ex.Message}");
+            }
+
+            bool exited = process.WaitForExit(Math.Max(15000, seconds * 3000));
+            if (!exited)
+            {
+                try { process.Kill(); } catch { }
+                try { process.WaitForExit(3000); } catch { }
+            }
+
+            string stderr = string.Empty;
+            try { stderr = stderrTask.GetAwaiter().GetResult(); } catch { }
+            try { _ = stdoutTask.GetAwaiter().GetResult(); } catch { }
+            return (exited, exited ? process.ExitCode : -1, stderr);
+        }
+
+        private static void FillBgrFrame(byte[] frame, int width, int height, int frameIndex)
+        {
+            int offset = 0;
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    frame[offset++] = (byte)((x + frameIndex * 3) % 256);
+                    frame[offset++] = (byte)((y + frameIndex * 5) % 256);
+                    frame[offset++] = (byte)((x + y + frameIndex * 7) % 256);
+                }
+            }
         }
 
         private static string? FindFFmpeg()

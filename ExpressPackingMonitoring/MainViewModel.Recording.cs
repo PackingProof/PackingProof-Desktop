@@ -511,7 +511,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try
             {
-                string args = BuildFFmpegArgs(w, h, fps, filePath, encoder, withAudio);
+                string args = BuildFFmpegArgs(w, h, fps, filePath, encoder, withAudio, GetVideoCqp());
                 Debug.WriteLine($"[FFmpeg] encoder={encoder} audio={withAudio} args={args}");
 
                 var psi = new ProcessStartInfo
@@ -676,10 +676,10 @@ namespace ExpressPackingMonitoring.ViewModels
             return "";
         }
 
-        private string BuildFFmpegArgs(int w, int h, int fps, string filePath, string encoder, bool withAudio)
+        internal static string BuildFFmpegArgs(int w, int h, int fps, string filePath, string encoder, bool withAudio, int videoCqp)
         {
             string args = $"-y -fflags +genpts -use_wallclock_as_timestamps 1 -f rawvideo -video_size {w}x{h} -pixel_format bgr24 -framerate {fps} -i pipe:0";
-            int cqp = GetVideoCqp();
+            int cqp = videoCqp > 0 ? videoCqp : 25;
             int gop = Math.Max(1, fps * 2);
 
             if (encoder == "h264_nvenc") args += $" -c:v h264_nvenc -pix_fmt yuv420p -preset p4 -rc vbr -cq {cqp} -b:v 0 -g {gop} -max_muxing_queue_size 1024";
