@@ -788,7 +788,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private WasapiCapture CreateWasapiCapture(MMDevice device)
         {
-            var capture = new WasapiCapture(device)
+            var capture = new WasapiCapture(device, false, 200)
             {
                 ShareMode = AudioClientShareMode.Shared
             };
@@ -1023,6 +1023,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
+                LogAudioCaptureSummary(audioPath);
 
                 var psi = new ProcessStartInfo
                 {
@@ -1090,6 +1091,21 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             return $"-y -i \"{mkvPath}\" -i \"{audioPath}\"{filter} -map 0:v:0 -map \"{audioMap}\" -c:v copy -c:a aac -b:a 128k -shortest \"{mp4Path}\"";
+        }
+
+        private void LogAudioCaptureSummary(string? audioPath)
+        {
+            if (string.IsNullOrEmpty(audioPath) || !File.Exists(audioPath)) return;
+
+            try
+            {
+                using var reader = new WaveFileReader(audioPath);
+                Debug.WriteLine($"[Audio] WAV 时长={reader.TotalTime.TotalSeconds:F1}s 大小={new FileInfo(audioPath).Length} bytes 写入字节={_audioBytesWritten}");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Audio] WAV 检查失败: {ex.Message}");
+            }
         }
 
         private static string FindFFmpeg()
