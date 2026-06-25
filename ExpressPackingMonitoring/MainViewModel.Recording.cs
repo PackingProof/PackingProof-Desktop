@@ -1777,7 +1777,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (lastActiveSecond < 0)
             {
                 reason = $"duration={durationSeconds:F1}s, lastActive=none";
-                return false;
+                return true;
             }
 
             double trailingSilentSeconds = durationSeconds - lastActiveSecond;
