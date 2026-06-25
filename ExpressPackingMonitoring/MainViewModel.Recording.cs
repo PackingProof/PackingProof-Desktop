@@ -923,17 +923,9 @@ namespace ExpressPackingMonitoring.ViewModels
             bool isPcm = IsPcmWaveFormat(sourceFormat);
             if (!isFloat && !isPcm) return null;
 
-            int selectedChannel;
-            if (selectedSourceChannel >= 0 && selectedSourceChannel < sourceChannels)
-            {
-                selectedChannel = selectedSourceChannel;
-            }
-            else
-            {
-                selectedChannel = SelectStrongestAudioChannel(buffer, frames, sourceChannels, blockAlign, bytesPerSample, isFloat, out bool shouldLockChannel);
-                if (shouldLockChannel)
-                    selectedSourceChannel = selectedChannel;
-            }
+            int selectedChannel = SelectAudioSourceChannel(buffer, frames, sourceChannels, blockAlign, bytesPerSample, isFloat, selectedSourceChannel);
+            if (selectedChannel != selectedSourceChannel)
+                selectedSourceChannel = selectedChannel;
 
             byte[] output = new byte[frames * targetChannels * 2];
             int outOffset = 0;
@@ -950,14 +942,10 @@ namespace ExpressPackingMonitoring.ViewModels
             return output;
         }
 
-        private static int SelectStrongestAudioChannel(byte[] buffer, int frames, int channels, int blockAlign, int bytesPerSample, bool isFloat, out bool shouldLockChannel)
+        private static int SelectAudioSourceChannel(byte[] buffer, int frames, int channels, int blockAlign, int bytesPerSample, bool isFloat, int currentChannel)
         {
-            shouldLockChannel = false;
             if (channels <= 1)
-            {
-                shouldLockChannel = true;
                 return 0;
-            }
 
             long[] energy = new long[channels];
             for (int frame = 0; frame < frames; frame++)
@@ -984,7 +972,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             }
 
-            shouldLockChannel = strongest > (long)frames * 16;
+            long activeThreshold = (long)frames * 16;
+            if (currentChannel < 0 || currentChannel >= channels)
+                return strongest > activeThreshold ? selected : 0;
+
+            long currentEnergy = energy[currentChannel];
+            bool candidateIsActive = strongest > activeThreshold;
+            bool candidateClearlyStronger = strongest > Math.Max(currentEnergy * 4, currentEnergy + activeThreshold);
+            if (selected != currentChannel && candidateIsActive && candidateClearlyStronger)
+                return selected;
+
+            selected = currentChannel;
             return selected;
         }
 
