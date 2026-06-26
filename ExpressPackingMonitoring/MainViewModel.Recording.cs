@@ -379,19 +379,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (Config.EnableAudioRecording && HasConfiguredAudioDevice())
-                {
-                    WriteAudioDiagnostic($"准备启动麦克风录制: name={Config.AudioDeviceName}, moniker={(string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker) ? "(empty)" : Config.AudioDeviceMoniker)}");
-                    if (!StartAudioRecording(audioFilePath))
-                    {
-                        WriteAudioDiagnostic("麦克风录音启动失败");
-                        ShowToast("⚠ 麦克风录音启动失败");
-                        SpeakWarning("麦克风录音启动失败");
-                        ClearCurrentAudioLogPath(audioLogPath);
-                        return;
-                    }
-                }
-
                 // 3. 开启新的生产者-消费者通道
                 lock (_videoLock)
                 {
@@ -414,8 +401,33 @@ namespace ExpressPackingMonitoring.ViewModels
                     return; 
                 }
 
+                if (Config.EnableAudioRecording && HasConfiguredAudioDevice())
+                {
+                    WriteAudioDiagnostic($"准备启动麦克风录制: name={Config.AudioDeviceName}, moniker={(string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker) ? "(empty)" : Config.AudioDeviceMoniker)}");
+                    if (!StartAudioRecording(audioFilePath))
+                    {
+                        WriteAudioDiagnostic("麦克风录音启动失败");
+                        ShowToast("音频录制启动失败");
+                        SpeakWarning("音频录制启动失败");
+                        try
+                        {
+                            lock (_videoLock)
+                            {
+                                _videoWriteQueue?.CompleteAdding();
+                                _writeCts?.Cancel();
+                            }
+                            await Task.WhenAny(_writeTask, Task.Delay(3000));
+                        }
+                        catch { }
+                        try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+                        ClearCurrentAudioLogPath(audioLogPath);
+                        return;
+                    }
+                }
+
                 IsRecording = true;
                 _recordStartTime = DateTime.Now;
+                EnqueueLatestFrameForRecording();
                 _lastMotionTime = DateTime.Now;
                 _autoStopWarned = false;
                 _maxDurationWarned = false;
@@ -514,6 +526,27 @@ namespace ExpressPackingMonitoring.ViewModels
                 "av1" => "libsvtav1",
                 _ => "libx264"
             };
+        }
+
+        private void EnqueueLatestFrameForRecording()
+        {
+            try
+            {
+                BlockingCollection<Mat>? queue = _videoWriteQueue;
+                if (queue == null || queue.IsAddingCompleted) return;
+
+                Mat? frame = null;
+                lock (_frameLock)
+                {
+                    if (_latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty())
+                        frame = _latestFrame.Clone();
+                }
+
+                if (frame == null) return;
+                if (!queue.TryAdd(frame, 5))
+                    frame.Dispose();
+            }
+            catch { }
         }
 
         private (bool ok, string error) RunFFmpegPipeline(string filePath, string ffmpegPath, CancellationToken token,
@@ -765,7 +798,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioRestarting = false;
                     _lastAudioDataAt = DateTime.Now;
                     _lastAudioPacketAt = DateTime.Now;
-                    _audioSuppressUntil = DateTime.Now.AddMilliseconds(500);
+                    _audioSuppressUntil = DateTime.MinValue;
                     _audioBytesWritten = 0;
                     _audioPeakSinceLastCheck = 0;
                     _audioBytesSinceLastCheck = 0;
@@ -791,7 +824,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _audioMonitorTask = Task.Run(() => AudioCaptureMonitorLoop(_audioMonitorCts.Token));
                 Debug.WriteLine($"[Audio] 开始录音: {device.FriendlyName}");
                 WriteAudioDiagnostic($"开始录音: device={device.FriendlyName}, sourceFormat={capture.WaveFormat}, wavFormat={writerFormat}");
-                WriteAudioDiagnostic("WASAPI 采集模式: eventSync=true, bufferMs=100");
+                WriteAudioDiagnostic("WASAPI 采集模式: eventSync=true, bufferMs=20");
                 return true;
             }
             catch (Exception ex)
@@ -956,7 +989,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private WasapiCapture CreateWasapiCapture(MMDevice device)
         {
-            var capture = new WasapiCapture(device, true, 100)
+            var capture = new WasapiCapture(device, true, 20)
             {
                 ShareMode = AudioClientShareMode.Shared
             };

@@ -512,7 +512,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="音频同步偏移 / ms" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="默认 -1000。负数表示让音频提前，正数表示让音频延后；0 表示不额外偏移。"
+                                            <TextBlock Text="默认 0。负数表示让音频提前，正数表示让音频延后；通常无需额外偏移。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <xctk:IntegerUpDown Grid.Column="1"

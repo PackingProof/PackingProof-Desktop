@@ -210,7 +210,7 @@ namespace ExpressPackingMonitoring
             bool writeCompleted = false;
             string? writeError = null;
             DateTime lastPacketAt = DateTime.MinValue;
-            using var capture = new WasapiCapture(device, true, 100)
+            using var capture = new WasapiCapture(device, true, 20)
             {
                 ShareMode = AudioClientShareMode.Shared
             };
@@ -239,7 +239,7 @@ namespace ExpressPackingMonitoring
             log.AppendLine($"SourceFormat={capture.WaveFormat}");
             log.AppendLine($"WavFormat={writerFormat}");
             log.AppendLine("WasapiEventSync=true");
-            log.AppendLine("BufferMs=100");
+            log.AppendLine("BufferMs=20");
             log.AppendLine($"WavPath={wavPath}");
 
             capture.DataAvailable += (_, e) =>

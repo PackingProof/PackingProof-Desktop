@@ -662,6 +662,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (Config.VideoCqp <= 0)
                 Config.VideoCqp = 25;
+            if (Config.AudioSyncOffsetMs == 400)
+                Config.AudioSyncOffsetMs = 0;
             Config.AudioSyncOffsetMs = Math.Clamp(Config.AudioSyncOffsetMs, -5000, 5000);
             if (string.IsNullOrWhiteSpace(Config.AiTtsEngine))
                 Config.AiTtsEngine = "Edge";
