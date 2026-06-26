@@ -185,6 +185,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _isZoomingActive;
         public bool IsZoomingActive { get => _isZoomingActive; private set => SetProperty(ref _isZoomingActive, value); }
 
+        private volatile bool _suppressVideoPreviewUpdates;
+        public bool SuppressVideoPreviewUpdates { get => _suppressVideoPreviewUpdates; set => _suppressVideoPreviewUpdates = value; }
         public BitmapSource VideoFrame { get => _videoFrame; set => SetProperty(ref _videoFrame, value); }
         public string CurrentMode { get => _currentMode; set { if (SetProperty(ref _currentMode, value)) ScheduleRefreshBarcodes(); } }
         public string CurrentOrderId { get => _currentOrderId; set => SetProperty(ref _currentOrderId, value); }
@@ -1448,12 +1450,15 @@ namespace ExpressPackingMonitoring.ViewModels
                             catch { }
                         }
 
-                        var bitmap = processedFrame.ToWriteableBitmap();
-                        bitmap.Freeze();
-                        _ = Application.Current.Dispatcher.BeginInvoke(new Action(() => { 
-                            if (_isDisposed) return;
-                            VideoFrame = bitmap; 
-                        }));
+                        if (!SuppressVideoPreviewUpdates)
+                        {
+                            var bitmap = processedFrame.ToWriteableBitmap();
+                            bitmap.Freeze();
+                            _ = Application.Current.Dispatcher.BeginInvoke(new Action(() => {
+                                if (_isDisposed || SuppressVideoPreviewUpdates) return;
+                                VideoFrame = bitmap;
+                            }), System.Windows.Threading.DispatcherPriority.Render);
+                        }
                         if (frameTickCounter % 30 == 0) PerformMotionDetection(currentFrame);
 
                         bool handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);

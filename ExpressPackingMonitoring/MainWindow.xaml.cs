@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.ViewModels;
@@ -17,6 +18,8 @@ namespace ExpressPackingMonitoring
         private DispatcherTimer _capsCheckTimer;
         private bool _capsLockStateBeforeFocus;
         private bool _capsLockOverridden;
+        private const int WM_ENTERSIZEMOVE = 0x0231;
+        private const int WM_EXITSIZEMOVE = 0x0232;
 
         private bool IsCapsLockOn() => (GetKeyState(VK_CAPITAL) & 1) != 0;
 
@@ -77,7 +80,7 @@ namespace ExpressPackingMonitoring
                     vm.PropertyChanged += (sender, args) =>
                     {
                         if (args.PropertyName == nameof(MainViewModel.LastZoomRect) ||
-                            args.PropertyName == nameof(MainViewModel.VideoFrame))
+                            args.PropertyName == nameof(MainViewModel.CameraFrameSize))
                         {
                             Dispatcher.BeginInvoke(new Action(() => UpdateZoomBorder(vm.LastZoomRect)));
                         }
@@ -101,6 +104,29 @@ namespace ExpressPackingMonitoring
                     this.Title = "打包监控";
                 }
             };
+            SourceInitialized += (_, __) =>
+            {
+                if (PresentationSource.FromVisual(this) is HwndSource source)
+                    source.AddHook(WndProc);
+            };
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                if (msg == WM_ENTERSIZEMOVE)
+                {
+                    vm.SuppressVideoPreviewUpdates = true;
+                }
+                else if (msg == WM_EXITSIZEMOVE)
+                {
+                    vm.SuppressVideoPreviewUpdates = false;
+                    UpdateZoomBorder(vm.LastZoomRect);
+                }
+            }
+
+            return IntPtr.Zero;
         }
 
         private void UpdateZoomBorder(Rect zoomRect)
