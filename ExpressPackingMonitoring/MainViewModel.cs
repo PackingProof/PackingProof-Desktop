@@ -91,6 +91,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly Mat _motionDiff = new Mat();
         private readonly Mat _motionThreshold = new Mat();
         private BitmapSource _videoFrame;
+        private static readonly TimeSpan PreviewFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 12.0);
+        private DateTime _lastPreviewFrameAt = DateTime.MinValue;
+        private int _previewUpdatePending;
         private CancellationTokenSource _cts;
 
         // 摄像头空闲休眠
@@ -1450,15 +1453,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             catch { }
                         }
 
-                        if (!SuppressVideoPreviewUpdates)
-                        {
-                            var bitmap = processedFrame.ToWriteableBitmap();
-                            bitmap.Freeze();
-                            _ = Application.Current.Dispatcher.BeginInvoke(new Action(() => {
-                                if (_isDisposed || SuppressVideoPreviewUpdates) return;
-                                VideoFrame = bitmap;
-                            }), System.Windows.Threading.DispatcherPriority.Render);
-                        }
+                        PublishPreviewFrameIfDue(processedFrame);
                         if (frameTickCounter % 30 == 0) PerformMotionDetection(currentFrame);
 
                         bool handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
@@ -1610,6 +1605,49 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             t = Math.Max(0, Math.Min(1, t));
             return t * t * (3 - 2 * t);
+        }
+
+        private void PublishPreviewFrameIfDue(Mat frame)
+        {
+            if (SuppressVideoPreviewUpdates || _isDisposed) return;
+
+            DateTime now = DateTime.UtcNow;
+            if (now - _lastPreviewFrameAt < PreviewFrameInterval) return;
+
+            if (Interlocked.CompareExchange(ref _previewUpdatePending, 1, 0) != 0) return;
+            _lastPreviewFrameAt = now;
+
+            try
+            {
+                var bitmap = frame.ToWriteableBitmap();
+                bitmap.Freeze();
+
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    Interlocked.Exchange(ref _previewUpdatePending, 0);
+                    return;
+                }
+
+                _ = dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        if (!_isDisposed && !SuppressVideoPreviewUpdates)
+                        {
+                            VideoFrame = bitmap;
+                        }
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref _previewUpdatePending, 0);
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+            catch
+            {
+                Interlocked.Exchange(ref _previewUpdatePending, 0);
+            }
         }
 
         private void PerformMotionDetection(Mat currentFrame)
