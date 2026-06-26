@@ -18,6 +18,7 @@ namespace ExpressPackingMonitoring
         private DispatcherTimer _capsCheckTimer;
         private bool _capsLockStateBeforeFocus;
         private bool _capsLockOverridden;
+        private DateTime _lastMouseActivityNotifyAt = DateTime.MinValue;
         private const int WM_ENTERSIZEMOVE = 0x0231;
         private const int WM_EXITSIZEMOVE = 0x0232;
 
@@ -71,7 +72,13 @@ namespace ExpressPackingMonitoring
                 RestoreCapsLockState();
             };
             // 全局鼠标/键盘活跃检测，用于摄像头空闲休眠唤醒
-            PreviewMouseMove += (s, e) => (DataContext as MainViewModel)?.NotifyUserActivity();
+            PreviewMouseMove += (s, e) =>
+            {
+                var now = DateTime.UtcNow;
+                if (now - _lastMouseActivityNotifyAt < TimeSpan.FromSeconds(1)) return;
+                _lastMouseActivityNotifyAt = now;
+                (DataContext as MainViewModel)?.NotifyUserActivity();
+            };
             PreviewKeyDown += (s, e) => (DataContext as MainViewModel)?.NotifyUserActivity();
             Loaded += (s, e) => {
                 ScanInputTextBox.Focus();

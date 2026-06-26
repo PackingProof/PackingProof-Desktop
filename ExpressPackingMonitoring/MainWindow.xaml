@@ -96,9 +96,6 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.04"/>
-                    </Border.Effect>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -198,9 +195,6 @@
                 </Border>
 
                 <Border Grid.Row="1" Background="{DynamicResource VideoPlaceholder}" CornerRadius="10" ClipToBounds="True">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.04"/>
-                    </Border.Effect>
                     <Grid>
                         <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
                         <Rectangle x:Name="ZoomPreviewBorder"
@@ -237,7 +231,6 @@
                 </Border>
 
                 <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,12" Margin="0,20,0,0">
-                    <Border.Effect><DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.04"/></Border.Effect>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -263,9 +256,6 @@
             </Grid>
 
             <Border Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="16,12">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="15" ShadowDepth="2" Opacity="0.04"/>
-                </Border.Effect>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -306,9 +296,6 @@
                             <DataTemplate>
                                 <!-- 容器 Border -->
                                 <Border x:Name="ItemBorder" Background="{DynamicResource ControlBackground}" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.04" Color="{DynamicResource ShadowColor}"/>
-                                    </Border.Effect>
                                     
                                     <Grid>
                                         <!-- 1. 优化后的流光背景层：增加对比度，使用平移变换 -->
