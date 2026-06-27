@@ -157,7 +157,7 @@
                             VerticalAlignment="Top"
                             Click="SwitchWorkstation_Click">
                         <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource FluentArrowSyncIcon}"
+                            <Path Data="{StaticResource FluentArrowSwapIcon}"
                                   Width="15"
                                   Height="15"
                                   Stretch="Uniform"
