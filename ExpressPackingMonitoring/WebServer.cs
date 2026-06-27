@@ -720,9 +720,10 @@ namespace ExpressPackingMonitoring
             bool allowTranscodeWhileRecording = ctx.Request.QueryString["allowTranscodeWhileRecording"] == "1";
             bool shouldTranscode = compatMode && codec != "" && codec != "h264";
             bool recording = _isRecordingProvider();
+            bool hasTranscodeCache = shouldTranscode && HasTranscodeCache(filePath);
             Log($"HandlePlay: codec='{codec}', compat={(compatMode ? "1" : "0")}, 判定={(shouldTranscode ? "转码" : "直传")}");
 
-            if (shouldTranscode && recording && !allowTranscodeWhileRecording)
+            if (shouldTranscode && recording && !allowTranscodeWhileRecording && !hasTranscodeCache)
             {
                 SendJson(ctx, 409, new
                 {
@@ -792,6 +793,19 @@ namespace ExpressPackingMonitoring
             return url;
         }
 
+        private bool HasTranscodeCache(string filePath)
+        {
+            string cachePath = GetTranscodeCachePath(filePath);
+            return File.Exists(cachePath) && new FileInfo(cachePath).Length > 0;
+        }
+
+        private string GetTranscodeCachePath(string filePath)
+        {
+            string cacheKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(filePath))).Substring(0, 16);
+            return Path.Combine(_transCacheDir, $"{cacheKey}.mp4");
+        }
+
         // ───── FFmpeg 转码：命中缓存直接 Range 传输，否则边转码边推流 + 同时写缓存 ─────
         private void ServeTranscodedStream(HttpListenerContext ctx, string filePath)
         {
@@ -802,12 +816,9 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
-            // 用源文件路径的哈希作为缓存键
-            string cacheKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                Encoding.UTF8.GetBytes(filePath))).Substring(0, 16);
-            string cachePath = Path.Combine(_transCacheDir, $"{cacheKey}.mp4");
+            string cachePath = GetTranscodeCachePath(filePath);
 
-            if (File.Exists(cachePath))
+            if (File.Exists(cachePath) && new FileInfo(cachePath).Length > 0)
             {
                 // 命中缓存 → 标准 Range 传输（支持进度条拖拽、总时长正确）
                 Log($"ServeTranscodedStream: 命中缓存 {cachePath}");
