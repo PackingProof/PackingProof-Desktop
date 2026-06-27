@@ -1101,7 +1101,7 @@ namespace ExpressPackingMonitoring.ViewModels
             WorkstationStatusToolTip = $"在快递单打印工位输入 {MonitorAccessAddress}，或直接用浏览器访问 http://{MonitorAccessAddress}";
         }
 
-        private void CopyMonitorAddress()
+        public void CopyMonitorAddress()
         {
             if (string.IsNullOrWhiteSpace(MonitorAccessAddress))
             {
@@ -1115,7 +1115,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 try
                 {
-                    Clipboard.SetText(url);
+                    Clipboard.SetDataObject(url, true);
                     copied = true;
                 }
                 catch
@@ -1124,11 +1124,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             }
 
-            WorkstationNetwork.OpenUrl(url);
-            ShowToast(copied ? "已复制并打开监控网页" : "已打开监控网页，复制失败请重试");
+            bool opened = WorkstationNetwork.TryOpenUrl(url, out string openError);
+            if (copied && opened)
+                ShowToast("已复制并打开监控网页");
+            else if (copied)
+                ShowToast($"已复制地址，打开网页失败: {openError}");
+            else if (opened)
+                ShowToast("已打开监控网页，复制失败请重试");
+            else
+                ShowToast($"复制和打开都失败: {openError}");
         }
 
-        private void SwitchWorkstation()
+        public void SwitchWorkstation()
         {
             var selector = new WorkstationSelectionWindow { Owner = Application.Current?.MainWindow };
             if (selector.ShowDialog() == true && !string.IsNullOrWhiteSpace(selector.SelectedRole))

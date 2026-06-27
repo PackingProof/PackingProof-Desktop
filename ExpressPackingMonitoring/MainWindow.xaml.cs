@@ -165,6 +165,18 @@ namespace ExpressPackingMonitoring
         {
             if (DataContext is MainViewModel viewModel) viewModel.OpenSettings();
         }
+
+        private void BtnCopyMonitorAddress_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel) viewModel.CopyMonitorAddress();
+            e.Handled = true;
+        }
+
+        private void BtnSwitchWorkstation_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel) viewModel.SwitchWorkstation();
+            e.Handled = true;
+        }
 private void ScanInputTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
