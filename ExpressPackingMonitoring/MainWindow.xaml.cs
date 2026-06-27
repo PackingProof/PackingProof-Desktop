@@ -47,6 +47,10 @@ namespace ExpressPackingMonitoring
         public MainWindow()
         {
             InitializeComponent();
+            BtnCopyMonitorAddress.Click += BtnCopyMonitorAddress_Click;
+            BtnCopyMonitorAddress.PreviewMouseLeftButtonUp += BtnCopyMonitorAddress_PreviewMouseLeftButtonUp;
+            BtnSwitchWorkstation.Click += BtnSwitchWorkstation_Click;
+            BtnSwitchWorkstation.PreviewMouseLeftButtonUp += BtnSwitchWorkstation_PreviewMouseLeftButtonUp;
             _capsCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _capsCheckTimer.Tick += (s, e) =>
             {
@@ -168,16 +172,39 @@ namespace ExpressPackingMonitoring
 
         private void BtnCopyMonitorAddress_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is MainViewModel viewModel) viewModel.CopyMonitorAddress();
+            ExecuteCopyMonitorAddress();
             e.Handled = true;
         }
 
         private void BtnSwitchWorkstation_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is MainViewModel viewModel) viewModel.SwitchWorkstation();
+            ExecuteSwitchWorkstation();
             e.Handled = true;
         }
-private void ScanInputTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+
+        private void BtnCopyMonitorAddress_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            ExecuteCopyMonitorAddress();
+            e.Handled = true;
+        }
+
+        private void BtnSwitchWorkstation_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            ExecuteSwitchWorkstation();
+            e.Handled = true;
+        }
+
+        private void ExecuteCopyMonitorAddress()
+        {
+            if (DataContext is MainViewModel viewModel) viewModel.CopyMonitorAddress();
+        }
+
+        private void ExecuteSwitchWorkstation()
+        {
+            if (DataContext is MainViewModel viewModel) viewModel.SwitchWorkstation();
+        }
+
+        private void ScanInputTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
