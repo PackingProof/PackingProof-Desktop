@@ -95,11 +95,14 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan PreviewFreezeWarnThreshold = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan PreviewFreezeRestartThreshold = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan PreviewFreezeRestartCooldown = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan ResourceHealthLogInterval = TimeSpan.FromMinutes(5);
         private DateTime _lastPreviewFrameAt = DateTime.MinValue;
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
         private DateTime _lastPreviewFreezeLogAt = DateTime.MinValue;
         private DateTime _lastPreviewWatchdogRestartAt = DateTime.MinValue;
         private DateTime _lastRecordingQueueWarnAt = DateTime.MinValue;
+        private DateTime _lastResourceHealthLogAt = DateTime.MinValue;
+        private DateTime _lastPreviewConvertErrorLogAt = DateTime.MinValue;
         private int _previewUpdatePending;
         private CancellationTokenSource _cts;
 
@@ -1557,6 +1560,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
 
                         CheckPreviewWatchdog();
+                        LogResourceHealthIfDue("video-loop");
                     }
                     else
                     {
@@ -1713,6 +1717,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     _lastPreviewFreezeLogAt = now;
                     RuntimeLog.Warn("Preview", $"No new camera frame for {sinceLastFrame.TotalSeconds:F1}s, preview age={sinceLastPreview.TotalSeconds:F1}s, recording={IsRecording}");
+                    LogResourceHealthIfDue("preview-no-frame", force: true);
                 }
                 return;
             }
@@ -1727,6 +1732,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _lastPreviewFreezeLogAt = now;
                 RuntimeLog.Warn("Preview", $"Preview stale for {sinceLastPreview.TotalSeconds:F1}s while frames are fresh ({sinceLastFrame.TotalSeconds:F1}s), pending={_previewUpdatePending}, recording={IsRecording}, queue={queueCount}, writeTask={writeTaskStatus}");
+                LogResourceHealthIfDue("preview-stale", force: true);
             }
 
             if (sinceLastPreview < PreviewFreezeRestartThreshold) return;
@@ -1735,6 +1741,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             _lastPreviewWatchdogRestartAt = now;
             RuntimeLog.Warn("Preview", $"Preview frozen for {sinceLastPreview.TotalSeconds:F1}s, restarting camera. recording={IsRecording}, queue={queueCount}, writeTask={writeTaskStatus}");
+            LogResourceHealthIfDue("preview-restart", force: true);
             Interlocked.Exchange(ref _previewUpdatePending, 0);
             _ = Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -1791,6 +1798,45 @@ namespace ExpressPackingMonitoring.ViewModels
             catch
             {
                 Interlocked.Exchange(ref _previewUpdatePending, 0);
+                if (DateTime.Now - _lastPreviewConvertErrorLogAt > TimeSpan.FromSeconds(30))
+                {
+                    _lastPreviewConvertErrorLogAt = DateTime.Now;
+                    RuntimeLog.Warn("Preview", $"Preview bitmap conversion failed, {BuildResourceHealthSnapshot()}");
+                }
+            }
+        }
+
+        private void LogResourceHealthIfDue(string reason, bool force = false)
+        {
+            DateTime now = DateTime.Now;
+            if (!force && now - _lastResourceHealthLogAt < ResourceHealthLogInterval)
+                return;
+
+            _lastResourceHealthLogAt = now;
+            RuntimeLog.Info("Health", $"{reason}: {BuildResourceHealthSnapshot()}");
+        }
+
+        private string BuildResourceHealthSnapshot()
+        {
+            int videoQueueCount = -1;
+            int audioQueueCount = -1;
+            try { videoQueueCount = _videoWriteQueue?.Count ?? -1; } catch { }
+            try { audioQueueCount = _audioWriteQueue?.Count ?? -1; } catch { }
+
+            double frameAge = _lastFrameTime == DateTime.MinValue ? -1 : (DateTime.Now - _lastFrameTime).TotalSeconds;
+            double previewAge = _lastPreviewPublishedAt == DateTime.MinValue ? -1 : (DateTime.Now - _lastPreviewPublishedAt).TotalSeconds;
+
+            try
+            {
+                using var process = Process.GetCurrentProcess();
+                long managedMb = GC.GetTotalMemory(false) / 1024 / 1024;
+                long workingSetMb = process.WorkingSet64 / 1024 / 1024;
+                long privateMb = process.PrivateMemorySize64 / 1024 / 1024;
+                return $"ws={workingSetMb}MB, private={privateMb}MB, managed={managedMb}MB, handles={process.HandleCount}, threads={process.Threads.Count}, gc0={GC.CollectionCount(0)}, gc1={GC.CollectionCount(1)}, gc2={GC.CollectionCount(2)}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, pending={_previewUpdatePending}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
+            }
+            catch (Exception ex)
+            {
+                return $"health unavailable: {ex.Message}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, pending={_previewUpdatePending}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
             }
         }
 
