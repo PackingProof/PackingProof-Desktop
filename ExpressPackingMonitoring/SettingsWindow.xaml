@@ -253,23 +253,11 @@
 
     <Grid Margin="24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,18">
-            <TextBlock Text="设置"
-                       FontSize="26"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource TextPrimary}"/>
-            <TextBlock Text="管理摄像头、录像、存储、语音和 Web 服务配置"
-                       Margin="0,4,0,0"
-                       FontSize="13"
-                       Foreground="{DynamicResource TextSecondary}"/>
-        </StackPanel>
-
-        <TabControl Grid.Row="1"
+        <TabControl Grid.Row="0"
                     TabStripPlacement="Left"
                     Background="Transparent"
                     BorderThickness="0"
@@ -1609,7 +1597,7 @@
             </TabItem>
         </TabControl>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 BorderBrush="{DynamicResource BorderLight}"
                 BorderThickness="1,1,0,0"
                 Padding="0,14,0,0">
