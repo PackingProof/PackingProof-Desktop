@@ -188,13 +188,16 @@ public static class WorkstationNetwork
             if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
                 return false;
 
-            Process.Start(new ProcessStartInfo
+            var process = Process.Start(new ProcessStartInfo
             {
                 FileName = exePath,
                 WorkingDirectory = AppContext.BaseDirectory,
                 UseShellExecute = true
             });
-            Application.Current.Shutdown();
+            if (process == null)
+                return false;
+
+            try { Application.Current.Shutdown(); } catch { }
             return true;
         }
         catch

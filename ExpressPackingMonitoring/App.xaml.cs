@@ -44,15 +44,8 @@ namespace ExpressPackingMonitoring
 
                 config.WorkstationRole = selector.SelectedRole;
                 WorkstationConfigStore.Save(config);
-                MessageBox.Show(
-                    $"已选择{WorkstationRoles.GetDisplayName(config.WorkstationRole)}。\n\n程序将重新打开并进入对应工位。",
-                    "选择工位",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
                 if (WorkstationNetwork.TryRestartApplication())
                     return;
-
-                MessageBox.Show("自动重启失败，将直接进入所选工位。", "选择工位", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             Window window = string.Equals(config.WorkstationRole, WorkstationRoles.PrintStation, StringComparison.OrdinalIgnoreCase)
