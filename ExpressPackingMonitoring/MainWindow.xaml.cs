@@ -132,7 +132,7 @@ namespace ExpressPackingMonitoring
                 }
                 else if (msg == WM_EXITSIZEMOVE)
                 {
-                    vm.SuppressVideoPreviewUpdates = false;
+                    vm.ResumeVideoPreviewUpdatesAfterWindowMove();
                     UpdateZoomBorder(vm.LastZoomRect);
                 }
             }

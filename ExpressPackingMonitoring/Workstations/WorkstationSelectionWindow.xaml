@@ -63,7 +63,7 @@
 
             <Button Grid.Column="0" Style="{StaticResource WorkstationButtonStyle}" Click="CameraMonitor_Click">
                 <StackPanel>
-                    <Path Data="{StaticResource FluentCameraIcon}"
+                    <Path Data="{StaticResource FluentVideoIcon}"
                           Width="56"
                           Height="56"
                           Stretch="Uniform"

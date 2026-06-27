@@ -353,7 +353,7 @@
                                                   Cursor="Hand">
                                             <ComboBoxItem Tag="CameraMonitor">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentCameraIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
+                                                    <Path Data="{StaticResource FluentVideoIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
                                                     <TextBlock Text="摄像头监控工位"/>
                                                 </StackPanel>
                                             </ComboBoxItem>

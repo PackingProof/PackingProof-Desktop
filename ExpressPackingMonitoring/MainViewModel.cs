@@ -246,6 +246,15 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             Application.Current?.Dispatcher?.BeginInvoke(new Action(RefreshBarcodes), System.Windows.Threading.DispatcherPriority.Background);
         }
+
+        public void ResumeVideoPreviewUpdatesAfterWindowMove()
+        {
+            SuppressVideoPreviewUpdates = false;
+            Interlocked.Exchange(ref _previewUpdatePending, 0);
+            _lastPreviewFrameAt = DateTime.UtcNow;
+            _lastPreviewPublishedAt = DateTime.Now;
+            _lastPreviewFreezeLogAt = DateTime.Now;
+        }
         private void RefreshBarcodes()
         {
             try
