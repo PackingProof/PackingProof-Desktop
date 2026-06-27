@@ -74,6 +74,32 @@ function Remove-PackageRuntimeState {
     }
 }
 
+function Compress-PackageWithRetry {
+    param(
+        [string]$SourceDir,
+        [string]$DestinationZip
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            if (Test-Path $DestinationZip) {
+                Remove-Item -LiteralPath $DestinationZip -Force
+            }
+
+            Get-ChildItem -LiteralPath $SourceDir -Force |
+                Compress-Archive -DestinationPath $DestinationZip -CompressionLevel Optimal -Force
+            return
+        }
+        catch {
+            $lastError = $_
+            Start-Sleep -Milliseconds (500 * $attempt)
+        }
+    }
+
+    throw $lastError
+}
+
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBaseOutput = Join-Path $repoRoot "ExpressPackingMonitoring\bin_publish_tmp\clean-package-app\"
 $appBaseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring\obj_publish_tmp\clean-package-app\"
@@ -118,8 +144,7 @@ $zipParent = Split-Path -Parent $zipFullPath
 if (-not [string]::IsNullOrWhiteSpace($zipParent)) {
     New-Item -ItemType Directory -Force -Path $zipParent | Out-Null
 }
-Get-ChildItem -LiteralPath $outputFullPath -Force |
-    Compress-Archive -DestinationPath $zipFullPath -CompressionLevel Optimal -Force
+Compress-PackageWithRetry -SourceDir $outputFullPath -DestinationZip $zipFullPath
 
 Write-Host "Clean package created: $outputFullPath"
 Write-Host "Zip package created: $zipFullPath"

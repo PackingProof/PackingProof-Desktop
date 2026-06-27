@@ -174,7 +174,8 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
-                string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "encoder_detect.log");
+                string logPath = AppPaths.EncoderDetectLogPath;
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
                 File.WriteAllText(logPath, log.ToString(), Encoding.UTF8);
             }
             catch { }

@@ -217,7 +217,7 @@ namespace ExpressPackingMonitoring.Services
                 config.MaxNumSentences = 0; // 0 = 不限制句数，避免长文本被截断
 
                 // 初始化磁盘缓存目录
-                _ttsCacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tts_cache");
+                _ttsCacheDir = AppPaths.TtsCacheDir;
                 Directory.CreateDirectory(_ttsCacheDir);
 
                 _kokoroTts = new OfflineTts(config);
@@ -464,7 +464,7 @@ namespace ExpressPackingMonitoring.Services
 
         private void EnsureTtsCacheDir()
         {
-            _ttsCacheDir ??= Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tts_cache");
+            _ttsCacheDir ??= AppPaths.TtsCacheDir;
             Directory.CreateDirectory(_ttsCacheDir);
         }
 

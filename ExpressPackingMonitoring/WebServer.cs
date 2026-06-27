@@ -35,15 +35,15 @@ namespace ExpressPackingMonitoring
         private readonly CancellationTokenSource _cts = new();
         private Task _listenTask;
         private bool _disposed;
-        private static readonly string _logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web_debug.log");
-        private static readonly string _transCacheDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "transcache");
+        private static readonly string _logPath = AppPaths.WebDebugLogPath;
+        private static readonly string _transCacheDir = AppPaths.TranscodeCacheDir;
         private long _transCacheMaxBytes = 1024L * 1024 * 1024; // 默认 1GB，可config覆盖
 
         // 订单信息缓存：Key 为快递单号(大写)，保留最近72小时的数据
         private readonly Dictionary<string, OrderInfo> _orderInfoCache = new();
         private readonly object _orderInfoLock = new();
         private const int MaxOrderInfoEntries = 5000;
-        private static readonly string _orderInfoCachePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "orderinfo_cache.json");
+        private static readonly string _orderInfoCachePath = AppPaths.OrderInfoCachePath;
 
         /// <summary>收到油猴脚本推送的订单信息时触发，参数为本次推送的所有订单</summary>
         public event Action<List<OrderInfo>> OrderInfoReceived;
@@ -539,7 +539,7 @@ namespace ExpressPackingMonitoring
         {
             try
             {
-                string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                string configPath = AppPaths.ConfigPath;
                 if (!File.Exists(configPath))
                     return new AppConfig();
 

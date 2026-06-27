@@ -31,8 +31,8 @@ namespace ExpressPackingMonitoring.ViewModels
     public partial class MainViewModel : ObservableObject, IDisposable
     {
         private AppConfig _config;
-        private readonly string _configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
-        private readonly string _dbFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "videos.db");
+        private readonly string _configFilePath = AppPaths.ConfigPath;
+        private readonly string _dbFilePath = AppPaths.VideoDatabasePath;
         private VideoDatabase _db;
 
         /// <summary>启动时缓存的可用 GPU 编码器列表</summary>

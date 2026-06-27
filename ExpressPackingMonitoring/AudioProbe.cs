@@ -27,7 +27,7 @@ namespace ExpressPackingMonitoring
                 return false;
 
             int seconds = ParseSeconds(args);
-            string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audio_probe.log");
+            string logPath = Path.Combine(AppPaths.LogDir, "audio_probe.log");
             try
             {
                 int repeat = ParseRepeat(args);
@@ -154,7 +154,7 @@ namespace ExpressPackingMonitoring
             for (int i = 1; i <= repeat; i++)
             {
                 string prefix = $"audio_probe_{i:00}";
-                string runLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{prefix}.log");
+                string runLogPath = Path.Combine(AppPaths.LogDir, $"{prefix}.log");
                 bool ok = Run(seconds, runLogPath, prefix, args);
                 allOk &= ok;
                 summary.AppendLine($"Run{i:00}={(ok ? "OK" : "FAILED")}; Log={runLogPath}");
@@ -172,10 +172,10 @@ namespace ExpressPackingMonitoring
             using var enumerator = new MMDeviceEnumerator();
             var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             using var device = ResolveAudioEndpoint(config, devices);
-            string wavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.wav");
-            string mkvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.mkv");
-            string mp4Path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}.mp4");
-            string decodedWavPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{filePrefix}_decoded.wav");
+            string wavPath = Path.Combine(AppPaths.LogDir, $"{filePrefix}.wav");
+            string mkvPath = Path.Combine(AppPaths.LogDir, $"{filePrefix}.mkv");
+            string mp4Path = Path.Combine(AppPaths.LogDir, $"{filePrefix}.mp4");
+            string decodedWavPath = Path.Combine(AppPaths.LogDir, $"{filePrefix}_decoded.wav");
             try { if (File.Exists(wavPath)) File.Delete(wavPath); } catch { }
             try { if (File.Exists(mkvPath)) File.Delete(mkvPath); } catch { }
             try { if (File.Exists(mp4Path)) File.Delete(mp4Path); } catch { }
@@ -674,7 +674,7 @@ namespace ExpressPackingMonitoring
 
         private static AppConfig LoadConfig()
         {
-            string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+            string configPath = AppPaths.ConfigPath;
             if (!File.Exists(configPath)) return new AppConfig();
             return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(configPath)) ?? new AppConfig();
         }

@@ -1333,7 +1333,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="记录订单推送和查询的详细日志到 web_debug.log"
+                                            <TextBlock Text="记录订单推送和查询的详细日志到用户数据目录 log\web_debug.log"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="1"

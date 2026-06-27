@@ -129,6 +129,9 @@ powershell -ExecutionPolicy Bypass -File build\Publish-CleanPackage.ps1
 # 发布后根目录主要保留 ExpressPackingMonitoring.exe 和 app\；
 # 真实主程序、DLL、tools\ffmpeg.exe、Web 页面和 LibVLC 都在 app\ 内。
 # zip 内不会包含 config.json、videos.db、缓存、日志或录像文件。
+
+# 运行时数据统一保存在 %LOCALAPPDATA%\ExpressPackingMonitoring\，
+# 用户升级到新版本并解压到新目录时，配置和数据库会继续沿用。
 ```
 
 ### 核心功能启用指南
