@@ -4,7 +4,7 @@
         Title="选择工位" Height="420" Width="720"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Icon="app.ico"
+        Icon="/app.ico"
         Background="{DynamicResource WindowBackground}"
         FontFamily="Microsoft YaHei UI, Segoe UI">
     <Window.Resources>
