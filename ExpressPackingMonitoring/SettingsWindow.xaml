@@ -154,8 +154,9 @@
         <Style TargetType="ComboBox">
             <Setter Property="Height" Value="36"/>
             <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Width" Value="260"/>
             <Setter Property="MinWidth" Value="220"/>
-            <Setter Property="MaxWidth" Value="360"/>
+            <Setter Property="MaxWidth" Value="260"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
@@ -263,7 +264,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition x:Name="SpinnerColumn" Width="28"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="PART_TextBox"
                              Background="Transparent"
@@ -274,7 +275,8 @@
                              Padding="{TemplateBinding Padding}"
                              Margin="0"
                              Focusable="True"/>
-                    <Border Grid.Column="1"
+                    <Border x:Name="SpinnerHost"
+                            Grid.Column="1"
                             Background="{DynamicResource ControlBackground}"
                             BorderBrush="{DynamicResource BorderLight}"
                             BorderThickness="1,0,0,0"
@@ -300,6 +302,10 @@
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.62"/>
+                </Trigger>
+                <Trigger Property="ShowButtonSpinner" Value="False">
+                    <Setter TargetName="SpinnerColumn" Property="Width" Value="0"/>
+                    <Setter TargetName="SpinnerHost" Property="Visibility" Value="Collapsed"/>
                 </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -313,7 +319,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition x:Name="SpinnerColumn" Width="28"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="PART_TextBox"
                              Background="Transparent"
@@ -324,7 +330,8 @@
                              Padding="{TemplateBinding Padding}"
                              Margin="0"
                              Focusable="True"/>
-                    <Border Grid.Column="1"
+                    <Border x:Name="SpinnerHost"
+                            Grid.Column="1"
                             Background="{DynamicResource ControlBackground}"
                             BorderBrush="{DynamicResource BorderLight}"
                             BorderThickness="1,0,0,0"
@@ -351,34 +358,42 @@
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.62"/>
                 </Trigger>
+                <Trigger Property="ShowButtonSpinner" Value="False">
+                    <Setter TargetName="SpinnerColumn" Property="Width" Value="0"/>
+                    <Setter TargetName="SpinnerHost" Property="Visibility" Value="Collapsed"/>
+                </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
         <Style TargetType="{x:Type xctk:IntegerUpDown}">
             <Setter Property="Height" Value="36"/>
             <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Width" Value="120"/>
             <Setter Property="MinWidth" Value="120"/>
-            <Setter Property="MaxWidth" Value="220"/>
+            <Setter Property="MaxWidth" Value="120"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="ShowButtonSpinner" Value="False"/>
             <Setter Property="Template" Value="{StaticResource SettingsIntegerUpDownTemplate}"/>
         </Style>
 
         <Style TargetType="{x:Type xctk:DoubleUpDown}">
             <Setter Property="Height" Value="36"/>
             <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="Width" Value="120"/>
             <Setter Property="MinWidth" Value="120"/>
-            <Setter Property="MaxWidth" Value="220"/>
+            <Setter Property="MaxWidth" Value="120"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
             <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="ShowButtonSpinner" Value="False"/>
             <Setter Property="Template" Value="{StaticResource SettingsDoubleUpDownTemplate}"/>
         </Style>
 
@@ -724,15 +739,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="工位用途" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="按这台电脑连接的硬件选择，保存后重启程序生效。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="1"
+                                        <ComboBox Grid.Column="2"
                                                   SelectedValue="{Binding Config.WorkstationRole}"
                                                   SelectedValuePath="Tag"
                                                   Cursor="Hand">
@@ -753,8 +769,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="外观主题" Style="{StaticResource FieldLabelStyle}"/>
@@ -762,7 +779,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="ThemeComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedValue="{Binding Config.Theme}"
                                                   SelectedValuePath="Content"
                                                   Cursor="Hand"
@@ -775,8 +792,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="摄像头" Style="{StaticResource FieldLabelStyle}"/>
@@ -784,7 +802,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="CameraComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedValuePath="Index"
                                                   DisplayMemberPath="Name"
                                                   SelectedValue="{Binding Config.CameraIndex}"
@@ -793,8 +811,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="录制声音" Style="{StaticResource FieldLabelStyle}"/>
@@ -802,7 +821,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="AudioRecordCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableAudioRecording}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -812,8 +831,9 @@
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="麦克风" Style="{StaticResource FieldLabelStyle}"/>
@@ -821,7 +841,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="MicComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedValuePath="Name"
                                                   DisplayMemberPath="Name"
                                                   SelectedValue="{Binding Config.AudioDeviceName}"/>
@@ -838,8 +858,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="视频编码格式" Style="{StaticResource FieldLabelStyle}"/>
@@ -847,7 +868,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="VideoCodecComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedValuePath="Value"
                                                   DisplayMemberPath="DisplayName"
                                                   Cursor="Hand"/>
@@ -855,8 +876,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="硬件编码器 / GPU" Style="{StaticResource FieldLabelStyle}"/>
@@ -864,7 +886,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="GpuEncoderComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedValuePath="Value"
                                                   DisplayMemberPath="DisplayName"
                                                   Cursor="Hand"/>
@@ -872,8 +894,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="分辨率" Style="{StaticResource FieldLabelStyle}"/>
@@ -881,38 +904,40 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="ResComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   DisplayMemberPath="Name"
                                                   Cursor="Hand"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="目标帧率 / FPS" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="根据摄像头硬件能力自动列出可用帧率。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox x:Name="FpsComboBox" Grid.Column="1"
+                                        <ComboBox x:Name="FpsComboBox" Grid.Column="2"
                                                   Height="32"
                                                   Cursor="Hand"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="编码质量 / CQP" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="默认 25。数值越小画质越高、体积越大；数值越大压缩越强。此值会映射到各编码器的 CQ/CRF/QP。默认录制容器为 MKV。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.VideoCqp}"
                                                            Minimum="1"
                                                            Maximum="51"
@@ -921,16 +946,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="音频同步偏移 / ms" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="默认 0。负数表示让音频提前，正数表示让音频延后；通常无需额外偏移。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.AudioSyncOffsetMs}"
                                                            Minimum="-5000"
                                                            Maximum="5000"
@@ -956,8 +982,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="智能特写开关" Style="{StaticResource FieldLabelStyle}"/>
@@ -965,7 +992,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="SmartZoomCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableSmartZoom}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -984,8 +1011,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="特写放大倍数" Style="{StaticResource FieldLabelStyle}"/>
@@ -993,7 +1021,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="ZoomScaleComboBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   SelectedItem="{Binding Config.ZoomScale}"
                                                   SelectionChanged="ZoomScaleComboBox_SelectionChanged"
                                                   Cursor="Hand"/>
@@ -1001,16 +1029,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="延迟触发 / 秒" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="用于过滤短暂抖动，避免频繁进入特写。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.ZoomDelaySeconds}"
                                                            Minimum="0"
                                                            Increment="0.5"/>
@@ -1018,16 +1047,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="特写保持时间 / 秒" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="设置一次特写保持多久后再恢复常规视角。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.ZoomDurationSeconds}"
                                                            Minimum="0"
                                                            Increment="0.5"/>
@@ -1037,8 +1067,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="缩放过渡动画" Style="{StaticResource FieldLabelStyle}"/>
@@ -1046,7 +1077,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="ZoomAnimationCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableZoomAnimation}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1056,16 +1087,17 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0"
                                           IsEnabled="{Binding IsChecked, ElementName=ZoomAnimationCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="动画时长 / 毫秒" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="缩放过渡动画的持续时长，数值越大越柔和。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.ZoomAnimationDurationMs}"
                                                            Minimum="50"
                                                            Maximum="2000"
@@ -1091,15 +1123,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用声音提示" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="超时或关键事件发生时播放提醒音。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableSoundPrompt}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1108,16 +1141,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="超时预警提前 / 秒" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="在超时前提前提醒，给操作员留出处理时间。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.TimeoutWarningSeconds}"
                                                            Minimum="3"
                                                            Maximum="120"
@@ -1126,8 +1160,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用静止自动停录" Style="{StaticResource FieldLabelStyle}"/>
@@ -1135,7 +1170,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="AutoStopCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableAutoStop}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1146,16 +1181,17 @@
  Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AutoStopCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="静止超时 / 分钟" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="超过该时长未检测到动作时，自动结束当前录像。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.AutoStopMinutes}"
                                                            Minimum="0.1"
                                                            Maximum="60.0"
@@ -1164,8 +1200,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="限制录像时长" Style="{StaticResource FieldLabelStyle}"/>
@@ -1173,7 +1210,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="MaxDurationCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableMaxDuration}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1184,16 +1221,17 @@
                                           Margin="0,0,0,0"
                                           IsEnabled="{Binding IsChecked, ElementName=MaxDurationCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="最大时长 / 分钟" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="单段录像达到该时长后自动停止。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.MaxDurationMinutes}"
                                                            Minimum="0.1"
                                                            Maximum="60.0"
@@ -1204,16 +1242,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="最短录制时长 / 秒" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="录制时长不足此值时自动丢弃不保存，设为 0 则全部保留。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.MinRecordingSeconds}"
                                                            Minimum="0"
                                                            Maximum="30"
@@ -1224,8 +1263,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="摄像头空闲休眠" Style="{StaticResource FieldLabelStyle}"/>
@@ -1233,7 +1273,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="CameraIdleCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableCameraIdle}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1243,16 +1283,17 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0"
                                           IsEnabled="{Binding IsChecked, ElementName=CameraIdleCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="空闲超时 / 分钟" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="超过该时长无任何操作则断开摄像头进入休眠。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.CameraIdleMinutes}"
                                                            Minimum="1"
                                                            Maximum="480"
@@ -1335,7 +1376,7 @@
                                                                                Maximum="10000"
                                                                                Margin="5"
                                                                                VerticalAlignment="Center"
-                                                                               Height="32"/>
+                                                                               Height="36"/>
                                                         </DataTemplate>
                                                     </DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
@@ -1348,7 +1389,7 @@
                                                                                 Maximum="99"
                                                                                 Margin="5"
                                                                                 VerticalAlignment="Center"
-                                                                                Height="32"/>
+                                                                                Height="36"/>
                                                         </DataTemplate>
                                                     </DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
@@ -1379,15 +1420,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="显示已覆盖记录" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="开启后，回放列表中保留已清理或覆盖记录的可见状态。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.ShowDeletedVideos}"
                                                   Style="{StaticResource ToggleSwitchStyle}"
                                                   HorizontalAlignment="Left"
@@ -1455,8 +1497,9 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用 AI 语音" Style="{StaticResource FieldLabelStyle}"/>
@@ -1464,7 +1507,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="AiTtsCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableAiTts}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1474,15 +1517,16 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="语音引擎" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="默认使用 Edge TTS 在线神经语音；Kokoro 需自行准备本地运行依赖。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="1"
+                                        <ComboBox Grid.Column="2"
                                                   Width="220"
                                                   HorizontalAlignment="Left"
                                                   SelectedValue="{Binding Config.AiTtsEngine}"
@@ -1495,16 +1539,17 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="普通播报声线" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="中文女声: 45(小北) 46(小妮) 47(小小) 48(小怡)；男声: 49-52"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                            Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                            Height="36"
                                                             Value="{Binding Config.AiTtsSpeakerId}"
                                                             Minimum="0"
                                                             Maximum="102"
@@ -1514,16 +1559,17 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="警告播报声线" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="用于重复单号、非法单号等警告场景，建议选择与普通声线不同的角色。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                            Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                            Height="36"
                                                             Value="{Binding Config.AiTtsWarningSpeakerId}"
                                                             Minimum="0"
                                                             Maximum="102"
@@ -1533,15 +1579,16 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="Edge 普通声线" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="例如 zh-CN-XiaoxiaoNeural，切换到 Edge TTS 时使用。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="1"
+                                        <ComboBox Grid.Column="2"
                                                   Width="260"
                                                   HorizontalAlignment="Left"
                                                   IsTextSearchEnabled="True"
@@ -1554,15 +1601,16 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="Edge 警告声线" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="例如 zh-CN-YunxiNeural，用于重复单号、非法单号等警告。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="1"
+                                        <ComboBox Grid.Column="2"
                                                   Width="260"
                                                   HorizontalAlignment="Left"
                                                   IsTextSearchEnabled="True"
@@ -1575,16 +1623,17 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0"
                                           IsEnabled="{Binding IsChecked, ElementName=AiTtsCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="语速" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="语音播放速度，1.0 为正常速度。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.AiTtsSpeed}"
                                                            Minimum="0.5"
                                                            Maximum="2.0"
@@ -1658,15 +1707,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用录像水印" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="在视频右上角叠加当前单号与日期时间。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableWatermark}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1685,15 +1735,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用 Web 服务" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="启用后可从局域网内浏览器远程查看录像。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableWebServer}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1702,16 +1753,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="监听端口" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="Web 服务监听的 HTTP 端口号，修改后需重启生效。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                            Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                            Height="36"
                                                             Value="{Binding Config.WebServerPort}"
                                                             Minimum="1024"
                                                             Maximum="65535"
@@ -1720,16 +1772,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="转码缓存上限 (MB)" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="H.265 转 H.264 的缓存占用上限，超出后自动清理最旧缓存。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="1"
-                                                            Height="32"
+                                        <xctk:IntegerUpDown Grid.Column="2"
+                                                            Height="36"
                                                             Value="{Binding Config.TranscodeCacheMaxMB}"
                                                             Minimum="128"
                                                             Maximum="10240"
@@ -1738,15 +1791,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="订单信息语音播报" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="打包扫码时，自动播报快递助手推送的买家留言、卖家备注和商品信息。需安装油猴脚本。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableOrderInfoAnnounce}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1756,11 +1810,12 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="24,8,0,0"
                                           Visibility="{Binding Config.EnableOrderInfoAnnounce, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="播报买家留言" Style="{StaticResource FieldLabelStyle}"/>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.AnnounceBuyerMessage}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1769,11 +1824,12 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="24,8,0,0"
                                           Visibility="{Binding Config.EnableOrderInfoAnnounce, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="播报卖家备注" Style="{StaticResource FieldLabelStyle}"/>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.AnnounceSellerMemo}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1782,11 +1838,12 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="24,8,0,0"
                                           Visibility="{Binding Config.EnableOrderInfoAnnounce, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="播报商品信息" Style="{StaticResource FieldLabelStyle}"/>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.AnnounceProductInfo}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1795,15 +1852,16 @@
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="24,8,0,0"
                                           Visibility="{Binding Config.EnableOrderInfoAnnounce, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="记录订单推送和查询的详细日志到用户数据目录 log\web_debug.log"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableOrderInfoLog}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1821,15 +1879,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="全局键盘监听" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="开启后即使程序不在前台，也能接收扫码枪输入执行指令。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="1"
+                                        <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableGlobalKeyboard}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1838,21 +1897,25 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="单号正则式" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="用于提取单号。仅在你已明确编码规则时再修改。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <TextBox Grid.Column="1" Text="{Binding Config.OrderIdRegex}"/>
+                                        <TextBox Grid.Column="2"
+                                                 HorizontalAlignment="Stretch"
+                                                 Text="{Binding Config.OrderIdRegex}"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="开机自启动" Style="{StaticResource FieldLabelStyle}"/>
@@ -1860,7 +1923,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="AutoStartCheckBox"
-                                                  Grid.Column="1"
+                                                  Grid.Column="2"
                                                   IsChecked="{Binding Config.AutoStartOnBoot}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -1869,16 +1932,17 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="条码冷却时间 (秒)" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="扫描指令条码后隐藏的秒数，也作为连续扫码切换录制的最小间隔。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:DoubleUpDown Grid.Column="1"
-                                                           Height="32"
+                                        <xctk:DoubleUpDown Grid.Column="2"
+                                                           Height="36"
                                                            Value="{Binding Config.BarcodeCooldownSeconds}"
                                                            Minimum="0.5"
                                                            Maximum="10.0"
@@ -1888,15 +1952,16 @@
                                     <Border Height="1" Background="{DynamicResource BorderLight}" Margin="0,12,0,12"/>
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="重置编码器检测" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="清除已保存的检测结果，重新分析可用 GPU 编码器。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Content="立即重新检测" 
+                                        <Button Grid.Column="2" Content="立即重新检测"
                                                 Command="{Binding MainVM.ResetEncoderDetectCommand}"
                                                 Style="{StaticResource SecondaryActionButtonStyle}"
                                                 Height="32" Padding="12,0" HorizontalAlignment="Left" />
@@ -1922,15 +1987,16 @@
 
                                     <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="300"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="项目仓库" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="打开 GitHub 仓库，查看源码、发布记录和问题反馈。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <WrapPanel Grid.Column="1">
+                                        <WrapPanel Grid.Column="2">
                                             <Button Content="打开仓库"
                                                     Click="OpenRepository_Click"
                                                     Style="{StaticResource SecondaryActionButtonStyle}"
