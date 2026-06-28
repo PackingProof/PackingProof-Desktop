@@ -122,11 +122,11 @@ namespace ExpressPackingMonitoring.ViewModels
         public string EdgeTtsVoice { get; set; } = "zh-CN-XiaoxiaoNeural";
         public string EdgeTtsWarningVoice { get; set; } = "zh-CN-YunjianNeural";
 
-        // 订单信息播报（快递助手联动）
+        // 订单备注播报（快递助手插件）
         public bool EnableOrderInfoAnnounce { get; set; } = true;
         public bool AnnounceBuyerMessage { get; set; } = true;
         public bool AnnounceSellerMemo { get; set; } = true;
-        public bool AnnounceProductInfo { get; set; } = true;
+        public bool AnnounceProductInfo { get; set; } = false;
         public bool EnableOrderInfoLog { get; set; } = false;
 
         // TTS 断句关键词（电商场景，在这些词前自动插入停顿）

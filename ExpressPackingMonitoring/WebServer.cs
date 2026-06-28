@@ -26,6 +26,7 @@ namespace ExpressPackingMonitoring
         public string SellerMemo { get; set; } = "";
         public string ProductInfo { get; set; } = "";
         public DateTime PushTime { get; set; } = DateTime.Now;
+        public bool IsTest { get; set; }
     }
 
     public sealed class WebServer : IDisposable
@@ -300,6 +301,8 @@ namespace ExpressPackingMonitoring
                 }
 
                 int count = 0;
+                var realItems = items.Where(x => !x.IsTest).ToList();
+                var testItems = items.Where(x => x.IsTest).ToList();
                 lock (_orderInfoLock)
                 {
                     // 超过上限时清理72小时前的旧数据
@@ -310,7 +313,7 @@ namespace ExpressPackingMonitoring
                         foreach (var k in expiredKeys) _orderInfoCache.Remove(k);
                     }
 
-                    foreach (var item in items)
+                    foreach (var item in realItems)
                     {
                         if (string.IsNullOrWhiteSpace(item.TrackingNumber)) continue;
                         string key = item.TrackingNumber.Trim().ToUpperInvariant();
@@ -322,23 +325,26 @@ namespace ExpressPackingMonitoring
 
                 if (EnableOrderInfoLog)
                 {
-                    Log($"HandlePushOrderInfo: 接收 {count} 条订单信息, 缓存总数={_orderInfoCache.Count}");
+                    Log($"HandlePushOrderInfo: 接收 {count} 条订单信息, 测试={testItems.Count}, 缓存总数={_orderInfoCache.Count}");
                     foreach (var item in items)
                     {
                         if (!string.IsNullOrWhiteSpace(item.TrackingNumber))
-                            Log($"  订单: 运单号={item.TrackingNumber}, 订单号={item.OrderId}, 买家留言=[{item.BuyerMessage}], 卖家备注=[{item.SellerMemo}], 商品=[{item.ProductInfo}]");
+                            Log($"  订单: 运单号={item.TrackingNumber}, 订单号={item.OrderId}, 测试={item.IsTest}, 买家留言=[{item.BuyerMessage}], 卖家备注=[{item.SellerMemo}], 商品=[{item.ProductInfo}]");
                     }
                 }
 
-                // 持久化到磁盘
-                SaveOrderInfoCache();
-                _db.UpsertOrderInfos(items);
-                _db.UpdateRecentVideoOrderInfos(items);
+                if (realItems.Count > 0)
+                {
+                    // 持久化到磁盘
+                    SaveOrderInfoCache();
+                    _db.UpsertOrderInfos(realItems);
+                    _db.UpdateRecentVideoOrderInfos(realItems);
+                }
 
                 // 通知订阅方预生成语音缓存
                 try { OrderInfoReceived?.Invoke(items); } catch { }
 
-                SendJson(ctx, 200, new { ok = true, count });
+                SendJson(ctx, 200, new { ok = true, count, testCount = testItems.Count });
             }
             catch (Exception ex)
             {

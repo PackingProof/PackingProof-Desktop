@@ -648,8 +648,8 @@ namespace ExpressPackingMonitoring
 
             Process.Start(new ProcessStartInfo(new Uri(guidePath).AbsoluteUri) { UseShellExecute = true });
             MessageBox.Show(this,
-                $"已打开联动助手安装向导，并复制监控工位地址：{address}",
-                "安装联动助手",
+                $"已打开订单备注插件安装向导，并复制监控工位地址：{address}",
+                "安装订单备注插件",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }

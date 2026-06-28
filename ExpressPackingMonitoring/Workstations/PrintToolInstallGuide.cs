@@ -62,8 +62,8 @@ internal static class PrintToolInstallGuide
     private static string BuildScriptLink(string scriptUrl)
     {
         return string.IsNullOrWhiteSpace(scriptUrl)
-            ? "<div class=\"warn\">未找到联动脚本文件，请确认发布包内包含 Scripts 文件夹。</div>"
-            : $"<a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">打开联动脚本安装页</a>";
+            ? "<div class=\"warn\">未找到订单备注插件脚本文件，请确认发布包内包含 Scripts 文件夹。</div>"
+            : $"<a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">打开订单备注插件安装页</a>";
     }
 
     private const string MissingTemplateHtml = """

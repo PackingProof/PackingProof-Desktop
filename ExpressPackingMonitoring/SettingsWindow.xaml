@@ -1906,8 +1906,8 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="订单信息播报" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="扫码打包时，自动播报订单备注、留言和商品信息"
+                                            <TextBlock Text="订单备注播报" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="打包时自动播报买家留言和卖家备注，避免漏看特殊要求"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
@@ -1924,12 +1924,12 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="安装联动助手" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="让快递助手页面把订单信息发送到监控工位"
+                                            <TextBlock Text="安装订单备注插件" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="播报买家留言和卖家备注"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <Button Grid.Column="2"
-                                                Content="安装联动助手"
+                                                Content="安装订单备注插件"
                                                 Click="InstallTool_Click"
                                                 Style="{StaticResource SecondaryActionButtonStyle}"
                                                 Height="32"
@@ -2167,7 +2167,7 @@
                                                        Margin="0,5,0,0"
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TextSecondary}"/>
-                                            <TextBlock Text="面向电商打包场景的录像、回放和订单联动工具。"
+                                            <TextBlock Text="面向电商打包场景的录像、回放和订单备注播报工具。"
                                                        Margin="0,6,0,0"
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TextSecondary}"

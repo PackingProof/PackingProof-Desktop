@@ -141,7 +141,7 @@
                                    FontSize="26"
                                    FontWeight="Black"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="将快递助手订单发送到摄像头监控工位，用于包装现场语音提醒与录像关联。"
+                        <TextBlock Text="把快递助手里的买家留言、卖家备注发送到监控工位，打包时自动播报。"
                                    Margin="0,7,0,0"
                                    FontSize="13"
                                    LineHeight="20"
@@ -187,7 +187,7 @@
                         <StackPanel>
                             <TextBlock Text="摄像头监控工位地址"
                                        Style="{StaticResource SectionTitleStyle}"/>
-                            <TextBlock Text="填写或自动查找到监控端地址后，订单信息会发送到对应工位。"
+                            <TextBlock Text="填写或自动查找到监控端地址后，订单备注会发送到对应工位。"
                                        Margin="0,5,0,0"
                                        Style="{StaticResource HintTextStyle}"/>
                         </StackPanel>
@@ -296,7 +296,7 @@
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                       Margin="0,0,8,0"/>
-                                <TextBlock Text="安装联动工具"/>
+                                <TextBlock Text="安装订单备注插件"/>
                             </StackPanel>
                         </Button>
 

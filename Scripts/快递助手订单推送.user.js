@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         快递助手 → 打包监控联动
+// @name         订单备注播报插件
 // @namespace    https://github.com/ExpressPackingMonitoring
 // @version      1.1
-// @description  从快递助手批量打印页面提取订单信息（快递单号、买家留言、卖家备注、商品名），推送到打包监控上位机，扫码时自动语音播报。
+// @description  从快递助手批量打印页面提取买家留言和卖家备注，发送到监控工位，打包时自动播报。
 // @author       ExpressPackingMonitoring
 // @match        *://p4.kuaidizs.cn/*
 // @match        *://kuaidizs.cn/*

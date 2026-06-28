@@ -180,6 +180,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _workstationPrintStatusText = "快递单打印工位：未连接";
         private string _workstationStatusToolTip = "";
         private string _monitorAccessAddress = "";
+        private string _recentTestOrderText = "";
         private int _workstationAddressRefreshVersion;
 
         private int _totalPieces;
@@ -224,6 +225,7 @@ namespace ExpressPackingMonitoring.ViewModels
         public string WorkstationPrintStatusText { get => _workstationPrintStatusText; set => SetProperty(ref _workstationPrintStatusText, value); }
         public string WorkstationStatusToolTip { get => _workstationStatusToolTip; set => SetProperty(ref _workstationStatusToolTip, value); }
         public string MonitorAccessAddress { get => _monitorAccessAddress; set => SetProperty(ref _monitorAccessAddress, value); }
+        public string RecentTestOrderText { get => _recentTestOrderText; set => SetProperty(ref _recentTestOrderText, value); }
 
         // 条形码（自动计算）
         private string _barcode1Label;
@@ -1275,16 +1277,36 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>收到油猴脚本推送的订单信息时，提前生成 TTS 缓存</summary>
         private void OnOrderInfoReceived(List<OrderInfo> orders)
         {
+            if (orders == null || orders.Count == 0) return;
+
             if (_webServer != null)
             {
                 if (string.IsNullOrWhiteSpace(MonitorAccessAddress))
                     _ = RefreshWorkstationStatusAsync();
                 else
                     WorkstationAccessText = $"其他电脑查视频：{MonitorAccessAddress}";
-                WorkstationPrintStatusText = "快递单打印工位：最近收到订单";
+                WorkstationPrintStatusText = orders.Any(x => x.IsTest)
+                    ? "快递单打印工位：最近收到测试订单"
+                    : "快递单打印工位：最近收到订单";
             }
+
+            bool hasTestOrder = orders.Any(x => x.IsTest);
+            if (hasTestOrder)
+            {
+                Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    RecentTestOrderText = $"最近收到测试订单：{DateTime.Now:HH:mm}";
+                    ShowToast("已收到测试订单");
+                });
+                SpeakWithRemarkTone("收到测试订单", cancelPrevious: false);
+            }
+
+            var realOrders = orders.Where(x => !x.IsTest).ToList();
+            if (realOrders.Count == 0)
+                return;
+
             if (_speechService == null || !Config.EnableOrderInfoAnnounce) return;
-            foreach (var info in orders)
+            foreach (var info in realOrders)
             {
                 if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(info.BuyerMessage))
                     _speechService.PreGenerateCache($"买家留言，{info.BuyerMessage}");

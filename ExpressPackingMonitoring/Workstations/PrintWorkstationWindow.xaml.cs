@@ -148,7 +148,7 @@ public partial class PrintWorkstationWindow : Window
         WorkstationNetwork.OpenUrl(new Uri(guidePath).AbsoluteUri);
         bool hasAddress = !string.IsNullOrWhiteSpace(address);
         SetStatus("已打开安装向导",
-            hasAddress ? $"已复制监控工位地址：{address}" : "请先连接摄像头监控工位，再按向导安装联动工具。",
+            hasAddress ? $"已复制监控工位地址：{address}" : "请先连接摄像头监控工位，再按向导安装订单备注插件。",
             hasAddress ? StatusVisual.Success : StatusVisual.Error);
     }
 
@@ -157,8 +157,8 @@ public partial class PrintWorkstationWindow : Window
         string address = WorkstationNetwork.NormalizeAddress(AddressTextBox.Text);
         SetStatus("正在测试发送订单...", address);
         bool ok = await WorkstationNetwork.SendTestOrderAsync(address);
-        SetStatus(ok ? "测试订单已发送" : "测试发送失败",
-            ok ? "请到摄像头监控工位查看是否收到测试订单。" : "请先确认地址和网络连接。",
+        SetStatus(ok ? "监控端已收到" : "发送失败，请检查地址",
+            ok ? "测试订单已发送，监控端会播报“收到测试订单”。" : "请确认监控端地址正确，并且两台电脑在同一局域网。",
             ok ? StatusVisual.Success : StatusVisual.Error);
     }
 

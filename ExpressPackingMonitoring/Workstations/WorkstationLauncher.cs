@@ -107,7 +107,8 @@ public static class WorkstationNetwork
                 orderId = "工位连接测试",
                 buyerMessage = "这是一条连接测试",
                 sellerMemo = "",
-                productInfo = "测试订单"
+                productInfo = "测试订单",
+                isTest = true
             }
         };
 
