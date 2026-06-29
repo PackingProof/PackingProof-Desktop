@@ -23,6 +23,16 @@ powershell -ExecutionPolicy Bypass -File build\Publish-CleanPackage.ps1
 - `run` starts the main app locally.
 - `Publish-CleanPackage.ps1` produces the clean release layout with the root launcher and `app\` payload.
 
+## Runtime and Distribution Notes
+
+- The publish script generates a directory package and a matching `.zip`.
+- The clean package root should mainly contain `ExpressPackingMonitoring.exe` and `app\`; the real app payload, dependencies, Web files, LibVLC files, and `tools\ffmpeg.exe` live under `app\`.
+- Release packages must not include `config.json`, `videos.db`, cache files, logs, recordings, or other local runtime data.
+- Runtime data is stored under `%LOCALAPPDATA%\ExpressPackingMonitoring\`, so normal upgrades keep user configuration and database records.
+- `ffmpeg.exe` may be resolved from `app\tools\ffmpeg.exe`, the application runtime directory, or the system `PATH`.
+- `Scripts/快递助手订单推送.user.js` is the browser userscript used for order push integration.
+- Edge TTS is the default online voice path. Kokoro local TTS models and runtime dependencies are optional and should not be bundled unless explicitly intended.
+
 ## Coding Style & Naming Conventions
 
 Use C# with nullable references and implicit usings enabled. Follow the existing WPF/MVVM style: `PascalCase` for public types, properties, and commands; `camelCase` for locals; `_camelCase` for private fields. Keep XAML names descriptive and aligned with their backing view or view model. Preserve UTF-8 text and avoid broad line-ending or encoding churn, especially in Chinese strings, XAML, HTML, and userscript files.
