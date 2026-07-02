@@ -1483,6 +1483,25 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Border Style="{StaticResource SectionDividerStyle}"/>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="长时间不用时关闭摄像头" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="空闲时省资源，有操作时再恢复"
                                                        Style="{StaticResource FieldHintStyle}"/>

@@ -609,6 +609,43 @@ namespace ExpressPackingMonitoring.ViewModels
             Debug.WriteLine($"[Zoom] 扫码事件触发: ID={upperResult}, ZoomEnabled={Config.EnableSmartZoom}, Delay={Config.ZoomDelaySeconds}");
             StartInputCooldown();
             CurrentOrderId = upperResult;
+
+            // 同码停录
+            if (IsRecording && Config.EnableSameBarcodeStopRecording)
+            {
+                string recordingOrderId = (_recordingOrderId ?? CurrentOrderId ?? "").ToUpper().Trim();
+                if (upperResult != recordingOrderId)
+                {
+                    ShowToast($"警告：单号不一致：{upperResult}");
+                    SpeakWarning("单号不一致");
+                    return;
+                }
+
+                if (!await _recorderLock.WaitAsync(0)) return;
+                try
+                {
+                    _stopReason = "同码停录";
+                    PauseSpeechForRecording();
+                    await InternalStopRecordingAsync();
+                    CurrentOrderId = "";
+                    ScanInputText = "";
+                    ShowToast("单号匹配，已停止录制");
+                    Speak("停止录制", cancelPrevious: false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[HandleScan] 同码停录异常: {ex.Message}");
+                    RuntimeLog.Error("Scan", "Matched barcode stop failed", ex);
+                }
+                finally
+                {
+                    if (!IsRecording)
+                        ResumeSpeechWhenCameraIdle();
+                    _recorderLock.Release();
+                }
+                return;
+            }
+
             if (IsRecording) _stopReason = "扫码切换";
 
             if (!await _recorderLock.WaitAsync(0)) return;
