@@ -640,6 +640,39 @@ namespace ExpressPackingMonitoring
             this.Close();
         }
 
+        private async void RunSetupWizard_Click(object sender, RoutedEventArgs e)
+        {
+            Keyboard.ClearFocus();
+            SyncSelectedMicToConfig();
+
+            bool pausedCamera = false;
+            try
+            {
+                if (!_isRecording)
+                    pausedCamera = MainVM.SuspendCameraForSetupWizard();
+
+                var wizard = new FirstUseSetupWizardWindow(Config) { Owner = this };
+                if (wizard.ShowDialog() == true && !wizard.WasSkipped)
+                {
+                    Config.FirstUseWizardCompleted = true;
+                    _isLoadingDevices = true;
+                    try
+                    {
+                        await LoadAllDevicesAsync();
+                    }
+                    finally
+                    {
+                        _isLoadingDevices = false;
+                    }
+                }
+            }
+            finally
+            {
+                if (pausedCamera)
+                    MainVM.ResumeCameraAfterSetupWizard();
+            }
+        }
+
         private void ZoomScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (MainVM != null)

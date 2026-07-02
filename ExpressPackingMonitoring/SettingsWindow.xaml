@@ -935,6 +935,26 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="配置向导" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="重新检查打包模式、摄像头、麦克风和扫码枪"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2"
+                                                Content="重新运行配置向导"
+                                                Click="RunSetupWizard_Click"
+                                                Style="{StaticResource SecondaryActionButtonStyle}"
+                                                Height="32"
+                                                Padding="12,0"
+                                                HorizontalAlignment="Left"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="外观主题" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="可跟随系统，或固定为浅色 / 深色主题"
                                                        Style="{StaticResource FieldHintStyle}"/>

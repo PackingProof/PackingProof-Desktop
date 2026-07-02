@@ -175,6 +175,11 @@ namespace ExpressPackingMonitoring
                 {
                     this.Title = "打包监控";
                 }
+
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    (DataContext as MainViewModel)?.RunFirstUseSetupWizardIfNeeded(this);
+                }), DispatcherPriority.ContextIdle);
             };
             SourceInitialized += (_, __) =>
             {

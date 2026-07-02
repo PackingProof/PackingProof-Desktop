@@ -58,6 +58,7 @@ namespace ExpressPackingMonitoring.ViewModels
         // 工位用途："CameraMonitor"=摄像头监控工位，"PrintStation"=快递单打印工位，空值表示首次启动需要选择。
         public string WorkstationRole { get; set; } = "";
         public string PrintStationMonitorAddress { get; set; } = "";
+        public bool FirstUseWizardCompleted { get; set; } = false;
 
         // 核心：多磁盘配置列表
         public List<StorageLocation> StorageLocations { get; set; } = new() { new StorageLocation() };
