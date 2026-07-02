@@ -608,12 +608,19 @@ namespace ExpressPackingMonitoring.ViewModels
 
             Debug.WriteLine($"[Zoom] 扫码事件触发: ID={upperResult}, ZoomEnabled={Config.EnableSmartZoom}, Delay={Config.ZoomDelaySeconds}");
             StartInputCooldown();
-            CurrentOrderId = upperResult;
 
             // 同码停录
             if (IsRecording && Config.EnableSameBarcodeStopRecording)
             {
-                string recordingOrderId = (_recordingOrderId ?? CurrentOrderId ?? "").ToUpper().Trim();
+                string recordingOrderId = (_recordingOrderId ?? "").ToUpper().Trim();
+
+                if (string.IsNullOrWhiteSpace(recordingOrderId))
+                {
+                    ShowToast("当前录像未绑定单号，无法同码停录");
+                    SpeakWarning("当前录像未绑定单号");
+                    return;
+                }
+
                 if (upperResult != recordingOrderId)
                 {
                     ShowToast($"警告：单号不一致：{upperResult}");
@@ -621,8 +628,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (!await _recorderLock.WaitAsync(0)) return;
-                try
+                if (!await _recorderLock.WaitAsync(0))
+                {
+                    ShowToast("录制状态正在切换，请稍后再试");
+                    return;
+                }
+
+               try
                 {
                     _stopReason = "同码停录";
                     PauseSpeechForRecording();
@@ -646,8 +658,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             }
 
+            CurrentOrderId = upperResult;
             if (IsRecording) _stopReason = "扫码切换";
-
             if (!await _recorderLock.WaitAsync(0)) return;
             try
             {
