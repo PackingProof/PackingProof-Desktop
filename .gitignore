@@ -37,3 +37,4 @@ kokoro-multi-lang-v1_0.tar.bz2
 Image/PixPin_*.png
 Image/PixPin_*.jpg
 .tmp/
+Videos/*
