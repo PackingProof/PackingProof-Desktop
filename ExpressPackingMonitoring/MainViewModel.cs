@@ -859,6 +859,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (settingsAccepted) {
                     // 判断摄像头相关配置是否变更
                     bool cameraChanged = Config.CameraIndex != clonedConfig.CameraIndex
+                        || Config.CameraMonikerString != clonedConfig.CameraMonikerString
                         || Config.FrameWidth != clonedConfig.FrameWidth
                         || Config.FrameHeight != clonedConfig.FrameHeight
                         || Config.Fps != clonedConfig.Fps;
@@ -930,6 +931,80 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             }
             catch (Exception ex) { ShowToast($"设置错误: {ex.Message}"); }
+        }
+
+        public void RunFirstUseSetupWizardIfNeeded(System.Windows.Window owner)
+        {
+            if (Config.FirstUseWizardCompleted || _isDisposed)
+                return;
+
+            bool pausedCamera = false;
+            try
+            {
+                if (!IsRecording)
+                {
+                    StopCamera();
+                    pausedCamera = true;
+                }
+
+                var clonedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
+                var wizard = new FirstUseSetupWizardWindow(clonedConfig) { Owner = owner };
+                MainWindow setupOwner = owner as MainWindow;
+                setupOwner?.SuspendCapsLockForModalWindow();
+
+                bool accepted;
+                try
+                {
+                    accepted = wizard.ShowDialog() == true;
+                }
+                finally
+                {
+                    setupOwner?.ResumeCapsLockAfterModalWindow();
+                }
+
+                if (!accepted)
+                    return;
+
+                if (!wizard.WasSkipped)
+                {
+                    Config = wizard.ResultConfig;
+                }
+
+                Config.FirstUseWizardCompleted = true;
+                SaveConfig();
+                ShowToast(wizard.WasSkipped ? "已跳过配置向导" : "配置向导已完成");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("SetupWizard", "First-use setup wizard failed", ex);
+                ShowToast($"配置向导错误: {ex.Message}");
+            }
+            finally
+            {
+                if (pausedCamera && !IsRecording && !_isDisposed)
+                {
+                    _consecutiveRestartFailures = 0;
+                    RestartCamera();
+                }
+            }
+        }
+
+        public bool SuspendCameraForSetupWizard()
+        {
+            if (IsRecording || _isDisposed)
+                return false;
+
+            StopCamera();
+            return true;
+        }
+
+        public void ResumeCameraAfterSetupWizard()
+        {
+            if (IsRecording || _isDisposed)
+                return;
+
+            _consecutiveRestartFailures = 0;
+            RestartCamera();
         }
 
         private void OpenStatsWindow()

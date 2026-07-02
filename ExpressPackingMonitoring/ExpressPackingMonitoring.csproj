@@ -58,6 +58,7 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
 
   <ItemGroup>
@@ -88,6 +89,7 @@
     <Compile Include="BarcodeHelper.cs" />
     <Compile Include="ConfirmDialog.xaml.cs" />
     <Compile Include="EncodingHelper.cs" />
+    <Compile Include="FirstUseSetupWizardWindow.xaml.cs" />
     <Compile Include="GlobalKeyboardHook.cs" />
     <Compile Include="MkvConversionResult.cs" />
     <Compile Include="RuntimeLog.cs" />
