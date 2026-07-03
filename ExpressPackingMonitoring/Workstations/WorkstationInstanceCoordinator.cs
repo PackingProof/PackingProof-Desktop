@@ -176,24 +176,18 @@ public sealed class DuplicateInstanceDialog : Window
     {
         _otherRole = otherRole;
         Title = "程序已经在运行";
-        Width = 550;
+        Width = 500;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ResizeMode = ResizeMode.NoResize;
-        SetResourceReference(BackgroundProperty, "WindowBackground");
+        SetResourceReference(BackgroundProperty, "PanelBackground");
 
-        var root = new StackPanel();
-        var frame = new Border
+        var root = new StackPanel
         {
-            Margin = new Thickness(16),
-            Padding = new Thickness(22),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12),
-            Child = root
+            Margin = new Thickness(24)
         };
-        frame.SetResourceReference(Border.BackgroundProperty, "PanelBackground");
-        frame.SetResourceReference(Border.BorderBrushProperty, "BorderLight");
-        Content = frame;
+
+        Content = root;
 
         var titleText = new TextBlock
         {
@@ -207,7 +201,7 @@ public sealed class DuplicateInstanceDialog : Window
 
         var bodyText = new TextBlock
         {
-            Text = "通常不建议重复打开同一种工位，否则可能抢占摄像头、麦克风、Web 端口或数据库。",
+            Text = "重复打开同种工位，可能抢占摄像头、麦克风、Web 端口或数据库",
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 20,
             FontSize = 13,
