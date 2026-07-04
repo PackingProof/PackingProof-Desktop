@@ -1602,9 +1602,16 @@
                                                     <Setter Property="Background" Value="Transparent"/>
                                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                                                     <Style.Triggers>
-                                                        <Trigger Property="IsSelected" Value="True">
+                                                        <MultiTrigger>
+                                                            <MultiTrigger.Conditions>
+                                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                                <Condition Property="IsSelected" Value="False"/>
+                                                            </MultiTrigger.Conditions>
                                                             <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                                                        </MultiTrigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -1614,11 +1621,20 @@
                                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                                                     <Setter Property="Background" Value="Transparent"/>
                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                                     <Setter Property="Padding" Value="6,0"/>
                                                     <Style.Triggers>
-                                                        <Trigger Property="IsSelected" Value="True">
+                                                        <MultiTrigger>
+                                                            <MultiTrigger.Conditions>
+                                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                                <Condition Property="IsSelected" Value="False"/>
+                                                            </MultiTrigger.Conditions>
                                                             <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                                                        </MultiTrigger>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
