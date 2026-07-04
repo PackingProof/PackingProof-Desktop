@@ -920,24 +920,6 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="配置向导" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="重新检查打包模式、摄像头、麦克风和扫码枪"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <Button Grid.Column="2"
-                                                Content="重新运行配置向导"
-                                                Click="RunSetupWizard_Click"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                HorizontalAlignment="Left"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="外观主题" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="可跟随系统，或固定为浅色 / 深色主题"
                                                        Style="{StaticResource FieldHintStyle}"/>
@@ -971,25 +953,6 @@
                                                   DisplayMemberPath="Name"
                                                   SelectedValue="{Binding Config.CameraIndex}"
                                                   SelectionChanged="CameraComboBox_SelectionChanged"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="录制声音" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="需要保留现场声音时开启"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="AudioRecordCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableAudioRecording}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
@@ -1148,7 +1111,7 @@
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1473,25 +1436,6 @@
                                                     TickFrequency="1"
                                                     Value="{Binding Config.MinRecordingSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
-                                    </Grid>
-
-                                    <Border Style="{StaticResource SectionDividerStyle}"/>
-
-                                    <Grid Style="{StaticResource SettingRowBeforeDividerStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
                                     <Border Style="{StaticResource SectionDividerStyle}"/>
@@ -2284,26 +2228,26 @@
                     </ScrollViewer>
                 </Border>
             </TabItem>
-            <TabItem Header="高级设置">
+            <TabItem Header="扫码设置">
                 <Border Background="Transparent" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <!-- 水印设置 -->
+                            <!-- 基础扫码设置 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    
+                                    <Grid Style="{StaticResource SettingRowBeforeDividerStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="启用录像水印" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="方便事后确认这段录像对应哪个订单"
-                                                       Style="{StaticResource FieldHintStyle}"/>
+                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableWatermark}"
+                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
@@ -2311,84 +2255,12 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- 基础扫码设置 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="开机自启动" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="电脑开机后自动启动本程序"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="AutoStartCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.AutoStartOnBoot}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="自动检查更新" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="打开软件后后台检查，有新版本时提示下载"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableAutoCheckUpdate}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="全局键盘监听" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="程序不在前台时也能接收扫码枪输入"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableGlobalKeyboard}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,14"
-                                          ToolTip="扫码枪未配置回车时，连续高速输入并停顿后自动提交。">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="无回车自动识别" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="兼容未开启扫描后回车的扫码枪"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableScannerAutoSubmit}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}"
-                                          ToolTip="正则表达式用于过滤非法扫码内容。不了解正则时请不要修改。">
+                                        ToolTip="正则表达式用于过滤非法扫码内容。不了解正则时请不要修改。">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2397,135 +2269,15 @@
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="单号判断规则" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="用于判断扫码内容是不是有效单号"
-                                                       Style="{StaticResource FieldHintStyle}"/>
+                                                    Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <TextBox Grid.Column="2"
-                                                 HorizontalAlignment="Stretch"
-                                                 Text="{Binding Config.OrderIdRegex}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}"
-                                          ToolTip="自动识别时，扫码内容至少达到这个长度才会提交。">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="自动识别最小长度" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="太短的输入不会自动触发扫码"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitMinLengthSlider, Path=Value, StringFormat={}{0:F0} 位}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="ScannerAutoSubmitMinLengthSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="4"
-                                                    Maximum="30"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    Value="{Binding Config.ScannerAutoSubmitMinLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}"
-                                          ToolTip="最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成。">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="自动提交停顿" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="停顿越短越灵敏，越长越不易误触"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitQuietSlider, Path=Value, StringFormat={}{0:F0} ms}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="ScannerAutoSubmitQuietSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="120"
-                                                    Maximum="600"
-                                                    TickFrequency="20"
-                                                    IsSnapToTickEnabled="True"
-                                                    Value="{Binding Config.ScannerAutoSubmitQuietMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}"
-                                          ToolTip="连续字符平均间隔低于该值时，认为更像扫码枪高速输入。">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="平均输入间隔" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="数值越小，对手动输入越严格"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitAverageSlider, Path=Value, StringFormat={}{0:F0} ms}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="ScannerAutoSubmitAverageSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="10"
-                                                    Maximum="100"
-                                                    TickFrequency="5"
-                                                    IsSnapToTickEnabled="True"
-                                                    Value="{Binding Config.ScannerAutoSubmitMaxAverageIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}"
-                                          ToolTip="多数连续字符间隔低于该值时，也可认为是扫码枪输入。">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="单字符间隔上限" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="用于兼容偶尔有抖动的扫码枪"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitKeyIntervalSlider, Path=Value, StringFormat={}{0:F0} ms}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="ScannerAutoSubmitKeyIntervalSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="20"
-                                                    Maximum="150"
-                                                    TickFrequency="5"
-                                                    IsSnapToTickEnabled="True"
-                                                    Value="{Binding Config.ScannerAutoSubmitMaxKeyIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
-                                        </StackPanel>
+                                                HorizontalAlignment="Stretch"
+                                                Text="{Binding Config.OrderIdRegex}"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
-                                          ToolTip="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换。">
+                                        ToolTip="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换。">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2534,14 +2286,14 @@
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="扫码间隔保护" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="防止扫码枪连续触发太快"
-                                                       Style="{StaticResource FieldHintStyle}"/>
+                                                    Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <Grid>
                                                 <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
                                                 <TextBlock Text="{Binding ElementName=BarcodeCooldownSlider, Path=Value, StringFormat={}{0:F1} 秒}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
+                                                        Style="{StaticResource SliderValueTextStyle}"
+                                                        HorizontalAlignment="Center"/>
                                                 <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
                                             </Grid>
                                             <Slider x:Name="BarcodeCooldownSlider"
@@ -2555,10 +2307,285 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- 无回车兼容模式 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="全局键盘监听" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="程序不在前台时也能接收扫码枪输入"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.EnableGlobalKeyboard}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                        ToolTip="扫码枪未配置回车时，连续高速输入并停顿后自动提交。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="无回车自动识别" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="兼容未开启扫描后回车的扫码枪"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.EnableScannerAutoSubmit}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <StackPanel IsEnabled="{Binding Config.EnableScannerAutoSubmit}">
+                                        <Grid Style="{StaticResource SettingRowStyle}"
+                                            ToolTip="自动识别时，扫码内容至少达到这个长度才会提交。">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="260"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="自动识别最小长度" Style="{StaticResource FieldLabelStyle}"/>
+                                                <TextBlock Text="太短的输入不会自动触发扫码"
+                                                        Style="{StaticResource FieldHintStyle}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <Grid>
+                                                    <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="{Binding ElementName=ScannerAutoSubmitMinLengthSlider, Path=Value, StringFormat={}{0:F0} 位}"
+                                                            Style="{StaticResource SliderValueTextStyle}"
+                                                            HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="ScannerAutoSubmitMinLengthSlider"
+                                                        Style="{StaticResource SettingsSliderStyle}"
+                                                        Minimum="4"
+                                                        Maximum="30"
+                                                        TickFrequency="1"
+                                                        IsSnapToTickEnabled="True"
+                                                        Value="{Binding Config.ScannerAutoSubmitMinLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}"
+                                            ToolTip="最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成。">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="260"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="自动提交停顿" Style="{StaticResource FieldLabelStyle}"/>
+                                                <TextBlock Text="停顿越短越灵敏，越长越不易误触"
+                                                        Style="{StaticResource FieldHintStyle}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <Grid>
+                                                    <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="{Binding ElementName=ScannerAutoSubmitQuietSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                            Style="{StaticResource SliderValueTextStyle}"
+                                                            HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="ScannerAutoSubmitQuietSlider"
+                                                        Style="{StaticResource SettingsSliderStyle}"
+                                                        Minimum="120"
+                                                        Maximum="600"
+                                                        TickFrequency="20"
+                                                        IsSnapToTickEnabled="True"
+                                                        Value="{Binding Config.ScannerAutoSubmitQuietMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}"
+                                            ToolTip="连续字符平均间隔低于该值时，认为更像扫码枪高速输入。">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="260"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="平均输入间隔" Style="{StaticResource FieldLabelStyle}"/>
+                                                <TextBlock Text="数值越小，对手动输入越严格"
+                                                        Style="{StaticResource FieldHintStyle}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <Grid>
+                                                    <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="{Binding ElementName=ScannerAutoSubmitAverageSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                            Style="{StaticResource SliderValueTextStyle}"
+                                                            HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="ScannerAutoSubmitAverageSlider"
+                                                        Style="{StaticResource SettingsSliderStyle}"
+                                                        Minimum="10"
+                                                        Maximum="100"
+                                                        TickFrequency="5"
+                                                        IsSnapToTickEnabled="True"
+                                                        Value="{Binding Config.ScannerAutoSubmitMaxAverageIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Style="{StaticResource SettingRowLastStyle}"
+                                            ToolTip="多数连续字符间隔低于该值时，也可认为是扫码枪输入。">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="24"/>
+                                                <ColumnDefinition Width="260"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,16,0">
+                                                <TextBlock Text="单字符间隔上限" Style="{StaticResource FieldLabelStyle}"/>
+                                                <TextBlock Text="用于兼容偶尔有抖动的扫码枪"
+                                                        Style="{StaticResource FieldHintStyle}"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <Grid>
+                                                    <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="{Binding ElementName=ScannerAutoSubmitKeyIntervalSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                            Style="{StaticResource SliderValueTextStyle}"
+                                                            HorizontalAlignment="Center"/>
+                                                    <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="ScannerAutoSubmitKeyIntervalSlider"
+                                                        Style="{StaticResource SettingsSliderStyle}"
+                                                        Minimum="20"
+                                                        Maximum="150"
+                                                        TickFrequency="5"
+                                                        IsSnapToTickEnabled="True"
+                                                        Value="{Binding Config.ScannerAutoSubmitMaxKeyIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </TabItem>
+
+            <TabItem Header="高级设置">
+                <Border Background="Transparent" Padding="0,4,0,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <!-- 水印设置 -->
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="启用录像水印" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="方便事后确认这段录像对应哪个订单"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.EnableWatermark}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="录制声音" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="需要保留现场声音时开启"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="AudioRecordCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableAudioRecording}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 常规高级设置 -->
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="开机自启动" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="电脑开机后自动启动本程序"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="AutoStartCheckBox"
+                                                Grid.Column="2"
+                                                IsChecked="{Binding Config.AutoStartOnBoot}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="自动检查更新" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="打开软件后后台检查，有新版本时提示下载"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.EnableAutoCheckUpdate}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 维护工具 -->
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="配置向导" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="重新检查打包模式、摄像头、麦克风和扫码枪"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2"
+                                                Content="重新运行"
+                                                Click="RunSetupWizard_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
-                                          ToolTip="清除已保存的显卡编码检测结果，下次重新判断可用编码器。">
+                                        ToolTip="清除已保存的显卡编码检测结果，下次重新判断可用编码器。">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2567,16 +2594,16 @@
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="重置编码器检测" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="录像编码异常时，用它重新检测电脑能力"
-                                                       Style="{StaticResource FieldHintStyle}"/>
+                                                    Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <Button Grid.Column="2" Content="立即重新检测"
+                                        <Button Grid.Column="2"
+                                                Content="重新检测"
                                                 Command="{Binding MainVM.ResetEncoderDetectCommand}"
                                                 Style="{StaticResource SecondaryButtonStyle}"
-                                                HorizontalAlignment="Left" />
+                                                HorizontalAlignment="Left"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
-
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
@@ -2601,8 +2628,8 @@
                                                 BorderBrush="{DynamicResource BorderLight}"
                                                 BorderThickness="1">
                                             <Image Source="{Binding AppIconImage}"
-                                                   Width="56"
-                                                   Height="56"
+                                                   Width="72"
+                                                   Height="72"
                                                    Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                                         </Border>
