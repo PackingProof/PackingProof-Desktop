@@ -432,9 +432,21 @@ namespace ExpressPackingMonitoring.ViewModels
         private void InitGlobalKeyboardHook()
         {
             _globalKeyHook = new GlobalKeyboardHook();
+            ApplyGlobalKeyboardConfig();
             _globalKeyHook.BarcodeScanned += OnGlobalBarcodeScanned;
             if (Config.EnableGlobalKeyboard)
                 _globalKeyHook.Start();
+        }
+
+        private void ApplyGlobalKeyboardConfig()
+        {
+            _globalKeyHook?.ConfigureAutoSubmit(
+                Config.EnableScannerAutoSubmit,
+                Config.ScannerAutoSubmitMinLength,
+                Config.ScannerAutoSubmitQuietMs,
+                Config.ScannerAutoSubmitMaxAverageIntervalMs,
+                Config.ScannerAutoSubmitMaxKeyIntervalMs,
+                IsAutoSubmitScanCandidate);
         }
 
         private void OnGlobalBarcodeScanned(string barcode)
@@ -772,6 +784,11 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { return false; }
         }
 
+        public bool IsAutoSubmitScanCandidate(string scanText)
+        {
+            return IsOrderScan((scanText ?? "").ToUpper().Trim());
+        }
+
         private async Task SafeStopRecordingAsync(bool isManual = false)
         {
             if (IsBusy || !IsRecording || _isDisposed) return;
@@ -878,6 +895,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool aiTtsChanged = Config.EnableAiTts != clonedConfig.EnableAiTts
                         || Config.AiTtsEngine != clonedConfig.AiTtsEngine;
 
+                    AppConfig.NormalizeAfterLoad(clonedConfig);
                     Config = clonedConfig; 
                     SaveConfig(); 
 
@@ -906,6 +924,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     ForceCheckDiskAndCleanup();
 
+                    ApplyGlobalKeyboardConfig();
                     if (globalKeyChanged && _globalKeyHook != null)
                     {
                         if (Config.EnableGlobalKeyboard)

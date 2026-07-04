@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,9 +24,17 @@ namespace ExpressPackingMonitoring.Input
         private IntPtr _hookId = IntPtr.Zero;
         private readonly LowLevelKeyboardProc _hookProc;
         private readonly StringBuilder _buffer = new();
+        private readonly List<double> _keyIntervalsMs = new();
+        private readonly DispatcherTimer _autoSubmitTimer;
         private DateTime _lastKeyTime = DateTime.MinValue;
         private readonly Dispatcher _dispatcher;
         private bool _isDisposed;
+        private bool _enableAutoSubmit = true;
+        private int _autoSubmitMinLength = 6;
+        private int _autoSubmitQuietMs = 220;
+        private int _autoSubmitMaxAverageIntervalMs = 30;
+        private int _autoSubmitMaxKeyIntervalMs = 50;
+        private Func<string, bool>? _isAutoSubmitCandidate;
 
         public event Action<string>? BarcodeScanned;
 
@@ -54,6 +63,28 @@ namespace ExpressPackingMonitoring.Input
         {
             _dispatcher = Dispatcher.CurrentDispatcher;
             _hookProc = HookCallback;
+            _autoSubmitTimer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher);
+            _autoSubmitTimer.Tick += (_, __) => TryAutoSubmitAfterQuiet();
+        }
+
+        public void ConfigureAutoSubmit(
+            bool enabled,
+            int minLength,
+            int quietMs,
+            int maxAverageIntervalMs,
+            int maxKeyIntervalMs,
+            Func<string, bool>? isCandidate)
+        {
+            _enableAutoSubmit = enabled;
+            _autoSubmitMinLength = Math.Clamp(minLength, 4, 30);
+            _autoSubmitQuietMs = Math.Clamp(quietMs, 120, 600);
+            _autoSubmitMaxAverageIntervalMs = Math.Clamp(maxAverageIntervalMs, 10, 100);
+            _autoSubmitMaxKeyIntervalMs = Math.Clamp(maxKeyIntervalMs, 20, 150);
+            _isAutoSubmitCandidate = isCandidate;
+            _autoSubmitTimer.Interval = TimeSpan.FromMilliseconds(_autoSubmitQuietMs);
+
+            if (!_enableAutoSubmit)
+                _autoSubmitTimer.Stop();
         }
 
         public void Start()
@@ -71,7 +102,8 @@ namespace ExpressPackingMonitoring.Input
             {
                 UnhookWindowsHookEx(_hookId);
                 _hookId = IntPtr.Zero;
-                _buffer.Clear();
+                _autoSubmitTimer.Stop();
+                ClearBuffer();
                 Debug.WriteLine("[GlobalKeyHook] Stopped");
             }
         }
@@ -83,42 +115,106 @@ namespace ExpressPackingMonitoring.Input
                 // 如果当前程序窗口在前台，不拦截（让正常的 TextBox 处理）
                 if (IsOwnWindowForeground())
                 {
-                    _buffer.Clear();
+                    _autoSubmitTimer.Stop();
+                    ClearBuffer();
                     return CallNextHookEx(_hookId, nCode, wParam, lParam);
                 }
 
                 int vkCode = Marshal.ReadInt32(lParam);
                 var now = DateTime.Now;
-                double elapsed = (now - _lastKeyTime).TotalMilliseconds;
+                double elapsed = _lastKeyTime == DateTime.MinValue
+                    ? 0
+                    : (now - _lastKeyTime).TotalMilliseconds;
                 _lastKeyTime = now;
 
                 // 如果间隔太久，清空缓冲区（不是连续扫码输入）
-                if (elapsed > MaxKeyIntervalMs && _buffer.Length > 0)
+                if (elapsed > GetSequenceBreakMs() && _buffer.Length > 0)
                 {
-                    _buffer.Clear();
+                    ClearBuffer();
                 }
 
                 if (vkCode == 0x0D) // Enter
                 {
-                    string input = _buffer.ToString().Trim();
-                    _buffer.Clear();
-                    if (input.Length >= MinScanLength)
-                    {
-                        Debug.WriteLine($"[GlobalKeyHook] Barcode captured: {input}");
-                        _dispatcher.BeginInvoke(() => BarcodeScanned?.Invoke(input));
-                    }
+                    SubmitBufferByEnter();
                 }
                 else
                 {
                     char? ch = VkCodeToChar(vkCode);
                     if (ch.HasValue)
                     {
+                        bool hasBufferedChars = _buffer.Length > 0;
                         _buffer.Append(ch.Value);
+                        if (hasBufferedChars && elapsed > 0)
+                            _keyIntervalsMs.Add(elapsed);
+                        ScheduleAutoSubmitCheck();
                     }
                 }
             }
 
             return CallNextHookEx(_hookId, nCode, wParam, lParam);
+        }
+
+        private double GetSequenceBreakMs()
+        {
+            return Math.Max(MaxKeyIntervalMs, _autoSubmitMaxKeyIntervalMs);
+        }
+
+        private void SubmitBufferByEnter()
+        {
+            _autoSubmitTimer.Stop();
+            string input = _buffer.ToString().Trim();
+            ClearBuffer();
+            if (input.Length >= MinScanLength)
+            {
+                Debug.WriteLine($"[GlobalKeyHook] Barcode captured by Enter: {input}");
+                _dispatcher.BeginInvoke(() => BarcodeScanned?.Invoke(input));
+            }
+        }
+
+        private void ScheduleAutoSubmitCheck()
+        {
+            if (!_enableAutoSubmit) return;
+
+            _autoSubmitTimer.Stop();
+            _autoSubmitTimer.Interval = TimeSpan.FromMilliseconds(_autoSubmitQuietMs);
+            _autoSubmitTimer.Start();
+        }
+
+        private void TryAutoSubmitAfterQuiet()
+        {
+            _autoSubmitTimer.Stop();
+            if (!_enableAutoSubmit || _buffer.Length < _autoSubmitMinLength)
+                return;
+
+            if ((DateTime.Now - _lastKeyTime).TotalMilliseconds < _autoSubmitQuietMs)
+            {
+                ScheduleAutoSubmitCheck();
+                return;
+            }
+
+            string input = _buffer.ToString().Trim();
+            if (input.Length < _autoSubmitMinLength)
+                return;
+
+            if (_isAutoSubmitCandidate?.Invoke(input) != true)
+                return;
+
+            if (!ScannerAutoSubmitPolicy.IsFastSequence(
+                    _keyIntervalsMs,
+                    input.Length,
+                    _autoSubmitMaxAverageIntervalMs,
+                    _autoSubmitMaxKeyIntervalMs))
+                return;
+
+            ClearBuffer();
+            Debug.WriteLine($"[GlobalKeyHook] Barcode auto submitted after quiet: {input}");
+            BarcodeScanned?.Invoke(input);
+        }
+
+        private void ClearBuffer()
+        {
+            _buffer.Clear();
+            _keyIntervalsMs.Clear();
         }
 
         private bool IsOwnWindowForeground()
@@ -165,6 +261,7 @@ namespace ExpressPackingMonitoring.Input
             if (_isDisposed) return;
             _isDisposed = true;
             Stop();
+            _autoSubmitTimer.Stop();
         }
     }
 }

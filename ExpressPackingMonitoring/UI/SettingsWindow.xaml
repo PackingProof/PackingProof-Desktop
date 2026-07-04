@@ -2368,6 +2368,25 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}" Margin="0,0,0,14"
+                                          ToolTip="扫码枪未配置回车时，连续高速输入并停顿后自动提交。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="无回车自动识别" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="兼容未开启扫描后回车的扫码枪"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableScannerAutoSubmit}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           ToolTip="正则表达式用于过滤非法扫码内容。不了解正则时请不要修改。">
                                         <Grid.ColumnDefinitions>
@@ -2383,6 +2402,126 @@
                                         <TextBox Grid.Column="2"
                                                  HorizontalAlignment="Stretch"
                                                  Text="{Binding Config.OrderIdRegex}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          ToolTip="自动识别时，扫码内容至少达到这个长度才会提交。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="自动识别最小长度" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="太短的输入不会自动触发扫码"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitMinLengthSlider, Path=Value, StringFormat={}{0:F0} 位}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="ScannerAutoSubmitMinLengthSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="4"
+                                                    Maximum="30"
+                                                    TickFrequency="1"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding Config.ScannerAutoSubmitMinLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          ToolTip="最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="自动提交停顿" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="停顿越短越灵敏，越长越不易误触"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitQuietSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="ScannerAutoSubmitQuietSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="120"
+                                                    Maximum="600"
+                                                    TickFrequency="20"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding Config.ScannerAutoSubmitQuietMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          ToolTip="连续字符平均间隔低于该值时，认为更像扫码枪高速输入。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="平均输入间隔" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="数值越小，对手动输入越严格"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitAverageSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="ScannerAutoSubmitAverageSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="10"
+                                                    Maximum="100"
+                                                    TickFrequency="5"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding Config.ScannerAutoSubmitMaxAverageIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          ToolTip="多数连续字符间隔低于该值时，也可认为是扫码枪输入。">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="单字符间隔上限" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="用于兼容偶尔有抖动的扫码枪"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更严格" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=ScannerAutoSubmitKeyIntervalSlider, Path=Value, StringFormat={}{0:F0} ms}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更宽松" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="ScannerAutoSubmitKeyIntervalSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="20"
+                                                    Maximum="150"
+                                                    TickFrequency="5"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding Config.ScannerAutoSubmitMaxKeyIntervalMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
+                                        </StackPanel>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowLastStyle}"

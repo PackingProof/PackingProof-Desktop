@@ -93,6 +93,7 @@
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Input\GlobalKeyboardHook.cs" />
+    <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
     <Compile Include="Logging\RuntimeLog.cs" />
     <Compile Include="Services\UpdateCheckOptions.cs" />
     <Compile Include="Services\UpdateCheckService.cs" />

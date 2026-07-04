@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Input;
 using ExpressPackingMonitoring.Logging;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -25,6 +26,10 @@ namespace ExpressPackingMonitoring.UI
         private const int WM_EXITSIZEMOVE = 0x0232;
         private bool _shutdownConfirmed;
         private bool _shutdownInProgress;
+        private readonly DispatcherTimer _scanAutoSubmitTimer;
+        private readonly List<double> _scanInputIntervalsMs = new();
+        private DateTime _lastScanInputCharAt = DateTime.MinValue;
+        private int _lastScanInputLength;
 
         private bool IsCapsLockOn() => (GetKeyState(VK_CAPITAL) & 1) != 0;
 
@@ -113,6 +118,8 @@ namespace ExpressPackingMonitoring.UI
                 else
                     _capsCheckTimer.Stop();
             };
+            _scanAutoSubmitTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+            _scanAutoSubmitTimer.Tick += ScanAutoSubmitTimer_Tick;
             Activated += (s, e) =>
             {
                 _capsLockStateBeforeFocus = IsCapsLockOn();
@@ -275,6 +282,7 @@ namespace ExpressPackingMonitoring.UI
         {
             if (e.Key == Key.Enter)
             {
+                ResetScanAutoSubmitState();
                 string scanResult = ScanInputTextBox.Text.Trim();
                 if (DataContext is MainViewModel viewModel)
                 {
@@ -283,6 +291,100 @@ namespace ExpressPackingMonitoring.UI
                 // 彻底交由 ViewModel 接管清空逻辑
                 e.Handled = true;
             }
+        }
+
+        private void ScanInputTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (DataContext is not MainViewModel viewModel || !viewModel.Config.EnableScannerAutoSubmit)
+            {
+                ResetScanAutoSubmitState();
+                _lastScanInputLength = ScanInputTextBox.Text?.Length ?? 0;
+                return;
+            }
+
+            string text = ScanInputTextBox.Text ?? "";
+            if (text.Length == 0)
+            {
+                ResetScanAutoSubmitState();
+                return;
+            }
+
+            int addedCount = text.Length - _lastScanInputLength;
+            if (addedCount <= 0)
+            {
+                ResetScanAutoSubmitState();
+                _lastScanInputLength = text.Length;
+                return;
+            }
+
+            var now = DateTime.Now;
+            int sequenceBreakMs = Math.Max(100, viewModel.Config.ScannerAutoSubmitMaxKeyIntervalMs);
+            for (int i = 0; i < addedCount; i++)
+            {
+                if (_lastScanInputCharAt != DateTime.MinValue)
+                {
+                    double elapsed = (now - _lastScanInputCharAt).TotalMilliseconds;
+                    if (elapsed > sequenceBreakMs)
+                    {
+                        _scanInputIntervalsMs.Clear();
+                    }
+                    else
+                    {
+                        _scanInputIntervalsMs.Add(elapsed);
+                    }
+                }
+                _lastScanInputCharAt = now;
+            }
+
+            _lastScanInputLength = text.Length;
+            ScheduleScanAutoSubmitCheck(viewModel.Config.ScannerAutoSubmitQuietMs);
+        }
+
+        private void ScheduleScanAutoSubmitCheck(int quietMs)
+        {
+            _scanAutoSubmitTimer.Stop();
+            _scanAutoSubmitTimer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(quietMs, 120, 600));
+            _scanAutoSubmitTimer.Start();
+        }
+
+        private void ScanAutoSubmitTimer_Tick(object? sender, EventArgs e)
+        {
+            _scanAutoSubmitTimer.Stop();
+
+            if (DataContext is not MainViewModel viewModel || !viewModel.Config.EnableScannerAutoSubmit)
+                return;
+
+            if ((DateTime.Now - _lastScanInputCharAt).TotalMilliseconds < viewModel.Config.ScannerAutoSubmitQuietMs)
+            {
+                ScheduleScanAutoSubmitCheck(viewModel.Config.ScannerAutoSubmitQuietMs);
+                return;
+            }
+
+            string scanResult = ScanInputTextBox.Text.Trim();
+            if (scanResult.Length < viewModel.Config.ScannerAutoSubmitMinLength)
+                return;
+
+            if (!viewModel.IsAutoSubmitScanCandidate(scanResult))
+                return;
+
+            if (!ScannerAutoSubmitPolicy.IsFastSequence(
+                    _scanInputIntervalsMs,
+                    scanResult.Length,
+                    viewModel.Config.ScannerAutoSubmitMaxAverageIntervalMs,
+                    viewModel.Config.ScannerAutoSubmitMaxKeyIntervalMs))
+                return;
+
+            ResetScanAutoSubmitState();
+            if (viewModel.ScanCommand.CanExecute(scanResult))
+                viewModel.ScanCommand.Execute(scanResult);
+        }
+
+        private void ResetScanAutoSubmitState()
+        {
+            _scanAutoSubmitTimer.Stop();
+            _scanInputIntervalsMs.Clear();
+            _lastScanInputCharAt = DateTime.MinValue;
+            _lastScanInputLength = ScanInputTextBox?.Text?.Length ?? 0;
         }
 
         private void ScanInputTextBox_LostFocus(object sender, RoutedEventArgs e)

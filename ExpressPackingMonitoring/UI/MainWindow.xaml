@@ -146,7 +146,7 @@
                                 <TextBox x:Name="ScanInputTextBox" Height="52" FontSize="22" Padding="16,0,36,0" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="2" VerticalContentAlignment="Center"
                                          Text="{Binding ScanInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          GotKeyboardFocus="ScanInputTextBox_GotFocus" PreviewMouseLeftButtonDown="ScanInputTextBox_PreviewMouseLeftButtonDown"
-                                         PreviewKeyDown="ScanInputTextBox_PreviewKeyDown" LostFocus="ScanInputTextBox_LostFocus">
+                                         PreviewKeyDown="ScanInputTextBox_PreviewKeyDown" TextChanged="ScanInputTextBox_TextChanged" LostFocus="ScanInputTextBox_LostFocus">
                                     <TextBox.Resources>
                                         <Style TargetType="Border">
                                             <Setter Property="CornerRadius" Value="8"/>

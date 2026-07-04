@@ -107,6 +107,11 @@ namespace ExpressPackingMonitoring.Config
 
         // 全局键盘监听（后台接收扫码枪）
         public bool EnableGlobalKeyboard { get; set; } = true;
+        public bool EnableScannerAutoSubmit { get; set; } = true;
+        public int ScannerAutoSubmitMinLength { get; set; } = 12;
+        public int ScannerAutoSubmitQuietMs { get; set; } = 220;
+        public int ScannerAutoSubmitMaxAverageIntervalMs { get; set; } = 30;
+        public int ScannerAutoSubmitMaxKeyIntervalMs { get; set; } = 50;
 
         // 水印
         public bool EnableWatermark { get; set; } = true;
@@ -183,6 +188,34 @@ namespace ExpressPackingMonitoring.Config
                 }
 
                 config.VoiceSettingsVersion = CurrentVoiceSettingsVersion;
+                changed = true;
+            }
+
+            int normalizedMinLength = System.Math.Clamp(config.ScannerAutoSubmitMinLength, 4, 30);
+            if (config.ScannerAutoSubmitMinLength != normalizedMinLength)
+            {
+                config.ScannerAutoSubmitMinLength = normalizedMinLength;
+                changed = true;
+            }
+
+            int normalizedQuietMs = System.Math.Clamp(config.ScannerAutoSubmitQuietMs, 120, 600);
+            if (config.ScannerAutoSubmitQuietMs != normalizedQuietMs)
+            {
+                config.ScannerAutoSubmitQuietMs = normalizedQuietMs;
+                changed = true;
+            }
+
+            int normalizedAverageMs = System.Math.Clamp(config.ScannerAutoSubmitMaxAverageIntervalMs, 10, 100);
+            if (config.ScannerAutoSubmitMaxAverageIntervalMs != normalizedAverageMs)
+            {
+                config.ScannerAutoSubmitMaxAverageIntervalMs = normalizedAverageMs;
+                changed = true;
+            }
+
+            int normalizedKeyIntervalMs = System.Math.Clamp(config.ScannerAutoSubmitMaxKeyIntervalMs, 20, 150);
+            if (config.ScannerAutoSubmitMaxKeyIntervalMs != normalizedKeyIntervalMs)
+            {
+                config.ScannerAutoSubmitMaxKeyIntervalMs = normalizedKeyIntervalMs;
                 changed = true;
             }
 
