@@ -926,7 +926,6 @@ namespace ExpressPackingMonitoring
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
             CheckUpdateButton.IsEnabled = false;
-            string oldContent = CheckUpdateButton.Content?.ToString() ?? "检查更新";
             CheckUpdateButton.Content = "正在检查...";
 
             try
@@ -935,20 +934,17 @@ namespace ExpressPackingMonitoring
                 var result = await service.CheckAsync();
                 if (!result.HasUpdate)
                 {
-                    MainVM.ShowToast("当前已是最新版本");
+                    CheckUpdateButton.Content = "已为最新";
                     return;
                 }
 
+                CheckUpdateButton.Content = "发现新版本";
                 ShowUpdateDialog(result);
             }
             catch (Exception ex)
             {
                 RuntimeLog.Error("Update", "Manual update check failed", ex);
-                MainVM.ShowToast("检查更新失败，请稍后再试");
-            }
-            finally
-            {
-                CheckUpdateButton.Content = oldContent;
+                CheckUpdateButton.Content = "检查失败";
                 CheckUpdateButton.IsEnabled = true;
             }
         }
