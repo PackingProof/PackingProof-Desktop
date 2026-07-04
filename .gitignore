@@ -39,3 +39,4 @@ Image/PixPin_*.png
 Image/PixPin_*.jpg
 .tmp/
 Videos/*
+package/*
