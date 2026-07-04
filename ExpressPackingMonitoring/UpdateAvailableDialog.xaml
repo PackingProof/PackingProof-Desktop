@@ -37,13 +37,9 @@
                     CornerRadius="8"
                     Padding="12"
                     MaxHeight="220">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <TextBlock x:Name="BodyText"
-                               FontSize="12"
-                               LineHeight="18"
-                               Foreground="{DynamicResource TextSecondary}"
-                               TextWrapping="Wrap"/>
-                </ScrollViewer>
+                <FlowDocumentScrollViewer x:Name="BodyViewer"
+                                          VerticalScrollBarVisibility="Auto"
+                                          Foreground="{DynamicResource TextSecondary}"/>
             </Border>
         </StackPanel>
 

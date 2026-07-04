@@ -102,6 +102,7 @@
     <Compile Include="MainViewModel.Encoder.cs" />
     <Compile Include="MainViewModel.Recording.cs" />
     <Compile Include="MainWindow.xaml.cs" />
+    <Compile Include="MarkdownFlowDocumentRenderer.cs" />
     <Compile Include="PlaybackWindow.xaml.cs" />
     <Compile Include="SettingsWindow.xaml.cs" />
     <Compile Include="StatisticsWindow.xaml.cs" />
