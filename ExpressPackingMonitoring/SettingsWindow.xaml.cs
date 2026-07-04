@@ -131,7 +131,9 @@ namespace ExpressPackingMonitoring
             {
                 Config.StorageLocations.Add(new StorageLocation());
             }
-            UpdateRemoveStorageButtonState();
+            SortStorageLocationsByPriority();
+            RefreshStoragePriorities();
+            UpdateStorageButtonStates();
 
             // 从注册表读取实际的开机自启动状态
             Config.AutoStartOnBoot = IsAutoStartEnabled();
@@ -496,7 +498,7 @@ namespace ExpressPackingMonitoring
             if (sameDisk != null)
             {
                 MessageBox.Show(
-                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和使用顺序。",
+                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序。",
                     "磁盘已存在",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -509,15 +511,17 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
-            int nextPriority = Config.StorageLocations.Count > 0 ? Config.StorageLocations.Max(x => x.Priority) + 1 : 0;
             Config.StorageLocations.Add(new StorageLocation
             {
                 Path = selectedPath,
                 QuotaGB = 500.0,
-                Priority = nextPriority
+                Priority = Config.StorageLocations.Count
             });
 
+            RefreshStoragePriorities();
             StorageDataGrid.Items.Refresh();
+            StorageDataGrid.SelectedIndex = Config.StorageLocations.Count - 1;
+            UpdateStorageButtonStates();
         }
 
         private string SelectDefaultStoragePathFromDrive()
@@ -565,9 +569,15 @@ namespace ExpressPackingMonitoring
                                              "确认移除", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (result == MessageBoxResult.Yes)
                 {
+                    int selectedIndex = StorageDataGrid.SelectedIndex;
                     Config.StorageLocations.Remove(selected);
+                    RefreshStoragePriorities();
                     StorageDataGrid.Items.Refresh();
-                    UpdateRemoveStorageButtonState();
+                    if (Config.StorageLocations.Count > 0)
+                    {
+                        StorageDataGrid.SelectedIndex = Math.Min(selectedIndex, Config.StorageLocations.Count - 1);
+                    }
+                    UpdateStorageButtonStates();
                 }
             }
             else
@@ -578,13 +588,71 @@ namespace ExpressPackingMonitoring
 
         private void StorageDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            UpdateRemoveStorageButtonState();
+            UpdateStorageButtonStates();
         }
 
-        private void UpdateRemoveStorageButtonState()
+        private void BtnMoveStorageUp_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedStorage(-1);
+        }
+
+        private void BtnMoveStorageDown_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedStorage(1);
+        }
+
+        private void MoveSelectedStorage(int direction)
+        {
+            if (StorageDataGrid?.SelectedItem is not StorageLocation selected) return;
+
+            int oldIndex = Config.StorageLocations.IndexOf(selected);
+            int newIndex = oldIndex + direction;
+            if (oldIndex < 0 || newIndex < 0 || newIndex >= Config.StorageLocations.Count) return;
+
+            Config.StorageLocations.RemoveAt(oldIndex);
+            Config.StorageLocations.Insert(newIndex, selected);
+            RefreshStoragePriorities();
+            StorageDataGrid.Items.Refresh();
+            StorageDataGrid.SelectedIndex = newIndex;
+            UpdateStorageButtonStates();
+        }
+
+        private void SortStorageLocationsByPriority()
+        {
+            if (Config.StorageLocations == null || Config.StorageLocations.Count <= 1) return;
+
+            var ordered = Config.StorageLocations
+                .Select((location, index) => new { Location = location, Index = index })
+                .OrderBy(x => x.Location.Priority)
+                .ThenBy(x => x.Index)
+                .Select(x => x.Location)
+                .ToList();
+
+            Config.StorageLocations.Clear();
+            Config.StorageLocations.AddRange(ordered);
+        }
+
+        private void RefreshStoragePriorities()
+        {
+            if (Config.StorageLocations == null) return;
+
+            for (int i = 0; i < Config.StorageLocations.Count; i++)
+            {
+                Config.StorageLocations[i].Priority = i;
+            }
+        }
+
+        private void UpdateStorageButtonStates()
         {
             if (RemoveStorageButton == null) return;
-            RemoveStorageButton.IsEnabled = StorageDataGrid?.SelectedItem is StorageLocation;
+
+            bool hasSelection = StorageDataGrid?.SelectedItem is StorageLocation;
+            int selectedIndex = StorageDataGrid?.SelectedIndex ?? -1;
+            int count = Config.StorageLocations?.Count ?? 0;
+
+            RemoveStorageButton.IsEnabled = hasSelection;
+            if (MoveStorageUpButton != null) MoveStorageUpButton.IsEnabled = hasSelection && selectedIndex > 0;
+            if (MoveStorageDownButton != null) MoveStorageDownButton.IsEnabled = hasSelection && selectedIndex >= 0 && selectedIndex < count - 1;
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -602,6 +670,7 @@ namespace ExpressPackingMonitoring
             // 1. 强制提交 DataGrid 中的未完成编辑
             StorageDataGrid.CommitEdit(DataGridEditingUnit.Row, true);
             StorageDataGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            RefreshStoragePriorities();
 
             // 2. 手动同步部分控件（防止可焦点未切换时绑定未更新）
             if (CameraComboBox.SelectedItem is CameraInfo cam)

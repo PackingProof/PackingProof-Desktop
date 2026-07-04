@@ -1563,7 +1563,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="录像保存位置" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="配置录像保存目录、容量和使用顺序"
+                                            <TextBlock Text="配置录像保存磁盘和容量，录像会优先保存到列表靠上的磁盘。"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                     </Grid>
@@ -1654,27 +1654,10 @@
                                                         </DataTemplate>
                                                     </DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
-
-                                                <DataGridTemplateColumn Header="使用顺序" Width="140">
-                                                    <DataGridTemplateColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <xctk:IntegerUpDown ToolTip="数字越小优先级越高，普通用户可不改。" Value="{Binding Priority, UpdateSourceTrigger=PropertyChanged}"
-                                                                                Minimum="0"
-                                                                                Maximum="99"
-                                                                                Margin="5"
-                                                                                VerticalAlignment="Center"
-                                                                                HorizontalAlignment="Center"
-                                                                                Width="96"
-                                                                                MinWidth="96"
-                                                                                MaxWidth="96"
-                                                                                Height="36"/>
-                                                        </DataTemplate>
-                                                    </DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
-                                    <TextBlock Text="最大容量表示该目录最多保存多少 GB 录像；使用顺序数字越小越优先写入，普通用户保持默认即可"
+                                    <TextBlock Text="录像会按照列表顺序依次存储；越靠上的磁盘越优先使用。磁盘达到最大容量后，会自动使用下一个磁盘。"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="{StaticResource SettingInlineTopMargin}">
@@ -1685,6 +1668,18 @@
                                         <Button x:Name="RemoveStorageButton"
                                                 Content="移除选中"
                                                 Click="BtnRemoveStorage_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="MoveStorageUpButton"
+                                                Content="上移"
+                                                Click="BtnMoveStorageUp_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="MoveStorageDownButton"
+                                                Content="下移"
+                                                Click="BtnMoveStorageDown_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 IsEnabled="False"/>
                                     </StackPanel>
