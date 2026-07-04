@@ -58,6 +58,7 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>
 
   <ItemGroup>
@@ -82,28 +83,35 @@
 
   <ItemGroup>
     <Compile Include="App.xaml.cs" />
-    <Compile Include="AppPaths.cs" />
-    <Compile Include="AppConfig.cs" />
-    <Compile Include="AudioProbe.cs" />
-    <Compile Include="BarcodeHelper.cs" />
-    <Compile Include="ConfirmDialog.xaml.cs" />
-    <Compile Include="EncodingHelper.cs" />
-    <Compile Include="GlobalKeyboardHook.cs" />
-    <Compile Include="MkvConversionResult.cs" />
-    <Compile Include="RuntimeLog.cs" />
-    <Compile Include="ScannerAutoSubmitPolicy.cs" />
-    <Compile Include="SpeechService.cs" />
-    <Compile Include="MainViewModel.Cleanup.cs" />
-    <Compile Include="MainViewModel.cs" />
-    <Compile Include="MainViewModel.Encoder.cs" />
-    <Compile Include="MainViewModel.Recording.cs" />
-    <Compile Include="MainWindow.xaml.cs" />
-    <Compile Include="PlaybackWindow.xaml.cs" />
-    <Compile Include="SettingsWindow.xaml.cs" />
-    <Compile Include="StatisticsWindow.xaml.cs" />
+    <Compile Include="Audio\AudioProbe.cs" />
+    <Compile Include="Audio\SpeechService.cs" />
+    <Compile Include="Config\AppConfig.cs" />
+    <Compile Include="Config\AppPaths.cs" />
+    <Compile Include="Config\AppVersion.cs" />
+    <Compile Include="Data\MkvConversionResult.cs" />
+    <Compile Include="Data\VideoDatabase.cs" />
+    <Compile Include="Helpers\BarcodeHelper.cs" />
+    <Compile Include="Helpers\EncodingHelper.cs" />
+    <Compile Include="Input\GlobalKeyboardHook.cs" />
+    <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
+    <Compile Include="Logging\RuntimeLog.cs" />
+    <Compile Include="Services\UpdateCheckOptions.cs" />
+    <Compile Include="Services\UpdateCheckService.cs" />
+    <Compile Include="Services\WebServer.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
-    <Compile Include="VideoDatabase.cs" />
-    <Compile Include="WebServer.cs" />
+    <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />
+    <Compile Include="ViewModels\MainViewModel.cs" />
+    <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
+    <Compile Include="ViewModels\MainViewModel.Recording.cs" />
+    <Compile Include="UI\ConfirmDialog.xaml.cs" />
+    <Compile Include="UI\DriveSelectionDialog.cs" />
+    <Compile Include="UI\FirstUseSetupWizardWindow.xaml.cs" />
+    <Compile Include="UI\MainWindow.xaml.cs" />
+    <Compile Include="UI\MarkdownFlowDocumentRenderer.cs" />
+    <Compile Include="UI\PlaybackWindow.xaml.cs" />
+    <Compile Include="UI\SettingsWindow.xaml.cs" />
+    <Compile Include="UI\StatisticsWindow.xaml.cs" />
+    <Compile Include="UI\UpdateAvailableDialog.xaml.cs" />
     <Compile Include="Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="Workstations\WorkstationInstanceCoordinator.cs" />
     <Compile Include="Workstations\PrintWorkstationWindow.xaml.cs" />

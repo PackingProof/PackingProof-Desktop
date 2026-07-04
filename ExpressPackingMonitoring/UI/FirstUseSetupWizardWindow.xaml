@@ -1,0 +1,383 @@
+<Window x:Class="ExpressPackingMonitoring.UI.FirstUseSetupWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="首次使用配置向导"
+        Height="690"
+        Width="920"
+        MinHeight="660"
+        MinWidth="860"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Icon="/app.ico"
+        Background="{DynamicResource WindowBackground}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+    <Window.Resources>
+        <Style x:Key="WizardCardButtonStyle" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Root"
+                                Padding="16"
+                                Background="{DynamicResource PanelBackground}"
+                                BorderBrush="{DynamicResource BorderDefault}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="18"
+                                      Height="18"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Ellipse x:Name="Outer"
+                                             Stroke="{DynamicResource BorderStrong}"
+                                             StrokeThickness="2"/>
+                                    <Ellipse x:Name="Inner"
+                                             Width="8"
+                                             Height="8"
+                                             Fill="{DynamicResource AccentBlue}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             Opacity="0"/>
+                                </Grid>
+                                <ContentPresenter Grid.Column="2"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource BorderLight}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="Outer" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="Inner" Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StepTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Margin" Value="0,0,0,14"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,22">
+            <TextBlock Text="首次使用配置向导"
+                       FontSize="28"
+                       FontWeight="Black"
+                       Foreground="{DynamicResource TextPrimary}"/>
+            <TextBlock Text="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。"
+                       Margin="0,8,0,0"
+                       FontSize="14"
+                       Foreground="{DynamicResource TextSecondary}"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="190"/>
+                <ColumnDefinition Width="24"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{DynamicResource ControlBackground}"
+                    BorderBrush="{DynamicResource BorderLight}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="18">
+                <StackPanel>
+                    <TextBlock x:Name="StepModeText" Text="1. 选择打包模式" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepCameraText" Text="2. 选择摄像头" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepMicText" Text="3. 选择麦克风" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepScannerText" Text="4. 测试扫码枪" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepDoneText" Text="5. 完成" Style="{StaticResource StepTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Background="{DynamicResource PanelBackground}"
+                    BorderBrush="{DynamicResource BorderLight}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="24">
+                <Grid>
+                    <Grid x:Name="ModePage">
+                        <StackPanel>
+                            <TextBlock Text="选择打包模式"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="推荐连续打包模式，扫码下一单时自动保存上一单。"
+                                       Margin="0,8,0,22"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <RadioButton x:Name="ContinuousModeRadio"
+                                         GroupName="PackingMode"
+                                         IsChecked="True"
+                                         Style="{StaticResource WizardCardButtonStyle}">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False">
+                                        <TextBlock Text="连续打包模式"
+                                                   FontSize="18"
+                                                   FontWeight="Black"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <Border Margin="10,0,0,0"
+                                                Padding="8,3"
+                                                Background="{DynamicResource AccentBlue}"
+                                                CornerRadius="6">
+                                            <TextBlock Text="推荐" Foreground="White" FontSize="12" FontWeight="Bold"/>
+                                        </Border>
+                                    </DockPanel>
+                                    <TextBlock Text="扫描新单号后，自动结束上一单并开始下一单。"
+                                               Margin="0,7,0,0"
+                                               FontSize="14"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="SameCodeModeRadio"
+                                         GroupName="PackingMode"
+                                         Style="{StaticResource WizardCardButtonStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="同码停录模式"
+                                               FontSize="18"
+                                               FontWeight="Black"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="扫描单号开始录制，再次扫描同一单号停止录制。"
+                                               Margin="0,7,0,0"
+                                               FontSize="14"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="CameraPage" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="选择摄像头"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="能看到实时画面，就说明摄像头基础配置正常。"
+                                       Margin="0,8,0,20"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                        <ComboBox x:Name="CameraComboBox"
+                                  Grid.Row="1"
+                                  Height="38"
+                                  DisplayMemberPath="Name"
+                                  SelectionChanged="CameraComboBox_SelectionChanged"
+                                  Margin="0,0,0,16"/>
+                        <Border Grid.Row="2"
+                                Background="Black"
+                                BorderBrush="{DynamicResource BorderDefault}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                ClipToBounds="True">
+                            <Grid>
+                                <Image x:Name="CameraPreviewImage"
+                                       Stretch="Uniform"/>
+                                <TextBlock x:Name="CameraStatusText"
+                                           Text="正在准备摄像头预览..."
+                                           Foreground="#DDFFFFFF"
+                                           Background="#66000000"
+                                           Padding="10,6"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Grid x:Name="MicPage" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="选择麦克风"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="说话时音量条有跳动，就说明麦克风基础配置正常。"
+                                       Margin="0,8,0,20"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <ComboBox x:Name="MicComboBox"
+                                      Height="38"
+                                      DisplayMemberPath="Name"
+                                      SelectionChanged="MicComboBox_SelectionChanged"
+                                      Margin="0,0,0,24"/>
+                            <Border Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="18">
+                                <StackPanel>
+                                    <TextBlock Text="实时音量"
+                                               FontSize="16"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"
+                                               Margin="0,0,0,12"/>
+                                    <ProgressBar x:Name="MicLevelBar"
+                                                 Height="18"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Foreground="{DynamicResource AccentBlue}"
+                                                 Background="{DynamicResource BorderStrong}"/>
+                                    <TextBlock x:Name="MicStatusText"
+                                               Text="正在准备麦克风..."
+                                               Margin="0,12,0,0"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="ScannerPage" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="测试扫码枪"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="请用扫码枪扫描一个快递面单条码。"
+                                       Margin="0,8,0,18"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <Border Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="10"
+                                    Margin="0,0,0,12">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <Image x:Name="TestBarcodeImage"
+                                           Width="430"
+                                           Height="88"
+                                           Stretch="Uniform"/>
+                                    <TextBlock x:Name="TestBarcodeText"
+                                               Margin="0,6,0,0"
+                                               FontSize="12"
+                                               HorizontalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </Border>
+                            <TextBox x:Name="ScanTestTextBox"
+                                     Height="38"
+                                     FontSize="16"
+                                     Padding="10,0"
+                                     VerticalContentAlignment="Center"
+                                     PreviewKeyDown="ScanTestTextBox_PreviewKeyDown"
+                                     TextChanged="ScanTestTextBox_TextChanged"/>
+                            <Border Margin="0,12,0,0"
+                                    Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    MinHeight="138"
+                                    Padding="14">
+                                <TextBlock x:Name="ScanStatusText"
+                                           Text="等待扫码内容..."
+                                           FontSize="13"
+                                           LineHeight="20"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid x:Name="DonePage" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="配置完成"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="下面是日常打包流程。"
+                                       Margin="0,8,0,20"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <Border Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="18">
+                                <TextBlock x:Name="FlowText"
+                                           FontSize="16"
+                                           LineHeight="30"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                            </Border>
+                            <Border Margin="0,14,0,0"
+                                    Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="局域网查看视频"
+                                               FontSize="15"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内。"
+                                               Margin="0,7,0,0"
+                                               FontSize="13"
+                                               LineHeight="20"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Margin="0,22,0,0"
+                BorderBrush="{DynamicResource BorderLight}"
+                BorderThickness="0,1,0,0"
+                Padding="0,16,0,0">
+            <Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button Content="跳过"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="SkipButton_Click"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="BackButton"
+                            Content="上一步"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Margin="0,0,10,0"
+                            Click="BackButton_Click"/>
+                    <Button x:Name="NextButton"
+                            Content="下一步"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Click="NextButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

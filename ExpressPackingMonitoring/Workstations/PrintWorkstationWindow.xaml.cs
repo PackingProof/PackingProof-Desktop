@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using System.Windows;
 using System.Windows.Media;
 using ExpressPackingMonitoring.ViewModels;
