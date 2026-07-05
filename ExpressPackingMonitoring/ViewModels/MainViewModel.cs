@@ -128,6 +128,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         // 摄像头重连控制
         private volatile bool _isRestartingCamera = false;
+        private volatile bool _isSetupWizardActive = false;
         private volatile bool _cameraEverConnected = false; // 摄像头是否曾经成功连接过（区分启动vs断连）
         private DateTime _lastRestartAttempt = DateTime.MinValue;
         private int _consecutiveRestartFailures = 0;
@@ -969,6 +970,7 @@ namespace ExpressPackingMonitoring.ViewModels
             bool pausedCamera = false;
             try
             {
+                _isSetupWizardActive = true;
                 if (!IsRecording)
                 {
                     StopCamera();
@@ -1009,6 +1011,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
+                _isSetupWizardActive = false;
                 if (pausedCamera && !IsRecording && !_isDisposed)
                 {
                     _consecutiveRestartFailures = 0;
@@ -1022,12 +1025,14 @@ namespace ExpressPackingMonitoring.ViewModels
             if (IsRecording || _isDisposed)
                 return false;
 
+            _isSetupWizardActive = true;
             StopCamera();
             return true;
         }
 
         public void ResumeCameraAfterSetupWizard()
         {
+            _isSetupWizardActive = false;
             if (IsRecording || _isDisposed)
                 return;
 
@@ -1467,6 +1472,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void RestartCamera()
         {
+            if (_isSetupWizardActive || _isDisposed)
+            {
+                RuntimeLog.Info("Camera", "RestartCamera skipped while setup wizard owns camera");
+                return;
+            }
+
             // 阻止并发重启
             if (_isRestartingCamera) return;
             _isRestartingCamera = true;
@@ -1491,6 +1502,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async void RestartCameraWithRecordingStop()
         {
+            if (_isSetupWizardActive || _isDisposed)
+            {
+                RuntimeLog.Info("Camera", "RestartCameraWithRecordingStop skipped while setup wizard owns camera");
+                return;
+            }
+
             if (_isRestartingCamera) return;
             _isRestartingCamera = true;
             try
@@ -1573,6 +1590,9 @@ namespace ExpressPackingMonitoring.ViewModels
         public void NotifyUserActivity()
         {
             _lastActivityTime = DateTime.Now;
+            if (_isSetupWizardActive)
+                return;
+
             if (_isCameraSleeping)
             {
                 IsCameraSleeping = false;
@@ -1598,13 +1618,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 await Task.Delay(10_000); // 每10秒检查一次
                 if (_isDisposed) break;
                 if (!Config.EnableCameraIdle || Config.CameraIdleMinutes <= 0) continue;
+                if (_isSetupWizardActive) continue;
                 if (IsRecording || _isCameraSleeping) continue;
 
                 double idleMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
                 if (idleMinutes >= Config.CameraIdleMinutes)
                 {
                     await Application.Current.Dispatcher.InvokeAsync(() => {
-                        if (_isCameraSleeping || IsRecording) return; // 再次检查防止竞态
+                        if (_isCameraSleeping || IsRecording || _isSetupWizardActive) return; // 再次检查防止竞态
                         IsCameraSleeping = true; // SetProperty 会同时更新字段并触发 PropertyChanged
                         StopCamera();
                         VideoFrame = null;
@@ -1624,6 +1645,12 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
+                if (_isSetupWizardActive || _isDisposed)
+                {
+                    RuntimeLog.Info("Camera", "StartCamera skipped while setup wizard owns camera");
+                    return;
+                }
+
                 var videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
                 if (videoDevices.Count == 0) 
                 { 
@@ -1690,7 +1717,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 _videoSource.VideoSourceError += (s, e) => {
                     Debug.WriteLine($"[Camera] 视频源错误: {e.Description}");
                     RuntimeLog.Error("Camera", $"VideoSourceError: {e.Description}");
+                    if (_isSetupWizardActive || _isDisposed)
+                        return;
                     _ = Application.Current.Dispatcher.InvokeAsync(() => {
+                        if (_isSetupWizardActive || _isDisposed)
+                            return;
                         ShowToast("警告：摄像头连接发生错误，尝试重连...");
                         RestartCameraWithRecordingStop();
                     });
@@ -1985,7 +2016,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     else
                     {
                         // 休眠期间不做任何自动重连操作
-                        if (_isCameraSleeping)
+                        if (_isCameraSleeping || _isSetupWizardActive)
                         {
                         }
                         // 如果已达重连上限或正在重启中，不再尝试
