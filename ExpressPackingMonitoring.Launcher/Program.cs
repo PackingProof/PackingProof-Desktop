@@ -27,7 +27,7 @@ internal static class Program
 
     private static readonly HttpClient HttpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(12)
+        Timeout = Timeout.InfiniteTimeSpan
     };
 
     [STAThread]
@@ -260,6 +260,7 @@ internal static class Program
             if (string.IsNullOrWhiteSpace(checkUrl))
                 return null;
 
+            WriteLog("自动检查更新地址：" + SanitizeUrlForLog(checkUrl));
             using JsonDocument release = await GetJsonAsync(checkUrl, cancellationToken);
             JsonElement releaseRoot = release.RootElement;
             string tagName = ReadString(releaseRoot, "tag_name");
@@ -948,6 +949,14 @@ internal static class Program
         }
 
         return DefaultCheckUrl;
+    }
+
+    private static string SanitizeUrlForLog(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+            return uri.GetLeftPart(UriPartial.Path);
+
+        return url;
     }
 
     private static string ReadString(JsonElement element, string propertyName)
