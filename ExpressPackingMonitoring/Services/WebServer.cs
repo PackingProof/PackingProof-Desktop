@@ -39,6 +39,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly Func<bool> _isRecordingProvider;
         private readonly Func<string> _currentRecordingFileProvider;
         private readonly Func<VideoRecord, MkvConversionResult> _mkvConverter;
+        private readonly VideoClipService _clipService;
         private readonly CancellationTokenSource _cts = new();
         private Task _listenTask;
         private bool _disposed;
@@ -81,6 +82,7 @@ namespace ExpressPackingMonitoring.Services
             _isRecordingProvider = isRecordingProvider ?? (() => false);
             _currentRecordingFileProvider = currentRecordingFileProvider ?? (() => null);
             _mkvConverter = mkvConverter;
+            _clipService = new VideoClipService(_db, WriteLog, _mkvConverter, IsCurrentRecordingFile);
             Port = port;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
             _listener = CreateListener(port);
@@ -203,6 +205,18 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/storage":
                         HandleStorageOverview(ctx);
                         break;
+                    case var p when method == "GET" && p.StartsWith("/api/clip-tasks/") && !p.EndsWith("/cancel"):
+                        HandleGetClipTask(ctx, path);
+                        break;
+                    case var p when method == "POST" && p.StartsWith("/api/clip-tasks/") && p.EndsWith("/cancel"):
+                        HandleCancelClipTask(ctx, path);
+                        break;
+                    case var p when method == "GET" && p.StartsWith("/api/clips/"):
+                        HandleServeClip(ctx, path);
+                        break;
+                    case var p when method == "GET" && p.StartsWith("/api/clip-previews/"):
+                        HandleServeClipPreview(ctx, path);
+                        break;
                     case "/kuaidizs-install-guide":
                         ServeInstallGuidePage(ctx);
                         break;
@@ -226,6 +240,14 @@ namespace ExpressPackingMonitoring.Services
                         }
                         else if (path.StartsWith("/api/videos/") && path.EndsWith("/download"))
                             HandleDownload(ctx, path);
+                        else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip/prewarm"))
+                            HandleClipPrewarm(ctx, path);
+                        else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip/timeline"))
+                            HandleClipTimeline(ctx, path);
+                        else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip/preview"))
+                            HandleClipPreview(ctx, path);
+                        else if (method == "POST" && path.StartsWith("/api/videos/") && path.EndsWith("/clip"))
+                            HandleStartClip(ctx, path);
                         else if (path.StartsWith("/api/videos/") && path.EndsWith("/play"))
                             HandlePlay(ctx, path);
                         else
@@ -1063,6 +1085,164 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
+        // ───── API: 剪辑预览 / 剪辑任务 ─────
+        private void HandleClipPreview(HttpListenerContext ctx, string path)
+        {
+            try
+            {
+                if (!TryFindVideoId(path, "/clip/preview", out long id))
+                {
+                    SendJson(ctx, 400, new { success = false, error = "视频 ID 无效" });
+                    return;
+                }
+
+                var request = ReadJsonBody<ClipRangeRequest>(ctx);
+                var result = _clipService.CreatePreview(id, request.StartSeconds, request.EndSeconds, request.PreviewSide);
+                SendJson(ctx, 200, result);
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleClipPreview 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleClipPrewarm(HttpListenerContext ctx, string path)
+        {
+            try
+            {
+                if (!TryFindVideoId(path, "/clip/prewarm", out long id))
+                {
+                    SendJson(ctx, 400, new { success = false, error = "视频 ID 无效" });
+                    return;
+                }
+
+                var request = ReadJsonBody<ClipRangeRequest>(ctx);
+                _clipService.PrewarmPreviewFrames(id, request.StartSeconds, request.EndSeconds);
+                SendJson(ctx, 200, new { success = true });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleClipPrewarm 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleClipTimeline(HttpListenerContext ctx, string path)
+        {
+            try
+            {
+                if (!TryFindVideoId(path, "/clip/timeline", out long id))
+                {
+                    SendJson(ctx, 400, new { success = false, error = "视频 ID 无效" });
+                    return;
+                }
+
+                var request = ReadJsonBody<ClipRangeRequest>(ctx);
+                var result = request.FrameIndex >= 0
+                    ? _clipService.CreateTimelinePreviewFrame(id, request.FrameCount, request.FrameIndex)
+                    : _clipService.CreateTimelinePreviews(id, request.FrameCount);
+                SendJson(ctx, 200, result);
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleClipTimeline 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleStartClip(HttpListenerContext ctx, string path)
+        {
+            try
+            {
+                if (!TryFindVideoId(path, "/clip", out long id))
+                {
+                    SendJson(ctx, 400, new { success = false, error = "视频 ID 无效" });
+                    return;
+                }
+
+                var request = ReadJsonBody<ClipRangeRequest>(ctx);
+                string taskId = _clipService.StartClip(id, request.StartSeconds, request.EndSeconds);
+                SendJson(ctx, 200, new { success = true, taskId });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleStartClip 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleGetClipTask(HttpListenerContext ctx, string path)
+        {
+            string taskId = Path.GetFileName(path);
+            var task = _clipService.GetTask(taskId);
+            if (task == null)
+            {
+                SendJson(ctx, 404, new { success = false, status = "not_found", message = "剪辑任务不存在", downloadUrl = "" });
+                return;
+            }
+
+            SendJson(ctx, 200, task);
+        }
+
+        private void HandleCancelClipTask(HttpListenerContext ctx, string path)
+        {
+            string taskId = path.Replace("/api/clip-tasks/", "").Replace("/cancel", "").Trim('/');
+            var task = _clipService.CancelTask(taskId);
+            if (task == null)
+            {
+                SendJson(ctx, 404, new { success = false, status = "not_found", message = "剪辑任务不存在", downloadUrl = "" });
+                return;
+            }
+
+            SendJson(ctx, 200, task);
+        }
+
+        private void HandleServeClip(HttpListenerContext ctx, string path)
+        {
+            string fileName = Path.GetFileName(path);
+            string filePath = _clipService.ResolveClipPath(fileName);
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                SendJson(ctx, 404, new { error = "剪辑文件不存在" });
+                return;
+            }
+
+            ServeFileWithRange(ctx, filePath, inline: false);
+        }
+
+        private void HandleServeClipPreview(HttpListenerContext ctx, string path)
+        {
+            string fileName = Path.GetFileName(path);
+            string filePath = _clipService.ResolvePreviewPath(fileName);
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                SendJson(ctx, 404, new { error = "预览图不存在" });
+                return;
+            }
+
+            ctx.Response.ContentType = "image/jpeg";
+            ctx.Response.StatusCode = 200;
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            ctx.Response.ContentLength64 = fs.Length;
+            fs.CopyTo(ctx.Response.OutputStream);
+            ctx.Response.OutputStream.Close();
+        }
+
+        private static T ReadJsonBody<T>(HttpListenerContext ctx)
+        {
+            using var reader = new StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
+            string body = reader.ReadToEnd();
+            return JsonSerializer.Deserialize<T>(body, _jsonOptions) ?? throw new InvalidDataException("请求内容无效");
+        }
+
+        private static bool TryFindVideoId(string path, string suffix, out long id)
+        {
+            id = 0;
+            string idStr = path.Replace("/api/videos/", "").Replace(suffix, "").Trim('/');
+            return long.TryParse(idStr, out id);
+        }
+
         // ───── API: 下载 ─────
         private void HandleDownload(HttpListenerContext ctx, string path)
         {
@@ -1138,7 +1318,7 @@ namespace ExpressPackingMonitoring.Services
             return _db.GetVideoById(id);
         }
 
-        private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        private static readonly JsonSerializerOptions _jsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
 
         // ───── JSON 响应 ─────
         private static void SendJson(HttpListenerContext ctx, int statusCode, object data)

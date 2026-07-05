@@ -97,6 +97,7 @@
     <Compile Include="Logging\RuntimeLog.cs" />
     <Compile Include="Services\UpdateCheckOptions.cs" />
     <Compile Include="Services\UpdateCheckService.cs" />
+    <Compile Include="Services\VideoClipService.cs" />
     <Compile Include="Services\WebServer.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
     <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />

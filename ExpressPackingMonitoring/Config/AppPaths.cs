@@ -15,6 +15,8 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string LogDir = Path.Combine(UserDataDir, "log");
         public static readonly string CacheDir = Path.Combine(UserDataDir, "cache");
         public static readonly string BackupsDir = Path.Combine(UserDataDir, "backups");
+        public static readonly string ClipPreviewDir = Path.Combine(UserDataDir, "clip_previews");
+        public static readonly string ClipsDir = Path.Combine(UserDataDir, "clips");
         public static readonly string TranscodeCacheDir = Path.Combine(CacheDir, "transcode");
         public static readonly string TtsCacheDir = Path.Combine(CacheDir, "tts");
 
@@ -38,6 +40,8 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(LogDir);
             Directory.CreateDirectory(CacheDir);
             Directory.CreateDirectory(BackupsDir);
+            Directory.CreateDirectory(ClipPreviewDir);
+            Directory.CreateDirectory(ClipsDir);
             Directory.CreateDirectory(TranscodeCacheDir);
             Directory.CreateDirectory(TtsCacheDir);
         }
