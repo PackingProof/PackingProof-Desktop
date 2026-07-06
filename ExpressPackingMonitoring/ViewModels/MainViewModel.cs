@@ -56,6 +56,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private Task _writeTask;
         private Task _lastFinalizeTask;
         private Task _mkvRecoveryTask;
+        private Task _postStopMuxTask;
         private CancellationTokenSource _writeCts;
         private int _actualCameraFps = 15; // 摄像头硬件实际帧率
         private readonly object _audioLock = new object();
@@ -579,6 +580,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     PauseSpeechForRecording();
                     await InternalStopRecordingAsync();
+                    QueuePostStopMux("手动停止");
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
@@ -664,7 +666,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (upperResult.Contains("SHIP") || upperResult.Contains("发货") || upperResult.Contains("FAHUO")) { CurrentMode = "发货"; StartInputCooldown(); ShowToast("切换为发货模式"); Speak("切换发货"); return; }
             if (upperResult.Contains("BACK") || upperResult.Contains("退货") || upperResult.Contains("TUIHUO")) { CurrentMode = "退货"; StartInputCooldown(); ShowToast("切换为退货模式"); Speak("切换退货"); return; }
             if (upperResult.Contains("START") || upperResult.Contains("开始录制")) { ToggleRecording(); return; }
-            if (upperResult.Contains("STOP") || upperResult.Contains("停止录制")) { _ = SafeStopRecordingAsync(true); return; }
+            if (upperResult.Contains("STOP") || upperResult.Contains("停止录制")) { _ = SafeStopRecordingAsync(true, mergeAfterStop: true); return; }
 
             // 正则验证
             try { if (!System.Text.RegularExpressions.Regex.IsMatch(upperResult, Config.OrderIdRegex)) { ShowToast("非法单号，已拦截"); SpeakWarning("非法单号"); return; } } catch { }
@@ -702,6 +704,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _stopReason = "同码停录";
                     PauseSpeechForRecording();
                     await InternalStopRecordingAsync();
+                    QueuePostStopMux("同码停录");
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("单号匹配，已停止录制");
@@ -731,6 +734,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (IsRecording)
                 {
                     PauseSpeechForRecording();
+                    RuntimeLog.Info("Recording", "连续扫码切换，暂缓音视频合成，等待 stop 或手动停止");
                     await InternalStopRecordingAsync();
                 }
                 await InternalStartRecordingAsync();
@@ -831,7 +835,50 @@ namespace ExpressPackingMonitoring.ViewModels
             return IsOrderScan((scanText ?? "").ToUpper().Trim());
         }
 
-        private async Task SafeStopRecordingAsync(bool isManual = false)
+        private void QueuePostStopMux(string reason)
+        {
+            if (_isDisposed)
+                return;
+
+            Task previousMuxTask = _postStopMuxTask ?? Task.CompletedTask;
+            Task finalizeTask = _lastFinalizeTask ?? Task.CompletedTask;
+            _postStopMuxTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await previousMuxTask.ConfigureAwait(false);
+                    await finalizeTask.ConfigureAwait(false);
+                    if (_isDisposed)
+                        return;
+
+                    RuntimeLog.Info("MkvToMp4", $"最终停止后开始合成 MP4：reason={reason}");
+                    var result = await BatchConvertMkvToMp4Async(
+                        new Progress<string>(msg => Debug.WriteLine($"[PostStopMux] {msg}")),
+                        CancellationToken.None).ConfigureAwait(false);
+
+                    RuntimeLog.Info("MkvToMp4", $"最终停止后合成完成：reason={reason}, success={result.success}, fail={result.fail}, skip={result.skip}");
+                    if (result.fail > 0)
+                    {
+                        _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            if (!_isDisposed)
+                                ShowToast("部分视频合成失败，已保留原文件");
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error("MkvToMp4", $"最终停止后合成异常：reason={reason}", ex);
+                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (!_isDisposed)
+                            ShowToast("视频合成失败，已保留原文件");
+                    });
+                }
+            });
+        }
+
+        private async Task SafeStopRecordingAsync(bool isManual = false, bool mergeAfterStop = true)
         {
             if (IsBusy || !IsRecording || _isDisposed) return;
             if (!await _recorderLock.WaitAsync(0)) return;
@@ -839,6 +886,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 PauseSpeechForRecording();
                 await InternalStopRecordingAsync();
+                if (mergeAfterStop)
+                    QueuePostStopMux(isManual ? "手动停止" : "最终停止");
                 if (isManual)
                 {
                     CurrentOrderId = "";
@@ -1343,6 +1392,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     progress?.Report("正在写入录像记录...");
                     await _lastFinalizeTask;
+                }
+
+                if (_postStopMuxTask != null && !_postStopMuxTask.IsCompleted)
+                {
+                    progress?.Report("正在等待当前录像合成...");
+                    await _postStopMuxTask;
                 }
 
                 if (_mkvRecoveryTask != null && !_mkvRecoveryTask.IsCompleted)
@@ -2509,6 +2564,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             // 等待上一次的 finalize 任务完成
             try { _lastFinalizeTask?.Wait(5000); } catch { }
+            try { _postStopMuxTask?.Wait(5000); } catch { }
 
             // 录制中退出：更新数据库并转换 MP4
             if (!string.IsNullOrEmpty(videoFileToConvert) && File.Exists(videoFileToConvert))
