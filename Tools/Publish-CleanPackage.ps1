@@ -499,6 +499,11 @@ $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -Def
 $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
+$fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
+if ([string]::IsNullOrWhiteSpace($fullDownloadPageTemplate)) {
+    $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
+}
+$fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $zipFullPath)
 
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
 if (Test-Path $legacyAppFullZipPath) {
@@ -607,7 +612,7 @@ else {
         @((ConvertFrom-Utf8Base64 "5pys54mI5pys5LiN5pSv5oyB6Ieq5Yqo5aKe6YeP5pu05paw77yM6K+35omL5Yqo5LiL6L295a6M5pW05YyF44CC"))
     }
 }
-$updateManifest["full_download_page"] = $releasePage
+$updateManifest["full_download_page"] = $fullDownloadPage
 
 $updateManifest |
     ConvertTo-Json -Depth 6 |
@@ -621,6 +626,7 @@ $releaseInfoLines += ConvertFrom-Utf8Base64 "UmVsZWFzZSDkuIrkvKDmuIXljZU="
 $releaseInfoLines += ""
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "54mI5pys77ya") + $releaseTag
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "UmVsZWFzZSDpobXpnaLvvJo=") + $releasePage
+$releaseInfoLines += "Full download page: " + $fullDownloadPage
 $releaseInfoLines += ""
 $releaseInfoLines += ConvertFrom-Utf8Base64 "6ZyA6KaB5LiK5Lyg77ya"
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "MS4g5a6M5pW05YyFIHppcO+8mg==") + (Split-Path -Leaf $zipFullPath)
