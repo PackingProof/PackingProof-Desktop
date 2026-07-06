@@ -211,6 +211,12 @@ namespace ExpressPackingMonitoring.Config
                 }
             }
 
+            if (config.EnableGlobalKeyboard && config.EnableScannerAutoSubmit)
+            {
+                config.EnableGlobalKeyboard = false;
+                changed = true;
+            }
+
             int normalizedMinLength = System.Math.Clamp(config.ScannerAutoSubmitMinLength, 4, 30);
             if (config.ScannerAutoSubmitMinLength != normalizedMinLength)
             {

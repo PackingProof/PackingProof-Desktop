@@ -18,9 +18,6 @@ namespace ExpressPackingMonitoring.Input
 
         // 扫码枪判定：两次按键间隔不超过此毫秒数视为连续输入
         private const int MaxKeyIntervalMs = 100;
-        // 最少字符数才认定为扫码枪输入（过短的可能是用户手动按键）
-        private const int MinScanLength = 4;
-
         private IntPtr _hookId = IntPtr.Zero;
         private readonly LowLevelKeyboardProc _hookProc;
         private readonly StringBuilder _buffer = new();
@@ -164,7 +161,7 @@ namespace ExpressPackingMonitoring.Input
             _autoSubmitTimer.Stop();
             string input = _buffer.ToString().Trim();
             ClearBuffer();
-            if (input.Length >= MinScanLength)
+            if (input.Length >= _autoSubmitMinLength)
             {
                 Debug.WriteLine($"[GlobalKeyHook] Barcode captured by Enter: {input}");
                 _dispatcher.BeginInvoke(() => BarcodeScanned?.Invoke(input));

@@ -81,6 +81,17 @@ namespace ExpressPackingMonitoring.UI
             Binding.DoNothing;
     }
 
+    public sealed class AnyTrueConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            return values.Any(value => value is bool boolean && boolean);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+            targetTypes.Select(_ => Binding.DoNothing).ToArray();
+    }
+
     public partial class SettingsWindow : Window
     {
         public MainViewModel MainVM { get; set; }
@@ -109,6 +120,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isRecording;
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
+        private bool _isSyncingScannerModes;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
         {
@@ -117,6 +129,7 @@ namespace ExpressPackingMonitoring.UI
             _originalTheme = clonedConfig.Theme;
             _isRecording = isRecording;
             Config = clonedConfig;
+            AppConfig.NormalizeAfterLoad(Config);
 
             CurrentDiskUsagePercent = diskUsagePercent;
             CurrentDiskUsageText = diskUsageText;
@@ -145,6 +158,46 @@ namespace ExpressPackingMonitoring.UI
 
             // 窗口加载后异步枚举设备，避免阻塞UI线程
             this.Loaded += SettingsWindow_Loaded;
+        }
+
+        private void GlobalKeyboardCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_isSyncingScannerModes) return;
+
+            try
+            {
+                _isSyncingScannerModes = true;
+                Config.EnableGlobalKeyboard = true;
+                Config.EnableScannerAutoSubmit = false;
+                if (ScannerAutoSubmitCheckBox != null)
+                {
+                    ScannerAutoSubmitCheckBox.IsChecked = false;
+                }
+            }
+            finally
+            {
+                _isSyncingScannerModes = false;
+            }
+        }
+
+        private void ScannerAutoSubmitCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_isSyncingScannerModes) return;
+
+            try
+            {
+                _isSyncingScannerModes = true;
+                Config.EnableScannerAutoSubmit = true;
+                Config.EnableGlobalKeyboard = false;
+                if (GlobalKeyboardCheckBox != null)
+                {
+                    GlobalKeyboardCheckBox.IsChecked = false;
+                }
+            }
+            finally
+            {
+                _isSyncingScannerModes = false;
+            }
         }
 
         private void EnsurePrimaryStorageLocationExists()
@@ -737,6 +790,8 @@ namespace ExpressPackingMonitoring.UI
                 .ToList();
 
             // 3. 校验并保存
+            AppConfig.NormalizeAfterLoad(Config);
+
             if (!ValidateEncoderSelectionBeforeSave())
                 return;
 
