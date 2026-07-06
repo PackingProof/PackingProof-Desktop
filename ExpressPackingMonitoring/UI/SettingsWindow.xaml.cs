@@ -200,6 +200,23 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
+        private void SyncScannerModeControlsFromConfig()
+        {
+            if (GlobalKeyboardCheckBox == null || ScannerAutoSubmitCheckBox == null)
+                return;
+
+            try
+            {
+                _isSyncingScannerModes = true;
+                GlobalKeyboardCheckBox.IsChecked = Config.EnableGlobalKeyboard;
+                ScannerAutoSubmitCheckBox.IsChecked = Config.EnableScannerAutoSubmit;
+            }
+            finally
+            {
+                _isSyncingScannerModes = false;
+            }
+        }
+
         private void EnsurePrimaryStorageLocationExists()
         {
             if (Config.StorageLocations == null) Config.StorageLocations = new List<StorageLocation>();
@@ -816,6 +833,8 @@ namespace ExpressPackingMonitoring.UI
                 if (wizard.ShowDialog() == true && !wizard.WasSkipped)
                 {
                     Config.FirstUseWizardCompleted = true;
+                    AppConfig.NormalizeAfterLoad(Config);
+                    SyncScannerModeControlsFromConfig();
                     _isLoadingDevices = true;
                     try
                     {

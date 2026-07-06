@@ -33,6 +33,7 @@ public partial class FirstUseSetupWizardWindow : Window
     private DateTime _lastPreviewUpdateAt = DateTime.MinValue;
     private WasapiCapture _micCapture;
     private readonly string _testBarcodeValue = $"TEST{DateTime.Now:yyyyMMddHHmmss}";
+    private bool _scannerDetectedEnter;
 
     public bool WasSkipped { get; private set; }
     public AppConfig ResultConfig => _config;
@@ -463,23 +464,25 @@ public partial class FirstUseSetupWizardWindow : Window
         string content = ScanTestTextBox.Text.Trim();
         if (string.IsNullOrEmpty(content))
         {
+            _scannerDetectedEnter = false;
             ScanStatusText.Text = "等待扫码内容...";
             ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondary");
             return;
         }
 
         ScanStatusText.Text =
-            "没有检测到回车/换行结束符\n" +
-            "请将扫码枪设置为“扫描后自动回车/换行”，否则软件可能无法自动开始录制\n" +
-            "可联系扫码枪卖家：如何开启“扫描后自动回车 / Enter 后缀”";
-        ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+            "未检测到扫码枪自动回车，已准备切换为窗口内识别。\n" +
+            "这种模式需要软件窗口在前台，避免影响其他输入。\n" +
+            "建议按扫码枪说明书，或联系卖家开启“扫描后自动回车 / Enter 后缀”，体验会更稳定。";
+        ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentOrange");
     }
 
     private void ScanTestTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter || e.Key == Key.Return)
         {
-            ScanStatusText.Text = "扫码枪测试通过";
+            _scannerDetectedEnter = true;
+            ScanStatusText.Text = "已检测到自动回车，可支持后台扫码。";
             ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
             e.Handled = true;
         }
@@ -508,6 +511,7 @@ public partial class FirstUseSetupWizardWindow : Window
     {
         _config.EnableSameBarcodeStopRecording = SameCodeModeRadio.IsChecked == true;
         _config.EnableAudioRecording = true;
+        ApplyScannerModeFromTest();
 
         if (CameraComboBox.SelectedItem is CameraInfo camera && !string.IsNullOrEmpty(camera.Moniker))
         {
@@ -532,6 +536,23 @@ public partial class FirstUseSetupWizardWindow : Window
                 AudioDeviceMoniker = _config.AudioDeviceMoniker,
                 AudioSyncOffsetMs = _config.AudioSyncOffsetMs
             };
+        }
+    }
+
+    private void ApplyScannerModeFromTest()
+    {
+        string scannedText = ScanTestTextBox.Text?.Trim() ?? "";
+        if (_scannerDetectedEnter)
+        {
+            _config.EnableGlobalKeyboard = true;
+            _config.EnableScannerAutoSubmit = false;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(scannedText))
+        {
+            _config.EnableGlobalKeyboard = false;
+            _config.EnableScannerAutoSubmit = true;
         }
     }
 

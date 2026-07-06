@@ -1062,7 +1062,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 Config.FirstUseWizardCompleted = true;
+                AppConfig.NormalizeAfterLoad(Config);
                 SaveConfig();
+                ApplyGlobalKeyboardConfig();
+                if (_globalKeyHook != null)
+                {
+                    if (Config.EnableGlobalKeyboard)
+                        _globalKeyHook.Start();
+                    else
+                        _globalKeyHook.Stop();
+                }
+
                 ShowToast(wizard.WasSkipped ? "已跳过配置向导" : "配置向导已完成");
             }
             catch (Exception ex)
