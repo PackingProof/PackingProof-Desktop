@@ -80,6 +80,7 @@ internal static class Program
         if (notification != null)
         {
             notificationThread = ShowTimedMessageAsync(
+                notification.Title,
                 notification.Message,
                 notification.IsError ? ErrorIcon : InfoIcon);
         }
@@ -113,6 +114,7 @@ internal static class Program
             if (notification != null)
             {
                 Thread notificationThread = ShowTimedMessageAsync(
+                    notification.Title,
                     notification.Message,
                     notification.IsError ? ErrorIcon : InfoIcon);
                 notificationThread.Join();
@@ -239,7 +241,7 @@ internal static class Program
             TryDeleteDirectory(pendingDir);
             ResetPatchDownloadFailureState();
             WriteLog($"pending Patch 更新完成：{descriptor.LatestVersion}");
-            return new UpdateNotification(BuildSuccessMessage(descriptor), false);
+            return new UpdateNotification("更新完成", BuildSuccessMessage(descriptor), false);
         }
         catch (Exception ex)
         {
@@ -249,7 +251,7 @@ internal static class Program
             {
                 using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifestPath, Encoding.UTF8));
                 UpdateDescriptor descriptor = ReadUpdateDescriptor(document.RootElement, "");
-                return new UpdateNotification(BuildFailedMessage(descriptor), true);
+                return new UpdateNotification("更新失败", BuildFailedMessage(descriptor), true);
             }
             catch
             {
@@ -623,7 +625,7 @@ internal static class Program
         if (!File.Exists(appPath))
         {
             WriteLog("未找到主程序，无法启动：" + appPath);
-            ShowMessage($"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录。", ErrorIcon);
+            ShowMessage("启动失败", $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录。", ErrorIcon);
             return 2;
         }
 
@@ -646,7 +648,7 @@ internal static class Program
         catch (Exception ex)
         {
             WriteLog("启动主程序失败：" + ex);
-            ShowMessage($"启动主程序失败：\n{ex.Message}", ErrorIcon);
+            ShowMessage("启动失败", $"启动主程序失败：\n{ex.Message}", ErrorIcon);
             return 1;
         }
     }
@@ -907,18 +909,18 @@ internal static class Program
             _ => "本版本需要完整更新，需要下载完整包后解压覆盖安装。"
         };
 
-        string message = $"发现新版本：v{descriptor.LatestVersion}\n{reasonText}";
+        string message = $"新版本：v{descriptor.LatestVersion}\n{reasonText}";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
             message += $"\n完整包下载页：{descriptor.FullDownloadPage}";
 
-        return new UpdateNotification(message, true);
+        return new UpdateNotification("需要完整更新", message, true);
     }
 
     private static string BuildSuccessMessage(UpdateDescriptor descriptor)
     {
         var lines = new List<string>
         {
-            $"更新完成，已升级到 v{descriptor.LatestVersion}。"
+            $"已升级到 v{descriptor.LatestVersion}"
         };
 
         if (!string.IsNullOrWhiteSpace(descriptor.Title))
@@ -938,7 +940,7 @@ internal static class Program
 
     private static string BuildFailedMessage(UpdateDescriptor descriptor)
     {
-        string message = $"增量更新失败，已恢复旧版本。\n\n发现新版本：v{descriptor.LatestVersion}\n请下载完整包后解压覆盖安装。";
+        string message = $"已恢复旧版本\n新版本：v{descriptor.LatestVersion}\n请下载完整包后解压覆盖安装";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
             message += $"\n完整包下载页：{descriptor.FullDownloadPage}";
 
@@ -1377,30 +1379,30 @@ internal static class Program
         }
     }
 
-    private static Thread ShowTimedMessageAsync(string message, uint icon)
+    private static Thread ShowTimedMessageAsync(string title, string message, uint icon)
     {
-        var thread = new Thread(() => ShowTimedMessage(message, icon));
+        var thread = new Thread(() => ShowTimedMessage(title, message, icon));
         thread.SetApartmentState(ApartmentState.STA);
         thread.IsBackground = false;
         thread.Start();
         return thread;
     }
 
-    private static void ShowTimedMessage(string message, uint icon)
+    private static void ShowTimedMessage(string title, string message, uint icon)
     {
         try
         {
-            MessageBoxTimeoutW(IntPtr.Zero, message, "打包监控", icon, 0, DialogTimeoutMs);
+            MessageBoxTimeoutW(IntPtr.Zero, message, title, icon, 0, DialogTimeoutMs);
         }
         catch
         {
-            ShowMessage(message, icon);
+            ShowMessage(title, message, icon);
         }
     }
 
-    private static void ShowMessage(string message, uint icon)
+    private static void ShowMessage(string title, string message, uint icon)
     {
-        MessageBoxW(IntPtr.Zero, message, "打包监控", icon);
+        MessageBoxW(IntPtr.Zero, message, title, icon);
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -1430,7 +1432,7 @@ internal static class Program
         bool PatchSupported,
         PatchPackageInfo PatchPackage);
 
-    private sealed record UpdateNotification(string Message, bool IsError);
+    private sealed record UpdateNotification(string Title, string Message, bool IsError);
 
     private sealed record PatchManifest(
         string Type,
