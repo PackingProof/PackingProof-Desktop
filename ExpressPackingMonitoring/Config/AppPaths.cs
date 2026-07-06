@@ -84,7 +84,8 @@ namespace ExpressPackingMonitoring.Config
                 MoveFileIfDestinationMissing(Path.Combine(legacyRoot, "encoder_detect.log"), EncoderDetectLogPath);
 
                 MoveDirectoryContents(Path.Combine(legacyRoot, "transcache"), TranscodeCacheDir);
-                MoveDirectoryContents(Path.Combine(legacyRoot, "tts_cache"), TtsCacheDir);
+                MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts_cache"));
+                MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts"));
             }
         }
 
@@ -339,6 +340,52 @@ namespace ExpressPackingMonitoring.Config
                 }
 
                 TryDeleteEmptyDirectoryTree(sourceDir);
+            }
+            catch { }
+        }
+
+        private static void MoveLegacyTtsCacheDirectory(string sourceDir)
+        {
+            try
+            {
+                if (!Directory.Exists(sourceDir)) return;
+                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(TtsCacheDir), StringComparison.OrdinalIgnoreCase)) return;
+
+                Directory.CreateDirectory(TtsCacheDir);
+
+                foreach (string sourcePath in Directory.EnumerateFileSystemEntries(sourceDir, "*", SearchOption.AllDirectories).ToList())
+                {
+                    if (Directory.Exists(sourcePath)) continue;
+
+                    string relativePath = Path.GetRelativePath(sourceDir, sourcePath);
+                    string destinationPath = Path.Combine(TtsCacheDir, relativePath);
+                    if (File.Exists(destinationPath)) continue;
+
+                    try
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                        File.Move(sourcePath, destinationPath);
+                    }
+                    catch
+                    {
+                        // TTS 缓存可重新生成；单个文件迁移失败不影响启动，后面会清理旧兼容目录。
+                    }
+                }
+            }
+            catch { }
+            finally
+            {
+                DeleteLegacyTtsCacheDirectory(sourceDir);
+            }
+        }
+
+        private static void DeleteLegacyTtsCacheDirectory(string sourceDir)
+        {
+            try
+            {
+                if (!Directory.Exists(sourceDir)) return;
+                if (string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(TtsCacheDir), StringComparison.OrdinalIgnoreCase)) return;
+                Directory.Delete(sourceDir, recursive: true);
             }
             catch { }
         }
