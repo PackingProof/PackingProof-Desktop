@@ -668,13 +668,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (upperResult.Contains("START") || upperResult.Contains("开始录制")) { ToggleRecording(); return; }
             if (upperResult.Contains("STOP") || upperResult.Contains("停止录制")) { _ = SafeStopRecordingAsync(true, mergeAfterStop: true); return; }
 
-            // 正则验证
-            try { if (!System.Text.RegularExpressions.Regex.IsMatch(upperResult, Config.OrderIdRegex)) { ShowToast("非法单号，已拦截"); SpeakWarning("非法单号"); return; } } catch { }
-
-            Debug.WriteLine($"[Zoom] 扫码事件触发: ID={upperResult}, ZoomEnabled={Config.EnableSmartZoom}, Delay={Config.ZoomDelaySeconds}");
-            StartInputCooldown();
-
-            // 同码停录
+            // 同码停录先比对当前录制单号，再走普通单号规则，避免手动生成的 MAN_ 单号被正则拦截
             if (IsRecording && Config.EnableSameBarcodeStopRecording)
             {
                 string recordingOrderId = (_recordingOrderId ?? "").ToUpper().Trim();
@@ -723,6 +717,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 return;
             }
+
+            // 正则验证
+            try { if (!System.Text.RegularExpressions.Regex.IsMatch(upperResult, Config.OrderIdRegex)) { ShowToast("非法单号，已拦截"); SpeakWarning("非法单号"); return; } } catch { }
+
+            Debug.WriteLine($"[Zoom] 扫码事件触发: ID={upperResult}, ZoomEnabled={Config.EnableSmartZoom}, Delay={Config.ZoomDelaySeconds}");
+            StartInputCooldown();
 
             CurrentOrderId = upperResult;
             if (IsRecording) _stopReason = "扫码切换";
