@@ -22,7 +22,6 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenCvSharp;
-using OpenCvSharp.WpfExtensions;
 using AForge.Video;
 using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
@@ -100,6 +99,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly Mat _motionDiff = new Mat();
         private readonly Mat _motionThreshold = new Mat();
         private BitmapSource _videoFrame;
+        private WriteableBitmap _previewWriteableBitmap;
         private static readonly TimeSpan PreviewFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 12.0);
         private static readonly TimeSpan PreviewFreezeWarnThreshold = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan PreviewFreezeRestartThreshold = TimeSpan.FromSeconds(5);
@@ -2079,8 +2079,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             }
                         }
 
-                        // 水印叠加：始终在预览画面显示时间，录制时额外显示单号
-                        if (Config.EnableWatermark)
+                        bool previewFrameDue = IsPreviewFrameDue();
+
+                        // 非录制状态只为真正要发布的预览帧绘制水印，避免按摄像头满帧率克隆整帧。
+                        if (Config.EnableWatermark && (IsRecording || previewFrameDue))
                         {
                             try
                             {
@@ -2123,7 +2125,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
 
                         if (frameTickCounter % 30 == 0) TryPerformMotionDetection(currentFrame);
-                        PublishPreviewFrameIfDue(processedFrame);
+                        if (previewFrameDue)
+                            PublishPreviewFrameIfDue(processedFrame);
 
                         bool handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
                         if (processedFrame != currentFrame)
@@ -2353,6 +2356,14 @@ namespace ExpressPackingMonitoring.ViewModels
             return t * t * (3 - 2 * t);
         }
 
+        private bool IsPreviewFrameDue()
+        {
+            return !SuppressVideoPreviewUpdates
+                && !_isDisposed
+                && DateTime.UtcNow - _lastPreviewFrameAt >= PreviewFrameInterval
+                && Volatile.Read(ref _previewUpdatePending) == 0;
+        }
+
         private void PublishPreviewFrameIfDue(Mat frame)
         {
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
@@ -2363,36 +2374,61 @@ namespace ExpressPackingMonitoring.ViewModels
             if (Interlocked.CompareExchange(ref _previewUpdatePending, 1, 0) != 0) return;
             _lastPreviewFrameAt = now;
 
+            Mat previewFrame = null;
             try
             {
-                var bitmap = frame.ToWriteableBitmap();
-                bitmap.Freeze();
+                previewFrame = frame.Clone();
 
                 var dispatcher = Application.Current?.Dispatcher;
                 if (dispatcher == null)
                 {
+                    previewFrame.Dispose();
                     Interlocked.Exchange(ref _previewUpdatePending, 0);
                     return;
                 }
 
+                Mat frameToPublish = previewFrame;
+                previewFrame = null;
                 _ = dispatcher.BeginInvoke(new Action(() =>
                 {
                     try
                     {
                         if (!_isDisposed && !SuppressVideoPreviewUpdates)
                         {
-                            VideoFrame = bitmap;
+                            if (_previewWriteableBitmap == null
+                                || _previewWriteableBitmap.PixelWidth != frameToPublish.Width
+                                || _previewWriteableBitmap.PixelHeight != frameToPublish.Height)
+                            {
+                                _previewWriteableBitmap = new WriteableBitmap(
+                                    frameToPublish.Width,
+                                    frameToPublish.Height,
+                                    96,
+                                    96,
+                                    System.Windows.Media.PixelFormats.Bgr24,
+                                    null);
+                                VideoFrame = _previewWriteableBitmap;
+                            }
+
+                            int stride = checked((int)frameToPublish.Step());
+                            int bufferSize = checked(stride * frameToPublish.Height);
+                            _previewWriteableBitmap.WritePixels(
+                                new Int32Rect(0, 0, frameToPublish.Width, frameToPublish.Height),
+                                frameToPublish.Data,
+                                bufferSize,
+                                stride);
                             _lastPreviewPublishedAt = DateTime.Now;
                         }
                     }
                     finally
                     {
+                        frameToPublish.Dispose();
                         Interlocked.Exchange(ref _previewUpdatePending, 0);
                     }
                 }), System.Windows.Threading.DispatcherPriority.Background);
             }
             catch
             {
+                previewFrame?.Dispose();
                 Interlocked.Exchange(ref _previewUpdatePending, 0);
                 if (DateTime.Now - _lastPreviewConvertErrorLogAt > TimeSpan.FromSeconds(30))
                 {
