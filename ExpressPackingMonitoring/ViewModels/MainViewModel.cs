@@ -147,6 +147,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _recordingStartTimestamp;
         private bool _isDisposed = false; // 新增：防止销毁后操作 UI
         private WebServer _webServer;
+        private readonly SemaphoreSlim _webServerLifecycleLock = new(1, 1);
         private GlobalKeyboardHook _globalKeyHook;
 
         private bool _isBusy;
@@ -989,7 +990,7 @@ namespace ExpressPackingMonitoring.ViewModels
             return false;
         }
 
-        public void OpenSettings()
+        public async void OpenSettings()
         {
             if (_isEncoderDetectRunning)
             {
@@ -1025,6 +1026,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool workstationChanged = !string.Equals(_activeWorkstationRole, clonedConfig.WorkstationRole, StringComparison.OrdinalIgnoreCase);
                     bool aiTtsChanged = Config.EnableAiTts != clonedConfig.EnableAiTts
                         || Config.AiTtsEngine != clonedConfig.AiTtsEngine;
+                    bool webServerChanged = Config.EnableWebServer != clonedConfig.EnableWebServer
+                        || Config.WebServerPort != clonedConfig.WebServerPort
+                        || Config.TranscodeCacheMaxMB != clonedConfig.TranscodeCacheMaxMB
+                        || Config.EnableOrderInfoLog != clonedConfig.EnableOrderInfoLog;
 
                     AppConfig.NormalizeAfterLoad(clonedConfig);
                     if (!SaveConfig(clonedConfig, notifyUser: true))
@@ -1064,7 +1069,16 @@ namespace ExpressPackingMonitoring.ViewModels
                         else
                             _globalKeyHook.Stop();
                     }
-                    _ = RefreshWorkstationStatusAsync();
+                    bool webServerApplied = true;
+                    if (webServerChanged && !workstationChanged)
+                    {
+                        ShowToast("正在应用局域网服务设置...");
+                        webServerApplied = await RestartWebServerAsync(allowAccessSetup: Config.EnableWebServer);
+                    }
+                    else if (!webServerChanged)
+                    {
+                        _ = RefreshWorkstationStatusAsync();
+                    }
 
                     if (workstationChanged)
                     {
@@ -1086,7 +1100,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     else
                     {
-                        ShowToast("提示：配置已保存");
+                        if (!webServerChanged || webServerApplied)
+                            ShowToast(webServerChanged ? "配置已保存，局域网服务已应用" : "提示：配置已保存");
                     }
                 }
             }
@@ -1350,7 +1365,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _videoTask = Task.Run(() => VideoProcessLoop(_cts.Token), _cts.Token);
             Task.Run(CheckDiskAndCleanup);
             Task.Run(CameraIdleWatchdog);
-            StartWebServer();
+            _ = RestartWebServerAsync(allowAccessSetup: false);
 
             // 启动时自动将上次断电残留的 MKV 转换为 MP4
             _mkvRecoveryTask = Task.Run(RecoverOrphanedMkvAsync);
@@ -1459,33 +1474,77 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private void StartWebServer()
+        private async Task<bool> RestartWebServerAsync(bool allowAccessSetup)
         {
-            if (!Config.EnableWebServer || _db == null)
-            {
-                MonitorAccessAddress = "";
-                WorkstationAccessText = "其他电脑查视频：未开启";
-                WorkstationPrintStatusText = "快递单打印工位：未连接";
-                WorkstationStatusToolTip = "开启后，其他电脑可在浏览器输入这里显示的网址，搜索、下载和播放打包视频。";
-                return;
-            }
+            await _webServerLifecycleLock.WaitAsync();
+            WebServer newServer = null;
             try
             {
-                _webServer = new WebServer(_db, Config.WebServerPort, Config.TranscodeCacheMaxMB, () => IsRecording, ConvertRecordMkvToMp4, () => _currentVideoFilePath);
-                _webServer.EnableOrderInfoLog = Config.EnableOrderInfoLog;
-                _webServer.OrderInfoReceived += OnOrderInfoReceived;
-                _webServer.Start();
-                _ = RefreshWorkstationStatusAsync();
-                Debug.WriteLine($"[Web] 局域网服务已启动 http://0.0.0.0:{Config.WebServerPort}");
+                Interlocked.Increment(ref _workstationAddressRefreshVersion);
+                WebServer previousServer = _webServer;
+                _webServer = null;
+                try { previousServer?.Dispose(); } catch { }
+
+                if (!Config.EnableWebServer || _db == null || _isDisposed)
+                {
+                    MonitorAccessAddress = "";
+                    WorkstationAccessText = "其他电脑查视频：未开启";
+                    WorkstationPrintStatusText = "快递单打印工位：未连接";
+                    WorkstationStatusToolTip = "开启后，其他电脑可在浏览器输入这里显示的网址，搜索、下载和播放打包视频。";
+                    return true;
+                }
+
+                WorkstationAccessText = "其他电脑查视频：正在启动服务...";
+                WorkstationPrintStatusText = "快递单打印工位：等待服务启动";
+                int port = Config.WebServerPort;
+                int cacheMaxMb = Config.TranscodeCacheMaxMB;
+                bool enableOrderInfoLog = Config.EnableOrderInfoLog;
+
+                newServer = await Task.Run(() =>
+                {
+                    var server = new WebServer(_db, port, cacheMaxMb, () => IsRecording, ConvertRecordMkvToMp4, () => _currentVideoFilePath)
+                    {
+                        EnableOrderInfoLog = enableOrderInfoLog
+                    };
+                    try
+                    {
+                        server.OrderInfoReceived += OnOrderInfoReceived;
+                        server.Start(allowAccessSetup);
+                        return server;
+                    }
+                    catch
+                    {
+                        server.Dispose();
+                        throw;
+                    }
+                });
+
+                if (_isDisposed)
+                {
+                    newServer.Dispose();
+                    return false;
+                }
+
+                _webServer = newServer;
+                newServer = null;
+                await RefreshWorkstationStatusAsync();
+                RuntimeLog.Info("Web", $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}");
+                return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Web] 启动失败: {ex.Message}");
+                try { newServer?.Dispose(); } catch { }
+                RuntimeLog.Error("Web", "LAN service start failed", ex);
                 MonitorAccessAddress = "";
                 WorkstationAccessText = "其他电脑查视频：暂时不可用";
                 WorkstationPrintStatusText = "快递单打印工位：Web 启动失败";
                 WorkstationStatusToolTip = $"其他电脑暂时无法连接这台摄像头监控工位。\n{ex.Message}";
                 ShowToast($"警告：局域网服务启动失败: {ex.Message}");
+                return false;
+            }
+            finally
+            {
+                _webServerLifecycleLock.Release();
             }
         }
 

@@ -2050,7 +2050,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="启用局域网查看" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="同一网络里的电脑或手机可以用浏览器查看录像"
+                                            <TextBlock Text="同一网络里的电脑或手机可以用浏览器查看录像，首次开启可能请求管理员权限"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
@@ -2069,7 +2069,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="网页访问端口" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="浏览器访问用的端口，改完需重启"
+                                            <TextBlock Text="浏览器访问用的端口，保存后自动重启服务"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <xctk:IntegerUpDown Grid.Column="2"

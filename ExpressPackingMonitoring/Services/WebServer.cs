@@ -96,15 +96,25 @@ namespace ExpressPackingMonitoring.Services
             return listener;
         }
 
-        public void Start()
+        public void Start(bool allowAccessSetup = false)
         {
             try
             {
                 _listener.Start();
             }
-            catch (HttpListenerException)
+            catch (HttpListenerException ex)
             {
-                // URL ACL 未注册，尝试自动注册后重试
+                if (ex.ErrorCode != 5)
+                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口是否被占用。", ex);
+
+                if (!allowAccessSetup)
+                {
+                    throw new InvalidOperationException(
+                        "Web 服务缺少监听权限。请打开设置，在“局域网查看”中重新启用并保存，以完成管理员授权。",
+                        ex);
+                }
+
+                // 只有用户明确保存局域网设置时，才请求管理员权限并重试
                 RegisterUrlAcl(Port);
                 try { _listener.Close(); } catch { }
                 _listener = CreateListener(Port);
@@ -112,9 +122,9 @@ namespace ExpressPackingMonitoring.Services
                 {
                     _listener.Start();
                 }
-                catch (HttpListenerException ex)
+                catch (HttpListenerException retryException)
                 {
-                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口占用、URL ACL 或防火墙权限。", ex);
+                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口占用、URL ACL 或防火墙权限。", retryException);
                 }
             }
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
