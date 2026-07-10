@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Audio;
+using ExpressPackingMonitoring.Config;
 using System;
 using System.Threading.Tasks;
 using System.Windows;
@@ -42,7 +43,8 @@ namespace ExpressPackingMonitoring
             if (!useTemporaryRole && !string.IsNullOrWhiteSpace(requestedRole))
             {
                 config.WorkstationRole = requestedRole;
-                WorkstationConfigStore.Save(config);
+                if (!TrySaveStartupConfig(config))
+                    return;
             }
 
             string startupRole = useTemporaryRole ? temporaryRole : config.WorkstationRole;
@@ -56,7 +58,8 @@ namespace ExpressPackingMonitoring
                 }
 
                 config.WorkstationRole = selector.SelectedRole;
-                WorkstationConfigStore.Save(config);
+                if (!TrySaveStartupConfig(config))
+                    return;
                 if (WorkstationNetwork.TryRestartApplication())
                     return;
 
@@ -79,6 +82,20 @@ namespace ExpressPackingMonitoring
             _instanceCoordinator?.StartActivationListener(window);
             window.Show();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
+        }
+
+        private bool TrySaveStartupConfig(AppConfig config)
+        {
+            if (WorkstationConfigStore.TrySave(config, out string error))
+                return true;
+
+            MessageBox.Show(
+                $"配置保存失败，程序无法安全启动。\n\n请检查磁盘空间和配置目录权限。\n{error}",
+                "启动失败",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(1);
+            return false;
         }
 
         protected override void OnExit(ExitEventArgs e)

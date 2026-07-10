@@ -42,8 +42,14 @@ public partial class PrintWorkstationWindow : Window
         {
             if (save)
             {
+                string previousAddress = _config.PrintStationMonitorAddress;
                 _config.PrintStationMonitorAddress = address;
-                WorkstationConfigStore.Save(_config);
+                if (!WorkstationConfigStore.TrySave(_config, out string saveError))
+                {
+                    _config.PrintStationMonitorAddress = previousAddress;
+                    SetStatus("监控工位地址保存失败", $"请检查磁盘空间或配置目录权限：{saveError}", StatusVisual.Error);
+                    return false;
+                }
             }
             SetStatus("已连接到摄像头监控工位", $"已记住地址：{address}", StatusVisual.Success);
             if (openWhenConnected)
@@ -183,15 +189,27 @@ public partial class PrintWorkstationWindow : Window
             {
                 if (!string.Equals(_config.WorkstationRole, _activeWorkstationRole, StringComparison.OrdinalIgnoreCase))
                 {
+                    string currentRoleBeforeSave = _config.WorkstationRole;
                     _config.WorkstationRole = _activeWorkstationRole;
-                    WorkstationConfigStore.Save(_config);
+                    if (!WorkstationConfigStore.TrySave(_config, out string saveError))
+                    {
+                        _config.WorkstationRole = currentRoleBeforeSave;
+                        SetStatus("工位配置保存失败", saveError, StatusVisual.Error);
+                        return;
+                    }
                 }
                 SetStatus($"当前已经是{WorkstationRoles.GetDisplayName(_activeWorkstationRole)}", "无需重启或切换。", StatusVisual.Success);
                 return;
             }
 
+            string previousRole = _config.WorkstationRole;
             _config.WorkstationRole = win.SelectedRole;
-            WorkstationConfigStore.Save(_config);
+            if (!WorkstationConfigStore.TrySave(_config, out string error))
+            {
+                _config.WorkstationRole = previousRole;
+                SetStatus("工位配置保存失败", error, StatusVisual.Error);
+                return;
+            }
             WorkstationNetwork.AskRestart(this);
         }
     }

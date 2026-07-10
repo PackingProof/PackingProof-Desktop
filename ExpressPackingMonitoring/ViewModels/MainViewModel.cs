@@ -915,21 +915,20 @@ namespace ExpressPackingMonitoring.ViewModels
         private void LoadConfig() 
         { 
             bool containsRemovedStorageQuota = false;
-            try 
-            { 
-                if (File.Exists(_configFilePath)) 
+            if (File.Exists(_configFilePath))
+            {
+                try
                 {
-                    string configJson = File.ReadAllText(_configFilePath);
+                    string configJson = File.ReadAllText(_configFilePath, System.Text.Encoding.UTF8);
                     containsRemovedStorageQuota = configJson.Contains("\"QuotaGB\"", StringComparison.OrdinalIgnoreCase);
-                    Config = JsonSerializer.Deserialize<AppConfig>(configJson) ?? new AppConfig();
                 }
-                else 
-                { 
-                    Config = new AppConfig(); 
-                    SaveConfig(); 
-                } 
-            } 
-            catch { Config = new AppConfig(); } 
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Config", $"Failed to inspect config migration markers: {ex.Message}");
+                }
+            }
+
+            Config = WorkstationConfigStore.Load();
 
             bool configMigrated = containsRemovedStorageQuota;
             if (Config.VideoCqp <= 0)
@@ -967,7 +966,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 ExpressPackingMonitoring.Themes.ThemeManager.ApplyTheme(ExpressPackingMonitoring.Themes.AppTheme.Auto);
             }
         }
-        private void SaveConfig() { try { File.WriteAllText(_configFilePath, JsonSerializer.Serialize(Config, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping })); } catch { } }
+        private bool SaveConfig(bool notifyUser = false) => SaveConfig(Config, notifyUser);
+
+        private bool SaveConfig(AppConfig config, bool notifyUser = false)
+        {
+            if (WorkstationConfigStore.TrySave(config, out string error))
+                return true;
+
+            if (notifyUser)
+                ShowToast($"配置保存失败，请检查磁盘空间或权限: {error}");
+            return false;
+        }
 
         public void OpenSettings()
         {
@@ -1007,8 +1016,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.AiTtsEngine != clonedConfig.AiTtsEngine;
 
                     AppConfig.NormalizeAfterLoad(clonedConfig);
+                    if (!SaveConfig(clonedConfig, notifyUser: true))
+                        return;
                     Config = clonedConfig; 
-                    SaveConfig(); 
 
                     // 同步语音服务配置
                     if (_speechService != null)
@@ -1105,14 +1115,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!accepted)
                     return;
 
-                if (!wizard.WasSkipped)
-                {
-                    Config = wizard.ResultConfig;
-                }
-
-                Config.FirstUseWizardCompleted = true;
-                AppConfig.NormalizeAfterLoad(Config);
-                SaveConfig();
+                AppConfig nextConfig = wizard.WasSkipped ? clonedConfig : wizard.ResultConfig;
+                nextConfig.FirstUseWizardCompleted = true;
+                AppConfig.NormalizeAfterLoad(nextConfig);
+                if (!SaveConfig(nextConfig, notifyUser: true))
+                    return;
+                Config = nextConfig;
                 ApplyGlobalKeyboardConfig();
                 if (_globalKeyHook != null)
                 {
@@ -1541,15 +1549,25 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     if (!string.Equals(Config.WorkstationRole, _activeWorkstationRole, StringComparison.OrdinalIgnoreCase))
                     {
+                        string currentRoleBeforeSave = Config.WorkstationRole;
                         Config.WorkstationRole = _activeWorkstationRole;
-                        SaveConfig();
+                        if (!SaveConfig(notifyUser: true))
+                        {
+                            Config.WorkstationRole = currentRoleBeforeSave;
+                            return;
+                        }
                     }
                     ShowToast($"当前已经是{WorkstationRoles.GetDisplayName(_activeWorkstationRole)}");
                     return;
                 }
 
+                string previousRole = Config.WorkstationRole;
                 Config.WorkstationRole = selector.SelectedRole;
-                SaveConfig();
+                if (!SaveConfig(notifyUser: true))
+                {
+                    Config.WorkstationRole = previousRole;
+                    return;
+                }
                 WorkstationNetwork.AskRestart(Application.Current?.MainWindow);
             }
         }

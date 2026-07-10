@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.ViewModels;
 
 namespace ExpressPackingMonitoring;
@@ -30,6 +31,7 @@ public static class WorkstationRoles
 
 public static class WorkstationConfigStore
 {
+    private static readonly object SaveLock = new();
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
@@ -38,18 +40,33 @@ public static class WorkstationConfigStore
 
     public static AppConfig Load()
     {
-        try
+        string backupPath = AppPaths.ConfigPath + ".bak";
+        foreach (string path in new[] { AppPaths.ConfigPath, backupPath })
         {
-            if (File.Exists(AppPaths.ConfigPath))
+            if (!File.Exists(path))
+                continue;
+
+            try
             {
-                var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(AppPaths.ConfigPath)) ?? new AppConfig();
+                var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path, Encoding.UTF8)) ?? new AppConfig();
                 if (AppConfig.NormalizeAfterLoad(config))
-                    Save(config);
+                {
+                    try { Save(config); }
+                    catch (Exception ex) { RuntimeLog.Warn("Config", $"Normalized config save failed: {ex.Message}"); }
+                }
+
+                if (!string.Equals(path, AppPaths.ConfigPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    RuntimeLog.Warn("Config", "Primary config invalid, loaded backup config");
+                    try { Save(config); }
+                    catch (Exception ex) { RuntimeLog.Warn("Config", $"Backup config restore failed: {ex.Message}"); }
+                }
                 return config;
             }
-        }
-        catch
-        {
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Config", $"Config load failed file={Path.GetFileName(path)}, error={ex.Message}");
+            }
         }
 
         var defaultConfig = new AppConfig();
@@ -59,8 +76,53 @@ public static class WorkstationConfigStore
 
     public static void Save(AppConfig config)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.ConfigPath) ?? AppContext.BaseDirectory);
-        File.WriteAllText(AppPaths.ConfigPath, JsonSerializer.Serialize(config, Options));
+        ArgumentNullException.ThrowIfNull(config);
+
+        lock (SaveLock)
+        {
+            string configPath = AppPaths.ConfigPath;
+            string directory = Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory;
+            string tempPath = configPath + ".tmp";
+            string backupPath = configPath + ".bak";
+            Directory.CreateDirectory(directory);
+
+            try
+            {
+                string json = JsonSerializer.Serialize(config, Options);
+                using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+                {
+                    writer.Write(json);
+                    writer.Flush();
+                    stream.Flush(flushToDisk: true);
+                }
+
+                if (File.Exists(configPath))
+                    File.Replace(tempPath, configPath, backupPath, ignoreMetadataErrors: true);
+                else
+                    File.Move(tempPath, configPath);
+            }
+            finally
+            {
+                try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            }
+        }
+    }
+
+    public static bool TrySave(AppConfig config, out string error)
+    {
+        try
+        {
+            Save(config);
+            error = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            RuntimeLog.Error("Config", "Config save failed", ex);
+            return false;
+        }
     }
 }
 
