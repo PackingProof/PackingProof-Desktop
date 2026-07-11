@@ -232,28 +232,6 @@
                 <Border Grid.Row="1" Background="{DynamicResource VideoPlaceholder}" CornerRadius="10" ClipToBounds="True">
                     <Grid>
                         <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
-                        <Border HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Margin="16"
-                                Padding="12,7"
-                                CornerRadius="7"
-                                Background="#CC161A22">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="10" Height="10" Fill="{DynamicResource AccentRed}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="录制中" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding RecordingElapsedText}" Foreground="#CCFFFFFF" FontSize="14" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
                         <Rectangle x:Name="ZoomPreviewBorder"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
@@ -378,7 +356,7 @@
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <!-- 容器 Border -->
-                                <Border x:Name="ItemBorder" Background="{DynamicResource ControlBackground}" CornerRadius="6" Margin="2,1,2,4" Padding="9,7" ClipToBounds="True">
+                                <Border x:Name="ItemBorder" Background="{DynamicResource ControlBackground}" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True">
                                     
                                     <Grid>
                                         <!-- 1. 优化后的流光背景层：增加对比度，使用平移变换 -->
@@ -401,18 +379,35 @@
 
                                         <!-- 2. 内容层 (保持不变) -->
                                         <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding OrderId}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" x:Name="DurationText" Text="{Binding Duration}" FontWeight="SemiBold" FontSize="12" Margin="10,0,10,0" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding DateStr}" Foreground="{DynamicResource TextMuted}" FontSize="12" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                            <Border Grid.Column="3" x:Name="BadgeBorder" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Background="{DynamicResource BadgePackBg}">
-                                                <TextBlock x:Name="BadgeText" Text="{Binding Mode}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource BadgePackText}"/>
-                                            </Border>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding OrderId}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                <Border Grid.Column="1" x:Name="ActiveStatusBorder" Background="{DynamicResource BadgeErrorBg}" CornerRadius="4" Padding="6,2" Margin="8,0" Visibility="Collapsed">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentRed}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="录制中" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource BadgeErrorText}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Grid.Column="2" x:Name="BadgeBorder" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Background="{DynamicResource BadgePackBg}">
+                                                    <TextBlock x:Name="BadgeText" Text="{Binding Mode}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource BadgePackText}"/>
+                                                </Border>
+                                            </Grid>
+
+                                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                                                <Path Data="{StaticResource FluentClockIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
+                                                <TextBlock x:Name="DurationText" Text="{Binding Duration}" FontWeight="SemiBold" FontSize="12" Margin="0,0,12,0" Foreground="{DynamicResource TextSecondary}"/>
+                                                <Path Data="{StaticResource FluentCalendarIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
+                                                <TextBlock Text="{Binding DateStr}" Foreground="{DynamicResource TextMuted}" FontSize="12"/>
+                                            </StackPanel>
                                         </Grid>
                                     </Grid>
                                 </Border>
@@ -425,6 +420,7 @@
                                         <Setter TargetName="BadgeBorder" Property="Background" Value="{DynamicResource BadgeErrorBg}"/>
                                         <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource BadgeErrorText}"/>
                                         <Setter TargetName="DurationText" Property="Foreground" Value="{DynamicResource AccentRed}"/>
+                                        <Setter TargetName="ActiveStatusBorder" Property="Visibility" Value="Visible"/>
                                         
                                         <DataTrigger.EnterActions>
                                             <BeginStoryboard x:Name="ShimmerStoryboard">

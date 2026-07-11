@@ -183,7 +183,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _currentMode = "发货";
         private string _currentOrderId = "";
         private bool _isRecording;
-        private string _recordingElapsedText = "00:00";
         private string _scanInputText = "";
         public string ScanInputText { get => _scanInputText; set { if (SetProperty(ref _scanInputText, value)) ScheduleRefreshBarcodes(); } }
 
@@ -298,11 +297,9 @@ namespace ExpressPackingMonitoring.ViewModels
             set
             {
                 if (!SetProperty(ref _isRecording, value)) return;
-                if (!value) RecordingElapsedText = "00:00";
                 ScheduleRefreshBarcodes();
             }
         }
-        public string RecordingElapsedText { get => _recordingElapsedText; private set => SetProperty(ref _recordingElapsedText, value); }
         public bool IsShutdownInProgress { get => _isShutdownInProgress; private set => SetProperty(ref _isShutdownInProgress, value); }
         public double DiskUsagePercent { get => _diskUsagePercent; set => SetProperty(ref _diskUsagePercent, value); }
         public string DiskUsageText { get => _diskUsageText; set => SetProperty(ref _diskUsageText, value); }
@@ -2785,7 +2782,6 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     int maxSec = (int)(Config.MaxDurationMinutes * 60);
                                     _currentScanRecord.Duration = Config.EnableMaxDuration ? $"{(int)elapsedSec}s / {maxSec}s" : $"{(int)elapsedSec}s";
-                                    RecordingElapsedText = TimeSpan.FromSeconds(elapsedSec).ToString(elapsedSec >= 3600 ? @"hh\:mm\:ss" : @"mm\:ss");
                                 }
                             });
                         }
