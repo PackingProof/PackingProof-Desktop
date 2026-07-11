@@ -100,7 +100,7 @@
         Object.assign(overlay.style, {
             position: 'fixed', inset: '0', zIndex: '2147483647',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'linear-gradient(145deg,#7f1d1d 0%,#991b1b 42%,#450a0a 100%)',
+            background: 'linear-gradient(145deg,rgba(127,29,29,.64) 0%,rgba(153,27,27,.6) 42%,rgba(69,10,10,.68) 100%)',
             color: '#fff', fontFamily: 'Microsoft YaHei, sans-serif',
             pointerEvents: 'auto', userSelect: 'none'
         });
