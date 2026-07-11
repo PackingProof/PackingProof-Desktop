@@ -5,27 +5,30 @@
 ![GitHub Stars](https://img.shields.io/github/stars/m-RNA/ExpressPackingMonitoring?style=flat&color=ffcf49)
 [![GitHub All Releases](https://img.shields.io/github/downloads/m-RNA/ExpressPackingMonitoring/total)](https://github.com/m-RNA/ExpressPackingMonitoring/releases)
 
-A video evidence tool for e-commerce packing stations. Scan a shipping barcode to start recording, then find the video later by tracking number for order verification and after-sales disputes.
+A packing video and shipment-risk interception tool for e-commerce sellers and packing stations. It records automatically when a shipping barcode is scanned, integrates with Kuaidi Assistant to announce buyer messages and seller notes, and alerts packers when an order is refunded after its shipping label has already been printed.
+
+> It does more than preserve evidence for disputes: it surfaces special instructions and stops refunded orders before shipment, helping prevent packing mistakes and avoidable losses.
 
 ![Application screenshot](Image/软件截图.jpg)
 
 ## Who It Is For
 
-- Packing stations that need hands-free video recording
-- Sellers who need to retrieve video quickly by tracking number
-- Teams that want spoken buyer messages, seller notes, or product information
+- Sellers who print shipping labels with Kuaidi Assistant and want to keep their existing workflow
+- Packing stations that need to catch refunds occurring after a label has been printed
+- Teams that want buyer messages, seller notes, and product information announced while packing
+- Sellers who need hands-free recording and fast retrieval by tracking number
 - Warehouses that need video playback from phones or other computers on the LAN
 - Users who want to trim the beginning or end of a recording before downloading it
 - Computers with limited storage that need automatic cleanup while reserving free disk space
 
 ## Main Features
 
-- Starts recording automatically when a shipping barcode is scanned
+- Integrates with Kuaidi Assistant to sync orders and announce buyer messages, seller notes, and product information
+- Checks for post-print refunds asynchronously in shipping and return modes, with status-specific alerts that do not interrupt recording
+- Starts recording automatically when a shipping barcode is scanned and associates the video with its tracking number
 - Supports camera recording, audio capture, and video watermarks
 - Searches recordings by order or tracking number and plays them in a browser
 - Provides browser-based trim-and-download with a selectable time range
-- Announces order notes and product information with text-to-speech
-- Checks post-print refund status asynchronously after scanning and raises status-specific alerts in both shipping and return modes without interrupting recording
 - Supports multiple storage locations, automatic drive switching, and reserve-space-based cleanup
 - Checks for updates through the launcher, verifies incremental packages, and installs pending updates on the next launch
 
