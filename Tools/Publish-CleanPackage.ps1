@@ -463,6 +463,9 @@ function New-AppPatchPackage {
     $changedFiles = @()
     Get-ChildItem -LiteralPath $CurrentAppDir -File -Recurse | ForEach-Object {
         $relativePath = Get-RelativePath -BaseDir $CurrentAppDir -Path $_.FullName
+        if ($relativePath.StartsWith("tts_cache\", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
         $baselineFile = Join-Path $BaselineDir $relativePath
         $currentHash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         $isChanged = $true
