@@ -26,6 +26,7 @@ internal static class Program
     private const uint InfoIcon = 0x00000040;
     private const uint ErrorIcon = 0x00000010;
     private const uint DialogTimeoutMs = 60000;
+    private static bool _useChinese;
 
     private static readonly HttpClient HttpClient = new()
     {
@@ -35,6 +36,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        _useChinese = ResolveChineseLanguage();
         string baseDir = AppContext.BaseDirectory;
         string appPath = Path.Combine(baseDir, AppRelativePath);
         bool appAlreadyRunning = IsAppRunning(appPath);
@@ -241,7 +243,7 @@ internal static class Program
             TryDeleteDirectory(pendingDir);
             ResetPatchDownloadFailureState();
             WriteLog($"pending Patch 更新完成：{descriptor.LatestVersion}");
-            return new UpdateNotification("更新完成", BuildSuccessMessage(descriptor), false);
+            return new UpdateNotification(_useChinese ? "更新完成" : "Update complete", BuildSuccessMessage(descriptor), false);
         }
         catch (Exception ex)
         {
@@ -251,7 +253,7 @@ internal static class Program
             {
                 using JsonDocument document = JsonDocument.Parse(File.ReadAllText(manifestPath, Encoding.UTF8));
                 UpdateDescriptor descriptor = ReadUpdateDescriptor(document.RootElement, "");
-                return new UpdateNotification("更新失败", BuildFailedMessage(descriptor), true);
+                return new UpdateNotification(_useChinese ? "更新失败" : "Update failed", BuildFailedMessage(descriptor), true);
             }
             catch
             {
@@ -625,7 +627,9 @@ internal static class Program
         if (!File.Exists(appPath))
         {
             WriteLog("未找到主程序，无法启动：" + appPath);
-            ShowMessage("启动失败", $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录。", ErrorIcon);
+            ShowMessage(_useChinese ? "启动失败" : "Startup failed", _useChinese
+                ? $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录。"
+                : $"Application not found: {AppRelativePath}\n\nMake sure the app folder is next to this launcher.", ErrorIcon);
             return 2;
         }
 
@@ -648,7 +652,10 @@ internal static class Program
         catch (Exception ex)
         {
             WriteLog("启动主程序失败：" + ex);
-            ShowMessage("启动失败", $"启动主程序失败：\n{ex.Message}", ErrorIcon);
+            ShowMessage(
+                _useChinese ? "启动失败" : "Startup failed",
+                _useChinese ? $"启动主程序失败：\n{ex.Message}" : $"Failed to start the application:\n{ex.Message}",
+                ErrorIcon);
             return 1;
         }
     }
@@ -901,26 +908,33 @@ internal static class Program
 
     private static UpdateNotification BuildManualUpdateNotification(UpdateDescriptor descriptor, ManualUpdateReason reason)
     {
-        string reasonText = reason switch
+        string reasonText = _useChinese ? reason switch
         {
             ManualUpdateReason.PatchNotSupported => "本次包含启动器或基础组件更新，需要下载完整包后解压覆盖安装。",
             ManualUpdateReason.VersionBelowBaseline => "当前版本过旧，不能直接使用本次增量更新，需要下载完整包后解压覆盖安装。",
             ManualUpdateReason.PatchDescriptorUnavailable => "本版本需要完整更新，需要下载完整包后解压覆盖安装。",
             _ => "本版本需要完整更新，需要下载完整包后解压覆盖安装。"
+        } : reason switch
+        {
+            ManualUpdateReason.PatchNotSupported => "This release updates the launcher or core components. Download and extract the full package.",
+            ManualUpdateReason.VersionBelowBaseline => "The installed version is too old for this patch. Download and extract the full package.",
+            _ => "This release requires a full update. Download and extract the full package."
         };
 
-        string message = $"新版本：v{descriptor.LatestVersion}\n{reasonText}";
+        string message = _useChinese
+            ? $"新版本：v{descriptor.LatestVersion}\n{reasonText}"
+            : $"New version: v{descriptor.LatestVersion}\n{reasonText}";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
-            message += $"\n完整包下载页：{descriptor.FullDownloadPage}";
+            message += _useChinese ? $"\n完整包下载页：{descriptor.FullDownloadPage}" : $"\nFull package: {descriptor.FullDownloadPage}";
 
-        return new UpdateNotification("需要完整更新", message, true);
+        return new UpdateNotification(_useChinese ? "需要完整更新" : "Full update required", message, true);
     }
 
     private static string BuildSuccessMessage(UpdateDescriptor descriptor)
     {
         var lines = new List<string>
         {
-            $"已升级到 v{descriptor.LatestVersion}"
+            _useChinese ? $"已升级到 v{descriptor.LatestVersion}" : $"Upgraded to v{descriptor.LatestVersion}"
         };
 
         if (!string.IsNullOrWhiteSpace(descriptor.Title))
@@ -940,9 +954,11 @@ internal static class Program
 
     private static string BuildFailedMessage(UpdateDescriptor descriptor)
     {
-        string message = $"已恢复旧版本\n新版本：v{descriptor.LatestVersion}\n请下载完整包后解压覆盖安装";
+        string message = _useChinese
+            ? $"已恢复旧版本\n新版本：v{descriptor.LatestVersion}\n请下载完整包后解压覆盖安装"
+            : $"The previous version was restored\nNew version: v{descriptor.LatestVersion}\nDownload and extract the full package";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
-            message += $"\n完整包下载页：{descriptor.FullDownloadPage}";
+            message += _useChinese ? $"\n完整包下载页：{descriptor.FullDownloadPage}" : $"\nFull package: {descriptor.FullDownloadPage}";
 
         return message;
     }
@@ -1404,6 +1420,31 @@ internal static class Program
     {
         MessageBoxW(IntPtr.Zero, message, title, icon);
     }
+
+    private static bool ResolveChineseLanguage()
+    {
+        try
+        {
+            string path = Path.Combine(GetUserDataDir(), "config.json");
+            if (File.Exists(path))
+            {
+                using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
+                if (document.RootElement.TryGetProperty("Language", out JsonElement value))
+                {
+                    string? preference = value.GetString();
+                    if (preference == "zh-Hans") return true;
+                    if (preference == "en-US") return false;
+                }
+            }
+        }
+        catch { }
+
+        // Primary language ID 0x04 represents the Chinese language family.
+        return (GetUserDefaultUILanguage() & 0x03ff) == 0x04;
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern ushort GetUserDefaultUILanguage();
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string lpText, string lpCaption, uint uType);
