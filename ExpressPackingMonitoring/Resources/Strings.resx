@@ -458,4 +458,13 @@
   <data name="点击任意位置唤醒，再将面单放入识别框" xml:space="preserve"><value>Click anywhere to wake the camera, then place the label inside the recognition guide</value></data>
   <data name="摄像头自动识别面单" xml:space="preserve"><value>Camera shipping-label recognition</value></data>
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>Place the barcode inside the preview guide to start or switch recordings after a stable read</value></data>
+  <data name="新增摄像头识别面单" xml:space="preserve"><value>Camera shipping-label recognition</value></data>
+  <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>Start recording without a scanner</value></data>
+  <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>Place the shipping-label barcode inside the preview guide to start or switch recordings after a stable read</value></data>
+  <data name="扫码枪仍可同时使用，建议保留作为后备" xml:space="preserve"><value>Your scanner will keep working and can remain connected as a fallback</value></data>
+  <data name="支持常见快递面单的一维条码，商品条码不会触发录像" xml:space="preserve"><value>Common shipping-label barcodes are supported; product barcodes will not start recording</value></data>
+  <data name="启用摄像头识别" xml:space="preserve"><value>Enable camera recognition</value></data>
+  <data name="暂不启用" xml:space="preserve"><value>Not now</value></data>
+  <data name="已启用摄像头识别面单" xml:space="preserve"><value>Camera shipping-label recognition enabled</value></data>
+  <data name="已保留当前设置，可随时在设置中开启" xml:space="preserve"><value>Current setting kept; camera recognition can be enabled in Settings at any time</value></data>
 </root>

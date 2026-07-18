@@ -61,9 +61,13 @@ namespace ExpressPackingMonitoring.Config
     public class AppConfig
     {
         public const int CurrentVoiceSettingsVersion = 2;
+        public const int CurrentCameraBarcodeSetupVersion = 1;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
+
+        // 摄像头识别升级引导版本。旧配置缺少该字段时会提示用户选择是否启用。
+        public int CameraBarcodeSetupVersion { get; set; } = 0;
 
         // 工位用途："CameraMonitor"=摄像头监控工位，"PrintStation"=快递单打印工位，空值表示首次启动需要选择。
         public string WorkstationRole { get; set; } = "";
@@ -307,7 +311,23 @@ namespace ExpressPackingMonitoring.Config
         internal static void ApplyFirstUseDefaults(AppConfig config)
         {
             config.EnableCameraBarcodeRecognition = true;
+            config.CameraBarcodeSetupVersion = CurrentCameraBarcodeSetupVersion;
             config.FirstUseWizardCompleted = true;
+        }
+
+        internal static bool ShouldPromptCameraBarcodeUpgrade(AppConfig config)
+        {
+            return config != null
+                && config.FirstUseWizardCompleted
+                && config.CameraBarcodeSetupVersion < CurrentCameraBarcodeSetupVersion;
+        }
+
+        internal static void ApplyCameraBarcodeUpgradeChoice(AppConfig config, bool enableRecognition)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            if (enableRecognition)
+                config.EnableCameraBarcodeRecognition = true;
+            config.CameraBarcodeSetupVersion = CurrentCameraBarcodeSetupVersion;
         }
 
         private static string NormalizeAiTtsEngine(string engine)

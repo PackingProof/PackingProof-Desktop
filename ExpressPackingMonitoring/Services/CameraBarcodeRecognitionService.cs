@@ -35,6 +35,18 @@ internal static class CameraBarcodeCandidatePolicy
         try { return Regex.IsMatch(normalized, orderIdRegex ?? ""); }
         catch { return false; }
     }
+
+    public static bool IsCurrentRecordingCode(string? value, string? recordingOrderId, bool isRecording)
+    {
+        if (!isRecording)
+            return false;
+
+        string normalized = (value ?? "").Trim();
+        string current = (recordingOrderId ?? "").Trim();
+        return normalized.Length > 0
+            && current.Length > 0
+            && string.Equals(normalized, current, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 internal sealed class CameraBarcodeStabilityTracker
@@ -86,9 +98,10 @@ internal sealed class CameraBarcodeStabilityTracker
         return new CameraBarcodeObservation(ConfirmedCode: normalized);
     }
 
-    public void Reset()
+    public void Reset(bool preserveLockedCodes = false)
     {
-        _lockedCodes.Clear();
+        if (!preserveLockedCodes)
+            _lockedCodes.Clear();
         ClearCandidate();
     }
 
@@ -122,8 +135,8 @@ internal sealed class CameraBarcodeStabilityTracker
 
 internal sealed class CameraBarcodeFrameDecoder
 {
-    internal const double GuideWidthRatio = 0.72;
-    internal const double GuideHeightRatio = 0.48;
+    internal const double GuideWidthRatio = 0.9;
+    internal const double GuideHeightRatio = 0.9;
 
     private static readonly HashSet<BarcodeFormat> AllowedFormats =
     [
@@ -271,7 +284,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         return true;
     }
 
-    public void Reset()
+    public void Reset(bool preserveConfirmedCodes = false)
     {
         if (_disposed)
             return;
@@ -286,7 +299,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         }
         pending?.Dispose();
         lock (_trackerLock)
-            _stabilityTracker.Reset();
+            _stabilityTracker.Reset(preserveConfirmedCodes);
         StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle));
     }
 

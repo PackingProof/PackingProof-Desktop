@@ -180,7 +180,7 @@ namespace ExpressPackingMonitoring.ViewModels
             set
             {
                 if (SetProperty(ref _isBusy, value) && value)
-                    ResetCameraBarcodeRecognition();
+                    ResetCameraBarcodeRecognition(preserveConfirmedCodes: true);
             }
         }
 
@@ -620,7 +620,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _ = dispatcher.BeginInvoke(new Action(() =>
             {
                 if (CanSubmitCameraBarcode())
-                    HandleScan(code);
+                    HandleScan(code, fromCamera: true);
             }));
         }
 
@@ -671,10 +671,10 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (OperationCanceledException) { }
         }
 
-        private void ResetCameraBarcodeRecognition()
+        private void ResetCameraBarcodeRecognition(bool preserveConfirmedCodes = false)
         {
             _cameraBarcodeFeedbackCts?.Cancel();
-            _cameraBarcodeRecognition?.Reset();
+            _cameraBarcodeRecognition?.Reset(preserveConfirmedCodes);
             IsCameraBarcodeCandidate = false;
             IsCameraBarcodeConfirmed = false;
             CameraBarcodeStatusText = "将面单条形码放入框内";
@@ -850,7 +850,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async void HandleScan(string scanResult)
+        private void HandleScan(string scanResult)
+        {
+            HandleScan(scanResult, fromCamera: false);
+        }
+
+        private async void HandleScan(string scanResult, bool fromCamera)
         {
             NotifyUserActivity();
             if (IsBusy || _isDisposed || _shutdownRequested) { ScanInputText = ""; return; }
@@ -859,6 +864,15 @@ namespace ExpressPackingMonitoring.ViewModels
             
             // 立即清空扫码框，防止重复触发
             ScanInputText = ""; 
+
+            // 摄像头会持续看到仍放在画面中的面单，同码只表示面单尚未移走。
+            // 扫码枪仍保留再次扫描同码停止录像的原有行为。
+            if (fromCamera
+                && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(upperResult, _recordingOrderId, IsRecording))
+            {
+                RuntimeLog.Info("CameraBarcode", $"Ignored current recording barcode: {upperResult}");
+                return;
+            }
 
             if (_isInputOnCooldown)
             {
@@ -1541,7 +1555,19 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        public async void RunFirstUseSetupWizardIfNeeded(System.Windows.Window owner)
+        public async void RunStartupSetupFlowsIfNeeded(System.Windows.Window owner)
+        {
+            bool isExistingUser = Config.FirstUseWizardCompleted;
+            if (!isExistingUser)
+            {
+                await RunFirstUseSetupWizardIfNeededAsync(owner);
+                return;
+            }
+
+            RunCameraBarcodeUpgradePromptIfNeeded(owner);
+        }
+
+        private async Task RunFirstUseSetupWizardIfNeededAsync(System.Windows.Window owner)
         {
             if (Config.FirstUseWizardCompleted || _isDisposed)
                 return;
@@ -1617,6 +1643,26 @@ namespace ExpressPackingMonitoring.ViewModels
                     RestartCamera();
                 }
             }
+        }
+
+        private void RunCameraBarcodeUpgradePromptIfNeeded(System.Windows.Window owner)
+        {
+            if (_isDisposed || !AppConfig.ShouldPromptCameraBarcodeUpgrade(Config))
+                return;
+
+            var dialog = new CameraBarcodeUpgradeDialog { Owner = owner };
+            bool enableRecognition = dialog.ShowDialog() == true;
+            var nextConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
+            AppConfig.ApplyCameraBarcodeUpgradeChoice(nextConfig, enableRecognition);
+            if (!SaveConfig(nextConfig, notifyUser: true))
+                return;
+
+            Config = nextConfig;
+            ResetCameraBarcodeRecognition();
+            RuntimeLog.Info("CameraBarcode", $"Upgrade choice saved enabled={Config.EnableCameraBarcodeRecognition}");
+            ShowToast(enableRecognition
+                ? "已启用摄像头识别面单"
+                : "已保留当前设置，可随时在设置中开启");
         }
 
         public bool SuspendCameraForSetupWizard()

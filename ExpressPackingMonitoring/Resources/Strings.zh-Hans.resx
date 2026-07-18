@@ -458,4 +458,13 @@
   <data name="点击任意位置唤醒，再将面单放入识别框" xml:space="preserve"><value>点击任意位置唤醒，再将面单放入识别框</value></data>
   <data name="摄像头自动识别面单" xml:space="preserve"><value>摄像头自动识别面单</value></data>
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>将条形码放入预览引导框，稳定识别后自动开始或切换录像</value></data>
+  <data name="新增摄像头识别面单" xml:space="preserve"><value>新增摄像头识别面单</value></data>
+  <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>无需扫码枪，也能自动开始录像</value></data>
+  <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像</value></data>
+  <data name="扫码枪仍可同时使用，建议保留作为后备" xml:space="preserve"><value>扫码枪仍可同时使用，建议保留作为后备</value></data>
+  <data name="支持常见快递面单的一维条码，商品条码不会触发录像" xml:space="preserve"><value>支持常见快递面单的一维条码，商品条码不会触发录像</value></data>
+  <data name="启用摄像头识别" xml:space="preserve"><value>启用摄像头识别</value></data>
+  <data name="暂不启用" xml:space="preserve"><value>暂不启用</value></data>
+  <data name="已启用摄像头识别面单" xml:space="preserve"><value>已启用摄像头识别面单</value></data>
+  <data name="已保留当前设置，可随时在设置中开启" xml:space="preserve"><value>已保留当前设置，可随时在设置中开启</value></data>
 </root>

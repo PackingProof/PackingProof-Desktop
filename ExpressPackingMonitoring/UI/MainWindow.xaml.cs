@@ -181,7 +181,7 @@ namespace ExpressPackingMonitoring.UI
 
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    (DataContext as MainViewModel)?.RunFirstUseSetupWizardIfNeeded(this);
+                    (DataContext as MainViewModel)?.RunStartupSetupFlowsIfNeeded(this);
                 }), DispatcherPriority.ContextIdle);
             };
             SourceInitialized += (_, __) =>

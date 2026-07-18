@@ -117,6 +117,7 @@
     <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
     <Compile Include="ViewModels\MainViewModel.Recording.cs" />
     <Compile Include="UI\ConfirmDialog.xaml.cs" />
+    <Compile Include="UI\CameraBarcodeUpgradeDialog.xaml.cs" />
     <Compile Include="UI\DriveSelectionDialog.cs" />
     <Compile Include="UI\FirstUseSetupWizardWindow.xaml.cs" />
     <Compile Include="UI\MainWindow.xaml.cs" />
