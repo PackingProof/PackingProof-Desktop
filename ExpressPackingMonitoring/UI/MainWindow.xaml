@@ -306,6 +306,73 @@
                                            FontWeight="SemiBold"/>
                             </Border>
                         </Grid>
+                        <StackPanel HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom"
+                                    Margin="16"
+                                    MaxWidth="560"
+                                    IsHitTestVisible="False"
+                                    Panel.ZIndex="30">
+                            <Border CornerRadius="8"
+                                    Padding="12,10"
+                                    Margin="0,0,0,8"
+                                    BorderThickness="1">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Background" Value="#E6A46300"/>
+                                        <Setter Property="BorderBrush" Value="#FFFFC15A"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPreviewAlertVisible}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsPreviewAlertCritical}" Value="True">
+                                                <Setter Property="Background" Value="#E6A12626"/>
+                                                <Setter Property="BorderBrush" Value="#FFFF8A80"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PreviewAlertText}"
+                                               Foreground="White"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               LineHeight="31"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#E61C2533"
+                                    BorderBrush="#FFFFC857"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12,10">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPreviewOrderNoticeVisible}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PreviewOrderRemarkText}"
+                                               Foreground="White"
+                                               FontSize="22"
+                                               FontWeight="Bold"
+                                               LineHeight="31"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding PreviewOrderDetailText}"
+                                               Foreground="White"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               LineHeight="22"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                         <!-- 摄像头休眠提示 -->
                         <Grid IsHitTestVisible="False">
                             <Grid.Style>

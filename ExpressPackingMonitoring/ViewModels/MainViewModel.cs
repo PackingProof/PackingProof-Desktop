@@ -299,6 +299,20 @@ namespace ExpressPackingMonitoring.ViewModels
         public string ToastMessage { get => _toastMessage; set => SetProperty(ref _toastMessage, value); }
         public bool IsToastVisible { get => _isToastVisible; set => SetProperty(ref _isToastVisible, value); }
 
+        private string _previewOrderRemarkText = "";
+        private string _previewOrderDetailText = "";
+        private string _previewAlertText = "";
+        private bool _isPreviewOrderNoticeVisible;
+        private bool _isPreviewAlertVisible;
+        private bool _isPreviewAlertCritical;
+        private CancellationTokenSource _previewAlertCts;
+        public string PreviewOrderRemarkText { get => _previewOrderRemarkText; private set => SetProperty(ref _previewOrderRemarkText, value); }
+        public string PreviewOrderDetailText { get => _previewOrderDetailText; private set => SetProperty(ref _previewOrderDetailText, value); }
+        public string PreviewAlertText { get => _previewAlertText; private set => SetProperty(ref _previewAlertText, value); }
+        public bool IsPreviewOrderNoticeVisible { get => _isPreviewOrderNoticeVisible; private set => SetProperty(ref _isPreviewOrderNoticeVisible, value); }
+        public bool IsPreviewAlertVisible { get => _isPreviewAlertVisible; private set => SetProperty(ref _isPreviewAlertVisible, value); }
+        public bool IsPreviewAlertCritical { get => _isPreviewAlertCritical; private set => SetProperty(ref _isPreviewAlertCritical, value); }
+
         private string _logSearchText = "";
         public string LogSearchText { get => _logSearchText; set { SetProperty(ref _logSearchText, value); FilterLogs(); } }
         private ObservableCollection<ScanRecord> _allLogs = new ObservableCollection<ScanRecord>();
@@ -328,6 +342,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (!SetProperty(ref _isRecording, value)) return;
                 ScheduleRefreshBarcodes();
+                if (!value)
+                    ClearPreviewOrderNotice();
             }
         }
         public bool IsShutdownInProgress { get => _isShutdownInProgress; private set => SetProperty(ref _isShutdownInProgress, value); }
@@ -986,28 +1002,26 @@ namespace ExpressPackingMonitoring.ViewModels
                         repeatCount: 3);
                 }
 
-                // 查询快递助手推送的订单信息，播报留言/备注/商品
+                // 查询快递助手推送的订单信息，在预览画面持续提示并按设置播报
                 if (Config.EnableOrderInfoLog)
                     System.Diagnostics.Debug.WriteLine($"[OrderInfo] 扫码查询: {upperResult}, EnableAnnounce={Config.EnableOrderInfoAnnounce}, WebServer={(_webServer != null ? "已启动" : "未启动")}");
-                if (Config.EnableOrderInfoAnnounce && _webServer != null)
+                var orderInfo = _webServer?.GetOrderInfo(upperResult);
+                SetPreviewOrderNotice(IsRecording ? orderInfo : null);
+                if (Config.EnableOrderInfoLog)
+                    System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
+                if (Config.EnableOrderInfoAnnounce && orderInfo != null)
                 {
-                    var orderInfo = _webServer.GetOrderInfo(upperResult);
-                    if (Config.EnableOrderInfoLog)
-                        System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
-                    if (orderInfo != null)
+                    if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(orderInfo.BuyerMessage))
                     {
-                        if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(orderInfo.BuyerMessage))
-                        {
-                            SpeakWithRemarkTone(DefaultSpeechCatalog.CreateBuyerMessageAnnouncement(orderInfo.BuyerMessage), cancelPrevious: false);
-                        }
-                        if (Config.AnnounceSellerMemo && !string.IsNullOrWhiteSpace(orderInfo.SellerMemo))
-                        {
-                            SpeakWithRemarkTone(DefaultSpeechCatalog.CreateSellerMemoAnnouncement(orderInfo.SellerMemo), cancelPrevious: false);
-                        }
-                        if (Config.AnnounceProductInfo && !string.IsNullOrWhiteSpace(orderInfo.ProductInfo))
-                        {
-                            Speak(DefaultSpeechCatalog.CreateProductAnnouncement(orderInfo.ProductInfo), cancelPrevious: false);
-                        }
+                        SpeakWithRemarkTone(DefaultSpeechCatalog.CreateBuyerMessageAnnouncement(orderInfo.BuyerMessage), cancelPrevious: false);
+                    }
+                    if (Config.AnnounceSellerMemo && !string.IsNullOrWhiteSpace(orderInfo.SellerMemo))
+                    {
+                        SpeakWithRemarkTone(DefaultSpeechCatalog.CreateSellerMemoAnnouncement(orderInfo.SellerMemo), cancelPrevious: false);
+                    }
+                    if (Config.AnnounceProductInfo && !string.IsNullOrWhiteSpace(orderInfo.ProductInfo))
+                    {
+                        Speak(DefaultSpeechCatalog.CreateProductAnnouncement(orderInfo.ProductInfo), cancelPrevious: false);
                     }
                 }
 
@@ -1315,7 +1329,112 @@ namespace ExpressPackingMonitoring.ViewModels
             PresentToast(message, TimeSpan.FromMilliseconds(2500));
         }
 
-        private void PresentAlert(AlertRequest request) => PresentToast(request.Message, request.DisplayDuration);
+        private void PresentAlert(AlertRequest request)
+        {
+            if (ShouldShowPreviewAlert(request))
+                PresentPreviewAlert(request);
+            else
+                PresentToast(request.Message, request.DisplayDuration);
+        }
+
+        internal static bool ShouldShowPreviewAlert(AlertRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Message))
+                return false;
+            if (request.Priority == AlertPriority.Critical || request.Sound is AlertSound.Warning or AlertSound.IndustrialAlarm)
+                return true;
+
+            string message = request.Message;
+            string[] exceptionTerms =
+            [
+                "警告", "异常", "失败", "错误", "断开", "丢失", "超时", "拦截", "退款", "不一致", "无法", "过短", "太小",
+                "warning", "error", "failed", "failure", "exception", "disconnected", "timeout", "invalid", "refund"
+            ];
+            return exceptionTerms.Any(term => message.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        internal static string BuildPreviewOrderNotice(OrderInfo orderInfo)
+        {
+            if (orderInfo == null)
+                return "";
+
+            string remarks = BuildPreviewOrderRemarkNotice(orderInfo);
+            string details = BuildPreviewOrderDetailNotice(orderInfo);
+            return string.Join(
+                Environment.NewLine,
+                new[] { remarks, details }.Where(value => value.Length > 0));
+        }
+
+        internal static string BuildPreviewOrderRemarkNotice(OrderInfo orderInfo)
+        {
+            if (orderInfo == null)
+                return "";
+
+            var lines = new List<string>();
+            AddPreviewOrderLine(lines, "Main.PreviewBuyerMessage", orderInfo.BuyerMessage);
+            AddPreviewOrderLine(lines, "Main.PreviewSellerMemo", orderInfo.SellerMemo);
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        internal static string BuildPreviewOrderDetailNotice(OrderInfo orderInfo)
+        {
+            if (orderInfo == null)
+                return "";
+
+            var lines = new List<string>();
+            AddPreviewOrderLine(lines, "Main.PreviewProduct", orderInfo.ProductInfo);
+
+            if (orderInfo.HasRefund || orderInfo.IsPrintedRefund)
+            {
+                string status = GetRefundStatusDisplayText(orderInfo);
+                if (!string.Equals(status, "无退款", StringComparison.Ordinal))
+                    lines.Add(AppLanguage.Format("Main.PreviewException", CompactPreviewText(status)));
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private static void AddPreviewOrderLine(List<string> lines, string resourceKey, string value)
+        {
+            string compact = CompactPreviewText(value);
+            if (compact.Length > 0)
+                lines.Add(AppLanguage.Format(resourceKey, compact));
+        }
+
+        private static string CompactPreviewText(string value)
+        {
+            string compact = string.Join(" ", (value ?? "").Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
+            const int maxLength = 160;
+            return compact.Length <= maxLength ? compact : compact[..maxLength] + "…";
+        }
+
+        private void SetPreviewOrderNotice(OrderInfo orderInfo)
+        {
+            PreviewOrderRemarkText = BuildPreviewOrderRemarkNotice(orderInfo);
+            PreviewOrderDetailText = BuildPreviewOrderDetailNotice(orderInfo);
+            IsPreviewOrderNoticeVisible = PreviewOrderRemarkText.Length > 0 || PreviewOrderDetailText.Length > 0;
+        }
+
+        private void ClearPreviewOrderNotice() => SetPreviewOrderNotice(null);
+
+        private void PresentPreviewAlert(AlertRequest request)
+        {
+            Application.Current?.Dispatcher?.InvokeAsync(async () =>
+            {
+                _previewAlertCts?.Cancel();
+                _previewAlertCts = new CancellationTokenSource();
+                var token = _previewAlertCts.Token;
+                PreviewAlertText = request.Message;
+                IsPreviewAlertCritical = request.Priority == AlertPriority.Critical || request.Sound == AlertSound.IndustrialAlarm;
+                IsPreviewAlertVisible = true;
+                TimeSpan duration = request.DisplayDuration < TimeSpan.FromSeconds(5)
+                    ? TimeSpan.FromSeconds(5)
+                    : request.DisplayDuration;
+                try { await Task.Delay(duration, token); }
+                catch (OperationCanceledException) { return; }
+                IsPreviewAlertVisible = false;
+            });
+        }
 
         private void PresentToast(string message, TimeSpan displayDuration)
         {
@@ -2205,6 +2324,13 @@ namespace ExpressPackingMonitoring.ViewModels
                                 : AppLanguage.Format("Main.RecordingAccess", MonitorAccessAddress);
                         WorkstationPrintStatusText = printStatusText;
                     }
+
+                    string activeOrderId = IsRecording ? _recordingOrderId : CurrentOrderId;
+                    OrderInfo activeOrder = orders.FirstOrDefault(info =>
+                        !info.IsTest
+                        && string.Equals(info.TrackingNumber?.Trim(), activeOrderId?.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (IsRecording && activeOrder != null)
+                        SetPreviewOrderNotice(activeOrder);
 
                     if (hasTestOrder)
                     {
@@ -3337,6 +3463,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _isDisposed = true;
             _cts?.Cancel();
             _cameraBarcodeFeedbackCts?.Cancel();
+            _previewAlertCts?.Cancel();
             try { _cameraBarcodeRecognition?.Dispose(); } catch { }
             try { _uiHeartbeatTimer?.Stop(); } catch { }
             _stopReason = "程序退出";

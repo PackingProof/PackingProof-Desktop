@@ -82,6 +82,40 @@ try {
         }
         $wpfProcess.CloseMainWindow() | Out-Null
         if (-not $wpfProcess.WaitForExit(5000)) { throw "The isolated WPF process did not shut down cleanly." }
+
+        $cameraConfig = @{
+            WorkstationRole = "CameraMonitor"
+            FirstUseWizardCompleted = $true
+            CameraBarcodeSetupVersion = 1
+            EnableCameraBarcodeRecognition = $false
+            EnableGlobalKeyboard = $false
+            Language = "zh-Hans"
+        } | ConvertTo-Json
+        [System.IO.File]::WriteAllText(
+            (Join-Path $wpfDataRoot "config.json"),
+            $cameraConfig,
+            [System.Text.UTF8Encoding]::new($false))
+
+        $env:EPM_INSTANCE_SCOPE = "automation-camera$PID"
+        $wpfProcess = Start-Process -FilePath $appExecutable -ArgumentList @("--temporary-role", "CameraMonitor") -PassThru -WindowStyle Hidden
+        $deadline = [DateTime]::UtcNow.AddSeconds(15)
+        do {
+            Start-Sleep -Milliseconds 200
+            $wpfProcess.Refresh()
+            if ($wpfProcess.HasExited) { throw "The isolated camera-monitor process exited before showing MainWindow." }
+        } while ($wpfProcess.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
+        if ($wpfProcess.MainWindowHandle -eq 0) { throw "The isolated camera-monitor MainWindow did not appear." }
+        $titleDeadline = [DateTime]::UtcNow.AddSeconds(5)
+        do {
+            Start-Sleep -Milliseconds 100
+            $wpfProcess.Refresh()
+        } while (-not $wpfProcess.MainWindowTitle.StartsWith("快递打包监控", [System.StringComparison]::Ordinal) -and
+                 [DateTime]::UtcNow -lt $titleDeadline)
+        if (-not $wpfProcess.MainWindowTitle.StartsWith("快递打包监控", [System.StringComparison]::Ordinal)) {
+            throw "Unexpected camera-monitor window title: $($wpfProcess.MainWindowTitle)"
+        }
+        Stop-Process -Id $wpfProcess.Id -Force
+        if (-not $wpfProcess.WaitForExit(5000)) { throw "The isolated camera-monitor process did not exit after the smoke test." }
     }
     finally {
         if ($wpfProcess -and -not $wpfProcess.HasExited) { Stop-Process -Id $wpfProcess.Id -Force -ErrorAction SilentlyContinue }

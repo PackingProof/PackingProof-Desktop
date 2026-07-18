@@ -467,4 +467,8 @@
   <data name="暂不启用" xml:space="preserve"><value>暂不启用</value></data>
   <data name="已启用摄像头识别面单" xml:space="preserve"><value>已启用摄像头识别面单</value></data>
   <data name="已保留当前设置，可随时在设置中开启" xml:space="preserve"><value>已保留当前设置，可随时在设置中开启</value></data>
+  <data name="Main.PreviewBuyerMessage" xml:space="preserve"><value>买家留言：{0}</value></data>
+  <data name="Main.PreviewSellerMemo" xml:space="preserve"><value>卖家备注：{0}</value></data>
+  <data name="Main.PreviewProduct" xml:space="preserve"><value>商品：{0}</value></data>
+  <data name="Main.PreviewException" xml:space="preserve"><value>异常：{0}</value></data>
 </root>

@@ -10,6 +10,63 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ConfigurationAndScannerTests
 {
+    [Fact]
+    public void BuildPreviewOrderNotice_IncludesOrderDetailsAndRefundException()
+    {
+        var orderInfo = new OrderInfo
+        {
+            BuyerMessage = "放门口",
+            SellerMemo = "检查颜色",
+            ProductInfo = "蓝色外套",
+            IsPrintedRefund = true,
+            RefundStatus = "SUCCESS"
+        };
+
+        string notice = MainViewModel.BuildPreviewOrderNotice(orderInfo);
+
+        Assert.Contains("放门口", notice);
+        Assert.Contains("检查颜色", notice);
+        Assert.Contains("蓝色外套", notice);
+        Assert.Contains("退款已完成", notice);
+        Assert.Equal(4, notice.Split(Environment.NewLine).Length);
+    }
+
+    [Fact]
+    public void BuildPreviewOrderNotice_SeparatesRemarksFromProductDetails()
+    {
+        var orderInfo = new OrderInfo
+        {
+            BuyerMessage = "放门口",
+            SellerMemo = "检查颜色",
+            ProductInfo = "蓝色外套"
+        };
+
+        string remarks = MainViewModel.BuildPreviewOrderRemarkNotice(orderInfo);
+        string details = MainViewModel.BuildPreviewOrderDetailNotice(orderInfo);
+
+        Assert.Contains("放门口", remarks);
+        Assert.Contains("检查颜色", remarks);
+        Assert.DoesNotContain("蓝色外套", remarks);
+        Assert.Contains("蓝色外套", details);
+    }
+
+    [Theory]
+    [InlineData("提示：开始录像", AlertPriority.Normal, AlertSound.None, false)]
+    [InlineData("警告：重复单号", AlertPriority.Normal, AlertSound.None, true)]
+    [InlineData("Invalid order number", AlertPriority.Normal, AlertSound.None, true)]
+    [InlineData("需要人工核对", AlertPriority.Critical, AlertSound.None, true)]
+    [InlineData("单号不一致", AlertPriority.Normal, AlertSound.Warning, true)]
+    public void ShouldShowPreviewAlert_OnlyRoutesExceptionsToPreview(
+        string message,
+        AlertPriority priority,
+        AlertSound sound,
+        bool expected)
+    {
+        var request = new AlertRequest { Message = message, Priority = priority, Sound = sound };
+
+        Assert.Equal(expected, MainViewModel.ShouldShowPreviewAlert(request));
+    }
+
     [Theory]
     [InlineData(0x0112, 0xF060, "WindowSystemCommandClose")]
     [InlineData(0x0010, 0, "WindowCloseMessage")]
