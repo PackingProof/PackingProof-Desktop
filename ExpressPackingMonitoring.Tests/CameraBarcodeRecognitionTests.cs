@@ -143,6 +143,48 @@ public sealed class CameraBarcodeRecognitionTests
                 sameBarcodeStopEnabled));
     }
 
+    [Theory]
+    [InlineData(false, "", false, false, "Start")]
+    [InlineData(true, "YT123456789012", false, false, "Ignore")]
+    [InlineData(true, "YT123456789012", true, false, "Stop")]
+    [InlineData(true, "SF123456789012", true, false, "Ignore")]
+    [InlineData(false, "", false, true, "Queue")]
+    public void RecordingDecisionPolicy_CameraPreviewMatchesRecordingRules(
+        bool isRecording,
+        string recordingOrderId,
+        bool sameBarcodeStopEnabled,
+        bool inputOnCooldown,
+        string expected)
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "YT123456789012",
+            fromCamera: true,
+            canProcess: true,
+            isRecording,
+            recordingOrderId,
+            sameBarcodeStopEnabled,
+            inputOnCooldown,
+            "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(expected, decision.Action.ToString());
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_ScannerStillSwitchesRecordingInContinuousMode()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "YT123456789012",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: true,
+            recordingOrderId: "YT123456789012",
+            sameBarcodeStopEnabled: false,
+            inputOnCooldown: false,
+            "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Switch, decision.Action);
+    }
+
     [Fact]
     public void Decoder_GuideRegionRecognizesCode128()
     {

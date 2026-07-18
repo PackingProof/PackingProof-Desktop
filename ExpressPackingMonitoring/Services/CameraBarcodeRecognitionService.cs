@@ -19,6 +19,98 @@ internal sealed record CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionSt
 
 internal sealed record CameraBarcodeObservation(string CandidateCode = "", string ConfirmedCode = "");
 
+internal enum BarcodeRecordingDecisionAction
+{
+    Ignore,
+    Queue,
+    Start,
+    Stop,
+    Switch
+}
+
+internal sealed record BarcodeRecordingDecision(BarcodeRecordingDecisionAction Action, string Reason);
+
+internal static class BarcodeRecordingDecisionPolicy
+{
+    public static BarcodeRecordingDecision Evaluate(
+        string? value,
+        bool fromCamera,
+        bool canProcess,
+        bool isRecording,
+        string? recordingOrderId,
+        bool sameBarcodeStopEnabled,
+        bool inputOnCooldown,
+        string? orderIdRegex)
+    {
+        if (!canProcess)
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "程序忙碌或正在关闭");
+
+        string normalized = (value ?? "").Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "空输入");
+
+        if (fromCamera
+            && CameraBarcodeCandidatePolicy.ShouldIgnoreCurrentRecordingCode(
+                normalized,
+                recordingOrderId,
+                isRecording,
+                sameBarcodeStopEnabled))
+        {
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "未开启同码停录，摄像头忽略当前录制单号");
+        }
+
+        if (inputOnCooldown)
+        {
+            return IsOrderScan(normalized, orderIdRegex)
+                ? new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Queue, "扫码冷却中，保留最后一个单号")
+                : new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "扫码冷却中");
+        }
+
+        if (normalized.Contains("CLEAR") || normalized.Contains("清除"))
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "清除输入指令");
+        if (normalized.Contains("SHIP") || normalized.Contains("发货") || normalized.Contains("FAHUO"))
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "切换发货模式指令");
+        if (normalized.Contains("BACK") || normalized.Contains("退货") || normalized.Contains("TUIHUO"))
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "切换退货模式指令");
+        if (normalized.Contains("START") || normalized.Contains("开始录制"))
+        {
+            return new BarcodeRecordingDecision(
+                isRecording ? BarcodeRecordingDecisionAction.Stop : BarcodeRecordingDecisionAction.Start,
+                "开始录制切换指令");
+        }
+        if (normalized.Contains("STOP") || normalized.Contains("停止录制"))
+        {
+            return new BarcodeRecordingDecision(
+                isRecording ? BarcodeRecordingDecisionAction.Stop : BarcodeRecordingDecisionAction.Ignore,
+                isRecording ? "停止录制指令" : "停止指令到达时未在录制");
+        }
+
+        if (isRecording && sameBarcodeStopEnabled)
+        {
+            string current = (recordingOrderId ?? "").Trim().ToUpperInvariant();
+            if (current.Length == 0)
+                return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "当前录像未绑定单号");
+            if (!string.Equals(normalized, current, StringComparison.Ordinal))
+                return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "同码停录模式下单号不一致");
+
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Stop, "同码停录匹配");
+        }
+
+        if (!IsOrderScan(normalized, orderIdRegex))
+            return new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Ignore, "非法单号");
+
+        return isRecording
+            ? new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Switch, "停止当前录像并开始新单号")
+            : new BarcodeRecordingDecision(BarcodeRecordingDecisionAction.Start, "开始新单号录像");
+    }
+
+    private static bool IsOrderScan(string value, string? orderIdRegex)
+    {
+        try { return Regex.IsMatch(value, orderIdRegex ?? ""); }
+        catch { return true; }
+    }
+}
+
 internal static class CameraBarcodeCandidatePolicy
 {
     public static bool IsValid(string? value, string? orderIdRegex)

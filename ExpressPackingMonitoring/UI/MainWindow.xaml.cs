@@ -110,6 +110,9 @@ namespace ExpressPackingMonitoring.UI
         public MainWindow()
         {
             InitializeComponent();
+#if DEBUG
+            RuntimeLog.Warn("CameraBarcodeCompare", "摄像头对照调试模式已启用：摄像头仅记录判定，不会触发录制；扫码枪保持真实执行");
+#endif
             BtnCopyMonitorAddress.Click += BtnCopyMonitorAddress_Click;
             BtnCopyMonitorAddress.PreviewMouseLeftButtonUp += BtnCopyMonitorAddress_PreviewMouseLeftButtonUp;
             BtnSwitchWorkstation.Click += BtnSwitchWorkstation_Click;
@@ -178,6 +181,9 @@ namespace ExpressPackingMonitoring.UI
                 }
 
                 Title = AppLanguage.Format("Main.Title", AppVersion.Current);
+#if DEBUG
+                Title += " [摄像头对照调试：摄像头不触发录制]";
+#endif
 
                 Dispatcher.BeginInvoke(new Action(() =>
                 {

@@ -635,8 +635,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
             _ = dispatcher.BeginInvoke(new Action(() =>
             {
+#if DEBUG
+                LogBarcodeRecordingComparison(code, fromCamera: true, dryRun: true);
+#else
                 if (CanSubmitCameraBarcode())
                     HandleScan(code, fromCamera: true);
+#endif
             }));
         }
 
@@ -877,6 +881,9 @@ namespace ExpressPackingMonitoring.ViewModels
             if (IsBusy || _isDisposed || _shutdownRequested) { ScanInputText = ""; return; }
             if (string.IsNullOrWhiteSpace(scanResult)) return;
             string upperResult = scanResult.ToUpper().Trim();
+#if DEBUG
+            LogBarcodeRecordingComparison(upperResult, fromCamera, dryRun: false);
+#endif
             
             // 立即清空扫码框，防止重复触发
             ScanInputText = ""; 
@@ -1058,6 +1065,38 @@ namespace ExpressPackingMonitoring.ViewModels
                 _recorderLock.Release();
             }
         }
+
+#if DEBUG
+        private void LogBarcodeRecordingComparison(string scanResult, bool fromCamera, bool dryRun)
+        {
+            BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+                scanResult,
+                fromCamera,
+                canProcess: fromCamera
+                    ? CanSubmitCameraBarcode()
+                    : !IsBusy && !_isDisposed && !_shutdownRequested,
+                IsRecording,
+                _recordingOrderId,
+                Config.EnableSameBarcodeStopRecording,
+                _isInputOnCooldown,
+                Config.OrderIdRegex);
+
+            string source = fromCamera ? "摄像头" : "扫码枪";
+            string execution = dryRun ? "仅判定不执行" : "进入真实流程";
+            RuntimeLog.Info(
+                "CameraBarcodeCompare",
+                $"来源={source}, 单号={scanResult}, 判定={GetBarcodeDecisionText(decision.Action)}, 原因={decision.Reason}, 执行={execution}, 当前录制={IsRecording}, 当前单号={_recordingOrderId}, 同码停录={Config.EnableSameBarcodeStopRecording}, 冷却中={_isInputOnCooldown}");
+        }
+
+        private static string GetBarcodeDecisionText(BarcodeRecordingDecisionAction action) => action switch
+        {
+            BarcodeRecordingDecisionAction.Queue => "等待处理",
+            BarcodeRecordingDecisionAction.Start => "开始录制",
+            BarcodeRecordingDecisionAction.Stop => "停止录制",
+            BarcodeRecordingDecisionAction.Switch => "切换录制",
+            _ => "忽略"
+        };
+#endif
 
         private async void StartInputCooldown()
         {
