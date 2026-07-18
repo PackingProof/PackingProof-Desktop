@@ -66,8 +66,8 @@ public sealed class CameraBarcodeRecognitionTests
     {
         var tracker = Confirm(trackingNumber: "YT123456789012");
 
-        tracker.Observe(null, Start.AddSeconds(1));
-        CameraBarcodeObservation held = tracker.Observe("YT123456789012", Start.AddSeconds(1.2));
+        tracker.Observe(null, Start.AddSeconds(0.5));
+        CameraBarcodeObservation held = tracker.Observe("YT123456789012", Start.AddSeconds(3.4));
 
         Assert.Empty(held.CandidateCode);
         Assert.Empty(held.ConfirmedCode);
@@ -78,9 +78,10 @@ public sealed class CameraBarcodeRecognitionTests
     {
         var tracker = Confirm(trackingNumber: "YT123456789012");
 
-        tracker.Observe(null, Start.AddSeconds(2));
-        CameraBarcodeObservation candidate = tracker.Observe("YT123456789012", Start.AddSeconds(2.1));
-        CameraBarcodeObservation confirmed = tracker.Observe("YT123456789012", Start.AddSeconds(2.35));
+        tracker.Observe(null, Start.AddSeconds(0.5));
+        tracker.Observe(null, Start.AddSeconds(3.5));
+        CameraBarcodeObservation candidate = tracker.Observe("YT123456789012", Start.AddSeconds(3.6));
+        CameraBarcodeObservation confirmed = tracker.Observe("YT123456789012", Start.AddSeconds(3.85));
 
         Assert.Equal("YT123456789012", candidate.CandidateCode);
         Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
@@ -124,6 +125,22 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(
             expected,
             CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(value, recordingOrderId, isRecording));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void CandidatePolicy_CurrentCameraCodeCanReachStopOnlyWhenSameCodeStopIsEnabled(
+        bool sameBarcodeStopEnabled,
+        bool expectedIgnored)
+    {
+        Assert.Equal(
+            expectedIgnored,
+            CameraBarcodeCandidatePolicy.ShouldIgnoreCurrentRecordingCode(
+                "YT123456789012",
+                "YT123456789012",
+                isRecording: true,
+                sameBarcodeStopEnabled));
     }
 
     [Fact]

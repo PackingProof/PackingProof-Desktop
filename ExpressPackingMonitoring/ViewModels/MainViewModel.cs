@@ -881,12 +881,16 @@ namespace ExpressPackingMonitoring.ViewModels
             // 立即清空扫码框，防止重复触发
             ScanInputText = ""; 
 
-            // 摄像头会持续看到仍放在画面中的面单，同码只表示面单尚未移走。
-            // 扫码枪仍保留再次扫描同码停止录像的原有行为。
+            // 摄像头持续识别同一面单时不会重复提交；开启同码停录后，只有单号连续消失
+            // 满 3 秒并重新稳定识别，才会再次进入下方的同码停录流程。扫码枪行为不变。
             if (fromCamera
-                && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(upperResult, _recordingOrderId, IsRecording))
+                && CameraBarcodeCandidatePolicy.ShouldIgnoreCurrentRecordingCode(
+                    upperResult,
+                    _recordingOrderId,
+                    IsRecording,
+                    Config.EnableSameBarcodeStopRecording))
             {
-                RuntimeLog.Info("CameraBarcode", $"Ignored current recording barcode: {upperResult}");
+                RuntimeLog.Info("CameraBarcode", $"Ignored current recording barcode while same-code stop is disabled: {upperResult}");
                 return;
             }
 

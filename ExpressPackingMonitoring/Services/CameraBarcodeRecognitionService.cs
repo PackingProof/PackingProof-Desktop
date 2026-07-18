@@ -47,13 +47,24 @@ internal static class CameraBarcodeCandidatePolicy
             && current.Length > 0
             && string.Equals(normalized, current, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static bool ShouldIgnoreCurrentRecordingCode(
+        string? value,
+        string? recordingOrderId,
+        bool isRecording,
+        bool sameBarcodeStopEnabled)
+    {
+        return !sameBarcodeStopEnabled
+            && IsCurrentRecordingCode(value, recordingOrderId, isRecording);
+    }
 }
 
 internal sealed class CameraBarcodeStabilityTracker
 {
     private static readonly TimeSpan ConfirmationWindow = TimeSpan.FromSeconds(1.5);
-    private static readonly TimeSpan RearmDelay = TimeSpan.FromSeconds(1.5);
+    private static readonly TimeSpan RearmDelay = TimeSpan.FromSeconds(3);
     private readonly Dictionary<string, DateTimeOffset> _lockedCodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _missingLockedCodesSince = new(StringComparer.Ordinal);
     private string _candidateCode = "";
     private DateTimeOffset _candidateFirstSeen;
     private DateTimeOffset _candidateLastSeen;
@@ -73,6 +84,7 @@ internal sealed class CameraBarcodeStabilityTracker
         if (_lockedCodes.ContainsKey(normalized))
         {
             _lockedCodes[normalized] = now;
+            _missingLockedCodesSince.Remove(normalized);
             if (string.Equals(_candidateCode, normalized, StringComparison.Ordinal))
                 ClearCandidate();
             return new CameraBarcodeObservation();
@@ -101,20 +113,35 @@ internal sealed class CameraBarcodeStabilityTracker
     public void Reset(bool preserveLockedCodes = false)
     {
         if (!preserveLockedCodes)
+        {
             _lockedCodes.Clear();
+            _missingLockedCodesSince.Clear();
+        }
         ClearCandidate();
     }
 
     private void RearmMissingCodes(DateTimeOffset now, string? observedCode)
     {
         string normalized = (observedCode ?? "").Trim().ToUpperInvariant();
-        foreach (string code in _lockedCodes
-                     .Where(pair => !string.Equals(pair.Key, normalized, StringComparison.Ordinal)
-                                    && now - pair.Value >= RearmDelay)
-                     .Select(pair => pair.Key)
-                     .ToArray())
+        foreach (string code in _lockedCodes.Keys.ToArray())
         {
-            _lockedCodes.Remove(code);
+            if (string.Equals(code, normalized, StringComparison.Ordinal))
+            {
+                _missingLockedCodesSince.Remove(code);
+                continue;
+            }
+
+            if (!_missingLockedCodesSince.TryGetValue(code, out DateTimeOffset missingSince))
+            {
+                _missingLockedCodesSince[code] = now;
+                continue;
+            }
+
+            if (now - missingSince >= RearmDelay)
+            {
+                _lockedCodes.Remove(code);
+                _missingLockedCodesSince.Remove(code);
+            }
         }
     }
 
