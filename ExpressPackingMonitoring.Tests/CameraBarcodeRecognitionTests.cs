@@ -37,6 +37,57 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void StabilityTracker_RequiredPresenceWaitsForTwoContinuousSeconds()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        TimeSpan requiredPresence = TimeSpan.FromSeconds(2);
+
+        tracker.Observe("YT123456789012", Start, requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(0.5), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(1), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(1.5), requiredPresence);
+        CameraBarcodeObservation early = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(1.75),
+            requiredPresence);
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(2),
+            requiredPresence);
+
+        Assert.Equal("YT123456789012", early.CandidateCode);
+        Assert.True(early.KeepDecoding);
+        Assert.Empty(early.ConfirmedCode);
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_RequiredPresenceRestartsAfterMissedDetection()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        TimeSpan requiredPresence = TimeSpan.FromSeconds(2);
+
+        tracker.Observe("YT123456789012", Start, requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(1.5), requiredPresence);
+        tracker.Observe(null, Start.AddSeconds(1.75), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(2), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(2.5), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(3), requiredPresence);
+        tracker.Observe("YT123456789012", Start.AddSeconds(3.5), requiredPresence);
+        CameraBarcodeObservation early = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(3.75),
+            requiredPresence);
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(4),
+            requiredPresence);
+
+        Assert.Empty(early.ConfirmedCode);
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
     public void StabilityTracker_BusyResetPreservesConfirmedCodeDebounce()
     {
         var tracker = Confirm(trackingNumber: "YT123456789012");
@@ -388,6 +439,16 @@ public sealed class CameraBarcodeRecognitionTests
         gate.Reset();
 
         Assert.True(gate.ShouldDecode(frame, Start.AddSeconds(2.25)));
+    }
+
+    [Fact]
+    public void MotionGate_ContinuousCandidateKeepsStableSceneDecoding()
+    {
+        using var gate = new CameraBarcodeMotionGate();
+        using Mat frame = CreateSolidFrame(100);
+
+        Assert.True(gate.ShouldDecode(frame, Start));
+        Assert.True(gate.ShouldDecode(frame, Start.AddSeconds(2), forceDecode: true));
     }
 
     [Fact]

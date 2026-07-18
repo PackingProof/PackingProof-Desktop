@@ -17,7 +17,10 @@ internal enum CameraBarcodeRecognitionState
 
 internal sealed record CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState State, string Code = "");
 
-internal sealed record CameraBarcodeObservation(string CandidateCode = "", string ConfirmedCode = "");
+internal sealed record CameraBarcodeObservation(
+    string CandidateCode = "",
+    string ConfirmedCode = "",
+    bool KeepDecoding = false);
 
 internal enum BarcodeRecordingDecisionAction
 {
@@ -232,16 +235,23 @@ internal sealed class CameraBarcodeStabilityTracker
     private string _candidateCode = "";
     private DateTimeOffset _candidateFirstSeen;
     private DateTimeOffset _candidateLastSeen;
+    private TimeSpan _candidateRequiredPresence;
     private int _candidateHits;
 
-    public CameraBarcodeObservation Observe(string? code, DateTimeOffset now)
+    public CameraBarcodeObservation Observe(
+        string? code,
+        DateTimeOffset now,
+        TimeSpan requiredPresence = default)
     {
         RearmMissingCodes(now, code);
 
         string normalized = (code ?? "").Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
-            ExpireCandidate(now);
+            if (_candidateRequiredPresence > TimeSpan.Zero)
+                ClearCandidate();
+            else
+                ExpireCandidate(now);
             return new CameraBarcodeObservation(_candidateCode);
         }
 
@@ -255,19 +265,28 @@ internal sealed class CameraBarcodeStabilityTracker
         }
 
         if (!string.Equals(_candidateCode, normalized, StringComparison.Ordinal)
-            || now - _candidateFirstSeen > ConfirmationWindow)
+            || now - _candidateLastSeen > ConfirmationWindow)
         {
             _candidateCode = normalized;
             _candidateFirstSeen = now;
             _candidateLastSeen = now;
+            _candidateRequiredPresence = requiredPresence > TimeSpan.Zero
+                ? requiredPresence
+                : TimeSpan.Zero;
             _candidateHits = 1;
-            return new CameraBarcodeObservation(_candidateCode);
+            return new CameraBarcodeObservation(
+                _candidateCode,
+                KeepDecoding: _candidateRequiredPresence > TimeSpan.Zero);
         }
 
         _candidateLastSeen = now;
         _candidateHits++;
-        if (_candidateHits < 2)
-            return new CameraBarcodeObservation(_candidateCode);
+        if (_candidateHits < 2 || now - _candidateFirstSeen < _candidateRequiredPresence)
+        {
+            return new CameraBarcodeObservation(
+                _candidateCode,
+                KeepDecoding: _candidateRequiredPresence > TimeSpan.Zero);
+        }
 
         _lockedCodes[normalized] = now;
         ClearCandidate();
@@ -330,6 +349,7 @@ internal sealed class CameraBarcodeStabilityTracker
         _candidateCode = "";
         _candidateFirstSeen = default;
         _candidateLastSeen = default;
+        _candidateRequiredPresence = TimeSpan.Zero;
         _candidateHits = 0;
     }
 }
@@ -581,7 +601,7 @@ internal sealed class CameraBarcodeMotionGate : IDisposable
     private DateTimeOffset _decodeUntil;
     private bool _disposed;
 
-    public bool ShouldDecode(Mat frame, DateTimeOffset now)
+    public bool ShouldDecode(Mat frame, DateTimeOffset now, bool forceDecode = false)
     {
         if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
             return false;
@@ -627,7 +647,7 @@ internal sealed class CameraBarcodeMotionGate : IDisposable
         if (changed)
             _decodeUntil = now + DecodeHoldDuration;
 
-        return now <= _decodeUntil;
+        return forceDecode || now <= _decodeUntil;
     }
 
     public void Reset()
@@ -662,6 +682,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
     private readonly Func<string, bool> _candidateValidator;
     private readonly Func<bool>? _fullFrameAllowed;
+    private readonly Func<string, TimeSpan>? _confirmationDurationProvider;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
     private readonly CameraBarcodeMotionGate _motionGate = new();
     private readonly CameraBarcodeStabilityTracker _stabilityTracker = new();
@@ -678,6 +699,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private DateTimeOffset _lastSlowDecodeLogAt;
     private DateTimeOffset _lastRecognitionErrorLogAt;
     private long _droppedFrames;
+    private long _forceDecodeUntilUtcTicks;
     private int _generation;
     private volatile bool _disposed;
     private int _workerResourcesDisposed;
@@ -685,10 +707,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     public event Action<CameraBarcodeRecognitionStatus>? StatusChanged;
     public event Action<string>? BarcodeConfirmed;
 
-    public CameraBarcodeRecognitionService(Func<string, bool> candidateValidator, Func<bool>? fullFrameAllowed = null)
+    public CameraBarcodeRecognitionService(
+        Func<string, bool> candidateValidator,
+        Func<bool>? fullFrameAllowed = null,
+        Func<string, TimeSpan>? confirmationDurationProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _fullFrameAllowed = fullFrameAllowed;
+        _confirmationDurationProvider = confirmationDurationProvider;
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
@@ -707,7 +733,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 return false;
 
             _lastAcceptedAt = now;
-            if (!_motionGate.ShouldDecode(frame, now))
+            bool forceDecode = now.UtcTicks <= Volatile.Read(ref _forceDecodeUntilUtcTicks);
+            if (!_motionGate.ShouldDecode(frame, now, forceDecode))
                 return false;
 
             replacement = frame.Clone();
@@ -742,6 +769,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             pending = _pendingFrame;
             _pendingFrame = null;
             _lastAcceptedAt = default;
+            Volatile.Write(ref _forceDecodeUntilUtcTicks, 0);
             _motionGate.Reset();
         }
         pending?.Dispose();
@@ -806,8 +834,15 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 return;
 
             CameraBarcodeObservation observation;
+            TimeSpan requiredPresence = code == null
+                ? TimeSpan.Zero
+                : _confirmationDurationProvider?.Invoke(code) ?? TimeSpan.Zero;
             lock (_trackerLock)
-                observation = _stabilityTracker.Observe(code, now);
+                observation = _stabilityTracker.Observe(code, now, requiredPresence);
+
+            Volatile.Write(
+                ref _forceDecodeUntilUtcTicks,
+                observation.KeepDecoding ? now.AddSeconds(2.5).UtcTicks : 0);
 
             if (observation.ConfirmedCode.Length > 0)
             {

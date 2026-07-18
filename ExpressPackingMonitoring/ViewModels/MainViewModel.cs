@@ -605,7 +605,11 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(
                 IsAutoSubmitScanCandidate,
-                () => !IsRecording && CanSubmitCameraBarcode());
+                () => !IsRecording && CanSubmitCameraBarcode(),
+                code => Config.EnableSameBarcodeStopRecording
+                    && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(code, _recordingOrderId, IsRecording)
+                        ? TimeSpan.FromSeconds(2)
+                        : TimeSpan.Zero);
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
         }

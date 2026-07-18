@@ -15,6 +15,7 @@ $requiredCoreTests = @(
     "CameraLifecycleTests.CameraFrameReadySignal_WakeRequiresNewSessionFrame",
     "CameraLifecycleTests.CameraFrameReadySignal_RecordingStartTimesOutWithoutFrame",
     "CameraBarcodeRecognitionTests.StabilityTracker_FirstReappearanceAfterRearmDelayUnlocksSameCode",
+    "CameraBarcodeRecognitionTests.StabilityTracker_RequiredPresenceWaitsForTwoContinuousSeconds",
     "CameraBarcodeRecognitionTests.RecordingDecisionPolicy_ScannerStillSwitchesRecordingInContinuousMode",
     "CameraBarcodeRecognitionTests.RuntimeOptions_ShadowModeRequiresExplicitOptIn",
     "CameraBarcodeRecognitionTests.Decoder_RepeatedDecodesAvoidPerFrameLargeManagedAllocations",
