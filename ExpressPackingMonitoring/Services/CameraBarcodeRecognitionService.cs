@@ -239,6 +239,97 @@ internal sealed class CameraBarcodeFrameDecoder
     }
 }
 
+internal sealed class CameraBarcodeMotionGate : IDisposable
+{
+    internal static readonly TimeSpan DecodeHoldDuration = TimeSpan.FromSeconds(1);
+    internal const int SampleWidth = 160;
+    internal const int SampleHeight = 90;
+    internal const double MeanDifferenceThreshold = 6.0;
+    internal const double ChangedPixelRatioThreshold = 0.01;
+    internal const double PixelDifferenceThreshold = 18;
+
+    private static readonly OpenCvSharp.Size SampleSize = new(SampleWidth, SampleHeight);
+    private readonly Mat _sampled = new();
+    private readonly Mat _currentGray = new();
+    private readonly Mat _previousGray = new();
+    private readonly Mat _difference = new();
+    private readonly Mat _changedPixels = new();
+    private bool _hasBaseline;
+    private DateTimeOffset _decodeUntil;
+    private bool _disposed;
+
+    public bool ShouldDecode(Mat frame, DateTimeOffset now)
+    {
+        if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
+            return false;
+
+        switch (frame.Channels())
+        {
+            case 1:
+                Cv2.Resize(frame, _currentGray, SampleSize, interpolation: InterpolationFlags.Area);
+                break;
+            case 3:
+                Cv2.Resize(frame, _sampled, SampleSize, interpolation: InterpolationFlags.Area);
+                Cv2.CvtColor(_sampled, _currentGray, ColorConversionCodes.BGR2GRAY);
+                break;
+            case 4:
+                Cv2.Resize(frame, _sampled, SampleSize, interpolation: InterpolationFlags.Area);
+                Cv2.CvtColor(_sampled, _currentGray, ColorConversionCodes.BGRA2GRAY);
+                break;
+            default:
+                return false;
+        }
+
+        if (!_hasBaseline)
+        {
+            _currentGray.CopyTo(_previousGray);
+            _hasBaseline = true;
+            _decodeUntil = now + DecodeHoldDuration;
+            return true;
+        }
+
+        Cv2.Absdiff(_currentGray, _previousGray, _difference);
+        double meanDifference = Cv2.Mean(_difference).Val0;
+        Cv2.Threshold(
+            _difference,
+            _changedPixels,
+            PixelDifferenceThreshold,
+            255,
+            ThresholdTypes.Binary);
+        double changedPixelRatio = (double)Cv2.CountNonZero(_changedPixels) / (SampleWidth * SampleHeight);
+        _currentGray.CopyTo(_previousGray);
+
+        bool changed = meanDifference >= MeanDifferenceThreshold
+            || changedPixelRatio >= ChangedPixelRatioThreshold;
+        if (changed)
+            _decodeUntil = now + DecodeHoldDuration;
+
+        return now <= _decodeUntil;
+    }
+
+    public void Reset()
+    {
+        if (_disposed)
+            return;
+
+        _hasBaseline = false;
+        _decodeUntil = default;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _sampled.Dispose();
+        _currentGray.Dispose();
+        _previousGray.Dispose();
+        _difference.Dispose();
+        _changedPixels.Dispose();
+    }
+}
+
 internal sealed class CameraBarcodeRecognitionService : IDisposable
 {
     private static readonly TimeSpan GuideInterval = TimeSpan.FromMilliseconds(250);
@@ -249,6 +340,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<string, bool> _candidateValidator;
     private readonly Func<bool>? _fullFrameAllowed;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
+    private readonly CameraBarcodeMotionGate _motionGate = new();
     private readonly CameraBarcodeStabilityTracker _stabilityTracker = new();
     private readonly object _pendingLock = new();
     private readonly object _trackerLock = new();
@@ -291,6 +383,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 return false;
 
             _lastAcceptedAt = now;
+            if (!_motionGate.ShouldDecode(frame, now))
+                return false;
+
             replacement = frame.Clone();
             dropped = _pendingFrame;
             _pendingFrame = replacement;
@@ -323,6 +418,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             pending = _pendingFrame;
             _pendingFrame = null;
             _lastAcceptedAt = default;
+            _motionGate.Reset();
         }
         pending?.Dispose();
         lock (_trackerLock)
@@ -447,6 +543,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         }
         pending?.Dispose();
         try { _workerTask.Wait(1000); } catch { }
+        _motionGate.Dispose();
         _pendingSignal.Dispose();
         _cts.Dispose();
     }

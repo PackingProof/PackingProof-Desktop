@@ -206,6 +206,64 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void MotionGate_StableSceneSleepsUntilVisibleChangeOccurs()
+    {
+        using var gate = new CameraBarcodeMotionGate();
+        using Mat stillFrame = CreateSolidFrame(100);
+        using Mat changedFrame = CreateSolidFrame(100);
+        Cv2.Rectangle(changedFrame, new Rect(320, 180, 640, 360), Scalar.Black, thickness: -1);
+
+        Assert.True(gate.ShouldDecode(stillFrame, Start));
+        Assert.True(gate.ShouldDecode(stillFrame, Start.AddMilliseconds(500)));
+        Assert.False(gate.ShouldDecode(stillFrame, Start.AddSeconds(1.25)));
+
+        Assert.True(gate.ShouldDecode(changedFrame, Start.AddSeconds(1.5)));
+        Assert.True(gate.ShouldDecode(changedFrame, Start.AddSeconds(2.25)));
+        Assert.False(gate.ShouldDecode(changedFrame, Start.AddSeconds(2.75)));
+    }
+
+    [Fact]
+    public void MotionGate_MinorCameraNoiseDoesNotWakeRecognition()
+    {
+        using var gate = new CameraBarcodeMotionGate();
+        using Mat baseline = CreateSolidFrame(100);
+        using Mat minorNoise = CreateSolidFrame(104);
+
+        Assert.True(gate.ShouldDecode(baseline, Start));
+        Assert.False(gate.ShouldDecode(minorNoise, Start.AddSeconds(2)));
+    }
+
+    [Fact]
+    public void MotionGate_ShippingLabelEnteringStableSceneWakesRecognition()
+    {
+        using var gate = new CameraBarcodeMotionGate();
+        using Mat emptyFrame = CreateSolidFrame(255);
+        using Mat labelFrame = CreateFrameWithBarcode(
+            "YT123456789012",
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+
+        Assert.True(gate.ShouldDecode(emptyFrame, Start));
+        Assert.False(gate.ShouldDecode(emptyFrame, Start.AddSeconds(2)));
+
+        Assert.True(gate.ShouldDecode(labelFrame, Start.AddSeconds(2.25)));
+    }
+
+    [Fact]
+    public void MotionGate_ResetMakesNextFrameEligibleForRecognition()
+    {
+        using var gate = new CameraBarcodeMotionGate();
+        using Mat frame = CreateSolidFrame(100);
+
+        Assert.True(gate.ShouldDecode(frame, Start));
+        Assert.False(gate.ShouldDecode(frame, Start.AddSeconds(2)));
+
+        gate.Reset();
+
+        Assert.True(gate.ShouldDecode(frame, Start.AddSeconds(2.25)));
+    }
+
+    [Fact]
     public async Task RecognitionService_RecordingGateBlocksFullFrameFallback()
     {
         using Mat frame = CreateFrameWithBarcode(
@@ -355,4 +413,7 @@ public sealed class CameraBarcodeRecognitionTests
         oriented.CopyTo(target);
         return frame;
     }
+
+    private static Mat CreateSolidFrame(byte value) =>
+        new(new OpenCvSharp.Size(1280, 720), MatType.CV_8UC3, new Scalar(value, value, value));
 }
