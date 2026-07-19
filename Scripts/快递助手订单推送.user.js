@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         订单备注播报插件
 // @namespace    https://github.com/ExpressPackingMonitoring
-// @version      2.7
+// @version      2.8
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，发送到监控工位，打包时自动播报或报警。
 // @author       ExpressPackingMonitoring
 // @icon         https://raw.githubusercontent.com/m-RNA/ExpressPackingMonitoring/main/ExpressPackingMonitoring/app.ico
@@ -29,7 +29,10 @@
     const DEFAULT_HOST = '127.0.0.1';
     const DEFAULT_PORT = 5280;
     const DEFAULT_ADDRESS = `${DEFAULT_HOST}:${DEFAULT_PORT}`;
-    const INSTALL_MONITOR_ADDRESS = '';
+    const INSTALL_MONITOR_ADDRESSES = [];
+    const MONITOR_ADDRESSES_KEY = 'monitor_addresses';
+    const INSTALLED_MONITOR_ADDRESSES_KEY = 'installed_monitor_addresses';
+    const MAX_MONITOR_ADDRESSES = 8;
     const DISCOVERY_DONE_KEY = 'monitor_auto_discovery_done';
     const DISCOVERY_LAST_ATTEMPT_KEY = 'monitor_auto_discovery_last_attempt';
     const DISCOVERY_LOCK_KEY = 'monitor_auto_discovery_lock';
@@ -53,7 +56,7 @@
     const CONNECTION_HEARTBEAT_INTERVAL_MS = 15000;
     const IS_REFUND_WORKER = new URL(location.href).searchParams.get(REFUND_WORKER_PARAM) === '1';
     const REFUND_WORKER_TOKEN = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const CHANGELOG = 'v2.7：停止逐个扫描局域网 IP，避免重复跨域授权弹窗';
+    const CHANGELOG = 'v2.8：支持配对和切换多个监控工位';
     const DEBUG_LOG = false;
 
     let lastUserActivityAt = Date.now();
@@ -274,39 +277,74 @@
         const normalized = normalizeAddress(address.host, address.port);
         return `${normalized.host}:${normalized.port}`;
     }
-    function getMonitorAddressText() {
-        const storedAddress = GM_getValue('monitor_address', '');
-        if (storedAddress) return formatAddress(normalizeAddress(storedAddress, DEFAULT_PORT));
+    function normalizeAddressList(values) {
+        const result = [];
+        for (const value of Array.isArray(values) ? values : []) {
+            const address = normalizeAddress(value, DEFAULT_PORT);
+            const text = formatAddress(address);
+            if (!result.includes(text)) result.push(text);
+            if (result.length >= MAX_MONITOR_ADDRESSES) break;
+        }
+        return result;
+    }
+    function getPairedMonitorAddresses() {
+        const stored = GM_getValue(MONITOR_ADDRESSES_KEY, []);
+        const candidates = Array.isArray(stored) ? stored.slice() : [];
+        const current = GM_getValue('monitor_address', '');
+        if (current) candidates.push(current);
 
         const legacyHost = GM_getValue('monitor_host', '');
         const legacyPort = GM_getValue('monitor_port', '');
-        if (legacyHost || legacyPort) return formatAddress(normalizeAddress(legacyHost || DEFAULT_HOST, legacyPort || DEFAULT_PORT));
-
-        if (INSTALL_MONITOR_ADDRESS) return formatAddress(normalizeAddress(INSTALL_MONITOR_ADDRESS, DEFAULT_PORT));
-
-        return DEFAULT_ADDRESS;
+        if (legacyHost || legacyPort) candidates.push(formatAddress(normalizeAddress(legacyHost || DEFAULT_HOST, legacyPort || DEFAULT_PORT)));
+        candidates.push(...INSTALL_MONITOR_ADDRESSES);
+        if (candidates.length === 0) candidates.push(DEFAULT_ADDRESS);
+        return normalizeAddressList(candidates);
+    }
+    function getMonitorAddressText() {
+        const storedAddress = GM_getValue('monitor_address', '');
+        if (storedAddress) return formatAddress(normalizeAddress(storedAddress, DEFAULT_PORT));
+        return getPairedMonitorAddresses()[0] || DEFAULT_ADDRESS;
     }
     function getMonitorAddress() {
         return normalizeAddress(getMonitorAddressText(), DEFAULT_PORT);
     }
-    function saveMonitorAddress(host, port) {
+    function setActiveMonitorAddress(host, port) {
         const address = normalizeAddress(host, port);
-        GM_setValue('monitor_address', formatAddress(address));
+        const text = formatAddress(address);
+        GM_setValue('monitor_address', text);
         GM_setValue('monitor_host', address.host);
         GM_setValue('monitor_port', address.port);
         GM_setValue(DISCOVERY_DONE_KEY, true);
         return address;
     }
 
-    function applyInstalledMonitorAddress() {
-        if (!INSTALL_MONITOR_ADDRESS) return;
+    function saveMonitorAddress(host, port) {
+        const address = normalizeAddress(host, port);
+        const text = formatAddress(address);
+        GM_setValue(MONITOR_ADDRESSES_KEY, normalizeAddressList([text, ...getPairedMonitorAddresses()]));
+        return setActiveMonitorAddress(address.host, address.port);
+    }
 
-        const installed = formatAddress(normalizeAddress(INSTALL_MONITOR_ADDRESS, DEFAULT_PORT));
-        if (GM_getValue('installed_monitor_address', '') === installed) return;
+    function applyInstalledMonitorAddresses() {
+        const installed = normalizeAddressList(INSTALL_MONITOR_ADDRESSES);
+        if (installed.length === 0) return;
 
-        const address = normalizeAddress(installed, DEFAULT_PORT);
-        saveMonitorAddress(address.host, address.port);
-        GM_setValue('installed_monitor_address', installed);
+        const previousValue = GM_getValue(INSTALLED_MONITOR_ADDRESSES_KEY, []);
+        const previous = normalizeAddressList(Array.isArray(previousValue) ? previousValue : []);
+        const legacyInstalled = GM_getValue('installed_monitor_address', '');
+        if (legacyInstalled) previous.push(formatAddress(normalizeAddress(legacyInstalled, DEFAULT_PORT)));
+        if (JSON.stringify(previous) === JSON.stringify(installed)) return;
+
+        const retained = getPairedMonitorAddresses().filter(address => !previous.includes(address));
+        const addresses = normalizeAddressList([...installed, ...retained]);
+        GM_setValue(MONITOR_ADDRESSES_KEY, addresses);
+        GM_setValue(INSTALLED_MONITOR_ADDRESSES_KEY, installed);
+        GM_setValue('installed_monitor_address', '');
+
+        if (!addresses.includes(getMonitorAddressText())) {
+            const active = normalizeAddress(addresses[0], DEFAULT_PORT);
+            setActiveMonitorAddress(active.host, active.port);
+        }
     }
 
     function gmGet(url, timeout) {
@@ -329,16 +367,13 @@
     async function findMonitorAddress(showProgress) {
         GM_setValue(DISCOVERY_LAST_ATTEMPT_KEY, Date.now());
         const saved = getMonitorAddress();
-        const installed = INSTALL_MONITOR_ADDRESS
-            ? normalizeAddress(INSTALL_MONITOR_ADDRESS, DEFAULT_PORT)
-            : null;
-        const directCandidates = [
-            installed,
-            saved,
-            { host: '127.0.0.1', port: saved.port },
-            { host: 'localhost', port: saved.port }
-        ].filter((address, index, addresses) => address &&
-            addresses.findIndex(item => item && formatAddress(item) === formatAddress(address)) === index);
+        const directCandidates = normalizeAddressList([
+            formatAddress(saved),
+            ...getPairedMonitorAddresses(),
+            ...INSTALL_MONITOR_ADDRESSES,
+            `127.0.0.1:${saved.port}`,
+            `localhost:${saved.port}`
+        ]).map(value => normalizeAddress(value, DEFAULT_PORT));
 
         for (const address of directCandidates) {
             if (showProgress) showNotification(`正在连接 ${formatAddress(address)}`);
@@ -383,20 +418,74 @@
             });
         const found = await monitorDiscoveryPromise;
         if (found) {
-            showNotification(`已自动填入上位机地址：${found}`);
+            showNotification(`已连接上位机：${found}`);
             return true;
         }
         return false;
     }
 
+    applyInstalledMonitorAddresses();
+
     // 专用工作页不显示业务菜单，避免用户误在工作页执行普通推送。
     if (!IS_REFUND_WORKER) {
-        GM_registerMenuCommand('设置上位机地址', () => {
-            const input = prompt('请输入打包监控上位机地址（IP:端口 或 http://IP:端口）：', getMonitorAddressText());
-            if (input) {
-                const address = saveMonitorAddress(input.trim(), DEFAULT_PORT);
-                showNotification(`已设置上位机地址：${formatAddress(address)}`);
+        GM_registerMenuCommand('查看当前上位机', () => {
+            showNotification(`已配对 ${getPairedMonitorAddresses().length} 台，当前：${getMonitorAddressText()}`);
+        });
+        GM_registerMenuCommand('切换上位机', () => {
+            const addresses = getPairedMonitorAddresses();
+            const current = getMonitorAddressText();
+            const input = prompt(`请选择上位机编号：\n${addresses.map((address, index) => `${index + 1}. ${address}${address === current ? '（当前）' : ''}`).join('\n')}`, '1');
+            if (input === null) return;
+            const index = Number(input) - 1;
+            if (!Number.isInteger(index) || index < 0 || index >= addresses.length) {
+                showNotification('上位机编号无效');
+                return;
             }
+            const selected = normalizeAddress(addresses[index], DEFAULT_PORT);
+            saveMonitorAddress(selected.host, selected.port);
+            showNotification(`已切换上位机：${addresses[index]}`);
+        });
+        GM_registerMenuCommand('添加上位机', () => {
+            const input = prompt('请输入新增监控端地址（局域网 IP:端口）：', '192.168.0.2:5280');
+            if (!input) return;
+            const value = String(input).trim().replace(/^https?:\/\//i, '').split('/')[0];
+            const host = value.split(':')[0];
+            if (!isAllowedMonitorHost(host)) {
+                showNotification('地址无效，只支持局域网 IPv4 或 localhost');
+                return;
+            }
+            const address = formatAddress(normalizeAddress(value, DEFAULT_PORT));
+            const paired = getPairedMonitorAddresses();
+            if (!paired.includes(address) && paired.length >= MAX_MONITOR_ADDRESSES) {
+                showNotification(`最多配对 ${MAX_MONITOR_ADDRESSES} 台上位机`);
+                return;
+            }
+            const addresses = normalizeAddressList([...paired, address]);
+            const guideUrl = `${getBaseUrl(getMonitorAddressText())}/kuaidizs-install-guide?connect=${encodeURIComponent(addresses.join(','))}`;
+            GM_openInTab(guideUrl, { active: true, setParent: true });
+            showNotification('请在打开的安装页覆盖更新脚本，完成新增上位机授权');
+        });
+        GM_registerMenuCommand('移除上位机', () => {
+            const addresses = getPairedMonitorAddresses();
+            if (addresses.length <= 1) {
+                showNotification('至少需要保留一台上位机');
+                return;
+            }
+            const input = prompt(`请输入要移除的上位机编号：\n${addresses.map((address, index) => `${index + 1}. ${address}`).join('\n')}`);
+            if (input === null) return;
+            const index = Number(input) - 1;
+            if (!Number.isInteger(index) || index < 0 || index >= addresses.length) {
+                showNotification('上位机编号无效');
+                return;
+            }
+            const remaining = addresses.filter((_, addressIndex) => addressIndex !== index);
+            const active = remaining.includes(getMonitorAddressText()) ? getMonitorAddressText() : remaining[0];
+            const selected = normalizeAddress(active, DEFAULT_PORT);
+            saveMonitorAddress(selected.host, selected.port);
+            GM_setValue(MONITOR_ADDRESSES_KEY, remaining);
+            const guideUrl = `${getBaseUrl(active)}/kuaidizs-install-guide?connect=${encodeURIComponent(remaining.join(','))}`;
+            GM_openInTab(guideUrl, { active: true, setParent: true });
+            showNotification('请在打开的安装页覆盖更新脚本，完成移除');
         });
         GM_registerMenuCommand('重新连接上位机', async () => {
             showNotification('正在连接已配置的上位机...');
@@ -923,7 +1012,6 @@
         }
     });
 
-    applyInstalledMonitorAddress();
     startConnectionHeartbeat();
 
     if (IS_REFUND_WORKER) {

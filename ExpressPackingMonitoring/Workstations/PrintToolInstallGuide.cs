@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 namespace ExpressPackingMonitoring;
 
@@ -20,7 +21,7 @@ internal static class PrintToolInstallGuide
         if (File.Exists(sourceScriptPath))
         {
             string script = File.ReadAllText(sourceScriptPath, Encoding.UTF8);
-            File.WriteAllText(scriptPath, AddMonitorConnectPermission(script, monitorAddress), Encoding.UTF8);
+            File.WriteAllText(scriptPath, AddMonitorConnectPermissions(script, new[] { monitorAddress }), Encoding.UTF8);
         }
         string scriptUrl = File.Exists(scriptPath) ? new Uri(scriptPath).AbsoluteUri : "";
         string html = Render(monitorAddress, BuildScriptLink(scriptUrl));
@@ -47,28 +48,79 @@ internal static class PrintToolInstallGuide
 
     internal static string AddMonitorConnectPermission(string script, string monitorAddress)
     {
-        if (string.IsNullOrWhiteSpace(script) || string.IsNullOrWhiteSpace(monitorAddress)) return script;
+        return AddMonitorConnectPermissions(script, new[] { monitorAddress });
+    }
 
-        string value = monitorAddress.Trim();
-        if (!value.Contains("://", StringComparison.Ordinal)) value = "http://" + value;
-        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) || string.IsNullOrWhiteSpace(uri.Host)) return script;
+    internal static string AddMonitorConnectPermissions(string script, IEnumerable<string> monitorAddresses)
+    {
+        if (string.IsNullOrWhiteSpace(script)) return script;
 
-        string host = uri.Host;
-        if (host.Any(c => char.IsWhiteSpace(c) || c is '/' or '\\')) return script;
+        List<Uri> addresses = NormalizeMonitorAddresses(monitorAddresses);
+        if (addresses.Count == 0) return script;
+
         string customized = script.Replace(
-            "const INSTALL_MONITOR_ADDRESS = '';",
-            $"const INSTALL_MONITOR_ADDRESS = '{uri.Authority}';",
+            "const INSTALL_MONITOR_ADDRESSES = [];",
+            $"const INSTALL_MONITOR_ADDRESSES = {JsonSerializer.Serialize(addresses.Select(uri => uri.Authority))};",
             StringComparison.Ordinal);
-        string directive = $"// @connect      {host}";
-        if (customized.Contains(directive, StringComparison.Ordinal)) return customized;
+        string newline = customized.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
 
         const string marker = "// @connect      localhost";
         int markerIndex = customized.IndexOf(marker, StringComparison.Ordinal);
         if (markerIndex < 0) return customized;
         int lineEnd = customized.IndexOf('\n', markerIndex);
-        if (lineEnd < 0) return customized + Environment.NewLine + directive;
-        string newline = customized.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        return customized.Insert(lineEnd + 1, directive + newline);
+        int insertIndex = lineEnd < 0 ? customized.Length : lineEnd + 1;
+        string prefix = lineEnd < 0 ? newline : "";
+
+        foreach (string host in addresses.Select(uri => uri.Host).Distinct(StringComparer.OrdinalIgnoreCase).Reverse())
+        {
+            string directive = $"// @connect      {host}";
+            if (!customized.Contains(directive, StringComparison.Ordinal))
+                customized = customized.Insert(insertIndex, prefix + directive + newline);
+        }
+
+        return customized;
+    }
+
+    internal static List<Uri> NormalizeMonitorAddresses(IEnumerable<string>? monitorAddresses)
+    {
+        var result = new List<Uri>();
+        foreach (string rawAddress in monitorAddresses ?? Array.Empty<string>())
+        {
+            foreach (string part in (rawAddress ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                string value = part.Contains("://", StringComparison.Ordinal) ? part : "http://" + part;
+                if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+                    || !IsAllowedMonitorHost(uri.Host)
+                    || uri.Port is <= 0 or > 65535)
+                    continue;
+
+                int port = uri.IsDefaultPort ? 5280 : uri.Port;
+                var normalized = new UriBuilder(Uri.UriSchemeHttp, uri.Host, port).Uri;
+                if (result.Any(item => string.Equals(item.Authority, normalized.Authority, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                result.Add(normalized);
+                if (result.Count >= 8) break;
+            }
+
+            if (result.Count >= 8) break;
+        }
+
+        return result;
+    }
+
+    private static bool IsAllowedMonitorHost(string host)
+    {
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        if (!IPAddress.TryParse(host, out IPAddress? address) || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            return false;
+
+        byte[] bytes = address.GetAddressBytes();
+        return bytes[0] == 127
+            || bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 169 && bytes[1] == 254);
     }
 
     private static string Render(string monitorAddress, string scriptLink)

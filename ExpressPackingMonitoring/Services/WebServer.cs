@@ -2246,7 +2246,9 @@ namespace ExpressPackingMonitoring.Services
         private static void ServeInstallGuidePage(HttpListenerContext ctx)
         {
             string authority = ctx.Request.Url?.Authority ?? $"127.0.0.1:{ctx.Request.LocalEndPoint?.Port ?? 5280}";
-            string scriptUrl = $"{ctx.Request.Url?.Scheme ?? "http"}://{authority}/kuaidizs-order-push.user.js";
+            List<Uri> monitorAddresses = GetUserscriptMonitorAddresses(ctx, authority);
+            string encodedAddresses = Uri.EscapeDataString(string.Join(',', monitorAddresses.Select(uri => uri.Authority)));
+            string scriptUrl = $"{ctx.Request.Url?.Scheme ?? "http"}://{authority}/kuaidizs-order-push.user.js?connect={encodedAddresses}";
             string html = PrintToolInstallGuide.RenderForWeb(authority, scriptUrl);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -2266,7 +2268,10 @@ namespace ExpressPackingMonitoring.Services
             }
 
             string script = File.ReadAllText(scriptPath, Encoding.UTF8);
-            script = PrintToolInstallGuide.AddMonitorConnectPermission(script, ctx.Request.Url?.Authority ?? "");
+            string authority = ctx.Request.Url?.Authority ?? "";
+            script = PrintToolInstallGuide.AddMonitorConnectPermissions(
+                script,
+                GetUserscriptMonitorAddresses(ctx, authority).Select(uri => uri.Authority));
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "application/javascript; charset=utf-8";
             ctx.Response.Headers["Content-Disposition"] = "inline; filename=\"kuaidizs-order-push.user.js\"";
@@ -2274,6 +2279,14 @@ namespace ExpressPackingMonitoring.Services
             ctx.Response.ContentLength64 = bytes.Length;
             ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
             ctx.Response.OutputStream.Close();
+        }
+
+        private static List<Uri> GetUserscriptMonitorAddresses(HttpListenerContext ctx, string currentAuthority)
+        {
+            var requested = new List<string> { currentAuthority };
+            string[] values = ctx.Request.QueryString.GetValues("connect") ?? Array.Empty<string>();
+            requested.AddRange(values);
+            return PrintToolInstallGuide.NormalizeMonitorAddresses(requested);
         }
 
         public void Dispose()

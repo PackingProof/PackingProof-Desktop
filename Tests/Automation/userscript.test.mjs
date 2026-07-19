@@ -120,7 +120,10 @@ function createDiscoveryContext(initialStore, reachableHosts, installAddress = '
   };
   const context = {
     DEFAULT_HOST: '127.0.0.1', DEFAULT_PORT: 5280, DEFAULT_ADDRESS: '127.0.0.1:5280',
-    INSTALL_MONITOR_ADDRESS: installAddress,
+    INSTALL_MONITOR_ADDRESSES: installAddress ? [installAddress] : [],
+    MONITOR_ADDRESSES_KEY: 'monitor_addresses',
+    INSTALLED_MONITOR_ADDRESSES_KEY: 'installed_monitor_addresses',
+    MAX_MONITOR_ADDRESSES: 8,
     DISCOVERY_DONE_KEY: 'monitor_auto_discovery_done',
     DISCOVERY_LAST_ATTEMPT_KEY: 'monitor_auto_discovery_last_attempt',
     DISCOVERY_LOCK_KEY: 'monitor_auto_discovery_lock',
@@ -141,7 +144,7 @@ function createDiscoveryContext(initialStore, reachableHosts, installAddress = '
   vm.createContext(context);
   vm.runInContext(
     between('    function getBaseUrl(', '    // 专用工作页不显示业务菜单') +
-      ';globalThis.findMonitor=findMonitorAddress;globalThis.ensureMonitor=ensureMonitorAddress;globalThis.shouldDiscover=shouldAttemptMonitorDiscovery;',
+      ';globalThis.findMonitor=findMonitorAddress;globalThis.ensureMonitor=ensureMonitorAddress;globalThis.shouldDiscover=shouldAttemptMonitorDiscovery;globalThis.getPaired=getPairedMonitorAddresses;globalThis.applyInstalled=applyInstalledMonitorAddresses;',
     context);
   return { context, store, getRequestCount: () => requestCount };
 }
@@ -162,6 +165,34 @@ test('address lookup probes only installed saved and local addresses', async () 
     '192.168.31.10:5280');
   assert.equal(await context.findMonitor(false), '');
   assert.equal(getRequestCount(), 4);
+});
+
+test('paired monitor list fails over only among explicitly configured addresses', async () => {
+  const { context, store, getRequestCount } = createDiscoveryContext(
+    {
+      monitor_address: '192.168.31.10:5280',
+      monitor_addresses: ['192.168.31.10:5280', '192.168.31.11:5280']
+    },
+    new Set(['192.168.31.11']));
+
+  assert.equal(await context.findMonitor(false), '192.168.31.11:5280');
+  assert.equal(store.get('monitor_address'), '192.168.31.11:5280');
+  assert.equal(getRequestCount(), 2);
+});
+
+test('updated install list removes withdrawn monitor permissions from stored pairing', () => {
+  const { context, store } = createDiscoveryContext(
+    new Map([
+      ['monitor_address', '192.168.31.11:5280'],
+      ['monitor_addresses', ['192.168.31.10:5280', '192.168.31.11:5280']],
+      ['installed_monitor_addresses', ['192.168.31.10:5280', '192.168.31.11:5280']]
+    ]),
+    new Set(),
+    '192.168.31.10:5280');
+
+  context.applyInstalled();
+  assert.deepEqual(Array.from(store.get('monitor_addresses')), ['192.168.31.10:5280']);
+  assert.equal(store.get('monitor_address'), '192.168.31.10:5280');
 });
 
 test('failed discovery retries after backoff and recovers when monitor comes online', async () => {

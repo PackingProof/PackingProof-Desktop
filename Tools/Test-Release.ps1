@@ -33,6 +33,7 @@ $requiredCoreTests = @(
     "ConfigurationAndScannerTests.GetPrintedRefundLookupDelay_RequestsImmediatelyThenThrottlesForFiveSeconds",
     "ConfigurationAndScannerTests.RefundWorkerUserscript_IsolatesLookupFromUserPage",
     "ConfigurationAndScannerTests.AddMonitorConnectPermission_AddsExactHostWithoutRequiringWildcardPermission",
+    "ConfigurationAndScannerTests.AddMonitorConnectPermissions_AddsDistinctPrivateHostsAndRejectsPublicHosts",
     "ConfigurationAndScannerTests.AddMonitorConnectPermission_PreservesCrLfLineEndings",
     "ConfigurationAndScannerTests.AlertService_CriticalAlertBlocksNormalAlertUntilDisplayEnds",
     "ConfigurationAndScannerTests.AlertService_ForwardsIndustrialAlarmOnceAndRefundSpeechThreeTimes",

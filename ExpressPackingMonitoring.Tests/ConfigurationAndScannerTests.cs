@@ -217,7 +217,11 @@ public sealed class ConfigurationAndScannerTests
         Assert.DoesNotContain("// @connect      *", script);
         Assert.DoesNotContain("RTCPeerConnection", script);
         Assert.DoesNotContain("start <= 254", script);
-        Assert.Contains("applyInstalledMonitorAddress();", script);
+        Assert.Contains("applyInstalledMonitorAddresses();", script);
+        Assert.Contains("GM_registerMenuCommand('切换上位机'", script);
+        Assert.Contains("GM_registerMenuCommand('添加上位机'", script);
+        Assert.Contains("GM_registerMenuCommand('移除上位机'", script);
+        Assert.Contains("const MAX_MONITOR_ADDRESSES = 8", script);
         Assert.Contains("await pushToMonitor(buildTestOrder(), { isTest: true, skipAddressDiscovery: true });", script);
         Assert.DoesNotContain("const connected = await ensureMonitorAddress(true);", script);
     }
@@ -225,15 +229,34 @@ public sealed class ConfigurationAndScannerTests
     [Fact]
     public void AddMonitorConnectPermission_AddsExactHostWithoutRequiringWildcardPermission()
     {
-        const string script = "// ==UserScript==\n// @connect      localhost\n// ==/UserScript==\nconst INSTALL_MONITOR_ADDRESS = '';";
+        const string script = "// ==UserScript==\n// @connect      localhost\n// ==/UserScript==\nconst INSTALL_MONITOR_ADDRESSES = [];";
 
         string customized = PrintToolInstallGuide.AddMonitorConnectPermission(script, "192.168.2.239:5280");
         string repeated = PrintToolInstallGuide.AddMonitorConnectPermission(customized, "http://192.168.2.239:5280");
 
         Assert.Contains("// @connect      192.168.2.239", customized);
         Assert.DoesNotContain("// @connect      *", customized);
-        Assert.Contains("const INSTALL_MONITOR_ADDRESS = '192.168.2.239:5280';", customized);
+        Assert.Contains("const INSTALL_MONITOR_ADDRESSES = [\"192.168.2.239:5280\"];", customized);
         Assert.Equal(customized, repeated);
+    }
+
+    [Fact]
+    public void AddMonitorConnectPermissions_AddsDistinctPrivateHostsAndRejectsPublicHosts()
+    {
+        const string script = "// ==UserScript==\n// @connect      localhost\n// ==/UserScript==\nconst INSTALL_MONITOR_ADDRESSES = [];";
+
+        string customized = PrintToolInstallGuide.AddMonitorConnectPermissions(script, new[]
+        {
+            "192.168.0.7:5280",
+            "http://192.168.0.8:5281/path",
+            "192.168.0.7:5280",
+            "example.com:5280"
+        });
+
+        Assert.Contains("// @connect      192.168.0.7", customized);
+        Assert.Contains("// @connect      192.168.0.8", customized);
+        Assert.DoesNotContain("// @connect      example.com", customized);
+        Assert.Contains("const INSTALL_MONITOR_ADDRESSES = [\"192.168.0.7:5280\",\"192.168.0.8:5281\"];", customized);
     }
 
     [Fact]
