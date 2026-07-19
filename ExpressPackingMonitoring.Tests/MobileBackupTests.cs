@@ -377,6 +377,72 @@ public sealed class MobileBackupTests
         }
     }
 
+    [Fact]
+    public async Task RecordingLibraryUsesStableCursorWithoutTotal()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            DateTime sharedTime = new(2026, 7, 19, 12, 0, 0);
+            for (int index = 0; index < 23; index++)
+            {
+                DateTime startTime = index < 3 ? sharedTime : sharedTime.AddMinutes(-index);
+                database.InsertMobileBackupRecord(
+                    index == 17 ? "SEARCH-TARGET" : $"TRACK-{index:00}",
+                    Path.Combine(directory, $"video-{index:00}.mp4"),
+                    100 + index,
+                    startTime,
+                    5,
+                    "phone-cursor",
+                    "测试手机",
+                    $"cursor-session-{index:00}",
+                    index.ToString("x64"));
+            }
+
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: false,
+                accessKey: AccessKey,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"));
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            client.DefaultRequestHeaders.Add("X-EPM-Access-Key", AccessKey);
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+            using JsonDocument first = JsonDocument.Parse(await client.GetStringAsync(
+                "/api/mobile-backup/recordings?limit=10", cancellationToken));
+            Assert.False(first.RootElement.TryGetProperty("total", out _));
+            Assert.Equal(10, first.RootElement.GetProperty("data").GetArrayLength());
+            Assert.True(first.RootElement.GetProperty("hasMore").GetBoolean());
+            string cursor = first.RootElement.GetProperty("nextCursor").GetString()!;
+            long[] firstIds = first.RootElement.GetProperty("data").EnumerateArray()
+                .Select(item => item.GetProperty("id").GetInt64()).ToArray();
+            Assert.True(firstIds[0] > firstIds[1]);
+
+            using JsonDocument second = JsonDocument.Parse(await client.GetStringAsync(
+                $"/api/mobile-backup/recordings?limit=10&cursor={Uri.EscapeDataString(cursor)}", cancellationToken));
+            long[] secondIds = second.RootElement.GetProperty("data").EnumerateArray()
+                .Select(item => item.GetProperty("id").GetInt64()).ToArray();
+            Assert.Equal(10, secondIds.Length);
+            Assert.Empty(firstIds.Intersect(secondIds));
+
+            using JsonDocument search = JsonDocument.Parse(await client.GetStringAsync(
+                "/api/mobile-backup/recordings?limit=10&keyword=SEARCH-TARGET", cancellationToken));
+            Assert.Single(search.RootElement.GetProperty("data").EnumerateArray());
+            Assert.False(search.RootElement.GetProperty("hasMore").GetBoolean());
+            Assert.Equal("", search.RootElement.GetProperty("nextCursor").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
     private static MobileBackupService CreateService(VideoDatabase database, string directory, Func<string, OrderInfo?>? resolver = null) =>
         new(database, Path.Combine(directory, "state"), () => Path.Combine(directory, "recordings"), resolver);
 

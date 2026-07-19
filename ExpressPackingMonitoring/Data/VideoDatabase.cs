@@ -74,6 +74,12 @@ namespace ExpressPackingMonitoring.Data
         public List<VideoRecord> Records { get; set; } = new();
     }
 
+    public class CursorVideoResult
+    {
+        public List<VideoRecord> Records { get; set; } = new();
+        public bool HasMore { get; set; }
+    }
+
     public class StorageVideoFile
     {
         public string FilePath { get; set; } = "";
@@ -188,6 +194,7 @@ namespace ExpressPackingMonitoring.Data
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_filepath ON VideoRecords(FilePath);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_isdeleted ON VideoRecords(IsDeleted);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_active_starttime ON VideoRecords(IsDeleted, StartTime DESC);");
+            ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_mobile_history ON VideoRecords(IsDeleted, StartTime DESC, Id DESC);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_tracking ON VideoRecords(TrackingNumber);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_source_order ON VideoRecords(SourceOrderId);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_orderinfo_source_order ON OrderInfoRecords(SourceOrderId);");
@@ -908,6 +915,53 @@ namespace ExpressPackingMonitoring.Data
                     records.Add(ReadVideoRecord(reader));
 
                 return new PagedVideoResult { Total = total, Records = records };
+            }
+        }
+
+        public CursorVideoResult QueryVideosByCursor(DateTime? cursorStartTime, long? cursorId, string keyword, int limit)
+        {
+            limit = Math.Clamp(limit, 1, 50);
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                string whereSql = "WHERE IsDeleted = 0";
+                if (cursorStartTime.HasValue && cursorId.HasValue)
+                {
+                    whereSql += " AND (StartTime < @cursorStartTime OR (StartTime = @cursorStartTime AND Id < @cursorId))";
+                    cmd.Parameters.AddWithValue("@cursorStartTime", cursorStartTime.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+                    cmd.Parameters.AddWithValue("@cursorId", cursorId.Value);
+                }
+
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    whereSql += @" AND (
+                        OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
+                        OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
+                        OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
+                        OR SourceDeviceName LIKE @keyword)";
+                    cmd.Parameters.AddWithValue("@keyword", $"%{keyword.Trim()}%");
+                }
+
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                    FROM VideoRecords " + whereSql + @"
+                    ORDER BY StartTime DESC, Id DESC
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@limit", limit + 1);
+
+                var records = new List<VideoRecord>(limit + 1);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    records.Add(ReadVideoRecord(reader));
+
+                bool hasMore = records.Count > limit;
+                if (hasMore)
+                    records.RemoveAt(records.Count - 1);
+                return new CursorVideoResult { Records = records, HasMore = hasMore };
             }
         }
 

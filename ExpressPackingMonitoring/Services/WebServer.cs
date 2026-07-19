@@ -6,6 +6,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -507,6 +508,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/mobile-backup/capabilities" when method == "GET":
                         HandleMobileBackupCapabilities(ctx);
                         break;
+                    case "/api/mobile-backup/recordings" when method == "GET":
+                        HandleMobileBackupRecordings(ctx);
+                        break;
                     case "/api/mobile-backup/uploads" when method == "POST":
                         HandleCreateMobileBackupUpload(ctx);
                         break;
@@ -647,6 +651,7 @@ namespace ExpressPackingMonitoring.Services
                 features = new
                 {
                     videoLibrary = true,
+                    cursorVideoLibrary = true,
                     rangePlayback = true,
                     multipleSessionsPerFile = true
                 },
@@ -657,6 +662,85 @@ namespace ExpressPackingMonitoring.Services
                     fileMaxAttempts = 3
                 }
             });
+        }
+
+        private void HandleMobileBackupRecordings(HttpListenerContext ctx)
+        {
+            int limit = int.TryParse(ctx.Request.QueryString["limit"], out int parsedLimit)
+                ? Math.Clamp(parsedLimit, 1, 50)
+                : 10;
+            string keyword = ctx.Request.QueryString["keyword"]?.Trim() ?? "";
+            if (!TryDecodeVideoCursor(ctx.Request.QueryString["cursor"], out DateTime? cursorStartTime, out long? cursorId))
+            {
+                SendJson(ctx, 400, new { errorCode = "invalid_cursor", error = "录像游标无效" });
+                return;
+            }
+
+            CursorVideoResult result = _db.QueryVideosByCursor(cursorStartTime, cursorId, keyword, limit);
+            string nextCursor = result.HasMore && result.Records.Count > 0
+                ? EncodeVideoCursor(result.Records[^1])
+                : "";
+            var data = result.Records.Select(r => new
+            {
+                r.Id,
+                r.OrderId,
+                trackingNumber = r.TrackingNumber ?? "",
+                sourceOrderId = r.SourceOrderId ?? "",
+                buyerMessage = r.BuyerMessage ?? "",
+                sellerMemo = r.SellerMemo ?? "",
+                productInfo = r.ProductInfo ?? "",
+                orderInfoPushTime = r.OrderInfoPushTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                r.Mode,
+                r.FileName,
+                filePath = r.FilePath ?? "",
+                videoCodec = r.VideoCodec ?? "",
+                sourceType = r.SourceType ?? "pc",
+                sourceDeviceId = r.SourceDeviceId ?? "",
+                sourceDeviceName = r.SourceDeviceName ?? "",
+                sourceSessionId = r.SourceSessionId ?? "",
+                contentSha256 = r.ContentSha256 ?? "",
+                sizeMB = Math.Round(r.FileSizeBytes / 1048576.0, 1),
+                startTime = r.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                durationSec = Math.Round(r.DurationSeconds, 0),
+                duration = TimeSpan.FromSeconds(r.DurationSeconds).ToString(@"mm\:ss"),
+                exists = File.Exists(r.FilePath),
+                playUrl = $"/api/videos/{r.Id}/play?compat=1",
+                remote = true
+            });
+            SendJson(ctx, 200, new { data, nextCursor, hasMore = result.HasMore });
+        }
+
+        private static string EncodeVideoCursor(VideoRecord record)
+        {
+            string value = $"{record.StartTime:yyyy-MM-dd HH:mm:ss}|{record.Id}";
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(value))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        private static bool TryDecodeVideoCursor(string cursor, out DateTime? startTime, out long? id)
+        {
+            startTime = null;
+            id = null;
+            if (string.IsNullOrWhiteSpace(cursor)) return true;
+            try
+            {
+                string base64 = cursor.Replace('-', '+').Replace('_', '/');
+                base64 = base64.PadRight(base64.Length + (4 - base64.Length % 4) % 4, '=');
+                string value = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+                int separator = value.LastIndexOf('|');
+                if (separator <= 0
+                    || !DateTime.TryParseExact(value[..separator], "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime parsedTime)
+                    || !long.TryParse(value[(separator + 1)..], out long parsedId)
+                    || parsedId <= 0)
+                    return false;
+                startTime = parsedTime;
+                id = parsedId;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void HandleConnectionHeartbeat(HttpListenerContext ctx)
