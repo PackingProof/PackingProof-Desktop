@@ -540,7 +540,7 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.False(config.EnableCameraBarcodeRecognition);
         Assert.Equal(0, config.CameraBarcodeSetupVersion);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
-        Assert.Equal(1.5, config.CameraSameBarcodeConfirmationSeconds);
+        Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.True(config.EnableGlobalKeyboard);
     }
 

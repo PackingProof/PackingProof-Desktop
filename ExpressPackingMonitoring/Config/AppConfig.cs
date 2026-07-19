@@ -106,7 +106,7 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
-        public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.5;
+        public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.0;
         public double CameraIdleMinutes { get; set; } = 5.0;
         public string CameraIdleNoSleepStart1 { get; set; } = "";
         public string CameraIdleNoSleepEnd1 { get; set; } = "";
