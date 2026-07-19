@@ -1537,6 +1537,7 @@ namespace ExpressPackingMonitoring.Services
                 sellerMemo = r.SellerMemo ?? "",
                 productInfo = r.ProductInfo ?? "",
                 orderInfoPushTime = r.OrderInfoPushTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                orderInfo = DeserializeOrderInfoSnapshot(r.OrderInfoJson),
                 r.Mode,
                 r.FileName,
                 filePath = r.FilePath ?? "",
@@ -1624,7 +1625,7 @@ namespace ExpressPackingMonitoring.Services
 
             if (preflight)
             {
-                SendJson(ctx, 200, new
+            SendJson(ctx, 200, new
                 {
                     ok = true,
                     requiresConfirmation = false,
@@ -2107,6 +2108,13 @@ namespace ExpressPackingMonitoring.Services
             ctx.Response.ContentLength64 = fs.Length;
             fs.CopyTo(ctx.Response.OutputStream);
             ctx.Response.OutputStream.Close();
+        }
+
+        internal static OrderInfo DeserializeOrderInfoSnapshot(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try { return JsonSerializer.Deserialize<OrderInfo>(json, _jsonOptions); }
+            catch (JsonException) { return null; }
         }
 
         private void HandleVideoThumbnail(HttpListenerContext ctx, string path)

@@ -221,7 +221,8 @@ internal sealed class MobileBackupService
                 }
 
                 string trackingNumber = session.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
-                OrderInfo? orderInfo = string.IsNullOrEmpty(trackingNumber) ? null : _orderInfoResolver(trackingNumber);
+                OrderInfo? computerOrderInfo = string.IsNullOrEmpty(trackingNumber) ? null : _orderInfoResolver(trackingNumber);
+                OrderInfo? orderInfo = MergeOrderInfo(computerOrderInfo, session.OrderInfo, trackingNumber);
                 DateTime localStartTime = session.StartedAt.ToLocalTime().DateTime;
                 recordIds.Add(_database.InsertMobileBackupRecord(
                     trackingNumber,
@@ -239,6 +240,31 @@ internal sealed class MobileBackupService
             DeleteStateFile(uploadId);
             return new MobileBackupCompleteResult("verified", fileSha256, recordIds[0], recordIds, false);
         }
+    }
+
+    internal static OrderInfo? MergeOrderInfo(OrderInfo? computer, OrderInfo? mobile, string trackingNumber)
+    {
+        if (computer == null && mobile == null) return null;
+        static string Prefer(string? primary, string? fallback) =>
+            !string.IsNullOrWhiteSpace(primary) ? primary.Trim() : fallback?.Trim() ?? "";
+        return new OrderInfo
+        {
+            TrackingNumber = Prefer(computer?.TrackingNumber, Prefer(mobile?.TrackingNumber, trackingNumber)).ToUpperInvariant(),
+            OrderId = Prefer(computer?.OrderId, mobile?.OrderId),
+            BuyerMessage = Prefer(computer?.BuyerMessage, mobile?.BuyerMessage),
+            SellerMemo = Prefer(computer?.SellerMemo, mobile?.SellerMemo),
+            ProductInfo = Prefer(computer?.ProductInfo, mobile?.ProductInfo),
+            HasRefund = computer?.HasRefund == true || mobile?.HasRefund == true,
+            IsPrintedRefund = computer?.IsPrintedRefund == true || mobile?.IsPrintedRefund == true,
+            RefundStatus = Prefer(computer?.RefundStatus, mobile?.RefundStatus),
+            RefundProductInfo = Prefer(computer?.RefundProductInfo, mobile?.RefundProductInfo),
+            PushTime = new[] { computer?.PushTime, mobile?.PushTime }
+                .Where(value => value.HasValue)
+                .Select(value => value!.Value)
+                .DefaultIfEmpty(DateTime.Now)
+                .Max(),
+            IsTest = false
+        };
     }
 
     internal void CleanupExpiredUploads()
@@ -402,6 +428,16 @@ internal sealed class MobileBackupService
                 throw new MobileBackupValidationException("invalid_started_at", "startedAt 不能为空");
             if (session.DurationMilliseconds <= 0 || session.DurationMilliseconds > TimeSpan.FromDays(2).TotalMilliseconds)
                 throw new MobileBackupValidationException("invalid_duration", "录像时长必须大于 0 且不超过 48 小时");
+            if (session.OrderInfo != null)
+            {
+                WebServer.ValidateOrderInfoItems(new List<OrderInfo> { session.OrderInfo });
+                string sessionTracking = session.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
+                string orderTracking = session.OrderInfo.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
+                if (!string.IsNullOrEmpty(orderTracking)
+                    && !string.IsNullOrEmpty(sessionTracking)
+                    && !string.Equals(orderTracking, sessionTracking, StringComparison.Ordinal))
+                    throw new MobileBackupValidationException("order_tracking_mismatch", "订单快照与录像面单号不一致");
+            }
         }
     }
 }
@@ -446,6 +482,7 @@ internal sealed class MobileBackupSessionRequest
     public string TrackingNumber { get; set; } = "";
     public DateTimeOffset StartedAt { get; set; }
     public long DurationMilliseconds { get; set; }
+    public OrderInfo? OrderInfo { get; set; }
 }
 
 internal sealed record MobileBackupCreateResult(string UploadId, long Offset, int ChunkSize, bool FileReady);

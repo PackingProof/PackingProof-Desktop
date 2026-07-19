@@ -86,7 +86,7 @@ public sealed class MobileBackupTests
                 PushTime = DateTime.Now
             };
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
-            var service = CreateService(database, directory, tracking => tracking == "TRACK-001" ? order : null);
+            var service = CreateService(database, directory);
             MobileBackupCreateRequest createRequest = CreateRequest(fileSha, file.Length);
 
             MobileBackupCreateResult created = service.CreateOrResume(createRequest);
@@ -104,6 +104,17 @@ public sealed class MobileBackupTests
             byte[] remaining = file[8..];
             Assert.Equal(file.Length, service.AppendChunk(fileSha, 8, file.Length - 1, file.Length, remaining, Sha256(remaining)));
             MobileBackupCompleteRequest completeRequest = CompleteRequest(fileSha, "session-1", "TRACK-001", "phone-1", "打包手机");
+            completeRequest.Sessions = new List<MobileBackupSessionRequest>
+            {
+                new()
+                {
+                    SessionId = "session-1",
+                    TrackingNumber = "TRACK-001",
+                    StartedAt = completeRequest.StartedAt,
+                    DurationMilliseconds = completeRequest.DurationMilliseconds,
+                    OrderInfo = order
+                }
+            };
             MobileBackupCompleteResult completed = service.Complete(fileSha, completeRequest);
             MobileBackupCompleteResult repeated = service.Complete(fileSha, completeRequest);
 
@@ -129,6 +140,38 @@ public sealed class MobileBackupTests
         {
             DeleteTempDirectory(directory);
         }
+    }
+
+    [Fact]
+    public void MergeOrderInfo_PrefersComputerFieldsAndPreservesMobileRefund()
+    {
+        var computer = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            BuyerMessage = "电脑留言",
+            ProductInfo = "电脑商品",
+            PushTime = new DateTime(2026, 7, 19)
+        };
+        var mobile = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            BuyerMessage = "手机留言",
+            SellerMemo = "手机备注",
+            HasRefund = true,
+            IsPrintedRefund = true,
+            RefundStatus = "退款处理中",
+            PushTime = new DateTime(2026, 7, 20)
+        };
+
+        OrderInfo merged = MobileBackupService.MergeOrderInfo(computer, mobile, "TRACK-1")!;
+
+        Assert.Equal("电脑留言", merged.BuyerMessage);
+        Assert.Equal("手机备注", merged.SellerMemo);
+        Assert.Equal("电脑商品", merged.ProductInfo);
+        Assert.True(merged.HasRefund);
+        Assert.True(merged.IsPrintedRefund);
+        Assert.Equal("退款处理中", merged.RefundStatus);
+        Assert.Equal(new DateTime(2026, 7, 20), merged.PushTime);
     }
 
     [Fact]
