@@ -2559,7 +2559,9 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 Clipboard.SetDataObject(url, true);
-                ShowToast("连接网址已复制");
+                ShowToast(MobileConnectionService.ContainsAccessKey(url)
+                    ? "连接网址已复制，包含访问密钥，请勿发送给无关人员"
+                    : "连接网址已复制");
             }
             catch (Exception ex)
             {

@@ -9,6 +9,17 @@ namespace ExpressPackingMonitoring.Services;
 
 internal static class MobileConnectionService
 {
+    public static bool ContainsAccessKey(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return false;
+        return uri.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .Any(pair => pair.Length == 2
+                && string.Equals(Uri.UnescapeDataString(pair[0]), "key", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(Uri.UnescapeDataString(pair[1])));
+    }
+
     public static string BuildAccessUrl(string address, bool requireAccessKey, string? accessKey)
     {
         string url = WorkstationNetwork.ToUrl(address).TrimEnd('/');

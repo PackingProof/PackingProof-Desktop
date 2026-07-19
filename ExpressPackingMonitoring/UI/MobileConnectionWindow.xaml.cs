@@ -6,6 +6,7 @@ namespace ExpressPackingMonitoring.UI;
 public partial class MobileConnectionWindow : Window
 {
     private readonly string _url;
+    private readonly bool _containsAccessKey;
 
     public bool OpenSettingsRequested { get; private set; }
 
@@ -17,6 +18,7 @@ public partial class MobileConnectionWindow : Window
     {
         InitializeComponent();
         _url = url?.Trim() ?? "";
+        _containsAccessKey = MobileConnectionService.ContainsAccessKey(_url);
 
         bool isReady = !string.IsNullOrWhiteSpace(_url)
             && string.IsNullOrWhiteSpace(unavailableMessage);
@@ -30,7 +32,9 @@ public partial class MobileConnectionWindow : Window
         {
             AccessUrlTextBox.Text = _url;
             QrCodeImage.Source = MobileConnectionService.CreateQrBitmap(_url);
-            SecurityNotice.Visibility = accessProtected ? Visibility.Visible : Visibility.Collapsed;
+            SecurityNotice.Visibility = accessProtected || _containsAccessKey
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
         else
         {
@@ -45,7 +49,7 @@ public partial class MobileConnectionWindow : Window
         try
         {
             Clipboard.SetDataObject(_url, true);
-            CopyButton.Content = "已复制";
+            CopyButton.Content = _containsAccessKey ? "已复制 · 请勿转发" : "已复制";
         }
         catch (Exception ex)
         {

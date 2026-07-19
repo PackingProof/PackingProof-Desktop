@@ -28,6 +28,16 @@ public sealed class MobileConnectionTests
     }
 
     [Theory]
+    [InlineData("http://192.168.1.20:5280/?key=abc", true)]
+    [InlineData("http://192.168.1.20:5280/?KEY=abc%20123", true)]
+    [InlineData("http://192.168.1.20:5280/?key=", false)]
+    [InlineData("http://192.168.1.20:5280/", false)]
+    public void AccessKeyWarningFollowsActualSharedUrl(string url, bool expected)
+    {
+        Assert.Equal(expected, MobileConnectionService.ContainsAccessKey(url));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("127.0.0.1:5280")]
     [InlineData("localhost:5280")]
