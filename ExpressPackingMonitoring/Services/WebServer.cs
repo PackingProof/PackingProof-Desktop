@@ -1551,7 +1551,7 @@ namespace ExpressPackingMonitoring.Services
                 durationSec = Math.Round(r.DurationSeconds, 0),
                 duration = TimeSpan.FromSeconds(r.DurationSeconds).ToString(@"mm\:ss"),
                 exists = File.Exists(r.FilePath),
-                playUrl = $"/api/videos/{r.Id}/play?compat=1",
+                playUrl = $"/api/videos/{r.Id}/play?compat=0",
                 thumbnailUrl = $"/api/videos/{r.Id}/thumbnail",
                 remote = true
             });

@@ -369,7 +369,7 @@ public sealed class MobileBackupTests
             Assert.Equal("phone-http", video.GetProperty("sourceDeviceId").GetString());
             Assert.Equal("http-session", video.GetProperty("sourceSessionId").GetString());
             Assert.Equal(sha, video.GetProperty("contentSha256").GetString());
-            Assert.Contains("/play?compat=1", video.GetProperty("playUrl").GetString(), StringComparison.Ordinal);
+            Assert.Contains("/play?compat=0", video.GetProperty("playUrl").GetString(), StringComparison.Ordinal);
         }
         finally
         {
