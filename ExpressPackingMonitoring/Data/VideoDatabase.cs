@@ -665,7 +665,7 @@ namespace ExpressPackingMonitoring.Data
                       AND StartTime >= @startTime
                       AND StartTime < @endTime
                       AND (@sourceType = '' OR SourceType = @sourceType)
-                    ORDER BY StartTime DESC
+                    ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@startTime", date.Date.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@endTime", date.Date.AddDays(1).ToString("yyyy-MM-dd HH:mm:ss"));
@@ -900,7 +900,7 @@ namespace ExpressPackingMonitoring.Data
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
                            SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256 "
                     + whereSql + @"
-                    ORDER BY StartTime DESC
+                    ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit OFFSET @offset;";
                 if (startDate.HasValue)
                     cmd.Parameters.AddWithValue("@startDate", startDate.Value.ToString("yyyy-MM-dd 00:00:00"));
@@ -917,6 +917,73 @@ namespace ExpressPackingMonitoring.Data
                     records.Add(ReadVideoRecord(reader));
 
                 return new PagedVideoResult { Total = total, Records = records };
+            }
+        }
+
+        public int CountVideosForDevice(DateTime? startDate, DateTime? endDate, string keyword, string deviceId)
+        {
+            if (string.IsNullOrWhiteSpace(deviceId))
+                return 0;
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                string whereSql = @"
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0 AND SourceDeviceId = @deviceId";
+                cmd.Parameters.AddWithValue("@deviceId", deviceId);
+                if (startDate.HasValue)
+                {
+                    whereSql += " AND StartTime >= @startDate";
+                    cmd.Parameters.AddWithValue("@startDate", startDate.Value.ToString("yyyy-MM-dd 00:00:00"));
+                }
+                if (endDate.HasValue)
+                {
+                    whereSql += " AND StartTime < @endDate";
+                    cmd.Parameters.AddWithValue("@endDate", endDate.Value.AddDays(1).ToString("yyyy-MM-dd 00:00:00"));
+                }
+                if (!string.IsNullOrWhiteSpace(keyword))
+                {
+                    whereSql += @" AND (
+                        OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
+                        OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
+                        OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
+                        OR SourceDeviceName LIKE @keyword)";
+                    cmd.Parameters.AddWithValue("@keyword", $"%{keyword}%");
+                }
+                cmd.CommandText = "SELECT COUNT(1) " + whereSql + ";";
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+        }
+
+        public IReadOnlyDictionary<long, VideoRecord> QueryVideoStatuses(IEnumerable<long> ids)
+        {
+            long[] normalized = ids.Distinct().Take(100).ToArray();
+            if (normalized.Length == 0)
+                return new Dictionary<long, VideoRecord>();
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                string[] parameters = normalized.Select((_, index) => $"@id{index}").ToArray();
+                for (int index = 0; index < normalized.Length; index++)
+                    cmd.Parameters.AddWithValue(parameters[index], normalized[index]);
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                    FROM VideoRecords
+                    WHERE Id IN (" + string.Join(",", parameters) + ");";
+                var result = new Dictionary<long, VideoRecord>();
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    VideoRecord record = ReadVideoRecord(reader);
+                    result[record.Id] = record;
+                }
+                return result;
             }
         }
 

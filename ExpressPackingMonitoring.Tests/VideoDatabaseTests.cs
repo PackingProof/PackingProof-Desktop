@@ -8,6 +8,34 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class VideoDatabaseTests
 {
     [Fact]
+    public void MobileHistory_CountsDeviceDuplicatesAndReturnsDeletedStatuses()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            string firstPath = Path.Combine(tempDirectory, "first.mp4");
+            string secondPath = Path.Combine(tempDirectory, "second.mp4");
+            File.WriteAllBytes(firstPath, new byte[] { 1 });
+            File.WriteAllBytes(secondPath, new byte[] { 2 });
+            long firstId = database.InsertMobileBackupRecord("TRACK-1", firstPath, 1, DateTime.Now, 3, "phone-a", "Phone", "session-1", "sha-1");
+            long secondId = database.InsertMobileBackupRecord("TRACK-2", secondPath, 1, DateTime.Now, 3, "phone-b", "Phone", "session-2", "sha-2");
+            database.MarkVideoDeleted(secondPath, "容量清理");
+
+            Assert.Equal(1, database.CountVideosForDevice(null, null, null, "phone-a"));
+            IReadOnlyDictionary<long, VideoRecord> statuses = database.QueryVideoStatuses(new[] { firstId, secondId, 999999L });
+            Assert.False(statuses[firstId].IsDeleted);
+            Assert.True(statuses[secondId].IsDeleted);
+            Assert.Equal("容量清理", statuses[secondId].DeleteReason);
+            Assert.DoesNotContain(999999L, statuses.Keys);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void OrderIdExistsRecent_ChecksThirtyDaysAndIgnoresDeletedOrExcludedRecords()
     {
         string tempDirectory = CreateTempDirectory();

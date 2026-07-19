@@ -378,7 +378,7 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public async Task RecordingLibraryUsesStableCursorWithoutTotal()
+    public async Task RecordingLibraryReusesWebPaginationAndStatusEndpoints()
     {
         string directory = CreateTempDirectory();
         int port = GetFreeTcpPort();
@@ -415,27 +415,34 @@ public sealed class MobileBackupTests
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
             using JsonDocument first = JsonDocument.Parse(await client.GetStringAsync(
-                "/api/mobile-backup/recordings?limit=10", cancellationToken));
-            Assert.False(first.RootElement.TryGetProperty("total", out _));
+                "/api/videos?page=1&size=10&deviceId=phone-cursor", cancellationToken));
+            Assert.Equal(23, first.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(23, first.RootElement.GetProperty("deviceTotal").GetInt32());
+            Assert.Equal(1, first.RootElement.GetProperty("page").GetInt32());
             Assert.Equal(10, first.RootElement.GetProperty("data").GetArrayLength());
-            Assert.True(first.RootElement.GetProperty("hasMore").GetBoolean());
-            string cursor = first.RootElement.GetProperty("nextCursor").GetString()!;
             long[] firstIds = first.RootElement.GetProperty("data").EnumerateArray()
                 .Select(item => item.GetProperty("id").GetInt64()).ToArray();
             Assert.True(firstIds[0] > firstIds[1]);
 
             using JsonDocument second = JsonDocument.Parse(await client.GetStringAsync(
-                $"/api/mobile-backup/recordings?limit=10&cursor={Uri.EscapeDataString(cursor)}", cancellationToken));
+                "/api/videos?page=2&size=10&deviceId=phone-cursor", cancellationToken));
             long[] secondIds = second.RootElement.GetProperty("data").EnumerateArray()
                 .Select(item => item.GetProperty("id").GetInt64()).ToArray();
             Assert.Equal(10, secondIds.Length);
             Assert.Empty(firstIds.Intersect(secondIds));
 
             using JsonDocument search = JsonDocument.Parse(await client.GetStringAsync(
-                "/api/mobile-backup/recordings?limit=10&keyword=SEARCH-TARGET", cancellationToken));
+                "/api/videos?page=1&size=10&keyword=SEARCH-TARGET&deviceId=phone-cursor", cancellationToken));
             Assert.Single(search.RootElement.GetProperty("data").EnumerateArray());
-            Assert.False(search.RootElement.GetProperty("hasMore").GetBoolean());
-            Assert.Equal("", search.RootElement.GetProperty("nextCursor").GetString());
+            Assert.Equal(1, search.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(1, search.RootElement.GetProperty("deviceTotal").GetInt32());
+
+            using JsonDocument statuses = JsonDocument.Parse(await client.GetStringAsync(
+                $"/api/videos/status?ids={firstIds[0]},999999", cancellationToken));
+            JsonElement[] statusItems = statuses.RootElement.GetProperty("data").EnumerateArray().ToArray();
+            Assert.Equal("missing", statusItems[0].GetProperty("status").GetString());
+            Assert.False(statusItems[0].GetProperty("exists").GetBoolean());
+            Assert.Equal("missing", statusItems[1].GetProperty("status").GetString());
         }
         finally
         {
