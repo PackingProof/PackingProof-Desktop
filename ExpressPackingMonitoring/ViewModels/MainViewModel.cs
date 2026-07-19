@@ -949,6 +949,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 case BarcodeRecordingDecisionReason.CooldownIgnored:
                     return;
                 case BarcodeRecordingDecisionReason.ClearCommand:
+                    StartInputCooldown();
                     ShowToast("提示：扫码框已清除");
                     return;
                 case BarcodeRecordingDecisionReason.ShippingCommand:
@@ -964,9 +965,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     Speak(DefaultSpeechCatalog.SwitchToReturn);
                     return;
                 case BarcodeRecordingDecisionReason.StartCommand:
+                    StartInputCooldown();
                     ToggleRecording();
                     return;
                 case BarcodeRecordingDecisionReason.StopCommand:
+                    StartInputCooldown();
                     _ = SafeStopRecordingAsync(true, mergeAfterStop: true);
                     return;
                 case BarcodeRecordingDecisionReason.RecordingOrderMissing:
