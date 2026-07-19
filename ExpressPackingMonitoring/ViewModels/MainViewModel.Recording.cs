@@ -774,6 +774,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 if (frame == null) return;
+                if (Config.EnableWatermark)
+                    ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId);
                 if (!queue.TryAdd(frame, 5))
                     frame.Dispose();
             }

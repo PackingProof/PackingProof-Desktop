@@ -296,6 +296,35 @@ namespace ExpressPackingMonitoring.ViewModels
             return $"UTC{offsetText}: {timestamp:yyyy/MM/dd HH:mm:ss}";
         }
 
+        internal static void ApplyWatermarkToFrame(Mat frame, DateTimeOffset timestamp, string orderId)
+        {
+            if (frame == null || frame.IsDisposed || frame.Empty()) return;
+
+            string line1 = FormatWatermarkTimestamp(timestamp);
+            double fontScale = Math.Max(0.5, frame.Height / 720.0) * 0.6;
+            int thickness = fontScale >= 0.8 ? 2 : 1;
+            int lineHeight = (int)(30 * fontScale / 0.6);
+            var size1 = Cv2.GetTextSize(line1, HersheyFonts.HersheySimplex, fontScale, thickness, out _);
+            int x1 = Math.Max(8, frame.Width - size1.Width - 15);
+            int y1 = lineHeight;
+
+            Cv2.PutText(frame, line1, new OpenCvSharp.Point(x1, y1),
+                HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
+            Cv2.PutText(frame, line1, new OpenCvSharp.Point(x1, y1),
+                HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
+
+            if (string.IsNullOrWhiteSpace(orderId)) return;
+
+            string line2 = $"Order:{orderId}";
+            var size2 = Cv2.GetTextSize(line2, HersheyFonts.HersheySimplex, fontScale, thickness, out _);
+            int x2 = Math.Max(8, frame.Width - size2.Width - 15);
+            int y2 = y1 + (int)(lineHeight * 1.1);
+            Cv2.PutText(frame, line2, new OpenCvSharp.Point(x2, y2),
+                HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
+            Cv2.PutText(frame, line2, new OpenCvSharp.Point(x2, y2),
+                HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
+        }
+
         private string _toastMessage;
         private bool _isToastVisible;
         private CancellationTokenSource _toastCts;
@@ -3267,35 +3296,8 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     processedFrame = currentFrame.Clone();
                                 }
-                                string line1 = FormatWatermarkTimestamp(DateTimeOffset.Now);
-                                double fontScale = Math.Max(0.5, processedFrame.Height / 720.0) * 0.6;
-                                int thickness = fontScale >= 0.8 ? 2 : 1;
-                                int lineHeight = (int)(30 * fontScale / 0.6);
-                                
-                                // 第一行：时间
-                                var size1 = Cv2.GetTextSize(line1, HersheyFonts.HersheySimplex, fontScale, thickness, out _);
-                                int x1 = processedFrame.Width - size1.Width - 15;
-                                int y1 = lineHeight;
-                                
-                                Cv2.PutText(processedFrame, line1, new OpenCvSharp.Point(x1, y1),
-                                    HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
-                                Cv2.PutText(processedFrame, line1, new OpenCvSharp.Point(x1, y1),
-                                    HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
-                                
-                                // 第二行：单号（录制中或有当前单号时显示）
                                 string orderId = IsRecording ? _recordingOrderId : CurrentOrderId;
-                                if (!string.IsNullOrEmpty(orderId))
-                                {
-                                    string line2 = $"Order:{orderId}";
-                                    var size2 = Cv2.GetTextSize(line2, HersheyFonts.HersheySimplex, fontScale, thickness, out _);
-                                    int x2 = processedFrame.Width - size2.Width - 15;
-                                    int y2 = y1 + (int)(lineHeight * 1.1);
-                                    
-                                    Cv2.PutText(processedFrame, line2, new OpenCvSharp.Point(x2, y2),
-                                        HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
-                                    Cv2.PutText(processedFrame, line2, new OpenCvSharp.Point(x2, y2),
-                                        HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
-                                }
+                                ApplyWatermarkToFrame(processedFrame, DateTimeOffset.Now, orderId);
                             }
                             catch { }
                         }
