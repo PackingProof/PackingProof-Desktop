@@ -33,6 +33,8 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
 
     await article.getByRole('button', { name: '播放' }).click();
     await assert.doesNotReject(() => page.locator('#playerOverlay.active').waitFor());
+    await page.waitForFunction(() => /\/api\/videos\/\d+\/play/.test(
+      document.querySelector('#videoPlayer')?.getAttribute('src') || ''));
     const source = await page.locator('#videoPlayer').getAttribute('src');
     assert.match(source ?? '', /\/api\/videos\/\d+\/play/);
     await page.keyboard.press('Escape');
