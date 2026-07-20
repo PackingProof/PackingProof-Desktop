@@ -56,6 +56,7 @@ public sealed class OrderIntegrationViewModel : ObservableObject, IDisposable
     public string ToggleText => _runtime.Config.EnableOrderIntegration ? "暂停联动" : "恢复联动";
     public string ConnectionSummary => _runtime.ConnectedDeviceText;
     public bool IsSetupRequired => _runtime.Config.OrderIntegrationSetupVersion < AppConfig.CurrentOrderIntegrationSetupVersion;
+    public bool IsRunning => IsOrderIntegrationRunning(!IsSetupRequired, _runtime.Config.EnableOrderIntegration);
 
     public ICommand AddTargetCommand { get; }
     public ICommand DeleteTargetCommand { get; }
@@ -205,10 +206,13 @@ public sealed class OrderIntegrationViewModel : ObservableObject, IDisposable
         bool configured = _runtime.Config.OrderIntegrationSetupVersion >= AppConfig.CurrentOrderIntegrationSetupVersion;
         StatusText = !configured ? "未配置" : _runtime.Config.EnableOrderIntegration ? "运行正常" : "已暂停";
         OnPropertyChanged(nameof(IsSetupRequired));
+        OnPropertyChanged(nameof(IsRunning));
         OnPropertyChanged(nameof(ToggleText));
         OnPropertyChanged(nameof(ConnectionSummary));
         (ToggleEnabledCommand as RelayCommand)?.NotifyCanExecuteChanged();
     }
+
+    internal static bool IsOrderIntegrationRunning(bool configured, bool enabled) => configured && enabled;
 
     private string ResolveAddress(OrderTargetRowViewModel target) => target.IsLocal
         ? WorkstationNetwork.GetBestLocalAccessAddress(_runtime.Config.WebServerPort)

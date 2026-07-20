@@ -54,10 +54,14 @@ public sealed class MobileBackupViewModel : ObservableObject, IDisposable
         private set
         {
             if (SetProperty(ref _connectedMobileDeviceCount, value))
+            {
                 OnPropertyChanged(nameof(ConnectedMobileDeviceCountText));
+                OnPropertyChanged(nameof(HasConnectedMobileDevices));
+            }
         }
     }
     public string ConnectedMobileDeviceCountText => AppLanguage.Format("Main.MobileDeviceCount", ConnectedMobileDeviceCount);
+    public bool HasConnectedMobileDevices => IsMobileConnectionActive(ConnectedMobileDeviceCount);
     public int TodayVideoCount
     {
         get => _todayVideoCount;
@@ -68,6 +72,7 @@ public sealed class MobileBackupViewModel : ObservableObject, IDisposable
         }
     }
     public string TodayVideoCountText => AppLanguage.Format("Main.TodayMobileVideoCount", TodayVideoCount);
+    internal static bool IsMobileConnectionActive(int deviceCount) => deviceCount > 0;
     public string OperationMessage { get => _operationMessage; set => SetProperty(ref _operationMessage, value); }
     public BitmapSource? QrCode { get => _qrCode; private set => SetProperty(ref _qrCode, value); }
     public bool IsConfigured => _runtime.Config.MobileBackupSetupVersion >= AppConfig.CurrentMobileBackupSetupVersion;

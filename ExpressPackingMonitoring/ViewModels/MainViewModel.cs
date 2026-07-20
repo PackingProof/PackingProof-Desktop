@@ -264,6 +264,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
         private string _workstationPrintStatusText = "快递单打印工位：未连接";
         private string _workstationStatusToolTip = "";
+        private bool _hasPrintWorkstationConnection;
         private string _connectedDeviceText = "连接服务未开启";
         private string _connectedDeviceToolTip = "开启局域网查看后可显示在线设备";
         private bool _hasConnectedDevices;
@@ -285,7 +286,9 @@ namespace ExpressPackingMonitoring.ViewModels
         }
         public string TodayPcCountText => AppLanguage.Format("Main.TodayPcCount", TotalPieces);
         public DurationDisplayText TotalPackTimeDisplay => FormatDurationDisplay(_totalPackTime);
-        public DurationDisplayText AveragePackTimeDisplay => TotalPieces == 0 ? DurationDisplayText.Zero : FormatDurationDisplay(TimeSpan.FromSeconds(_totalPackTime.TotalSeconds / TotalPieces));
+        public DurationDisplayText AveragePackTimeDisplay => TotalPieces == 0
+            ? DurationDisplayText.Zero
+            : FormatAverageDurationDisplay(TimeSpan.FromSeconds(_totalPackTime.TotalSeconds / TotalPieces));
         public string AveragePackTimeCompactText
         {
             get
@@ -343,6 +346,23 @@ namespace ExpressPackingMonitoring.ViewModels
                 minutes > 0 || hours > 0 ? "分" : "",
                 seconds.ToString(),
                 "秒");
+        }
+
+        internal static DurationDisplayText FormatAverageDurationDisplay(TimeSpan duration)
+        {
+            if (duration < TimeSpan.Zero)
+                duration = TimeSpan.Zero;
+
+            int totalSeconds = Math.Max(0, (int)Math.Round(duration.TotalSeconds));
+            int hours = totalSeconds / 3600;
+            int minutes = totalSeconds % 3600 / 60;
+            int seconds = totalSeconds % 60;
+
+            if (hours > 0)
+                return new DurationDisplayText(hours.ToString(), "时", minutes.ToString(), "分", "", "");
+            if (minutes > 0)
+                return new DurationDisplayText("", "", minutes.ToString(), "分", seconds.ToString(), "秒");
+            return new DurationDisplayText("", "", "", "", seconds.ToString(), "秒");
         }
 
         internal static string FormatWatermarkTimestamp(DateTimeOffset timestamp)
@@ -452,6 +472,16 @@ namespace ExpressPackingMonitoring.ViewModels
         }
         public string WorkstationPrintStatusText { get => _workstationPrintStatusText; set => SetProperty(ref _workstationPrintStatusText, value); }
         public string WorkstationStatusToolTip { get => _workstationStatusToolTip; set => SetProperty(ref _workstationStatusToolTip, value); }
+        public bool HasPrintWorkstationConnection
+        {
+            get => _hasPrintWorkstationConnection;
+            private set
+            {
+                if (SetProperty(ref _hasPrintWorkstationConnection, value))
+                    OnPropertyChanged(nameof(PrintWorkstationConnectionText));
+            }
+        }
+        public string PrintWorkstationConnectionText => AppLanguage.Get(HasPrintWorkstationConnection ? "在线" : "未连接");
         public string ConnectedDeviceText { get => _connectedDeviceText; private set => SetProperty(ref _connectedDeviceText, value); }
         public string ConnectedDeviceToolTip { get => _connectedDeviceToolTip; private set => SetProperty(ref _connectedDeviceToolTip, value); }
         public bool HasConnectedDevices { get => _hasConnectedDevices; private set => SetProperty(ref _hasConnectedDevices, value); }
@@ -2371,6 +2401,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void UpdateConnectedClients(IReadOnlyList<ConnectedClientInfo> clients)
         {
             if (_isDisposed) return;
+            HasPrintWorkstationConnection = clients.Any(client => IsPrintWorkstationClientType(client.ClientType));
             int count = ConnectedClientRegistry.CountDistinctAddresses(clients);
             HasConnectedDevices = count > 0;
             ConnectedDeviceText = count > 0
@@ -2395,6 +2426,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void SetConnectedDeviceUnavailable(string text, string tooltip)
         {
+            HasPrintWorkstationConnection = false;
             HasConnectedDevices = false;
             ConnectedDeviceText = text;
             ConnectedDeviceToolTip = tooltip;
@@ -2409,6 +2441,10 @@ namespace ExpressPackingMonitoring.ViewModels
             "mobile-app" => AppLanguage.Get("Main.ClientMobileApp"),
             _ => AppLanguage.Get("Main.ClientOther")
         };
+
+        internal static bool IsPrintWorkstationClientType(string clientType) =>
+            string.Equals(clientType, "userscript", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(clientType, "print-station", StringComparison.OrdinalIgnoreCase);
 
         public void CopyMonitorAddress()
         {

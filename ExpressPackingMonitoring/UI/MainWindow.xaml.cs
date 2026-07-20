@@ -212,7 +212,6 @@ namespace ExpressPackingMonitoring.UI
         private void RefreshModuleStates()
         {
             if (DataContext is not MainViewModel viewModel) return;
-            ShellVersionText.Text = AppLanguage.Format("Main.Version", AppVersion.Current);
             _pcRecordingPage.RefreshState();
             _runtimeHost.MobileBackup.Refresh();
         }

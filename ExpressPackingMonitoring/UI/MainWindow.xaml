@@ -36,45 +36,90 @@
                 </StackPanel>
                 <StackPanel Grid.Row="2" Margin="0,18,0,0">
                     <TextBlock Text="今日概览" Margin="8,0,8,8" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
-                    <UniformGrid Columns="2">
-                        <Border Margin="0,0,3,0" Padding="8,9" CornerRadius="8" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="电脑录制" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                <TextBlock Text="{Binding TodayPcCountText}" Margin="0,4,0,0" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Margin="3,0,0,0" Padding="8,9" CornerRadius="8" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="电脑均时" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                                <TextBlock Text="{Binding AveragePackTimeCompactText}" Margin="0,4,0,0" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
-                            </StackPanel>
-                        </Border>
-                    </UniformGrid>
+                    <Border Padding="9,8" CornerRadius="8" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="今日本机" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                            <Grid Margin="0,5,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                                    <TextBlock Text="打包" Margin="0,0,5,1" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom"/>
+                                    <TextBlock FontSize="17" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"><Run Text="{Binding TotalPieces, Mode=OneWay}"/><Run Text=" 个" FontSize="10"/></TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                    <TextBlock Text="均时" Margin="0,0,5,1" FontSize="11" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom"/>
+                                    <TextBlock FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"><Run Text="{Binding AveragePackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="10"/><Run Text="{Binding AveragePackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="10"/><Run Text="{Binding AveragePackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="10"/></TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                     <Border Margin="0,6,0,0" Padding="9,7" CornerRadius="7" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="今日备份手机" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding MobileBackup.TodayVideoCountText, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="备份手机" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding MobileBackup.TodayVideoCount, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock Text=" 个" Margin="0,0,0,1" FontSize="10" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Bottom"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </StackPanel>
                 <Border Grid.Row="4" Margin="0,18,0,0" Padding="8,10,8,0" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0">
                     <StackPanel>
                         <TextBlock Text="连接状态" Margin="0,0,0,8" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
-                        <TextBlock Text="局域网地址" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                        <TextBlock Text="{Binding MonitorAccessAddressDisplay}" ToolTip="{Binding MonitorAccessAddressDisplay}" Margin="0,2,0,7" FontSize="11" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
                         <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="手机设备" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding MobileBackup.ConnectedMobileDeviceCountText, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding MobileBackup.HasConnectedMobileDevices, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Grid.Column="1" Text="手机设备" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding MobileBackup.ConnectedMobileDeviceCountText, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
                         </Grid>
                         <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="订单联动" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding OrderIntegration.StatusText, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding OrderIntegration.IsRunning, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Grid.Column="1" Text="订单联动" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding OrderIntegration.StatusText, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
                         </Grid>
-                        <TextBlock Text="{Binding WorkstationPrintStatusText}" ToolTip="{Binding WorkstationPrintStatusText}" Margin="0,0,0,6" FontSize="11" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock x:Name="ShellVersionText" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
+                        <Grid Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasPrintWorkstationConnection}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Grid.Column="1" Text="打印工位" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding PrintWorkstationConnectionText}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Grid>

@@ -75,7 +75,16 @@ public class UiCompositionTests
         Assert.Contains("Content=\"统计\" Tag=\"overview\"", mainXaml);
         Assert.Contains("OverviewStatisticsContentHost", mainXaml);
         Assert.Contains("今日概览", mainXaml);
+        Assert.Contains("今日本机", mainXaml);
+        Assert.Contains("AveragePackTimeDisplay", mainXaml);
+        Assert.DoesNotMatch(new Regex("Text=\"\\{Binding AveragePackTimeDisplay\\.[^,}]+\\}\""), mainXaml);
+        Assert.Equal(6, Regex.Matches(mainXaml, "AveragePackTimeDisplay\\.[^,}]+, Mode=OneWay").Count);
         Assert.Contains("ConnectedMobileDeviceCountText", mainXaml);
+        Assert.Contains("HasConnectedMobileDevices", mainXaml);
+        Assert.Contains("OrderIntegration.IsRunning", mainXaml);
+        Assert.Contains("HasPrintWorkstationConnection", mainXaml);
+        Assert.DoesNotContain("MonitorAccessAddressDisplay", mainXaml);
+        Assert.DoesNotContain("ShellVersionText", mainXaml);
         Assert.DoesNotContain("OverviewCardsGrid", mainXaml);
         Assert.DoesNotContain("OverviewPcAction", mainXaml);
         Assert.DoesNotContain("打包数据分析", mainXaml);

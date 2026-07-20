@@ -596,4 +596,12 @@
   <data name="电脑录像已停用" xml:space="preserve"><value>电脑录像已停用</value></data>
   <data name="点击任意位置启用电脑录像" xml:space="preserve"><value>点击任意位置启用电脑录像</value></data>
   <data name="请先停止当前录像" xml:space="preserve"><value>请先停止当前录像</value></data>
+  <data name="今日本机" xml:space="preserve"><value>今日本机</value></data>
+  <data name="打包" xml:space="preserve"><value>打包</value></data>
+  <data name="均时" xml:space="preserve"><value>均时</value></data>
+  <data name="备份手机" xml:space="preserve"><value>备份手机</value></data>
+  <data name="打印工位" xml:space="preserve"><value>打印工位</value></data>
+  <data name="在线" xml:space="preserve"><value>在线</value></data>
+  <data name="未连接" xml:space="preserve"><value>未连接</value></data>
+  <data name=" 个" xml:space="preserve"><value> 个</value></data>
 </root>
