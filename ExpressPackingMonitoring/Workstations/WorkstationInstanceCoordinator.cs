@@ -28,8 +28,6 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
     public static bool TryCreate(string role, out WorkstationInstanceCoordinator? coordinator)
     {
         coordinator = null;
-        if (!WorkstationRoles.IsKnown(role)) return false;
-
         var mutex = new Mutex(initiallyOwned: true, GetMutexName(role), out bool createdNew);
         if (!createdNew)
         {
@@ -43,8 +41,6 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
 
     public static bool IsRoleRunning(string role)
     {
-        if (!WorkstationRoles.IsKnown(role)) return false;
-
         try
         {
             using var existing = Mutex.OpenExisting(GetMutexName(role));
@@ -62,8 +58,6 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
 
     public static bool RequestActivate(string role)
     {
-        if (!WorkstationRoles.IsKnown(role)) return false;
-
         try
         {
             using var pipe = new NamedPipeClientStream(".", GetPipeName(role), PipeDirection.Out);
@@ -160,10 +154,7 @@ public sealed class WorkstationInstanceCoordinator : IDisposable
         string normalizedScope = new(scope.Where(char.IsLetterOrDigit).Take(48).ToArray());
         return string.IsNullOrEmpty(normalizedScope) ? NamePrefix : $"{NamePrefix}.{normalizedScope}";
     }
-    private static string NormalizeRole(string role) =>
-        string.Equals(role, WorkstationRoles.PrintStation, StringComparison.OrdinalIgnoreCase)
-            ? WorkstationRoles.PrintStation
-            : WorkstationRoles.CameraMonitor;
+    private static string NormalizeRole(string role) => "Unified";
 }
 
 public enum DuplicateInstanceChoice

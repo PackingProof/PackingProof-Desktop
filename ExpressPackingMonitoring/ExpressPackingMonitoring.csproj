@@ -94,6 +94,7 @@
     <Compile Include="Audio\SpeechService.cs" />
     <Compile Include="Config\AppConfig.cs" />
     <Compile Include="Config\AppPaths.cs" />
+    <Compile Include="Config\StartupModulePolicy.cs" />
     <Compile Include="Config\AppVersion.cs" />
     <Compile Include="Config\StorageSpacePolicy.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />

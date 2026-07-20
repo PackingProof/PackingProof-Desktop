@@ -58,11 +58,25 @@ namespace ExpressPackingMonitoring.Config
         public int AudioSyncOffsetMs { get; set; } = 0;
     }
 
+    public class OrderIntegrationTarget
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string DisplayName { get; set; } = "";
+        public string Address { get; set; } = "";
+        public bool Enabled { get; set; } = true;
+        public bool IsLocal { get; set; }
+    }
+
     public class AppConfig
     {
         public const int CurrentVoiceSettingsVersion = 2;
         public const int CurrentCameraBarcodeSetupVersion = 1;
         public const int CurrentMobileConnectionSetupVersion = 1;
+        public const int CurrentUnifiedModulesMigrationVersion = 1;
+        public const int CurrentGlobalOnboardingVersion = 1;
+        public const int CurrentPcRecordingSetupVersion = 1;
+        public const int CurrentMobileBackupSetupVersion = 1;
+        public const int CurrentOrderIntegrationSetupVersion = 1;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -77,6 +91,17 @@ namespace ExpressPackingMonitoring.Config
         public string WorkstationRole { get; set; } = "";
         public string PrintStationMonitorAddress { get; set; } = "";
         public bool FirstUseWizardCompleted { get; set; } = false;
+
+        // 统一主界面配置。旧工位字段仅用于首次迁移，不再决定运行模式。
+        public int UnifiedModulesMigrationVersion { get; set; }
+        public int GlobalOnboardingVersion { get; set; }
+        public int PcRecordingSetupVersion { get; set; }
+        public int MobileBackupSetupVersion { get; set; }
+        public int OrderIntegrationSetupVersion { get; set; }
+        public bool EnablePcCameraRecording { get; set; }
+        public bool EnableMobileBackup { get; set; }
+        public bool EnableOrderIntegration { get; set; }
+        public List<OrderIntegrationTarget> OrderIntegrationTargets { get; set; } = new();
 
         // 核心：多磁盘配置列表
         public List<StorageLocation> StorageLocations { get; set; } = new() { new StorageLocation() };
@@ -183,6 +208,71 @@ namespace ExpressPackingMonitoring.Config
         public static bool NormalizeAfterLoad(AppConfig config)
         {
             bool changed = false;
+
+            if (config.OrderIntegrationTargets == null)
+            {
+                config.OrderIntegrationTargets = new List<OrderIntegrationTarget>();
+                changed = true;
+            }
+
+            if (config.UnifiedModulesMigrationVersion < CurrentUnifiedModulesMigrationVersion)
+            {
+                bool wasConfiguredMonitor = config.FirstUseWizardCompleted
+                    && (string.IsNullOrWhiteSpace(config.WorkstationRole)
+                        || string.Equals(config.WorkstationRole, "CameraMonitor", StringComparison.OrdinalIgnoreCase));
+                bool wasPrintStation = string.Equals(config.WorkstationRole, "PrintStation", StringComparison.OrdinalIgnoreCase);
+
+                if (wasConfiguredMonitor)
+                {
+                    config.EnablePcCameraRecording = true;
+                    config.PcRecordingSetupVersion = CurrentPcRecordingSetupVersion;
+
+                    // 旧监控端已提供手机上传接口；迁移后保持原能力继续可用。
+                    config.EnableMobileBackup = true;
+                    if (config.MobileConnectionSetupVersion >= CurrentMobileConnectionSetupVersion)
+                        config.MobileBackupSetupVersion = CurrentMobileBackupSetupVersion;
+                }
+
+                if (wasPrintStation)
+                {
+                    config.EnableOrderIntegration = true;
+                    config.OrderIntegrationSetupVersion = CurrentOrderIntegrationSetupVersion;
+                    string address = config.PrintStationMonitorAddress?.Trim() ?? "";
+                    if (address.Length > 0 && !config.OrderIntegrationTargets.Any(t =>
+                            !t.IsLocal && string.Equals(t.Address, address, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        config.OrderIntegrationTargets.Add(new OrderIntegrationTarget
+                        {
+                            DisplayName = "原录像电脑",
+                            Address = address,
+                            Enabled = true
+                        });
+                    }
+                }
+
+                config.EnableWebServer = true;
+                config.UnifiedModulesMigrationVersion = CurrentUnifiedModulesMigrationVersion;
+                changed = true;
+            }
+
+            foreach (OrderIntegrationTarget target in config.OrderIntegrationTargets)
+            {
+                string normalizedId = target.Id?.Trim() ?? "";
+                if (normalizedId.Length == 0)
+                {
+                    target.Id = Guid.NewGuid().ToString("N");
+                    changed = true;
+                }
+                if (target.DisplayName == null) { target.DisplayName = ""; changed = true; }
+                if (target.Address == null) { target.Address = ""; changed = true; }
+            }
+
+            // 局域网查看是统一 Shell 的基础服务，不再随业务模块关闭。
+            if (!config.EnableWebServer)
+            {
+                config.EnableWebServer = true;
+                changed = true;
+            }
 
             string normalizedLanguage = AppLanguage.NormalizePreference(config.Language);
             if (config.Language != normalizedLanguage)
