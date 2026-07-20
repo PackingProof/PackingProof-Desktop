@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Input;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using System.ComponentModel;
@@ -40,14 +41,11 @@ public partial class PcRecordingPage : UserControl, IDisposable
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         InitializeComponent();
         DataContext = runtime;
-        BtnMobileConnection.Click += BtnMobileConnection_Click;
-        BtnMobileConnection.PreviewMouseLeftButtonUp += BtnMobileConnection_PreviewMouseLeftButtonUp;
         _capsCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _capsCheckTimer.Tick += CapsCheckTimer_Tick;
         _scanAutoSubmitTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
         _scanAutoSubmitTimer.Tick += ScanAutoSubmitTimer_Tick;
         Loaded += PcRecordingPage_Loaded;
-        SizeChanged += PcRecordingPage_SizeChanged;
         VideoImage.SizeChanged += (_, _) => UpdateCameraOverlays();
         _runtime.PropertyChanged += Runtime_PropertyChanged;
         RefreshState();
@@ -107,8 +105,11 @@ public partial class PcRecordingPage : UserControl, IDisposable
         bool enabled = _runtime.Config.EnablePcCameraRecording;
         PcRecordingControlIcon.Data = FindResource(enabled ? "FluentPauseIcon" : "FluentPlayIcon") as System.Windows.Media.Geometry;
         PcRecordingControlText.Text = enabled
-            ? _runtime.IsRecording ? "录像中，停止后可停用" : "点击停用电脑录像"
-            : "点击启用电脑录像";
+            ? AppLanguage.Get(_runtime.IsRecording ? "录像中，停止后可停用" : "点击停用电脑录像")
+            : AppLanguage.Get("电脑录像已停用");
+        PcRecordingControlHint.Text = enabled
+            ? AppLanguage.Get(_runtime.IsRecording ? "请先停止当前录像" : "点击任意位置暂停摄像头")
+            : AppLanguage.Get("点击任意位置启用电脑录像");
         BtnPreviewTogglePcRecording.IsEnabled = !enabled || !_runtime.IsRecording;
         PcRecordingControlOverlay.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -256,33 +257,6 @@ public partial class PcRecordingPage : UserControl, IDisposable
         double scale = Math.Min(actualWidth / sourceWidth, actualHeight / sourceHeight);
         CameraBarcodeGuide.Width = sourceWidth * CameraBarcodeFrameDecoder.GuideWidthRatio * scale;
         CameraBarcodeGuide.Height = sourceHeight * CameraBarcodeFrameDecoder.GuideHeightRatio * scale;
-    }
-
-    private void PcRecordingPage_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        bool compact = e.NewSize.Width < 920;
-        RecordingSidebar.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        RecordingSidebarColumn.Width = compact ? new GridLength(0) : new GridLength(360);
-        RecordingMainColumn.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 24, 0);
-        RecordingLayout.Margin = compact ? new Thickness(14) : new Thickness(24);
-    }
-
-    private void BtnMobileConnection_Click(object sender, RoutedEventArgs e)
-    {
-        RequestModule(AppModules.MobileBackup);
-        e.Handled = true;
-    }
-
-    private void BtnMobileConnection_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        RequestModule(AppModules.MobileBackup);
-        e.Handled = true;
-    }
-
-    private void NavigationButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: string module }) RequestModule(module);
-        e.Handled = true;
     }
 
     private void RequestModule(string module) => ModuleNavigationRequested?.Invoke(this, module);

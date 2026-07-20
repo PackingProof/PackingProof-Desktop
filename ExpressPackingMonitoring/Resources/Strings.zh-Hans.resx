@@ -591,4 +591,9 @@
   <data name="Main.AverageMinutesSeconds" xml:space="preserve"><value>{0}分{1}秒</value></data>
   <data name="Main.AverageSeconds" xml:space="preserve"><value>{0}秒</value></data>
   <data name="Main.Version" xml:space="preserve"><value>版本 {0}</value></data>
+  <data name="等待扫描面单条码" xml:space="preserve"><value>等待扫描面单条码</value></data>
+  <data name="点击任意位置暂停摄像头" xml:space="preserve"><value>点击任意位置暂停摄像头</value></data>
+  <data name="电脑录像已停用" xml:space="preserve"><value>电脑录像已停用</value></data>
+  <data name="点击任意位置启用电脑录像" xml:space="preserve"><value>点击任意位置启用电脑录像</value></data>
+  <data name="请先停止当前录像" xml:space="preserve"><value>请先停止当前录像</value></data>
 </root>

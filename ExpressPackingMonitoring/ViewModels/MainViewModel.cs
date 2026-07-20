@@ -246,6 +246,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _delayBeforeZooming = false;
 
         private ScanRecord _currentScanRecord;
+        public ScanRecord CurrentScanRecord
+        {
+            get => _currentScanRecord;
+            private set => SetProperty(ref _currentScanRecord, value);
+        }
         private long _currentRecordId; 
         private string _currentVideoFilePath;  // 当前录制文件路径
         private string _currentVideoCodec;

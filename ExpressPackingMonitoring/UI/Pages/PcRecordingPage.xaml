@@ -78,16 +78,11 @@
     </UserControl.Resources>
     <Grid>
         <Grid x:Name="RecordingLayout" Margin="24">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="RecordingSidebarColumn" Width="360"/>
-            </Grid.ColumnDefinitions>
-            <Grid x:Name="RecordingMainColumn" Grid.Column="0" Margin="0,0,24,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
                     <Grid>
@@ -411,60 +406,35 @@
                                 <Button Content="重新检测" Width="112" Height="38" Margin="0,18,0,0" Style="{StaticResource PrimaryButtonStyle}" Focusable="False" Click="BtnRefreshCamera_Click"/>
                             </StackPanel>
                         </Grid>
-                        <Grid x:Name="PcRecordingControlOverlay" Visibility="Collapsed" Panel.ZIndex="45" Background="{StaticResource OverlayMedium}">
+                        <Grid x:Name="PcRecordingControlOverlay" Visibility="Collapsed" Panel.ZIndex="45">
+                            <Border Background="{StaticResource OverlayStrong}" CornerRadius="10"/>
                             <Button x:Name="BtnPreviewTogglePcRecording" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="{StaticResource TransparentBrush}" BorderThickness="0" Focusable="False" Cursor="Hand" Click="BtnTogglePcRecording_Click">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path x:Name="PcRecordingControlIcon" Data="{StaticResource FluentPauseIcon}" Width="58" Height="58" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" HorizontalAlignment="Center"/>
-                                    <TextBlock x:Name="PcRecordingControlText" Text="点击停用电脑录像" Margin="0,12,0,0" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextOnAccent}" HorizontalAlignment="Center"/>
+                                    <Path x:Name="PcRecordingControlIcon" Data="{StaticResource FluentPauseIcon}" Width="52" Height="52" Stretch="Uniform" Fill="{StaticResource OverlayTextSecondary}" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="PcRecordingControlText" Text="点击停用电脑录像" Margin="0,12,0,0" FontSize="22" FontWeight="Bold" Foreground="{StaticResource OverlayTextSecondary}" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="PcRecordingControlHint" Text="点击任意位置暂停摄像头" Margin="0,8,0,0" FontSize="14" Foreground="{StaticResource OverlayTextMuted}" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                         </Grid>
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,12" Margin="0,20,0,0">
-                    <Grid>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="本机今日:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}" Margin="0,0,24,0">
-                                <Run Text="{Binding TotalPieces, Mode=OneWay}"/><Run Text="件" FontSize="15"/>
-                            </TextBlock>
-                            <TextBlock Text="平均:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}" Margin="0,0,24,0">
-                                <Run Text="{Binding AveragePackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding AveragePackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding AveragePackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="15"/>
-                            </TextBlock>
-                            <TextBlock Text="总耗时:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
-                                <Run Text="{Binding TotalPackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding TotalPackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding TotalPackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="15"/>
-                            </TextBlock>
-                        </StackPanel>
-
-                    </Grid>
-                </Border>
-            </Grid>
-
-            <Border x:Name="RecordingSidebar" Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="16,12">
+            <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="14,12" Margin="0,20,0,0" MinHeight="104">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <!-- 行1条形码: 清除/发货/退货 -->
-                    <Grid Grid.Row="0" Margin="0,0,0,6" Height="60">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0" Height="64" Margin="0,0,12,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Barcode1Label}" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" TextAlignment="Center" Width="20" LineHeight="18" Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Barcode1Label}" Width="20" Margin="0,0,4,0" FontSize="13" FontWeight="SemiBold" LineHeight="18" TextAlignment="Center" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         <Grid Grid.Column="1">
-                            <Image Source="{Binding Barcode1Image}" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                            <Image Source="{Binding Barcode1Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
@@ -481,257 +451,134 @@
                             </StackPanel>
                         </Grid>
                     </Grid>
-                    <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,0,0,6">
-                        <TextBlock Text="本机录制动态" FontSize="18" FontWeight="Black" Foreground="{DynamicResource TextPrimary}"/>
-                    </Border>
-                    <ListView Grid.Row="2" ItemsSource="{Binding FilteredLogs}" AlternationCount="2" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <!-- 容器 Border -->
-                                <Border x:Name="ItemBorder" Background="{DynamicResource ControlBackground}" CornerRadius="6" Margin="2,2,2,6" Padding="10,8" ClipToBounds="True">
 
-                                    <Grid>
-                                        <!-- 1. 优化后的流光背景层：增加对比度，使用平移变换 -->
-                                        <Rectangle x:Name="ShimmerLayer" Margin="-10,-8" Visibility="Collapsed" IsHitTestVisible="False">
-                                            <Rectangle.Fill>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <!-- 使用相对变换来平移整个画刷 -->
-                                                    <LinearGradientBrush.RelativeTransform>
-                                                        <TranslateTransform x:Name="ShimmerTransform" X="-1" />
-                                                    </LinearGradientBrush.RelativeTransform>
-                                                    <!-- 渐变点设计：透明 -> 浅红 -> 高亮白红(核心) -> 浅红 -> 透明 -->
-                                                    <GradientStop Color="{StaticResource TransparentColor}" Offset="0"/>
-                                                    <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.3"/>
-                                                    <GradientStop Color="{StaticResource RecordingShimmerCoreColor}" Offset="0.5"/>
-                                                    <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.7"/>
-                                                    <GradientStop Color="{StaticResource TransparentColor}" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
-
-                                        <!-- 2. 内容层 (保持不变) -->
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding OrderId}" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                <Border Grid.Column="1" x:Name="ActiveStatusBorder" Background="{DynamicResource BadgeErrorBg}" CornerRadius="4" Padding="6,2" Margin="8,0" Visibility="Collapsed">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentRed}" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Text="录制中" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource BadgeErrorText}"/>
-                                                    </StackPanel>
-                                                </Border>
-                                                <Border Grid.Column="2" x:Name="BadgeBorder" CornerRadius="4" Padding="6,2" VerticalAlignment="Center" Background="{DynamicResource BadgePackBg}">
-                                                    <TextBlock x:Name="BadgeText" Text="{Binding Mode, Converter={StaticResource LocalizedTextConverter}}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource BadgePackText}"/>
-                                                </Border>
-                                            </Grid>
-
-                                            <Grid Grid.Row="1" Margin="0,5,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
-                                                    <Path Data="{StaticResource FluentClockIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
-                                                    <TextBlock Text="{Binding DateStr}" Foreground="{DynamicResource TextMuted}" FontSize="12"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                                    <Path x:Name="DurationIcon" Data="{StaticResource FluentSaveIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}" Margin="0,0,4,0"/>
-                                                    <TextBlock x:Name="DurationText" Text="{Binding Duration, Converter={StaticResource LocalizedTextConverter}}" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondary}"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </Grid>
-                                    </Grid>
-                                </Border>
-
-                                <!-- 触发器部分 -->
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{DynamicResource AccentRed}"/>
-                                        <Setter TargetName="ItemBorder" Property="BorderThickness" Value="1.5"/>
-                                        <Setter TargetName="BadgeBorder" Property="Background" Value="{DynamicResource BadgeErrorBg}"/>
-                                        <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource BadgeErrorText}"/>
-                                        <Setter TargetName="DurationText" Property="Foreground" Value="{DynamicResource AccentRed}"/>
-                                        <Setter TargetName="DurationIcon" Property="Data" Value="{StaticResource FluentClockIcon}"/>
-                                        <Setter TargetName="DurationIcon" Property="Fill" Value="{DynamicResource AccentRed}"/>
-                                        <Setter TargetName="ActiveStatusBorder" Property="Visibility" Value="Visible"/>
-
-                                        <DataTrigger.EnterActions>
-                                            <BeginStoryboard x:Name="ShimmerStoryboard">
-                                                <Storyboard>
-                                                    <!-- 显示流光层 -->
-                                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ShimmerLayer" Storyboard.TargetProperty="Visibility">
-                                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
-                                                    </ObjectAnimationUsingKeyFrames>
-
-                                                    <!-- 核心动效：让整个画刷从左侧完全消失的位置(-1.5)滑动到右侧完全消失的位置(1.5) -->
-                                                    <!-- 这种方式保证了渐变的“小尾巴”是平滑进入和出的，不会在中间拉伸 -->
-                                                    <DoubleAnimation Storyboard.TargetName="ShimmerTransform"
-                                                                     Storyboard.TargetProperty="X"
-                                                                     From="-1.5" To="1.5"
-                                                                     Duration="0:0:2"
-                                                                     RepeatBehavior="Forever">
-                                                        <!-- 使用缓动函数，让滑动更具质感 -->
-                                                        <DoubleAnimation.EasingFunction>
-                                                            <QuadraticEase EasingMode="EaseInOut"/>
-                                                        </DoubleAnimation.EasingFunction>
-                                                    </DoubleAnimation>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </DataTrigger.EnterActions>
-
-                                        <DataTrigger.ExitActions>
-                                            <StopStoryboard BeginStoryboardName="ShimmerStoryboard"/>
-                                        </DataTrigger.ExitActions>
-                                    </DataTrigger>
-
-                                    <DataTrigger Binding="{Binding Mode}" Value="退货">
-                                        <Setter TargetName="BadgeBorder" Property="Background" Value="{DynamicResource BadgeReturnBg}"/>
-                                        <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource BadgeReturnText}"/>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-                                <Setter Property="BorderThickness" Value="0"/>
-                                <Setter Property="Margin" Value="0"/>
-                                <Setter Property="Padding" Value="0"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListViewItem">
-                                            <Border Background="{TemplateBinding Background}">
-                                                <ContentPresenter/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                    </ListView>
-
-                    <Border Grid.Row="3"
-                            Background="{DynamicResource ControlBackground}"
-                            BorderBrush="{DynamicResource BorderDefault}"
-                            BorderThickness="1"
-                            CornerRadius="7"
-                            Padding="10,7"
-                            Margin="0,6,0,0">
+                    <Border Grid.Column="1" Margin="4,0" Padding="12,8" CornerRadius="8" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1" ClipToBounds="True">
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid Grid.Row="0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding WorkstationPrintStatusText}" Foreground="{DynamicResource TextMuted}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                <Button Grid.Column="1" Width="126" Height="32" Margin="8,0,0,0" Padding="9,0" Style="{StaticResource SecondaryButtonStyle}" ToolTip="订单联动" Cursor="Hand" Focusable="False" Tag="order-integration" Click="NavigationButton_Click">
-                                    <StackPanel Orientation="Horizontal" IsHitTestVisible="False">
-                                        <Path Data="{StaticResource FluentArrowSwapIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                        <TextBlock Text="订单联动" Margin="5,0,0,0" FontSize="12" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
-                            <Grid Grid.Row="1" Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid Grid.Column="0" VerticalAlignment="Center" ToolTip="{Binding ConnectedDeviceToolTip}">
+                            <Rectangle x:Name="CurrentRecordingShimmerLayer" Margin="-12,-8" IsHitTestVisible="False">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentScanRecord}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                                <Rectangle.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <TranslateTransform x:Name="CurrentRecordingShimmerTransform" X="-1.5"/>
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="{StaticResource TransparentColor}" Offset="0"/>
+                                        <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.3"/>
+                                        <GradientStop Color="{StaticResource RecordingShimmerCoreColor}" Offset="0.5"/>
+                                        <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.7"/>
+                                        <GradientStop Color="{StaticResource TransparentColor}" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Rectangle.Fill>
+                                <Rectangle.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="CurrentRecordingShimmerTransform"
+                                                                 Storyboard.TargetProperty="X"
+                                                                 From="-1.5" To="1.5"
+                                                                 Duration="0:0:2"
+                                                                 RepeatBehavior="Forever">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Rectangle.Triggers>
+                            </Rectangle>
+                            <Border CornerRadius="6" Padding="10,8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentScanRecord}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="当前录像" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="等待扫描面单条码" Margin="0,8,0,0" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentScanRecord}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="当前录像" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Text="{Binding CurrentScanRecord.OrderId}" ToolTip="{Binding CurrentScanRecord.OrderId}" Margin="0,5" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <Grid Grid.Row="2">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="8" Height="8" CornerRadius="4" Margin="0,0,6,0">
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="{DynamicResource TextMuted}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasConnectedDevices}" Value="True">
-                                                        <Setter Property="Background" Value="{DynamicResource AccentGreen}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                    </Border>
-                                    <TextBlock Grid.Column="1" Text="{Binding ConnectedDeviceText}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center">
+                                    <TextBlock Text="退货" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentOrange}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                <Setter Property="Visibility" Value="Collapsed"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasConnectedDevices}" Value="True">
-                                                        <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                    <DataTrigger Binding="{Binding CurrentScanRecord.Mode}" Value="退货">
+                                                        <Setter Property="Visibility" Value="Visible"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
+                                    <TextBlock Grid.Column="1" Text="{Binding CurrentScanRecord.Duration, Converter={StaticResource LocalizedTextConverter}}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AccentRed}"/>
                                 </Grid>
-                                <Button x:Name="BtnMobileConnection"
-                                        Grid.Column="1"
-                                        Width="126"
-                                        Height="32"
-                                        Margin="8,0,0,0"
-                                        Padding="9,0"
-                                        Style="{StaticResource PrimaryButtonStyle}"
-                                        ToolTip="{Binding WorkstationStatusToolTip}"
-                                        Focusable="False">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
-                                        <Path Data="{StaticResource FluentWifiIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource TextOnAccent}"/>
-                                        <TextBlock Text="手机/电脑连接" Margin="5,0,0,0" FontSize="12" Foreground="{StaticResource TextOnAccent}" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
                             </Grid>
                         </Grid>
                     </Border>
 
-                    <!-- 行2条形码: 开录/停录 -->
-                    <Border Grid.Row="4" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,6,0,0">
-                        <Grid Height="60">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Barcode2Label}" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" TextAlignment="Center" Width="20" LineHeight="18" Margin="0,0,4,0"/>
-                            <Grid Grid.Column="1">
-                                <Image Source="{Binding Barcode2Image}" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Barcode2Image}" Value="{x:Null}">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <TextBlock Text="条码冷却中…" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                    <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding Barcode2CooldownProgress}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
-                                </StackPanel>
-                            </Grid>
+                    <Grid Grid.Column="2" Height="64" Margin="12,0,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Barcode2Label}" Width="20" Margin="0,0,4,0" FontSize="13" FontWeight="SemiBold" LineHeight="18" TextAlignment="Center" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Grid Grid.Column="1">
+                            <Image Source="{Binding Barcode2Image}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Barcode2Image}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="条码冷却中…" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding Barcode2CooldownProgress}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
+                            </StackPanel>
                         </Grid>
-                    </Border>
+                    </Grid>
                 </Grid>
             </Border>
+
         </Grid>
 
     </Grid>

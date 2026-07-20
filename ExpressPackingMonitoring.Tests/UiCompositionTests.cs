@@ -81,6 +81,31 @@ public class UiCompositionTests
         Assert.DoesNotContain("打包数据分析", mainXaml);
     }
 
+    [Fact]
+    public void PcRecordingPage_UsesBottomBarcodeActionBarWithoutSidebarHistory()
+    {
+        string project = Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring");
+        string pageXaml = File.ReadAllText(Path.Combine(project, "UI", "Pages", "PcRecordingPage.xaml"));
+        string pageCode = File.ReadAllText(Path.Combine(project, "UI", "Pages", "PcRecordingPage.xaml.cs"));
+
+        Assert.DoesNotContain("RecordingSidebar", pageXaml);
+        Assert.DoesNotContain("FilteredLogs", pageXaml);
+        Assert.DoesNotContain("本机今日:", pageXaml);
+        Assert.Contains("Barcode1Image", pageXaml);
+        Assert.Contains("CurrentScanRecord", pageXaml);
+        Assert.Contains("Barcode2Image", pageXaml);
+        Assert.Contains("LineHeight=\"18\" TextAlignment=\"Center\"", pageXaml);
+        Assert.Contains("CurrentRecordingShimmerLayer", pageXaml);
+        Assert.Contains("RecordingShimmerCoreColor", pageXaml);
+        Assert.Contains("Text=\"退货\"", pageXaml);
+        Assert.DoesNotContain("Text=\"{Binding CurrentScanRecord.Mode", pageXaml);
+        Assert.Contains("PcRecordingControlHint", pageXaml);
+        Assert.Contains("Background=\"{StaticResource OverlayStrong}\"", pageXaml);
+        Assert.True(pageXaml.IndexOf("Barcode1Image", StringComparison.Ordinal) < pageXaml.IndexOf("CurrentScanRecord", StringComparison.Ordinal));
+        Assert.True(pageXaml.IndexOf("CurrentScanRecord", StringComparison.Ordinal) < pageXaml.IndexOf("Barcode2Image", StringComparison.Ordinal));
+        Assert.DoesNotContain("PcRecordingPage_SizeChanged", pageCode);
+    }
+
     private static string FindRepositoryRoot()
     {
         foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })

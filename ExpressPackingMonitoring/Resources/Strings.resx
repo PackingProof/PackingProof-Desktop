@@ -624,4 +624,9 @@
   <data name="Main.AverageMinutesSeconds" xml:space="preserve"><value>{0}m {1}s</value></data>
   <data name="Main.AverageSeconds" xml:space="preserve"><value>{0}s</value></data>
   <data name="Main.Version" xml:space="preserve"><value>Version {0}</value></data>
+  <data name="等待扫描面单条码" xml:space="preserve"><value>Waiting for shipping label barcode</value></data>
+  <data name="点击任意位置暂停摄像头" xml:space="preserve"><value>Click anywhere to pause the camera</value></data>
+  <data name="电脑录像已停用" xml:space="preserve"><value>PC recording is disabled</value></data>
+  <data name="点击任意位置启用电脑录像" xml:space="preserve"><value>Click anywhere to enable PC recording</value></data>
+  <data name="请先停止当前录像" xml:space="preserve"><value>Stop the current recording first</value></data>
 </root>

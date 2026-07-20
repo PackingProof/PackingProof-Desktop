@@ -100,7 +100,7 @@ namespace ExpressPackingMonitoring.ViewModels
             var orderId = _recordingOrderId;
             var mode = _recordingMode;
             var stopReason = _stopReason;
-            var scanRecord = _currentScanRecord;
+            var scanRecord = CurrentScanRecord;
             var recordId = _currentRecordId; 
             var audioLogPath = _currentAudioLogPath;
             if (Config.EnableAudioRecording
@@ -113,7 +113,7 @@ namespace ExpressPackingMonitoring.ViewModels
             RuntimeLog.Info("Recording", $"Stop requested id={recordId}, reason={stopReason}, file={Path.GetFileName(filePath ?? "")}");
 
             _recordStartTime = DateTime.MinValue;
-            _currentScanRecord = null;
+            CurrentScanRecord = null;
             _currentVideoFilePath = null;
             _currentVideoCodec = null;
             _currentVideoEncoder = null;
@@ -642,8 +642,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 ShowToast("提示：开始录像");
                 Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
-                _currentScanRecord = new ScanRecord(_recordingOrderId, "0s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
-                AddRecord(_currentScanRecord);
+                CurrentScanRecord = new ScanRecord(_recordingOrderId, "0s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
+                AddRecord(CurrentScanRecord);
             }
             finally
             {
