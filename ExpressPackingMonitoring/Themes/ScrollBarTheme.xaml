@@ -3,12 +3,12 @@
     <Style x:Key="ScrollBarPageButtonStyle" TargetType="RepeatButton">
         <Setter Property="Focusable" Value="False"/>
         <Setter Property="IsTabStop" Value="False"/>
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RepeatButton">
-                    <Border Background="Transparent"/>
+                    <Border Background="{StaticResource TransparentBrush}"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -38,7 +38,7 @@
     <Style TargetType="ScrollBar">
         <Setter Property="Width" Value="12"/>
         <Setter Property="MinWidth" Value="12"/>
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">

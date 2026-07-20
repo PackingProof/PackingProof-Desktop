@@ -10,7 +10,7 @@
             <Border x:Name="Border" Grid.ColumnSpan="2" CornerRadius="6"
                     Background="{DynamicResource PanelBackground}"
                     BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1" />
-            <Border Grid.Column="0" CornerRadius="6,0,0,6" Margin="1" Background="Transparent" />
+            <Border Grid.Column="0" CornerRadius="6,0,0,6" Margin="1" Background="{StaticResource TransparentBrush}" />
             <Path x:Name="Arrow" Grid.Column="1" Fill="{DynamicResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M0,0 L4,4 L8,0 z"/>
         </Grid>
         <ControlTemplate.Triggers>
@@ -52,7 +52,7 @@
                         <TextBox x:Name="PART_EditableTextBox" Style="{x:Null}"
                                  Template="{StaticResource ComboBoxTextBox}"
                                  HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,4" Focusable="True"
-                                 Background="Transparent" Visibility="Hidden" IsReadOnly="{TemplateBinding IsReadOnly}" />
+                                 Background="{StaticResource TransparentBrush}" Visibility="Hidden" IsReadOnly="{TemplateBinding IsReadOnly}" />
                         <Popup Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
                             <Grid Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <Border x:Name="DropDownBorder" Background="{DynamicResource PanelBackground}" BorderThickness="1" BorderBrush="{DynamicResource BorderStrong}" CornerRadius="6" Margin="0,2">
@@ -91,7 +91,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ComboBoxItem}">
-                    <Border CornerRadius="4" Name="Bd" Padding="{TemplateBinding Padding}" Background="Transparent">
+                    <Border CornerRadius="4" Name="Bd" Padding="{TemplateBinding Padding}" Background="{StaticResource TransparentBrush}">
                         <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
@@ -101,7 +101,7 @@
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentBlueDark}" />
-                            <Setter Property="Foreground" Value="White" />
+                            <Setter Property="Foreground" Value="{StaticResource TextOnAccent}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

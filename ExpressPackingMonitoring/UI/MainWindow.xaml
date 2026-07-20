@@ -131,7 +131,7 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Text="{Binding ToastMessage}" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding ToastMessage}" Foreground="{StaticResource TextOnAccent}" FontSize="18" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

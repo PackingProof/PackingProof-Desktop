@@ -448,17 +448,15 @@ namespace ExpressPackingMonitoring.UI
         private void UpdatePlayState(bool isPlaying)
         {
             _isPlaying = isPlaying;
+            BtnTogglePlay.Background = (Brush)FindResource(isPlaying ? "AccentOrange" : "AccentGreen");
+            BtnTogglePlay.Foreground = (Brush)FindResource(isPlaying ? "TextOnLightAccent" : "TextOnAccent");
             if (isPlaying)
             {
                 BtnTogglePlay.Content = "暂停";
-                BtnTogglePlay.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFC107"));
-                BtnTogglePlay.Foreground = Brushes.Black;
             }
             else
             {
                 BtnTogglePlay.Content = "播放";
-                BtnTogglePlay.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28A745"));
-                BtnTogglePlay.Foreground = Brushes.White;
             }
         }
 

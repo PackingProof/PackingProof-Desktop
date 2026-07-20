@@ -18,10 +18,10 @@
                     <StackPanel>
                         <TextBlock Text="2  局域网连接" FontSize="17" FontWeight="SemiBold"/>
                         <TextBlock x:Name="LanText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}"/>
-                        <Border x:Name="QrPanel" Width="196" Height="196" Margin="0,12,0,8" Padding="8" HorizontalAlignment="Left" CornerRadius="10" Background="White" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
+                        <Border x:Name="QrPanel" Width="196" Height="196" Margin="0,12,0,8" Padding="8" HorizontalAlignment="Left" CornerRadius="10" Background="{StaticResource QrCodeBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="1">
                             <Grid>
                                 <Image x:Name="QrCodeImage" Stretch="Uniform"/>
-                                <TextBlock x:Name="QrUnavailableText" Text="二维码暂不可用" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#666666"/>
+                                <TextBlock x:Name="QrUnavailableText" Text="二维码暂不可用" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
                             </Grid>
                         </Border>
                         <TextBox x:Name="AccessUrlTextBox" IsReadOnly="True" Padding="10,7" TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"/>

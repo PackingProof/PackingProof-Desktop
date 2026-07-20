@@ -5,6 +5,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/ColorTokens.xaml"/>
                 <ResourceDictionary Source="Themes/LightTheme.xaml"/>
                 <ResourceDictionary Source="Themes/ComboBoxTheme.xaml" />
                 <ResourceDictionary Source="Themes/DatePickerTheme.xaml" />

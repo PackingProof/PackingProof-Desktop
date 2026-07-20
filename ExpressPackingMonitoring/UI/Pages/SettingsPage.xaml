@@ -48,7 +48,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="1"
                             Margin="0,1,1,1"
-                            Background="Transparent"
+                            Background="{StaticResource TransparentBrush}"
                             CornerRadius="0,7,7,0"/>
                     <Path x:Name="Arrow"
                           Grid.Column="1"
@@ -80,12 +80,12 @@
         <ControlTemplate x:Key="SettingsComboBoxTextBoxTemplate" TargetType="{x:Type TextBox}">
             <Border x:Name="PART_ContentHost"
                     Focusable="False"
-                    Background="Transparent"/>
+                    Background="{StaticResource TransparentBrush}"/>
         </ControlTemplate>
 
         <Style TargetType="ComboBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="Padding" Value="10,7"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -192,7 +192,7 @@
                                      VerticalAlignment="Center"
                                      Margin="10,0,38,0"
                                      Focusable="True"
-                                     Background="Transparent"
+                                     Background="{StaticResource TransparentBrush}"
                                      Foreground="{TemplateBinding Foreground}"
                                      Visibility="Hidden"
                                      IsReadOnly="{TemplateBinding IsReadOnly}"/>
@@ -269,7 +269,7 @@
                         <ColumnDefinition x:Name="SpinnerColumn" Width="0"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="PART_TextBox"
-                             Background="Transparent"
+                             Background="{StaticResource TransparentBrush}"
                              BorderThickness="0"
                              CaretBrush="{DynamicResource AccentBlue}"
                              Foreground="{TemplateBinding Foreground}"
@@ -298,7 +298,7 @@
                                             IsTabStop="False"
                                             Margin="0"
                                             BorderThickness="0"
-                                            Background="Transparent"
+                                            Background="{StaticResource TransparentBrush}"
                                             Foreground="{DynamicResource TextSecondary}"
                                             AllowSpin="{TemplateBinding AllowSpin}"
                                             ShowSpinner="False"/>
@@ -335,7 +335,7 @@
                         <ColumnDefinition x:Name="SpinnerColumn" Width="0"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="PART_TextBox"
-                             Background="Transparent"
+                             Background="{StaticResource TransparentBrush}"
                              BorderThickness="0"
                              CaretBrush="{DynamicResource AccentBlue}"
                              Foreground="{TemplateBinding Foreground}"
@@ -364,7 +364,7 @@
                                             IsTabStop="False"
                                             Margin="0"
                                             BorderThickness="0"
-                                            Background="Transparent"
+                                            Background="{StaticResource TransparentBrush}"
                                             Foreground="{DynamicResource TextSecondary}"
                                             AllowSpin="{TemplateBinding AllowSpin}"
                                             ShowSpinner="False"/>
@@ -646,7 +646,7 @@
                         <Grid x:Name="MainGrid" Width="44" Height="24" VerticalAlignment="Center">
                             <Border x:Name="BorderUnchecked" CornerRadius="12" Background="{DynamicResource BorderStrong}"/>
                             <Border x:Name="BorderChecked" CornerRadius="12" Background="{DynamicResource AccentBlue}" Opacity="0"/>
-                            <Ellipse x:Name="Knob" Width="20" Height="20" Fill="White" HorizontalAlignment="Left" Margin="2,0,0,0">
+                            <Ellipse x:Name="Knob" Width="20" Height="20" Fill="{StaticResource TextOnAccent}" HorizontalAlignment="Left" Margin="2,0,0,0">
                                 <Ellipse.RenderTransform>
                                     <TranslateTransform X="0"/>
                                 </Ellipse.RenderTransform>
@@ -723,7 +723,7 @@
 
         <TabControl Grid.Row="0"
                     TabStripPlacement="Left"
-                    Background="Transparent"
+                    Background="{StaticResource TransparentBrush}"
                     BorderThickness="0"
                     Margin="0,0,0,18">
             <TabControl.Template>
@@ -760,9 +760,9 @@
                     <Setter Property="Margin" Value="0,0,0,6"/>
                     <Setter Property="MinWidth" Value="156"/>
                     <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
                     <Setter Property="BorderThickness" Value="1"/>
-                    <Setter Property="BorderBrush" Value="Transparent"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource TransparentBrush}"/>
                     <Setter Property="Cursor" Value="Hand"/>
                     <Setter Property="Template">
                         <Setter.Value>
@@ -809,7 +809,7 @@
             </TabControl.Resources>
 
             <TabItem Header="设备与画面">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -1008,7 +1008,7 @@
             </TabItem>
 
             <TabItem Header="面单放大">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -1179,7 +1179,7 @@
             </TabItem>
 
             <TabItem Header="录制控制">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -1446,7 +1446,7 @@
                 </Border>
             </TabItem>
             <TabItem Header="存储管理">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -1500,7 +1500,7 @@
                                                   GridLinesVisibility="Horizontal"
                                                   HorizontalGridLinesBrush="{DynamicResource BorderLight}"
                                                   BorderThickness="0"
-                                                  Background="Transparent"
+                                                  Background="{StaticResource TransparentBrush}"
                                                   Foreground="{DynamicResource TextPrimary}"
                                                   RowHeight="50"
                                                   FontSize="13"
@@ -1519,7 +1519,7 @@
                                             </DataGrid.ColumnHeaderStyle>
                                             <DataGrid.RowStyle>
                                                 <Style TargetType="DataGridRow">
-                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
                                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                                                     <Style.Triggers>
                                                         <MultiTrigger>
@@ -1539,7 +1539,7 @@
                                             <DataGrid.CellStyle>
                                                 <Style TargetType="DataGridCell">
                                                     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
                                                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                                     <Setter Property="Padding" Value="6,0"/>
@@ -1683,7 +1683,7 @@
             </TabItem>
 
             <TabItem Header="AI 语音">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -2021,7 +2021,7 @@
             </TabItem>
 
             <TabItem Header="局域网查看">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -2280,7 +2280,7 @@
                 </Border>
             </TabItem>
             <TabItem Header="扫码设置">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <!-- 基础扫码设置 -->
@@ -2613,7 +2613,7 @@
             </TabItem>
 
             <TabItem Header="高级设置">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <!-- 水印设置 -->
@@ -2822,7 +2822,7 @@
             </TabItem>
 
             <TabItem Header="关于">
-                <Border Background="Transparent" Padding="0,4,0,0">
+                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
@@ -2953,7 +2953,7 @@
                 </Style>
             </Border.Style>
             <TextBlock Text="{Binding MainVM.ToastMessage}"
-                       Foreground="White"
+                       Foreground="{StaticResource TextOnAccent}"
                        FontSize="16"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"

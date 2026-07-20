@@ -144,7 +144,7 @@
                                                 Padding="8,3"
                                                 Background="{DynamicResource AccentBlue}"
                                                 CornerRadius="6">
-                                            <TextBlock Text="推荐" Foreground="White" FontSize="12" FontWeight="Bold"/>
+                                            <TextBlock Text="推荐" Foreground="{StaticResource TextOnAccent}" FontSize="12" FontWeight="Bold"/>
                                         </Border>
                                     </DockPanel>
                                     <TextBlock Text="扫描新单号后，自动结束上一单并开始下一单。"
@@ -195,7 +195,7 @@
                                   SelectionChanged="CameraComboBox_SelectionChanged"
                                   Margin="0,0,0,16"/>
                         <Border Grid.Row="2"
-                                Background="Black"
+                                Background="{StaticResource BarcodeForeground}"
                                 BorderBrush="{DynamicResource BorderDefault}"
                                 BorderThickness="1"
                                 CornerRadius="8"
@@ -209,29 +209,29 @@
                                       VerticalAlignment="Center"
                                       IsHitTestVisible="False">
                                     <Rectangle x:Name="CameraRecognitionGuideBorder"
-                                               Stroke="#DD0078D7"
+                                               Stroke="{StaticResource CameraGuideStroke}"
                                                StrokeThickness="3"
                                                StrokeDashArray="6 3"
-                                               Fill="#080078D7"
+                                               Fill="{StaticResource CameraGuideFill}"
                                                RadiusX="6"
                                                RadiusY="6"/>
                                     <Border HorizontalAlignment="Center"
                                             VerticalAlignment="Top"
                                             Margin="0,10,0,0"
                                             Padding="12,6"
-                                            Background="#DD0067B8"
+                                            Background="{StaticResource AccentBlue}"
                                             CornerRadius="6">
                                         <TextBlock x:Name="CameraRecognitionStatusText"
                                                    Text="将面单条形码放入框内"
-                                                   Foreground="White"
+                                                   Foreground="{StaticResource TextOnAccent}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"/>
                                     </Border>
                                 </Grid>
                                 <TextBlock x:Name="CameraStatusText"
                                            Text="正在准备摄像头预览..."
-                                           Foreground="#DDFFFFFF"
-                                           Background="#66000000"
+                                           Foreground="{StaticResource OverlayTextPrimary}"
+                                           Background="{StaticResource OverlaySoft}"
                                            Padding="10,6"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
