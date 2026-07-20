@@ -14,12 +14,15 @@ public class UiCompositionTests
 
         Assert.Contains("MobileBackupContentHost", mainXaml);
         Assert.Contains("OrderIntegrationContentHost", mainXaml);
+        Assert.Contains("PcRecordingContentHost", mainXaml);
         Assert.Contains("VideoLibraryContentHost", mainXaml);
         Assert.Contains("SettingsContentHost", mainXaml);
         Assert.DoesNotContain("new SettingsWindow", mainViewModel);
         Assert.DoesNotContain("new PlaybackWindow", mainViewModel);
         Assert.False(File.Exists(Path.Combine(project, "UI", "SettingsWindow.xaml")));
         Assert.False(File.Exists(Path.Combine(project, "UI", "PlaybackWindow.xaml")));
+        Assert.DoesNotContain("ScanInputTextBox", mainXaml);
+        Assert.True(File.Exists(Path.Combine(project, "UI", "Pages", "PcRecordingPage.xaml")));
     }
 
     private static string FindRepositoryRoot()
