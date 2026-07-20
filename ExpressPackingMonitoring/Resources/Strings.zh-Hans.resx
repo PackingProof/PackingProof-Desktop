@@ -53,6 +53,8 @@
   <data name="点击启用电脑录像" xml:space="preserve"><value>点击启用电脑录像</value></data>
   <data name="录像中，停止后可停用" xml:space="preserve"><value>录像中，停止后可停用</value></data>
   <data name="仍未检测到摄像头，请检查连接" xml:space="preserve"><value>仍未检测到摄像头，请检查连接</value></data>
+  <data name="首次使用请在下方确认接收目标并保存，订单联动会在保存成功后启用" xml:space="preserve"><value>首次使用请在下方确认接收目标并保存，订单联动会在保存成功后启用</value></data>
+  <data name="未识别面单" xml:space="preserve"><value>未识别面单</value></data>
   <data name="检查更新" xml:space="preserve"><value>检查更新</value></data>
   <data name="播放选区" xml:space="preserve"><value>播放选区</value></data>
   <data name="生成并下载" xml:space="preserve"><value>生成并下载</value></data>

@@ -14,6 +14,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
+using System.Text.RegularExpressions;
+using ExpressPackingMonitoring.Localization;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -168,7 +170,7 @@ namespace ExpressPackingMonitoring.UI
                         FileInfo? info = (deleted || missing) ? null : new FileInfo(record.FilePath);
                         videos.Add(new VideoItem
                         {
-                            DisplayName = Path.GetFileNameWithoutExtension(record.FileName),
+                            DisplayName = ResolveTrackingNumber(record.TrackingNumber, record.OrderId, record.FileName),
                             FullPath = record.FilePath,
                             OrderId = record.OrderId,
                             Mode = record.Mode,
@@ -221,7 +223,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     videos.Add(new VideoItem
                     {
-                        DisplayName = Path.GetFileNameWithoutExtension(file.Name),
+                        DisplayName = ResolveTrackingNumber(null, null, file.Name),
                         FullPath = file.FullName,
                         FileSize = FormatFileSize(file.Length),
                         File = file
@@ -247,6 +249,20 @@ namespace ExpressPackingMonitoring.UI
             if (bytes < 1024) return $"{bytes}B";
             if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F0}KB";
             return $"{bytes / (1024.0 * 1024.0):F1}MB";
+        }
+
+        internal static string ResolveTrackingNumber(string? trackingNumber, string? orderId, string? fileName)
+        {
+            foreach (string? candidate in new[] { trackingNumber, orderId })
+            {
+                if (!string.IsNullOrWhiteSpace(candidate))
+                    return candidate.Trim();
+            }
+
+            string name = Path.GetFileNameWithoutExtension(fileName ?? string.Empty);
+            Match match = Regex.Match(name, @"^(?<tracking>.+)_\d{8}_\d{6}(?:_.+)?$", RegexOptions.CultureInvariant);
+            string parsed = match.Success ? match.Groups["tracking"].Value.Trim() : string.Empty;
+            return string.IsNullOrWhiteSpace(parsed) ? AppLanguage.Translate("未识别面单") : parsed;
         }
 
         private void ApplyFilters()
@@ -325,7 +341,7 @@ namespace ExpressPackingMonitoring.UI
                 string reason = string.IsNullOrEmpty(video.DeleteReason) ? "系统清理" : video.DeleteReason;
                 string time = video.DeletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "未知";
                 MessageBox.Show(
-                    $"该视频已被覆盖删除，无法播放。\n\n单号: {video.OrderId}\n删除原因: {reason}\n删除时间: {time}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
+                    $"该视频已被覆盖删除，无法播放。\n\n单号: {video.DisplayName}\n删除原因: {reason}\n删除时间: {time}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
                     "视频已删除", MessageBoxButton.OK, MessageBoxImage.Information);
                 UpdateLocateButtonState(video);
                 return;
@@ -334,7 +350,7 @@ namespace ExpressPackingMonitoring.UI
             if (video.IsMissing)
             {
                 MessageBox.Show(
-                    $"视频文件已被外部删除或移动，无法播放。\n\n单号: {video.OrderId}\n路径: {video.FullPath}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
+                    $"视频文件已被外部删除或移动，无法播放。\n\n单号: {video.DisplayName}\n路径: {video.FullPath}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
                     "文件丢失", MessageBoxButton.OK, MessageBoxImage.Warning);
                 UpdateLocateButtonState(video);
                 return;

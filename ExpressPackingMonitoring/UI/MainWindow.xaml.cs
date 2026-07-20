@@ -60,10 +60,6 @@ namespace ExpressPackingMonitoring.UI
             MobileBackupContentHost.Content = mobileBackupPage;
 
             var orderIntegrationPage = new OrderIntegrationPage { DataContext = _runtimeHost.OrderIntegration };
-            orderIntegrationPage.SetupRequested += (_, _) =>
-            {
-                if (ConfigureOrderIntegration(_runtimeHost.Main)) _runtimeHost.OrderIntegration.ReloadTargets();
-            };
             OrderIntegrationContentHost.Content = orderIntegrationPage;
 
             string videoFolder;
@@ -145,11 +141,6 @@ namespace ExpressPackingMonitoring.UI
                 && viewModel.Config.MobileBackupSetupVersion < AppConfig.CurrentMobileBackupSetupVersion
                 && !ConfigureMobileBackup(viewModel))
                 module = AppModules.Overview;
-            if (module == AppModules.OrderIntegration
-                && viewModel.Config.OrderIntegrationSetupVersion < AppConfig.CurrentOrderIntegrationSetupVersion
-                && !ConfigureOrderIntegration(viewModel))
-                module = AppModules.Overview;
-
             Shell.Navigate(module);
             OverviewModule.Visibility = module == AppModules.Overview ? Visibility.Visible : Visibility.Collapsed;
             PcRecordingModule.Visibility = module == AppModules.PcRecording ? Visibility.Visible : Visibility.Collapsed;
@@ -210,22 +201,6 @@ namespace ExpressPackingMonitoring.UI
             AppConfig result = CloneConfig(viewModel.Config);
             result.EnableMobileBackup = true;
             result.MobileBackupSetupVersion = AppConfig.CurrentMobileBackupSetupVersion;
-            return viewModel.ApplyModuleConfiguration(result);
-        }
-
-        private bool ConfigureOrderIntegration(MainViewModel viewModel)
-        {
-            var wizard = new OrderIntegrationSetupWindow(viewModel.Config) { Owner = this };
-            SuspendCapsLockForModalWindow();
-            bool accepted;
-            try { accepted = wizard.ShowDialog() == true; }
-            finally { ResumeCapsLockAfterModalWindow(); }
-            if (!accepted) return false;
-
-            AppConfig result = CloneConfig(viewModel.Config);
-            result.OrderIntegrationTargets = wizard.ResultTargets.ToList();
-            result.EnableOrderIntegration = true;
-            result.OrderIntegrationSetupVersion = AppConfig.CurrentOrderIntegrationSetupVersion;
             return viewModel.ApplyModuleConfiguration(result);
         }
 

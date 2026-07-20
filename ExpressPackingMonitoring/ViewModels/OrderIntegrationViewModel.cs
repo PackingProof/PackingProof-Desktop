@@ -26,7 +26,7 @@ public sealed class OrderIntegrationViewModel : ObservableObject, IDisposable
         AddTargetCommand = new RelayCommand(AddTarget);
         DeleteTargetCommand = new RelayCommand(DeleteTarget, () => SelectedTarget is { IsLocal: false });
         SaveTargetsCommand = new RelayCommand(SaveTargets);
-        ToggleEnabledCommand = new RelayCommand(ToggleEnabled);
+        ToggleEnabledCommand = new RelayCommand(ToggleEnabled, () => !IsSetupRequired);
         TestTargetCommand = new AsyncRelayCommand(TestTargetAsync, () => SelectedTarget != null);
         SendTestOrderCommand = new AsyncRelayCommand(SendTestOrderAsync);
         InstallScriptCommand = new RelayCommand(InstallScript);
@@ -55,6 +55,7 @@ public sealed class OrderIntegrationViewModel : ObservableObject, IDisposable
     public string OperationMessage { get => _operationMessage; set => SetProperty(ref _operationMessage, value); }
     public string ToggleText => _runtime.Config.EnableOrderIntegration ? "暂停联动" : "恢复联动";
     public string ConnectionSummary => _runtime.ConnectedDeviceText;
+    public bool IsSetupRequired => _runtime.Config.OrderIntegrationSetupVersion < AppConfig.CurrentOrderIntegrationSetupVersion;
 
     public ICommand AddTargetCommand { get; }
     public ICommand DeleteTargetCommand { get; }
@@ -203,8 +204,10 @@ public sealed class OrderIntegrationViewModel : ObservableObject, IDisposable
     {
         bool configured = _runtime.Config.OrderIntegrationSetupVersion >= AppConfig.CurrentOrderIntegrationSetupVersion;
         StatusText = !configured ? "未配置" : _runtime.Config.EnableOrderIntegration ? "运行正常" : "已暂停";
+        OnPropertyChanged(nameof(IsSetupRequired));
         OnPropertyChanged(nameof(ToggleText));
         OnPropertyChanged(nameof(ConnectionSummary));
+        (ToggleEnabledCommand as RelayCommand)?.NotifyCanExecuteChanged();
     }
 
     private string ResolveAddress(OrderTargetRowViewModel target) => target.IsLocal

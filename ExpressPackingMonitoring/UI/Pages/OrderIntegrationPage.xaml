@@ -14,10 +14,23 @@
                     <Border Padding="10,5" Margin="0,0,10,0" CornerRadius="12" Background="{DynamicResource BadgePackBg}">
                         <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource BadgePackText}"/>
                     </Border>
-                    <Button Content="重新运行向导" Height="38" Margin="0,0,10,0" Style="{StaticResource SecondaryButtonStyle}" Focusable="False" Click="Setup_Click"/>
                     <Button Content="{Binding ToggleText}" Height="38" Style="{StaticResource SecondaryButtonStyle}" Focusable="False" Command="{Binding ToggleEnabledCommand}"/>
                 </StackPanel>
             </Grid>
+
+            <Border Margin="0,18,0,0" Padding="16,13" CornerRadius="10" Background="{DynamicResource BadgePackBg}" BorderBrush="{DynamicResource AccentBlue}" BorderThickness="1">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSetupRequired}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="首次使用请在下方确认接收目标并保存，订单联动会在保存成功后启用" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimary}"/>
+            </Border>
 
             <Border Margin="0,22,0,16" Padding="20" CornerRadius="12" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                 <Grid>

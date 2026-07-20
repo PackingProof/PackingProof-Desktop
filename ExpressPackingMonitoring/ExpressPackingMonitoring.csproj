@@ -136,7 +136,6 @@
     <Compile Include="UI\Pages\MobileBackupPage.xaml.cs" />
     <Compile Include="UI\Pages\OrderIntegrationPage.xaml.cs" />
     <Compile Include="UI\Pages\PcRecordingPage.xaml.cs" />
-    <Compile Include="UI\OrderIntegrationSetupWindow.xaml.cs" />
     <Compile Include="UI\Pages\VideoLibraryPage.xaml.cs" />
     <Compile Include="UI\Pages\SettingsPage.xaml.cs" />
     <Compile Include="UI\Components\StatisticsPanel.xaml.cs" />
