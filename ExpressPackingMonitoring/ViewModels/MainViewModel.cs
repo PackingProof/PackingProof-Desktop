@@ -154,6 +154,19 @@ namespace ExpressPackingMonitoring.ViewModels
         private const int MaxConsecutiveRestartFailures = 5;
         private const double MinRestartIntervalSeconds = 3.0;
 
+        private bool IsPcCameraRuntimeEnabled => ShouldRunPcCameraRuntime(
+            Config?.EnablePcCameraRecording == true,
+            _isSetupWizardActive,
+            _isDisposed,
+            _shutdownRequested);
+
+        internal static bool ShouldRunPcCameraRuntime(
+            bool isEnabled,
+            bool isSetupWizardActive,
+            bool isDisposed,
+            bool isShutdownRequested) =>
+            isEnabled && !isSetupWizardActive && !isDisposed && !isShutdownRequested;
+
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
         private sealed class PrintedRefundScanCheck
         {
@@ -2514,9 +2527,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void RestartCamera()
         {
-            if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+            if (!IsPcCameraRuntimeEnabled)
             {
-                RuntimeLog.Info("Camera", "RestartCamera skipped while setup wizard owns camera");
+                RuntimeLog.Info("Camera", "RestartCamera skipped because PC camera runtime is disabled");
                 return;
             }
 
@@ -2549,9 +2562,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async void RestartCameraWithRecordingStop()
         {
-            if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+            if (!IsPcCameraRuntimeEnabled)
             {
-                RuntimeLog.Info("Camera", "RestartCameraWithRecordingStop skipped while setup wizard owns camera");
+                RuntimeLog.Info("Camera", "RestartCameraWithRecordingStop skipped because PC camera runtime is disabled");
                 return;
             }
 
@@ -2768,9 +2781,9 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
-                if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                if (!IsPcCameraRuntimeEnabled)
                 {
-                    RuntimeLog.Info("Camera", "StartCamera skipped while setup wizard owns camera");
+                    RuntimeLog.Info("Camera", "StartCamera skipped because PC camera runtime is disabled");
                     return;
                 }
 
@@ -2851,10 +2864,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 _videoSource.VideoSourceError += (s, e) => {
                     Debug.WriteLine($"[Camera] 视频源错误: {e.Description}");
                     RuntimeLog.Error("Camera", $"VideoSourceError: {e.Description}");
-                    if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                    if (!IsPcCameraRuntimeEnabled)
                         return;
                     _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                        if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                        if (!IsPcCameraRuntimeEnabled)
                             return;
                         ShowToast("警告：摄像头连接发生错误，尝试重连...");
                         RestartCameraWithRecordingStop();
@@ -3151,7 +3164,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     else
                     {
                         // 休眠期间不做任何自动重连操作
-                        if (_isCameraSleeping || _isSetupWizardActive)
+                        if (!IsPcCameraRuntimeEnabled || _isCameraSleeping)
                         {
                         }
                         // 如果已达重连上限或正在重启中，不再尝试
@@ -3297,7 +3310,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void CheckPreviewWatchdog()
         {
-            if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
+            if (!IsPcCameraRuntimeEnabled || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
             if (!IsVideoSourceRunning() || !_cameraEverConnected) return;
             if (_lastFrameTime == DateTime.MinValue || _lastPreviewPublishedAt == DateTime.MinValue) return;
 
@@ -3350,7 +3363,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _previewSessionGate.ClearCurrentPending();
             _ = Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
+                if (!IsPcCameraRuntimeEnabled || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
                 ShowToast("警告：预览画面卡住，正在重连摄像头...");
                 RestartCameraWithRecordingStop();
             });
