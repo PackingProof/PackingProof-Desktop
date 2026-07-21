@@ -55,6 +55,14 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - Cache-like Web artifacts, including transcode cache, clip previews, and clipped downloads, live under `%LOCALAPPDATA%\ExpressPackingMonitoring\cache` and are cleaned by the Web cache limit.
 - Web clipping is named “剪辑” / “剪辑并下载”. Do not call it “导出视频”, which can be confused with original video download.
 
+## Destructive File Operation Safety
+
+- Treat deletion of recordings, databases, configuration, update payloads, and generated outputs as concurrency-sensitive. Before deleting, verify the exact file owner, lifecycle state, and current source/target relationship under the same synchronization used to create or replace it.
+- A failed task must not delete a shared output merely because that output exists. Another task may have completed successfully and removed or replaced the source before the failed task observes it.
+- Keep incomplete-output cleanup inside the owning operation and lock. Only remove an output when the original source is still preserved and the current operation can prove that it created the incomplete file.
+- Add a regression test for destructive or replacement logic that exercises the competing-task ordering: task A completes and publishes the target, then task B reaches failure cleanup. The test must verify that task B preserves task A's valid target.
+- Prefer recoverable cleanup or explicit database deletion records where practical. Log the reason and exact target for every automatic deletion of material data.
+
 ## Coding Style & Naming Conventions
 
 Use C# with nullable references and implicit usings enabled. Follow the existing WPF/MVVM style: `PascalCase` for public types, properties, and commands; `camelCase` for locals; `_camelCase` for private fields. Keep XAML names descriptive and aligned with their backing view or view model. Preserve UTF-8 text and avoid broad line-ending or encoding churn, especially in Chinese strings, XAML, HTML, and userscript files. UI copy should not be followed by a Chinese period or English period at the end of the sentence.
