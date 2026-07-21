@@ -440,6 +440,84 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
+    public void ResolvePrintedRefundOrderForAlert_UsesLatestNormalOrderInsteadOfCachedRefund()
+    {
+        var cachedRefund = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            OrderId = "OLD",
+            IsPrintedRefund = true,
+            RefundStatus = "SUCCESS"
+        };
+        var latestNormal = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            OrderId = "NEW",
+            IsPrintedRefund = false,
+            RefundStatus = "NO_REFUND"
+        };
+        var result = new OrderLookupResult { Responded = true, Orders = [latestNormal, cachedRefund] };
+
+        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+
+        Assert.Same(latestNormal, selected);
+        Assert.False(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
+    }
+
+    [Fact]
+    public void ResolvePrintedRefundOrderForAlert_AlertsWhenLatestOrderHasRefund()
+    {
+        var cachedNormal = new OrderInfo { TrackingNumber = "TRACK-1", OrderId = "OLD" };
+        var latestRefund = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            OrderId = "NEW",
+            IsPrintedRefund = true,
+            RefundStatus = "WAIT_SELLER_AGREE"
+        };
+        var result = new OrderLookupResult { Responded = true, Orders = [latestRefund, cachedNormal] };
+
+        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedNormal);
+
+        Assert.Same(latestRefund, selected);
+        Assert.True(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
+    }
+
+    [Fact]
+    public void ResolvePrintedRefundOrderForAlert_ClearsOldRefundWhenFreshLookupFindsNothing()
+    {
+        var cachedRefund = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            IsPrintedRefund = true,
+            RefundStatus = "SUCCESS"
+        };
+        var result = new OrderLookupResult { Responded = true, Orders = [] };
+
+        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+
+        Assert.Null(selected);
+        Assert.False(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
+    }
+
+    [Fact]
+    public void ResolvePrintedRefundOrderForAlert_FallsBackToCachedRefundWhenLookupFails()
+    {
+        var cachedRefund = new OrderInfo
+        {
+            TrackingNumber = "TRACK-1",
+            IsPrintedRefund = true,
+            RefundStatus = "SUCCESS"
+        };
+        var result = new OrderLookupResult { Responded = false, Orders = [] };
+
+        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+
+        Assert.Same(cachedRefund, selected);
+        Assert.True(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
+    }
+
+    [Fact]
     public void BuildOrderInfoSpeechFollowups_PreservesBuyerAndSellerRemarksAfterRefundAlert()
     {
         var orderInfo = new OrderInfo
@@ -534,7 +612,7 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
-    public void AlertService_ForwardsIndustrialAlarmOnceAndRefundSpeechThreeTimes()
+    public void AlertService_ForwardsIndustrialAlarmAndRefundSpeechOnce()
     {
         AlertRequest? playedRequest = null;
         using var alerts = new AlertService(_ => { }, request => playedRequest = request);
@@ -545,7 +623,7 @@ public sealed class ConfigurationAndScannerTests
             Priority = AlertPriority.Critical,
             Sound = AlertSound.IndustrialAlarm,
             SoundRepeatCount = 1,
-            SpeechRepeatCount = 3,
+            SpeechRepeatCount = 1,
             FollowupSpeech =
             [
                 new AlertSpeechFollowup { Text = "买家留言，放门口", Sound = AlertSound.Remark },
@@ -557,7 +635,7 @@ public sealed class ConfigurationAndScannerTests
         Assert.NotNull(playedRequest);
         Assert.Equal(AlertSound.IndustrialAlarm, playedRequest.Sound);
         Assert.Equal(1, playedRequest.SoundRepeatCount);
-        Assert.Equal(3, playedRequest.SpeechRepeatCount);
+        Assert.Equal(1, playedRequest.SpeechRepeatCount);
         Assert.Equal(2, playedRequest.FollowupSpeech.Count);
         Assert.Equal("买家留言，放门口", playedRequest.FollowupSpeech[0].Text);
         Assert.Equal("卖家备注，检查颜色", playedRequest.FollowupSpeech[1].Text);

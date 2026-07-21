@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         订单备注播报插件
 // @namespace    https://github.com/ExpressPackingMonitoring
-// @version      2.9
+// @version      2.10
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，同时发送到已配对的电脑和手机
 // @author       ExpressPackingMonitoring
 // @icon         https://raw.githubusercontent.com/m-RNA/ExpressPackingMonitoring/main/ExpressPackingMonitoring/app.ico
@@ -808,9 +808,50 @@
         throw new Error('打印后退款列表未在限定时间内完成刷新，已改用监控端最近缓存');
     }
 
+    function selectLatestOrdersByTrackingNumber(orders, trackingNumbers) {
+        const requested = Array.from(new Set((trackingNumbers || [])
+            .map(value => String(value || '').trim().toUpperCase())
+            .filter(Boolean)));
+        const latest = new Map();
+        (orders || []).forEach(order => {
+            const key = String(order?.trackingNumber || '').trim().toUpperCase();
+            if (requested.includes(key) && !latest.has(key)) latest.set(key, order);
+        });
+
+        return requested.map(trackingNumber => latest.get(trackingNumber) || {
+            trackingNumber,
+            orderId: '',
+            buyerMessage: '',
+            sellerMemo: '',
+            productInfo: '',
+            hasRefund: false,
+            isPrintedRefund: false,
+            refundStatus: 'NO_REFUND',
+            refundProductInfo: ''
+        });
+    }
+
+    async function ensureNewestOrderFirstSort() {
+        const sortDimension = document.querySelector('#orderShowSortDim');
+        const sortType = document.querySelector('#orderShowSortType');
+        if (!sortDimension || !sortType)
+            throw new Error('无法设置“按下单时间，后下单在前”排序');
+
+        const dimensionChanged = sortDimension.value !== '1';
+        const typeChanged = sortType.value !== '21';
+        sortDimension.value = '1';
+        sortType.value = '21';
+        if (typeChanged) sortType.dispatchEvent(new Event('change', { bubbles: true }));
+        if (dimensionChanged) sortDimension.dispatchEvent(new Event('change', { bubbles: true }));
+        const changed = dimensionChanged || typeChanged;
+        if (changed) await delay(200);
+    }
+
     async function queryOrdersByTrackingNumbers(trackingNumbers) {
         const values = Array.from(new Set((trackingNumbers || []).map(value => String(value || '').trim().toUpperCase()).filter(Boolean)));
         if (values.length === 0) return [];
+
+        await ensureNewestOrderFirstSort();
 
         const searchType = document.querySelector('select.extendSearchList');
         const searchTypeItem = document.querySelector('.extendSearchListLi li[data-value="sid"]');
@@ -843,33 +884,16 @@
                 stableSince = Date.now();
             }
             if (changed && Date.now() - stableSince >= PRINTED_REFUND_STABLE_MS)
-                return extractOrders();
+                return selectLatestOrdersByTrackingNumber(extractOrders(), values);
         }
         throw new Error('按快递单号查询超时');
     }
 
     async function queryRequestedRefundSnapshot(trackingNumbers) {
-        const snapshot = await queryPrintedRefundSnapshot();
         const requested = Array.from(new Set((trackingNumbers || []).map(value => String(value || '').trim().toUpperCase()).filter(Boolean)));
-        if (requested.length === 0) return snapshot;
+        if (requested.length === 0) return queryPrintedRefundSnapshot();
 
-        const found = new Set(snapshot.map(order => String(order.trackingNumber || '').trim().toUpperCase()).filter(Boolean));
-        const missing = requested.filter(value => !found.has(value));
-        if (missing.length === 0) return snapshot;
-
-        try {
-            const exactOrders = await queryOrdersByTrackingNumbers(missing);
-            const merged = new Map();
-            exactOrders.forEach(order => merged.set(String(order.trackingNumber || '').trim().toUpperCase(), order));
-            snapshot.forEach(order => {
-                const key = String(order.trackingNumber || '').trim().toUpperCase();
-                if (!merged.has(key)) merged.set(key, order);
-            });
-            return Array.from(merged.values()).slice(0, 200);
-        } catch (error) {
-            console.warn('[打包监控] 历史订单精确查询失败，保留退款页快照:', error);
-            return snapshot;
-        }
+        return queryOrdersByTrackingNumbers(requested);
     }
 
     let orderLookupPollStarted = false;

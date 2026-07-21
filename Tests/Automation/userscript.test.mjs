@@ -111,6 +111,89 @@ test('saved refund worker tab prevents duplicate even with stale heartbeat', asy
   assert.equal(opened.length, 0);
 });
 
+function createLatestOrderContext() {
+  const selects = {
+    '#orderShowSortDim': {
+      value: '0',
+      events: [],
+      dispatchEvent(event) { this.events.push(event.type); }
+    },
+    '#orderShowSortType': {
+      value: '10',
+      events: [],
+      dispatchEvent(event) { this.events.push(event.type); }
+    }
+  };
+  const context = {
+    document: { querySelector: selector => selects[selector] || null },
+    delay: () => Promise.resolve(),
+    Event: class Event {
+      constructor(type) { this.type = type; }
+    },
+    Array,
+    Set,
+    Map,
+    String,
+    Promise,
+    Error
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    between('    function selectLatestOrdersByTrackingNumber(', '    async function queryOrdersByTrackingNumbers(') +
+      ';globalThis.selectLatest=selectLatestOrdersByTrackingNumber;globalThis.ensureNewestSort=ensureNewestOrderFirstSort;',
+    context);
+  return { context, selects };
+}
+
+test('reused tracking number keeps the first newest order even when an older order was refunded', () => {
+  const { context } = createLatestOrderContext();
+  const selected = context.selectLatest([
+    { trackingNumber: 'TRACK-1', orderId: 'NEW', isPrintedRefund: false, refundStatus: 'NO_REFUND' },
+    { trackingNumber: 'TRACK-1', orderId: 'OLD', isPrintedRefund: true, refundStatus: 'SUCCESS' }
+  ], ['track-1']);
+
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].orderId, 'NEW');
+  assert.equal(selected[0].isPrintedRefund, false);
+});
+
+test('latest refunded order wins over an older normal order', () => {
+  const { context } = createLatestOrderContext();
+  const selected = context.selectLatest([
+    { trackingNumber: 'TRACK-1', orderId: 'NEW', isPrintedRefund: true, refundStatus: 'SUCCESS' },
+    { trackingNumber: 'TRACK-1', orderId: 'OLD', isPrintedRefund: false, refundStatus: 'NO_REFUND' }
+  ], ['TRACK-1']);
+
+  assert.equal(selected[0].orderId, 'NEW');
+  assert.equal(selected[0].isPrintedRefund, true);
+});
+
+test('successful exact lookup emits a normal result when the tracking number is absent', () => {
+  const { context } = createLatestOrderContext();
+  const selected = context.selectLatest([], ['TRACK-1']);
+
+  assert.equal(selected[0].trackingNumber, 'TRACK-1');
+  assert.equal(selected[0].isPrintedRefund, false);
+  assert.equal(selected[0].refundStatus, 'NO_REFUND');
+});
+
+test('refund worker forces unified newest-order-first sorting', async () => {
+  const { context, selects } = createLatestOrderContext();
+
+  await context.ensureNewestSort();
+
+  assert.equal(selects['#orderShowSortDim'].value, '1');
+  assert.equal(selects['#orderShowSortType'].value, '21');
+  assert.deepEqual(selects['#orderShowSortDim'].events, ['change']);
+  assert.deepEqual(selects['#orderShowSortType'].events, ['change']);
+});
+
+test('requested refund lookup always uses exact tracking-number search', () => {
+  const body = between('    async function queryRequestedRefundSnapshot(', '    let orderLookupPollStarted');
+  assert.match(body, /return queryOrdersByTrackingNumbers\(requested\)/);
+  assert.doesNotMatch(body, /missing = requested\.filter/);
+});
+
 function createDiscoveryContext(initialStore, reachableHosts, installAddress = '', mobileHosts = new Set()) {
   const store = initialStore instanceof Map ? initialStore : new Map(Object.entries(initialStore));
   let requestCount = 0;

@@ -1224,6 +1224,21 @@ namespace ExpressPackingMonitoring.ViewModels
             return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
         }
 
+        internal static OrderInfo ResolvePrintedRefundOrderForAlert(
+            OrderLookupResult lookupResult,
+            string trackingNumber,
+            OrderInfo cachedOrder)
+        {
+            if (lookupResult?.Responded != true)
+                return cachedOrder;
+
+            return lookupResult.Orders?.FirstOrDefault(order =>
+                string.Equals(
+                    order?.TrackingNumber?.Trim(),
+                    trackingNumber?.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
         private void QueuePrintedRefundCheck(string trackingNumber, string mode)
         {
             if (!Config.EnablePrintedRefundAlert || string.IsNullOrWhiteSpace(trackingNumber))
@@ -1234,8 +1249,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 TrackingNumber = trackingNumber.Trim().ToUpperInvariant(),
                 Mode = mode
             };
-
-            CheckPrintedRefundAndAlert(check, _webServer?.GetOrderInfo(check.TrackingNumber), "最近缓存");
 
             lock (_printedRefundLookupLock)
             {
@@ -1265,6 +1278,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 WebServer server = _webServer;
                 OrderLookupResult result = new() { Responded = false };
+                Dictionary<string, OrderInfo> cachedOrders = new(StringComparer.OrdinalIgnoreCase);
                 lock (_printedRefundLookupLock)
                     _lastPrintedRefundLookupUtc = DateTime.UtcNow;
 
@@ -1280,6 +1294,8 @@ namespace ExpressPackingMonitoring.ViewModels
                                 .Distinct(StringComparer.OrdinalIgnoreCase)
                                 .ToArray();
                         }
+                        foreach (string trackingNumber in trackingNumbers)
+                            cachedOrders[trackingNumber] = server.GetOrderInfo(trackingNumber);
                         result = await server.RequestFreshOrderSnapshotAsync(PrintedRefundLookupTimeout, trackingNumbers);
                     }
                 }
@@ -1296,7 +1312,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 foreach (PrintedRefundScanCheck check in checks)
-                    CheckPrintedRefundAndAlert(check, server?.GetOrderInfo(check.TrackingNumber), result.Responded ? "最新页面快照" : "请求失败后的最近缓存");
+                {
+                    cachedOrders.TryGetValue(check.TrackingNumber, out OrderInfo cachedOrder);
+                    OrderInfo orderInfo = ResolvePrintedRefundOrderForAlert(result, check.TrackingNumber, cachedOrder);
+                    CheckPrintedRefundAndAlert(check, orderInfo, result.Responded ? "最新订单查询" : "请求失败后的最近缓存");
+                }
 
                 RuntimeLog.Info(
                     "Scan",
@@ -1323,7 +1343,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 Priority = AlertPriority.Critical,
                 Sound = AlertSound.IndustrialAlarm,
                 SoundRepeatCount = 1,
-                SpeechRepeatCount = 3,
+                SpeechRepeatCount = 1,
                 DisplayDuration = TimeSpan.FromSeconds(12),
                 DeduplicationKey = $"printed-refund:{check.TrackingNumber}:{check.AlertId}",
                 DeduplicationWindow = TimeSpan.FromMinutes(1),
