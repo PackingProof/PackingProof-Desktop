@@ -2186,7 +2186,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private static void DeleteIncompleteMp4WhileSourceIsPreserved(string? mkvPath)
+        internal static void DeleteIncompleteMp4WhileSourceIsPreserved(string? mkvPath)
         {
             if (string.IsNullOrWhiteSpace(mkvPath) || !File.Exists(mkvPath))
                 return;
