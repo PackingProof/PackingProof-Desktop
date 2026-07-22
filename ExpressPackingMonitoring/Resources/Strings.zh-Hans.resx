@@ -505,4 +505,6 @@
   <data name="手机或其他电脑连接同一个局域网后，可扫码或复制网址打开录像网页" xml:space="preserve"><value>手机或其他电脑连接同一个局域网后，可扫码或复制网址打开录像网页</value></data>
   <data name="显示二维码" xml:space="preserve"><value>显示二维码</value></data>
   <data name="连接网址已复制" xml:space="preserve"><value>连接网址已复制</value></data>
+  <data name="上一页" xml:space="preserve"><value>上一页</value></data>
+  <data name="下一页" xml:space="preserve"><value>下一页</value></data>
 </root>

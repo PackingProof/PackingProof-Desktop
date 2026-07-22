@@ -505,4 +505,6 @@
   <data name="手机或其他电脑连接同一个局域网后，可扫码或复制网址打开录像网页" xml:space="preserve"><value>Connect the phone or another computer to the same LAN, then scan or copy the URL to open the recordings page</value></data>
   <data name="显示二维码" xml:space="preserve"><value>Show QR code</value></data>
   <data name="连接网址已复制" xml:space="preserve"><value>Connection URL copied</value></data>
+  <data name="上一页" xml:space="preserve"><value>Previous</value></data>
+  <data name="下一页" xml:space="preserve"><value>Next</value></data>
 </root>

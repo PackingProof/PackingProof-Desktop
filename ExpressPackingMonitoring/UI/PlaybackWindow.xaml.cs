@@ -71,7 +71,9 @@ namespace ExpressPackingMonitoring.UI
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
         private readonly DispatcherTimer _timer;
+        private readonly DispatcherTimer _searchTimer;
         private readonly string[] _videoExtensions = [".mp4", ".mkv"];
+        private const int PageSize = 50;
         private LibVLC? _libVLC;
         private LibVLCSharp.Shared.MediaPlayer? _mediaPlayer;
         private List<VideoItem> _allVideos = new();
@@ -80,6 +82,8 @@ namespace ExpressPackingMonitoring.UI
         private bool _isLoadingVideos;
         private bool _playerInitializationFailed;
         private bool _playerInitializing;
+        private int _currentPage = 1;
+        private int _totalVideos;
         private long _currentMediaLengthMs;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
 
@@ -92,6 +96,8 @@ namespace ExpressPackingMonitoring.UI
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _timer.Tick += Timer_Tick;
+            _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _searchTimer.Tick += SearchTimer_Tick;
 
             BtnTogglePlay.IsEnabled = false;
             TimelineSlider.IsEnabled = false;
@@ -107,12 +113,19 @@ namespace ExpressPackingMonitoring.UI
 
         private async void DateFilterChanged(object sender, SelectionChangedEventArgs e)
         {
-            await LoadVideosAsync();
+            await LoadVideosAsync(1);
         }
 
         private void TextFilterChanged(object sender, TextChangedEventArgs e)
         {
-            ApplyFilters();
+            _searchTimer.Stop();
+            _searchTimer.Start();
+        }
+
+        private async void SearchTimer_Tick(object? sender, EventArgs e)
+        {
+            _searchTimer.Stop();
+            await LoadVideosAsync(1);
         }
 
         private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
@@ -120,7 +133,7 @@ namespace ExpressPackingMonitoring.UI
             SearchBox.Text = "";
         }
 
-        private async Task LoadVideosAsync()
+        private async Task LoadVideosAsync(int? requestedPage = null)
         {
             if (_isLoadingVideos)
                 return;
@@ -130,18 +143,31 @@ namespace ExpressPackingMonitoring.UI
             if (start.HasValue && end.HasValue && start > end)
                 (start, end) = (end, start);
             string? keyword = SearchBox?.Text.Trim();
+            int page = Math.Max(1, requestedPage ?? _currentPage);
 
             _isLoadingVideos = true;
             SetLoadingState(true, "正在加载列表...");
             try
             {
-                _allVideos = await Task.Run(() => BuildVideoList(start, end, keyword));
-                ApplyFilters();
+                var result = await Task.Run(() => BuildVideoPage(start, end, keyword, page));
+                _allVideos = result.Items;
+                _totalVideos = result.Total;
+                int pageCount = GetPageCount();
+                _currentPage = pageCount == 0 ? 1 : Math.Min(page, pageCount);
+                if (pageCount > 0 && _currentPage != page)
+                {
+                    result = await Task.Run(() => BuildVideoPage(start, end, keyword, _currentPage));
+                    _allVideos = result.Items;
+                    _totalVideos = result.Total;
+                }
+                ShowCurrentPage();
             }
             catch (Exception ex)
             {
                 _allVideos = new List<VideoItem>();
-                ApplyFilters();
+                _totalVideos = 0;
+                _currentPage = 1;
+                ShowCurrentPage();
                 MessageBox.Show($"加载回放列表失败：{ex.Message}", "回放错误", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
@@ -151,15 +177,21 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private List<VideoItem> BuildVideoList(DateTime? start, DateTime? end, string? keyword)
+        private (List<VideoItem> Items, int Total) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
         {
             var videos = new List<VideoItem>();
             if (_db != null)
             {
                 try
                 {
-                    var records = _db.QueryVideos(start, end, string.IsNullOrEmpty(keyword) ? null : keyword);
-                    foreach (var record in records)
+                    var result = _db.QueryVideosPaged(
+                        start,
+                        end,
+                        string.IsNullOrEmpty(keyword) ? null : keyword,
+                        page,
+                        PageSize,
+                        includeDeleted: _showDeletedVideos);
+                    foreach (var record in result.Records)
                     {
                         bool deleted = record.IsDeleted;
                         bool missing = !deleted && !File.Exists(record.FilePath);
@@ -185,6 +217,7 @@ namespace ExpressPackingMonitoring.UI
                             File = info
                         });
                     }
+                    return (videos, result.Total);
                 }
                 catch
                 {
@@ -196,7 +229,17 @@ namespace ExpressPackingMonitoring.UI
                 LoadVideosFromFileSystem(videos, start, end);
             }
 
-            return videos;
+            if (!_showDeletedVideos)
+                videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                string normalized = keyword.Trim().ToUpperInvariant();
+                videos = videos.Where(v =>
+                    v.DisplayName.ToUpperInvariant().Contains(normalized) ||
+                    (v.OrderId?.ToUpperInvariant().Contains(normalized) ?? false)).ToList();
+            }
+            int total = videos.Count;
+            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), total);
         }
 
         private void LoadVideosFromFileSystem(List<VideoItem> videos, DateTime? start, DateTime? end)
@@ -247,28 +290,37 @@ namespace ExpressPackingMonitoring.UI
             return $"{bytes / (1024.0 * 1024.0):F1}MB";
         }
 
-        private void ApplyFilters()
+        private void ShowCurrentPage()
         {
-            var filtered = _allVideos.AsEnumerable();
-            if (!_showDeletedVideos)
-                filtered = filtered.Where(v => !v.IsDeleted && !v.IsMissing);
-
-            string? keyword = SearchBox?.Text.Trim().ToUpperInvariant();
-            if (!string.IsNullOrEmpty(keyword))
-            {
-                filtered = filtered.Where(v =>
-                    v.DisplayName.ToUpperInvariant().Contains(keyword) ||
-                    (v.OrderId?.ToUpperInvariant().Contains(keyword) ?? false));
-            }
-
-            VideoList.ItemsSource = filtered.ToList();
+            VideoList.ItemsSource = _allVideos;
+            int pageCount = GetPageCount();
+            PageStatusText.Text = pageCount == 0
+                ? "共 0 条"
+                : $"第 {_currentPage} / {pageCount} 页，共 {_totalVideos} 条";
+            BtnPreviousPage.IsEnabled = !_isLoadingVideos && pageCount > 0 && _currentPage > 1;
+            BtnNextPage.IsEnabled = !_isLoadingVideos && pageCount > 0 && _currentPage < pageCount;
             UpdateLocateButtonState();
+        }
+
+        private int GetPageCount() => _totalVideos <= 0 ? 0 : (_totalVideos + PageSize - 1) / PageSize;
+
+        private async void BtnPreviousPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage <= 1) return;
+            await LoadVideosAsync(_currentPage - 1);
+        }
+
+        private async void BtnNextPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage >= GetPageCount()) return;
+            await LoadVideosAsync(_currentPage + 1);
         }
 
         private void Window_Closing(object sender, CancelEventArgs e)
         {
             // 1. 停止计时器
             _timer?.Stop();
+            _searchTimer?.Stop();
 
             // 2. 彻底释放 LibVLC 资源（注意顺序）
             if (_mediaPlayer != null)
@@ -581,6 +633,8 @@ namespace ExpressPackingMonitoring.UI
             SearchBox.IsEnabled = !loading;
             DpStartDate.IsEnabled = !loading;
             DpEndDate.IsEnabled = !loading;
+            BtnPreviousPage.IsEnabled = !loading && _currentPage > 1;
+            BtnNextPage.IsEnabled = !loading && _currentPage < GetPageCount();
             TimeLabel.Text = statusText;
         }
     }

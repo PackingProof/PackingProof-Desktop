@@ -236,6 +236,53 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    [Fact]
+    public void QueryVideosPaged_ReturnsOnlyRequestedPageFromTenThousandRecords()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(tempDirectory, "videos.db");
+            using (var database = new VideoDatabase(databasePath)) { }
+            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using var transaction = connection.BeginTransaction();
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = @"
+                    INSERT INTO VideoRecords (OrderId, FilePath, StartTime)
+                    VALUES (@orderId, @filePath, @startTime);";
+                var orderId = command.Parameters.Add("@orderId", SqliteType.Text);
+                var filePath = command.Parameters.Add("@filePath", SqliteType.Text);
+                var startTime = command.Parameters.Add("@startTime", SqliteType.Text);
+                DateTime baseTime = new(2026, 1, 1);
+                for (int index = 0; index < 10000; index++)
+                {
+                    orderId.Value = $"ORDER-{index:00000}";
+                    filePath.Value = Path.Combine(tempDirectory, $"video-{index:00000}.mkv");
+                    startTime.Value = baseTime.AddSeconds(index).ToString("yyyy-MM-dd HH:mm:ss");
+                    command.ExecuteNonQuery();
+                }
+                transaction.Commit();
+            }
+
+            using var reopened = new VideoDatabase(databasePath);
+            PagedVideoResult page = reopened.QueryVideosPaged(null, null, null, 200, 50);
+            PagedVideoResult searched = reopened.QueryVideosPaged(null, null, "ORDER-09999", 1, 50);
+
+            Assert.Equal(10000, page.Total);
+            Assert.Equal(50, page.Records.Count);
+            Assert.Equal("ORDER-00049", page.Records[0].OrderId);
+            Assert.Equal("ORDER-00000", page.Records[^1].OrderId);
+            Assert.Equal("ORDER-09999", Assert.Single(searched.Records).OrderId);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     private static void AddCompleted(VideoDatabase database, string orderId, string mode, string path, DateTime startTime)
     {
         long id = database.InsertVideoRecord(orderId, mode, "", "", path, startTime);

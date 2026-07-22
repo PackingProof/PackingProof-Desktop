@@ -45,6 +45,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Margin="0,0,0,10">
@@ -170,6 +171,17 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
+
+                <Grid Grid.Row="2" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="BtnPreviousPage" Grid.Column="0" Content="上一页" Padding="12,6" Click="BtnPreviousPage_Click"/>
+                    <TextBlock x:Name="PageStatusText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
+                    <Button x:Name="BtnNextPage" Grid.Column="2" Content="下一页" Padding="12,6" Click="BtnNextPage_Click"/>
+                </Grid>
             </Grid>
         </Border>
 
