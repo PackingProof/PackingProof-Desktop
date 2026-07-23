@@ -74,6 +74,12 @@ namespace ExpressPackingMonitoring.Data
         public List<VideoRecord> Records { get; set; } = new();
     }
 
+    internal enum VideoSearchMode
+    {
+        BroadContains,
+        ExactOrderIdentifiers
+    }
+
     public class CursorVideoResult
     {
         public List<VideoRecord> Records { get; set; } = new();
@@ -855,9 +861,29 @@ namespace ExpressPackingMonitoring.Data
 
         public PagedVideoResult QueryVideosPaged(DateTime? startDate, DateTime? endDate, string keyword, int page, int pageSize, bool includeDeleted = false)
         {
+            return QueryVideosPaged(
+                startDate,
+                endDate,
+                keyword,
+                page,
+                pageSize,
+                includeDeleted,
+                VideoSearchMode.BroadContains);
+        }
+
+        internal PagedVideoResult QueryVideosPaged(
+            DateTime? startDate,
+            DateTime? endDate,
+            string keyword,
+            int page,
+            int pageSize,
+            bool includeDeleted,
+            VideoSearchMode searchMode)
+        {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
             int offset = (page - 1) * pageSize;
+            string normalizedKeyword = keyword?.Trim() ?? "";
 
             lock (_lock)
             {
@@ -875,14 +901,23 @@ namespace ExpressPackingMonitoring.Data
                 if (!includeDeleted)
                     whereSql += " AND IsDeleted = 0";
 
-                if (!string.IsNullOrWhiteSpace(keyword))
+                if (normalizedKeyword.Length > 0)
                 {
-                    whereSql += @" AND (
-                        OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
-                        OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
-                        OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
-                        OR SourceDeviceName LIKE @keyword)";
-                    countCmd.Parameters.AddWithValue("@keyword", $"%{keyword}%");
+                    if (searchMode == VideoSearchMode.ExactOrderIdentifiers)
+                    {
+                        whereSql += @" AND (
+                            OrderId = @keyword OR TrackingNumber = @keyword OR SourceOrderId = @keyword)";
+                        countCmd.Parameters.AddWithValue("@keyword", normalizedKeyword);
+                    }
+                    else
+                    {
+                        whereSql += @" AND (
+                            OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
+                            OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
+                            OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
+                            OR SourceDeviceName LIKE @keyword)";
+                        countCmd.Parameters.AddWithValue("@keyword", $"%{normalizedKeyword}%");
+                    }
                 }
 
                 countCmd.CommandText = "SELECT COUNT(1) " + whereSql + ";";
@@ -908,8 +943,13 @@ namespace ExpressPackingMonitoring.Data
                     cmd.Parameters.AddWithValue("@endDate", endDate.Value.AddDays(1).ToString("yyyy-MM-dd 00:00:00"));
                 cmd.Parameters.AddWithValue("@limit", pageSize);
                 cmd.Parameters.AddWithValue("@offset", offset);
-                if (!string.IsNullOrWhiteSpace(keyword))
-                    cmd.Parameters.AddWithValue("@keyword", $"%{keyword}%");
+                if (normalizedKeyword.Length > 0)
+                {
+                    string keywordParameter = searchMode == VideoSearchMode.ExactOrderIdentifiers
+                        ? normalizedKeyword
+                        : $"%{normalizedKeyword}%";
+                    cmd.Parameters.AddWithValue("@keyword", keywordParameter);
+                }
 
                 var records = new List<VideoRecord>(pageSize);
                 using var reader = cmd.ExecuteReader();

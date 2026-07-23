@@ -5,6 +5,19 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class PlaybackWindowTests
 {
+    [Theory]
+    [InlineData(3, 3, false, true)]
+    [InlineData(2, 3, false, false)]
+    [InlineData(3, 3, true, false)]
+    public void IsCurrentLoadRequest_AcceptsOnlyLatestOpenWindowRequest(
+        int requestVersion,
+        int currentVersion,
+        bool isClosing,
+        bool expected)
+    {
+        Assert.Equal(expected, PlaybackWindow.IsCurrentLoadRequest(requestVersion, currentVersion, isClosing));
+    }
+
     [Fact]
     public void GetOrderDisplayName_PrefersTrackingNumber()
     {

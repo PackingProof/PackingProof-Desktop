@@ -80,10 +80,14 @@ namespace ExpressPackingMonitoring.UI
         private bool _isDragging;
         private bool _isPlaying;
         private bool _isLoadingVideos;
+        private bool _isClosing;
+        private bool _videoLoadLoopRunning;
         private bool _playerInitializationFailed;
         private bool _playerInitializing;
         private int _currentPage = 1;
         private int _totalVideos;
+        private int _videoLoadRequestVersion;
+        private VideoLoadRequest? _pendingVideoLoad;
         private long _currentMediaLengthMs;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
 
@@ -106,14 +110,14 @@ namespace ExpressPackingMonitoring.UI
             UpdateLocateButtonState();
         }
 
-        private async void PlaybackWindow_Loaded(object sender, RoutedEventArgs e)
+        private void PlaybackWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            await LoadVideosAsync();
+            RequestVideoLoad();
         }
 
-        private async void DateFilterChanged(object sender, SelectionChangedEventArgs e)
+        private void DateFilterChanged(object sender, SelectionChangedEventArgs e)
         {
-            await LoadVideosAsync(1);
+            RequestVideoLoad(1);
         }
 
         private void TextFilterChanged(object sender, TextChangedEventArgs e)
@@ -122,10 +126,10 @@ namespace ExpressPackingMonitoring.UI
             _searchTimer.Start();
         }
 
-        private async void SearchTimer_Tick(object? sender, EventArgs e)
+        private void SearchTimer_Tick(object? sender, EventArgs e)
         {
             _searchTimer.Stop();
-            await LoadVideosAsync(1);
+            RequestVideoLoad(1);
         }
 
         private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
@@ -133,9 +137,9 @@ namespace ExpressPackingMonitoring.UI
             SearchBox.Text = "";
         }
 
-        private async Task LoadVideosAsync(int? requestedPage = null)
+        private void RequestVideoLoad(int? requestedPage = null)
         {
-            if (_isLoadingVideos)
+            if (!IsLoaded || _isClosing)
                 return;
 
             DateTime? start = DpStartDate.SelectedDate;
@@ -145,35 +149,68 @@ namespace ExpressPackingMonitoring.UI
             string? keyword = SearchBox?.Text.Trim();
             int page = Math.Max(1, requestedPage ?? _currentPage);
 
+            _pendingVideoLoad = new VideoLoadRequest(start, end, keyword, page);
+            _videoLoadRequestVersion++;
+            if (!_videoLoadLoopRunning)
+                _ = ProcessVideoLoadQueueAsync();
+        }
+
+        private async Task ProcessVideoLoadQueueAsync()
+        {
+            _videoLoadLoopRunning = true;
             _isLoadingVideos = true;
             SetLoadingState(true, "正在加载列表...");
             try
             {
-                var result = await Task.Run(() => BuildVideoPage(start, end, keyword, page));
-                _allVideos = result.Items;
-                _totalVideos = result.Total;
-                int pageCount = GetPageCount();
-                _currentPage = pageCount == 0 ? 1 : Math.Min(page, pageCount);
-                if (pageCount > 0 && _currentPage != page)
+                while (!_isClosing && _pendingVideoLoad is VideoLoadRequest request)
                 {
-                    result = await Task.Run(() => BuildVideoPage(start, end, keyword, _currentPage));
+                    _pendingVideoLoad = null;
+                    int requestVersion = _videoLoadRequestVersion;
+                    (List<VideoItem> Items, int Total) result;
+                    try
+                    {
+                        result = await Task.Run(() =>
+                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page));
+                        if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
+                            continue;
+
+                        int pageCount = GetPageCount(result.Total);
+                        int normalizedPage = pageCount == 0 ? 1 : Math.Min(request.Page, pageCount);
+                        if (pageCount > 0 && normalizedPage != request.Page)
+                        {
+                            result = await Task.Run(() =>
+                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage));
+                            if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
+                                continue;
+                        }
+
+                        _currentPage = normalizedPage;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
+                            continue;
+
+                        _allVideos = new List<VideoItem>();
+                        _totalVideos = 0;
+                        _currentPage = 1;
+                        ShowCurrentPage();
+                        MessageBox.Show($"加载回放列表失败：{ex.Message}", "回放错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        continue;
+                    }
+
                     _allVideos = result.Items;
                     _totalVideos = result.Total;
+                    ShowCurrentPage();
                 }
-                ShowCurrentPage();
-            }
-            catch (Exception ex)
-            {
-                _allVideos = new List<VideoItem>();
-                _totalVideos = 0;
-                _currentPage = 1;
-                ShowCurrentPage();
-                MessageBox.Show($"加载回放列表失败：{ex.Message}", "回放错误", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             finally
             {
                 _isLoadingVideos = false;
+                _videoLoadLoopRunning = false;
                 SetLoadingState(false, "00:00:00 / 00:00:00");
+                if (!_isClosing && _pendingVideoLoad.HasValue)
+                    _ = ProcessVideoLoadQueueAsync();
             }
         }
 
@@ -190,7 +227,8 @@ namespace ExpressPackingMonitoring.UI
                         string.IsNullOrEmpty(keyword) ? null : keyword,
                         page,
                         PageSize,
-                        includeDeleted: _showDeletedVideos);
+                        includeDeleted: _showDeletedVideos,
+                        searchMode: VideoSearchMode.ExactOrderIdentifiers);
                     foreach (var record in result.Records)
                     {
                         bool deleted = record.IsDeleted;
@@ -233,10 +271,10 @@ namespace ExpressPackingMonitoring.UI
                 videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                string normalized = keyword.Trim().ToUpperInvariant();
+                string normalized = keyword.Trim();
                 videos = videos.Where(v =>
-                    v.DisplayName.ToUpperInvariant().Contains(normalized) ||
-                    (v.OrderId?.ToUpperInvariant().Contains(normalized) ?? false)).ToList();
+                    string.Equals(v.DisplayName, normalized, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(v.OrderId, normalized, StringComparison.OrdinalIgnoreCase)).ToList();
             }
             int total = videos.Count;
             return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), total);
@@ -315,22 +353,29 @@ namespace ExpressPackingMonitoring.UI
             UpdateLocateButtonState();
         }
 
-        private int GetPageCount() => _totalVideos <= 0 ? 0 : (_totalVideos + PageSize - 1) / PageSize;
+        private int GetPageCount() => GetPageCount(_totalVideos);
 
-        private async void BtnPreviousPage_Click(object sender, RoutedEventArgs e)
+        private static int GetPageCount(int totalVideos) =>
+            totalVideos <= 0 ? 0 : (totalVideos + PageSize - 1) / PageSize;
+
+        private void BtnPreviousPage_Click(object sender, RoutedEventArgs e)
         {
             if (_currentPage <= 1) return;
-            await LoadVideosAsync(_currentPage - 1);
+            RequestVideoLoad(_currentPage - 1);
         }
 
-        private async void BtnNextPage_Click(object sender, RoutedEventArgs e)
+        private void BtnNextPage_Click(object sender, RoutedEventArgs e)
         {
             if (_currentPage >= GetPageCount()) return;
-            await LoadVideosAsync(_currentPage + 1);
+            RequestVideoLoad(_currentPage + 1);
         }
 
         private void Window_Closing(object sender, CancelEventArgs e)
         {
+            _isClosing = true;
+            _pendingVideoLoad = null;
+            _videoLoadRequestVersion++;
+
             // 1. 停止计时器
             _timer?.Stop();
             _searchTimer?.Stop();
@@ -642,13 +687,18 @@ namespace ExpressPackingMonitoring.UI
 
         private void SetLoadingState(bool loading, string statusText)
         {
-            VideoList.IsEnabled = !loading;
-            SearchBox.IsEnabled = !loading;
-            DpStartDate.IsEnabled = !loading;
-            DpEndDate.IsEnabled = !loading;
             BtnPreviousPage.IsEnabled = !loading && _currentPage > 1;
             BtnNextPage.IsEnabled = !loading && _currentPage < GetPageCount();
             TimeLabel.Text = statusText;
         }
+
+        internal static bool IsCurrentLoadRequest(int requestVersion, int currentRequestVersion, bool isClosing) =>
+            !isClosing && requestVersion == currentRequestVersion;
+
+        private readonly record struct VideoLoadRequest(
+            DateTime? Start,
+            DateTime? End,
+            string? Keyword,
+            int Page);
     }
 }

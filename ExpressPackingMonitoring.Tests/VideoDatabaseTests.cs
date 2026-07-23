@@ -310,6 +310,50 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    [Fact]
+    public void QueryVideosPaged_ExactSearchMatchesOnlyOrderIdentifiers()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(tempDirectory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            DateTime start = new(2026, 7, 21, 9, 0, 0);
+
+            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO VideoRecords
+                        (OrderId, TrackingNumber, SourceOrderId, BuyerMessage, FilePath, StartTime)
+                    VALUES
+                        ('ORDER-EXACT', 'TRACK-EXACT', 'SOURCE-EXACT', '', 'first.mp4', @start),
+                        ('ORDER-OTHER', 'TRACK-OTHER', 'SOURCE-OTHER', 'TRACK-EXACT', 'second.mp4', @start);";
+                command.Parameters.AddWithValue("@start", start.ToString("yyyy-MM-dd HH:mm:ss"));
+                command.ExecuteNonQuery();
+            }
+
+            PagedVideoResult trackingResult = database.QueryVideosPaged(
+                null, null, "TRACK-EXACT", 1, 50, true, VideoSearchMode.ExactOrderIdentifiers);
+            PagedVideoResult orderResult = database.QueryVideosPaged(
+                null, null, "ORDER-EXACT", 1, 50, true, VideoSearchMode.ExactOrderIdentifiers);
+            PagedVideoResult sourceResult = database.QueryVideosPaged(
+                null, null, "SOURCE-EXACT", 1, 50, true, VideoSearchMode.ExactOrderIdentifiers);
+            PagedVideoResult partialResult = database.QueryVideosPaged(
+                null, null, "EXACT", 1, 50, true, VideoSearchMode.ExactOrderIdentifiers);
+
+            Assert.Equal("ORDER-EXACT", Assert.Single(trackingResult.Records).OrderId);
+            Assert.Equal("ORDER-EXACT", Assert.Single(orderResult.Records).OrderId);
+            Assert.Equal("ORDER-EXACT", Assert.Single(sourceResult.Records).OrderId);
+            Assert.Empty(partialResult.Records);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     private static void AddCompleted(VideoDatabase database, string orderId, string mode, string path, DateTime startTime)
     {
         long id = database.InsertVideoRecord(orderId, mode, "", "", path, startTime);
