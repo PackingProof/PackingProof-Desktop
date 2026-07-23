@@ -237,6 +237,33 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void GetAggregatedStats_CountsSharedFileSizeOnlyOnce()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            DateTime date = new(2026, 7, 20);
+            string sharedPath = Path.Combine(tempDirectory, "shared.mp4");
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+
+            long firstId = database.InsertVideoRecord("ORDER-1", "发货", "", "", sharedPath, date.AddHours(9));
+            database.UpdateVideoRecordOnStop(firstId, date.AddHours(9).AddMinutes(1), 60, 1024, "手动");
+            long secondId = database.InsertVideoRecord("ORDER-2", "发货", "", "", sharedPath, date.AddHours(10));
+            database.UpdateVideoRecordOnStop(secondId, date.AddHours(10).AddMinutes(2), 120, 2048, "手动");
+
+            DailyStat stat = Assert.Single(database.GetAggregatedStats(date, date));
+
+            Assert.Equal(2, stat.TotalPieces);
+            Assert.Equal(180, stat.TotalDurationSec);
+            Assert.Equal(1024, stat.TotalBytes);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void QueryVideosPaged_ReturnsOnlyRequestedPageFromTenThousandRecords()
     {
         string tempDirectory = CreateTempDirectory();

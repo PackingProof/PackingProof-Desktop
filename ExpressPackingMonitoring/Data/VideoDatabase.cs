@@ -1093,25 +1093,29 @@ namespace ExpressPackingMonitoring.Data
 
                 string dateSelector = groupBy switch
                 {
-                    "week" => "strftime('%Y-W%W', StartTime)",
-                    "month" => "strftime('%Y-%m', StartTime)",
-                    _ => "substr(StartTime, 1, 10)"
+                    "week" => "strftime('%Y-W%W', v.StartTime)",
+                    "month" => "strftime('%Y-%m', v.StartTime)",
+                    _ => "substr(v.StartTime, 1, 10)"
                 };
 
                 cmd.CommandText = $@"
+                    WITH CanonicalFiles AS (
+                        SELECT FilePath, MIN(Id) AS CanonicalId
+                        FROM VideoRecords
+                        WHERE IsDeleted = 0
+                          AND (@sourceType = '' OR SourceType = @sourceType)
+                        GROUP BY FilePath
+                    )
                     SELECT 
                         {dateSelector} AS GroupDate,
                         COUNT(*) AS TotalPieces,
-                        SUM(DurationSeconds) AS TotalDurationSec,
-                        SUM(CASE WHEN Id = (
-                            SELECT MIN(v2.Id) FROM VideoRecords v2
-                            WHERE v2.FilePath = VideoRecords.FilePath AND v2.IsDeleted = 0
-                              AND (@sourceType = '' OR v2.SourceType = @sourceType)
-                        ) THEN FileSizeBytes ELSE 0 END) AS TotalBytes
-                    FROM VideoRecords
-                    WHERE StartTime >= @start AND StartTime <= @end
-                      AND IsDeleted = 0 AND EndTime IS NOT NULL
-                      AND (@sourceType = '' OR SourceType = @sourceType)
+                        SUM(v.DurationSeconds) AS TotalDurationSec,
+                        SUM(CASE WHEN v.Id = c.CanonicalId THEN v.FileSizeBytes ELSE 0 END) AS TotalBytes
+                    FROM VideoRecords v
+                    LEFT JOIN CanonicalFiles c ON c.FilePath = v.FilePath
+                    WHERE v.StartTime >= @start AND v.StartTime <= @end
+                      AND v.IsDeleted = 0 AND v.EndTime IS NOT NULL
+                      AND (@sourceType = '' OR v.SourceType = @sourceType)
                     GROUP BY GroupDate
                     ORDER BY GroupDate ASC;";
 

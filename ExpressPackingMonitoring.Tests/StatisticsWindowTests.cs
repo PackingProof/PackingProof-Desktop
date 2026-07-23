@@ -28,4 +28,30 @@ public sealed class StatisticsWindowTests
         Assert.Equal(new DateTime(2026, 7, 20), start);
         Assert.Equal(new DateTime(2026, 7, 23), end);
     }
+
+    [Fact]
+    public void MetricButtons_RenderCachedDataWithoutStartingAnotherQuery()
+    {
+        string xaml = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..",
+            "ExpressPackingMonitoring", "UI", "StatisticsWindow.xaml"));
+
+        Assert.Equal(3, CountOccurrences(xaml, "Click=\"OnMetricChanged\""));
+        Assert.DoesNotContain("Click=\"OnQueryFilterChanged\"", xaml);
+        Assert.Contains("SelectionChanged=\"OnQueryFilterChanged\"", xaml);
+        Assert.Contains("SelectedDateChanged=\"OnQueryFilterChanged\"", xaml);
+    }
+
+    private static int CountOccurrences(string value, string expected)
+    {
+        int count = 0;
+        int index = 0;
+        while ((index = value.IndexOf(expected, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += expected.Length;
+        }
+        return count;
+    }
 }

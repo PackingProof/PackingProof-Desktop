@@ -50,21 +50,21 @@
                         <ComboBoxItem Content="最近30天" Tag="Last30"/>
                         <ComboBoxItem Content="全部" Tag="All"/>
                     </ComboBox>
-                    <DatePicker x:Name="PickerStart" Margin="10,0,5,0" Width="120" SelectedDateChanged="OnFilterChanged"/>
+                    <DatePicker x:Name="PickerStart" Margin="10,0,5,0" Width="120" SelectedDateChanged="OnQueryFilterChanged"/>
                     <TextBlock Text="-" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
-                    <DatePicker x:Name="PickerEnd" Margin="5,0,0,0" Width="120" SelectedDateChanged="OnFilterChanged"/>
+                    <DatePicker x:Name="PickerEnd" Margin="5,0,0,0" Width="120" SelectedDateChanged="OnQueryFilterChanged"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,30,0">
                     <TextBlock Text="查看维度: " VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0" Foreground="{DynamicResource TextPrimary}"/>
-                    <RadioButton Content="数量" IsChecked="True" x:Name="ModePieces" Style="{StaticResource MetricButtonStyle}" Click="OnFilterChanged"/>
-                    <RadioButton Content="时长" x:Name="ModeDuration" Style="{StaticResource MetricButtonStyle}" Click="OnFilterChanged" Margin="5,0"/>
-                    <RadioButton Content="大小" x:Name="ModeSize" Style="{StaticResource MetricButtonStyle}" Click="OnFilterChanged"/>
+                    <RadioButton Content="数量" IsChecked="True" x:Name="ModePieces" Style="{StaticResource MetricButtonStyle}" Click="OnMetricChanged"/>
+                    <RadioButton Content="时长" x:Name="ModeDuration" Style="{StaticResource MetricButtonStyle}" Click="OnMetricChanged" Margin="5,0"/>
+                    <RadioButton Content="大小" x:Name="ModeSize" Style="{StaticResource MetricButtonStyle}" Click="OnMetricChanged"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="聚合方式: " VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0" Foreground="{DynamicResource TextPrimary}"/>
-                    <ComboBox x:Name="GroupCombo" Width="80" SelectionChanged="OnFilterChanged" SelectedIndex="0">
+                    <ComboBox x:Name="GroupCombo" Width="80" SelectionChanged="OnQueryFilterChanged" SelectedIndex="0">
                         <ComboBoxItem Content="按日" Tag="day"/>
                         <ComboBoxItem Content="按周" Tag="week"/>
                         <ComboBoxItem Content="按月" Tag="month"/>

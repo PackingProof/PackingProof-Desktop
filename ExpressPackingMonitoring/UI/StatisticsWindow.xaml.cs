@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -23,8 +24,14 @@ namespace ExpressPackingMonitoring.UI
 
     public partial class StatisticsWindow : Window, INotifyPropertyChanged
     {
-        private VideoDatabase _db;
+        private readonly VideoDatabase _db;
         private bool _isInternalUpdating = false; // 防止日期切换时触发多次刷新
+        private IReadOnlyList<DailyStat> _cachedHistory = Array.Empty<DailyStat>();
+        private string _cachedGroupMode = "day";
+        private RefreshRequest? _pendingRefresh;
+        private bool _refreshLoopRunning;
+        private bool _isClosed;
+        private int _refreshRequestVersion;
 
         public ObservableCollection<ChartItem> ChartData { get; } = new();
         public ObservableCollection<string> YAxisLabels { get; } = new();
@@ -50,24 +57,72 @@ namespace ExpressPackingMonitoring.UI
 
             this.Loaded += (s, e) => {
                 ApplyPreset("Last7");
-                RefreshData();
+                RequestDataRefresh();
             };
+            this.Closed += (_, _) => _isClosed = true;
         }
 
-        private void RefreshData()
+        private void RequestDataRefresh()
         {
-            if (_db == null || !this.IsLoaded) return;
+            if (!IsLoaded || _isClosed)
+                return;
 
             DateTime start = PickerStart.SelectedDate ?? DateTime.Now.AddDays(-6);
             DateTime end = PickerEnd.SelectedDate ?? DateTime.Now;
+            if (start > end)
+                (start, end) = (end, start);
             string groupMode = (GroupCombo.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "day";
 
-            var history = _db.GetAggregatedStats(start, end, groupMode);
-            
+            _pendingRefresh = new RefreshRequest(start, end, groupMode);
+            _refreshRequestVersion++;
+            if (!_refreshLoopRunning)
+                _ = ProcessRefreshQueueAsync();
+        }
+
+        private async Task ProcessRefreshQueueAsync()
+        {
+            _refreshLoopRunning = true;
+            try
+            {
+                while (!_isClosed && _pendingRefresh is RefreshRequest request)
+                {
+                    _pendingRefresh = null;
+                    int requestVersion = _refreshRequestVersion;
+                    List<DailyStat> history;
+                    try
+                    {
+                        history = await Task.Run(() =>
+                            _db.GetAggregatedStats(request.Start, request.End, request.GroupMode));
+                    }
+                    catch (Exception ex)
+                    {
+                        if (requestVersion == _refreshRequestVersion && !_isClosed)
+                            MessageBox.Show($"加载统计数据失败：{ex.Message}", "统计错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        continue;
+                    }
+
+                    if (_isClosed || requestVersion != _refreshRequestVersion)
+                        continue;
+
+                    _cachedHistory = history;
+                    _cachedGroupMode = request.GroupMode;
+                    RenderChart();
+                }
+            }
+            finally
+            {
+                _refreshLoopRunning = false;
+                if (!_isClosed && _pendingRefresh.HasValue)
+                    _ = ProcessRefreshQueueAsync();
+            }
+        }
+
+        private void RenderChart()
+        {
             ChartData.Clear();
             YAxisLabels.Clear();
 
-            if (history == null || history.Count == 0)
+            if (_cachedHistory.Count == 0)
             {
                 ResetSummary();
                 return;
@@ -75,7 +130,7 @@ namespace ExpressPackingMonitoring.UI
 
             // 1. 计算最大值用于 Y 轴缩放
             double maxVal = 0;
-            foreach (var h in history)
+            foreach (var h in _cachedHistory)
             {
                 double val = 0;
                 if (ModePieces.IsChecked == true) val = h.TotalPieces;
@@ -95,14 +150,14 @@ namespace ExpressPackingMonitoring.UI
             }
 
             // 3. 生成 X 轴数据
-            int step = history.Count > 12 ? history.Count / 6 : 1;
+            int step = _cachedHistory.Count > 12 ? _cachedHistory.Count / 6 : 1;
             int totalPieces = 0;
             long totalBytes = 0;
             double totalSec = 0;
 
-            for (int i = 0; i < history.Count; i++)
+            for (int i = 0; i < _cachedHistory.Count; i++)
             {
-                var h = history[i];
+                var h = _cachedHistory[i];
                 double currentVal = ModePieces.IsChecked == true ? h.TotalPieces :
                                     ModeDuration.IsChecked == true ? h.TotalDurationSec :
                                     h.TotalBytes / 1024.0 / 1024.0;
@@ -113,7 +168,7 @@ namespace ExpressPackingMonitoring.UI
 
                 // 【修复核心】：处理非日期格式的字符串 (W11, 2024-03等)
                 string subLabel = "";
-                if (groupMode == "day")
+                if (_cachedGroupMode == "day")
                 {
                     if (DateTime.TryParse(h.Date, out DateTime dt))
                         subLabel = GetChineseDayOfWeek(dt);
@@ -171,13 +226,20 @@ namespace ExpressPackingMonitoring.UI
             {
                 string tag = item.Tag?.ToString() ?? string.Empty;
                 ApplyPreset(tag);
-                RefreshData();
+                RequestDataRefresh();
             }
         }
 
-        private void OnFilterChanged(object sender, EventArgs e)
+        private void OnQueryFilterChanged(object sender, EventArgs e)
         {
-            if (!_isInternalUpdating) RefreshData();
+            if (!_isInternalUpdating)
+                RequestDataRefresh();
+        }
+
+        private void OnMetricChanged(object sender, RoutedEventArgs e)
+        {
+            if (!_isInternalUpdating)
+                RenderChart();
         }
 
         private void ResetSummary()
@@ -200,5 +262,7 @@ namespace ExpressPackingMonitoring.UI
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected virtual void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+        private readonly record struct RefreshRequest(DateTime Start, DateTime End, string GroupMode);
     }
 }
