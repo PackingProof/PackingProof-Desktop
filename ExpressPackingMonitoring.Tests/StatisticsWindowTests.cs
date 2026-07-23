@@ -32,9 +32,7 @@ public sealed class StatisticsWindowTests
     [Fact]
     public void MetricButtons_RenderCachedDataWithoutStartingAnotherQuery()
     {
-        string xaml = File.ReadAllText(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..",
+        string xaml = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "StatisticsWindow.xaml"));
 
         Assert.Equal(3, CountOccurrences(xaml, "Click=\"OnMetricChanged\""));
@@ -53,5 +51,23 @@ public sealed class StatisticsWindowTests
             index += expected.Length;
         }
         return count;
+    }
+
+    private static string FindRepositoryFile(params string[] relativeParts)
+    {
+        foreach (string startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            DirectoryInfo? directory = new(startPath);
+            while (directory != null)
+            {
+                string candidate = Path.Combine([directory.FullName, .. relativeParts]);
+                if (File.Exists(candidate))
+                    return candidate;
+                directory = directory.Parent;
+            }
+        }
+
+        throw new FileNotFoundException(
+            $"无法定位仓库文件：{Path.Combine(relativeParts)}");
     }
 }
