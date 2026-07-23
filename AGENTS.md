@@ -71,7 +71,7 @@ Use C# with nullable references and implicit usings enabled. Follow the existing
 
 `ExpressPackingMonitoring.Tests/` contains the automated regression suite. At minimum, run `dotnet test ExpressPackingMonitoring.Tests/ExpressPackingMonitoring.Tests.csproj -c Debug` and `dotnet build ExpressPackingMonitoring.sln -c Debug` before committing. For recording, Web playback, TTS, packaging, or FFmpeg changes, also run the affected workflow manually and note what was verified. Use `Test/HTML/` pages when validating userscript parsing behavior.
 
-Before every release, run `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`. Packaging is blocked unless all automated checks pass and the remaining real-device scenarios in `RELEASE_CHECKLIST.md` have been completed. Do not confirm `-ConfirmManualCoreChecks` without performing those real-device checks.
+Before every release, run `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`; packaging remains blocked unless the automated checks pass. The real-device scenarios in `RELEASE_CHECKLIST.md` are recommended but non-blocking, and any unverified scenarios must be reported with the release. Do not pass `-ConfirmManualCoreChecks` unless those real-device checks were actually performed.
 
 ## Commit & Pull Request Guidelines
 

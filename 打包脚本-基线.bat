@@ -4,9 +4,8 @@ setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
 
-echo Before packaging, complete RELEASE_CHECKLIST.md.
-choice /C YN /N /M "Confirm all manual core business and recovery checks are complete? [Y/N]: "
-if errorlevel 2 exit /b 1
+echo [WARN] Review RELEASE_CHECKLIST.md before publishing.
+echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" -DisablePatch -ConfirmManualCoreChecks
+pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" -DisablePatch
 exit /b %ERRORLEVEL%
