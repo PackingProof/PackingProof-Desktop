@@ -46,10 +46,10 @@ namespace ExpressPackingMonitoring.UI
             InitializeComponent();
             _db = db;
             this.DataContext = this;
+            PresetCombo.SelectedIndex = 2;
 
             this.Loaded += (s, e) => {
-                // 初始化默认日期：本周
-                ApplyPreset("Last7"); 
+                ApplyPreset("Last7");
                 RefreshData();
             };
         }
@@ -145,32 +145,24 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             _isInternalUpdating = true;
-            DateTime now = DateTime.Now;
-            switch (tag)
-            {
-                case "Week": // 本周 (从周一开始)
-                    int diff = (7 + (now.DayOfWeek - DayOfWeek.Monday)) % 7;
-                    PickerStart.SelectedDate = now.AddDays(-1 * diff).Date;
-                    PickerEnd.SelectedDate = now.Date;
-                    break;
-                case "Month": // 本月
-                    PickerStart.SelectedDate = new DateTime(now.Year, now.Month, 1);
-                    PickerEnd.SelectedDate = now.Date;
-                    break;
-                case "Last7":
-                    PickerStart.SelectedDate = now.AddDays(-6);
-                    PickerEnd.SelectedDate = now.Date;
-                    break;
-                case "Last30":
-                    PickerStart.SelectedDate = now.AddDays(-29);
-                    PickerEnd.SelectedDate = now.Date;
-                    break;
-                case "All":
-                    PickerStart.SelectedDate = now.AddYears(-2);
-                    PickerEnd.SelectedDate = now.Date;
-                    break;
-            }
+            (DateTime start, DateTime end) = GetPresetRange(tag, DateTime.Now);
+            PickerStart.SelectedDate = start;
+            PickerEnd.SelectedDate = end;
             _isInternalUpdating = false;
+        }
+
+        internal static (DateTime Start, DateTime End) GetPresetRange(string tag, DateTime now)
+        {
+            DateTime today = now.Date;
+            return tag switch
+            {
+                "Week" => (today.AddDays(-((7 + (today.DayOfWeek - DayOfWeek.Monday)) % 7)), today),
+                "Month" => (new DateTime(today.Year, today.Month, 1), today),
+                "Last7" => (today.AddDays(-6), today),
+                "Last30" => (today.AddDays(-29), today),
+                "All" => (today.AddYears(-2), today),
+                _ => (today.AddDays(-6), today)
+            };
         }
 
         private void RangePresetCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
