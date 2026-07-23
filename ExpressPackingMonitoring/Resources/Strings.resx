@@ -382,6 +382,7 @@
   <data name="总耗时:" xml:space="preserve"><value>Total time:</value></data>
   <data name="总计时长" xml:space="preserve"><value>total duration</value></data>
   <data name="最近30天" xml:space="preserve"><value>Last 30 days</value></data>
+  <data name="最近7天" xml:space="preserve"><value>Last 7 days</value></data>
   <data name="发货" xml:space="preserve"><value>Shipping</value></data>
   <data name="退货" xml:space="preserve"><value>Return</value></data>
   <data name="已保存" xml:space="preserve"><value>Saved</value></data>
