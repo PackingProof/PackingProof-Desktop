@@ -190,6 +190,11 @@
   <data name="联网语音" xml:space="preserve"><value>Online voice</value></data>
   <data name="浏览器访问用的端口，保存后自动重启服务" xml:space="preserve"><value>The port used for browser access, and the service will be automatically restarted after saving.</value></data>
   <data name="录像保存位置" xml:space="preserve"><value>Recording locations</value></data>
+  <data name="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率" xml:space="preserve"><value>Test real-time recording performance and recommend a native camera resolution and frame rate</value></data>
+  <data name="检测并推荐录制规格" xml:space="preserve"><value>Test and recommend recording settings</value></data>
+  <data name="检测本机性能并推荐稳定的摄像头原生规格" xml:space="preserve"><value>Test this computer and recommend stable native camera settings</value></data>
+  <data name="开始检测" xml:space="preserve"><value>Start test</value></data>
+  <data name="正在检测，请稍候" xml:space="preserve"><value>Testing, please wait</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
   <data name="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准" xml:space="preserve"><value>Videos will be saved in list order. When a disk only has reserved space left, it will be automatically changed to the next disk; by default, at least 30GB or 10% is reserved for the system disk, and at least 20GB or 5% is reserved for other disks, whichever is larger.</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
@@ -614,4 +619,13 @@
   <data name="已打开订单联动安装向导" xml:space="preserve"><value>Order integration setup guide opened</value></data>
   <data name="当前已经是接收手机录像用途" xml:space="preserve"><value>This computer is already set to receive phone recordings</value></data>
   <data name="手机录像正在备份，完成后将自动重启" xml:space="preserve"><value>Phone recordings are being backed up. The app will restart automatically when finished</value></data>
+  <data name="3. 录制性能检测" xml:space="preserve"><value>3. Recording performance test</value></data>
+  <data name="4. 选择麦克风" xml:space="preserve"><value>4. Select microphone</value></data>
+  <data name="5. 扫码枪（可选）" xml:space="preserve"><value>5. Barcode scanner (optional)</value></data>
+  <data name="6. 完成" xml:space="preserve"><value>6. Finish</value></data>
+  <data name="检测录制性能" xml:space="preserve"><value>Test recording performance</value></data>
+  <data name="正在根据这台电脑的编码能力，为已选摄像头推荐稳定的原生分辨率和帧率" xml:space="preserve"><value>Testing this computer's encoding performance to recommend a stable native resolution and frame rate for the selected camera</value></data>
+  <data name="正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候" xml:space="preserve"><value>Testing real-time encoding performance at 720p, 1080p, 2K, and 4K. Please wait</value></data>
+  <data name="已自动选择录制配置" xml:space="preserve"><value>Recording settings selected automatically</value></data>
+  <data name="点击“下一步”继续测试麦克风；完成整个向导后配置才会保存" xml:space="preserve"><value>Select Next to test the microphone. Settings are saved only after the wizard is complete</value></data>
 </root>

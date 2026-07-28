@@ -173,6 +173,15 @@ namespace ExpressPackingMonitoring.ViewModels
                         string durStr = durSec < 60 ? $"{durSec}s" : $"{(int)durSec / 60}m {durSec % 60}s";
 
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
+                        if (!string.IsNullOrWhiteSpace(filePath))
+                        {
+                            _pendingRecordingSpecificationChecks[filePath] =
+                                new ExpectedRecordingSpecification(
+                                    Config.FrameWidth,
+                                    Config.FrameHeight,
+                                    Config.Fps,
+                                    dur);
+                        }
 
                         // 自动将 MKV 转换为 MP4（无损容器转换）
                         RuntimeLog.Info("Recording", $"Recording finalized as MKV, queued for idle/web conversion: {Path.GetFileName(filePath)}");
@@ -532,16 +541,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 3. 开启新的生产者-消费者通道
                 lock (_videoLock)
                 {
+                    int recordingWidth = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
+                    int recordingHeight = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
                     int recordingFps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
                     int queueCapacity = RecordingBufferPolicy.CalculateVideoQueueCapacity(
-                        Config.FrameWidth,
-                        Config.FrameHeight,
+                        recordingWidth,
+                        recordingHeight,
                         recordingFps);
                     _videoWriteQueue = new BlockingCollection<Mat>(queueCapacity);
                     _writeCts = new CancellationTokenSource();
                     _lastRecordingQueueWarnAt = DateTime.MinValue;
 
-                    long bufferedBytes = (long)queueCapacity * Config.FrameWidth * Config.FrameHeight * 3;
+                    long bufferedBytes = (long)queueCapacity * recordingWidth * recordingHeight * 3;
                     RuntimeLog.Info(
                         "Recording",
                         $"Video frame queue capacity={queueCapacity}, estimatedRawBuffer={bufferedBytes / 1024d / 1024d:F1}MB");
@@ -631,8 +642,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void BackgroundFFmpegRecordingLoop(string filePath, string ffmpegPath, CancellationToken token)
         {
-            int w = Config.FrameWidth;
-            int h = Config.FrameHeight;
+            int w = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
+            int h = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
             int fps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
             string encoder = ResolveEncoder();
             bool hasAudio = false;
@@ -767,6 +778,7 @@ namespace ExpressPackingMonitoring.ViewModels
             Process? ffmpeg = null;
             Stream? stdin = null;
             bool anyFrameWritten = false;
+            bool unexpectedFrameSizeLogged = false;
             string stderrText = "";
             bool stdinClosed = false;
 
@@ -830,36 +842,32 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool pipeError = false;
                     try
                     {
-                        Mat toWrite = frame;
-                        bool needResize = frame.Width != w || frame.Height != h;
-
-                        if (needResize)
+                        if (frame.Width != w || frame.Height != h)
                         {
-                            toWrite = new Mat();
-                            Cv2.Resize(frame, toWrite, new OpenCvSharp.Size(w, h));
-                        }
-
-                        try
-                        {
-                            if (ffmpeg.HasExited) { pipeError = true; break; }
-
-                            if (toWrite.IsContinuous() && toWrite.Type() == MatType.CV_8UC3)
+                            if (!unexpectedFrameSizeLogged)
                             {
-                                Marshal.Copy(toWrite.Data, buffer, 0, expectedBytes);
-                                // 此处可能会抛出 IOException/InvalidOperationException，标志着管道断开
-                                stdin.Write(buffer, 0, expectedBytes);
-                                anyFrameWritten = true;
-                                var firstFrameSignal = _firstRecordingFrameWritten;
-                                if (firstFrameSignal != null && !firstFrameSignal.Task.IsCompleted)
-                                {
-                                    long elapsedMs = (long)(1000.0 * (Stopwatch.GetTimestamp() - _recordingStartTimestamp) / Stopwatch.Frequency);
-                                    firstFrameSignal.TrySetResult(elapsedMs);
-                                }
+                                unexpectedFrameSizeLogged = true;
+                                RuntimeLog.Warn(
+                                    "FFmpeg",
+                                    $"Native camera frame size changed unexpectedly, expected={w}x{h}, actual={frame.Width}x{frame.Height}; frame skipped without software resampling");
                             }
+                            continue;
                         }
-                        finally
+
+                        if (ffmpeg.HasExited) { pipeError = true; break; }
+
+                        if (frame.IsContinuous() && frame.Type() == MatType.CV_8UC3)
                         {
-                            if (needResize) toWrite.Dispose();
+                            Marshal.Copy(frame.Data, buffer, 0, expectedBytes);
+                            // 此处可能会抛出 IOException/InvalidOperationException，标志着管道断开
+                            stdin.Write(buffer, 0, expectedBytes);
+                            anyFrameWritten = true;
+                            var firstFrameSignal = _firstRecordingFrameWritten;
+                            if (firstFrameSignal != null && !firstFrameSignal.Task.IsCompleted)
+                            {
+                                long elapsedMs = (long)(1000.0 * (Stopwatch.GetTimestamp() - _recordingStartTimestamp) / Stopwatch.Frequency);
+                                firstFrameSignal.TrySetResult(elapsedMs);
+                            }
                         }
                     }
                     catch (Exception ex) 
@@ -973,6 +981,15 @@ namespace ExpressPackingMonitoring.ViewModels
         internal static string BuildFFmpegArgs(int w, int h, int fps, string filePath, string encoder, bool withAudio, int videoCqp)
         {
             string args = $"-y -fflags +genpts -use_wallclock_as_timestamps 1 -f rawvideo -video_size {w}x{h} -pixel_format bgr24 -framerate {fps} -i pipe:0";
+            args += $" {BuildFFmpegEncoderArgs(w, h, fps, encoder, videoCqp)}";
+            args += " -muxdelay 0 -muxpreload 0";
+            args += $" \"{filePath}\"";
+            return args;
+        }
+
+        internal static string BuildFFmpegEncoderArgs(int w, int h, int fps, string encoder, int videoCqp)
+        {
+            string args = "";
             int cqp = videoCqp > 0 ? videoCqp : 25;
             int gop = Math.Max(1, fps * 2);
 
@@ -990,11 +1007,7 @@ namespace ExpressPackingMonitoring.ViewModels
             else if (encoder == "libsvtav1") args += $" -c:v libsvtav1 -pix_fmt yuv420p -preset {GetCpuAv1Preset(w, h, fps)} -crf {cqp} -svtav1-params tune=0 -g {gop}";
             else args += $" -c:v {encoder} -pix_fmt yuv420p -g {gop}";
 
-            args += $" -r {fps} -fps_mode cfr";
-
-            args += " -muxdelay 0 -muxpreload 0";
-            args += $" \"{filePath}\"";
-            return args;
+            return args.TrimStart();
         }
 
         private static int GetCpuAv1Preset(int w, int h, int fps)

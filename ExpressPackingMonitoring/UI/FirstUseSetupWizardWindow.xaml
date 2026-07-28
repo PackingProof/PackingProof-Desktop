@@ -107,9 +107,10 @@
                 <StackPanel>
                     <TextBlock x:Name="StepModeText" Text="1. 选择打包模式" Style="{StaticResource StepTextStyle}"/>
                     <TextBlock x:Name="StepCameraText" Text="2. 选择摄像头" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepMicText" Text="3. 选择麦克风" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepScannerText" Text="4. 扫码枪（可选）" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepDoneText" Text="5. 完成" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepRecordingProfileText" Text="3. 录制性能检测" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepMicText" Text="4. 选择麦克风" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepScannerText" Text="5. 扫码枪（可选）" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepDoneText" Text="6. 完成" Style="{StaticResource StepTextStyle}"/>
                 </StackPanel>
             </Border>
 
@@ -238,6 +239,75 @@
                                            TextWrapping="Wrap"/>
                             </Grid>
                         </Border>
+                    </Grid>
+
+                    <Grid x:Name="RecordingProfilePage" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="检测录制性能"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="正在根据这台电脑的编码能力，为已选摄像头推荐稳定的原生分辨率和帧率"
+                                       Margin="0,8,0,22"
+                                       FontSize="14"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+
+                            <Border Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="20">
+                                <StackPanel>
+                                    <TextBlock x:Name="RecordingProfileStatusText"
+                                               Text="正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource AccentBlue}"/>
+                                    <ProgressBar x:Name="RecordingProfileProgress"
+                                                 Height="6"
+                                                 Margin="0,18,0,0"
+                                                 IsIndeterminate="True"
+                                                 Foreground="{DynamicResource AccentBlue}"/>
+
+                                    <Border x:Name="RecordingProfileResultPanel"
+                                            Margin="0,20,0,0"
+                                            Padding="16"
+                                            Visibility="Collapsed"
+                                            Background="{DynamicResource PanelBackground}"
+                                            BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                        <StackPanel>
+                                            <TextBlock x:Name="RecordingProfileResultTitle"
+                                                       Text="已自动选择录制配置"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{DynamicResource AccentGreen}"/>
+                                            <TextBlock x:Name="RecordingProfileResultText"
+                                                       Margin="0,10,0,0"
+                                                       FontSize="15"
+                                                       LineHeight="24"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextPrimary}"/>
+                                            <TextBlock Text="点击“下一步”继续测试麦克风；完成整个向导后配置才会保存"
+                                                       Margin="0,12,0,0"
+                                                       FontSize="13"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                            <Button x:Name="RecordingProfileRetryButton"
+                                                    Content="重新检测"
+                                                    Margin="0,14,0,0"
+                                                    Padding="16,7"
+                                                    HorizontalAlignment="Left"
+                                                    Visibility="Collapsed"
+                                                    Click="RecordingProfileRetryButton_Click"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Grid>
 
                     <Grid x:Name="MicPage" Visibility="Collapsed">

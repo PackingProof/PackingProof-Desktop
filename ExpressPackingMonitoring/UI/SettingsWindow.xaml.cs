@@ -271,9 +271,11 @@ namespace ExpressPackingMonitoring.UI
                     CameraComboBox.IsEnabled = false;
                     ResComboBox.IsEnabled = false;
                     FpsComboBox.IsEnabled = false;
+                    DetectRecordingProfileButton.IsEnabled = false;
                     CameraComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
                     ResComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
                     FpsComboBox.ToolTip = "录制中不可修改，停止录制后再更改";
+                    DetectRecordingProfileButton.ToolTip = "录制中不可检测，停止录制后再重试";
                 }
             }
         }
@@ -427,18 +429,25 @@ namespace ExpressPackingMonitoring.UI
             FpsComboBox.SelectedItem = fpsMatch ?? fpsCbiList.FirstOrDefault();
         }
 
-        private async System.Threading.Tasks.Task LoadCameraCapabilitiesAsync(int cameraIndex, int currentWidth, int currentHeight, int currentFps)
+        private async System.Threading.Tasks.Task LoadCameraCapabilitiesAsync(
+            int cameraIndex,
+            int currentWidth,
+            int currentHeight,
+            int currentFps,
+            bool preferCachedRecommendation = false)
         {
             var result = await RunOnStaThread(() =>
             {
                 var resList = new List<ResOption>();
                 var fpsList = new List<int>();
+                IReadOnlyList<NativeCameraMode> nativeModes = [];
                 try
                 {
                     var videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
                     if (cameraIndex >= 0 && cameraIndex < videoDevices.Count)
                     {
                         var device = new VideoCaptureDevice(videoDevices[cameraIndex].MonikerString);
+                        nativeModes = RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
                         resList = device.VideoCapabilities
                             .Select(c => new { c.FrameSize.Width, c.FrameSize.Height })
                             .Distinct()
@@ -460,8 +469,16 @@ namespace ExpressPackingMonitoring.UI
                     }
                 }
                 catch { }
-                return (Resolutions: resList, FpsValues: fpsList);
+                return (Resolutions: resList, FpsValues: fpsList, NativeModes: nativeModes);
             });
+
+            if (preferCachedRecommendation
+                && TryGetCachedCameraRecommendation(result.NativeModes, out NativeCameraMode recommendedMode))
+            {
+                currentWidth = recommendedMode.Width;
+                currentHeight = recommendedMode.Height;
+                currentFps = recommendedMode.Fps;
+            }
 
             var resolutions = result.Resolutions;
             if (resolutions.Count == 0)
@@ -508,7 +525,10 @@ namespace ExpressPackingMonitoring.UI
                 int h = Config.FrameHeight;
                 int fps = Config.Fps;
 
-                if (!string.IsNullOrEmpty(cam.Moniker) && Config.CameraConfigs.TryGetValue(cam.Moniker, out var settings))
+                CameraSettings settings = null;
+                bool hasSavedCameraConfig = !string.IsNullOrEmpty(cam.Moniker)
+                    && Config.CameraConfigs.TryGetValue(cam.Moniker, out settings);
+                if (hasSavedCameraConfig)
                 {
                     w = settings.FrameWidth;
                     h = settings.FrameHeight;
@@ -524,8 +544,38 @@ namespace ExpressPackingMonitoring.UI
                     }
                 }
 
-                await LoadCameraCapabilitiesAsync(cam.Index, w, h, fps);
+                await LoadCameraCapabilitiesAsync(
+                    cam.Index,
+                    w,
+                    h,
+                    fps,
+                    preferCachedRecommendation: !hasSavedCameraConfig);
             }
+        }
+
+        private bool TryGetCachedCameraRecommendation(
+            IReadOnlyList<NativeCameraMode> nativeModes,
+            out NativeCameraMode recommendedMode)
+        {
+            string codec = VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption
+                ? codecOption.Value
+                : Config.VideoCodec ?? "h264";
+            codec = codec.Trim().ToLowerInvariant();
+            if (codec is not ("h264" or "h265" or "av1"))
+                codec = "h264";
+            string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
+                ? gpuOption.Value
+                : Config.GpuEncoder ?? "auto";
+            string encoder = EncodingHelper.ResolveFallbackEncoder(
+                gpu,
+                codec,
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
+            return RecordingProfileDetector.TryRecommendFromCache(
+                Config,
+                encoder,
+                RecordingProfileDetector.NormalizeVideoCqp(Config.VideoCqp),
+                nativeModes,
+                out recommendedMode);
         }
 
         private void LoadGpuEncoders()
@@ -793,6 +843,9 @@ namespace ExpressPackingMonitoring.UI
             if (Capabilities.CanUseCamera && !ValidateCameraIdleNoSleepPeriods())
                 return false;
 
+            if (Capabilities.CanRecordPcVideo && !ConfirmCachedRecordingProfileRisk())
+                return false;
+
             // 0. 验证音频
             if (Capabilities.CanRecordAudio &&
                 Config.EnableAudioRecording &&
@@ -999,6 +1052,132 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (pausedCamera)
                     Context.ResumeCameraAfterSetupWizard();
+            }
+        }
+
+        private bool ConfirmCachedRecordingProfileRisk()
+        {
+            if (ResComboBox.SelectedItem is not ResOption resolution
+                || FpsComboBox.SelectedItem is not ComboBoxItem fpsItem
+                || fpsItem.Tag is not int fps)
+            {
+                return true;
+            }
+
+            string codec = VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption
+                ? codecOption.Value
+                : Config.VideoCodec ?? "h264";
+            codec = codec.Trim().ToLowerInvariant();
+            if (codec is not ("h264" or "h265" or "av1"))
+                codec = "h264";
+            string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
+                ? gpuOption.Value
+                : Config.GpuEncoder ?? "auto";
+            string encoder = EncodingHelper.ResolveFallbackEncoder(
+                gpu,
+                codec,
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
+            var selectedMode = new NativeCameraMode(resolution.Width, resolution.Height, fps);
+            int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(Config.VideoCqp);
+            if (!RecordingProfileDetector.TryGetCachedBenchmark(
+                    Config,
+                    encoder,
+                    videoCqp,
+                    selectedMode,
+                    out RecordingBenchmarkCacheEntry cached)
+                || RecordingProfileDetector.CachedBenchmarkSupportsFrameRate(cached, fps))
+            {
+                return true;
+            }
+
+            return AppDialog.Confirm(
+                this,
+                $"缓存的性能检测结果显示，{resolution.Width}×{resolution.Height} @ {fps} FPS " +
+                $"可能无法稳定实时录制。\n\n实测最大编码速度：{cached.MeasuredEncodingFps:F1} FPS，" +
+                $"未达到保留 20% 余量所需的 {fps * RecordingProfileDetector.RequiredEncodingSpeed:F1} FPS。\n\n是否仍然应用此配置？",
+                "录制性能提醒",
+                "仍然应用",
+                "返回调整",
+                AppDialogSeverity.Warning,
+                isDangerous: false);
+        }
+
+        private async void DetectRecordingProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (Context.DetectRecordingProfileAsync == null
+                || DetectRecordingProfileButton == null
+                || CameraComboBox.SelectedItem is not CameraInfo camera
+                || string.IsNullOrWhiteSpace(camera.Moniker))
+            {
+                Context.ShowToast?.Invoke("请先选择可用摄像头");
+                return;
+            }
+
+            if (GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption)
+                Config.GpuEncoder = gpuOption.Value;
+            if (VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption)
+                Config.VideoCodec = codecOption.Value;
+
+            DetectRecordingProfileButton.IsEnabled = false;
+            DetectRecordingProfileButton.Content = AppLanguage.Translate("正在检测，请稍候");
+            try
+            {
+                IReadOnlyList<NativeCameraMode> nativeModes = await RunOnStaThread(() =>
+                {
+                    var device = new VideoCaptureDevice(camera.Moniker);
+                    return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
+                });
+                RecordingProfileRecommendation recommendation =
+                    await Context.DetectRecordingProfileAsync(Config, nativeModes);
+                if (recommendation?.Success != true
+                    || recommendation.Mode is not NativeCameraMode recommendedMode)
+                {
+                    Context.ShowToast?.Invoke(
+                        recommendation?.Message ?? "录制性能检测失败，已保留当前配置");
+                    return;
+                }
+
+                if (!RecordingProfileDetector.IsRecommendationDifferent(Config, recommendedMode))
+                {
+                    Context.ShowToast?.Invoke("检测完成，当前录制规格已是推荐配置");
+                    return;
+                }
+
+                bool applyRecommendation = AppDialog.Confirm(
+                    this,
+                    $"当前配置：{Config.FrameWidth}×{Config.FrameHeight} @ {Config.Fps} FPS\n" +
+                    $"推荐配置：{recommendedMode.Width}×{recommendedMode.Height} @ {recommendedMode.Fps} FPS",
+                    "录制规格推荐",
+                    "应用推荐配置",
+                    "保持当前配置",
+                    AppDialogSeverity.Information,
+                    isDangerous: false);
+                if (!applyRecommendation)
+                {
+                    Context.ShowToast?.Invoke("已保持当前录制配置");
+                    return;
+                }
+
+                RecordingProfileDetector.ApplyRecommendation(
+                    Config,
+                    recommendedMode,
+                    camera.Moniker);
+                await LoadCameraCapabilitiesAsync(
+                    camera.Index,
+                    recommendedMode.Width,
+                    recommendedMode.Height,
+                    recommendedMode.Fps);
+                Context.ShowToast?.Invoke("已填入推荐录制规格，保存设置后生效");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("RecordingProfile", "Settings recording profile detection failed", ex);
+                Context.ShowToast?.Invoke("录制性能检测失败，已保留当前配置");
+            }
+            finally
+            {
+                DetectRecordingProfileButton.IsEnabled = true;
+                DetectRecordingProfileButton.Content = AppLanguage.Translate("开始检测");
             }
         }
 

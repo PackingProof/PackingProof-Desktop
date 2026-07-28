@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,6 +12,14 @@ using System.Threading.Tasks;
 
 namespace ExpressPackingMonitoring.ViewModels
 {
+    internal sealed record EncoderDetectionResult(
+        List<GpuEncoderOption> Options,
+        HashSet<string> ValidatedEncoders,
+        bool FfmpegAvailable)
+    {
+        internal bool Succeeded => FfmpegAvailable && ValidatedEncoders.Count > 0;
+    }
+
     public partial class MainViewModel
     {
         private static string QueryFFmpegEncoders(string ffmpegPath)
@@ -45,41 +54,124 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { return ""; }
         }
 
-        public void ResetEncoderDetect()
+        public async void ResetEncoderDetect()
         {
-            if (_isEncoderDetectRunning)
-            {
-                ShowToast("处理中：检测已在运行中...");
-                return;
-            }
+            RecordingProfileRecommendation? recommendation =
+                await DetectAndRecommendRecordingProfileAsync(Config, null);
+            ShowToast(recommendation?.Message ?? "录制性能检测失败，已保留现有设置");
+        }
 
-            Task.Run(() =>
+        internal async Task<RecordingProfileRecommendation?> DetectAndRecommendRecordingProfileAsync(
+            AppConfig detectionConfig,
+            IReadOnlyList<NativeCameraMode>? selectedNativeModes)
+        {
+            ArgumentNullException.ThrowIfNull(detectionConfig);
+            if (_isEncoderDetectRunning)
+                return null;
+
+            _isEncoderDetectRunning = true;
+            IReadOnlyList<NativeCameraMode> nativeModes = selectedNativeModes ?? [];
+            if (nativeModes.Count == 0)
             {
-                _isEncoderDetectRunning = true;
                 try
                 {
-                    ShowToast("处理中：正在重新检测 GPU 编码器，请稍候...");
+                    nativeModes = RecordingProfileDetector.GetNativeModes(_videoSource?.VideoCapabilities);
+                }
+                catch
+                {
+                    nativeModes = [];
+                }
+            }
 
-                    var (options, validated) = DetectAvailableEncodersSync();
-                    CachedEncoderOptions = options;
-                    ValidatedEncoders = validated;
+            try
+            {
+                return await Task.Run(() =>
+                {
+                    EncoderDetectionResult detection = DetectAvailableEncodersSync();
+                    CachedEncoderOptions = detection.Options;
+                    ValidatedEncoders = detection.ValidatedEncoders;
 
-                    Config.EncoderOptionsCache = options;
-                    Config.ValidatedEncodersCache = validated.ToList();
-                    Config.IsEncoderDetected = true;
+                    // 检测缓存属于设备能力，可立即持久化；推荐规格必须由设置页确认后再写入。
+                    Config.EncoderOptionsCache = detection.Options;
+                    Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                    Config.IsEncoderDetected = detection.Succeeded;
+                    detectionConfig.EncoderOptionsCache = detection.Options;
+                    detectionConfig.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                    detectionConfig.IsEncoderDetected = detection.Succeeded;
+                    if (!detection.Succeeded)
+                    {
+                        SaveConfig();
+                        return new RecordingProfileRecommendation(
+                            false,
+                            null,
+                            "未检测到可用的 FFmpeg 编码器，已保留当前配置",
+                            []);
+                    }
+
+                    string codec = (detectionConfig.VideoCodec ?? "h264").Trim().ToLowerInvariant();
+                    if (codec is not ("h264" or "h265" or "av1"))
+                        codec = "h264";
+                    string encoder = EncodingHelper.ResolveFallbackEncoder(
+                        detectionConfig.GpuEncoder ?? "auto",
+                        codec,
+                        detection.ValidatedEncoders);
+                    if (!detection.ValidatedEncoders.Contains(encoder))
+                        encoder = detection.ValidatedEncoders.First();
+                    int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(detectionConfig.VideoCqp);
+                    string ffmpegPath = AppPaths.FindFFmpeg();
+                    RuntimeLog.Info(
+                        "RecordingProfile",
+                        $"manual ffmpeg={ffmpegPath}, encoder={encoder}, cqp={videoCqp}");
+                    RecordingProfileRecommendation recommendation = RecordingProfileDetector.Recommend(
+                        nativeModes,
+                        mode => RecordingProfileDetector.Benchmark(
+                            ffmpegPath,
+                            encoder,
+                            videoCqp,
+                            mode));
+                    DateTime testedAt = DateTime.Now;
+                    RecordingProfileDetector.UpdateBenchmarkCache(
+                        detectionConfig,
+                        encoder,
+                        videoCqp,
+                        recommendation.Benchmarks,
+                        testedAt);
+                    if (!ReferenceEquals(Config, detectionConfig))
+                    {
+                        RecordingProfileDetector.UpdateBenchmarkCache(
+                            Config,
+                            encoder,
+                            videoCqp,
+                            recommendation.Benchmarks,
+                            testedAt);
+                    }
                     SaveConfig();
-                    ShowToast("成功：编码器重新检测完成");
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Error("EncoderDetect", "Manual encoder detection failed", ex);
-                    ShowToast("编码器检测失败，已保留现有设置");
-                }
-                finally
-                {
-                    _isEncoderDetectRunning = false;
-                }
-            });
+                    foreach (RealtimeEncodingBenchmarkResult benchmark in recommendation.Benchmarks)
+                    {
+                        RuntimeLog.Info(
+                            "RecordingProfile",
+                            $"manual mode={benchmark.Mode.Width}x{benchmark.Mode.Height}@{benchmark.Mode.Fps}, encoder={encoder}, stable={benchmark.Stable}, detail={benchmark.Detail}");
+                    }
+
+                    if (recommendation.Success && recommendation.Mode is NativeCameraMode recommendedMode)
+                    {
+                        RuntimeLog.Info(
+                            "RecordingProfile",
+                            $"manual recommended={recommendedMode.Width}x{recommendedMode.Height}@{recommendedMode.Fps}, encoder={encoder}");
+                    }
+
+                    return recommendation;
+                });
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("EncoderDetect", "Manual recording profile detection failed", ex);
+                return null;
+            }
+            finally
+            {
+                _isEncoderDetectRunning = false;
+            }
         }
 
         private static (bool ok, string stderr) TestEncoder(string ffmpegPath, string encoder)
@@ -129,7 +221,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        public static (List<GpuEncoderOption> options, HashSet<string> validated) DetectAvailableEncodersSync()
+        internal static EncoderDetectionResult DetectAvailableEncodersSync()
+        {
+            return DetectAvailableEncodersSync(AppPaths.FindFFmpeg());
+        }
+
+        internal static EncoderDetectionResult DetectAvailableEncodersSync(string? ffmpegPath)
         {
             var log = new StringBuilder();
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === GPU 编码器检测开始 ===");
@@ -139,9 +236,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（优先独显）" },
                 new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
             };
-            var validated = new HashSet<string> { "libx264", "libx265" };
+            var validated = new HashSet<string>();
 
-            string ffmpegPath = AppPaths.FindFFmpeg();
             log.AppendLine($"FFmpeg 路径: {ffmpegPath}");
             log.AppendLine($"FFmpeg 存在: {!string.IsNullOrEmpty(ffmpegPath) && File.Exists(ffmpegPath)}");
 
@@ -149,11 +245,29 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 log.AppendLine("FFmpeg 不存在，跳过检测");
                 WriteEncoderLog(log);
-                return (list, validated);
+                return new EncoderDetectionResult(list, validated, false);
             }
 
             string output = QueryFFmpegEncoders(ffmpegPath);
             log.AppendLine($"ffmpeg -encoders 输出长度: {output.Length}");
+
+            foreach (string encoder in new[] { "libx264", "libx265", "libsvtav1" })
+            {
+                bool inList = output.Contains(encoder, StringComparison.Ordinal);
+                log.AppendLine($"\n=== CPU {encoder} ===");
+                log.AppendLine($"  ffmpeg -encoders 包含: {inList}");
+                if (!inList)
+                {
+                    log.AppendLine("  跳过试编码（不在编码器列表中）");
+                    continue;
+                }
+
+                var (testOk, testDetail) = TestEncoder(ffmpegPath, encoder);
+                log.AppendLine($"  试编码结果: {(testOk ? "✓ 通过" : "✗ 失败")}");
+                log.AppendLine($"  详情: {testDetail}");
+                if (testOk)
+                    validated.Add(encoder);
+            }
 
             var gpuGroups = new[]
             {
@@ -194,28 +308,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     list.Insert(list.Count - 1, new GpuEncoderOption { Value = gpu, DisplayName = label });
             }
 
-            {
-                log.AppendLine($"\n=== CPU AV1 (libsvtav1) ===");
-                bool svtInList = output.Contains("libsvtav1");
-                log.AppendLine($"  ffmpeg -encoders 包含: {svtInList}");
-                if (svtInList)
-                {
-                    var (testOk, testDetail) = TestEncoder(ffmpegPath, "libsvtav1");
-                    log.AppendLine($"  试编码结果: {(testOk ? "✓ 通过" : "✗ 失败")}");
-                    log.AppendLine($"  详情: {testDetail}");
-                    if (testOk) validated.Add("libsvtav1");
-                }
-                else
-                {
-                    log.AppendLine($"  跳过试编码（不在编码器列表中）");
-                }
-            }
-
             log.AppendLine($"\nGPU 选项: {string.Join(", ", list.Select(e => e.Value))}");
             log.AppendLine($"已验证编码器: {string.Join(", ", validated)}");
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 检测结束 ===");
             WriteEncoderLog(log);
-            return (list, validated);
+            return new EncoderDetectionResult(list, validated, true);
         }
 
         private static void WriteEncoderLog(StringBuilder log)

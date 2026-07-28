@@ -64,7 +64,13 @@ namespace ExpressPackingMonitoring.Config
 
         public static string FindFFmpeg()
         {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            return FindFFmpeg(
+                AppDomain.CurrentDomain.BaseDirectory,
+                Environment.GetEnvironmentVariable("PATH"));
+        }
+
+        internal static string FindFFmpeg(string baseDir, string pathEnvironment)
+        {
             string toolsPath = Path.Combine(baseDir, "tools", "ffmpeg.exe");
             if (File.Exists(toolsPath)) return toolsPath;
 
@@ -76,6 +82,29 @@ namespace ExpressPackingMonitoring.Config
             {
                 string projectPath = Path.Combine(dir.FullName, "ffmpeg.exe");
                 if (File.Exists(projectPath)) return projectPath;
+            }
+
+            if (!string.IsNullOrWhiteSpace(pathEnvironment))
+            {
+                foreach (string rawDirectory in pathEnvironment.Split(
+                             Path.PathSeparator,
+                             StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string directory = rawDirectory.Trim().Trim('"');
+                    if (string.IsNullOrWhiteSpace(directory))
+                        continue;
+
+                    try
+                    {
+                        string pathFfmpeg = Path.Combine(directory, "ffmpeg.exe");
+                        if (File.Exists(pathFfmpeg))
+                            return Path.GetFullPath(pathFfmpeg);
+                    }
+                    catch
+                    {
+                        // PATH 中的无效条目不应影响其它候选路径。
+                    }
+                }
             }
 
             return null;

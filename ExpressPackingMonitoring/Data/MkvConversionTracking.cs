@@ -64,5 +64,34 @@ namespace ExpressPackingMonitoring.Data
         public int SuppressedCount { get; set; }
         public int NotificationCount { get; set; }
         public bool ShouldNotify => NotificationCount > 0;
+        public List<string> ProcessedSources { get; } = [];
+        public List<MkvFinalizedFile> FinalFiles { get; } = [];
+
+        public void MarkProcessedSource(string sourcePath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath)
+                || ProcessedSources.Any(item =>
+                    string.Equals(item, sourcePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            ProcessedSources.Add(sourcePath);
+        }
+
+        public void AddFinalFile(string sourcePath, string finalPath)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath)
+                || string.IsNullOrWhiteSpace(finalPath)
+                || FinalFiles.Any(item =>
+                    string.Equals(item.SourcePath, sourcePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            FinalFiles.Add(new MkvFinalizedFile(sourcePath, finalPath));
+        }
     }
+
+    public sealed record MkvFinalizedFile(string SourcePath, string FinalPath);
 }

@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
 using System.Windows;
 using System.Windows.Input;
@@ -66,6 +67,7 @@ public sealed class SettingsContext
     public Action<string>? ShowToast { get; init; }
     public Func<IProgress<string>, CancellationToken, Task<MkvBatchConversionResult>>? BatchConvertMkvToMp4Async { get; init; }
     public ICommand? ResetEncoderDetectCommand { get; init; }
+    internal Func<AppConfig, IReadOnlyList<NativeCameraMode>, Task<RecordingProfileRecommendation?>>? DetectRecordingProfileAsync { get; init; }
     public object? ToastSource { get; init; }
 
     public static SettingsContext ForCameraWorkstation(MainViewModel mainViewModel)
@@ -86,6 +88,7 @@ public sealed class SettingsContext
             BatchConvertMkvToMp4Async = (progress, token) =>
                 mainViewModel.BatchConvertMkvToMp4Async(progress, token, forceRetry: true),
             ResetEncoderDetectCommand = mainViewModel.ResetEncoderDetectCommand,
+            DetectRecordingProfileAsync = mainViewModel.DetectAndRecommendRecordingProfileAsync,
             ToastSource = mainViewModel
         };
     }

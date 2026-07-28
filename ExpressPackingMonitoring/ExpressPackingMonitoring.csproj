@@ -122,6 +122,8 @@
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
+    <Compile Include="Services\RecordingProfileDetector.cs" />
+    <Compile Include="Services\CompletedVideoSpecificationProbe.cs" />
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\UserscriptGuideNavigation.cs" />
     <Compile Include="Services\UserscriptTargetState.cs" />

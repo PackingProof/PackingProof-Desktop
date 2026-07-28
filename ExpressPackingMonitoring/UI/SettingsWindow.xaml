@@ -2890,20 +2890,21 @@
                                                  Foreground="{DynamicResource AccentBlue}"/>
 
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
-                                        ToolTip="清除已保存的显卡编码检测结果，下次重新判断可用编码器">
+                                        ToolTip="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="重置编码器检测" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="录像编码异常时，用它重新检测电脑能力"
+                                            <TextBlock Text="检测并推荐录制规格" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="检测本机性能并推荐稳定的摄像头原生规格"
                                                     Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <Button Grid.Column="2"
-                                                Content="重新检测"
-                                                Command="{Binding Context.ResetEncoderDetectCommand}"
+                                        <Button x:Name="DetectRecordingProfileButton"
+                                                Grid.Column="2"
+                                                Content="开始检测"
+                                                Click="DetectRecordingProfile_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>
                                     </Grid>

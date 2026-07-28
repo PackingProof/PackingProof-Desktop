@@ -71,6 +71,20 @@ namespace ExpressPackingMonitoring.Config
         public int AudioSyncOffsetMs { get; set; } = 0;
     }
 
+    public sealed class RecordingBenchmarkCacheEntry
+    {
+        public int SchemaVersion { get; set; }
+        public string Encoder { get; set; } = "";
+        public int VideoCqp { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public bool CompletedSuccessfully { get; set; }
+        public int EncodedFrames { get; set; }
+        public double ElapsedSeconds { get; set; }
+        public double MeasuredEncodingFps { get; set; }
+        public DateTime TestedAt { get; set; }
+    }
+
     public class AppConfig
     {
         public const int CurrentVoiceSettingsVersion = 2;
@@ -208,6 +222,7 @@ namespace ExpressPackingMonitoring.Config
         // 缓存的检测结果
         public List<GpuEncoderOption> EncoderOptionsCache { get; set; } = new();
         public List<string> ValidatedEncodersCache { get; set; } = new();
+        public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
 
         public static bool NormalizeAfterLoad(AppConfig config)

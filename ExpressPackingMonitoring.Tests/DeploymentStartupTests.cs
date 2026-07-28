@@ -341,6 +341,55 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void FirstUseWizardUsesDedicatedAdvisoryRecordingPerformanceStep()
+    {
+        string wizard = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml");
+        string wizardSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml.cs");
+
+        Assert.Contains("x:Name=\"StepRecordingProfileText\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RecordingProfilePage\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RecordingProfileProgress\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("IsIndeterminate=\"True\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RecordingProfileResultText\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RecordingProfileRetryButton\"", wizard, StringComparison.Ordinal);
+
+        int showDetectionStep = wizardSource.IndexOf("ShowStep(2);", StringComparison.Ordinal);
+        int startDetection = wizardSource.IndexOf(
+            "await EnsureRecommendedCameraProfileAsync();",
+            showDetectionStep,
+            StringComparison.Ordinal);
+        Assert.True(showDetectionStep >= 0);
+        Assert.True(startDetection > showDetectionStep);
+        int nextHandler = wizardSource.IndexOf(
+            "private async void NextButton_Click",
+            StringComparison.Ordinal);
+        int detectionStepGuard = wizardSource.IndexOf(
+            "if (_stepIndex == 2)",
+            nextHandler,
+            StringComparison.Ordinal);
+        int retryDetection = wizardSource.IndexOf(
+            "if (!await EnsureRecommendedCameraProfileAsync())",
+            detectionStepGuard,
+            StringComparison.Ordinal);
+        Assert.True(nextHandler >= 0);
+        Assert.True(detectionStepGuard > nextHandler);
+        Assert.InRange(retryDetection - detectionStepGuard, 1, 120);
+        Assert.Contains("NextButton.IsEnabled = false;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("SkipButton.IsEnabled = false;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("RecordingProfileResultPanel.Visibility = Visibility.Visible;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("_evaluatedCameraMoniker = camera.Moniker;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("NextButton.Content = \"下一步\";", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("SelectSafeFallback(nativeModes)", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("return true;", wizardSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientCompletesFirstUseOnlyAfterBindingAValidatedHost()
     {
         string source = ReadRepositoryFile(

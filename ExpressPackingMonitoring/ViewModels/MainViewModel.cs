@@ -58,7 +58,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private Task _lastFinalizeTask;
         private Task _mkvRecoveryTask;
         private Task _postStopMuxTask;
+        private readonly ConcurrentDictionary<string, ExpectedRecordingSpecification> _pendingRecordingSpecificationChecks =
+            new(StringComparer.OrdinalIgnoreCase);
         private CancellationTokenSource _writeCts;
+        private int _actualCameraWidth;
+        private int _actualCameraHeight;
         private int _actualCameraFps = 15; // 摄像头硬件实际帧率
         private readonly object _audioLock = new object();
         private NAudio.CoreAudioApi.WasapiCapture _audioCapture;
@@ -577,14 +581,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     else
                     {
-                        var (options, validated) = DetectAvailableEncodersSync();
-                        CachedEncoderOptions = options;
-                        ValidatedEncoders = validated;
+                        EncoderDetectionResult detection = DetectAvailableEncodersSync();
+                        CachedEncoderOptions = detection.Options;
+                        ValidatedEncoders = detection.ValidatedEncoders;
 
                         // 保存到配置中
-                        Config.EncoderOptionsCache = options;
-                        Config.ValidatedEncodersCache = validated.ToList();
-                        Config.IsEncoderDetected = true;
+                        Config.EncoderOptionsCache = detection.Options;
+                        Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                        Config.IsEncoderDetected = detection.Succeeded;
                         SaveConfig();
                     }
                 }
@@ -1428,6 +1432,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Info(
                         "MkvToMp4",
                         $"最终停止后合成完成：reason={reason}, success={result.SuccessCount}, fail={result.FailureCount}, skip={result.SkippedCount}, deferred={result.DeferredCount}, suppressed={result.SuppressedCount}");
+                    VerifyCompletedRecordingSpecifications(result);
                     ShowMkvFailureToastIfNeeded(result);
                 }
                 catch (Exception ex)
@@ -1908,7 +1913,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 var clonedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
-                var wizard = new FirstUseSetupWizardWindow(clonedConfig) { Owner = owner };
+                var wizard = new FirstUseSetupWizardWindow(clonedConfig, allowSkip: false) { Owner = owner };
                 MainWindow setupOwner = owner as MainWindow;
                 setupOwner?.SuspendCapsLockForModalWindow();
 
@@ -2161,6 +2166,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (token.IsCancellationRequested) break;
 
                 string mkvPath = mkvPaths[i];
+                batchResult.MarkProcessedSource(mkvPath);
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
                 string fileName = Path.GetFileName(mkvPath);
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
@@ -2170,6 +2176,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
                 {
                     batchResult.SuppressedCount++;
+                    if (File.Exists(mkvPath))
+                        batchResult.AddFinalFile(mkvPath, mkvPath);
                     progress?.Report($"[{i + 1}/{total}] 已停止自动重试，可在维护工具中手动合并: {fileName}");
                     continue;
                 }
@@ -2177,6 +2185,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Deferred)
                 {
                     batchResult.DeferredCount++;
+                    if (File.Exists(mkvPath))
+                        batchResult.AddFinalFile(mkvPath, mkvPath);
                     progress?.Report($"[{i + 1}/{total}] 等待下次自动重试: {fileName}");
                     continue;
                 }
@@ -2189,6 +2199,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
                         batchResult.SuccessCount++;
+                        batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] 已更新数据库: {fileName}");
                     }
                     else
@@ -2213,6 +2224,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
                         batchResult.SuccessCount++;
+                        batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
                         continue;
                     }
@@ -2234,6 +2246,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     _db.ClearMkvConversionFailure(mkvPath);
                     _db.UpdateVideoFilePath(mkvPath, mp4Path);
                     batchResult.SuccessCount++;
+                    batchResult.AddFinalFile(
+                        mkvPath,
+                        string.IsNullOrWhiteSpace(conversionResult.FilePath)
+                            ? mp4Path
+                            : conversionResult.FilePath);
                     progress?.Report($"[{i + 1}/{total}] 转换成功: {fileName}");
                 }
                 else
@@ -2241,6 +2258,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     DateTime failedAt = DateTime.Now;
                     _db.RecordMkvConversionFailure(mkvPath, failedAt, conversionResult.ErrorMessage);
                     batchResult.FailureCount++;
+                    string retainedPath = !string.IsNullOrWhiteSpace(conversionResult.FilePath)
+                        && File.Exists(conversionResult.FilePath)
+                            ? conversionResult.FilePath
+                            : mkvPath;
+                    if (File.Exists(retainedPath))
+                        batchResult.AddFinalFile(mkvPath, retainedPath);
                     failedPaths.Add(mkvPath);
                     if (MkvConversionRetryPolicy.GetAutomaticRetryDecision(
                             _db.GetMkvConversionFailureState(mkvPath),
@@ -2271,6 +2294,58 @@ namespace ExpressPackingMonitoring.ViewModels
                         $"有 {result.NotificationCount} 个视频合成失败，原文件已保留，可在高级设置的维护工具中手动合并");
                 }
             });
+        }
+
+        private void VerifyCompletedRecordingSpecifications(MkvBatchConversionResult result)
+        {
+            if (result == null || result.ProcessedSources.Count == 0)
+                return;
+
+            string ffmpegPath = FindFFmpeg();
+            foreach (string sourcePath in result.ProcessedSources)
+            {
+                if (!_pendingRecordingSpecificationChecks.TryRemove(
+                        sourcePath,
+                        out ExpectedRecordingSpecification expected))
+                {
+                    continue;
+                }
+
+                // 尽力而为：下一单已经开录时直接跳过，不与实时录制竞争资源，也不轮询补做。
+                if (IsRecording || _isDisposed)
+                    continue;
+
+                MkvFinalizedFile finalizedFile = result.FinalFiles.FirstOrDefault(item =>
+                    string.Equals(item.SourcePath, sourcePath, StringComparison.OrdinalIgnoreCase));
+                if (finalizedFile == null)
+                    continue;
+
+                if (!CompletedVideoSpecificationProbe.TryRead(
+                        ffmpegPath,
+                        finalizedFile.FinalPath,
+                        out CompletedVideoMetadata actual))
+                {
+                    continue;
+                }
+
+                CompletedVideoSpecificationEvaluation evaluation =
+                    CompletedVideoSpecificationProbe.Evaluate(expected, actual);
+                if (!evaluation.ShouldEvaluate || evaluation.MeetsSpecification)
+                    continue;
+
+                RuntimeLog.Warn(
+                    "RecordingProfile",
+                    $"completed file={Path.GetFileName(finalizedFile.FinalPath)}, expected={expected.Width}x{expected.Height}@{expected.Fps}/{expected.DurationSeconds:F1}s, actual={actual.Width}x{actual.Height}@{actual.AverageFrameRate:F2}/{actual.DurationSeconds:F1}s, reason={evaluation.Reason}");
+                _alertService?.Publish(new AlertRequest
+                {
+                    Message = "实际录制规格未达到设置值，可到“设置 → 高级设置 → 检测并推荐录制规格”获取推荐，或在录制设置中自行降低分辨率或帧率",
+                    Priority = AlertPriority.Normal,
+                    Sound = AlertSound.None,
+                    DisplayDuration = TimeSpan.FromSeconds(5),
+                    DeduplicationKey = "recording-specification-below-target",
+                    DeduplicationWindow = TimeSpan.FromMinutes(30)
+                });
+            }
         }
 
         private List<string> GetMkvConversionTargets()
@@ -3446,17 +3521,21 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                     }
                     _videoSource.VideoResolution = best;
+                    _actualCameraWidth = best.FrameSize.Width;
+                    _actualCameraHeight = best.FrameSize.Height;
                     _actualCameraFps = best.AverageFrameRate > 0 ? best.AverageFrameRate : Config.Fps;
                 }
                 else
                 {
+                    _actualCameraWidth = Config.FrameWidth;
+                    _actualCameraHeight = Config.FrameHeight;
                     _actualCameraFps = Config.Fps > 0 ? Config.Fps : 15;
                 }
                 _videoSource.NewFrame += VideoSource_NewFrame; _videoSource.Start();
                 _lastFrameTime = DateTime.Now; // 防止 VideoProcessLoop 启动时误判无帧
                 _lastPreviewPublishedAt = DateTime.Now;
                 _cameraEverConnected = true;
-                RuntimeLog.Info("Camera", $"StartCamera success {Config.FrameWidth}x{Config.FrameHeight}@{_actualCameraFps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
+                RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
             }
             catch (Exception ex)
             {

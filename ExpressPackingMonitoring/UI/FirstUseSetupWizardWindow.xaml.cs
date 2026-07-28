@@ -22,6 +22,8 @@ using System.Windows.Media.Imaging;
 using ZXing;
 using ZXing.Common;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Helpers;
+using ExpressPackingMonitoring.Logging;
 using Mat = OpenCvSharp.Mat;
 using MatType = OpenCvSharp.MatType;
 
@@ -41,6 +43,8 @@ public partial class FirstUseSetupWizardWindow : Window
     private bool _scannerDetectedEnter;
     private readonly CameraBarcodeRecognitionService _cameraBarcodeRecognition;
     private DateTime _cameraRecognitionFeedbackUntil = DateTime.MinValue;
+    private string _evaluatedCameraMoniker = "";
+    private bool _isRecordingProfileDetectionRunning;
 
     public bool WasSkipped { get; private set; }
     public AppConfig ResultConfig => _config;
@@ -52,7 +56,15 @@ public partial class FirstUseSetupWizardWindow : Window
         SkipButton.Visibility = allowSkip ? Visibility.Visible : Visibility.Collapsed;
         _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(IsCameraBarcodeCandidate);
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
-        _stepTexts = new List<TextBlock> { StepModeText, StepCameraText, StepMicText, StepScannerText, StepDoneText };
+        _stepTexts = new List<TextBlock>
+        {
+            StepModeText,
+            StepCameraText,
+            StepRecordingProfileText,
+            StepMicText,
+            StepScannerText,
+            StepDoneText
+        };
 
         ContinuousModeRadio.IsChecked = !_config.EnableSameBarcodeStopRecording;
         SameCodeModeRadio.IsChecked = _config.EnableSameBarcodeStopRecording;
@@ -207,12 +219,13 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void ShowStep(int stepIndex)
     {
-        _stepIndex = Math.Clamp(stepIndex, 0, 4);
+        _stepIndex = Math.Clamp(stepIndex, 0, 5);
         ModePage.Visibility = _stepIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         CameraPage.Visibility = _stepIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        MicPage.Visibility = _stepIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-        ScannerPage.Visibility = _stepIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
-        DonePage.Visibility = _stepIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
+        RecordingProfilePage.Visibility = _stepIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        MicPage.Visibility = _stepIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        ScannerPage.Visibility = _stepIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
+        DonePage.Visibility = _stepIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
 
         for (int i = 0; i < _stepTexts.Count; i++)
         {
@@ -223,7 +236,7 @@ public partial class FirstUseSetupWizardWindow : Window
         }
 
         BackButton.IsEnabled = _stepIndex > 0;
-        NextButton.Content = _stepIndex == 4 ? "完成" : "下一步";
+        NextButton.Content = _stepIndex == 5 ? "完成" : "下一步";
 
         if (_stepIndex == 1)
         {
@@ -234,7 +247,7 @@ public partial class FirstUseSetupWizardWindow : Window
             StopCameraPreview();
         }
 
-        if (_stepIndex == 2)
+        if (_stepIndex == 3)
         {
             StartMicPreviewFromSelection();
         }
@@ -243,7 +256,7 @@ public partial class FirstUseSetupWizardWindow : Window
             StopMicPreview();
         }
 
-        if (_stepIndex == 3)
+        if (_stepIndex == 4)
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -252,18 +265,37 @@ public partial class FirstUseSetupWizardWindow : Window
             }));
         }
 
-        if (_stepIndex == 4)
+        if (_stepIndex == 5)
         {
             UpdateFlowText();
         }
     }
 
-    private void NextButton_Click(object sender, RoutedEventArgs e)
+    private async void NextButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_stepIndex == 1 && !TryLeaveCameraStep())
+        if (_stepIndex == 1)
+        {
+            if (CameraComboBox.SelectedItem is not CameraInfo camera
+                || string.IsNullOrWhiteSpace(camera.Moniker))
+            {
+                CameraStatusText.Text = "未检测到可用摄像头";
+                CameraStatusText.Visibility = Visibility.Visible;
+                return;
+            }
+            if (!TryLeaveCameraStep())
+                return;
+            ShowStep(2);
+            await EnsureRecommendedCameraProfileAsync();
             return;
+        }
 
-        if (_stepIndex == 4)
+        if (_stepIndex == 2)
+        {
+            if (!await EnsureRecommendedCameraProfileAsync())
+                return;
+        }
+
+        if (_stepIndex == 5)
         {
             if (CameraComboBox.SelectedItem is not CameraInfo selectedCamera
                 || string.IsNullOrWhiteSpace(selectedCamera.Moniker))
@@ -277,7 +309,7 @@ public partial class FirstUseSetupWizardWindow : Window
             {
                 AppDialog.ShowMessage(this, "录制主机必须先选择可用麦克风", "麦克风尚未配置",
                     AppDialogSeverity.Information);
-                ShowStep(2);
+                ShowStep(3);
                 return;
             }
             ApplySelections();
@@ -317,10 +349,221 @@ public partial class FirstUseSetupWizardWindow : Window
     private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoadingDevices) return;
+        _evaluatedCameraMoniker = "";
         if (_stepIndex == 1)
         {
             StartCameraPreviewFromSelection();
         }
+    }
+
+    private async Task<bool> EnsureRecommendedCameraProfileAsync(bool force = false)
+    {
+        if (_isRecordingProfileDetectionRunning)
+            return false;
+
+        if (CameraComboBox.SelectedItem is not CameraInfo camera
+            || string.IsNullOrWhiteSpace(camera.Moniker))
+        {
+            RecordingProfileStatusText.Text = "未检测到可用摄像头，请返回上一步重新选择";
+            RecordingProfileStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentOrange");
+            RecordingProfileProgress.Visibility = Visibility.Collapsed;
+            BackButton.IsEnabled = true;
+            NextButton.IsEnabled = true;
+            NextButton.Content = "下一步";
+            return false;
+        }
+
+        if (!force
+            && string.Equals(_evaluatedCameraMoniker, camera.Moniker, StringComparison.Ordinal))
+            return true;
+
+        _isRecordingProfileDetectionRunning = true;
+        BackButton.IsEnabled = false;
+        NextButton.IsEnabled = false;
+        SkipButton.IsEnabled = false;
+        CameraComboBox.IsEnabled = false;
+        RecordingProfileStatusText.Text = "正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候";
+        RecordingProfileStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentBlue");
+        RecordingProfileProgress.Visibility = Visibility.Visible;
+        RecordingProfileProgress.IsIndeterminate = true;
+        RecordingProfileResultPanel.Visibility = Visibility.Collapsed;
+        RecordingProfileRetryButton.Visibility = Visibility.Collapsed;
+
+        IReadOnlyList<NativeCameraMode> nativeModes = [];
+        try
+        {
+            nativeModes = await RunOnStaThread(() =>
+            {
+                var device = new VideoCaptureDevice(camera.Moniker);
+                return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
+            });
+
+            var detection = await Task.Run(() =>
+            {
+                EncoderDetectionResult encoderDetection =
+                    MainViewModel.DetectAvailableEncodersSync();
+                if (!encoderDetection.Succeeded)
+                {
+                    return (
+                        encoderDetection,
+                        encoder: "",
+                        videoCqp: RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp),
+                        ffmpegPath: AppPaths.FindFFmpeg(),
+                        recommendation: new RecordingProfileRecommendation(
+                            false,
+                            null,
+                            "未检测到可用的 FFmpeg 编码器",
+                            []));
+                }
+
+                string codec = (_config.VideoCodec ?? "h264").Trim().ToLowerInvariant();
+                if (codec is not ("h264" or "h265" or "av1"))
+                    codec = "h264";
+                string encoder = EncodingHelper.ResolveFallbackEncoder(
+                    _config.GpuEncoder ?? "auto",
+                    codec,
+                    encoderDetection.ValidatedEncoders);
+                if (!encoderDetection.ValidatedEncoders.Contains(encoder))
+                    encoder = encoderDetection.ValidatedEncoders.First();
+                int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp);
+                string ffmpegPath = AppPaths.FindFFmpeg();
+                RecordingProfileRecommendation recommendation = RecordingProfileDetector.Recommend(
+                    nativeModes,
+                    mode => RecordingProfileDetector.Benchmark(
+                        ffmpegPath,
+                        encoder,
+                        videoCqp,
+                        mode));
+                return (encoderDetection, encoder, videoCqp, ffmpegPath, recommendation);
+            });
+
+            _config.EncoderOptionsCache = detection.encoderDetection.Options;
+            _config.ValidatedEncodersCache =
+                detection.encoderDetection.ValidatedEncoders.ToList();
+            _config.IsEncoderDetected = detection.encoderDetection.Succeeded;
+            RecordingProfileDetector.UpdateBenchmarkCache(
+                _config,
+                detection.encoder,
+                detection.videoCqp,
+                detection.recommendation.Benchmarks,
+                DateTime.Now);
+            RuntimeLog.Info(
+                "RecordingProfile",
+                $"wizard ffmpeg={detection.ffmpegPath}, encoder={detection.encoder}, cqp={detection.videoCqp}");
+            foreach (RealtimeEncodingBenchmarkResult benchmark in detection.recommendation.Benchmarks)
+            {
+                RuntimeLog.Info(
+                    "RecordingProfile",
+                    $"wizard mode={benchmark.Mode.Width}x{benchmark.Mode.Height}@{benchmark.Mode.Fps}, encoder={detection.encoder}, stable={benchmark.Stable}, detail={benchmark.Detail}");
+            }
+
+            if (detection.recommendation.Success
+                && detection.recommendation.Mode is NativeCameraMode mode)
+            {
+                _config.FrameWidth = mode.Width;
+                _config.FrameHeight = mode.Height;
+                _config.Fps = mode.Fps;
+                _evaluatedCameraMoniker = camera.Moniker;
+                RealtimeEncodingBenchmarkResult benchmark =
+                    RecordingProfileDetector.FindBenchmark(
+                        detection.recommendation.Benchmarks,
+                        mode);
+                RecordingProfileStatusText.Text = "检测完成，已生成录制规格建议";
+                RecordingProfileStatusText.Foreground =
+                    (System.Windows.Media.Brush)FindResource("AccentGreen");
+                RecordingProfileResultTitle.Text = "已自动选择录制配置";
+                RecordingProfileResultTitle.Foreground =
+                    (System.Windows.Media.Brush)FindResource("AccentGreen");
+                RecordingProfileResultText.Text =
+                    $"分辨率：{mode.Width}×{mode.Height}\n" +
+                    $"原生帧率：{mode.Fps} FPS\n" +
+                    $"编码器：{EncodingHelper.GetEncoderLabel(detection.encoder)}\n" +
+                    $"实测最大编码速度：{benchmark?.MeasuredEncodingFps ?? 0:F1} FPS\n" +
+                    "结论：已满足 20% 实时余量";
+                RecordingProfileResultPanel.Visibility = Visibility.Visible;
+                RuntimeLog.Info(
+                    "RecordingProfile",
+                    $"wizard recommended={mode.Width}x{mode.Height}@{mode.Fps}, encoder={detection.encoder}");
+                return true;
+            }
+
+            NativeCameraMode? fallback =
+                RecordingProfileDetector.SelectSafeFallback(nativeModes);
+            if (fallback is NativeCameraMode fallbackMode)
+            {
+                _config.FrameWidth = fallbackMode.Width;
+                _config.FrameHeight = fallbackMode.Height;
+                _config.Fps = fallbackMode.Fps;
+            }
+            _evaluatedCameraMoniker = camera.Moniker;
+            RecordingProfileStatusText.Text = fallback is NativeCameraMode
+                ? $"{detection.recommendation.Message}，已采用可用的原生配置，仍可继续"
+                : $"{detection.recommendation.Message}，已保留程序默认配置，仍可继续";
+            RecordingProfileStatusText.Foreground =
+                (System.Windows.Media.Brush)FindResource("AccentOrange");
+            RecordingProfileResultTitle.Text = "性能建议未完成";
+            RecordingProfileResultTitle.Foreground =
+                (System.Windows.Media.Brush)FindResource("AccentOrange");
+            RecordingProfileResultText.Text = fallback is NativeCameraMode selectedFallback
+                ? $"当前采用：{selectedFallback.Width}×{selectedFallback.Height} @ {selectedFallback.Fps} FPS\n" +
+                  "该配置来自摄像头原生模式，仅作为安全兜底，尚未通过性能余量验证"
+                : $"当前保留：{_config.FrameWidth}×{_config.FrameHeight} @ {_config.Fps} FPS\n" +
+                  "摄像头未返回原生能力列表，已保留程序默认配置";
+            RecordingProfileResultPanel.Visibility = Visibility.Visible;
+            RecordingProfileRetryButton.Visibility = Visibility.Visible;
+            RuntimeLog.Info(
+                "RecordingProfile",
+                $"wizard fallback={_config.FrameWidth}x{_config.FrameHeight}@{_config.Fps}, reason={detection.recommendation.Message}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("RecordingProfile", "Wizard recording profile detection failed", ex);
+            NativeCameraMode? fallback =
+                RecordingProfileDetector.SelectSafeFallback(nativeModes);
+            if (fallback is NativeCameraMode fallbackMode)
+            {
+                _config.FrameWidth = fallbackMode.Width;
+                _config.FrameHeight = fallbackMode.Height;
+                _config.Fps = fallbackMode.Fps;
+            }
+            _evaluatedCameraMoniker = camera.Moniker;
+            RecordingProfileStatusText.Text = fallback is NativeCameraMode
+                ? "录制性能检测失败，已采用可用的原生配置，仍可继续"
+                : "录制性能检测失败，已保留程序默认配置，仍可继续";
+            RecordingProfileStatusText.Foreground =
+                (System.Windows.Media.Brush)FindResource("AccentOrange");
+            RecordingProfileResultTitle.Text = "性能建议未完成";
+            RecordingProfileResultTitle.Foreground =
+                (System.Windows.Media.Brush)FindResource("AccentOrange");
+            RecordingProfileResultText.Text = fallback is NativeCameraMode selectedFallback
+                ? $"当前采用：{selectedFallback.Width}×{selectedFallback.Height} @ {selectedFallback.Fps} FPS\n" +
+                  "可稍后重新检测，或继续使用并在录制设置中手动调整"
+                : $"当前保留：{_config.FrameWidth}×{_config.FrameHeight} @ {_config.Fps} FPS\n" +
+                  "摄像头未返回原生能力列表，已保留程序默认配置";
+            RecordingProfileResultPanel.Visibility = Visibility.Visible;
+            RecordingProfileRetryButton.Visibility = Visibility.Visible;
+            return true;
+        }
+        finally
+        {
+            _isRecordingProfileDetectionRunning = false;
+            RecordingProfileProgress.Visibility = Visibility.Collapsed;
+            BackButton.IsEnabled = _stepIndex > 0;
+            NextButton.IsEnabled = true;
+            NextButton.Content = "下一步";
+            SkipButton.IsEnabled = true;
+            CameraComboBox.IsEnabled = true;
+            RecordingProfileRetryButton.IsEnabled = true;
+        }
+    }
+
+    private async void RecordingProfileRetryButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        RecordingProfileRetryButton.IsEnabled = false;
+        await EnsureRecommendedCameraProfileAsync(force: true);
     }
 
     private void StartCameraPreviewFromSelection()
@@ -517,7 +760,7 @@ public partial class FirstUseSetupWizardWindow : Window
     private void MicComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoadingDevices) return;
-        if (_stepIndex == 2)
+        if (_stepIndex == 3)
         {
             StartMicPreviewFromSelection();
         }
@@ -616,7 +859,7 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void ScanTestTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_stepIndex != 3) return;
+        if (_stepIndex != 4) return;
         string content = ScanTestTextBox.Text.Trim();
         if (string.IsNullOrEmpty(content))
         {
