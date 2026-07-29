@@ -585,17 +585,17 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
-    [InlineData(0, false, true)]
-    [InlineData(1, false, false)]
-    [InlineData(1, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
     public void WizardCameraRecognitionChoiceDefaultsOnlyForNewSetup(
-        int recordingSetupVersion,
+        bool firstUseWizardCompleted,
         bool configuredChoice,
         bool expected)
     {
         var config = new AppConfig
         {
-            RecordingSetupVersion = recordingSetupVersion,
+            FirstUseWizardCompleted = firstUseWizardCompleted,
             EnableCameraBarcodeRecognition = configuredChoice
         };
 

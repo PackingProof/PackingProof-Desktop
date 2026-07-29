@@ -86,7 +86,7 @@ public partial class FirstUseSetupWizardWindow : Window
     internal static bool GetInitialCameraRecognitionChoice(AppConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return config.RecordingSetupVersion < AppConfig.CurrentRecordingSetupVersion
+        return !config.FirstUseWizardCompleted
             || config.EnableCameraBarcodeRecognition;
     }
 

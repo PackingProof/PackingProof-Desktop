@@ -125,23 +125,32 @@ public sealed class DeploymentPresetTests
         Assert.Equal(AppConfig.CurrentRecordingSetupVersion, config.RecordingSetupVersion);
     }
 
-    [Fact]
-    public void RecordingSetupCompletionIsTrackedSeparatelyFromDeploymentSetup()
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    public void RecordingSetupRunsForNewAndExistingHostsUntilExplicitCompletion(
+        int recordingSetupVersion,
+        bool firstUseWizardCompleted)
     {
         var config = new AppConfig
         {
-            DeploymentPreset = DeploymentPresets.ViewerClient,
+            DeploymentPreset = DeploymentPresets.RecordingHost,
             DeploymentSetupVersion = AppConfig.CurrentDeploymentSetupVersion,
-            FirstUseWizardCompleted = true
+            FirstUseWizardCompleted = firstUseWizardCompleted,
+            RecordingSetupVersion = recordingSetupVersion,
+            CameraMonikerString = "camera",
+            AudioDeviceName = "microphone"
         };
 
+        Assert.Equal(2, AppConfig.CurrentRecordingSetupVersion);
         Assert.True(AppConfig.ShouldRunRecordingSetup(config));
 
-        config.CameraMonikerString = "camera";
-        config.AudioDeviceName = "microphone";
-        config.DeploymentPreset = DeploymentPresets.RecordingHost;
         AppConfig.NormalizeAfterLoad(config);
+        Assert.Equal(recordingSetupVersion, config.RecordingSetupVersion);
+        Assert.True(AppConfig.ShouldRunRecordingSetup(config));
 
+        AppConfig.ApplyFirstUseDefaults(config);
         Assert.False(AppConfig.ShouldRunRecordingSetup(config));
     }
 

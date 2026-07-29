@@ -91,7 +91,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentCameraBarcodeSetupVersion = 1;
         public const int CurrentMobileConnectionSetupVersion = 1;
         public const int CurrentDeploymentSetupVersion = 1;
-        public const int CurrentRecordingSetupVersion = 1;
+        public const int CurrentRecordingSetupVersion = 2;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -331,18 +331,6 @@ namespace ExpressPackingMonitoring.Config
             if (!string.Equals(config.NodeName, normalizedNodeName, StringComparison.Ordinal))
             {
                 config.NodeName = normalizedNodeName;
-                changed = true;
-            }
-
-            if (config.RecordingSetupVersion < CurrentRecordingSetupVersion
-                && string.Equals(
-                    normalizedPreset,
-                    DeploymentPresets.RecordingHost,
-                    StringComparison.Ordinal)
-                && config.FirstUseWizardCompleted
-                && HasConfiguredRecordingHardware(config))
-            {
-                config.RecordingSetupVersion = CurrentRecordingSetupVersion;
                 changed = true;
             }
 
@@ -620,16 +608,6 @@ namespace ExpressPackingMonitoring.Config
         {
             return config == null
                 || config.RecordingSetupVersion < CurrentRecordingSetupVersion;
-        }
-
-        internal static bool HasConfiguredRecordingHardware(AppConfig config)
-        {
-            if (config == null)
-                return false;
-            bool hasCamera = !string.IsNullOrWhiteSpace(config.CameraMonikerString)
-                || config.CameraConfigs?.Count > 0;
-            bool hasMicrophone = !string.IsNullOrWhiteSpace(config.AudioDeviceName);
-            return hasCamera && hasMicrophone;
         }
 
         internal static bool ShouldRunDeploymentSetup(AppConfig config)
