@@ -700,4 +700,13 @@
   <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>从保存电脑复制完整连接链接并粘贴到这里</value></data>
   <data name="验证并绑定" xml:space="preserve"><value>验证并绑定</value></data>
   <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>请粘贴包含安全密钥的完整连接链接</value></data>
+  <data name="录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件</value></data>
+  <data name="缓存位置" xml:space="preserve"><value>缓存位置</value></data>
+  <data name="录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像" xml:space="preserve"><value>录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像</value></data>
+  <data name="更改位置" xml:space="preserve"><value>更改位置</value></data>
+  <data name="系统会为磁盘保留安全空间" xml:space="preserve"><value>系统会为磁盘保留安全空间</value></data>
+  <data name="缓存最多占用" xml:space="preserve"><value>缓存最多占用</value></data>
+  <data name="默认 100 GB，只是最高上限，不会预占磁盘空间" xml:space="preserve"><value>默认 100 GB，只是最高上限，不会预占磁盘空间</value></data>
+  <data name="正在计算此磁盘可安全使用的空间" xml:space="preserve"><value>正在计算此磁盘可安全使用的空间</value></data>
+  <data name="本地缓存空间不足，正在安全保存当前录像" xml:space="preserve"><value>本地缓存空间不足，正在安全保存当前录像</value></data>
 </root>

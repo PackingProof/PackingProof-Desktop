@@ -748,11 +748,34 @@
                                            Foreground="{DynamicResource TextMuted}"
                                            FontSize="12"
                                            TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding RecordingCacheUsageText, Mode=OneWay}"
+                                           Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding RecordingCacheStatusText, Mode=OneWay}"
+                                           Margin="0,3,0,0"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground"
+                                                    Value="{DynamicResource TextMuted}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRecordingCacheWarning, Mode=OneWay}"
+                                                             Value="True">
+                                                    <Setter Property="Foreground"
+                                                            Value="{DynamicResource AccentOrange}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <ProgressBar Height="3"
                                              Margin="0,5,0,0"
                                              Minimum="0"
                                              Maximum="100"
-                                             Value="{Binding RecordingTransferProgress, Mode=OneWay}"/>
+                                             Value="{Binding RecordingCacheUsagePercent, Mode=OneWay}"/>
                             </StackPanel>
                             <Grid Grid.Row="5" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>

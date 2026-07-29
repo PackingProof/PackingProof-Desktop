@@ -111,9 +111,9 @@ namespace ExpressPackingMonitoring.Config
         public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
         public string LastKnownHostAccessKey { get; set; } = "";
-        public string RecordingCachePolicy { get; set; } = "KeepDays";
+        public string RecordingCachePolicy { get; set; } = "KeepWithinSize";
         public int RecordingCacheKeepDays { get; set; } = 3;
-        public int RecordingCacheMaxGB { get; set; } = 50;
+        public int RecordingCacheMaxGB { get; set; } = 100;
         public DateTime? RecordingWorkstationActivatedAtUtc { get; set; }
         public string LastUserscriptTargetSignature { get; set; } = "";
         public int DeploymentSetupVersion { get; set; } = 0;
@@ -368,12 +368,15 @@ namespace ExpressPackingMonitoring.Config
                 config.LastKnownHostAccessKey = normalizedHostAccessKey;
                 changed = true;
             }
-            string normalizedCachePolicy = config.RecordingCachePolicy switch
-            {
-                "DeleteImmediately" => "DeleteImmediately",
-                "KeepWithinSize" => "KeepWithinSize",
-                _ => "KeepDays"
-            };
+            string normalizedCachePolicy =
+                normalizedPreset == DeploymentPresets.RecordingWorkstation
+                    ? "KeepWithinSize"
+                    : config.RecordingCachePolicy switch
+                    {
+                        "DeleteImmediately" => "DeleteImmediately",
+                        "KeepWithinSize" => "KeepWithinSize",
+                        _ => "KeepDays"
+                    };
             if (!string.Equals(config.RecordingCachePolicy, normalizedCachePolicy, StringComparison.Ordinal))
             {
                 config.RecordingCachePolicy = normalizedCachePolicy;

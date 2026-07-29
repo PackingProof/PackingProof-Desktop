@@ -98,7 +98,12 @@ namespace ExpressPackingMonitoring
                     JsonSerializer.Serialize(config)) ?? new AppConfig();
                 draft.DeploymentPreset = selector.SelectedPreset;
                 if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                {
                     draft.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                    RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                        draft,
+                        preserveExistingLocation: config.FirstUseWizardCompleted);
+                }
                 draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
                 draft.EnableWebServer = DeploymentCapabilities
                     .ForPreset(selector.SelectedPreset)
@@ -187,7 +192,12 @@ namespace ExpressPackingMonitoring
                     {
                         current.DeploymentPreset = preset;
                         if (preset == DeploymentPresets.RecordingWorkstation)
+                        {
                             current.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                            RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                                current,
+                                preserveExistingLocation: current.FirstUseWizardCompleted);
+                        }
                         current.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
                         current.EnableWebServer = DeploymentCapabilities
                             .ForPreset(preset)

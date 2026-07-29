@@ -225,6 +225,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string ResolveBestStoragePath()
         {
+            if (IsRecordingWorkstation)
+            {
+                StorageLocation location =
+                    RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
+                    ?? throw new IOException("尚未设置本地缓存位置");
+                return StorageLocationResolver.Resolve(location);
+            }
             return StorageLocationResolver.Resolve(Config, allowDefaultFallback: true);
         }
 
@@ -444,6 +451,37 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        private async Task<bool> EnsureRecordingCacheSpaceForNewRecordingAsync()
+        {
+            if (!IsRecordingWorkstation)
+                return true;
+
+            RecordingCacheMaintenanceResult result = await Task.Run(
+                () => RunRecordingCacheMaintenance(
+                    RecordingWorkstationCachePolicy
+                        .RecordingAndPackagingHeadroomBytes));
+            if (result.IsAvailable && result.CanFitRequiredHeadroom)
+                return true;
+
+            if (_recordingCacheBlockedDialogShown)
+                return false;
+
+            _recordingCacheBlockedDialogShown = true;
+            SpeakWarning(DefaultSpeechCatalog.StoragePathNotWritable);
+            bool manageHost = AppDialog.Confirm(
+                Application.Current?.MainWindow,
+                "本地缓存暂时没有足够空间开始下一段录像。系统已先清理可安全删除的已上传录像，其他录像仍完整保留",
+                "本地缓存空间不足",
+                confirmText: "管理保存主机",
+                cancelText: "更改缓存位置",
+                severity: AppDialogSeverity.Warning);
+            if (manageHost)
+                ChangeBoundHost(Application.Current?.MainWindow);
+            else
+                OpenSettings(selectRecordingCache: true);
+            return false;
+        }
+
         private async Task InternalStartRecordingAsync()
         {
             var startupWatch = Stopwatch.StartNew();
@@ -474,6 +512,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     SpeakWarning(DefaultSpeechCatalog.CameraNotReady);
                     return;
                 }
+
+                if (!await EnsureRecordingCacheSpaceForNewRecordingAsync())
+                    return;
 
                 bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
 

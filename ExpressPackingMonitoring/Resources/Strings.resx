@@ -700,4 +700,13 @@
   <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>Copy the complete connection link from the storage computer and paste it here</value></data>
   <data name="验证并绑定" xml:space="preserve"><value>Verify and bind</value></data>
   <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>Paste the complete connection link containing the security key</value></data>
+  <data name="录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件" xml:space="preserve"><value>Recordings are saved locally first. After the storage host confirms receipt, uploaded files are removed automatically as the cache approaches its limit</value></data>
+  <data name="缓存位置" xml:space="preserve"><value>Cache location</value></data>
+  <data name="录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像" xml:space="preserve"><value>The recording workstation uses one local cache location and never moves or deletes existing recordings automatically</value></data>
+  <data name="更改位置" xml:space="preserve"><value>Change location</value></data>
+  <data name="系统会为磁盘保留安全空间" xml:space="preserve"><value>The system keeps a safe amount of disk space free</value></data>
+  <data name="缓存最多占用" xml:space="preserve"><value>Maximum cache size</value></data>
+  <data name="默认 100 GB，只是最高上限，不会预占磁盘空间" xml:space="preserve"><value>The default 100 GB is only a maximum and does not preallocate disk space</value></data>
+  <data name="正在计算此磁盘可安全使用的空间" xml:space="preserve"><value>Calculating how much space can be used safely on this disk</value></data>
+  <data name="本地缓存空间不足，正在安全保存当前录像" xml:space="preserve"><value>Local cache space is low. The current recording is being saved safely</value></data>
 </root>

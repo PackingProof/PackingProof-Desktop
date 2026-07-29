@@ -10,8 +10,17 @@ namespace ExpressPackingMonitoring.Config
         public static long CalculateMinimumReserveBytes(DriveInfo drive)
         {
             bool isSystemDrive = IsSystemDrive(drive.RootDirectory.FullName);
+            return CalculateMinimumReserveBytes(drive.TotalSize, isSystemDrive);
+        }
+
+        public static long CalculateMinimumReserveBytes(
+            long totalSize,
+            bool isSystemDrive)
+        {
             long minimumBytes = (isSystemDrive ? 30L : 20L) * BytesPerGiB;
-            long percentBytes = (long)Math.Ceiling(drive.TotalSize * (isSystemDrive ? 0.10 : 0.05) / (double)BytesPerGiB) * BytesPerGiB;
+            long percentBytes = (long)Math.Ceiling(
+                Math.Max(0, totalSize) * (isSystemDrive ? 0.10 : 0.05)
+                / (double)BytesPerGiB) * BytesPerGiB;
             return Math.Max(minimumBytes, percentBytes);
         }
 
@@ -60,7 +69,7 @@ namespace ExpressPackingMonitoring.Config
             }
         }
 
-        private static bool IsSystemDrive(string driveRoot)
+        public static bool IsSystemDrive(string driveRoot)
         {
             string systemRoot = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? "";
             return string.Equals(

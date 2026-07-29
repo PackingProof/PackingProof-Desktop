@@ -674,7 +674,12 @@ public partial class PrintWorkstationWindow : Window
                     {
                         config.DeploymentPreset = window.SelectedPreset;
                         if (window.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                        {
                             config.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                            RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                                config,
+                                preserveExistingLocation: true);
+                        }
                         config.WorkstationRole = DeploymentCapabilities
                             .ForPreset(window.SelectedPreset)
                             .IsRecordingDevice

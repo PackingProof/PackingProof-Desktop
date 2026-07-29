@@ -19,8 +19,15 @@ public partial class MainViewModel
     private double _recordingTransferProgress;
     private string _lastRecordingTransferError = "";
     private string _boundHostOnlineStatusText = "正在检查主机状态";
+    private string _recordingCacheUsageText = "正在检查本地缓存";
+    private string _recordingCacheStatusText = "本地缓存会在接近上限时自动清理";
+    private double _recordingCacheUsagePercent;
+    private bool _isRecordingCacheWarning;
+    private bool _recordingCacheBlockedDialogShown;
+    private int _recordingCacheEmergencyStopRequested;
     private DateTime _lastRecordingWorkstationHeartbeatAt = DateTime.MinValue;
     private int _recordingWorkstationHeartbeatInProgress;
+    private readonly object _recordingCacheMaintenanceLock = new();
 
     public ICommand OpenBoundHostCommand { get; private set; } = null!;
     public ICommand RetryRecordingTransfersCommand { get; private set; } = null!;
@@ -110,6 +117,7 @@ public partial class MainViewModel
             _recordingTransferService.ProgressChanged += OnRecordingTransferProgressChanged;
             _recordingTransferService.Start();
             RefreshRecordingTransferSummary();
+            RunRecordingCacheCleanup();
         }
         catch (Exception ex)
         {
@@ -139,6 +147,30 @@ public partial class MainViewModel
         _recordingTransferService?.EnqueueCompletedRecordings();
         _recordingTransferService?.RetryNow();
         RecordingTransferStatusText = "正在重新连接保存主机";
+    }
+
+    public string RecordingCacheUsageText
+    {
+        get => _recordingCacheUsageText;
+        private set { _recordingCacheUsageText = value; OnPropertyChanged(); }
+    }
+
+    public string RecordingCacheStatusText
+    {
+        get => _recordingCacheStatusText;
+        private set { _recordingCacheStatusText = value; OnPropertyChanged(); }
+    }
+
+    public double RecordingCacheUsagePercent
+    {
+        get => _recordingCacheUsagePercent;
+        private set { _recordingCacheUsagePercent = value; OnPropertyChanged(); }
+    }
+
+    public bool IsRecordingCacheWarning
+    {
+        get => _isRecordingCacheWarning;
+        private set { _isRecordingCacheWarning = value; OnPropertyChanged(); }
     }
 
     private void QueueRecordingWorkstationHeartbeat(bool force = false)
@@ -322,47 +354,203 @@ public partial class MainViewModel
 
     private void RunRecordingCacheCleanup()
     {
-        if (!IsRecordingWorkstation || _recordingTransferStore == null || _db == null)
+        if (!IsRecordingWorkstation)
             return;
+        _ = Task.Run(() => RunRecordingCacheMaintenance(
+            RecordingWorkstationCachePolicy.RecordingAndPackagingHeadroomBytes));
+    }
 
-        try
+    private RecordingCacheMaintenanceResult RunRecordingCacheMaintenance(
+        long requiredHeadroomBytes)
+    {
+        if (!IsRecordingWorkstation || _recordingTransferStore == null || _db == null)
+            return RecordingCacheMaintenanceResult.Unavailable("本地缓存服务尚未准备好");
+
+        lock (_recordingCacheMaintenanceLock)
         {
-            IReadOnlyList<RecordingTransferTask> uploaded =
-                _recordingTransferStore.GetUploadedWithLocalCache();
-            IReadOnlyList<RecordingTransferTask> candidates =
-                SelectRecordingCacheCleanupCandidates(
-                    uploaded,
-                    Config.RecordingCachePolicy,
-                    Config.RecordingCacheKeepDays,
-                    Config.RecordingCacheMaxGB,
-                    DateTime.Now,
-                    ResolveManagedRecordingPath);
-
-            foreach (RecordingTransferTask task in candidates.ToArray())
+            try
             {
-                if (task.RemoteVideoRecordId is not long remoteRecordId || remoteRecordId <= 0)
-                    continue;
-                string path = ResolveManagedRecordingPath(task);
-                if (string.IsNullOrEmpty(path))
+                StorageLocation location =
+                    RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
+                    ?? throw new IOException("尚未设置本地缓存位置");
+                string cachePath = Path.GetFullPath(location.Path);
+                if (!Directory.Exists(cachePath))
+                    throw new DirectoryNotFoundException("本地缓存位置不存在，请重新选择");
+                string? root = Path.GetPathRoot(cachePath);
+                if (string.IsNullOrWhiteSpace(root))
+                    throw new IOException("无法确定本地缓存所在磁盘");
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady)
+                    throw new IOException("本地缓存所在磁盘未就绪");
+
+                long cacheBytes = GetVideoBytes(cachePath);
+                long configuredLimitBytes =
+                    Math.Max(1L, Config.RecordingCacheMaxGB)
+                    * StorageSpacePolicy.BytesPerGiB;
+                long reserveBytes =
+                    StorageSpacePolicy.GetEffectiveReserveBytes(location, drive);
+                RecordingCacheSpaceSnapshot snapshot =
+                    RecordingWorkstationCachePolicy.CalculateSpace(
+                        cacheBytes,
+                        configuredLimitBytes,
+                        drive.AvailableFreeSpace,
+                        reserveBytes);
+
+                IReadOnlyList<RecordingTransferTask> uploaded =
+                    _recordingTransferStore.GetUploadedWithLocalCache();
+                var tasksById = new Dictionary<long, RecordingTransferTask>();
+                var verifiedItems = new List<RecordingCacheCleanupItem>();
+                foreach (RecordingTransferTask task in uploaded)
                 {
-                    RuntimeLog.Warn(
-                        "RecordingTransfer",
-                        $"Cache cleanup skipped unmanaged path record={task.LocalVideoRecordId}");
-                    continue;
+                    if (task.RemoteVideoRecordId is not long remoteRecordId
+                        || remoteRecordId <= 0)
+                    {
+                        continue;
+                    }
+                    string path = ResolveManagedRecordingPath(task);
+                    if (path.Length == 0 || !File.Exists(path))
+                        continue;
+                    long size;
+                    try { size = new FileInfo(path).Length; }
+                    catch { continue; }
+                    tasksById[task.Id] = task;
+                    verifiedItems.Add(new RecordingCacheCleanupItem(
+                        task.Id,
+                        task.CreatedAt,
+                        size));
                 }
 
-                if (File.Exists(path))
-                    File.Delete(path);
-                _db.MarkVideoCacheDeleted(task.LocalVideoRecordId, remoteRecordId);
-                _recordingTransferStore.MarkCacheDeleted(task.Id, DateTime.UtcNow);
-                RuntimeLog.Info(
+                RecordingCacheCleanupPlan plan =
+                    RecordingWorkstationCachePolicy.CreateCleanupPlan(
+                        snapshot,
+                        requiredHeadroomBytes,
+                        verifiedItems);
+                int cleanedCount = 0;
+                long cleanedBytes = 0;
+                foreach (long taskId in plan.ItemIds)
+                {
+                    if (!tasksById.TryGetValue(taskId, out RecordingTransferTask? task)
+                        || task.RemoteVideoRecordId is not long remoteRecordId
+                        || remoteRecordId <= 0)
+                    {
+                        continue;
+                    }
+                    string path = ResolveManagedRecordingPath(task);
+                    if (path.Length == 0)
+                        continue;
+                    long size = 0;
+                    if (File.Exists(path))
+                    {
+                        size = new FileInfo(path).Length;
+                        File.Delete(path);
+                    }
+                    _db.MarkVideoCacheDeleted(task.LocalVideoRecordId, remoteRecordId);
+                    _recordingTransferStore.MarkCacheDeleted(task.Id, DateTime.UtcNow);
+                    cleanedCount++;
+                    cleanedBytes += size;
+                    RuntimeLog.Info(
+                        "RecordingTransfer",
+                        $"Verified cache removed localRecord={task.LocalVideoRecordId}, bytes={size}");
+                }
+
+                if (cleanedCount > 0)
+                {
+                    drive = new DriveInfo(root);
+                    cacheBytes = GetVideoBytes(cachePath);
+                    reserveBytes =
+                        StorageSpacePolicy.GetEffectiveReserveBytes(location, drive);
+                    snapshot = RecordingWorkstationCachePolicy.CalculateSpace(
+                        cacheBytes,
+                        configuredLimitBytes,
+                        drive.AvailableFreeSpace,
+                        reserveBytes);
+                    RuntimeLog.Info(
+                        "RecordingTransfer",
+                        $"Cache cleanup completed count={cleanedCount}, bytes={cleanedBytes}, remaining={snapshot.CacheBytes}");
+                }
+
+                bool canFit = snapshot.RemainingBytes >= requiredHeadroomBytes;
+                bool warning = !canFit
+                    || snapshot.UsagePercent
+                    >= RecordingWorkstationCachePolicy.WarningWatermark * 100
+                    || snapshot.RemainingBytes
+                    < RecordingWorkstationCachePolicy.RecordingAndPackagingHeadroomBytes;
+                PublishRecordingCacheStatus(snapshot, canFit, warning);
+                return new RecordingCacheMaintenanceResult(
+                    true,
+                    canFit,
+                    warning,
+                    cleanedCount,
+                    snapshot,
+                    "");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn(
                     "RecordingTransfer",
-                    $"Uploaded cache removed localRecord={task.LocalVideoRecordId}");
+                    $"Cache maintenance failed: {ex.Message}");
+                PublishRecordingCacheUnavailable(ex.Message);
+                return RecordingCacheMaintenanceResult.Unavailable(ex.Message);
             }
         }
-        catch (Exception ex)
+    }
+
+    private void PublishRecordingCacheStatus(
+        RecordingCacheSpaceSnapshot snapshot,
+        bool canFit,
+        bool warning)
+    {
+        void Update()
         {
-            RuntimeLog.Warn("RecordingTransfer", $"Cache cleanup failed: {ex.Message}");
+            if (_isDisposed) return;
+            double cachedGb =
+                snapshot.CacheBytes / (double)StorageSpacePolicy.BytesPerGiB;
+            RecordingCacheUsageText =
+                $"已缓存 {cachedGb:F1} GB / 上限 {Config.RecordingCacheMaxGB} GB";
+            RecordingCacheUsagePercent = snapshot.UsagePercent;
+            IsRecordingCacheWarning = warning;
+            RecordingCacheStatusText = canFit
+                ? warning
+                    ? "本地缓存接近安全上限，已上传录像会自动清理"
+                    : "本地缓存空间充足"
+                : "可清理的已上传录像不足，下一段录像将暂停";
+            DiskUsagePercent = snapshot.UsagePercent;
+            DiskUsageText = RecordingCacheUsageText;
+            if (canFit)
+            {
+                _recordingCacheBlockedDialogShown = false;
+                Interlocked.Exchange(ref _recordingCacheEmergencyStopRequested, 0);
+            }
+        }
+
+        if (Application.Current?.Dispatcher is { } dispatcher
+            && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(Update);
+        }
+        else
+        {
+            Update();
+        }
+    }
+
+    private void PublishRecordingCacheUnavailable(string error)
+    {
+        void Update()
+        {
+            if (_isDisposed) return;
+            IsRecordingCacheWarning = true;
+            RecordingCacheStatusText = $"本地缓存不可用：{error}";
+        }
+
+        if (Application.Current?.Dispatcher is { } dispatcher
+            && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(Update);
+        }
+        else
+        {
+            Update();
         }
     }
 
@@ -424,7 +612,12 @@ public partial class MainViewModel
             string fullPath;
             try { fullPath = Path.GetFullPath(candidate); }
             catch { continue; }
-            if (Config.StorageLocations.Any(location => IsPathInside(fullPath, location.Path)))
+            IEnumerable<StorageLocation> managedLocations = IsRecordingWorkstation
+                ? RecordingWorkstationCachePolicy.GetConfiguredLocation(Config) is { } cacheLocation
+                    ? [cacheLocation]
+                    : []
+                : Config.StorageLocations;
+            if (managedLocations.Any(location => IsPathInside(fullPath, location.Path)))
                 return fullPath;
         }
         return "";
@@ -458,4 +651,22 @@ public partial class MainViewModel
         _recordingTransferService = null;
         _recordingTransferStore = null;
     }
+}
+
+internal readonly record struct RecordingCacheMaintenanceResult(
+    bool IsAvailable,
+    bool CanFitRequiredHeadroom,
+    bool IsWarning,
+    int CleanedCount,
+    RecordingCacheSpaceSnapshot Snapshot,
+    string Error)
+{
+    public static RecordingCacheMaintenanceResult Unavailable(string error) =>
+        new(
+            false,
+            false,
+            true,
+            0,
+            default,
+            error);
 }

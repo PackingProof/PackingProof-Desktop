@@ -14,7 +14,9 @@ namespace ExpressPackingMonitoring.UI
 
         public string? SelectedRootPath { get; private set; }
 
-        public DriveSelectionDialog(IEnumerable<string>? usedPaths = null)
+        public DriveSelectionDialog(
+            IEnumerable<string>? usedPaths = null,
+            bool fixedDrivesOnly = false)
         {
             Title = "选择磁盘分区";
             Width = 420;
@@ -54,7 +56,7 @@ namespace ExpressPackingMonitoring.UI
             var content = new StackPanel();
             _driveList.MinHeight = 120;
             _driveList.MaxHeight = 260;
-            var drives = LoadDrives(usedPaths);
+            var drives = LoadDrives(usedPaths, fixedDrivesOnly);
             _driveList.DisplayMemberPath = nameof(DriveOption.DisplayText);
             _driveList.ItemContainerStyle = CreateDriveItemContainerStyle();
             _driveList.ItemsSource = drives;
@@ -117,7 +119,9 @@ namespace ExpressPackingMonitoring.UI
             return style;
         }
 
-        private static List<DriveOption> LoadDrives(IEnumerable<string>? usedPaths)
+        private static List<DriveOption> LoadDrives(
+            IEnumerable<string>? usedPaths,
+            bool fixedDrivesOnly)
         {
             var usedRoots = new HashSet<string>(
                 (usedPaths ?? Enumerable.Empty<string>())
@@ -127,7 +131,9 @@ namespace ExpressPackingMonitoring.UI
 
             return DriveInfo.GetDrives()
                 .Where(drive => drive.IsReady)
-                .Where(drive => drive.DriveType is DriveType.Fixed or DriveType.Removable)
+                .Where(drive => fixedDrivesOnly
+                    ? drive.DriveType == DriveType.Fixed
+                    : drive.DriveType is DriveType.Fixed or DriveType.Removable)
                 .Select(drive => new DriveOption(drive, usedRoots.Contains(GetDriveRoot(drive.RootDirectory.FullName))))
                 .OrderBy(option => option.RootPath, StringComparer.OrdinalIgnoreCase)
                 .ToList();

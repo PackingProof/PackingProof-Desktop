@@ -131,6 +131,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
         private bool _isSyncingScannerModes;
+        private bool _recordingCacheLimitExplained;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
             : this(SettingsContext.ForCameraWorkstation(mainVM), clonedConfig, diskUsagePercent, diskUsageText, isRecording)
@@ -173,6 +174,12 @@ namespace ExpressPackingMonitoring.UI
                 SortStorageLocationsByPriority();
                 RefreshStoragePriorities();
                 UpdateStorageButtonStates();
+            }
+            if (Capabilities.CanConfigureRecordingCache)
+            {
+                EnsureRecordingCacheLocationExists();
+                Config.RecordingCachePolicy = "KeepWithinSize";
+                RefreshRecordingCacheStorageSummary();
             }
 
             // 从注册表读取实际的开机自启动状态
@@ -246,6 +253,39 @@ namespace ExpressPackingMonitoring.UI
             {
                 Config.StorageLocations.Add(new StorageLocation());
             }
+        }
+
+        private void EnsureRecordingCacheLocationExists()
+        {
+            if (RecordingWorkstationCachePolicy.GetConfiguredLocation(Config) != null)
+                return;
+            RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                Config,
+                preserveExistingLocation: false);
+            if (RecordingWorkstationCachePolicy.GetConfiguredLocation(Config) == null)
+            {
+                Config.StorageLocations =
+                [
+                    new StorageLocation
+                    {
+                        Path = Path.Combine(
+                            string.IsNullOrWhiteSpace(
+                                Environment.GetFolderPath(
+                                    Environment.SpecialFolder.MyVideos))
+                                ? AppPaths.UserDataDir
+                                : Environment.GetFolderPath(
+                                    Environment.SpecialFolder.MyVideos),
+                            "快递打包视频"),
+                        Priority = 0
+                    }
+                ];
+            }
+        }
+
+        public void SelectRecordingCacheTab()
+        {
+            if (Capabilities.CanConfigureRecordingCache)
+                SettingsTabControl.SelectedItem = RecordingCacheTabItem;
         }
 
         private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -625,6 +665,192 @@ namespace ExpressPackingMonitoring.UI
             primary.Path = selectedPath;
         }
 
+        private void BtnBrowseRecordingCache_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isRecording)
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    "请先结束当前录像，再更改本地缓存位置",
+                    "正在录像",
+                    AppDialogSeverity.Information);
+                return;
+            }
+
+            EnsureRecordingCacheLocationExists();
+            var dialog = new DriveSelectionDialog(
+                Array.Empty<string>(),
+                fixedDrivesOnly: true)
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true
+                || string.IsNullOrWhiteSpace(dialog.SelectedRootPath))
+            {
+                return;
+            }
+
+            bool isSystemDrive =
+                StorageSpacePolicy.IsSystemDrive(dialog.SelectedRootPath);
+            string selectedPath =
+                RecordingWorkstationCachePolicy.GetSuggestedPath(
+                    dialog.SelectedRootPath,
+                    isSystemDrive);
+            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    $"无法使用这个缓存位置：\n{selectedPath}\n\n{errorMessage}",
+                    "更改缓存位置",
+                    AppDialogSeverity.Warning);
+                return;
+            }
+
+            StorageLocation location =
+                RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)!;
+            location.Path = selectedPath;
+            location.ReserveGB =
+                StorageSpacePolicy.GetMinimumReserveGB(selectedPath);
+            location.Priority = 0;
+            _recordingCacheLimitExplained = false;
+            RefreshRecordingCacheStorageSummary();
+        }
+
+        private void RecordingCacheLimitEditor_ValueChanged(
+            object sender,
+            RoutedPropertyChangedEventArgs<object> e)
+        {
+            _recordingCacheLimitExplained = false;
+            RefreshRecordingCacheStorageSummary();
+        }
+
+        private void RefreshRecordingCacheStorageSummary()
+        {
+            if (!Capabilities.CanConfigureRecordingCache
+                || RecordingCacheUsageProgress == null
+                || RecordingCacheUsageText == null
+                || RecordingCacheSafeCapacityText == null
+                || RecordingCacheDriveHintText == null)
+            {
+                return;
+            }
+
+            if (!TryGetRecordingCacheSnapshot(
+                    out RecordingCacheSpaceSnapshot snapshot,
+                    out string error))
+            {
+                RecordingCacheUsageProgress.Value = 100;
+                RecordingCacheUsageText.Text = "本地缓存位置不可用";
+                RecordingCacheSafeCapacityText.Text = error;
+                RecordingCacheDriveHintText.Text =
+                    "请选择健康、可写的本机固定磁盘";
+                return;
+            }
+
+            RecordingCacheUsageProgress.Value = snapshot.UsagePercent;
+            RecordingCacheUsageText.Text =
+                $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
+            RecordingCacheSafeCapacityText.Text =
+                $"此磁盘当前建议最多 {FormatGb(snapshot.EffectiveLimitBytes)}，实际使用会随磁盘剩余空间动态调整";
+            StorageLocation location =
+                RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)!;
+            string root = Path.GetPathRoot(Path.GetFullPath(location.Path)) ?? "";
+            RecordingCacheDriveHintText.Text =
+                StorageSpacePolicy.IsSystemDrive(root)
+                    ? $"当前使用系统盘，系统会保留至少 {FormatGb(snapshot.ReserveBytes)}，不会占满磁盘"
+                    : $"系统会为此磁盘保留至少 {FormatGb(snapshot.ReserveBytes)}";
+        }
+
+        private bool TryGetRecordingCacheSnapshot(
+            out RecordingCacheSpaceSnapshot snapshot,
+            out string error)
+        {
+            snapshot = default;
+            error = "";
+            try
+            {
+                StorageLocation location =
+                    RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
+                    ?? throw new IOException("尚未设置本地缓存位置");
+                string path = Path.GetFullPath(location.Path);
+                if (!Directory.Exists(path))
+                    throw new DirectoryNotFoundException("本地缓存位置不存在，请重新选择");
+                string root = Path.GetPathRoot(path)
+                    ?? throw new IOException("无法确定本地缓存所在磁盘");
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady || drive.DriveType != DriveType.Fixed)
+                    throw new IOException("请选择已连接的本机固定磁盘");
+                long cacheBytes = Directory
+                    .EnumerateFiles(path, "*.*", SearchOption.AllDirectories)
+                    .Where(file =>
+                        file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
+                        || file.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+                    .Sum(file =>
+                    {
+                        try { return new FileInfo(file).Length; }
+                        catch { return 0L; }
+                    });
+                long reserveBytes =
+                    StorageSpacePolicy.GetEffectiveReserveBytes(location, drive);
+                snapshot = RecordingWorkstationCachePolicy.CalculateSpace(
+                    cacheBytes,
+                    Math.Max(1L, Config.RecordingCacheMaxGB)
+                    * StorageSpacePolicy.BytesPerGiB,
+                    drive.AvailableFreeSpace,
+                    reserveBytes);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        private static string FormatGb(long bytes) =>
+            $"{Math.Max(0, bytes) / (double)StorageSpacePolicy.BytesPerGiB:F1} GB";
+
+        private bool ValidateRecordingCacheSettings()
+        {
+            Config.RecordingCachePolicy = "KeepWithinSize";
+            if (!TryGetRecordingCacheSnapshot(
+                    out RecordingCacheSpaceSnapshot snapshot,
+                    out string error))
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    error,
+                    "本地缓存位置不可用",
+                    AppDialogSeverity.Warning);
+                return false;
+            }
+
+            if (snapshot.EffectiveLimitBytes
+                < RecordingWorkstationCachePolicy
+                    .RecordingAndPackagingHeadroomBytes)
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    "此磁盘当前安全可用空间不足以容纳一段录像及封装临时文件，请选择其他缓存位置",
+                    "本地缓存空间不足",
+                    AppDialogSeverity.Warning);
+                return false;
+            }
+
+            if (!_recordingCacheLimitExplained
+                && snapshot.ConfiguredLimitBytes > snapshot.EffectiveLimitBytes)
+            {
+                _recordingCacheLimitExplained = true;
+                AppDialog.ShowMessage(
+                    this,
+                    $"缓存上限设置为 {Config.RecordingCacheMaxGB} GB；此磁盘当前建议最多 {FormatGb(snapshot.EffectiveLimitBytes)}。系统会自动采用较小值，不会预占或强占磁盘空间",
+                    "已按磁盘安全空间调整",
+                    AppDialogSeverity.Information);
+            }
+
+            return true;
+        }
+
         private bool IsPathWritable(string path)
         {
             return TryPrepareStoragePath(path, out _);
@@ -845,6 +1071,12 @@ namespace ExpressPackingMonitoring.UI
 
             if (Capabilities.CanRecordPcVideo && !ConfirmCachedRecordingProfileRisk())
                 return false;
+
+            if (Capabilities.CanConfigureRecordingCache
+                && !ValidateRecordingCacheSettings())
+            {
+                return false;
+            }
 
             // 0. 验证音频
             if (Capabilities.CanRecordAudio &&

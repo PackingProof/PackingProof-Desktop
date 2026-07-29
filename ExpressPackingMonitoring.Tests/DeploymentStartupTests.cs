@@ -400,7 +400,15 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Value=\"{Binding RecordingTransferProgress, Mode=OneWay}\"",
+            "Value=\"{Binding RecordingCacheUsagePercent, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding RecordingCacheUsageText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding RecordingCacheStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -425,7 +433,7 @@ public sealed class DeploymentStartupTests
         Assert.True(compactStatus > existingStatus);
         Assert.True(existingButtons > compactStatus);
         Assert.DoesNotMatch(
-            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|RecordingTransferProgress|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|RecordingCacheUsageText|RecordingCacheStatusText|RecordingCacheUsagePercent|IsRecordingCacheWarning|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 

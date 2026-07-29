@@ -6,6 +6,15 @@ namespace ExpressPackingMonitoring.Services;
 
 internal static class StorageLocationResolver
 {
+    public static string Resolve(StorageLocation location)
+    {
+        ArgumentNullException.ThrowIfNull(location);
+        StorageLocationEvaluation result = Evaluate(location);
+        if (result.CanUse)
+            return result.Path;
+        throw new IOException($"本地缓存位置不可用。{result.Path}：{result.Reason}");
+    }
+
     public static string Resolve(AppConfig config, bool allowDefaultFallback)
     {
         ArgumentNullException.ThrowIfNull(config);

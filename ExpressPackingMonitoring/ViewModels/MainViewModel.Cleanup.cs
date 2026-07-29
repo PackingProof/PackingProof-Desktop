@@ -1,5 +1,7 @@
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Audio;
+using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -37,6 +39,23 @@ namespace ExpressPackingMonitoring.ViewModels
             if (Interlocked.Exchange(ref _diskCleanupRunning, 1) == 1) return;
             try
             {
+                if (IsRecordingWorkstation)
+                {
+                    RecordingCacheMaintenanceResult result =
+                        RunRecordingCacheMaintenance(
+                            RecordingWorkstationCachePolicy
+                                .RecordingAndPackagingHeadroomBytes);
+                    if (IsRecording
+                        && (!result.IsAvailable
+                            || result.Snapshot.RemainingBytes
+                            < RecordingWorkstationCachePolicy
+                                .HardStopHeadroomBytes))
+                    {
+                        QueueRecordingCacheEmergencyStop();
+                    }
+                    return;
+                }
+
                 if (Config.StorageLocations == null || Config.StorageLocations.Count == 0) return;
 
                 bool fullScan = forceFullScan
@@ -102,6 +121,29 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 Interlocked.Exchange(ref _diskCleanupRunning, 0);
             }
+        }
+
+        private void QueueRecordingCacheEmergencyStop()
+        {
+            if (Interlocked.Exchange(
+                    ref _recordingCacheEmergencyStopRequested,
+                    1) != 0)
+            {
+                return;
+            }
+
+            _ = Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                if (_isDisposed || !IsRecording)
+                    return;
+                _stopReason = "本地缓存空间不足";
+                RecordingCacheStatusText =
+                    "本地缓存已接近磁盘安全线，正在安全停止当前录像";
+                IsRecordingCacheWarning = true;
+                ShowToast("本地缓存空间不足，正在安全保存当前录像");
+                SpeakWarning(DefaultSpeechCatalog.StoragePathNotWritable);
+                await SafeStopRecordingAsync(isManual: false, mergeAfterStop: true);
+            });
         }
 
         private void CleanupOldVideos(long totalCurrentBytes, long totalCapacityBytes)

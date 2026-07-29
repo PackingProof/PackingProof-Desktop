@@ -1758,7 +1758,9 @@ namespace ExpressPackingMonitoring.ViewModels
             return false;
         }
 
-        public void OpenSettings()
+        public void OpenSettings() => OpenSettings(selectRecordingCache: false);
+
+        private void OpenSettings(bool selectRecordingCache)
         {
             if (_isEncoderDetectRunning)
             {
@@ -1769,6 +1771,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 var clonedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
                 var settingsWin = new SettingsWindow(this, clonedConfig, DiskUsagePercent, DiskUsageText, IsRecording);
+                if (selectRecordingCache)
+                    settingsWin.SelectRecordingCacheTab();
                 var mainWindow = Application.Current?.MainWindow as MainWindow;
                 if (mainWindow != null) settingsWin.Owner = mainWindow;
                 mainWindow?.SuspendCapsLockForModalWindow();
@@ -3088,7 +3092,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
                 nextConfig.DeploymentPreset = selector.SelectedPreset;
                 if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                {
                     nextConfig.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                    RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                        nextConfig,
+                        preserveExistingLocation: true);
+                }
                 nextConfig.WorkstationRole = DeploymentCapabilities
                     .ForPreset(selector.SelectedPreset)
                     .IsRecordingDevice

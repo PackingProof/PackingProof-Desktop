@@ -370,7 +370,12 @@ public partial class ViewerClientWindow : Window
                 {
                     config.DeploymentPreset = selector.SelectedPreset;
                     if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                    {
                         config.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                        RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                            config,
+                            preserveExistingLocation: true);
+                    }
                     config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
                     config.WorkstationRole = DeploymentCapabilities
                         .ForPreset(selector.SelectedPreset)
