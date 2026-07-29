@@ -7,9 +7,14 @@ cd /d "%~dp0"
 set "BASELINE_VERSION=0.0.18"
 if not "%~2"=="" set "BASELINE_VERSION=%~2"
 set "BASELINE_TAG=v%BASELINE_VERSION%"
-set "BASELINE_PACKAGE_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%"
-set "BASELINE_FULL_DIR=%BASELINE_PACKAGE_DIR%\ExpressPackingMonitoring+%BASELINE_TAG%"
+set "BASELINE_PACKAGE_DIR=package\PackingProof+%BASELINE_TAG%"
+set "BASELINE_FULL_DIR=%BASELINE_PACKAGE_DIR%\PackingProof+%BASELINE_TAG%"
 set "BASELINE_APP_DIR=%BASELINE_FULL_DIR%\app"
+if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
+    set "BASELINE_PACKAGE_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%"
+    set "BASELINE_FULL_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%"
+    set "BASELINE_APP_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%\app"
+)
 set "BASELINE_LAUNCHER_MANIFEST=%BASELINE_PACKAGE_DIR%\launcher_manifest_%BASELINE_TAG%.json"
 
 set "VERSION_ARG="

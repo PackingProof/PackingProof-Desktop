@@ -242,7 +242,13 @@ try {
         throw "更新清单中的补丁信息无效"
     }
 
-    $patchCandidates = @(Get-ChildItem -LiteralPath $PackageRoot -File -Filter "ExpressPackingMonitoring_AppPatch_v*.zip")
+    $patchCandidates = @(
+        Get-ChildItem -LiteralPath $PackageRoot -File |
+            Where-Object {
+                $_.Name -like "PackingProof_AppPatch_v*.zip" -or
+                $_.Name -like "ExpressPackingMonitoring_AppPatch_v*.zip"
+            }
+    )
     if ($patchCandidates.Count -ne 1) {
         throw "手动更新包中应当只包含一个 AppPatch ZIP"
     }

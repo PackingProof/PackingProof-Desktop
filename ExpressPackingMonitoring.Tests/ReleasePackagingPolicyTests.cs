@@ -41,7 +41,7 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "Tools", "Install-AppPatch.cmd"),
             Encoding.UTF8);
 
-        Assert.Contains("ExpressPackingMonitoring_ManualUpdate_", publishScript);
+        Assert.Contains("PackingProof_ManualUpdate_", publishScript);
         Assert.Contains("双击准备增量更新.cmd", publishScript);
         Assert.Contains("stage_app_patch.ps1", publishScript);
         Assert.Contains("手动增量更新说明.txt", publishScript);
@@ -49,6 +49,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("update_manifest.json", publishScript);
         Assert.Contains("Get-FileSha256", stagingScript);
         Assert.Contains("System.Security.Cryptography.SHA256", stagingScript);
+        Assert.Contains("PackingProof_AppPatch_v*.zip", stagingScript);
+        Assert.Contains("ExpressPackingMonitoring_AppPatch_v*.zip", stagingScript);
         Assert.Contains(@"cache\updates", stagingScript);
         Assert.Contains("pending", stagingScript);
         Assert.DoesNotContain("AppRootDirectory", stagingScript);
@@ -97,10 +99,13 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("winget install --id JRSoftware.InnoSetup", buildScript);
         Assert.Contains("WINDOWS_SIGN_CERT_THUMBPRINT", buildScript);
         Assert.Contains("Get-AuthenticodeSignature", buildScript);
+        Assert.Contains("PackingProof_Setup_v$normalizedVersion.exe", buildScript);
         Assert.Contains("config.json", buildScript);
         Assert.Contains("videos.db", buildScript);
 
-        Assert.Contains("ExpressPackingMonitoring_Setup_$releaseTag.exe", publishScript);
+        Assert.Contains("OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}", innoScript);
+        Assert.Contains("PackingProof_Setup_$releaseTag.exe", publishScript);
+        Assert.Contains("\"PackingProof+$packageVersion\"", publishScript);
         Assert.Contains("Build-Installer.ps1", publishScript);
         Assert.Contains("SmartScreen", publishScript);
         Assert.Contains("GitHub 默认上传", publishScript);

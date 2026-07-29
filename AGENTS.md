@@ -42,7 +42,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - The launcher must not update itself. If launcher source or project configuration changes, disable AppPatch for that release and require a full package update.
 - AppPatch packages are fixed-baseline cumulative patches. The default patch baseline is `0.0.18`, but scripts may allow overriding it when a new formal baseline is chosen.
 - Keep update URLs configurable through environment variables or `.env`. The default update check URL is GitHub releases latest API; `.env` may point to another release provider.
-- Do not generate AppFull packages. GitHub Release uploads normally include the Setup, full 7z, compatibility zip, `update_vX.Y.Z.json`, and optional `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`.
+- Do not generate AppFull packages. GitHub Release uploads normally include the Setup, full 7z, compatibility zip, `update_vX.Y.Z.json`, and optional `PackingProof_AppPatch_vX.Y.Z.zip`.
 - Keep release notes in `update_vX.Y.Z.json` synchronized with the final release description before uploading.
 - Keep `launcher_manifest_vX.Y.Z.json` and `release_info_vX.Y.Z.txt` as local verification and handoff files; do not upload them to GitHub or Gitee by default.
 - Gitee releases receive the update JSON and optional AppPatch, but not the Setup, full package 7z, or full package zip.

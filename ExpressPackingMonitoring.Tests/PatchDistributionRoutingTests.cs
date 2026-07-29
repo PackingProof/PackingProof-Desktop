@@ -13,9 +13,10 @@ public sealed class PatchDistributionRoutingTests
             Path.Combine(repositoryRoot, "ExpressPackingMonitoring.Launcher", "Program.cs"),
             Encoding.UTF8);
 
+        Assert.Contains("PackingProof_AppPatch_v*.zip", launcher);
         Assert.Contains("ExpressPackingMonitoring_AppPatch_v*.zip", launcher);
-        Assert.Contains("ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip", launcher);
-        Assert.DoesNotContain("ExpressPackingMonitoring_ManualUpdate_", launcher);
+        Assert.Contains("PackingProof_AppPatch_v{descriptor.LatestVersion}.zip", launcher);
+        Assert.DoesNotContain("PackingProof_ManualUpdate_", launcher);
     }
 
     [Fact]

@@ -138,7 +138,7 @@ function ConvertTo-SafePathName {
 }
 
 $packageVersion = Get-PackageVersion
-$packageName = ConvertTo-SafePathName "ExpressPackingMonitoring+$packageVersion"
+$packageName = ConvertTo-SafePathName "PackingProof+$packageVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
@@ -636,7 +636,7 @@ function New-AppPatchPackage {
         "快递打包监控自动更新补丁"
         ""
         "此 AppPatch 文件由软件启动器自动下载和安装，普通用户不需要手动解压。"
-        "如需手动更新，请下载《ExpressPackingMonitoring_ManualUpdate_v$LatestVersion.zip》。"
+        "如需手动更新，请下载《PackingProof_ManualUpdate_v$LatestVersion.zip》。"
         ""
         "如果已经误下载此文件，请返回发布页面下载文件名包含 ManualUpdate 的手动更新包。"
     ) -join [Environment]::NewLine
@@ -783,9 +783,9 @@ $normalizedPatchBaselineVersion = Get-NormalizedReleaseVersion $PatchBaselineVer
 $releaseTag = "v$normalizedVersion"
 $packageRoot = $packageArtifactRoot
 $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
-$appPatchZipName = "ExpressPackingMonitoring_AppPatch_$releaseTag.zip"
+$appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
-$manualUpdateZipName = "ExpressPackingMonitoring_ManualUpdate_$releaseTag.zip"
+$manualUpdateZipName = "PackingProof_ManualUpdate_$releaseTag.zip"
 $manualUpdateZipPath = Join-Path $packageRoot $manualUpdateZipName
 $updateJsonName = "update_$releaseTag.json"
 $updateJsonPath = Join-Path $packageRoot $updateJsonName
@@ -793,7 +793,7 @@ $launcherManifestName = "launcher_manifest_$releaseTag.json"
 $launcherManifestPath = Join-Path $packageRoot $launcherManifestName
 $releaseInfoName = "release_info_$releaseTag.txt"
 $releaseInfoPath = Join-Path $packageRoot $releaseInfoName
-$setupFileName = "ExpressPackingMonitoring_Setup_$releaseTag.exe"
+$setupFileName = "PackingProof_Setup_$releaseTag.exe"
 $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"

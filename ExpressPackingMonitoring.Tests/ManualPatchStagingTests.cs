@@ -79,11 +79,11 @@ public sealed class ManualPatchStagingTests
         }
 
         public string UserDataDirectory { get; }
-        public string SourcePatchPath => Path.Combine(_packageRoot, "ExpressPackingMonitoring_AppPatch_v0.0.30.zip");
+        public string SourcePatchPath => Path.Combine(_packageRoot, "PackingProof_AppPatch_v0.0.30.zip");
         public string SourceManifestPath => Path.Combine(_packageRoot, "update_manifest.json");
         public string PendingDirectory => Path.Combine(UserDataDirectory, "cache", "updates", "pending");
         public string PendingPatchPath => Directory
-            .EnumerateFiles(PendingDirectory, "ExpressPackingMonitoring_AppPatch_v*.zip")
+            .EnumerateFiles(PendingDirectory, "PackingProof_AppPatch_v*.zip")
             .Single();
         public string PendingManifestPath => Path.Combine(PendingDirectory, "update_manifest.json");
 
@@ -144,7 +144,7 @@ public sealed class ManualPatchStagingTests
         public void CreateExistingPending(string latestVersion, string content)
         {
             Directory.CreateDirectory(PendingDirectory);
-            string patchPath = Path.Combine(PendingDirectory, "ExpressPackingMonitoring_AppPatch_v0.0.30.zip");
+            string patchPath = Path.Combine(PendingDirectory, "PackingProof_AppPatch_v0.0.30.zip");
             File.WriteAllText(patchPath, content, Encoding.UTF8);
             File.WriteAllText(
                 PendingManifestPath,

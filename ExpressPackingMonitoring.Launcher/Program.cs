@@ -1123,8 +1123,15 @@ internal static class Program
         if (!Directory.Exists(pendingDir))
             return "";
 
-        return Directory
-            .EnumerateFiles(pendingDir, "ExpressPackingMonitoring_AppPatch_v*.zip", SearchOption.TopDirectoryOnly)
+        return new[]
+            {
+                "PackingProof_AppPatch_v*.zip",
+                "ExpressPackingMonitoring_AppPatch_v*.zip"
+            }
+            .SelectMany(pattern => Directory.EnumerateFiles(
+                pendingDir,
+                pattern,
+                SearchOption.TopDirectoryOnly))
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault() ?? "";
     }
@@ -1144,7 +1151,7 @@ internal static class Program
         {
         }
 
-        return $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
+        return $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip";
     }
 
     private static string BuildDefaultGithubPatchDownloadUrl(UpdateDescriptor descriptor, string patchZipName)

@@ -22,7 +22,7 @@ if ($normalizedVersion -notmatch "^\d+\.\d+\.\d+(?:\.\d+)?$") {
 }
 $versionParts = @($normalizedVersion.Split("."))
 $version4 = if ($versionParts.Count -eq 3) { "$normalizedVersion.0" } else { $normalizedVersion }
-$setupFileName = "ExpressPackingMonitoring_Setup_v$normalizedVersion.exe"
+$setupFileName = "PackingProof_Setup_v$normalizedVersion.exe"
 $setupPath = Join-Path $outputFullPath $setupFileName
 
 if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) {
