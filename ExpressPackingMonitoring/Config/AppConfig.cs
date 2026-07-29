@@ -611,7 +611,6 @@ namespace ExpressPackingMonitoring.Config
 
         internal static void ApplyFirstUseDefaults(AppConfig config)
         {
-            config.EnableCameraBarcodeRecognition = true;
             config.CameraBarcodeSetupVersion = CurrentCameraBarcodeSetupVersion;
             config.RecordingSetupVersion = CurrentRecordingSetupVersion;
             MarkDeploymentSetupCompleted(config);

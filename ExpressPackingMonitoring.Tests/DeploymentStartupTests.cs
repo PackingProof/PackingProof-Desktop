@@ -359,7 +359,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"RecordingProfileResultText\"", wizard, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"RecordingProfileRetryButton\"", wizard, StringComparison.Ordinal);
 
-        int showDetectionStep = wizardSource.IndexOf("ShowStep(2);", StringComparison.Ordinal);
+        int showDetectionStep = wizardSource.IndexOf("ShowStep(3);", StringComparison.Ordinal);
         int startDetection = wizardSource.IndexOf(
             "await EnsureRecommendedCameraProfileAsync();",
             showDetectionStep,
@@ -370,7 +370,7 @@ public sealed class DeploymentStartupTests
             "private async void NextButton_Click",
             StringComparison.Ordinal);
         int detectionStepGuard = wizardSource.IndexOf(
-            "if (_stepIndex == 2)",
+            "if (_stepIndex == 3)",
             nextHandler,
             StringComparison.Ordinal);
         int retryDetection = wizardSource.IndexOf(
@@ -387,6 +387,77 @@ public sealed class DeploymentStartupTests
         Assert.Contains("NextButton.Content = \"下一步\";", wizardSource, StringComparison.Ordinal);
         Assert.Contains("SelectSafeFallback(nativeModes)", wizardSource, StringComparison.Ordinal);
         Assert.Contains("return true;", wizardSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FirstUseWizardSeparatesCameraSelectionFromRecognitionPreview()
+    {
+        string wizard = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml");
+        string wizardSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml.cs");
+
+        Assert.Contains("Text=\"3. 摄像头识别\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("Text=\"7. 完成\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CameraRecognitionPage\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"UseCameraRecognitionRadio\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"DisableCameraRecognitionRadio\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CameraRecognitionPreviewImage\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CameraRecognitionStatusBorder\"", wizard, StringComparison.Ordinal);
+
+        int cameraPageStart = wizard.IndexOf(
+            "<Grid x:Name=\"CameraPage\"",
+            StringComparison.Ordinal);
+        int recognitionPageStart = wizard.IndexOf(
+            "<Grid x:Name=\"CameraRecognitionPage\"",
+            cameraPageStart,
+            StringComparison.Ordinal);
+        int profilePageStart = wizard.IndexOf(
+            "<Grid x:Name=\"RecordingProfilePage\"",
+            recognitionPageStart,
+            StringComparison.Ordinal);
+        Assert.True(cameraPageStart >= 0);
+        Assert.True(recognitionPageStart > cameraPageStart);
+        Assert.True(profilePageStart > recognitionPageStart);
+
+        string cameraPage = wizard[cameraPageStart..recognitionPageStart];
+        string recognitionPage = wizard[recognitionPageStart..profilePageStart];
+        Assert.DoesNotContain("CameraRecognitionGuide", cameraPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ComboBox", recognitionPage, StringComparison.Ordinal);
+        Assert.Contains("CameraRecognitionGuide", recognitionPage, StringComparison.Ordinal);
+
+        Assert.Contains(
+            "reportVisibleCodes: true",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_config.EnableCameraBarcodeRecognition =",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "_cameraRecognitionFeedbackUntil",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CameraBarcodeRecognitionState.Visible",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "SetCameraRecognitionGuideColor(\"AccentGreen\")",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CameraRecognitionGuideBorder.Fill =",
+            wizardSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CameraRecognitionStatusBorder.Background =",
+            wizardSource,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -455,7 +526,7 @@ public sealed class DeploymentStartupTests
             "FirstUseSetupWizardWindow.xaml.cs");
 
         Assert.Contains("优先由摄像头识别面单条码，也可选用扫码枪", selector, StringComparison.Ordinal);
-        Assert.Contains("优先使用摄像头识别面单条码", wizard, StringComparison.Ordinal);
+        Assert.Contains("是否使用摄像头识别面单", wizard, StringComparison.Ordinal);
         Assert.Contains("没有扫码枪可直接进入下一步", wizard, StringComparison.Ordinal);
         Assert.Contains("可选扫码枪仍可随时作为后备方案", wizardSource, StringComparison.Ordinal);
     }

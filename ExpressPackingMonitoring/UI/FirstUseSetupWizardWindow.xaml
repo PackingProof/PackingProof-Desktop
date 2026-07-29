@@ -85,7 +85,7 @@
                        FontSize="28"
                        FontWeight="Black"
                        Foreground="{DynamicResource TextPrimary}"/>
-            <TextBlock Text="优先使用摄像头识别面单条码，按步骤配置摄像头、麦克风和可选扫码枪"
+            <TextBlock Text="按步骤配置摄像头、面单识别方式、麦克风和可选扫码枪"
                        Margin="0,8,0,0"
                        FontSize="14"
                        Foreground="{DynamicResource TextSecondary}"/>
@@ -107,10 +107,11 @@
                 <StackPanel>
                     <TextBlock x:Name="StepModeText" Text="1. 选择打包模式" Style="{StaticResource StepTextStyle}"/>
                     <TextBlock x:Name="StepCameraText" Text="2. 选择摄像头" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepRecordingProfileText" Text="3. 录制性能检测" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepMicText" Text="4. 选择麦克风" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepScannerText" Text="5. 扫码枪（可选）" Style="{StaticResource StepTextStyle}"/>
-                    <TextBlock x:Name="StepDoneText" Text="6. 完成" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepCameraRecognitionText" Text="3. 摄像头识别" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepRecordingProfileText" Text="4. 录制性能检测" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepMicText" Text="5. 选择麦克风" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepScannerText" Text="6. 扫码枪（可选）" Style="{StaticResource StepTextStyle}"/>
+                    <TextBlock x:Name="StepDoneText" Text="7. 完成" Style="{StaticResource StepTextStyle}"/>
                 </StackPanel>
             </Border>
 
@@ -127,7 +128,7 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单。"
+                            <TextBlock Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。"
                                        Margin="0,8,0,22"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -148,7 +149,7 @@
                                             <TextBlock Text="推荐" Foreground="White" FontSize="12" FontWeight="Bold"/>
                                         </Border>
                                     </DockPanel>
-                                    <TextBlock Text="摄像头识别下一张面单条码后，自动结束上一单并开始下一单。"
+                                    <TextBlock Text="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。"
                                                Margin="0,7,0,0"
                                                FontSize="14"
                                                TextWrapping="Wrap"
@@ -163,7 +164,7 @@
                                                FontSize="18"
                                                FontWeight="Black"
                                                Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="摄像头识别面单条码开始录制，再次识别同一条码停止录制。"
+                                    <TextBlock Text="识别或扫描面单条码开始录制，再次识别同一条码停止录制。"
                                                Margin="0,7,0,0"
                                                FontSize="14"
                                                TextWrapping="Wrap"
@@ -184,7 +185,7 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="将面单条形码放入引导框，可同时测试摄像头画面和自动识别"
+                            <TextBlock Text="选择录像使用的摄像头，并确认实时画面显示正常"
                                        Margin="0,8,0,20"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -204,31 +205,6 @@
                             <Grid>
                                 <Image x:Name="CameraPreviewImage"
                                        Stretch="Uniform"/>
-                                <Grid x:Name="CameraRecognitionGuide"
-                                      Visibility="Collapsed"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"
-                                      IsHitTestVisible="False">
-                                    <Rectangle x:Name="CameraRecognitionGuideBorder"
-                                               Stroke="#DD0078D7"
-                                               StrokeThickness="3"
-                                               StrokeDashArray="6 3"
-                                               Fill="#080078D7"
-                                               RadiusX="6"
-                                               RadiusY="6"/>
-                                    <Border HorizontalAlignment="Center"
-                                            VerticalAlignment="Top"
-                                            Margin="0,10,0,0"
-                                            Padding="12,6"
-                                            Background="#DD0067B8"
-                                            CornerRadius="6">
-                                        <TextBlock x:Name="CameraRecognitionStatusText"
-                                                   Text="将面单条形码放入框内"
-                                                   Foreground="White"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"/>
-                                    </Border>
-                                </Grid>
                                 <TextBlock x:Name="CameraStatusText"
                                            Text="正在准备摄像头预览..."
                                            Foreground="#DDFFFFFF"
@@ -239,6 +215,155 @@
                                            TextWrapping="Wrap"/>
                             </Grid>
                         </Border>
+                    </Grid>
+
+                    <Grid x:Name="CameraRecognitionPage" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="是否使用摄像头识别面单"
+                                       FontSize="22"
+                                       FontWeight="Black"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像"
+                                       Margin="0,8,0,16"
+                                       FontSize="14"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <RadioButton x:Name="UseCameraRecognitionRadio"
+                                         GroupName="CameraRecognitionChoice"
+                                         Margin="0"
+                                         Checked="CameraRecognitionChoice_Changed"
+                                         Style="{StaticResource WizardCardButtonStyle}">
+                                <StackPanel>
+                                    <DockPanel LastChildFill="False">
+                                        <TextBlock Text="使用摄像头识别"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <Border Margin="8,0,0,0"
+                                                Padding="7,2"
+                                                Background="{DynamicResource AccentBlue}"
+                                                CornerRadius="5">
+                                            <TextBlock Text="推荐"
+                                                       Foreground="White"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"/>
+                                        </Border>
+                                    </DockPanel>
+                                    <TextBlock Text="实时测试画面中的面单条码"
+                                               Margin="0,5,0,0"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="DisableCameraRecognitionRadio"
+                                         Grid.Column="2"
+                                         GroupName="CameraRecognitionChoice"
+                                         Margin="0"
+                                         Checked="CameraRecognitionChoice_Changed"
+                                         Style="{StaticResource WizardCardButtonStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="不使用摄像头识别"
+                                               FontSize="16"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="改用扫码枪或手动输入面单号"
+                                               Margin="0,5,0,0"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </RadioButton>
+                        </Grid>
+
+                        <Grid Grid.Row="2">
+                            <Border x:Name="CameraRecognitionPreviewPanel"
+                                    Background="Black"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    ClipToBounds="True">
+                                <Grid>
+                                    <Image x:Name="CameraRecognitionPreviewImage"
+                                           Stretch="Uniform"/>
+                                    <Grid x:Name="CameraRecognitionGuide"
+                                          Visibility="Collapsed"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False">
+                                        <Rectangle x:Name="CameraRecognitionGuideBorder"
+                                                   Stroke="#DD0078D7"
+                                                   StrokeThickness="3"
+                                                   StrokeDashArray="6 3"
+                                                   Fill="#080078D7"
+                                                   RadiusX="6"
+                                                   RadiusY="6"/>
+                                        <Border x:Name="CameraRecognitionStatusBorder"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Top"
+                                                Margin="0,10,0,0"
+                                                Padding="12,6"
+                                                Background="#DD0067B8"
+                                                CornerRadius="6">
+                                            <TextBlock x:Name="CameraRecognitionStatusText"
+                                                       Text="将面单条形码放入框内"
+                                                       Foreground="White"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock x:Name="CameraRecognitionPreviewStatusText"
+                                               Text="正在准备摄像头识别预览..."
+                                               Foreground="#DDFFFFFF"
+                                               Background="#66000000"
+                                               Padding="10,6"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="CameraRecognitionSelectedCameraText"
+                                               Margin="10"
+                                               Padding="8,4"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Bottom"
+                                               Foreground="#DDFFFFFF"
+                                               Background="#66000000"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="CameraRecognitionDisabledPanel"
+                                    Visibility="Collapsed"
+                                    Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="24">
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="已选择不使用摄像头识别"
+                                               HorizontalAlignment="Center"
+                                               FontSize="17"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="仍可使用扫码枪或在主页面手动输入面单号"
+                                               Margin="0,8,0,0"
+                                               HorizontalAlignment="Center"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
 
                     <Grid x:Name="RecordingProfilePage" Visibility="Collapsed">
@@ -358,7 +483,8 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="没有扫码枪可直接进入下一步；如需使用，扫码枪可作为摄像头识别的后备方案在这里测试"
+                            <TextBlock x:Name="ScannerIntroText"
+                                       Text="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪"
                                        Margin="0,8,0,18"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>

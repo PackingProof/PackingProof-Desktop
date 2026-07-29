@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UI;
 using OpenCvSharp;
 using System.Text.Json;
 using Xunit;
@@ -34,6 +35,7 @@ public sealed class CameraBarcodeRecognitionTests
 
         Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
         Assert.Empty(held.ConfirmedCode);
+        Assert.Equal("YT123456789012", held.VisibleCode);
     }
 
     [Fact]
@@ -560,11 +562,15 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(10.0, config.CameraSameBarcodeConfirmationSeconds);
     }
 
-    [Fact]
-    public void FirstUseDefaultsEnableCameraRecognitionWithoutChangingScannerMode()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FirstUseDefaultsPreserveCameraRecognitionAndScannerMode(
+        bool recognitionEnabled)
     {
         var config = new AppConfig
         {
+            EnableCameraBarcodeRecognition = recognitionEnabled,
             EnableGlobalKeyboard = false,
             EnableScannerAutoSubmit = true
         };
@@ -572,10 +578,60 @@ public sealed class CameraBarcodeRecognitionTests
         AppConfig.ApplyFirstUseDefaults(config);
 
         Assert.True(config.FirstUseWizardCompleted);
-        Assert.True(config.EnableCameraBarcodeRecognition);
+        Assert.Equal(recognitionEnabled, config.EnableCameraBarcodeRecognition);
         Assert.Equal(AppConfig.CurrentCameraBarcodeSetupVersion, config.CameraBarcodeSetupVersion);
         Assert.False(config.EnableGlobalKeyboard);
         Assert.True(config.EnableScannerAutoSubmit);
+    }
+
+    [Theory]
+    [InlineData(0, false, true)]
+    [InlineData(1, false, false)]
+    [InlineData(1, true, true)]
+    public void WizardCameraRecognitionChoiceDefaultsOnlyForNewSetup(
+        int recordingSetupVersion,
+        bool configuredChoice,
+        bool expected)
+    {
+        var config = new AppConfig
+        {
+            RecordingSetupVersion = recordingSetupVersion,
+            EnableCameraBarcodeRecognition = configuredChoice
+        };
+
+        Assert.Equal(
+            expected,
+            FirstUseSetupWizardWindow.GetInitialCameraRecognitionChoice(config));
+    }
+
+    [Fact]
+    public void RecognitionPreviewReportsLockedCodeWithoutConfirmingAgain()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        tracker.Observe("YT123456789012", Start);
+        CameraBarcodeObservation confirmed =
+            tracker.Observe("YT123456789012", Start.AddMilliseconds(250));
+        CameraBarcodeObservation visible =
+            tracker.Observe("YT123456789012", Start.AddMilliseconds(500));
+
+        CameraBarcodeRecognitionStatus confirmedStatus =
+            CameraBarcodeRecognitionService.CreateStatus(
+                confirmed,
+                reportVisibleCodes: true);
+        CameraBarcodeRecognitionStatus previewStatus =
+            CameraBarcodeRecognitionService.CreateStatus(
+                visible,
+                reportVisibleCodes: true);
+        CameraBarcodeRecognitionStatus runtimeStatus =
+            CameraBarcodeRecognitionService.CreateStatus(
+                visible,
+                reportVisibleCodes: false);
+
+        Assert.Equal(CameraBarcodeRecognitionState.Confirmed, confirmedStatus.State);
+        Assert.Equal(CameraBarcodeRecognitionState.Visible, previewStatus.State);
+        Assert.Equal("YT123456789012", previewStatus.Code);
+        Assert.Equal(CameraBarcodeRecognitionState.Idle, runtimeStatus.State);
+        Assert.Empty(visible.ConfirmedCode);
     }
 
     [Theory]

@@ -12,7 +12,8 @@ internal enum CameraBarcodeRecognitionState
 {
     Idle,
     Candidate,
-    Confirmed
+    Confirmed,
+    Visible
 }
 
 internal sealed record CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState State, string Code = "");
@@ -20,6 +21,7 @@ internal sealed record CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionSt
 internal sealed record CameraBarcodeObservation(
     string CandidateCode = "",
     string ConfirmedCode = "",
+    string VisibleCode = "",
     bool KeepDecoding = false);
 
 internal enum BarcodeRecordingDecisionAction
@@ -267,7 +269,7 @@ internal sealed class CameraBarcodeStabilityTracker
             _missingLockedCodesSince.Remove(normalized);
             if (string.Equals(_candidateCode, normalized, StringComparison.Ordinal))
                 ClearCandidate();
-            return new CameraBarcodeObservation();
+            return new CameraBarcodeObservation(VisibleCode: normalized);
         }
 
         int requiredHits = intermittentConfirmationWindow > TimeSpan.Zero ? 3 : 2;
@@ -695,6 +697,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<bool>? _fullFrameAllowed;
     private readonly Func<string, TimeSpan>? _intermittentConfirmationWindowProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
+    private readonly bool _reportVisibleCodes;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
     private readonly CameraBarcodeMotionGate _motionGate = new();
     private readonly CameraBarcodeStabilityTracker _stabilityTracker = new();
@@ -723,12 +726,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         Func<string, bool> candidateValidator,
         Func<bool>? fullFrameAllowed = null,
         Func<string, TimeSpan>? intermittentConfirmationWindowProvider = null,
-        Func<TimeSpan>? rearmDelayProvider = null)
+        Func<TimeSpan>? rearmDelayProvider = null,
+        bool reportVisibleCodes = false)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _fullFrameAllowed = fullFrameAllowed;
         _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
         _rearmDelayProvider = rearmDelayProvider;
+        _reportVisibleCodes = reportVisibleCodes;
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
@@ -859,20 +864,18 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 ref _forceDecodeUntilUtcTicks,
                 observation.KeepDecoding ? now.AddSeconds(2.5).UtcTicks : 0);
 
+            CameraBarcodeRecognitionStatus status =
+                CreateStatus(observation, _reportVisibleCodes);
             if (observation.ConfirmedCode.Length > 0)
             {
                 long dropped = Interlocked.Read(ref _droppedFrames);
                 RuntimeLog.Info("CameraBarcode", $"Confirmed {observation.ConfirmedCode}, decode={stopwatch.ElapsedMilliseconds}ms, dropped={dropped}");
-                StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Confirmed, observation.ConfirmedCode));
+                StatusChanged?.Invoke(status);
                 BarcodeConfirmed?.Invoke(observation.ConfirmedCode);
-            }
-            else if (observation.CandidateCode.Length > 0)
-            {
-                StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Candidate, observation.CandidateCode));
             }
             else
             {
-                StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle));
+                StatusChanged?.Invoke(status);
             }
         }
         catch (Exception ex)
@@ -900,6 +903,34 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     {
         try { return _candidateValidator(code); }
         catch { return false; }
+    }
+
+    internal static CameraBarcodeRecognitionStatus CreateStatus(
+        CameraBarcodeObservation observation,
+        bool reportVisibleCodes)
+    {
+        if (observation.ConfirmedCode.Length > 0)
+        {
+            return new CameraBarcodeRecognitionStatus(
+                CameraBarcodeRecognitionState.Confirmed,
+                observation.ConfirmedCode);
+        }
+
+        if (reportVisibleCodes && observation.VisibleCode.Length > 0)
+        {
+            return new CameraBarcodeRecognitionStatus(
+                CameraBarcodeRecognitionState.Visible,
+                observation.VisibleCode);
+        }
+
+        if (observation.CandidateCode.Length > 0)
+        {
+            return new CameraBarcodeRecognitionStatus(
+                CameraBarcodeRecognitionState.Candidate,
+                observation.CandidateCode);
+        }
+
+        return new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle);
     }
 
     public void Dispose()

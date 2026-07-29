@@ -628,4 +628,24 @@
   <data name="正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候" xml:space="preserve"><value>正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候</value></data>
   <data name="已自动选择录制配置" xml:space="preserve"><value>已自动选择录制配置</value></data>
   <data name="点击“下一步”继续测试麦克风；完成整个向导后配置才会保存" xml:space="preserve"><value>点击“下一步”继续测试麦克风；完成整个向导后配置才会保存</value></data>
+  <data name="按步骤配置摄像头、面单识别方式、麦克风和可选扫码枪" xml:space="preserve"><value>按步骤配置摄像头、面单识别方式、麦克风和可选扫码枪</value></data>
+  <data name="3. 摄像头识别" xml:space="preserve"><value>3. 摄像头识别</value></data>
+  <data name="4. 录制性能检测" xml:space="preserve"><value>4. 录制性能检测</value></data>
+  <data name="5. 选择麦克风" xml:space="preserve"><value>5. 选择麦克风</value></data>
+  <data name="6. 扫码枪（可选）" xml:space="preserve"><value>6. 扫码枪（可选）</value></data>
+  <data name="7. 完成" xml:space="preserve"><value>7. 完成</value></data>
+  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。" xml:space="preserve"><value>推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。</value></data>
+  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>识别或扫描下一张面单条码后，自动结束上一单并开始下一单。</value></data>
+  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>识别或扫描面单条码开始录制，再次识别同一条码停止录制。</value></data>
+  <data name="选择录像使用的摄像头，并确认实时画面显示正常" xml:space="preserve"><value>选择录像使用的摄像头，并确认实时画面显示正常</value></data>
+  <data name="是否使用摄像头识别面单" xml:space="preserve"><value>是否使用摄像头识别面单</value></data>
+  <data name="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像" xml:space="preserve"><value>开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像</value></data>
+  <data name="使用摄像头识别" xml:space="preserve"><value>使用摄像头识别</value></data>
+  <data name="实时测试画面中的面单条码" xml:space="preserve"><value>实时测试画面中的面单条码</value></data>
+  <data name="不使用摄像头识别" xml:space="preserve"><value>不使用摄像头识别</value></data>
+  <data name="改用扫码枪或手动输入面单号" xml:space="preserve"><value>改用扫码枪或手动输入面单号</value></data>
+  <data name="正在准备摄像头识别预览..." xml:space="preserve"><value>正在准备摄像头识别预览...</value></data>
+  <data name="已选择不使用摄像头识别" xml:space="preserve"><value>已选择不使用摄像头识别</value></data>
+  <data name="仍可使用扫码枪或在主页面手动输入面单号" xml:space="preserve"><value>仍可使用扫码枪或在主页面手动输入面单号</value></data>
+  <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪</value></data>
 </root>

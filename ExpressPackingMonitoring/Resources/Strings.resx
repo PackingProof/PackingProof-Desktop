@@ -628,4 +628,24 @@
   <data name="正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候" xml:space="preserve"><value>Testing real-time encoding performance at 720p, 1080p, 2K, and 4K. Please wait</value></data>
   <data name="已自动选择录制配置" xml:space="preserve"><value>Recording settings selected automatically</value></data>
   <data name="点击“下一步”继续测试麦克风；完成整个向导后配置才会保存" xml:space="preserve"><value>Select Next to test the microphone. Settings are saved only after the wizard is complete</value></data>
+  <data name="按步骤配置摄像头、面单识别方式、麦克风和可选扫码枪" xml:space="preserve"><value>Set up the camera, waybill recognition method, microphone, and optional barcode scanner step by step</value></data>
+  <data name="3. 摄像头识别" xml:space="preserve"><value>3. Camera recognition</value></data>
+  <data name="4. 录制性能检测" xml:space="preserve"><value>4. Recording performance test</value></data>
+  <data name="5. 选择麦克风" xml:space="preserve"><value>5. Select microphone</value></data>
+  <data name="6. 扫码枪（可选）" xml:space="preserve"><value>6. Barcode scanner (optional)</value></data>
+  <data name="7. 完成" xml:space="preserve"><value>7. Finish</value></data>
+  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。" xml:space="preserve"><value>Continuous packing mode is recommended. Recognizing or scanning the next waybill automatically saves the previous recording.</value></data>
+  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>Recognizing or scanning the next waybill barcode ends the previous recording and starts the next one.</value></data>
+  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>Recognize or scan a waybill barcode to start recording, then recognize the same barcode again to stop.</value></data>
+  <data name="选择录像使用的摄像头，并确认实时画面显示正常" xml:space="preserve"><value>Select the camera used for recording and confirm that its live preview works correctly</value></data>
+  <data name="是否使用摄像头识别面单" xml:space="preserve"><value>Use the camera to recognize waybills?</value></data>
+  <data name="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像" xml:space="preserve"><value>When enabled, place a waybill barcode in view to automatically start or switch recordings after recognition</value></data>
+  <data name="使用摄像头识别" xml:space="preserve"><value>Use camera recognition</value></data>
+  <data name="实时测试画面中的面单条码" xml:space="preserve"><value>Test waybill barcodes in the live preview</value></data>
+  <data name="不使用摄像头识别" xml:space="preserve"><value>Do not use camera recognition</value></data>
+  <data name="改用扫码枪或手动输入面单号" xml:space="preserve"><value>Use a barcode scanner or enter waybill numbers manually</value></data>
+  <data name="正在准备摄像头识别预览..." xml:space="preserve"><value>Preparing the camera recognition preview...</value></data>
+  <data name="已选择不使用摄像头识别" xml:space="preserve"><value>Camera recognition is disabled</value></data>
+  <data name="仍可使用扫码枪或在主页面手动输入面单号" xml:space="preserve"><value>You can still use a barcode scanner or enter waybill numbers manually on the main page</value></data>
+  <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>You can continue without a barcode scanner. Test one here if needed</value></data>
 </root>

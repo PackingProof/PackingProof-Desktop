@@ -101,7 +101,7 @@ public sealed class DeploymentPresetTests
     }
 
     [Fact]
-    public void RecordingSetupEnablesCameraBarcodeWithoutChangingScannerOrUserData()
+    public void RecordingSetupPreservesCameraBarcodeChoiceAndUserData()
     {
         const string databaseMarker = @"D:\PackingProof\videos.db";
         const string recordingPath = @"E:\录像";
@@ -109,13 +109,14 @@ public sealed class DeploymentPresetTests
         {
             AppRootDirectory = databaseMarker,
             StorageLocations = [new StorageLocation { Path = recordingPath, Priority = 0 }],
+            EnableCameraBarcodeRecognition = false,
             EnableGlobalKeyboard = false,
             EnableScannerAutoSubmit = true
         };
 
         AppConfig.ApplyFirstUseDefaults(config);
 
-        Assert.True(config.EnableCameraBarcodeRecognition);
+        Assert.False(config.EnableCameraBarcodeRecognition);
         Assert.False(config.EnableGlobalKeyboard);
         Assert.True(config.EnableScannerAutoSubmit);
         Assert.Equal(databaseMarker, config.AppRootDirectory);

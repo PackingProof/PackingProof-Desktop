@@ -42,9 +42,9 @@ public partial class FirstUseSetupWizardWindow : Window
     private readonly string _testBarcodeValue = $"TEST{DateTime.Now:yyyyMMddHHmmss}";
     private bool _scannerDetectedEnter;
     private readonly CameraBarcodeRecognitionService _cameraBarcodeRecognition;
-    private DateTime _cameraRecognitionFeedbackUntil = DateTime.MinValue;
     private string _evaluatedCameraMoniker = "";
     private bool _isRecordingProfileDetectionRunning;
+    private bool _isRecognitionPreview;
 
     public bool WasSkipped { get; private set; }
     public AppConfig ResultConfig => _config;
@@ -54,12 +54,15 @@ public partial class FirstUseSetupWizardWindow : Window
         InitializeComponent();
         _config = config;
         SkipButton.Visibility = allowSkip ? Visibility.Visible : Visibility.Collapsed;
-        _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(IsCameraBarcodeCandidate);
+        _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(
+            IsCameraBarcodeCandidate,
+            reportVisibleCodes: true);
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
         {
             StepModeText,
             StepCameraText,
+            StepCameraRecognitionText,
             StepRecordingProfileText,
             StepMicText,
             StepScannerText,
@@ -68,12 +71,23 @@ public partial class FirstUseSetupWizardWindow : Window
 
         ContinuousModeRadio.IsChecked = !_config.EnableSameBarcodeStopRecording;
         SameCodeModeRadio.IsChecked = _config.EnableSameBarcodeStopRecording;
+        bool useCameraRecognition =
+            GetInitialCameraRecognitionChoice(_config);
+        UseCameraRecognitionRadio.IsChecked = useCameraRecognition;
+        DisableCameraRecognitionRadio.IsChecked = !useCameraRecognition;
         RenderTestBarcode();
 
         Loaded += FirstUseSetupWizardWindow_Loaded;
         Closed += FirstUseSetupWizardWindow_Closed;
-        CameraPreviewImage.SizeChanged += (_, __) => UpdateCameraRecognitionGuide();
+        CameraRecognitionPreviewImage.SizeChanged += (_, __) => UpdateCameraRecognitionGuide();
         ShowStep(0);
+    }
+
+    internal static bool GetInitialCameraRecognitionChoice(AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return config.RecordingSetupVersion < AppConfig.CurrentRecordingSetupVersion
+            || config.EnableCameraBarcodeRecognition;
     }
 
     internal static bool TryConfigureRecordingHost(
@@ -219,13 +233,14 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void ShowStep(int stepIndex)
     {
-        _stepIndex = Math.Clamp(stepIndex, 0, 5);
+        _stepIndex = Math.Clamp(stepIndex, 0, 6);
         ModePage.Visibility = _stepIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         CameraPage.Visibility = _stepIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        RecordingProfilePage.Visibility = _stepIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-        MicPage.Visibility = _stepIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
-        ScannerPage.Visibility = _stepIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
-        DonePage.Visibility = _stepIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
+        CameraRecognitionPage.Visibility = _stepIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        RecordingProfilePage.Visibility = _stepIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
+        MicPage.Visibility = _stepIndex == 4 ? Visibility.Visible : Visibility.Collapsed;
+        ScannerPage.Visibility = _stepIndex == 5 ? Visibility.Visible : Visibility.Collapsed;
+        DonePage.Visibility = _stepIndex == 6 ? Visibility.Visible : Visibility.Collapsed;
 
         for (int i = 0; i < _stepTexts.Count; i++)
         {
@@ -236,18 +251,24 @@ public partial class FirstUseSetupWizardWindow : Window
         }
 
         BackButton.IsEnabled = _stepIndex > 0;
-        NextButton.Content = _stepIndex == 5 ? "完成" : "下一步";
+        NextButton.Content = _stepIndex == 6 ? "完成" : "下一步";
+        if (_stepIndex == 2)
+            UpdateCameraRecognitionChoiceUi();
 
         if (_stepIndex == 1)
         {
-            StartCameraPreviewFromSelection();
+            StartCameraPreviewFromSelection(enableRecognition: false);
+        }
+        else if (_stepIndex == 2 && UseCameraRecognitionRadio.IsChecked == true)
+        {
+            StartCameraPreviewFromSelection(enableRecognition: true);
         }
         else
         {
             StopCameraPreview();
         }
 
-        if (_stepIndex == 3)
+        if (_stepIndex == 4)
         {
             StartMicPreviewFromSelection();
         }
@@ -256,8 +277,11 @@ public partial class FirstUseSetupWizardWindow : Window
             StopMicPreview();
         }
 
-        if (_stepIndex == 4)
+        if (_stepIndex == 5)
         {
+            ScannerIntroText.Text = UseCameraRecognitionRadio.IsChecked == true
+                ? "没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪，作为摄像头识别的后备方案"
+                : "没有扫码枪也可手动输入面单号；如需使用，可在这里测试扫码枪";
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 ScanTestTextBox.Focus();
@@ -265,7 +289,7 @@ public partial class FirstUseSetupWizardWindow : Window
             }));
         }
 
-        if (_stepIndex == 5)
+        if (_stepIndex == 6)
         {
             UpdateFlowText();
         }
@@ -285,17 +309,25 @@ public partial class FirstUseSetupWizardWindow : Window
             if (!TryLeaveCameraStep())
                 return;
             ShowStep(2);
-            await EnsureRecommendedCameraProfileAsync();
             return;
         }
 
         if (_stepIndex == 2)
         {
+            if (!TryLeaveCameraStep())
+                return;
+            ShowStep(3);
+            await EnsureRecommendedCameraProfileAsync();
+            return;
+        }
+
+        if (_stepIndex == 3)
+        {
             if (!await EnsureRecommendedCameraProfileAsync())
                 return;
         }
 
-        if (_stepIndex == 5)
+        if (_stepIndex == 6)
         {
             if (CameraComboBox.SelectedItem is not CameraInfo selectedCamera
                 || string.IsNullOrWhiteSpace(selectedCamera.Moniker))
@@ -309,7 +341,7 @@ public partial class FirstUseSetupWizardWindow : Window
             {
                 AppDialog.ShowMessage(this, "录制主机必须先选择可用麦克风", "麦克风尚未配置",
                     AppDialogSeverity.Information);
-                ShowStep(3);
+                ShowStep(4);
                 return;
             }
             ApplySelections();
@@ -324,7 +356,7 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void BackButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_stepIndex == 1 && !TryLeaveCameraStep())
+        if ((_stepIndex == 1 || _stepIndex == 2) && !TryLeaveCameraStep())
             return;
         ShowStep(_stepIndex - 1);
     }
@@ -334,8 +366,7 @@ public partial class FirstUseSetupWizardWindow : Window
         if (StopCameraPreview())
             return true;
 
-        CameraStatusText.Text = "摄像头未能停止，请重新插拔后再继续";
-        CameraStatusText.Visibility = Visibility.Visible;
+        SetCameraPreviewStatus("摄像头未能停止，请重新插拔后再继续");
         return false;
     }
 
@@ -352,8 +383,36 @@ public partial class FirstUseSetupWizardWindow : Window
         _evaluatedCameraMoniker = "";
         if (_stepIndex == 1)
         {
-            StartCameraPreviewFromSelection();
+            StartCameraPreviewFromSelection(enableRecognition: false);
         }
+    }
+
+    private void CameraRecognitionChoice_Changed(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (!IsInitialized)
+            return;
+
+        UpdateCameraRecognitionChoiceUi();
+        if (_stepIndex != 2)
+            return;
+
+        if (UseCameraRecognitionRadio.IsChecked == true)
+            StartCameraPreviewFromSelection(enableRecognition: true);
+        else
+            StopCameraPreview();
+    }
+
+    private void UpdateCameraRecognitionChoiceUi()
+    {
+        bool enabled = UseCameraRecognitionRadio.IsChecked == true;
+        CameraRecognitionPreviewPanel.Visibility =
+            enabled ? Visibility.Visible : Visibility.Collapsed;
+        CameraRecognitionDisabledPanel.Visibility =
+            enabled ? Visibility.Collapsed : Visibility.Visible;
+        if (CameraComboBox.SelectedItem is CameraInfo camera)
+            CameraRecognitionSelectedCameraText.Text = camera.Name;
     }
 
     private async Task<bool> EnsureRecommendedCameraProfileAsync(bool force = false)
@@ -566,26 +625,29 @@ public partial class FirstUseSetupWizardWindow : Window
         await EnsureRecommendedCameraProfileAsync(force: true);
     }
 
-    private void StartCameraPreviewFromSelection()
+    private void StartCameraPreviewFromSelection(bool enableRecognition)
     {
         if (!StopCameraPreview())
         {
-            CameraStatusText.Text = "上一个摄像头未能停止，请重新插拔后重试";
-            CameraStatusText.Visibility = Visibility.Visible;
+            SetCameraPreviewStatus("上一个摄像头未能停止，请重新插拔后重试");
             return;
         }
         CameraPreviewImage.Source = null;
+        CameraRecognitionPreviewImage.Source = null;
         CameraRecognitionGuide.Visibility = Visibility.Collapsed;
+        _cameraBarcodeRecognition.Reset();
+        _isRecognitionPreview = enableRecognition;
 
         if (CameraComboBox.SelectedItem is not CameraInfo camera || string.IsNullOrEmpty(camera.Moniker))
         {
-            CameraStatusText.Text = "未检测到可用摄像头";
-            CameraStatusText.Visibility = Visibility.Visible;
+            SetCameraPreviewStatus("未检测到可用摄像头");
             return;
         }
 
         try
         {
+            if (enableRecognition)
+                CameraRecognitionSelectedCameraText.Text = camera.Name;
             _previewCamera = new VideoCaptureDevice(camera.Moniker);
             if (_previewCamera.VideoCapabilities.Length > 0)
             {
@@ -594,15 +656,25 @@ public partial class FirstUseSetupWizardWindow : Window
 
             _previewCamera.NewFrame += PreviewCamera_NewFrame;
             _previewCamera.Start();
-            CameraStatusText.Text = "正在等待摄像头画面...";
-            CameraStatusText.Visibility = Visibility.Visible;
+            SetCameraPreviewStatus(
+                enableRecognition
+                    ? "正在等待摄像头识别画面..."
+                    : "正在等待摄像头画面...");
         }
         catch (Exception ex)
         {
-            CameraStatusText.Text = $"摄像头预览启动失败：{ex.Message}";
-            CameraStatusText.Visibility = Visibility.Visible;
+            SetCameraPreviewStatus($"摄像头预览启动失败：{ex.Message}");
             StopCameraPreview();
         }
+    }
+
+    private void SetCameraPreviewStatus(string text)
+    {
+        TextBlock statusText = _isRecognitionPreview
+            ? CameraRecognitionPreviewStatusText
+            : CameraStatusText;
+        statusText.Text = text;
+        statusText.Visibility = Visibility.Visible;
     }
 
     private VideoCapabilities SelectBestCapability(VideoCapabilities[] capabilities)
@@ -632,16 +704,30 @@ public partial class FirstUseSetupWizardWindow : Window
         try
         {
             using var bitmap = (Bitmap)eventArgs.Frame.Clone();
-            using Mat recognitionFrame = BitmapToMat(bitmap);
-            _cameraBarcodeRecognition.TrySubmitFrame(recognitionFrame, allowFullFrame: false);
+            bool recognitionPreview = _isRecognitionPreview;
+            if (recognitionPreview)
+            {
+                using Mat recognitionFrame = BitmapToMat(bitmap);
+                _cameraBarcodeRecognition.TrySubmitFrame(
+                    recognitionFrame,
+                    allowFullFrame: false);
+            }
             BitmapSource source = ConvertBitmapToSource(bitmap);
             source.Freeze();
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                CameraPreviewImage.Source = source;
-                CameraRecognitionGuide.Visibility = Visibility.Visible;
-                UpdateCameraRecognitionGuide();
-                CameraStatusText.Visibility = Visibility.Collapsed;
+                if (recognitionPreview)
+                {
+                    CameraRecognitionPreviewImage.Source = source;
+                    CameraRecognitionGuide.Visibility = Visibility.Visible;
+                    UpdateCameraRecognitionGuide();
+                    CameraRecognitionPreviewStatusText.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    CameraPreviewImage.Source = source;
+                    CameraStatusText.Visibility = Visibility.Collapsed;
+                }
             }));
         }
         catch { }
@@ -656,33 +742,47 @@ public partial class FirstUseSetupWizardWindow : Window
     {
         _ = Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (status.State == CameraBarcodeRecognitionState.Confirmed)
+            if (_stepIndex != 2 || UseCameraRecognitionRadio.IsChecked != true)
+                return;
+
+            if (status.State is CameraBarcodeRecognitionState.Confirmed
+                or CameraBarcodeRecognitionState.Visible)
             {
-                _cameraRecognitionFeedbackUntil = DateTime.UtcNow.AddSeconds(1.2);
-                CameraRecognitionStatusText.Text = $"已识别 {status.Code}";
-                CameraRecognitionGuideBorder.Stroke = (System.Windows.Media.Brush)FindResource("AccentGreen");
+                CameraRecognitionStatusText.Text = $"当前识别：{status.Code}";
+                SetCameraRecognitionGuideColor("AccentGreen");
                 return;
             }
 
-            if (DateTime.UtcNow < _cameraRecognitionFeedbackUntil)
-                return;
-
             CameraRecognitionStatusText.Text = status.State == CameraBarcodeRecognitionState.Candidate
-                ? "识别中，请保持稳定"
+                ? $"当前识别：{status.Code}"
                 : "将面单条形码放入框内";
-            CameraRecognitionGuideBorder.Stroke = status.State == CameraBarcodeRecognitionState.Candidate
-                ? (System.Windows.Media.Brush)FindResource("AccentOrange")
-                : (System.Windows.Media.Brush)FindResource("AccentBlue");
+            SetCameraRecognitionGuideColor(
+                status.State == CameraBarcodeRecognitionState.Candidate
+                    ? "AccentOrange"
+                    : "AccentBlue");
         }));
+    }
+
+    private void SetCameraRecognitionGuideColor(string resourceKey)
+    {
+        if (FindResource(resourceKey) is not SolidColorBrush accentBrush)
+            return;
+
+        System.Windows.Media.Color color = accentBrush.Color;
+        CameraRecognitionGuideBorder.Stroke = accentBrush;
+        CameraRecognitionGuideBorder.Fill = new SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(0x08, color.R, color.G, color.B));
+        CameraRecognitionStatusBorder.Background = new SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(0xDD, color.R, color.G, color.B));
     }
 
     private void UpdateCameraRecognitionGuide()
     {
-        if (CameraPreviewImage.Source is not BitmapSource source)
+        if (CameraRecognitionPreviewImage.Source is not BitmapSource source)
             return;
 
-        double actualW = CameraPreviewImage.ActualWidth;
-        double actualH = CameraPreviewImage.ActualHeight;
+        double actualW = CameraRecognitionPreviewImage.ActualWidth;
+        double actualH = CameraRecognitionPreviewImage.ActualHeight;
         if (source.PixelWidth <= 0 || source.PixelHeight <= 0 || actualW <= 0 || actualH <= 0)
             return;
 
@@ -725,7 +825,12 @@ public partial class FirstUseSetupWizardWindow : Window
     private bool StopCameraPreview()
     {
         VideoCaptureDevice camera = _previewCamera;
-        if (camera == null) return true;
+        if (camera == null)
+        {
+            _isRecognitionPreview = false;
+            _cameraBarcodeRecognition.Reset();
+            return true;
+        }
 
         try { camera.NewFrame -= PreviewCamera_NewFrame; } catch { }
         try
@@ -754,13 +859,15 @@ public partial class FirstUseSetupWizardWindow : Window
         if (ReferenceEquals(_previewCamera, camera))
             _previewCamera = null;
         _previewCameraForceStopTask = null;
+        _isRecognitionPreview = false;
+        _cameraBarcodeRecognition.Reset();
         return true;
     }
 
     private void MicComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoadingDevices) return;
-        if (_stepIndex == 3)
+        if (_stepIndex == 4)
         {
             StartMicPreviewFromSelection();
         }
@@ -859,7 +966,7 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void ScanTestTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_stepIndex != 4) return;
+        if (_stepIndex != 5) return;
         string content = ScanTestTextBox.Text.Trim();
         if (string.IsNullOrEmpty(content))
         {
@@ -889,7 +996,19 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void UpdateFlowText()
     {
-        if (SameCodeModeRadio.IsChecked == true)
+        if (UseCameraRecognitionRadio.IsChecked != true)
+        {
+            FlowText.Text = SameCodeModeRadio.IsChecked == true
+                ? "1. 使用扫码枪或在主页面输入面单号开始录制\n" +
+                  "2. 完成当前包裹的打包\n" +
+                  "3. 再次扫描或输入同一面单号停止录制\n" +
+                  "4. 未连接扫码枪时也可直接使用主页面输入框"
+                : "1. 使用扫码枪或在主页面输入面单号开始录制\n" +
+                  "2. 完成当前包裹的打包\n" +
+                  "3. 扫描或输入下一张面单号\n" +
+                  "4. 软件自动保存上一单并开始下一单";
+        }
+        else if (SameCodeModeRadio.IsChecked == true)
         {
             FlowText.Text =
                 "1. 将面单条形码放入识别框开始录制\n" +
@@ -911,6 +1030,8 @@ public partial class FirstUseSetupWizardWindow : Window
     private void ApplySelections()
     {
         _config.EnableSameBarcodeStopRecording = SameCodeModeRadio.IsChecked == true;
+        _config.EnableCameraBarcodeRecognition =
+            UseCameraRecognitionRadio.IsChecked == true;
         _config.EnableAudioRecording = true;
         ApplyScannerModeFromTest();
 
