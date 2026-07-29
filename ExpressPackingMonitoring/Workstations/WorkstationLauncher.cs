@@ -289,6 +289,37 @@ public static class WorkstationNetwork
 
     public static string ToUrl(string address) => $"http://{NormalizeAddress(address)}";
 
+    public static void ParseHostConnectionInput(
+        string input,
+        out string address,
+        out string accessKey)
+    {
+        input = (input ?? "").Trim();
+        accessKey = "";
+        if (Uri.TryCreate(input, UriKind.Absolute, out Uri? uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            address = $"{uri.Host}:{(uri.IsDefaultPort ? DefaultHttpPort : uri.Port)}";
+            foreach (string item in uri.Query.TrimStart('?').Split(
+                         '&',
+                         StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] pair = item.Split('=', 2);
+                if (pair.Length == 2
+                    && string.Equals(
+                        Uri.UnescapeDataString(pair[0]),
+                        "key",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    accessKey = Uri.UnescapeDataString(pair[1]).Trim();
+                    break;
+                }
+            }
+            return;
+        }
+        address = NormalizeAddress(input);
+    }
+
     public static async Task<bool> CanConnectAsync(string address)
         => await GetNodeInfoAsync(address) != null;
 
@@ -491,6 +522,47 @@ public static class WorkstationNetwork
         catch (Exception ex)
         {
             return new TestOrderSendResult { ErrorMessage = ex.Message };
+        }
+    }
+
+    public static async Task<bool> SendRecordingWorkstationHeartbeatAsync(
+        string address,
+        string nodeId,
+        string nodeName,
+        int orderReceiverPort,
+        bool connected = true,
+        CancellationToken token = default)
+    {
+        address = NormalizeAddress(address);
+        if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(nodeId))
+            return false;
+
+        try
+        {
+            var payload = new
+            {
+                clientId = nodeId,
+                clientType = "recording-workstation",
+                displayName = string.IsNullOrWhiteSpace(nodeName) ? Environment.MachineName : nodeName.Trim(),
+                connected,
+                nodeId,
+                deviceType = "pc",
+                orderReceiverPort,
+                capabilities = new[] { "recording", "order-receiver" }
+            };
+            using var content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            using var response = await Client.PostAsync(
+                $"{ToUrl(address)}/api/connections/heartbeat",
+                content,
+                token);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
         }
     }
 

@@ -39,6 +39,8 @@ public sealed class SettingsCapabilities
     public bool CanConnectHost { get; }
     public bool CanManageRecordingDevices { get; }
     public bool CanGenerateUserscript { get; }
+    public bool CanConfigureRecordingCache =>
+        IsRecordingDevice && CanConnectHost && !IsHost;
 
     public bool SupportsSpeechSettings => CanRecordPcVideo;
     public bool SupportsScannerSettings => CanUseScanner;
@@ -75,7 +77,7 @@ public sealed class SettingsContext
         ArgumentNullException.ThrowIfNull(mainViewModel);
         return new SettingsContext
         {
-            Capabilities = SettingsCapabilities.ForPreset(DeploymentPresets.RecordingHost),
+            Capabilities = SettingsCapabilities.ForPreset(mainViewModel.Config.DeploymentPreset),
             ApplyAsync = mainViewModel.ApplySettingsAsync,
             ConnectionAddressProvider = () => mainViewModel.MonitorAccessAddress,
             ShowMobileConnection = mainViewModel.ShowMobileConnection,

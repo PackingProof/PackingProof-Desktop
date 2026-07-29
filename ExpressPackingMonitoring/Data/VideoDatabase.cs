@@ -29,7 +29,10 @@ namespace ExpressPackingMonitoring.Data
         public string SourceDeviceId { get; set; } = "";
         public string SourceDeviceName { get; set; } = "";
         public string SourceSessionId { get; set; } = "";
+        public string SourceDeviceKind { get; set; } = "";
         public string ContentSha256 { get; set; } = "";
+        public string StorageState { get; set; } = "Local";
+        public long? RemoteVideoRecordId { get; set; }
         public string VideoCodec { get; set; } = "";
         public string VideoEncoder { get; set; } = "";
         public string FilePath { get; set; } = "";
@@ -140,9 +143,12 @@ namespace ExpressPackingMonitoring.Data
                     SourceType TEXT NOT NULL DEFAULT 'pc',
                     SourceDeviceId TEXT DEFAULT '',
                     SourceDeviceName TEXT DEFAULT '',
+                    SourceDeviceKind TEXT DEFAULT '',
                     SourceSessionId TEXT DEFAULT '',
                     ContentSha256 TEXT DEFAULT '',
                     BackupCompletedAt TEXT,
+                    StorageState TEXT NOT NULL DEFAULT 'Local',
+                    RemoteVideoRecordId INTEGER,
                     FilePath TEXT NOT NULL,
                     FileSizeBytes INTEGER DEFAULT 0,
                     StartTime TEXT NOT NULL,
@@ -172,6 +178,29 @@ namespace ExpressPackingMonitoring.Data
                     UpdatedAt TEXT NOT NULL
                 );");
 
+            // 录制工位本地上传队列。任务独立于 VideoRecords，避免网络重试影响录像主记录。
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS RecordingTransferQueue (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    LocalVideoRecordId INTEGER NOT NULL,
+                    LocalFilePath TEXT NOT NULL,
+                    FileSha256 TEXT DEFAULT '',
+                    SourceSessionId TEXT NOT NULL,
+                    TargetNodeId TEXT NOT NULL,
+                    TargetAddress TEXT NOT NULL,
+                    State TEXT NOT NULL DEFAULT 'Pending',
+                    ServerOffset INTEGER NOT NULL DEFAULT 0,
+                    RetryCount INTEGER NOT NULL DEFAULT 0,
+                    LastError TEXT DEFAULT '',
+                    NextAttemptAt TEXT,
+                    RemoteVideoRecordId INTEGER,
+                    CacheDeletedAt TEXT,
+                    CreatedAt TEXT NOT NULL,
+                    UpdatedAt TEXT NOT NULL
+                );");
+            ExecuteNonQuery("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_UpdatedAt ON RecordingTransferQueue(State, UpdatedAt);");
+            ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS IX_RecordingTransferQueue_LocalVideoRecordId ON RecordingTransferQueue(LocalVideoRecordId);");
+
             // 删除日志表
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS DeleteLogs (
@@ -199,14 +228,19 @@ namespace ExpressPackingMonitoring.Data
             EnsureColumnExists("VideoRecords", "SourceType", "TEXT NOT NULL DEFAULT 'pc'");
             EnsureColumnExists("VideoRecords", "SourceDeviceId", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "SourceDeviceName", "TEXT DEFAULT ''");
+            EnsureColumnExists("VideoRecords", "SourceDeviceKind", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "SourceSessionId", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "ContentSha256", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "BackupCompletedAt", "TEXT");
+            EnsureColumnExists("VideoRecords", "StorageState", "TEXT NOT NULL DEFAULT 'Local'");
+            EnsureColumnExists("VideoRecords", "RemoteVideoRecordId", "INTEGER");
             EnsureColumnExists("VideoRecords", "MkvFirstFailedAt", "TEXT");
             EnsureColumnExists("VideoRecords", "MkvLastAttemptAt", "TEXT");
             EnsureColumnExists("VideoRecords", "MkvFailureCount", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumnExists("VideoRecords", "MkvLastError", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "MkvLastNotifiedAt", "TEXT");
+            EnsureColumnExists("RecordingTransferQueue", "NextAttemptAt", "TEXT");
+            EnsureColumnExists("RecordingTransferQueue", "CacheDeletedAt", "TEXT");
             ExecuteNonQuery(@"
                 UPDATE VideoRecords
                 SET BackupCompletedAt = COALESCE(EndTime, StartTime)
@@ -285,7 +319,8 @@ namespace ExpressPackingMonitoring.Data
             string sourceDeviceName,
             string sourceSessionId,
             string contentSha256,
-            OrderInfo orderInfo = null)
+            OrderInfo orderInfo = null,
+            string sourceDeviceKind = "mobile")
         {
             string normalizedTracking = trackingNumber?.Trim().ToUpperInvariant() ?? "";
             string orderId = string.IsNullOrEmpty(normalizedTracking) ? "未识别面单" : normalizedTracking;
@@ -299,13 +334,13 @@ namespace ExpressPackingMonitoring.Data
                     INSERT INTO VideoRecords (
                         OrderId, Mode, TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo,
                         OrderInfoPushTime, OrderInfoJson, SourceType, SourceDeviceId, SourceDeviceName,
-                        SourceSessionId, ContentSha256, FilePath, FileSizeBytes, StartTime, EndTime,
+                        SourceDeviceKind, SourceSessionId, ContentSha256, FilePath, FileSizeBytes, StartTime, EndTime,
                         DurationSeconds, StopReason, BackupCompletedAt)
                     VALUES (
                         @orderId, '发货', @trackingNumber, @sourceOrderId, @buyerMessage, @sellerMemo, @productInfo,
                         @orderInfoPushTime, @orderInfoJson, 'external', @sourceDeviceId, @sourceDeviceName,
-                        @sourceSessionId, @contentSha256, @filePath, @fileSizeBytes, @startTime, @endTime,
-                        @durationSeconds, 'APP 备份', @backupCompletedAt);
+                        @sourceDeviceKind, @sourceSessionId, @contentSha256, @filePath, @fileSizeBytes, @startTime, @endTime,
+                        @durationSeconds, @stopReason, @backupCompletedAt);
                     SELECT last_insert_rowid();";
                 cmd.Parameters.AddWithValue("@orderId", orderId);
                 cmd.Parameters.AddWithValue("@trackingNumber", normalizedTracking);
@@ -317,6 +352,8 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@orderInfoJson", orderInfoJson);
                 cmd.Parameters.AddWithValue("@sourceDeviceId", sourceDeviceId?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@sourceDeviceName", sourceDeviceName?.Trim() ?? "");
+                cmd.Parameters.AddWithValue("@sourceDeviceKind",
+                    string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase) ? "pc" : "mobile");
                 cmd.Parameters.AddWithValue("@sourceSessionId", sourceSessionId?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@contentSha256", contentSha256?.Trim().ToLowerInvariant() ?? "");
                 cmd.Parameters.AddWithValue("@filePath", filePath ?? "");
@@ -324,6 +361,11 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@startTime", startTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@endTime", endTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@durationSeconds", Math.Max(0, durationSeconds));
+                cmd.Parameters.AddWithValue(
+                    "@stopReason",
+                    string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                        ? "电脑工位上传"
+                        : "APP 备份");
                 cmd.Parameters.AddWithValue("@backupCompletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 return (long)cmd.ExecuteScalar();
             }
@@ -421,7 +463,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords
                     WHERE SourceType = 'external' AND SourceDeviceId = @sourceDeviceId AND SourceSessionId = @sourceSessionId
                     LIMIT 1;";
@@ -443,7 +486,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords
                     WHERE ContentSha256 = @contentSha256 AND IsDeleted = 0
                     ORDER BY Id LIMIT 1;";
@@ -962,7 +1006,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords WHERE Id = @id AND IsDeleted = 0;";
                 cmd.Parameters.AddWithValue("@id", id);
                 using var reader = cmd.ExecuteReader();
@@ -995,7 +1040,10 @@ namespace ExpressPackingMonitoring.Data
                         SourceDeviceId = reader.IsDBNull(22) ? "" : reader.GetString(22),
                         SourceDeviceName = reader.IsDBNull(23) ? "" : reader.GetString(23),
                         SourceSessionId = reader.IsDBNull(24) ? "" : reader.GetString(24),
-                        ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25)
+                        ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25),
+                        StorageState = reader.IsDBNull(26) ? "Local" : reader.GetString(26),
+                        RemoteVideoRecordId = reader.IsDBNull(27) ? null : reader.GetInt64(27),
+                        SourceDeviceKind = reader.IsDBNull(28) ? "" : reader.GetString(28)
                     };
                 }
                 return null;
@@ -1017,7 +1065,8 @@ namespace ExpressPackingMonitoring.Data
                           StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords 
                     WHERE 1 = 1";
 
@@ -1074,7 +1123,10 @@ namespace ExpressPackingMonitoring.Data
                         SourceDeviceId = reader.IsDBNull(22) ? "" : reader.GetString(22),
                         SourceDeviceName = reader.IsDBNull(23) ? "" : reader.GetString(23),
                         SourceSessionId = reader.IsDBNull(24) ? "" : reader.GetString(24),
-                        ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25)
+                        ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25),
+                        StorageState = reader.IsDBNull(26) ? "Local" : reader.GetString(26),
+                        RemoteVideoRecordId = reader.IsDBNull(27) ? null : reader.GetInt64(27),
+                        SourceDeviceKind = reader.IsDBNull(28) ? "" : reader.GetString(28)
                     });
                 }
                 return results;
@@ -1110,7 +1162,10 @@ namespace ExpressPackingMonitoring.Data
                 SourceDeviceId = reader.IsDBNull(22) ? "" : reader.GetString(22),
                 SourceDeviceName = reader.IsDBNull(23) ? "" : reader.GetString(23),
                 SourceSessionId = reader.IsDBNull(24) ? "" : reader.GetString(24),
-                ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25)
+                ContentSha256 = reader.IsDBNull(25) ? "" : reader.GetString(25),
+                StorageState = reader.IsDBNull(26) ? "Local" : reader.GetString(26),
+                RemoteVideoRecordId = reader.IsDBNull(27) ? null : reader.GetInt64(27),
+                SourceDeviceKind = reader.IsDBNull(28) ? "" : reader.GetString(28)
             };
         }
 
@@ -1136,6 +1191,75 @@ namespace ExpressPackingMonitoring.Data
                 sourceType,
                 deviceId,
                 sourceDeviceName);
+        }
+
+        public List<VideoRecord> GetCompletedPcVideosForTransfer(
+            DateTime? recordedAfter = null,
+            int limit = 500)
+        {
+            if (limit <= 0) return new List<VideoRecord>();
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo,
+                           OrderInfoPushTime, OrderInfoJson, SourceType, SourceDeviceId,
+                           SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
+                    FROM VideoRecords
+                    WHERE SourceType = 'pc'
+                      AND IsDeleted = 0
+                      AND EndTime IS NOT NULL
+                      AND FilePath <> ''
+                      AND lower(FilePath) LIKE '%.mp4'
+                      AND (@recordedAfter = '' OR StartTime >= @recordedAfter)
+                    ORDER BY StartTime ASC, Id ASC
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@limit", limit);
+                cmd.Parameters.AddWithValue(
+                    "@recordedAfter",
+                    recordedAfter?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "");
+                using var reader = cmd.ExecuteReader();
+                var result = new List<VideoRecord>();
+                while (reader.Read())
+                    result.Add(ReadVideoRecord(reader));
+                return result;
+            }
+        }
+
+        public void MarkVideoUploaded(long localRecordId, long remoteRecordId)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords
+                    SET StorageState = 'Uploaded',
+                        RemoteVideoRecordId = @remoteRecordId
+                    WHERE Id = @id AND IsDeleted = 0;";
+                cmd.Parameters.AddWithValue("@id", localRecordId);
+                cmd.Parameters.AddWithValue("@remoteRecordId", remoteRecordId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void MarkVideoCacheDeleted(long localRecordId, long remoteRecordId)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords
+                    SET StorageState = 'Remote',
+                        RemoteVideoRecordId = @remoteRecordId
+                    WHERE Id = @id AND IsDeleted = 0;";
+                cmd.Parameters.AddWithValue("@id", localRecordId);
+                cmd.Parameters.AddWithValue("@remoteRecordId", remoteRecordId);
+                cmd.ExecuteNonQuery();
+            }
         }
 
         internal PagedVideoResult QueryVideosPaged(
@@ -1231,7 +1355,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256 "
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind "
                     + whereSql + @"
                     ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit OFFSET @offset;";
@@ -1345,7 +1470,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords
                     WHERE Id IN (" + string.Join(",", parameters) + ");";
                 var result = new Dictionary<long, VideoRecord>();
@@ -1388,7 +1514,8 @@ namespace ExpressPackingMonitoring.Data
                            StartTime, EndTime, DurationSeconds, StopReason,
                            IsDeleted, DeletedAt, DeleteReason,
                            TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind
                     FROM VideoRecords " + whereSql + @"
                     ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit;";

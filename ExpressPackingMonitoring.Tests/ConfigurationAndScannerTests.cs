@@ -486,6 +486,18 @@ public sealed class ConfigurationAndScannerTests
         Assert.False(MainViewModel.ShouldRepairLanAccessAtStartup(config, allowLanAccessSetup: false));
     }
 
+    [Fact]
+    public void ShouldRepairLanAccessAtStartup_RecordingWorkstationStartsOrderReceiver()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            EnableWebServer = false
+        };
+
+        Assert.True(MainViewModel.ShouldRepairLanAccessAtStartup(config));
+    }
+
 
     [Fact]
     public void NormalizeAfterLoad_ResolvesConflictingScannerModesAndBounds()

@@ -100,6 +100,7 @@
     <Compile Include="Config\StorageSpacePolicy.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
+    <Compile Include="Data\RecordingTransferQueueStore.cs" />
     <Compile Include="Data\VideoDatabase.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
@@ -123,6 +124,7 @@
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
     <Compile Include="Services\RecordingProfileDetector.cs" />
+    <Compile Include="Services\RecordingTransferService.cs" />
     <Compile Include="Services\CompletedVideoSpecificationProbe.cs" />
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\UserscriptGuideNavigation.cs" />
@@ -138,6 +140,7 @@
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
     <Compile Include="ViewModels\MainViewModel.Recording.cs" />
+    <Compile Include="ViewModels\MainViewModel.Transfer.cs" />
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\ConfirmDialog.xaml.cs" />
     <Compile Include="UI\CloseBehaviorDialog.xaml.cs" />

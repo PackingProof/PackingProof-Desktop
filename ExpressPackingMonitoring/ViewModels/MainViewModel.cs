@@ -238,7 +238,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _maxDurationWarned = false;
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
         private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
-        private readonly string _activeWorkstationRole = WorkstationRoles.CameraMonitor;
         private string _workstationPrintStatusText = "手机备份服务：未连接";
         private string _workstationStatusToolTip = "";
         private string _orderIntegrationStatusText = "订单联动：暂未收到订单";
@@ -602,6 +601,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             });
             InitDatabase();
+            InitializeRecordingTransfers();
             RefreshTodayStats();
             RestoreRecentScanRecords();
             _speechService = new SpeechService
@@ -795,6 +795,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     RefreshMobileBackupStatuses();
                 if (DateTime.Now - _lastUserscriptStatusRefreshAt >= TimeSpan.FromSeconds(15))
                     RefreshUserscriptStatus();
+                QueueRecordingWorkstationHeartbeat();
             };
             _uiHeartbeatTimer.Start();
         }
@@ -1783,7 +1784,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool globalKeyChanged = Config.EnableGlobalKeyboard != nextConfig.EnableGlobalKeyboard;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition;
                     bool workstationChanged = !string.Equals(
-                        DeploymentPresets.RecordingHost,
+                        Config.DeploymentPreset,
                         nextConfig.DeploymentPreset,
                         StringComparison.OrdinalIgnoreCase);
                     bool aiTtsChanged = Config.EnableAiTts != nextConfig.EnableAiTts
@@ -1831,6 +1832,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                     }
                     ForceCheckDiskAndCleanup();
+                    RunRecordingCacheCleanup();
 
                     ApplyGlobalKeyboardConfig();
                     if (globalKeyChanged && _globalKeyHook != null)
@@ -2079,6 +2081,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void OpenPlaybackWindow()
         {
+            if (IsRecordingWorkstation)
+            {
+                OpenBoundHost();
+                return;
+            }
             if (ActivateExistingWindow(_playbackWindow))
                 return;
 
@@ -2400,7 +2407,13 @@ namespace ExpressPackingMonitoring.ViewModels
             AppConfig config,
             bool allowLanAccessSetup = true)
         {
-            return config?.EnableWebServer == true && allowLanAccessSetup;
+            if (config == null || !allowLanAccessSetup)
+                return false;
+            return config.EnableWebServer
+                || string.Equals(
+                    config.DeploymentPreset,
+                    DeploymentPresets.RecordingWorkstation,
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task RecoverOrphanedMkvAsync()
@@ -2528,12 +2541,13 @@ namespace ExpressPackingMonitoring.ViewModels
             WebServer newServer = null;
             try
             {
+                bool orderReceiverOnly = IsRecordingWorkstation;
                 Interlocked.Increment(ref _workstationAddressRefreshVersion);
                 WebServer previousServer = _webServer;
                 _webServer = null;
                 try { previousServer?.Dispose(); } catch { }
 
-                if (!Config.EnableWebServer || _db == null || _isDisposed)
+                if ((!Config.EnableWebServer && !orderReceiverOnly) || _db == null || _isDisposed)
                 {
                     MonitorAccessAddress = "";
                     WorkstationPrintStatusText = "手机备份服务：未连接";
@@ -2542,12 +2556,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     return true;
                 }
 
-                WorkstationPrintStatusText = "手机备份服务：等待启动";
+                WorkstationPrintStatusText = orderReceiverOnly
+                    ? "订单联动接收：等待启动"
+                    : "手机备份服务：等待启动";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 int port = Config.WebServerPort;
                 int cacheMaxMb = Config.TranscodeCacheMaxMB;
                 bool enableOrderInfoLog = Config.EnableOrderInfoLog;
-                bool requireAccessKey = Config.RequireWebAccessKey;
+                bool requireAccessKey = !orderReceiverOnly && Config.RequireWebAccessKey;
                 string accessKey = Config.WebAccessKey;
 
                 newServer = await Task.Run(() =>
@@ -2568,7 +2584,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         mobileBackupRecordingRootResolver: ResolveBestStoragePath,
                         nodeId: Config.NodeId,
                         nodeName: Config.NodeName,
-                        deploymentPreset: DeploymentPresets.RecordingHost)
+                        deploymentPreset: Config.DeploymentPreset,
+                        orderReceiverOnly: orderReceiverOnly)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };
@@ -2597,7 +2614,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 _webServer = newServer;
                 newServer = null;
                 await RefreshWorkstationStatusAsync();
-                RuntimeLog.Info("Web", $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}");
+                QueueRecordingWorkstationHeartbeat(force: true);
+                RuntimeLog.Info(
+                    "Web",
+                    $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}, orderReceiverOnly={orderReceiverOnly}");
                 return true;
             }
             catch (Exception ex)
@@ -2623,14 +2643,18 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_webServer == null)
             {
                 MonitorAccessAddress = "";
-                WorkstationPrintStatusText = "手机备份服务：未连接";
+                WorkstationPrintStatusText = IsRecordingWorkstation
+                    ? "订单联动接收：未连接"
+                    : "手机备份服务：未连接";
                 WorkstationStatusToolTip = "其他设备暂时无法连接这台电脑。";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 return;
             }
 
             MonitorAccessAddress = "";
-            WorkstationPrintStatusText = "手机备份服务：等待连接";
+            WorkstationPrintStatusText = IsRecordingWorkstation
+                ? "订单联动接收：等待连接"
+                : "手机备份服务：等待连接";
             WorkstationStatusToolTip = "正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内。";
             SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
 
@@ -2648,10 +2672,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             MonitorAccessAddress = verifiedAddress;
-            WorkstationPrintStatusText = $"{Config.NodeName} · {verifiedAddress}";
-            WorkstationStatusToolTip = Config.RequireWebAccessKey
-                ? "访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备。"
-                : $"其他电脑在浏览器输入 http://{MonitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙。";
+            if (IsRecordingWorkstation)
+            {
+                WorkstationPrintStatusText = $"订单联动接收 · {verifiedAddress}";
+                WorkstationStatusToolTip = "此地址仅用于接收订单联动，不提供本机录像浏览或备份主机服务。";
+            }
+            else
+            {
+                WorkstationPrintStatusText = $"{Config.NodeName} · {verifiedAddress}";
+                WorkstationStatusToolTip = Config.RequireWebAccessKey
+                    ? "访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备。"
+                    : $"其他电脑在浏览器输入 http://{MonitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙。";
+            }
             UpdateConnectedClients(_webServer.GetConnectedClients());
             RefreshMobileBackupStatuses();
         }
@@ -3024,36 +3056,26 @@ namespace ExpressPackingMonitoring.ViewModels
             if (selector.ShowDialog() == true && !string.IsNullOrWhiteSpace(selector.SelectedPreset))
             {
                 if (string.Equals(
-                        DeploymentPresets.RecordingHost,
+                        Config.DeploymentPreset,
                         selector.SelectedPreset,
                         StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!string.Equals(
-                            Config.DeploymentPreset,
-                            DeploymentPresets.RecordingHost,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        string previousCurrentPreset = Config.DeploymentPreset;
-                        string currentRoleBeforeSave = Config.WorkstationRole;
-                        Config.DeploymentPreset = DeploymentPresets.RecordingHost;
-                        Config.WorkstationRole = _activeWorkstationRole;
-                        if (!SaveConfig(notifyUser: true))
-                        {
-                            Config.DeploymentPreset = previousCurrentPreset;
-                            Config.WorkstationRole = currentRoleBeforeSave;
-                            return;
-                        }
-                    }
-                    ShowToast($"当前已经是{DeploymentPresets.GetDisplayName(DeploymentPresets.RecordingHost)}");
+                    ShowToast($"当前已经是{DeploymentPresets.GetDisplayName(Config.DeploymentPreset)}");
                     return;
                 }
 
                 AppConfig nextConfig =
                     JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
                 nextConfig.DeploymentPreset = selector.SelectedPreset;
-                nextConfig.WorkstationRole = selector.SelectedPreset == DeploymentPresets.MobileBackupHost
-                    ? WorkstationRoles.PrintStation
-                    : "";
+                if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                    nextConfig.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                nextConfig.WorkstationRole = DeploymentCapabilities
+                    .ForPreset(selector.SelectedPreset)
+                    .IsRecordingDevice
+                        ? WorkstationRoles.CameraMonitor
+                        : selector.SelectedPreset == DeploymentPresets.MobileBackupHost
+                            ? WorkstationRoles.PrintStation
+                            : "";
                 nextConfig.EnableWebServer = DeploymentCapabilities
                     .ForPreset(selector.SelectedPreset)
                     .CanRunWebServer;
@@ -4392,6 +4414,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _purposeSwitchCts.Dispose();
             try { _globalKeyHook?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
+            DisposeRecordingTransfers();
             try { _db?.Dispose(); } catch { }
         }
     }

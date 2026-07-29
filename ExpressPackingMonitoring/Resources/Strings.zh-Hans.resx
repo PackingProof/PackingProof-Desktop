@@ -648,4 +648,24 @@
   <data name="已选择不使用摄像头识别" xml:space="preserve"><value>已选择不使用摄像头识别</value></data>
   <data name="仍可使用扫码枪或在主页面手动输入面单号" xml:space="preserve"><value>仍可使用扫码枪或在主页面手动输入面单号</value></data>
   <data name="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪" xml:space="preserve"><value>没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪</value></data>
+  <data name="当前用途：录制工位" xml:space="preserve"><value>当前用途：录制工位</value></data>
+  <data name="保存主机：" xml:space="preserve"><value>保存主机：</value></data>
+  <data name="　待上传：" xml:space="preserve"><value>　待上传：</value></data>
+  <data name="重新连接" xml:space="preserve"><value>重新连接</value></data>
+  <data name="打开主机录像" xml:space="preserve"><value>打开主机录像</value></data>
+  <data name="本机录像缓存" xml:space="preserve"><value>本机录像缓存</value></data>
+  <data name="录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像</value></data>
+  <data name="缓存策略" xml:space="preserve"><value>缓存策略</value></data>
+  <data name="三种策略互斥，上传未确认的录像不会被清理" xml:space="preserve"><value>三种策略互斥，上传未确认的录像不会被清理</value></data>
+  <data name="上传成功后立即删除" xml:space="preserve"><value>上传成功后立即删除</value></data>
+  <data name="上传成功后保留指定天数" xml:space="preserve"><value>上传成功后保留指定天数</value></data>
+  <data name="限制已上传缓存容量" xml:space="preserve"><value>限制已上传缓存容量</value></data>
+  <data name="保留天数" xml:space="preserve"><value>保留天数</value></data>
+  <data name="选择按天保留时生效，默认保留 3 天" xml:space="preserve"><value>选择按天保留时生效，默认保留 3 天</value></data>
+  <data name="缓存容量上限" xml:space="preserve"><value>缓存容量上限</value></data>
+  <data name="选择容量限制时生效，超出后从最旧的已上传录像开始清理" xml:space="preserve"><value>选择容量限制时生效，超出后从最旧的已上传录像开始清理</value></data>
+  <data name="录制工位请粘贴主机“手机/电脑连接”中的完整链接" xml:space="preserve"><value>录制工位请粘贴主机“手机/电脑连接”中的完整链接</value></data>
+  <data name="使用这台电脑录像，保存到其他主机" xml:space="preserve"><value>使用这台电脑录像，保存到其他主机</value></data>
+  <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传</value></data>
+  <data name="尚未绑定保存主机" xml:space="preserve"><value>尚未绑定保存主机</value></data>
 </root>

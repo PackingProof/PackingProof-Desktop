@@ -108,7 +108,13 @@ namespace ExpressPackingMonitoring.Config
         public string NodeId { get; set; } = "";
         public string NodeName { get; set; } = "";
         public string LastKnownHostNodeId { get; set; } = "";
+        public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
+        public string LastKnownHostAccessKey { get; set; } = "";
+        public string RecordingCachePolicy { get; set; } = "KeepDays";
+        public int RecordingCacheKeepDays { get; set; } = 3;
+        public int RecordingCacheMaxGB { get; set; } = 50;
+        public DateTime? RecordingWorkstationActivatedAtUtc { get; set; }
         public string LastUserscriptTargetSignature { get; set; } = "";
         public int DeploymentSetupVersion { get; set; } = 0;
         public int RecordingSetupVersion { get; set; } = 0;
@@ -250,7 +256,8 @@ namespace ExpressPackingMonitoring.Config
                     changed = true;
                 }
 
-                if (normalizedPreset == DeploymentPresets.ViewerClient && config.EnableWebServer)
+                if (!DeploymentCapabilities.ForPreset(normalizedPreset).CanRunWebServer
+                    && config.EnableWebServer)
                 {
                     config.EnableWebServer = false;
                     changed = true;
@@ -343,10 +350,51 @@ namespace ExpressPackingMonitoring.Config
                 config.LastKnownHostNodeId = normalizedHostNodeId;
                 changed = true;
             }
+            string normalizedHostNodeName = config.LastKnownHostNodeName?.Trim() ?? "";
+            if (!string.Equals(config.LastKnownHostNodeName, normalizedHostNodeName, StringComparison.Ordinal))
+            {
+                config.LastKnownHostNodeName = normalizedHostNodeName;
+                changed = true;
+            }
             string normalizedHostAddress = config.LastKnownHostAddress?.Trim().TrimEnd('/') ?? "";
             if (!string.Equals(config.LastKnownHostAddress, normalizedHostAddress, StringComparison.Ordinal))
             {
                 config.LastKnownHostAddress = normalizedHostAddress;
+                changed = true;
+            }
+            string normalizedHostAccessKey = config.LastKnownHostAccessKey?.Trim() ?? "";
+            if (!string.Equals(config.LastKnownHostAccessKey, normalizedHostAccessKey, StringComparison.Ordinal))
+            {
+                config.LastKnownHostAccessKey = normalizedHostAccessKey;
+                changed = true;
+            }
+            string normalizedCachePolicy = config.RecordingCachePolicy switch
+            {
+                "DeleteImmediately" => "DeleteImmediately",
+                "KeepWithinSize" => "KeepWithinSize",
+                _ => "KeepDays"
+            };
+            if (!string.Equals(config.RecordingCachePolicy, normalizedCachePolicy, StringComparison.Ordinal))
+            {
+                config.RecordingCachePolicy = normalizedCachePolicy;
+                changed = true;
+            }
+            int normalizedCacheDays = Math.Clamp(config.RecordingCacheKeepDays, 0, 3650);
+            if (config.RecordingCacheKeepDays != normalizedCacheDays)
+            {
+                config.RecordingCacheKeepDays = normalizedCacheDays;
+                changed = true;
+            }
+            int normalizedCacheMaxGB = Math.Clamp(config.RecordingCacheMaxGB, 1, 10240);
+            if (config.RecordingCacheMaxGB != normalizedCacheMaxGB)
+            {
+                config.RecordingCacheMaxGB = normalizedCacheMaxGB;
+                changed = true;
+            }
+            if (normalizedPreset == DeploymentPresets.RecordingWorkstation
+                && config.RecordingWorkstationActivatedAtUtc == null)
+            {
+                config.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
                 changed = true;
             }
 

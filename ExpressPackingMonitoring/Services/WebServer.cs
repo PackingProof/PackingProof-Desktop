@@ -92,6 +92,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _nodeId;
         private readonly string _nodeName;
         private readonly string _deploymentPreset;
+        private readonly bool _orderReceiverOnly;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _requestSlots = new(32, 32);
         private readonly SemaphoreSlim _transcodeSlot = new(1, 1);
@@ -158,7 +159,8 @@ namespace ExpressPackingMonitoring.Services
             Func<string> mobileBackupRecordingRootResolver = null,
             string nodeId = null,
             string nodeName = null,
-            string deploymentPreset = null)
+            string deploymentPreset = null,
+            bool orderReceiverOnly = false)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -182,6 +184,7 @@ namespace ExpressPackingMonitoring.Services
             _deploymentPreset = DeploymentPresets.IsKnown(deploymentPreset)
                 ? DeploymentPresets.Normalize(deploymentPreset)
                 : DeploymentPresets.RecordingHost;
+            _orderReceiverOnly = orderReceiverOnly;
             _clipService = new VideoClipService(
                 _db,
                 WriteLog,
@@ -524,7 +527,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-Chunk-SHA256");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256");
 
                 if (method == "POST")
                 {
@@ -549,6 +552,12 @@ namespace ExpressPackingMonitoring.Services
                 {
                     ctx.Response.StatusCode = 204;
                     ctx.Response.OutputStream.Close();
+                    return;
+                }
+
+                if (_orderReceiverOnly && !IsOrderReceiverPathAllowed(path, method))
+                {
+                    SendJson(ctx, 404, new { error = "Not Found" });
                     return;
                 }
 
@@ -767,6 +776,15 @@ namespace ExpressPackingMonitoring.Services
         internal static bool IsMobileBackupPath(string path) =>
             path?.StartsWith("/api/mobile-backup", StringComparison.OrdinalIgnoreCase) == true;
 
+        internal static bool IsOrderReceiverPathAllowed(string path, string method) =>
+            (path == "/api/node-info" && method == "GET")
+            || (path == "/api/orderinfo" && method is "GET" or "POST")
+            || (path == "/api/order-lookup/pending" && method == "GET")
+            || (path == "/api/order-lookup/result" && method == "POST")
+            || (path == "/api/connections/heartbeat" && method == "POST")
+            || (path == "/kuaidizs-install-guide" && method == "GET")
+            || (path == "/kuaidizs-order-push.user.js" && method == "GET");
+
         private bool TryAuthorizeMobileBackupRequest(HttpListenerContext ctx, out bool missingKey)
         {
             string headerKey = ctx.Request.Headers["X-EPM-Access-Key"];
@@ -777,6 +795,12 @@ namespace ExpressPackingMonitoring.Services
                 IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
                 string deviceId = ctx.Request.Headers["X-EPM-Device-Id"];
                 string deviceName = ctx.Request.Headers["X-EPM-Device-Name"];
+                string deviceKind = string.Equals(
+                    ctx.Request.Headers["X-EPM-Device-Kind"],
+                    "pc",
+                    StringComparison.OrdinalIgnoreCase)
+                        ? "pc"
+                        : "mobile";
                 try { deviceName = Uri.UnescapeDataString(deviceName ?? ""); } catch { }
                 _mobileOrderReceivers.Register(
                     remoteAddress,
@@ -793,10 +817,12 @@ namespace ExpressPackingMonitoring.Services
                             new ConnectedClientHeartbeat
                             {
                                 ClientId = deviceId,
-                                ClientType = "mobile-app",
+                                ClientType = deviceKind == "pc"
+                                    ? "recording-workstation"
+                                    : "mobile-app",
                                 DisplayName = deviceName,
                                 NodeId = deviceId,
-                                DeviceType = "mobile",
+                                DeviceType = deviceKind,
                                 OrderReceiverPort = MobileOrderReceiverRegistry.OrderReceiverPort,
                                 Capabilities =
                                 [
@@ -1849,6 +1875,7 @@ namespace ExpressPackingMonitoring.Services
                 sourceType = r.SourceType ?? "pc",
                 sourceDeviceId = r.SourceDeviceId ?? "",
                 sourceDeviceName = r.SourceDeviceName ?? "",
+                sourceDeviceKind = r.SourceDeviceKind ?? "",
                 sourceSessionId = r.SourceSessionId ?? "",
                 contentSha256 = r.ContentSha256 ?? "",
                 sizeMB = Math.Round(r.FileSizeBytes / 1048576.0, 1),

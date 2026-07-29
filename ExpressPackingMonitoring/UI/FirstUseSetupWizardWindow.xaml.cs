@@ -97,10 +97,18 @@ public partial class FirstUseSetupWizardWindow : Window
     {
         configuredConfig = JsonSerializer.Deserialize<AppConfig>(
             JsonSerializer.Serialize(sourceConfig)) ?? new AppConfig();
-        configuredConfig.DeploymentPreset = DeploymentPresets.RecordingHost;
+        string recordingPreset = string.Equals(
+            sourceConfig.DeploymentPreset,
+            DeploymentPresets.RecordingWorkstation,
+            StringComparison.OrdinalIgnoreCase)
+                ? DeploymentPresets.RecordingWorkstation
+                : DeploymentPresets.RecordingHost;
+        configuredConfig.DeploymentPreset = recordingPreset;
         configuredConfig.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
         configuredConfig.WorkstationRole = WorkstationRoles.CameraMonitor;
-        configuredConfig.EnableWebServer = true;
+        configuredConfig.EnableWebServer = DeploymentCapabilities
+            .ForPreset(recordingPreset)
+            .CanRunWebServer;
 
         var wizard = new FirstUseSetupWizardWindow(configuredConfig, allowSkip: false);
         if (owner != null)

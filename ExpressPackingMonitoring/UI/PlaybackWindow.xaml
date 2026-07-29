@@ -163,6 +163,10 @@
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Setter Property="Foreground" Value="{DynamicResource AccentRed}"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsStoredOnHost}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>

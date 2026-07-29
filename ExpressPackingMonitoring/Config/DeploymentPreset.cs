@@ -4,11 +4,13 @@ public static class DeploymentPresets
 {
     public const int CurrentSchemaVersion = 1;
     public const string RecordingHost = "RecordingHost";
+    public const string RecordingWorkstation = "RecordingWorkstation";
     public const string ViewerClient = "ViewerClient";
     public const string MobileBackupHost = "MobileBackupHost";
 
     public static bool IsKnown(string? preset) =>
         string.Equals(preset, RecordingHost, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(preset, RecordingWorkstation, StringComparison.OrdinalIgnoreCase)
         || string.Equals(preset, ViewerClient, StringComparison.OrdinalIgnoreCase)
         || string.Equals(preset, MobileBackupHost, StringComparison.OrdinalIgnoreCase);
 
@@ -16,6 +18,8 @@ public static class DeploymentPresets
     {
         if (string.Equals(preset, RecordingHost, StringComparison.OrdinalIgnoreCase))
             return RecordingHost;
+        if (string.Equals(preset, RecordingWorkstation, StringComparison.OrdinalIgnoreCase))
+            return RecordingWorkstation;
         if (string.Equals(preset, ViewerClient, StringComparison.OrdinalIgnoreCase))
             return ViewerClient;
         if (string.Equals(preset, MobileBackupHost, StringComparison.OrdinalIgnoreCase))
@@ -34,7 +38,8 @@ public static class DeploymentPresets
 
     public static string GetDisplayName(string? preset) => Normalize(preset) switch
     {
-        RecordingHost => "使用这台电脑录像",
+        RecordingHost => "录像并保存在这台电脑",
+        RecordingWorkstation => "录像并保存到其他主机",
         ViewerClient => "连接已有主机",
         MobileBackupHost => "接收手机录像",
         _ => "尚未配置"
@@ -104,6 +109,20 @@ public sealed class DeploymentCapabilities
                 canConnectHost: false,
                 canManageRecordingDevices: true,
                 canGenerateUserscript: true),
+            DeploymentPresets.RecordingWorkstation => new DeploymentCapabilities(
+                isHost: false,
+                isRecordingDevice: true,
+                canUseCamera: true,
+                canRecordAudio: true,
+                canUseCameraBarcode: true,
+                canUseScanner: true,
+                canRecordPcVideo: true,
+                canConfigureStorage: false,
+                canRunWebServer: false,
+                canReceiveMobileBackup: false,
+                canConnectHost: true,
+                canManageRecordingDevices: false,
+                canGenerateUserscript: false),
             DeploymentPresets.ViewerClient => new DeploymentCapabilities(
                 isHost: false,
                 isRecordingDevice: false,
@@ -181,6 +200,15 @@ public static class PackingProofCapabilities
                 Host,
                 WebPlayback,
                 MobileBackup
+            ],
+            DeploymentPresets.RecordingWorkstation =>
+            [
+                PcRecording,
+                Recording,
+                OrderReceiver,
+                CameraBarcode,
+                Scanner,
+                Microphone
             ],
             _ => Array.Empty<string>()
         };

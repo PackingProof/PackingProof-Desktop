@@ -17,6 +17,12 @@ public partial class WorkstationSelectionWindow : Window
         DialogResult = true;
     }
 
+    private void RecordingWorkstation_Click(object sender, RoutedEventArgs e)
+    {
+        SelectedPreset = Config.DeploymentPresets.RecordingWorkstation;
+        DialogResult = true;
+    }
+
     private void ViewerClient_Click(object sender, RoutedEventArgs e)
     {
         SelectedPreset = Config.DeploymentPresets.ViewerClient;

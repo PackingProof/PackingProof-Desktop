@@ -102,6 +102,10 @@
 
                 <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -228,6 +232,72 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+
+                        <Border Grid.Row="1"
+                                Grid.ColumnSpan="2"
+                                Margin="0,14,0,0"
+                                Padding="12"
+                                CornerRadius="8"
+                                Background="{DynamicResource ControlBackground}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecordingWorkstation}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="当前用途：录制工位"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextSecondary}">
+                                        <Run Text="保存主机："/>
+                                        <Run Text="{Binding BoundHostDisplay}"/>
+                                        <Run Text="　"/>
+                                        <Run Text="{Binding BoundHostOnlineStatusText}"/>
+                                        <Run Text="　待上传："/>
+                                        <Run Text="{Binding PendingRecordingTransferCount}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding RecordingTransferStatusText}"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                    <TextBlock Text="{Binding LastRecordingTransferError}"
+                                               Margin="0,3,0,0"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource AccentRed}"/>
+                                    <ProgressBar Height="4"
+                                                 Margin="0,8,0,0"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="{Binding RecordingTransferProgress}"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1"
+                                           Margin="16,0,0,0"
+                                           VerticalAlignment="Center">
+                                    <Button Content="重新连接"
+                                            Command="{Binding RetryRecordingTransfersCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Margin="0,0,8,0"/>
+                                    <Button Content="更换主机"
+                                            Command="{Binding ChangeBoundHostCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Margin="0,0,8,0"/>
+                                    <Button Content="打开主机录像"
+                                            Command="{Binding OpenBoundHostCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
                     </Grid>
                 </Border>
 

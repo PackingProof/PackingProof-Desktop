@@ -673,9 +673,13 @@ public partial class PrintWorkstationWindow : Window
                     config =>
                     {
                         config.DeploymentPreset = window.SelectedPreset;
-                        config.WorkstationRole = window.SelectedPreset == DeploymentPresets.RecordingHost
-                            ? WorkstationRoles.CameraMonitor
-                            : "";
+                        if (window.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                            config.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                        config.WorkstationRole = DeploymentCapabilities
+                            .ForPreset(window.SelectedPreset)
+                            .IsRecordingDevice
+                                ? WorkstationRoles.CameraMonitor
+                                : "";
                         config.EnableWebServer = DeploymentCapabilities
                             .ForPreset(window.SelectedPreset)
                             .CanRunWebServer;

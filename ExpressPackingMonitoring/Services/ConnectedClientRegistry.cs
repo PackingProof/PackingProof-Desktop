@@ -16,6 +16,7 @@ internal sealed class ConnectedClientRegistry : IDisposable
         "web-mobile",
         "userscript",
         "print-station",
+        "recording-workstation",
         "mobile-app"
     };
 

@@ -150,6 +150,45 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public void PcWorkstationUploadUsesSameVerifiedIdempotentProtocolAndRecordsSourceKind()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("pc workstation video payload");
+            string sha = Sha256(file);
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            var service = CreateService(database, directory);
+            service.CreateOrResume(CreateRequest(sha, file.Length));
+            service.AppendChunk(sha, 0, file.Length - 1, file.Length, file, sha);
+            MobileBackupCompleteRequest request =
+                CompleteRequest(sha, "pc-session-1", "PC-TRACK-1", "pc-node-1", "一号录制工位");
+            request.SourceDeviceKind = "pc";
+
+            MobileBackupCompleteResult completed = service.Complete(sha, request);
+            MobileBackupCompleteResult repeated = service.Complete(sha, request);
+
+            Assert.Equal("verified", completed.Status);
+            Assert.True(repeated.AlreadyCompleted);
+            Assert.Equal(completed.RecordId, repeated.RecordId);
+            VideoRecord record = database.GetVideoById(completed.RecordId);
+            Assert.Equal("pc-node-1", record.SourceDeviceId);
+            Assert.Equal("一号录制工位", record.SourceDeviceName);
+            Assert.Equal("pc", record.SourceDeviceKind);
+            Assert.Equal("电脑工位上传", record.StopReason);
+            Assert.Contains(
+                $"{Path.DirectorySeparatorChar}电脑上传{Path.DirectorySeparatorChar}",
+                record.FilePath);
+
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task ActiveUploadWaitsUntilBackupCompletes()
     {
         string directory = CreateTempDirectory();

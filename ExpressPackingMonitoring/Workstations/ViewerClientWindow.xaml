@@ -33,9 +33,9 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="查看客户端" FontSize="28" FontWeight="Black"
+                    <TextBlock x:Name="WindowHeadingText" Text="查看客户端" FontSize="28" FontWeight="Black"
                                Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="连接局域网中的 PackingProof 主机，不在本机录制或保存录像"
+                    <TextBlock x:Name="WindowDescriptionText" Text="连接局域网中的 PackingProof 主机，不在本机录制或保存录像"
                                Margin="0,6,0,0"
                                Foreground="{DynamicResource TextSecondary}"/>
                 </StackPanel>
@@ -218,7 +218,7 @@
                         </Button>
                         <TextBox x:Name="ManualAddressTextBox" Width="260" Height="38"
                                  Margin="0,0,10,10" VerticalContentAlignment="Center"
-                                 ToolTip="例如 192.168.1.20:5280"/>
+                                 ToolTip="录制工位请粘贴主机“手机/电脑连接”中的完整链接"/>
                         <Button Style="{StaticResource ViewerActionButtonStyle}"
                                 ToolTip="连接输入的主机地址"
                                 Margin="0,0,10,10"

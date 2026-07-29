@@ -79,6 +79,7 @@ public sealed class DeploymentPresetTests
 
     [Theory]
     [InlineData(DeploymentPresets.RecordingHost)]
+    [InlineData(DeploymentPresets.RecordingWorkstation)]
     [InlineData(DeploymentPresets.ViewerClient)]
     [InlineData(DeploymentPresets.MobileBackupHost)]
     public void ExistingDeploymentPresetsRequireTheCurrentSetupOnce(string preset)
@@ -155,9 +156,10 @@ public sealed class DeploymentPresetTests
     }
 
     [Fact]
-    public void DeploymentCapabilitiesMatchTheThreeRuntimeBoundaries()
+    public void DeploymentCapabilitiesMatchTheFourRuntimeBoundaries()
     {
         DeploymentCapabilities recording = DeploymentCapabilities.ForPreset(DeploymentPresets.RecordingHost);
+        DeploymentCapabilities workstation = DeploymentCapabilities.ForPreset(DeploymentPresets.RecordingWorkstation);
         DeploymentCapabilities viewer = DeploymentCapabilities.ForPreset(DeploymentPresets.ViewerClient);
         DeploymentCapabilities mobileBackup = DeploymentCapabilities.ForPreset(DeploymentPresets.MobileBackupHost);
 
@@ -169,6 +171,18 @@ public sealed class DeploymentPresetTests
         Assert.True(recording.CanUseScanner);
         Assert.True(recording.CanRecordPcVideo);
         Assert.True(recording.CanReceiveMobileBackup);
+
+        Assert.False(workstation.IsHost);
+        Assert.True(workstation.IsRecordingDevice);
+        Assert.True(workstation.CanUseCamera);
+        Assert.True(workstation.CanRecordAudio);
+        Assert.True(workstation.CanUseCameraBarcode);
+        Assert.True(workstation.CanUseScanner);
+        Assert.True(workstation.CanRecordPcVideo);
+        Assert.True(workstation.CanConnectHost);
+        Assert.False(workstation.CanRunWebServer);
+        Assert.False(workstation.CanReceiveMobileBackup);
+        Assert.False(workstation.CanManageRecordingDevices);
 
         Assert.False(viewer.IsHost);
         Assert.False(viewer.IsRecordingDevice);
@@ -191,12 +205,17 @@ public sealed class DeploymentPresetTests
     public void SettingsCapabilitiesExposeIndependentFeatureFlags()
     {
         SettingsCapabilities recording = SettingsCapabilities.ForPreset(DeploymentPresets.RecordingHost);
+        SettingsCapabilities workstation = SettingsCapabilities.ForPreset(DeploymentPresets.RecordingWorkstation);
         SettingsCapabilities viewer = SettingsCapabilities.ForPreset(DeploymentPresets.ViewerClient);
         SettingsCapabilities mobileBackup = SettingsCapabilities.ForPreset(DeploymentPresets.MobileBackupHost);
 
         Assert.True(recording.CanUseCamera);
         Assert.True(recording.CanRecordAudio);
         Assert.True(recording.CanUseScanner);
+        Assert.True(workstation.CanRecordPcVideo);
+        Assert.True(workstation.CanConnectHost);
+        Assert.False(workstation.CanRunWebServer);
+        Assert.False(workstation.CanReceiveMobileBackup);
         Assert.False(viewer.CanUseCamera);
         Assert.False(viewer.CanConfigureStorage);
         Assert.True(viewer.CanConnectHost);

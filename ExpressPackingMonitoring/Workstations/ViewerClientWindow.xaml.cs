@@ -11,6 +11,8 @@ namespace ExpressPackingMonitoring;
 public partial class ViewerClientWindow : Window
 {
     private readonly AppConfig _config;
+    private readonly string _deploymentPreset;
+    private readonly bool _bindingOnly;
     private readonly DispatcherTimer _onlineTimer;
     private CancellationTokenSource? _searchCancellation;
     private PackingProofNodeInfo? _boundHost;
@@ -18,10 +20,23 @@ public partial class ViewerClientWindow : Window
     private bool _deploymentSetupPersisted;
     private bool _testOrderSending;
 
-    public ViewerClientWindow(AppConfig config)
+    public ViewerClientWindow(AppConfig config, string? deploymentPreset = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _deploymentPreset = string.Equals(
+            deploymentPreset,
+            DeploymentPresets.RecordingWorkstation,
+            StringComparison.OrdinalIgnoreCase)
+                ? DeploymentPresets.RecordingWorkstation
+                : DeploymentPresets.ViewerClient;
+        _bindingOnly = _deploymentPreset == DeploymentPresets.RecordingWorkstation;
         InitializeComponent();
+        if (_bindingOnly)
+        {
+            Title = "PackingProof 绑定保存主机";
+            WindowHeadingText.Text = "绑定保存主机";
+            WindowDescriptionText.Text = "录像完成后将自动上传到这台主机，本机只作为临时缓存";
+        }
         _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _onlineTimer.Tick += async (_, _) => await RefreshBoundHostAsync();
         Loaded += ViewerClientWindow_Loaded;
@@ -124,23 +139,44 @@ public partial class ViewerClientWindow : Window
         }
     }
 
-    private async Task BindHostAsync(PackingProofNodeInfo node)
+    private async Task BindHostAsync(PackingProofNodeInfo node, string? accessKey = null)
     {
         if (!node.IsValidHost)
         {
             SearchStatusText.Text = "该地址不是有效的 PackingProof 主机";
             return;
         }
+        if (_bindingOnly
+            && !node.Capabilities.Contains(
+                PackingProofCapabilities.MobileBackup,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            SearchStatusText.Text = "该主机未启用录像接收能力";
+            return;
+        }
+
+        string resolvedAccessKey = accessKey?.Trim() ?? "";
+        if (_bindingOnly && resolvedAccessKey.Length < 16)
+        {
+            SearchStatusText.Text = "请粘贴主机“手机/电脑连接”的完整链接以完成安全配对";
+            ManualAddressTextBox.Text = node.Address;
+            return;
+        }
 
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
                 {
-                    config.DeploymentPreset = DeploymentPresets.ViewerClient;
+                    config.DeploymentPreset = _deploymentPreset;
                     config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    config.WorkstationRole = "";
+                    config.WorkstationRole = _bindingOnly
+                        ? WorkstationRoles.CameraMonitor
+                        : "";
                     config.EnableWebServer = false;
                     config.LastKnownHostNodeId = node.NodeId;
+                    config.LastKnownHostNodeName = node.NodeName;
                     config.LastKnownHostAddress = node.Address;
+                    if (_bindingOnly)
+                        config.LastKnownHostAccessKey = resolvedAccessKey;
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
                 out AppConfig saved,
@@ -151,7 +187,9 @@ public partial class ViewerClientWindow : Window
         }
 
         _config.LastKnownHostNodeId = saved.LastKnownHostNodeId;
+        _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
+        _config.LastKnownHostAccessKey = saved.LastKnownHostAccessKey;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = saved.DeploymentSetupVersion;
         _config.RecordingSetupVersion = saved.RecordingSetupVersion;
@@ -159,6 +197,11 @@ public partial class ViewerClientWindow : Window
         _boundHost = node;
         DiscoveryPanel.Visibility = Visibility.Collapsed;
         await RefreshBoundHostAsync();
+        if (_bindingOnly)
+        {
+            DialogResult = true;
+            Close();
+        }
     }
 
     private void OpenWeb_Click(object sender, RoutedEventArgs e)
@@ -249,10 +292,16 @@ public partial class ViewerClientWindow : Window
                 config =>
                 {
                     config.DeploymentPreset = selector.SelectedPreset;
+                    if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                        config.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
                     config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    config.WorkstationRole = selector.SelectedPreset == DeploymentPresets.RecordingHost
-                        ? WorkstationRoles.CameraMonitor
-                        : WorkstationRoles.PrintStation;
+                    config.WorkstationRole = DeploymentCapabilities
+                        .ForPreset(selector.SelectedPreset)
+                        .IsRecordingDevice
+                            ? WorkstationRoles.CameraMonitor
+                            : selector.SelectedPreset == DeploymentPresets.MobileBackupHost
+                                ? WorkstationRoles.PrintStation
+                                : "";
                     config.EnableWebServer = DeploymentCapabilities
                         .ForPreset(selector.SelectedPreset)
                         .CanRunWebServer;
@@ -280,11 +329,14 @@ public partial class ViewerClientWindow : Window
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
                 {
-                    config.DeploymentPreset = DeploymentPresets.ViewerClient;
+                    config.DeploymentPreset = _deploymentPreset;
                     config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                    config.WorkstationRole = "";
+                    config.WorkstationRole = _bindingOnly
+                        ? WorkstationRoles.CameraMonitor
+                        : "";
                     config.EnableWebServer = false;
                     config.LastKnownHostNodeId = node.NodeId;
+                    config.LastKnownHostNodeName = node.NodeName;
                     config.LastKnownHostAddress = node.Address;
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
@@ -299,6 +351,7 @@ public partial class ViewerClientWindow : Window
         _config.WorkstationRole = saved.WorkstationRole;
         _config.EnableWebServer = saved.EnableWebServer;
         _config.LastKnownHostNodeId = saved.LastKnownHostNodeId;
+        _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = saved.DeploymentSetupVersion;
@@ -309,18 +362,29 @@ public partial class ViewerClientWindow : Window
     private async void BindSelected_Click(object sender, RoutedEventArgs e)
     {
         if (HostsList.SelectedItem is PackingProofNodeInfo node)
-            await BindHostAsync(node);
+            await BindHostAsync(
+                node,
+                string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
+                    ? _config.LastKnownHostAccessKey
+                    : "");
     }
 
     private async void HostsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (HostsList.SelectedItem is PackingProofNodeInfo node)
-            await BindHostAsync(node);
+            await BindHostAsync(
+                node,
+                string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
+                    ? _config.LastKnownHostAccessKey
+                    : "");
     }
 
     private async void BindManual_Click(object sender, RoutedEventArgs e)
     {
-        string address = ManualAddressTextBox.Text;
+        WorkstationNetwork.ParseHostConnectionInput(
+            ManualAddressTextBox.Text,
+            out string address,
+            out string accessKey);
         SearchStatusText.Text = "正在验证手动输入的主机地址";
         PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(address);
         if (node == null)
@@ -329,6 +393,6 @@ public partial class ViewerClientWindow : Window
             return;
         }
 
-        await BindHostAsync(node);
+        await BindHostAsync(node, accessKey);
     }
 }

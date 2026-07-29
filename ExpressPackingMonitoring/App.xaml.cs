@@ -97,11 +97,12 @@ namespace ExpressPackingMonitoring
                 AppConfig draft = JsonSerializer.Deserialize<AppConfig>(
                     JsonSerializer.Serialize(config)) ?? new AppConfig();
                 draft.DeploymentPreset = selector.SelectedPreset;
+                if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                    draft.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
                 draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                draft.EnableWebServer = !string.Equals(
-                    selector.SelectedPreset,
-                    DeploymentPresets.ViewerClient,
-                    StringComparison.Ordinal);
+                draft.EnableWebServer = DeploymentCapabilities
+                    .ForPreset(selector.SelectedPreset)
+                    .CanRunWebServer;
                 draft.WorkstationRole = selector.SelectedPreset switch
                 {
                     DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
@@ -121,10 +122,14 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
-            if (string.Equals(
-                    startupPreset,
-                    DeploymentPresets.RecordingHost,
-                    StringComparison.OrdinalIgnoreCase)
+            if ((string.Equals(
+                     startupPreset,
+                     DeploymentPresets.RecordingHost,
+                     StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(
+                     startupPreset,
+                     DeploymentPresets.RecordingWorkstation,
+                     StringComparison.OrdinalIgnoreCase))
                 && AppConfig.ShouldRunRecordingSetup(config))
             {
                 if (!FirstUseSetupWizardWindow.TryConfigureRecordingHost(
@@ -149,6 +154,26 @@ namespace ExpressPackingMonitoring
                 }
 
                 config = configuredRecordingHost;
+            }
+
+            if (string.Equals(
+                    startupPreset,
+                    DeploymentPresets.RecordingWorkstation,
+                    StringComparison.OrdinalIgnoreCase)
+                && (string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
+                    || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
+                    || string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)))
+            {
+                var hostBinding = new ViewerClientWindow(
+                    config,
+                    DeploymentPresets.RecordingWorkstation);
+                if (hostBinding.ShowDialog() != true)
+                {
+                    RuntimeLog.RecordShutdownRequest("RecordingWorkstationHostBindingCancelled");
+                    Shutdown(0);
+                    return;
+                }
+                config = WorkstationConfigStore.Load();
             }
 
             AutoStartService.Apply(config.AutoStartOnBoot);
@@ -181,11 +206,12 @@ namespace ExpressPackingMonitoring
                     current =>
                     {
                         current.DeploymentPreset = preset;
+                        if (preset == DeploymentPresets.RecordingWorkstation)
+                            current.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
                         current.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                        current.EnableWebServer = !string.Equals(
-                            preset,
-                            DeploymentPresets.ViewerClient,
-                            StringComparison.Ordinal);
+                        current.EnableWebServer = DeploymentCapabilities
+                            .ForPreset(preset)
+                            .CanRunWebServer;
                         current.WorkstationRole = preset switch
                         {
                             DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,

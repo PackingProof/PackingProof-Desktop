@@ -29,6 +29,7 @@ namespace ExpressPackingMonitoring.UI
         public string VideoCodec { get; set; } = "";
         public string VideoEncoder { get; set; } = "";
         public string SourceDisplay { get; set; } = "";
+        public bool IsStoredOnHost { get; set; }
         public bool IsMissing { get; set; }
         public bool IsDeleted { get; set; }
         public string DeleteReason { get; set; } = "";
@@ -58,11 +59,13 @@ namespace ExpressPackingMonitoring.UI
                     return $"已清理 ({reason} {time})";
                 }
 
+                if (IsStoredOnHost)
+                    return "已保存到主机";
                 return IsMissing ? "文件已丢失" : "";
             }
         }
 
-        public bool IsUnavailable => IsDeleted || IsMissing;
+        public bool IsUnavailable => IsDeleted || IsMissing || IsStoredOnHost;
     }
 
     public partial class PlaybackWindow : Window
@@ -243,8 +246,14 @@ namespace ExpressPackingMonitoring.UI
                     foreach (var record in result.Records)
                     {
                         bool deleted = record.IsDeleted;
-                        bool missing = !deleted && !File.Exists(record.FilePath);
-                        FileInfo? info = (deleted || missing) ? null : new FileInfo(record.FilePath);
+                        bool storedOnHost = string.Equals(
+                            record.StorageState,
+                            "Remote",
+                            StringComparison.OrdinalIgnoreCase);
+                        bool missing = !deleted && !storedOnHost && !File.Exists(record.FilePath);
+                        FileInfo? info = (deleted || missing || storedOnHost)
+                            ? null
+                            : new FileInfo(record.FilePath);
                         videos.Add(new VideoItem
                         {
                             DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
@@ -252,14 +261,18 @@ namespace ExpressPackingMonitoring.UI
                             OrderId = record.OrderId,
                             Mode = record.Mode,
                             Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
-                            FileSize = (deleted || missing) ? FormatFileSize(record.FileSizeBytes) : FormatFileSize(info!.Length),
+                            FileSize = (deleted || missing || storedOnHost)
+                                ? FormatFileSize(record.FileSizeBytes)
+                                : FormatFileSize(info!.Length),
                             StopReason = GetStopReasonDisplay(record.SourceType, record.StopReason),
                             VideoCodec = record.VideoCodec,
                             VideoEncoder = record.VideoEncoder,
                             SourceDisplay = GetSourceDisplay(
                                 record.SourceType,
                                 record.SourceDeviceId,
-                                record.SourceDeviceName),
+                                record.SourceDeviceName,
+                                record.SourceDeviceKind),
+                            IsStoredOnHost = storedOnHost,
                             IsMissing = missing,
                             IsDeleted = deleted,
                             DeleteReason = record.DeleteReason,
@@ -339,12 +352,16 @@ namespace ExpressPackingMonitoring.UI
         internal static string GetSourceDisplay(
             string? sourceType,
             string? sourceDeviceId,
-            string? sourceDeviceName)
+            string? sourceDeviceName,
+            string? sourceDeviceKind = null)
         {
             if (!string.Equals(sourceType, "external", StringComparison.OrdinalIgnoreCase))
                 return "来源：电脑";
 
-            return $"来源：{GetSourceDeviceDisplayName(sourceDeviceId, sourceDeviceName)}";
+            string name = GetSourceDeviceDisplayName(sourceDeviceId, sourceDeviceName);
+            return string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? $"来源：电脑工位 · {name}"
+                : $"来源：{name}";
         }
 
         internal static string GetSourceDeviceDisplayName(string? sourceDeviceId, string? sourceDeviceName)
@@ -500,6 +517,17 @@ namespace ExpressPackingMonitoring.UI
                     this,
                     $"视频文件已被外部删除或移动，无法播放。\n\n单号: {video.OrderId}\n路径: {video.FullPath}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
                     "文件丢失", AppDialogSeverity.Warning);
+                UpdateLocateButtonState(video);
+                return;
+            }
+
+            if (video.IsStoredOnHost)
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    "这段录像已转移到绑定主机，请从录制工位主界面打开主机录像页面查看",
+                    "已保存到主机",
+                    AppDialogSeverity.Information);
                 UpdateLocateButtonState(video);
                 return;
             }

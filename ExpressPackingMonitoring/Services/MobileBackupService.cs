@@ -228,7 +228,8 @@ internal sealed class MobileBackupService
                     sessions,
                     fileSha256,
                     request.SourceDeviceId,
-                    request.SourceDeviceName);
+                    request.SourceDeviceName,
+                    request.SourceDeviceKind);
                 state.FinalPath = finalPath;
                 state.UpdatedAtUtc = DateTime.UtcNow;
                 SaveState(state);
@@ -271,7 +272,8 @@ internal sealed class MobileBackupService
                     request.SourceDeviceName,
                     session.SessionId,
                     fileSha256,
-                    orderInfo));
+                    orderInfo,
+                    request.SourceDeviceKind));
             }
 
             DeleteStateFile(uploadId);
@@ -350,7 +352,8 @@ internal sealed class MobileBackupService
         IReadOnlyList<MobileBackupSessionRequest> sessions,
         string fileSha256,
         string sourceDeviceId,
-        string sourceDeviceName)
+        string sourceDeviceName,
+        string sourceDeviceKind)
     {
         MobileBackupSessionRequest earliest = sessions.OrderBy(session => session.StartedAt).First();
         string trackingNumber = sessions
@@ -364,7 +367,9 @@ internal sealed class MobileBackupService
 
         string dateDirectory = Path.Combine(
             Path.GetFullPath(root),
-            "手机备份",
+            string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? "电脑上传"
+                : "手机备份",
             GetDeviceDirectoryName(sourceDeviceId, sourceDeviceName),
             startedAt.ToString("yyyy-MM-dd"));
         string baseName = SanitizeFileName($"{trackingNumber}_{startedAt:yyyyMMdd_HHmmss}_发货");
@@ -517,6 +522,12 @@ internal sealed class MobileBackupService
 
     private static void ValidateCompleteRequest(MobileBackupCompleteRequest request)
     {
+        request.SourceDeviceKind = string.Equals(
+            request.SourceDeviceKind,
+            "pc",
+            StringComparison.OrdinalIgnoreCase)
+                ? "pc"
+                : "mobile";
         if (string.IsNullOrWhiteSpace(request.SourceDeviceId) || request.SourceDeviceId.Trim().Length > 128)
             throw new MobileBackupValidationException("invalid_source_device_id", "来源设备 ID 不能为空且最多 128 个字符");
         if (string.IsNullOrWhiteSpace(request.SourceDeviceName) || request.SourceDeviceName.Trim().Length > 100)
@@ -564,6 +575,8 @@ internal sealed class MobileBackupCompleteRequest
     public long DurationMilliseconds { get; set; }
     public string SourceDeviceId { get; set; } = "";
     public string SourceDeviceName { get; set; } = "";
+    // 旧手机客户端不发送此字段时保持既有行为；PC 录制工位使用 "pc"。
+    public string SourceDeviceKind { get; set; } = "mobile";
     public List<MobileBackupSessionRequest> Sessions { get; set; } = new();
 
     public IReadOnlyList<MobileBackupSessionRequest> GetSessions()

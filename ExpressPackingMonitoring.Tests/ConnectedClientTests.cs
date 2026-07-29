@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text.Json;
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using Microsoft.Data.Sqlite;
@@ -143,6 +144,44 @@ public sealed class ConnectedClientTests
     }
 
     [Fact]
+    public async Task OrderReceiverOnlyServerRejectsVideoAndBackupHostRoutes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"epm-order-receiver-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "uploads"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingWorkstation,
+                orderReceiverOnly: true);
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            CancellationToken token = TestContext.Current.CancellationToken;
+
+            using HttpResponseMessage nodeInfo = await client.GetAsync("/api/node-info", token);
+            using HttpResponseMessage videos = await client.GetAsync("/api/videos", token);
+            using HttpResponseMessage backup = await client.GetAsync(
+                "/api/mobile-backup/capabilities",
+                token);
+
+            Assert.Equal(HttpStatusCode.OK, nodeInfo.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, videos.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, backup.StatusCode);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public void RegistryStoresMobileAppVersionFromHeartbeat()
     {
         using var registry = new ConnectedClientRegistry(startCleanupTimer: false);
@@ -158,6 +197,46 @@ public sealed class ConnectedClientTests
         ConnectedClientInfo client = Assert.Single(registry.GetSnapshot());
         Assert.Equal("0.5.6", client.AppVersion);
         Assert.Equal(11006, client.AppBuildNumber);
+    }
+
+    [Fact]
+    public void RegistryAcceptsRecordingWorkstationHeartbeat()
+    {
+        using var registry = new ConnectedClientRegistry(startCleanupTimer: false);
+        ConnectedClientHeartbeat heartbeat = Heartbeat(
+            "recording-node-001",
+            "recording-workstation",
+            "录像工位");
+        heartbeat.NodeId = "recording-node-001";
+        heartbeat.DeviceType = "pc";
+        heartbeat.OrderReceiverPort = 5280;
+        heartbeat.Capabilities = ["recording", "order-receiver"];
+
+        registry.Heartbeat(heartbeat, "192.168.1.30");
+
+        ConnectedClientInfo client = Assert.Single(registry.GetSnapshot());
+        Assert.Equal("recording-workstation", client.ClientType);
+        Assert.Equal("pc", client.DeviceType);
+        Assert.Contains("recording", client.Capabilities);
+        Assert.Contains("order-receiver", client.Capabilities);
+    }
+
+    [Theory]
+    [InlineData("/api/node-info", "GET", true)]
+    [InlineData("/api/orderinfo", "POST", true)]
+    [InlineData("/api/order-lookup/pending", "GET", true)]
+    [InlineData("/api/connections/heartbeat", "POST", true)]
+    [InlineData("/kuaidizs-order-push.user.js", "GET", true)]
+    [InlineData("/", "GET", false)]
+    [InlineData("/api/videos", "GET", false)]
+    [InlineData("/api/mobile-backup/capabilities", "GET", false)]
+    [InlineData("/api/mobile-backup/uploads", "POST", false)]
+    public void OrderReceiverOnlyModeExposesOnlyOrderIntegrationRoutes(
+        string path,
+        string method,
+        bool expected)
+    {
+        Assert.Equal(expected, WebServer.IsOrderReceiverPathAllowed(path, method));
     }
 
     private static ConnectedClientHeartbeat Heartbeat(
