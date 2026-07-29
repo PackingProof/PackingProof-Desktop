@@ -525,7 +525,7 @@ public sealed class DeploymentStartupTests
             "UI",
             "FirstUseSetupWizardWindow.xaml.cs");
 
-        Assert.Contains("优先由摄像头识别面单条码，也可选用扫码枪", selector, StringComparison.Ordinal);
+        Assert.Contains("面单识别、扫码枪、订单联动和语音提醒", selector, StringComparison.Ordinal);
         Assert.Contains("是否使用摄像头识别面单", wizard, StringComparison.Ordinal);
         Assert.Contains("没有扫码枪可直接进入下一步", wizard, StringComparison.Ordinal);
         Assert.Contains("可选扫码枪仍可随时作为后备方案", wizardSource, StringComparison.Ordinal);

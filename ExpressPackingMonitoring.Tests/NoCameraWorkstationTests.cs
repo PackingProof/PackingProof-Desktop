@@ -23,7 +23,7 @@ public sealed class NoCameraWorkstationTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.Equal(DeploymentPresets.MobileBackupHost, config.DeploymentPreset);
-        Assert.Equal("接收手机录像", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
+        Assert.Equal("只接收并保存录像", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
     }
 
     [Fact]

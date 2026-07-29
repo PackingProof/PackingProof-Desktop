@@ -201,6 +201,23 @@ public sealed class DeploymentPresetTests
         Assert.False(mobileBackup.CanRecordPcVideo);
     }
 
+    [Theory]
+    [InlineData(true, true, DeploymentPresets.RecordingHost)]
+    [InlineData(true, false, DeploymentPresets.RecordingWorkstation)]
+    [InlineData(false, true, DeploymentPresets.MobileBackupHost)]
+    [InlineData(false, false, DeploymentPresets.ViewerClient)]
+    public void TwoStepPurposeAnswersMapToTheFourStablePresets(
+        bool recordOnThisComputer,
+        bool useAsStorageHost,
+        string expectedPreset)
+    {
+        Assert.Equal(
+            expectedPreset,
+            WorkstationSelectionWindow.ResolvePreset(
+                recordOnThisComputer,
+                useAsStorageHost));
+    }
+
     [Fact]
     public void SettingsCapabilitiesExposeIndependentFeatureFlags()
     {

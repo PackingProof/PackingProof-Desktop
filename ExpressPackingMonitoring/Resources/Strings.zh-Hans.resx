@@ -668,4 +668,20 @@
   <data name="使用这台电脑录像，保存到其他主机" xml:space="preserve"><value>使用这台电脑录像，保存到其他主机</value></data>
   <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传</value></data>
   <data name="尚未绑定保存主机" xml:space="preserve"><value>尚未绑定保存主机</value></data>
+  <data name="第 1 步，共 2 步" xml:space="preserve"><value>第 1 步，共 2 步</value></data>
+  <data name="第 2 步，共 2 步" xml:space="preserve"><value>第 2 步，共 2 步</value></data>
+  <data name="是否使用这台电脑录像？" xml:space="preserve"><value>是否使用这台电脑录像？</value></data>
+  <data name="选择是否启用本机摄像头、麦克风、条码识别和扫码枪" xml:space="preserve"><value>选择是否启用本机摄像头、麦克风、条码识别和扫码枪</value></data>
+  <data name="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒</value></data>
+  <data name="不使用这台电脑录像" xml:space="preserve"><value>不使用这台电脑录像</value></data>
+  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看" xml:space="preserve"><value>不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看</value></data>
+  <data name="是否让这台电脑作为保存主机？" xml:space="preserve"><value>是否让这台电脑作为保存主机？</value></data>
+  <data name="保存主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>保存主机可以接收并长期保存手机或其他电脑上传的录像</value></data>
+  <data name="作为保存主机" xml:space="preserve"><value>作为保存主机</value></data>
+  <data name="长期保存录像，并接收手机或其他电脑录制工位上传的录像" xml:space="preserve"><value>长期保存录像，并接收手机或其他电脑录制工位上传的录像</value></data>
+  <data name="不作为保存主机" xml:space="preserve"><value>不作为保存主机</value></data>
+  <data name="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看" xml:space="preserve"><value>不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看</value></data>
+  <data name="返回上一步" xml:space="preserve"><value>返回上一步</value></data>
+  <data name="只连接主机查看录像" xml:space="preserve"><value>只连接主机查看录像</value></data>
+  <data name="只接收并保存录像" xml:space="preserve"><value>只接收并保存录像</value></data>
 </root>

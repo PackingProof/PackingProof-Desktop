@@ -1,7 +1,7 @@
 <Window x:Class="ExpressPackingMonitoring.WorkstationSelectionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="选择电脑用途" Height="690" Width="760"
+        Title="选择电脑用途" Height="560" Width="760"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Icon="/app.ico"
@@ -41,24 +41,38 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,26">
-            <TextBlock Text="这台电脑主要用来做什么？"
+            <TextBlock x:Name="StepText"
+                       Text="第 1 步，共 2 步"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource AccentBlue}"/>
+            <TextBlock x:Name="QuestionText"
+                       Text="是否使用这台电脑录像？"
+                       Margin="0,8,0,0"
                        FontSize="28"
                        FontWeight="Black"
                        Foreground="{DynamicResource TextPrimary}"/>
-            <TextBlock Text="选择后将只启动这个场景需要的设备、存储和网络服务"
+            <TextBlock x:Name="QuestionHintText"
+                       Text="选择是否启用本机摄像头、麦克风、条码识别和扫码枪"
                        Margin="0,8,0,0"
                        FontSize="14"
                        Foreground="{DynamicResource TextSecondary}"/>
         </StackPanel>
 
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="18"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid x:Name="RecordingStep" Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Style="{StaticResource WorkstationButtonStyle}" Click="RecordingHost_Click">
+            <Button Grid.Column="0"
+                    Style="{StaticResource WorkstationButtonStyle}"
+                    Click="RecordOnThisComputer_Click">
                 <StackPanel>
                     <Path Data="{StaticResource FluentVideoIcon}"
                           Width="56"
@@ -71,7 +85,7 @@
                                FontSize="23"
                                FontWeight="Black"
                                Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机录像"
+                    <TextBlock Text="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒"
                                Margin="0,10,0,0"
                                FontSize="14"
                                LineHeight="22"
@@ -80,16 +94,9 @@
                 </StackPanel>
             </Button>
 
-            <Button Grid.Column="2" Style="{StaticResource WorkstationButtonStyle}" Click="RecordingWorkstation_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentVideoIcon}" Width="56" Height="56" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" HorizontalAlignment="Left"/>
-                    <TextBlock Text="使用这台电脑录像，保存到其他主机" Margin="0,20,0,0" FontSize="20" FontWeight="Black" Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传"
-                               Margin="0,10,0,0" FontSize="14" LineHeight="22" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
-
-            <Button Grid.Row="2" Grid.Column="0" Style="{StaticResource WorkstationButtonStyle}" Click="ViewerClient_Click">
+            <Button Grid.Column="2"
+                    Style="{StaticResource WorkstationButtonStyle}"
+                    Click="DoNotRecordOnThisComputer_Click">
                 <StackPanel>
                     <Path Data="{StaticResource FluentWifiIcon}"
                           Width="56"
@@ -97,34 +104,12 @@
                           Stretch="Uniform"
                           Fill="{DynamicResource AccentBlue}"
                           HorizontalAlignment="Left"/>
-                    <TextBlock Text="连接已有主机"
+                    <TextBlock Text="不使用这台电脑录像"
                                Margin="0,20,0,0"
                                FontSize="23"
                                FontWeight="Black"
                                Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本"
-                               Margin="0,10,0,0"
-                               FontSize="14"
-                               LineHeight="22"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
-
-            <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource WorkstationButtonStyle}" Click="MobileBackupHost_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentPhoneIcon}"
-                          Width="56"
-                          Height="56"
-                          Stretch="Uniform"
-                          Fill="{DynamicResource AccentOrange}"
-                          HorizontalAlignment="Left"/>
-                    <TextBlock Text="接收手机录像"
-                               Margin="0,20,0,0"
-                               FontSize="23"
-                               FontWeight="Black"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="不使用电脑摄像头，手机录像备份到这台电脑。本机会成为 PackingProof 主机"
+                    <TextBlock Text="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看"
                                Margin="0,10,0,0"
                                FontSize="14"
                                LineHeight="22"
@@ -133,5 +118,71 @@
                 </StackPanel>
             </Button>
         </Grid>
+
+        <Grid x:Name="StorageStep" Grid.Row="1" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0"
+                    Style="{StaticResource WorkstationButtonStyle}"
+                    Click="UseAsStorageHost_Click">
+                <StackPanel>
+                    <Path Data="{StaticResource FluentPhoneIcon}"
+                          Width="56"
+                          Height="56"
+                          Stretch="Uniform"
+                          Fill="{DynamicResource AccentOrange}"
+                          HorizontalAlignment="Left"/>
+                    <TextBlock Text="作为保存主机"
+                               Margin="0,20,0,0"
+                               FontSize="23"
+                               FontWeight="Black"
+                               Foreground="{DynamicResource TextPrimary}"/>
+                    <TextBlock Text="长期保存录像，并接收手机或其他电脑录制工位上传的录像"
+                               Margin="0,10,0,0"
+                               FontSize="14"
+                               LineHeight="22"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondary}"/>
+                </StackPanel>
+            </Button>
+
+            <Button Grid.Column="2"
+                    Style="{StaticResource WorkstationButtonStyle}"
+                    Click="DoNotUseAsStorageHost_Click">
+                <StackPanel>
+                    <Path Data="{StaticResource FluentWifiIcon}"
+                          Width="56"
+                          Height="56"
+                          Stretch="Uniform"
+                          Fill="{DynamicResource AccentBlue}"
+                          HorizontalAlignment="Left"/>
+                    <TextBlock Text="不作为保存主机"
+                               Margin="0,20,0,0"
+                               FontSize="23"
+                               FontWeight="Black"
+                               Foreground="{DynamicResource TextPrimary}"/>
+                    <TextBlock Text="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看"
+                               Margin="0,10,0,0"
+                               FontSize="14"
+                               LineHeight="22"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource TextSecondary}"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <Button x:Name="BackButton"
+                Grid.Row="2"
+                Content="返回上一步"
+                Margin="0,20,0,0"
+                Padding="18,8"
+                HorizontalAlignment="Left"
+                Visibility="Collapsed"
+                Style="{StaticResource SecondaryButtonStyle}"
+                Click="Back_Click"/>
     </Grid>
 </Window>

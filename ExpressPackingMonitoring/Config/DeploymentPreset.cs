@@ -40,8 +40,8 @@ public static class DeploymentPresets
     {
         RecordingHost => "录像并保存在这台电脑",
         RecordingWorkstation => "录像并保存到其他主机",
-        ViewerClient => "连接已有主机",
-        MobileBackupHost => "接收手机录像",
+        ViewerClient => "只连接主机查看录像",
+        MobileBackupHost => "只接收并保存录像",
         _ => "尚未配置"
     };
 }

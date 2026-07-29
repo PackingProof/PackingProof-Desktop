@@ -668,4 +668,20 @@
   <data name="使用这台电脑录像，保存到其他主机" xml:space="preserve"><value>Record on this computer and store on another host</value></data>
   <data name="使用本机摄像头录制打包过程，录像完成后自动上传到局域网中的保存主机。本机只临时保留录像，不接收其他设备上传" xml:space="preserve"><value>Record packing with this computer's camera and upload completed recordings to a storage host on the LAN. This computer keeps only a temporary cache and does not accept uploads from other devices</value></data>
   <data name="尚未绑定保存主机" xml:space="preserve"><value>No storage host is bound</value></data>
+  <data name="第 1 步，共 2 步" xml:space="preserve"><value>Step 1 of 2</value></data>
+  <data name="第 2 步，共 2 步" xml:space="preserve"><value>Step 2 of 2</value></data>
+  <data name="是否使用这台电脑录像？" xml:space="preserve"><value>Use this computer to record?</value></data>
+  <data name="选择是否启用本机摄像头、麦克风、条码识别和扫码枪" xml:space="preserve"><value>Choose whether to enable this computer's camera, microphone, barcode recognition, and scanner</value></data>
+  <data name="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>Enable full computer recording with the camera, microphone, waybill recognition, scanner, order integration, and voice alerts</value></data>
+  <data name="不使用这台电脑录像" xml:space="preserve"><value>Do not record on this computer</value></data>
+  <data name="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看" xml:space="preserve"><value>Do not initialize this computer's camera, microphone, or scanner. It can still be a storage host or connect to another host for viewing only</value></data>
+  <data name="是否让这台电脑作为保存主机？" xml:space="preserve"><value>Use this computer as a storage host?</value></data>
+  <data name="保存主机可以接收并长期保存手机或其他电脑上传的录像" xml:space="preserve"><value>A storage host can receive and retain recordings uploaded by phones or other computers</value></data>
+  <data name="作为保存主机" xml:space="preserve"><value>Use as storage host</value></data>
+  <data name="长期保存录像，并接收手机或其他电脑录制工位上传的录像" xml:space="preserve"><value>Retain recordings and receive uploads from phones or other computer recording workstations</value></data>
+  <data name="不作为保存主机" xml:space="preserve"><value>Do not use as storage host</value></data>
+  <data name="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看" xml:space="preserve"><value>Do not accept recordings from other devices. Local recordings are uploaded to the bound host; otherwise this computer is view-only</value></data>
+  <data name="返回上一步" xml:space="preserve"><value>Back</value></data>
+  <data name="只连接主机查看录像" xml:space="preserve"><value>Connect to a host for viewing only</value></data>
+  <data name="只接收并保存录像" xml:space="preserve"><value>Receive and store recordings only</value></data>
 </root>
