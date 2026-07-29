@@ -63,6 +63,19 @@ public partial class MainViewModel
     }
 
     public string BoundHostAddress => Config?.LastKnownHostAddress ?? "";
+    public string BoundHostNameDisplay
+    {
+        get
+        {
+            string name = Config?.LastKnownHostNodeName?.Trim() ?? "";
+            if (name.Length > 0)
+                return name;
+            return string.IsNullOrWhiteSpace(BoundHostAddress)
+                ? "尚未绑定"
+                : "已绑定主机";
+        }
+    }
+
     public string BoundHostDisplay
     {
         get
@@ -194,6 +207,7 @@ public partial class MainViewModel
         if (window.ShowDialog() == true)
         {
             OnPropertyChanged(nameof(BoundHostAddress));
+            OnPropertyChanged(nameof(BoundHostNameDisplay));
             OnPropertyChanged(nameof(BoundHostDisplay));
             RetryRecordingTransfers();
         }

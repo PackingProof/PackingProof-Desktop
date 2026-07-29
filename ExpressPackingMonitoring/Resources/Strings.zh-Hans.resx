@@ -686,4 +686,18 @@
   <data name="返回上一步" xml:space="preserve"><value>返回上一步</value></data>
   <data name="只连接主机查看录像" xml:space="preserve"><value>只连接主机查看录像</value></data>
   <data name="只接收并保存录像" xml:space="preserve"><value>只接收并保存录像</value></data>
+  <data name="录制工位 · 保存主机：" xml:space="preserve"><value>录制工位 · 保存主机：</value></data>
+  <data name=" · 待上传 " xml:space="preserve"><value> · 待上传 </value></data>
+  <data name="可连接" xml:space="preserve"><value>可连接</value></data>
+  <data name="确认后选择另一台保存主机" xml:space="preserve"><value>确认后选择另一台保存主机</value></data>
+  <data name="更换保存主机" xml:space="preserve"><value>更换保存主机</value></data>
+  <data name="确认使用列表中选中的保存主机" xml:space="preserve"><value>确认使用列表中选中的保存主机</value></data>
+  <data name="使用这台保存主机" xml:space="preserve"><value>使用这台保存主机</value></data>
+  <data name="重新搜索局域网中的保存主机" xml:space="preserve"><value>重新搜索局域网中的保存主机</value></data>
+  <data name="重新搜索" xml:space="preserve"><value>重新搜索</value></data>
+  <data name="暂不设置，返回已经运行的电脑录像主界面" xml:space="preserve"><value>暂不设置，返回已经运行的电脑录像主界面</value></data>
+  <data name="已有完整连接链接？" xml:space="preserve"><value>已有完整连接链接？</value></data>
+  <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>从保存电脑复制完整连接链接并粘贴到这里</value></data>
+  <data name="验证并绑定" xml:space="preserve"><value>验证并绑定</value></data>
+  <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>请粘贴包含安全密钥的完整连接链接</value></data>
 </root>

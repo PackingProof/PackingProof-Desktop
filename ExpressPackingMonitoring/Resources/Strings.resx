@@ -686,4 +686,18 @@
   <data name="返回上一步" xml:space="preserve"><value>Back</value></data>
   <data name="只连接主机查看录像" xml:space="preserve"><value>Connect to a host for viewing only</value></data>
   <data name="只接收并保存录像" xml:space="preserve"><value>Receive and store recordings only</value></data>
+  <data name="录制工位 · 保存主机：" xml:space="preserve"><value>Recording workstation · Storage host: </value></data>
+  <data name=" · 待上传 " xml:space="preserve"><value> · Pending </value></data>
+  <data name="可连接" xml:space="preserve"><value>Available</value></data>
+  <data name="确认后选择另一台保存主机" xml:space="preserve"><value>Choose another storage host after confirmation</value></data>
+  <data name="更换保存主机" xml:space="preserve"><value>Change storage host</value></data>
+  <data name="确认使用列表中选中的保存主机" xml:space="preserve"><value>Confirm the selected storage host</value></data>
+  <data name="使用这台保存主机" xml:space="preserve"><value>Use this storage host</value></data>
+  <data name="重新搜索局域网中的保存主机" xml:space="preserve"><value>Search the LAN for storage hosts again</value></data>
+  <data name="重新搜索" xml:space="preserve"><value>Search again</value></data>
+  <data name="暂不设置，返回已经运行的电脑录像主界面" xml:space="preserve"><value>Skip setup and return to the running recording window</value></data>
+  <data name="已有完整连接链接？" xml:space="preserve"><value>Already have a complete connection link?</value></data>
+  <data name="从保存电脑复制完整连接链接并粘贴到这里" xml:space="preserve"><value>Copy the complete connection link from the storage computer and paste it here</value></data>
+  <data name="验证并绑定" xml:space="preserve"><value>Verify and bind</value></data>
+  <data name="请粘贴包含安全密钥的完整连接链接" xml:space="preserve"><value>Paste the complete connection link containing the security key</value></data>
 </root>

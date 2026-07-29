@@ -33,10 +33,32 @@ public partial class ViewerClientWindow : Window
         InitializeComponent();
         if (_bindingOnly)
         {
-            Title = "PackingProof 绑定保存主机";
-            WindowHeadingText.Text = "绑定保存主机";
-            WindowDescriptionText.Text = "可稍后设置；未连接时录像保存在本机，绑定后自动上传";
-            DeferBindingButton.Visibility = Visibility.Visible;
+            Title = "PackingProof 保存主机";
+            WindowHeadingText.Text = "保存主机";
+            WindowDescriptionText.Text = "选择一台电脑保存录像；暂时不设置也可以先录像";
+            SwitchPurposeButton.Visibility = Visibility.Collapsed;
+            ViewerActionPanel.Visibility = Visibility.Collapsed;
+            UserscriptStatusText.Visibility = Visibility.Collapsed;
+            BindingDiscoveryActions.Visibility = Visibility.Visible;
+            DiscoveryHeadingText.Text = "选择保存主机";
+            SearchStatusText.Text = "正在查找同一局域网中可用的保存主机";
+            HostsList.ItemTemplate =
+                (DataTemplate)FindResource("RecordingWorkstationHostItemTemplate");
+            HostSummaryLabelColumn.Width = new GridLength(0);
+            CurrentHostLabel.Visibility = Visibility.Collapsed;
+            HostAddressLabel.Visibility = Visibility.Collapsed;
+            OnlineStatusLabel.Visibility = Visibility.Collapsed;
+            CapabilitiesLabel.Visibility = Visibility.Collapsed;
+            CapabilitiesText.Visibility = Visibility.Collapsed;
+            RecorderCountLabel.Visibility = Visibility.Collapsed;
+            RecorderCountText.Visibility = Visibility.Collapsed;
+            bool hasSavedHost = HasSavedHost();
+            HostSummaryBorder.Visibility = hasSavedHost
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            DiscoveryPanel.Visibility = hasSavedHost
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
         _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _onlineTimer.Tick += async (_, _) => await RefreshBoundHostAsync();
@@ -52,7 +74,7 @@ public partial class ViewerClientWindow : Window
     private async void ViewerClientWindow_Loaded(object sender, RoutedEventArgs e)
     {
         await RefreshBoundHostAsync();
-        if (_boundHost == null)
+        if (_boundHost == null && (!_bindingOnly || !HasSavedHost()))
             await SearchHostsAsync();
         _onlineTimer.Start();
     }
@@ -77,6 +99,19 @@ public partial class ViewerClientWindow : Window
 
         _boundHost = node;
         CompleteDeploymentSetup(node);
+        HostNameText.Text = node.NodeName;
+        HostAddressText.Text = node.Address;
+        OnlineStatusText.Text = _bindingOnly ? "可连接" : "在线";
+        OnlineStatusText.Foreground = TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
+        OpenWebButton.IsEnabled = true;
+        if (_bindingOnly)
+        {
+            HostSummaryBorder.Visibility = Visibility.Visible;
+            DiscoveryPanel.Visibility = Visibility.Collapsed;
+            BindingBoundActionsPanel.Visibility = Visibility.Visible;
+            return;
+        }
+
         Task<IReadOnlyList<RecordingDeviceInfo>> activeDevicesTask =
             WorkstationNetwork.GetRecordingDevicesAsync(node.Address);
         Task<IReadOnlyList<RecordingDeviceInfo>> knownDevicesTask =
@@ -84,10 +119,6 @@ public partial class ViewerClientWindow : Window
         await Task.WhenAll(activeDevicesTask, knownDevicesTask);
         IReadOnlyList<RecordingDeviceInfo> devices = await activeDevicesTask;
         _knownRecordingDevices = await knownDevicesTask;
-        HostNameText.Text = node.NodeName;
-        HostAddressText.Text = node.Address;
-        OnlineStatusText.Text = "在线";
-        OnlineStatusText.Foreground = TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
         CapabilitiesText.Text = node.CapabilitySummary;
         RecorderCountText.Text = devices.Count.ToString();
         OpenWebButton.IsEnabled = true;
@@ -99,11 +130,16 @@ public partial class ViewerClientWindow : Window
     private void SetOffline(string status)
     {
         _boundHost = null;
-        HostNameText.Text = string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId) ? "尚未绑定" : "已绑定主机";
+        bool hasSavedHost = HasSavedHost();
+        HostNameText.Text = hasSavedHost
+            ? FirstNotEmpty(_config.LastKnownHostNodeName, "已绑定的保存主机")
+            : "尚未绑定";
         HostAddressText.Text = string.IsNullOrWhiteSpace(_config.LastKnownHostAddress)
             ? "—"
             : _config.LastKnownHostAddress;
-        OnlineStatusText.Text = status;
+        OnlineStatusText.Text = _bindingOnly && hasSavedHost
+            ? "暂时离线，稍后会自动重试"
+            : status;
         OnlineStatusText.Foreground = TryFindResource("TextSecondary") as Brush ?? Brushes.Gray;
         CapabilitiesText.Text = "—";
         RecorderCountText.Text = "0";
@@ -111,6 +147,15 @@ public partial class ViewerClientWindow : Window
         UserscriptButton.IsEnabled = false;
         SendTestOrderButton.IsEnabled = false;
         UserscriptStatusText.Text = "主机离线，暂时无法检查订单联动设备";
+        if (_bindingOnly)
+        {
+            HostSummaryBorder.Visibility = hasSavedHost
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            BindingBoundActionsPanel.Visibility = hasSavedHost
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
     }
 
     private async Task SearchHostsAsync()
@@ -119,8 +164,12 @@ public partial class ViewerClientWindow : Window
         _searchCancellation?.Dispose();
         _searchCancellation = new CancellationTokenSource();
         DiscoveryPanel.Visibility = Visibility.Visible;
+        if (_bindingOnly)
+            BindingBoundActionsPanel.Visibility = Visibility.Collapsed;
         HostsList.ItemsSource = null;
-        SearchStatusText.Text = "正在搜索局域网中的 PackingProof 主机";
+        SearchStatusText.Text = _bindingOnly
+            ? "正在查找同一局域网中可用的保存主机"
+            : "正在搜索局域网中的 PackingProof 主机";
         var progress = new Progress<string>(message => SearchStatusText.Text = message);
         try
         {
@@ -130,9 +179,13 @@ public partial class ViewerClientWindow : Window
                 progress,
                 _searchCancellation.Token);
             HostsList.ItemsSource = hosts;
-            SearchStatusText.Text = hosts.Count == 0
-                ? "没有发现主机，可以检查网络后重新搜索或手动输入地址"
-                : $"找到 {hosts.Count} 台 PackingProof 主机，请选择要绑定的主机";
+            SearchStatusText.Text = _bindingOnly
+                ? hosts.Count == 0
+                    ? "暂时没有找到保存主机，可以重新搜索或使用完整连接链接"
+                    : $"找到 {hosts.Count} 台可连接电脑，请选择一台作为保存主机"
+                : hosts.Count == 0
+                    ? "没有发现主机，可以检查网络后重新搜索或手动输入地址"
+                    : $"找到 {hosts.Count} 台 PackingProof 主机，请选择要绑定的主机";
         }
         catch (OperationCanceledException)
         {
@@ -144,7 +197,9 @@ public partial class ViewerClientWindow : Window
     {
         if (!node.IsValidHost)
         {
-            SearchStatusText.Text = "该地址不是有效的 PackingProof 主机";
+            SearchStatusText.Text = _bindingOnly
+                ? "这台电脑暂时不能作为保存主机"
+                : "该地址不是有效的 PackingProof 主机";
             return;
         }
         if (_bindingOnly
@@ -159,8 +214,10 @@ public partial class ViewerClientWindow : Window
         string resolvedAccessKey = accessKey?.Trim() ?? "";
         if (_bindingOnly && resolvedAccessKey.Length < 16)
         {
-            SearchStatusText.Text = "请粘贴主机“手机/电脑连接”的完整链接以完成安全配对";
-            ManualAddressTextBox.Text = node.Address;
+            SearchStatusText.Text = "已选中这台电脑，请粘贴它提供的完整连接链接完成安全配对";
+            BindingManualAddressTextBox.Text = node.Address;
+            ManualAddressExpander.IsExpanded = true;
+            BindingManualAddressTextBox.Focus();
             return;
         }
 
@@ -183,7 +240,7 @@ public partial class ViewerClientWindow : Window
                 out AppConfig saved,
                 out string error))
         {
-            SearchStatusText.Text = $"保存主机绑定失败：{error}";
+            SearchStatusText.Text = $"绑定失败：{error}";
             return;
         }
 
@@ -214,7 +271,24 @@ public partial class ViewerClientWindow : Window
 
     private async void SearchHosts_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();
 
-    private async void ChangeHost_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();
+    private async void ChangeHost_Click(object sender, RoutedEventArgs e)
+    {
+        bool hasSavedHost = HasSavedHost();
+        if (_bindingOnly
+            && hasSavedHost
+            && !AppDialog.Confirm(
+                this,
+                "更换后，新的录像会发送到新主机。尚未上传完成的录像仍会保留在本机",
+                "更换保存主机",
+                confirmText: "继续选择",
+                cancelText: "保留当前",
+                severity: AppDialogSeverity.Information))
+        {
+            return;
+        }
+
+        await SearchHostsAsync();
+    }
 
     private void DeferBinding_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -374,6 +448,8 @@ public partial class ViewerClientWindow : Window
 
     private async void HostsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
+        if (_bindingOnly)
+            return;
         if (HostsList.SelectedItem is PackingProofNodeInfo node)
             await BindHostAsync(
                 node,
@@ -385,17 +461,30 @@ public partial class ViewerClientWindow : Window
     private async void BindManual_Click(object sender, RoutedEventArgs e)
     {
         WorkstationNetwork.ParseHostConnectionInput(
-            ManualAddressTextBox.Text,
+            _bindingOnly
+                ? BindingManualAddressTextBox.Text
+                : ViewerManualAddressTextBox.Text,
             out string address,
             out string accessKey);
-        SearchStatusText.Text = "正在验证手动输入的主机地址";
+        SearchStatusText.Text = _bindingOnly
+            ? "正在确认保存主机"
+            : "正在验证手动输入的主机地址";
         PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(address);
         if (node == null)
         {
-            SearchStatusText.Text = "该地址未返回合法的 PackingProof 主机身份";
+            SearchStatusText.Text = _bindingOnly
+                ? "无法连接这台电脑，请检查完整连接链接后重试"
+                : "该地址未返回合法的 PackingProof 主机身份";
             return;
         }
 
         await BindHostAsync(node, accessKey);
     }
+
+    private static string FirstNotEmpty(params string?[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+
+    private bool HasSavedHost() =>
+        !string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)
+        && !string.IsNullOrWhiteSpace(_config.LastKnownHostAddress);
 }

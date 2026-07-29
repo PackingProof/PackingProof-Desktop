@@ -234,71 +234,6 @@
                             </Button.Style>
                         </Button>
 
-                        <Border Grid.Row="1"
-                                Grid.ColumnSpan="2"
-                                Margin="0,14,0,0"
-                                Padding="12"
-                                CornerRadius="8"
-                                Background="{DynamicResource ControlBackground}">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="当前用途：录制工位"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextSecondary}">
-                                        <Run Text="保存主机："/>
-                                        <Run Text="{Binding BoundHostDisplay, Mode=OneWay}"/>
-                                        <Run Text="　"/>
-                                        <Run Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"/>
-                                        <Run Text="　待上传："/>
-                                        <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
-                                               Margin="0,4,0,0"
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock Text="{Binding LastRecordingTransferError, Mode=OneWay}"
-                                               Margin="0,3,0,0"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource AccentRed}"/>
-                                    <ProgressBar Height="4"
-                                                 Margin="0,8,0,0"
-                                                 Minimum="0"
-                                                 Maximum="100"
-                                                 Value="{Binding RecordingTransferProgress, Mode=OneWay}"/>
-                                </StackPanel>
-                                <WrapPanel Grid.Column="1"
-                                           Margin="16,0,0,0"
-                                           VerticalAlignment="Center">
-                                    <Button Content="重新连接"
-                                            Command="{Binding RetryRecordingTransfersCommand, Mode=OneWay}"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="更换主机"
-                                            Command="{Binding ChangeBoundHostCommand, Mode=OneWay}"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="打开主机录像"
-                                            Command="{Binding OpenBoundHostCommand, Mode=OneWay}"
-                                            Style="{StaticResource PrimaryButtonStyle}"/>
-                                </WrapPanel>
-                            </Grid>
-                        </Border>
                     </Grid>
                 </Border>
 
@@ -731,6 +666,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0"
                                        Text="{Binding WorkstationPrintStatusText}"
@@ -778,7 +714,47 @@
                                        FontSize="12"
                                        TextTrimming="CharacterEllipsis"
                                        Margin="0,5,0,0"/>
-                            <Grid Grid.Row="4" Margin="0,8,0,0">
+                            <StackPanel x:Name="RecordingWorkstationCompactStatus"
+                                        Grid.Row="4"
+                                        Margin="0,7,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Foreground="{DynamicResource TextPrimary}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis">
+                                    <Run Text="录制工位 · 保存主机："/>
+                                    <Run Text="{Binding BoundHostNameDisplay, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"/>
+                                    <Run Text=" · 待上传 "/>
+                                    <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
+                                           Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <ProgressBar Height="3"
+                                             Margin="0,5,0,0"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding RecordingTransferProgress, Mode=OneWay}"/>
+                            </StackPanel>
+                            <Grid Grid.Row="5" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="8"/>

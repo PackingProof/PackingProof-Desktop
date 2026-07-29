@@ -372,7 +372,7 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void RecordingWorkstationStatusPanelUsesOneWayBindings()
+    public void RecordingWorkstationCompactStatusUsesOneWayBindingsInExistingStatusArea()
     {
         string mainWindow = ReadRepositoryFile(
             "ExpressPackingMonitoring",
@@ -380,7 +380,11 @@ public sealed class DeploymentStartupTests
             "MainWindow.xaml");
 
         Assert.Contains(
-            "<Run Text=\"{Binding BoundHostDisplay, Mode=OneWay}\"/>",
+            "x:Name=\"RecordingWorkstationCompactStatus\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Run Text=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"/>",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -392,36 +396,101 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Value=\"{Binding RecordingTransferProgress, Mode=OneWay}\"",
-            mainWindow,
-            StringComparison.Ordinal);
-        Assert.Contains(
             "Text=\"{Binding RecordingTransferStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding LastRecordingTransferError, Mode=OneWay}\"",
+            "Value=\"{Binding RecordingTransferProgress, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
             "Binding=\"{Binding IsRecordingWorkstation, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
-        Assert.Contains(
-            "Command=\"{Binding RetryRecordingTransfersCommand, Mode=OneWay}\"",
-            mainWindow,
+        Assert.DoesNotContain("当前用途：录制工位", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Command=\"{Binding RetryRecordingTransfersCommand", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Command=\"{Binding ChangeBoundHostCommand", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Command=\"{Binding OpenBoundHostCommand", mainWindow, StringComparison.Ordinal);
+        int existingStatus = mainWindow.IndexOf(
+            "Text=\"{Binding UserscriptSetupStatusText}\"",
             StringComparison.Ordinal);
-        Assert.Contains(
-            "Command=\"{Binding ChangeBoundHostCommand, Mode=OneWay}\"",
-            mainWindow,
+        int compactStatus = mainWindow.IndexOf(
+            "x:Name=\"RecordingWorkstationCompactStatus\"",
             StringComparison.Ordinal);
-        Assert.Contains(
-            "Command=\"{Binding OpenBoundHostCommand, Mode=OneWay}\"",
-            mainWindow,
+        int existingButtons = mainWindow.IndexOf(
+            "x:Name=\"BtnSwitchWorkstation\"",
+            compactStatus,
             StringComparison.Ordinal);
+        Assert.True(existingStatus >= 0);
+        Assert.True(compactStatus > existingStatus);
+        Assert.True(existingButtons > compactStatus);
         Assert.DoesNotMatch(
-            "\\{Binding (BoundHostDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|LastRecordingTransferError|RecordingTransferProgress|IsRecordingWorkstation|RetryRecordingTransfersCommand|ChangeBoundHostCommand|OpenBoundHostCommand)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|RecordingTransferProgress|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
+    }
+
+    [Fact]
+    public void RecordingWorkstationHostBindingUsesSingleHostBeginnerFlow()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs");
+
+        Assert.Contains("x:Name=\"ViewerActionPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BindingDiscoveryActions\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BindingBoundActionsPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"RecordingWorkstationHostItemTemplate\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"可连接\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"使用这台保存主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"更换保存主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"稍后设置\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Header=\"已有完整连接链接？\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("选择并连接主机", xaml, StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            xaml.Split("Text=\"更换保存主机\"", StringSplitOptions.None).Length - 1);
+
+        Assert.Contains("WindowHeadingText.Text = \"保存主机\";", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "WindowDescriptionText.Text = \"选择一台电脑保存录像；暂时不设置也可以先录像\";",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ViewerActionPanel.Visibility = Visibility.Collapsed;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "BindingDiscoveryActions.Visibility = Visibility.Visible;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "HostsList.ItemTemplate =",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "DiscoveryPanel.Visibility = Visibility.Collapsed;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "BindingBoundActionsPanel.Visibility = Visibility.Visible;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "if (_boundHost == null && (!_bindingOnly || !HasSavedHost()))",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("AppDialog.Confirm(", source, StringComparison.Ordinal);
+        Assert.Matches("if \\(_bindingOnly\\)\\s+return;", source);
+
+        Assert.Contains("x:Name=\"OpenWebButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"UserscriptButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SendTestOrderButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SwitchPurposeButton\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -530,7 +599,7 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         Assert.Contains("Text=\"稍后设置\"", bindingWindow, StringComparison.Ordinal);
         Assert.Contains(
-            "DeferBindingButton.Visibility = Visibility.Visible;",
+            "BindingDiscoveryActions.Visibility = Visibility.Visible;",
             bindingSource,
             StringComparison.Ordinal);
         Assert.Contains(
