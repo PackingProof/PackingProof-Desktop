@@ -415,11 +415,25 @@ namespace ExpressPackingMonitoring.ViewModels
             set
             {
                 if (SetProperty(ref _config, value))
+                {
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
+                    OnPropertyChanged(nameof(IsRecordingWorkstation));
+                    OnPropertyChanged(nameof(IsMainConnectionVisible));
+                    OnPropertyChanged(nameof(MainConnectionButtonText));
+                    OnPropertyChanged(nameof(MainConnectionButtonToolTip));
+                }
             }
         }
         public string WorkstationPrintStatusText { get => _workstationPrintStatusText; set => SetProperty(ref _workstationPrintStatusText, value); }
-        public string WorkstationStatusToolTip { get => _workstationStatusToolTip; set => SetProperty(ref _workstationStatusToolTip, value); }
+        public string WorkstationStatusToolTip
+        {
+            get => _workstationStatusToolTip;
+            set
+            {
+                if (SetProperty(ref _workstationStatusToolTip, value))
+                    OnPropertyChanged(nameof(MainConnectionButtonToolTip));
+            }
+        }
         public string OrderIntegrationStatusText { get => _orderIntegrationStatusText; private set => SetProperty(ref _orderIntegrationStatusText, value); }
         public string UserscriptSetupStatusText { get => _userscriptSetupStatusText; private set => SetProperty(ref _userscriptSetupStatusText, value); }
         public string UserscriptButtonText { get => _userscriptButtonText; private set => SetProperty(ref _userscriptButtonText, value); }
@@ -1888,9 +1902,15 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!isExistingUser)
             {
                 await RunFirstUseSetupWizardIfNeededAsync(owner);
+                if (_isDisposed || !Config.FirstUseWizardCompleted)
+                    return;
+                await RunRecordingWorkstationHostBindingPromptIfNeededAsync(owner);
                 return;
             }
 
+            await RunRecordingWorkstationHostBindingPromptIfNeededAsync(owner);
+            if (_isDisposed)
+                return;
             RunCameraBarcodeUpgradePromptIfNeeded(owner);
             await RunMobileConnectionSetupPromptIfNeededAsync(owner);
         }

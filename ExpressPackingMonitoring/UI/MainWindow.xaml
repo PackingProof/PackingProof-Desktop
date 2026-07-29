@@ -14,6 +14,7 @@
 
     <Window.Resources>
         <localization:LocalizedTextConverter x:Key="LocalizedTextConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <!-- 修复 ComboBox 稳定性问题的核心代码 -->
         <Style TargetType="ComboBoxItem">
             <!-- 手动指定对齐方式，不再让系统去 FindAncestor，从而消除报错 -->
@@ -807,11 +808,27 @@
                                         Height="32"
                                         Padding="9,0"
                                         Style="{StaticResource PrimaryButtonStyle}"
-                                        ToolTip="{Binding WorkstationStatusToolTip}"
+                                        Visibility="{Binding IsMainConnectionVisible, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
+                                        ToolTip="{Binding MainConnectionButtonToolTip, Mode=OneWay}"
                                         Focusable="False">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
-                                        <Path Data="{StaticResource FluentPhoneIcon}" Width="14" Height="14" Stretch="Uniform" Fill="White"/>
-                                        <TextBlock Text="连接手机" Margin="5,0,0,0" FontSize="12" Foreground="White" VerticalAlignment="Center"/>
+                                        <Path Width="14" Height="14" Stretch="Uniform" Fill="White">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Data" Value="{StaticResource FluentPhoneIcon}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
+                                                            <Setter Property="Data" Value="{StaticResource FluentStorageIcon}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <TextBlock Text="{Binding MainConnectionButtonText, Mode=OneWay}"
+                                                   Margin="5,0,0,0"
+                                                   FontSize="12"
+                                                   Foreground="White"
+                                                   VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="BtnInstallUserscript"

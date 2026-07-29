@@ -35,7 +35,8 @@ public partial class ViewerClientWindow : Window
         {
             Title = "PackingProof 绑定保存主机";
             WindowHeadingText.Text = "绑定保存主机";
-            WindowDescriptionText.Text = "录像完成后将自动上传到这台主机，本机只作为临时缓存";
+            WindowDescriptionText.Text = "可稍后设置；未连接时录像保存在本机，绑定后自动上传";
+            DeferBindingButton.Visibility = Visibility.Visible;
         }
         _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _onlineTimer.Tick += async (_, _) => await RefreshBoundHostAsync();
@@ -214,6 +215,8 @@ public partial class ViewerClientWindow : Window
     private async void SearchHosts_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();
 
     private async void ChangeHost_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();
+
+    private void DeferBinding_Click(object sender, RoutedEventArgs e) => Close();
 
     private void InstallUserscript_Click(object sender, RoutedEventArgs e)
     {

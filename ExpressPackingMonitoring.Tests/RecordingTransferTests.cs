@@ -94,6 +94,58 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
+    public void CompletedRecordingIsQueuedAfterHostIsBoundLater()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "recorded-before-binding.mp4");
+            File.WriteAllBytes(videoPath, new byte[128]);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "LATE-BOUND-RECORDING",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                60,
+                new FileInfo(videoPath).Length,
+                "手动");
+
+            AppConfig config = CreateConfig(directory, Guid.NewGuid().ToString("D"));
+            config.LastKnownHostNodeId = "";
+            config.LastKnownHostAddress = "";
+            config.LastKnownHostAccessKey = "";
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(store, database, () => config);
+
+            Assert.Equal(0, service.EnqueueCompletedRecordings());
+            Assert.Empty(store.GetReady(DateTime.UtcNow));
+            Assert.True(File.Exists(videoPath));
+
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            config.LastKnownHostNodeId = targetNodeId;
+            config.LastKnownHostAddress = "http://127.0.0.1:5280";
+            config.LastKnownHostAccessKey = "0123456789abcdef0123456789abcdef";
+
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+            RecordingTransferTask queued = Assert.Single(store.GetReady(DateTime.UtcNow));
+            Assert.Equal(recordId, queued.LocalVideoRecordId);
+            Assert.Equal(targetNodeId, queued.TargetNodeId);
+            Assert.True(File.Exists(videoPath));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task Transfer_OnlyMarksUploadedAfterVerifiedResponse()
     {
         string directory = CreateTempDirectory();

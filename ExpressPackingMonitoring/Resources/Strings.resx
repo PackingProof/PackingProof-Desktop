@@ -547,6 +547,8 @@
   <data name="连接输入的主机地址" xml:space="preserve"><value>Connect to the entered host address</value></data>
   <data name="重新搜索主机" xml:space="preserve"><value>Search hosts again</value></data>
   <data name="更换主机" xml:space="preserve"><value>Change host</value></data>
+  <data name="暂不绑定，返回电脑录像主界面" xml:space="preserve"><value>Skip binding and return to PC recording</value></data>
+  <data name="稍后设置" xml:space="preserve"><value>Set up later</value></data>
   <data name="安装快递助手联动" xml:space="preserve"><value>Install Express Assistant integration</value></data>
   <data name="重新生成快递助手脚本" xml:space="preserve"><value>Regenerate Express Assistant script</value></data>
   <data name="搜索并选择主机" xml:space="preserve"><value>Search and select a host</value></data>

@@ -547,6 +547,8 @@
   <data name="连接输入的主机地址" xml:space="preserve"><value>连接输入的主机地址</value></data>
   <data name="重新搜索主机" xml:space="preserve"><value>重新搜索主机</value></data>
   <data name="更换主机" xml:space="preserve"><value>更换主机</value></data>
+  <data name="暂不绑定，返回电脑录像主界面" xml:space="preserve"><value>暂不绑定，返回电脑录像主界面</value></data>
+  <data name="稍后设置" xml:space="preserve"><value>稍后设置</value></data>
   <data name="安装快递助手联动" xml:space="preserve"><value>安装快递助手联动</value></data>
   <data name="重新生成快递助手脚本" xml:space="preserve"><value>重新生成快递助手脚本</value></data>
   <data name="搜索并选择主机" xml:space="preserve"><value>搜索并选择主机</value></data>

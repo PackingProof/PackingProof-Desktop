@@ -165,6 +165,21 @@
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
+                    <Button x:Name="DeferBindingButton"
+                            Style="{StaticResource ViewerActionButtonStyle}"
+                            ToolTip="暂不绑定，返回电脑录像主界面"
+                            Visibility="Collapsed"
+                            Margin="0,0,10,10"
+                            Click="DeferBinding_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource FluentClockIcon}"
+                                  Width="16" Height="16" Stretch="Uniform"
+                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            <TextBlock Text="稍后设置"
+                                       Margin="6,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
                 </WrapPanel>
                 <TextBlock x:Name="UserscriptStatusText"
                            Text="尚未配置订单联动"

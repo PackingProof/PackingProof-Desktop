@@ -32,6 +32,12 @@ public partial class MainViewModel
             DeploymentPresets.RecordingWorkstation,
             StringComparison.OrdinalIgnoreCase);
 
+    public bool IsMainConnectionVisible => ShouldShowMainConnection(Config);
+    public string MainConnectionButtonText => GetMainConnectionButtonText(Config);
+    public string MainConnectionButtonToolTip => ShouldManageBoundHostFromMainConnection(Config)
+        ? "连接、绑定或管理保存电脑"
+        : WorkstationStatusToolTip;
+
     public string RecordingTransferStatusText
     {
         get => _recordingTransferStatusText;
@@ -77,7 +83,7 @@ public partial class MainViewModel
     {
         OpenBoundHostCommand = new RelayCommand(OpenBoundHost);
         RetryRecordingTransfersCommand = new RelayCommand(RetryRecordingTransfers);
-        ChangeBoundHostCommand = new RelayCommand(ChangeBoundHost);
+        ChangeBoundHostCommand = new RelayCommand(() => ChangeBoundHost());
         if (!IsRecordingWorkstation || _db == null)
             return;
 
@@ -117,6 +123,7 @@ public partial class MainViewModel
 
     private void RetryRecordingTransfers()
     {
+        _recordingTransferService?.EnqueueCompletedRecordings();
         _recordingTransferService?.RetryNow();
         RecordingTransferStatusText = "正在重新连接保存主机";
     }
@@ -162,11 +169,12 @@ public partial class MainViewModel
         }
     }
 
-    private void ChangeBoundHost()
+    private void ChangeBoundHost(Window? owner = null)
     {
         if (!IsRecordingWorkstation) return;
         RecordingTransferSummary? summary = _recordingTransferStore?.GetSummary();
-        if (summary != null
+        if (!ShouldPromptRecordingWorkstationHostBinding(Config)
+            && summary != null
             && summary.PendingCount + summary.UploadingCount + summary.FailedCount > 0)
         {
             AppDialog.ShowMessage(
@@ -180,14 +188,82 @@ public partial class MainViewModel
         var window = new ViewerClientWindow(
             Config,
             DeploymentPresets.RecordingWorkstation);
-        if (Application.Current?.MainWindow is Window owner)
-            window.Owner = owner;
+        Window? dialogOwner = owner ?? Application.Current?.MainWindow;
+        if (dialogOwner != null)
+            window.Owner = dialogOwner;
         if (window.ShowDialog() == true)
         {
             OnPropertyChanged(nameof(BoundHostAddress));
             OnPropertyChanged(nameof(BoundHostDisplay));
             RetryRecordingTransfers();
         }
+    }
+
+    internal static bool ShouldPromptRecordingWorkstationHostBinding(AppConfig? config) =>
+        string.Equals(
+            DeploymentPresets.Normalize(config?.DeploymentPreset),
+            DeploymentPresets.RecordingWorkstation,
+            StringComparison.Ordinal)
+        && (string.IsNullOrWhiteSpace(config?.LastKnownHostNodeId)
+            || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
+            || string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey));
+
+    private async Task RunRecordingWorkstationHostBindingPromptIfNeededAsync(Window owner)
+    {
+        if (_isDisposed || !ShouldPromptRecordingWorkstationHostBinding(Config))
+            return;
+
+        Task<bool>? startupTask = _webServerStartupTask;
+        if (startupTask != null)
+        {
+            bool lanReady;
+            try
+            {
+                lanReady = await startupTask;
+            }
+            catch
+            {
+                return;
+            }
+
+            if (!lanReady)
+                return;
+        }
+
+        if (_isDisposed || !ShouldPromptRecordingWorkstationHostBinding(Config))
+            return;
+
+        ChangeBoundHost(owner);
+    }
+
+    internal static bool ShouldShowMainConnection(AppConfig? config)
+    {
+        string preset = DeploymentPresets.Normalize(config?.DeploymentPreset);
+        return preset == DeploymentPresets.RecordingHost
+            || preset == DeploymentPresets.RecordingWorkstation;
+    }
+
+    internal static bool ShouldManageBoundHostFromMainConnection(AppConfig? config) =>
+        string.Equals(
+            DeploymentPresets.Normalize(config?.DeploymentPreset),
+            DeploymentPresets.RecordingWorkstation,
+            StringComparison.Ordinal);
+
+    internal static string GetMainConnectionButtonText(AppConfig? config) =>
+        ShouldManageBoundHostFromMainConnection(config)
+            ? "管理保存主机"
+            : "连接手机";
+
+    public void ShowMainConnection(Window? owner = null)
+    {
+        if (ShouldManageBoundHostFromMainConnection(Config))
+        {
+            ChangeBoundHost(owner);
+            return;
+        }
+
+        if (ShouldShowMainConnection(Config))
+            ShowMobileConnection(owner);
     }
 
     private void OnRecordingTransferProgressChanged(RecordingTransferProgress progress)

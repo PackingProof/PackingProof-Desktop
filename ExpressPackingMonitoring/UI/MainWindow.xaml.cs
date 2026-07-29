@@ -307,7 +307,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void ExecuteMobileConnection()
         {
-            if (DataContext is MainViewModel viewModel) viewModel.ShowMobileConnection(this);
+            if (DataContext is MainViewModel viewModel) viewModel.ShowMainConnection(this);
         }
 
         private void ExecuteSwitchWorkstation()

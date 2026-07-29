@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.ViewModels;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -307,6 +308,69 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Key=\"FluentPhoneIcon\"", icons, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机")]
+    [InlineData(DeploymentPresets.RecordingWorkstation, true, true, "管理保存主机")]
+    [InlineData(DeploymentPresets.ViewerClient, false, false, "连接手机")]
+    [InlineData(DeploymentPresets.MobileBackupHost, false, false, "连接手机")]
+    public void MainConnectionEntryIsIsolatedByDeploymentPreset(
+        string preset,
+        bool expectedVisible,
+        bool expectedHostManagement,
+        string expectedText)
+    {
+        var config = new AppConfig { DeploymentPreset = preset };
+
+        Assert.Equal(expectedVisible, MainViewModel.ShouldShowMainConnection(config));
+        Assert.Equal(
+            expectedHostManagement,
+            MainViewModel.ShouldManageBoundHostFromMainConnection(config));
+        Assert.Equal(expectedText, MainViewModel.GetMainConnectionButtonText(config));
+    }
+
+    [Fact]
+    public void RecordingWorkstationMainConnectionReusesSecureHostBindingFlow()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml");
+        string windowSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml.cs");
+        string transferSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs");
+
+        Assert.Contains(
+            "Text=\"{Binding MainConnectionButtonText, Mode=OneWay}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Visibility=\"{Binding IsMainConnectionVisible, Mode=OneWay, Converter={StaticResource BoolToVisibility}}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ToolTip=\"{Binding MainConnectionButtonToolTip, Mode=OneWay}\"",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?FluentPhoneIcon[\\s\\S]*?FluentStorageIcon",
+            xaml);
+        Assert.Contains("viewModel.ShowMainConnection(this)", windowSource, StringComparison.Ordinal);
+        Assert.Contains("ChangeBoundHost(owner);", transferSource, StringComparison.Ordinal);
+        Assert.Contains("ShowMobileConnection(owner);", transferSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "_recordingTransferService?.EnqueueCompletedRecordings();",
+            transferSource,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            "new ViewerClientWindow\\(\\s*Config,\\s*DeploymentPresets\\.RecordingWorkstation\\)",
+            transferSource);
+    }
+
     [Fact]
     public void RecordingWorkstationStatusPanelUsesOneWayBindings()
     {
@@ -355,6 +419,9 @@ public sealed class DeploymentStartupTests
             "Command=\"{Binding OpenBoundHostCommand, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
+        Assert.DoesNotMatch(
+            "\\{Binding (BoundHostDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|LastRecordingTransferError|RecordingTransferProgress|IsRecordingWorkstation|RetryRecordingTransfersCommand|ChangeBoundHostCommand|OpenBoundHostCommand)(?![^}]*Mode=OneWay)[^}]*\\}",
+            mainWindow);
     }
 
     [Fact]
@@ -367,6 +434,110 @@ public sealed class DeploymentStartupTests
         Assert.Contains("_ => new MainWindow", source, StringComparison.Ordinal);
         Assert.DoesNotContain("--temporary-role", source, StringComparison.Ordinal);
         Assert.DoesNotContain("OpenOtherRole", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RecordingWorkstationStartupDoesNotRequireHostBindingBeforeMainWindow()
+    {
+        string source = ReadRepositoryFile("ExpressPackingMonitoring", "App.xaml.cs");
+        int windowCreation = source.IndexOf(
+            "Window window = DeploymentPresets.Normalize(startupPreset) switch",
+            StringComparison.Ordinal);
+
+        Assert.True(windowCreation >= 0);
+        string startupBeforeWindowCreation = source[..windowCreation];
+        Assert.DoesNotContain(
+            "RecordingWorkstationHostBindingCancelled",
+            startupBeforeWindowCreation,
+            StringComparison.Ordinal);
+        Assert.DoesNotMatch(
+            "new ViewerClientWindow\\(\\s*config,\\s*DeploymentPresets\\.RecordingWorkstation\\)",
+            startupBeforeWindowCreation);
+        Assert.Contains("_ => new MainWindow", source[windowCreation..], StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "", "", "", true)]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "node-1", "192.168.1.20:5280", "", true)]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "node-1", "192.168.1.20:5280", "0123456789abcdef", false)]
+    [InlineData(DeploymentPresets.RecordingHost, "", "", "", false)]
+    [InlineData(DeploymentPresets.ViewerClient, "", "", "", false)]
+    [InlineData(DeploymentPresets.MobileBackupHost, "", "", "", false)]
+    public void StartupHostBindingPromptOnlyAppliesToUnboundRecordingWorkstation(
+        string preset,
+        string nodeId,
+        string address,
+        string accessKey,
+        bool expected)
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = preset,
+            LastKnownHostNodeId = nodeId,
+            LastKnownHostAddress = address,
+            LastKnownHostAccessKey = accessKey
+        };
+
+        Assert.Equal(
+            expected,
+            MainViewModel.ShouldPromptRecordingWorkstationHostBinding(config));
+    }
+
+    [Fact]
+    public void RecordingWorkstationBindingPromptRunsAfterLanStartupAndCanReturnToMainWindow()
+    {
+        string mainWindow = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml.cs");
+        string mainViewModel = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+        string transferSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs");
+        string bindingWindow = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml");
+        string bindingSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs");
+
+        Assert.Contains(
+            "RunStartupSetupFlowsIfNeeded(this)",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "await RunRecordingWorkstationHostBindingPromptIfNeededAsync(owner);",
+            mainViewModel,
+            StringComparison.Ordinal);
+        int waitForLan = transferSource.IndexOf(
+            "lanReady = await startupTask;",
+            StringComparison.Ordinal);
+        int openBinding = transferSource.IndexOf(
+            "ChangeBoundHost(owner);",
+            waitForLan,
+            StringComparison.Ordinal);
+        Assert.True(waitForLan >= 0);
+        Assert.True(openBinding > waitForLan);
+        Assert.Contains(
+            "x:Name=\"DeferBindingButton\"",
+            bindingWindow,
+            StringComparison.Ordinal);
+        Assert.Contains("Text=\"稍后设置\"", bindingWindow, StringComparison.Ordinal);
+        Assert.Contains(
+            "DeferBindingButton.Visibility = Visibility.Visible;",
+            bindingSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "private void DeferBinding_Click(object sender, RoutedEventArgs e) => Close();",
+            bindingSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Shutdown(", bindingSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -600,7 +771,10 @@ public sealed class DeploymentStartupTests
         Assert.Contains("public void OpenUserscriptGuide()", source, StringComparison.Ordinal);
         Assert.Contains("UserscriptGuideNavigation.TryOpen", source, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding MobileBackupDeviceStatuses}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"连接手机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding MainConnectionButtonText, Mode=OneWay}\"",
+            xaml,
+            StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding UserscriptButtonText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("UserscriptSetupStatusText", source, StringComparison.Ordinal);
         Assert.Contains("OrderIntegrationStatusText", source, StringComparison.Ordinal);

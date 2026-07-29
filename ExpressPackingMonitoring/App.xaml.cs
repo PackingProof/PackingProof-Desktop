@@ -156,26 +156,6 @@ namespace ExpressPackingMonitoring
                 config = configuredRecordingHost;
             }
 
-            if (string.Equals(
-                    startupPreset,
-                    DeploymentPresets.RecordingWorkstation,
-                    StringComparison.OrdinalIgnoreCase)
-                && (string.IsNullOrWhiteSpace(config.LastKnownHostNodeId)
-                    || string.IsNullOrWhiteSpace(config.LastKnownHostAddress)
-                    || string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey)))
-            {
-                var hostBinding = new ViewerClientWindow(
-                    config,
-                    DeploymentPresets.RecordingWorkstation);
-                if (hostBinding.ShowDialog() != true)
-                {
-                    RuntimeLog.RecordShutdownRequest("RecordingWorkstationHostBindingCancelled");
-                    Shutdown(0);
-                    return;
-                }
-                config = WorkstationConfigStore.Load();
-            }
-
             AutoStartService.Apply(config.AutoStartOnBoot);
             MainViewModel.AllowLanAccessSetupOnStartup = true;
 
