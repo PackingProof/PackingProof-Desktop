@@ -243,7 +243,7 @@
                                 <Style TargetType="Border">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRecordingWorkstation}" Value="True">
+                                        <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -261,17 +261,17 @@
                                     <TextBlock Margin="0,4,0,0"
                                                Foreground="{DynamicResource TextSecondary}">
                                         <Run Text="保存主机："/>
-                                        <Run Text="{Binding BoundHostDisplay}"/>
+                                        <Run Text="{Binding BoundHostDisplay, Mode=OneWay}"/>
                                         <Run Text="　"/>
-                                        <Run Text="{Binding BoundHostOnlineStatusText}"/>
+                                        <Run Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"/>
                                         <Run Text="　待上传："/>
-                                        <Run Text="{Binding PendingRecordingTransferCount}"/>
+                                        <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
                                     </TextBlock>
-                                    <TextBlock Text="{Binding RecordingTransferStatusText}"
+                                    <TextBlock Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
                                                Margin="0,4,0,0"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource TextSecondary}"/>
-                                    <TextBlock Text="{Binding LastRecordingTransferError}"
+                                    <TextBlock Text="{Binding LastRecordingTransferError, Mode=OneWay}"
                                                Margin="0,3,0,0"
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource AccentRed}"/>
@@ -279,21 +279,21 @@
                                                  Margin="0,8,0,0"
                                                  Minimum="0"
                                                  Maximum="100"
-                                                 Value="{Binding RecordingTransferProgress}"/>
+                                                 Value="{Binding RecordingTransferProgress, Mode=OneWay}"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1"
                                            Margin="16,0,0,0"
                                            VerticalAlignment="Center">
                                     <Button Content="重新连接"
-                                            Command="{Binding RetryRecordingTransfersCommand}"
+                                            Command="{Binding RetryRecordingTransfersCommand, Mode=OneWay}"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Margin="0,0,8,0"/>
                                     <Button Content="更换主机"
-                                            Command="{Binding ChangeBoundHostCommand}"
+                                            Command="{Binding ChangeBoundHostCommand, Mode=OneWay}"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             Margin="0,0,8,0"/>
                                     <Button Content="打开主机录像"
-                                            Command="{Binding OpenBoundHostCommand}"
+                                            Command="{Binding OpenBoundHostCommand, Mode=OneWay}"
                                             Style="{StaticResource PrimaryButtonStyle}"/>
                                 </WrapPanel>
                             </Grid>

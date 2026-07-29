@@ -308,6 +308,56 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void RecordingWorkstationStatusPanelUsesOneWayBindings()
+    {
+        string mainWindow = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml");
+
+        Assert.Contains(
+            "<Run Text=\"{Binding BoundHostDisplay, Mode=OneWay}\"/>",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Run Text=\"{Binding BoundHostOnlineStatusText, Mode=OneWay}\"/>",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Run Text=\"{Binding PendingRecordingTransferCount, Mode=OneWay}\"/>",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Value=\"{Binding RecordingTransferProgress, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding RecordingTransferStatusText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding LastRecordingTransferError, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Binding=\"{Binding IsRecordingWorkstation, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Command=\"{Binding RetryRecordingTransfersCommand, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Command=\"{Binding ChangeBoundHostCommand, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Command=\"{Binding OpenBoundHostCommand, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AppMapsEveryPresetToItsDedicatedWindow()
     {
         string source = ReadRepositoryFile("ExpressPackingMonitoring", "App.xaml.cs");
