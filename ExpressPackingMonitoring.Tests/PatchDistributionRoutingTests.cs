@@ -20,6 +20,25 @@ public sealed class PatchDistributionRoutingTests
     }
 
     [Fact]
+    public void Launcher_LogsUpdateLifecycleAndFallsBackWithinCurrentRun()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string launcher = File.ReadAllText(
+            Path.Combine(repositoryRoot, "ExpressPackingMonitoring.Launcher", "Program.cs"),
+            Encoding.UTF8);
+
+        Assert.Contains("启动器启动：appRunning=", launcher);
+        Assert.Contains("自动检查更新开始：current=", launcher);
+        Assert.Contains("Patch 已保存到 pending，等待下次启动安装", launcher);
+        Assert.Contains("MetadataRequestAttempts = 2", launcher);
+        Assert.Contains("GetJsonWithRetryAsync", launcher);
+        Assert.Contains("本次立即改用更新描述中的下载地址", launcher);
+        Assert.DoesNotContain(
+            "if (failureState.ConsecutiveGithubDownloadFailures < GithubDownloadFailureFallbackThreshold)",
+            launcher);
+    }
+
+    [Fact]
     public void Publisher_WrapsOriginalPatchAndMatchingManifestWithoutRecompression()
     {
         string repositoryRoot = FindRepositoryRoot();
