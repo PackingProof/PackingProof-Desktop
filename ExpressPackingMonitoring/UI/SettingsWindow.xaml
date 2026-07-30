@@ -862,23 +862,32 @@
                                             <ComboBoxItem Tag="RecordingHost">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentVideoIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="使用这台电脑录像"/>
+                                                    <TextBlock Text="电脑录像并保存在本机"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem Tag="RecordingWorkstation">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path Data="{StaticResource FluentWifiIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="电脑录像并保存到其他电脑"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="ViewerClient">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentWifiIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="连接已有主机"/>
+                                                    <TextBlock Text="只连接主机查看"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="MobileBackupHost">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentPhoneIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="接收手机录像"/>
+                                                    <Path Data="{StaticResource FluentStorageIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="只作为保存主机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                         </ComboBox>
                                     </Grid>
+                                    <TextBlock Text="更改用途后程序会自动重启，并切换到对应界面"
+                                               Margin="0,8,0,0"
+                                               Style="{StaticResource FieldHintStyle}"/>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>

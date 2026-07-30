@@ -654,7 +654,10 @@ public partial class PrintWorkstationWindow : Window
         if (_purposeSwitchPending)
             return;
 
-        var window = new WorkstationSelectionWindow { Owner = this };
+        var window = new WorkstationSelectionWindow(DeploymentPresets.MobileBackupHost)
+        {
+            Owner = this
+        };
         if (window.ShowDialog() != true || string.IsNullOrWhiteSpace(window.SelectedPreset))
             return;
 

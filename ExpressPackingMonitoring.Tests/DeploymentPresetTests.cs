@@ -206,7 +206,7 @@ public sealed class DeploymentPresetTests
     [InlineData(true, false, DeploymentPresets.RecordingWorkstation)]
     [InlineData(false, true, DeploymentPresets.MobileBackupHost)]
     [InlineData(false, false, DeploymentPresets.ViewerClient)]
-    public void TwoStepPurposeAnswersMapToTheFourStablePresets(
+    public void TwoPurposeAnswersMapToTheFourStablePresets(
         bool recordOnThisComputer,
         bool useAsStorageHost,
         string expectedPreset)
@@ -216,6 +216,136 @@ public sealed class DeploymentPresetTests
             WorkstationSelectionWindow.ResolvePreset(
                 recordOnThisComputer,
                 useAsStorageHost));
+    }
+
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingHost, true, true)]
+    [InlineData(DeploymentPresets.RecordingWorkstation, true, false)]
+    [InlineData(DeploymentPresets.MobileBackupHost, false, true)]
+    [InlineData(DeploymentPresets.ViewerClient, false, false)]
+    public void CurrentPurposeRestoresBothAnswers(
+        string preset,
+        bool expectedRecord,
+        bool expectedStore)
+    {
+        Assert.True(WorkstationSelectionWindow.TryResolveAnswers(
+            preset,
+            out bool record,
+            out bool store));
+        Assert.Equal(expectedRecord, record);
+        Assert.Equal(expectedStore, store);
+    }
+
+    [Theory]
+    [InlineData(true, true, "电脑录像并保存在本机", "可接收并备份手机录像")]
+    [InlineData(true, false, "电脑录像并保存到其他电脑", "录像先安全保存在本地缓存")]
+    [InlineData(false, true, "只作为保存主机", "接收并长期保存手机录像")]
+    [InlineData(false, false, "只连接主机查看", "保留订单联动和测试订单能力")]
+    public void PurposeResultShowsTheExpectedNameAndCapabilities(
+        bool record,
+        bool store,
+        string expectedName,
+        string expectedCapability)
+    {
+        WorkstationPurposeSummary summary =
+            WorkstationSelectionWindow.GetPurposeSummary(record, store);
+
+        Assert.Equal(expectedName, summary.DisplayName);
+        Assert.Contains(expectedCapability, summary.Capabilities);
+    }
+
+    [Fact]
+    public void BothStorageHostPurposesExplainPhoneAndRecordingComputerBackup()
+    {
+        foreach (WorkstationPurposeSummary summary in new[]
+        {
+            WorkstationSelectionWindow.GetPurposeSummary(true, true),
+            WorkstationSelectionWindow.GetPurposeSummary(false, true)
+        })
+        {
+            Assert.Contains(summary.Capabilities, text => text.Contains("手机录像", StringComparison.Ordinal));
+            Assert.Contains(summary.Capabilities, text => text.Contains("其他录制电脑", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void RecordingWorkstationExplainsCacheAndNeverClaimsReceivingOtherDevices()
+    {
+        WorkstationPurposeSummary summary =
+            WorkstationSelectionWindow.GetPurposeSummary(true, false);
+
+        Assert.Contains(summary.Capabilities, text => text.Contains("本地缓存", StringComparison.Ordinal));
+        Assert.Contains(summary.Capabilities, text => text.Contains("完整性确认", StringComparison.Ordinal));
+        Assert.Contains("不接收或备份其他设备录像", summary.Capabilities);
+        Assert.DoesNotContain(summary.Capabilities, text => text.StartsWith("可接收", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingHost, "电脑录像并保存在本机")]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "电脑录像并保存到其他电脑")]
+    [InlineData(DeploymentPresets.MobileBackupHost, "只作为保存主机")]
+    [InlineData(DeploymentPresets.ViewerClient, "只连接主机查看")]
+    public void DeploymentDisplayNamesMatchPurposeResult(
+        string preset,
+        string expectedDisplayName)
+    {
+        Assert.Equal(expectedDisplayName, DeploymentPresets.GetDisplayName(preset));
+    }
+
+    [Theory]
+    [InlineData(DeploymentPresets.RecordingHost, WorkstationRoles.CameraMonitor, true)]
+    [InlineData(DeploymentPresets.MobileBackupHost, WorkstationRoles.PrintStation, true)]
+    [InlineData(DeploymentPresets.ViewerClient, "", false)]
+    public void SettingsPurposeChangeInitializesRoleAndWebService(
+        string targetPreset,
+        string expectedRole,
+        bool expectedWebServer)
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = targetPreset,
+            DeploymentSchemaVersion = 0,
+            WorkstationRole = "stale",
+            EnableWebServer = !expectedWebServer
+        };
+
+        SettingsWindow.ApplyDeploymentPurposeBeforeSave(
+            config,
+            DeploymentPresets.RecordingWorkstation,
+            new DateTime(2026, 7, 30, 1, 2, 3, DateTimeKind.Utc));
+
+        Assert.Equal(targetPreset, config.DeploymentPreset);
+        Assert.Equal(DeploymentPresets.CurrentSchemaVersion, config.DeploymentSchemaVersion);
+        Assert.Equal(expectedRole, config.WorkstationRole);
+        Assert.Equal(expectedWebServer, config.EnableWebServer);
+    }
+
+    [Fact]
+    public void SettingsPurposeChangeToRecordingWorkstationInitializesActivationAndPreservesCacheLocation()
+    {
+        DateTime activatedAt = new(2026, 7, 30, 1, 2, 3, DateTimeKind.Utc);
+        string existingCache = Path.Combine(Path.GetTempPath(), "packing-proof-existing-cache");
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = 0,
+            WorkstationRole = "",
+            EnableWebServer = true,
+            StorageLocations =
+            [
+                new StorageLocation { Path = existingCache, Priority = 0 }
+            ]
+        };
+
+        SettingsWindow.ApplyDeploymentPurposeBeforeSave(
+            config,
+            DeploymentPresets.ViewerClient,
+            activatedAt);
+
+        Assert.Equal(WorkstationRoles.CameraMonitor, config.WorkstationRole);
+        Assert.False(config.EnableWebServer);
+        Assert.Equal(activatedAt, config.RecordingWorkstationActivatedAtUtc);
+        Assert.Equal(existingCache, Assert.Single(config.StorageLocations).Path);
     }
 
     [Fact]

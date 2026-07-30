@@ -722,4 +722,46 @@
   <data name="手动输入主机地址或完整连接链接" xml:space="preserve"><value>手动输入主机地址或完整连接链接</value></data>
   <data name="手动连接" xml:space="preserve"><value>手动连接</value></data>
   <data name="请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里</value></data>
+  <data name="选择这台电脑的用途" xml:space="preserve"><value>选择这台电脑的用途</value></data>
+  <data name="回答两个简单问题，系统会自动组合出合适的用途" xml:space="preserve"><value>回答两个简单问题，系统会自动组合出合适的用途</value></data>
+  <data name="1. 这台电脑要用来录像吗？" xml:space="preserve"><value>1. 这台电脑要用来录像吗？</value></data>
+  <data name="要，使用这台电脑录像" xml:space="preserve"><value>要，使用这台电脑录像</value></data>
+  <data name="启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒</value></data>
+  <data name="不要，这台电脑不录像" xml:space="preserve"><value>不要，这台电脑不录像</value></data>
+  <data name="不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看" xml:space="preserve"><value>不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看</value></data>
+  <data name="2. 这台电脑要负责长期保存录像吗？" xml:space="preserve"><value>2. 这台电脑要负责长期保存录像吗？</value></data>
+  <data name="要，作为保存录像的电脑" xml:space="preserve"><value>要，作为保存录像的电脑</value></data>
+  <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>长期保存录像，并可接收和备份手机或其他录制电脑上传的录像</value></data>
+  <data name="不要，由其他电脑负责保存" xml:space="preserve"><value>不要，由其他电脑负责保存</value></data>
+  <data name="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看" xml:space="preserve"><value>本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看</value></data>
+  <data name="选择结果" xml:space="preserve"><value>选择结果</value></data>
+  <data name="请完成上面两个选择" xml:space="preserve"><value>请完成上面两个选择</value></data>
+  <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>完成后会在这里显示最终用途和支持的能力</value></data>
+  <data name="确认用途" xml:space="preserve"><value>确认用途</value></data>
+  <data name="当前用途" xml:space="preserve"><value>当前用途</value></data>
+  <data name="将切换到" xml:space="preserve"><value>将切换到</value></data>
+  <data name="电脑录像并保存在本机" xml:space="preserve"><value>电脑录像并保存在本机</value></data>
+  <data name="这台电脑既负责录像，也作为保存主机长期保管录像" xml:space="preserve"><value>这台电脑既负责录像，也作为保存主机长期保管录像</value></data>
+  <data name="使用完整电脑录像能力" xml:space="preserve"><value>使用完整电脑录像能力</value></data>
+  <data name="录像长期保存在本机" xml:space="preserve"><value>录像长期保存在本机</value></data>
+  <data name="可接收并备份手机录像" xml:space="preserve"><value>可接收并备份手机录像</value></data>
+  <data name="可接收并备份其他录制电脑上传的录像" xml:space="preserve"><value>可接收并备份其他录制电脑上传的录像</value></data>
+  <data name="提供局域网录像回放" xml:space="preserve"><value>提供局域网录像回放</value></data>
+  <data name="电脑录像并保存到其他电脑" xml:space="preserve"><value>电脑录像并保存到其他电脑</value></data>
+  <data name="使用这台电脑录像，完成后安全上传到绑定的保存电脑" xml:space="preserve"><value>使用这台电脑录像，完成后安全上传到绑定的保存电脑</value></data>
+  <data name="录像先安全保存在本地缓存" xml:space="preserve"><value>录像先安全保存在本地缓存</value></data>
+  <data name="上传到绑定的保存电脑并等待完整性确认" xml:space="preserve"><value>上传到绑定的保存电脑并等待完整性确认</value></data>
+  <data name="不接收或备份其他设备录像" xml:space="preserve"><value>不接收或备份其他设备录像</value></data>
+  <data name="只作为保存主机" xml:space="preserve"><value>只作为保存主机</value></data>
+  <data name="这台电脑不录像，专门接收并长期保存其他设备的录像" xml:space="preserve"><value>这台电脑不录像，专门接收并长期保存其他设备的录像</value></data>
+  <data name="本机不使用摄像头录像" xml:space="preserve"><value>本机不使用摄像头录像</value></data>
+  <data name="接收并长期保存手机录像" xml:space="preserve"><value>接收并长期保存手机录像</value></data>
+  <data name="接收并长期保存其他录制电脑上传的录像" xml:space="preserve"><value>接收并长期保存其他录制电脑上传的录像</value></data>
+  <data name="只连接主机查看" xml:space="preserve"><value>只连接主机查看</value></data>
+  <data name="这台电脑不录像也不保存录像，只连接现有主机使用" xml:space="preserve"><value>这台电脑不录像也不保存录像，只连接现有主机使用</value></data>
+  <data name="本机不录像、不长期保存录像" xml:space="preserve"><value>本机不录像、不长期保存录像</value></data>
+  <data name="连接现有主机查看录像" xml:space="preserve"><value>连接现有主机查看录像</value></data>
+  <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>保留订单联动和测试订单能力</value></data>
+  <data name="不接收其他设备录像" xml:space="preserve"><value>不接收其他设备录像</value></data>
+  <data name="更改用途后程序会自动重启，并切换到对应界面" xml:space="preserve"><value>更改用途后程序会自动重启，并切换到对应界面</value></data>
 </root>

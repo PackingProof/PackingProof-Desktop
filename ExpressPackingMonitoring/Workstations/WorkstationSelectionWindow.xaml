@@ -1,34 +1,66 @@
 <Window x:Class="ExpressPackingMonitoring.WorkstationSelectionWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="选择电脑用途" Height="560" Width="760"
-        WindowStartupLocation="CenterScreen"
+        Title="选择电脑用途"
+        Width="860"
+        SizeToContent="Height"
+        MaxHeight="760"
+        WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Icon="/app.ico"
         Background="{DynamicResource WindowBackground}"
         FontFamily="Microsoft YaHei UI, Segoe UI">
     <Window.Resources>
-        <Style x:Key="WorkstationButtonStyle" TargetType="Button">
+        <Style x:Key="PurposeChoiceStyle" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="22"/>
+            <Setter Property="Padding" Value="16,13"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ChoiceCard"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="12"
                                 Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="24"/>
+                                </Grid.ColumnDefinitions>
+                                <Path Data="{StaticResource FluentCheckIcon}"
+                                      Width="20"
+                                      Height="20"
+                                      Stretch="Uniform"
+                                      Fill="{DynamicResource TextMuted}"
+                                      VerticalAlignment="Top"/>
+                                <ContentPresenter Grid.Column="2"
+                                                  VerticalAlignment="Center"/>
+                                <Ellipse x:Name="SelectionDot"
+                                         Grid.Column="3"
+                                         Width="16"
+                                         Height="16"
+                                         Fill="Transparent"
+                                         Stroke="{DynamicResource BorderDefault}"
+                                         StrokeThickness="2"
+                                         VerticalAlignment="Top"/>
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource BorderLight}"/>
+                                <Setter TargetName="ChoiceCard" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ChoiceCard" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="ChoiceCard" Property="Background" Value="{DynamicResource BorderLight}"/>
+                                <Setter TargetName="SelectionDot" Property="Fill" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="SelectionDot" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -37,152 +69,221 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="34">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="32,28">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,26">
-            <TextBlock x:Name="StepText"
-                       Text="第 1 步，共 2 步"
-                       FontSize="13"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource AccentBlue}"/>
-            <TextBlock x:Name="QuestionText"
-                       Text="是否使用这台电脑录像？"
-                       Margin="0,8,0,0"
-                       FontSize="28"
-                       FontWeight="Black"
-                       Foreground="{DynamicResource TextPrimary}"/>
-            <TextBlock x:Name="QuestionHintText"
-                       Text="选择是否启用本机摄像头、麦克风、条码识别和扫码枪"
-                       Margin="0,8,0,0"
-                       FontSize="14"
-                       Foreground="{DynamicResource TextSecondary}"/>
-        </StackPanel>
+            <StackPanel Grid.Row="0" Margin="0,0,0,22">
+                <TextBlock Text="选择这台电脑的用途"
+                           FontSize="28"
+                           FontWeight="Black"
+                           Foreground="{DynamicResource TextPrimary}"/>
+                <TextBlock Text="回答两个简单问题，系统会自动组合出合适的用途"
+                           Margin="0,7,0,0"
+                           FontSize="14"
+                           Foreground="{DynamicResource TextSecondary}"/>
+            </StackPanel>
 
-        <Grid x:Name="RecordingStep" Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="18"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Row="1" Margin="0,0,0,20">
+                <TextBlock Text="1. 这台电脑要用来录像吗？"
+                           FontSize="17"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimary}"
+                           Margin="0,0,0,10"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0"
-                    Style="{StaticResource WorkstationButtonStyle}"
-                    Click="RecordOnThisComputer_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentVideoIcon}"
-                          Width="56"
-                          Height="56"
-                          Stretch="Uniform"
-                          Fill="{DynamicResource AccentBlue}"
-                          HorizontalAlignment="Left"/>
-                    <TextBlock Text="使用这台电脑录像"
-                               Margin="0,20,0,0"
-                               FontSize="23"
-                               FontWeight="Black"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="启用完整电脑录像能力，包括摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒"
-                               Margin="0,10,0,0"
-                               FontSize="14"
-                               LineHeight="22"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
+                    <RadioButton x:Name="RecordYesChoice"
+                                 Grid.Column="0"
+                                 GroupName="RecordingPurpose"
+                                 AutomationProperties.Name="要，使用这台电脑录像"
+                                 Style="{StaticResource PurposeChoiceStyle}"
+                                 Checked="RecordingChoice_Checked">
+                        <StackPanel>
+                            <TextBlock Text="要，使用这台电脑录像"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒"
+                                       Margin="0,5,0,0"
+                                       FontSize="12"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </RadioButton>
 
-            <Button Grid.Column="2"
-                    Style="{StaticResource WorkstationButtonStyle}"
-                    Click="DoNotRecordOnThisComputer_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentWifiIcon}"
-                          Width="56"
-                          Height="56"
-                          Stretch="Uniform"
-                          Fill="{DynamicResource AccentBlue}"
-                          HorizontalAlignment="Left"/>
-                    <TextBlock Text="不使用这台电脑录像"
-                               Margin="0,20,0,0"
-                               FontSize="23"
-                               FontWeight="Black"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="不初始化本机摄像头、麦克风或扫码设备；仍可作为保存主机，或只连接其他主机查看"
-                               Margin="0,10,0,0"
-                               FontSize="14"
-                               LineHeight="22"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
+                    <RadioButton x:Name="RecordNoChoice"
+                                 Grid.Column="2"
+                                 GroupName="RecordingPurpose"
+                                 AutomationProperties.Name="不要，这台电脑不录像"
+                                 Style="{StaticResource PurposeChoiceStyle}"
+                                 Checked="RecordingChoice_Checked">
+                        <StackPanel>
+                            <TextBlock Text="不要，这台电脑不录像"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看"
+                                       Margin="0,5,0,0"
+                                       FontSize="12"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </RadioButton>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Margin="0,0,0,22">
+                <TextBlock Text="2. 这台电脑要负责长期保存录像吗？"
+                           FontSize="17"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimary}"
+                           Margin="0,0,0,10"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <RadioButton x:Name="StorageYesChoice"
+                                 Grid.Column="0"
+                                 GroupName="StoragePurpose"
+                                 AutomationProperties.Name="要，作为保存录像的电脑"
+                                 Style="{StaticResource PurposeChoiceStyle}"
+                                 Checked="StorageChoice_Checked">
+                        <StackPanel>
+                            <TextBlock Text="要，作为保存录像的电脑"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像"
+                                       Margin="0,5,0,0"
+                                       FontSize="12"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="StorageNoChoice"
+                                 Grid.Column="2"
+                                 GroupName="StoragePurpose"
+                                 AutomationProperties.Name="不要，由其他电脑负责保存"
+                                 Style="{StaticResource PurposeChoiceStyle}"
+                                 Checked="StorageChoice_Checked">
+                        <StackPanel>
+                            <TextBlock Text="不要，由其他电脑负责保存"
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看"
+                                       Margin="0,5,0,0"
+                                       FontSize="12"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </RadioButton>
+                </Grid>
+            </StackPanel>
+
+            <Border Grid.Row="3"
+                    Background="{DynamicResource PanelBackground}"
+                    BorderBrush="{DynamicResource BorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="20,17">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="44"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Width="44"
+                            Height="44"
+                            CornerRadius="10"
+                            Background="{DynamicResource BorderLight}"
+                            VerticalAlignment="Top">
+                        <Path x:Name="ResultIcon"
+                              Data="{StaticResource FluentCheckIcon}"
+                              Width="24"
+                              Height="24"
+                              Stretch="Uniform"
+                              Fill="{DynamicResource AccentBlue}"/>
+                    </Border>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock x:Name="ResultStateText"
+                                   Text="选择结果"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource AccentBlue}"/>
+                        <TextBlock x:Name="ResultTitleText"
+                                   Text="请完成上面两个选择"
+                                   Margin="0,3,0,0"
+                                   FontSize="21"
+                                   FontWeight="Black"
+                                   Foreground="{DynamicResource TextPrimary}"/>
+                        <TextBlock x:Name="ResultDescriptionText"
+                                   Text="完成后会在这里显示最终用途和支持的能力"
+                                   Margin="0,5,0,0"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                        <ItemsControl x:Name="ResultCapabilitiesList"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                                        <Ellipse Width="5"
+                                                 Height="5"
+                                                 Margin="2,0,9,0"
+                                                 VerticalAlignment="Center"
+                                                 Fill="{DynamicResource AccentBlue}"/>
+                                        <TextBlock Text="{Binding Mode=OneWay}"
+                                                   FontSize="13"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="4"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,20,0,0">
+                <Button Content="取消"
+                        MinWidth="92"
+                        Padding="18,9"
+                        Margin="0,0,10,0"
+                        IsCancel="True"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+                <Button x:Name="ConfirmPurposeButton"
+                        Content="确认用途"
+                        MinWidth="116"
+                        Padding="20,9"
+                        IsDefault="True"
+                        IsEnabled="False"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="ConfirmPurpose_Click"/>
+            </StackPanel>
         </Grid>
-
-        <Grid x:Name="StorageStep" Grid.Row="1" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="18"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Button Grid.Column="0"
-                    Style="{StaticResource WorkstationButtonStyle}"
-                    Click="UseAsStorageHost_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentPhoneIcon}"
-                          Width="56"
-                          Height="56"
-                          Stretch="Uniform"
-                          Fill="{DynamicResource AccentOrange}"
-                          HorizontalAlignment="Left"/>
-                    <TextBlock Text="作为保存主机"
-                               Margin="0,20,0,0"
-                               FontSize="23"
-                               FontWeight="Black"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="长期保存录像，并接收手机或其他电脑录制工位上传的录像"
-                               Margin="0,10,0,0"
-                               FontSize="14"
-                               LineHeight="22"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
-
-            <Button Grid.Column="2"
-                    Style="{StaticResource WorkstationButtonStyle}"
-                    Click="DoNotUseAsStorageHost_Click">
-                <StackPanel>
-                    <Path Data="{StaticResource FluentWifiIcon}"
-                          Width="56"
-                          Height="56"
-                          Stretch="Uniform"
-                          Fill="{DynamicResource AccentBlue}"
-                          HorizontalAlignment="Left"/>
-                    <TextBlock Text="不作为保存主机"
-                               Margin="0,20,0,0"
-                               FontSize="23"
-                               FontWeight="Black"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock Text="不接收其他设备录像；如本机录像，会自动上传到绑定主机，否则仅用于查看"
-                               Margin="0,10,0,0"
-                               FontSize="14"
-                               LineHeight="22"
-                               TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextSecondary}"/>
-                </StackPanel>
-            </Button>
-        </Grid>
-
-        <Button x:Name="BackButton"
-                Grid.Row="2"
-                Content="返回上一步"
-                Margin="0,20,0,0"
-                Padding="18,8"
-                HorizontalAlignment="Left"
-                Visibility="Collapsed"
-                Style="{StaticResource SecondaryButtonStyle}"
-                Click="Back_Click"/>
-    </Grid>
+    </ScrollViewer>
 </Window>

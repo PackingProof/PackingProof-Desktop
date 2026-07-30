@@ -127,6 +127,7 @@ namespace ExpressPackingMonitoring.UI
 
         private string _originalTheme;
         private string _originalLanguage;
+        private readonly string _originalDeploymentPreset;
         private bool _isRecording;
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
@@ -143,6 +144,7 @@ namespace ExpressPackingMonitoring.UI
             Context = context ?? throw new ArgumentNullException(nameof(context));
             _originalTheme = clonedConfig.Theme;
             _originalLanguage = clonedConfig.Language;
+            _originalDeploymentPreset = DeploymentPresets.Normalize(clonedConfig.DeploymentPreset);
             _isRecording = isRecording;
             Config = clonedConfig;
             AppConfig.NormalizeAfterLoad(Config);
@@ -1167,6 +1169,10 @@ namespace ExpressPackingMonitoring.UI
                 Config.EdgeTtsVoiceEnUs = Config.EdgeTtsVoice;
                 Config.EdgeTtsWarningVoiceEnUs = Config.EdgeTtsWarningVoice;
             }
+            ApplyDeploymentPurposeBeforeSave(
+                Config,
+                _originalDeploymentPreset,
+                DateTime.UtcNow);
             AppConfig.NormalizeAfterLoad(Config);
 
             if (Capabilities.CanRecordPcVideo && !ValidateEncoderSelectionBeforeSave())
@@ -1190,6 +1196,43 @@ namespace ExpressPackingMonitoring.UI
                 }
             }
             return applied;
+        }
+
+        internal static void ApplyDeploymentPurposeBeforeSave(
+            AppConfig config,
+            string? previousPreset,
+            DateTime activatedAtUtc)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+
+            string normalizedPreset = DeploymentPresets.Normalize(config.DeploymentPreset);
+            if (!DeploymentPresets.IsKnown(normalizedPreset)
+                || string.Equals(
+                    normalizedPreset,
+                    DeploymentPresets.Normalize(previousPreset),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            DeploymentCapabilities capabilities =
+                DeploymentCapabilities.ForPreset(normalizedPreset);
+            config.DeploymentPreset = normalizedPreset;
+            config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
+            config.WorkstationRole = capabilities.IsRecordingDevice
+                ? WorkstationRoles.CameraMonitor
+                : normalizedPreset == DeploymentPresets.MobileBackupHost
+                    ? WorkstationRoles.PrintStation
+                    : "";
+            config.EnableWebServer = capabilities.CanRunWebServer;
+
+            if (normalizedPreset == DeploymentPresets.RecordingWorkstation)
+            {
+                config.RecordingWorkstationActivatedAtUtc = activatedAtUtc;
+                RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                    config,
+                    preserveExistingLocation: true);
+            }
         }
 
         private bool ValidateCameraIdleNoSleepPeriods()

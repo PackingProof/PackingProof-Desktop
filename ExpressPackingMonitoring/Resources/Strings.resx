@@ -722,4 +722,46 @@
   <data name="手动输入主机地址或完整连接链接" xml:space="preserve"><value>Enter a host address or complete connection link manually</value></data>
   <data name="手动连接" xml:space="preserve"><value>Connect manually</value></data>
   <data name="请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>Copy the complete link from Phone/Computer Connection on the storage host and paste it here</value></data>
+  <data name="选择这台电脑的用途" xml:space="preserve"><value>Choose this computer's purpose</value></data>
+  <data name="回答两个简单问题，系统会自动组合出合适的用途" xml:space="preserve"><value>Answer two simple questions and the appropriate purpose will be selected automatically</value></data>
+  <data name="1. 这台电脑要用来录像吗？" xml:space="preserve"><value>1. Will this computer be used to record?</value></data>
+  <data name="要，使用这台电脑录像" xml:space="preserve"><value>Yes, record with this computer</value></data>
+  <data name="启用摄像头、麦克风、面单识别、扫码枪、订单联动和语音提醒" xml:space="preserve"><value>Enable the camera, microphone, waybill recognition, scanner, order integration, and voice alerts</value></data>
+  <data name="不要，这台电脑不录像" xml:space="preserve"><value>No, this computer will not record</value></data>
+  <data name="不初始化本机录像设备，仍可保存其他设备录像或只连接主机查看" xml:space="preserve"><value>Do not initialize local recording devices; this computer can still store recordings from other devices or connect to a host for viewing only</value></data>
+  <data name="2. 这台电脑要负责长期保存录像吗？" xml:space="preserve"><value>2. Will this computer store recordings long term?</value></data>
+  <data name="要，作为保存录像的电脑" xml:space="preserve"><value>Yes, use it as the storage computer</value></data>
+  <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>Store recordings long term and receive backups uploaded by phones or other recording computers</value></data>
+  <data name="不要，由其他电脑负责保存" xml:space="preserve"><value>No, another computer will store them</value></data>
+  <data name="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看" xml:space="preserve"><value>Local recordings enter the local cache before upload to the storage computer; without recording, this computer only connects to a host for viewing</value></data>
+  <data name="选择结果" xml:space="preserve"><value>Result</value></data>
+  <data name="请完成上面两个选择" xml:space="preserve"><value>Please answer both questions above</value></data>
+  <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>The final purpose and supported capabilities will appear here</value></data>
+  <data name="确认用途" xml:space="preserve"><value>Confirm purpose</value></data>
+  <data name="当前用途" xml:space="preserve"><value>Current purpose</value></data>
+  <data name="将切换到" xml:space="preserve"><value>Will switch to</value></data>
+  <data name="电脑录像并保存在本机" xml:space="preserve"><value>Record and store on this computer</value></data>
+  <data name="这台电脑既负责录像，也作为保存主机长期保管录像" xml:space="preserve"><value>This computer records and also acts as the storage host for long-term retention</value></data>
+  <data name="使用完整电脑录像能力" xml:space="preserve"><value>Use all computer recording capabilities</value></data>
+  <data name="录像长期保存在本机" xml:space="preserve"><value>Store recordings on this computer long term</value></data>
+  <data name="可接收并备份手机录像" xml:space="preserve"><value>Receive and back up phone recordings</value></data>
+  <data name="可接收并备份其他录制电脑上传的录像" xml:space="preserve"><value>Receive and back up recordings uploaded by other recording computers</value></data>
+  <data name="提供局域网录像回放" xml:space="preserve"><value>Provide recording playback on the local network</value></data>
+  <data name="电脑录像并保存到其他电脑" xml:space="preserve"><value>Record here and store on another computer</value></data>
+  <data name="使用这台电脑录像，完成后安全上传到绑定的保存电脑" xml:space="preserve"><value>Record with this computer and securely upload completed recordings to the bound storage computer</value></data>
+  <data name="录像先安全保存在本地缓存" xml:space="preserve"><value>Keep recordings safely in the local cache first</value></data>
+  <data name="上传到绑定的保存电脑并等待完整性确认" xml:space="preserve"><value>Upload to the bound storage computer and wait for integrity verification</value></data>
+  <data name="不接收或备份其他设备录像" xml:space="preserve"><value>Do not receive or back up recordings from other devices</value></data>
+  <data name="只作为保存主机" xml:space="preserve"><value>Storage host only</value></data>
+  <data name="这台电脑不录像，专门接收并长期保存其他设备的录像" xml:space="preserve"><value>This computer does not record; it receives and stores recordings from other devices long term</value></data>
+  <data name="本机不使用摄像头录像" xml:space="preserve"><value>Do not use this computer's camera to record</value></data>
+  <data name="接收并长期保存手机录像" xml:space="preserve"><value>Receive and store phone recordings long term</value></data>
+  <data name="接收并长期保存其他录制电脑上传的录像" xml:space="preserve"><value>Receive and store recordings uploaded by other recording computers long term</value></data>
+  <data name="只连接主机查看" xml:space="preserve"><value>Connect to a host for viewing only</value></data>
+  <data name="这台电脑不录像也不保存录像，只连接现有主机使用" xml:space="preserve"><value>This computer neither records nor stores recordings; it only connects to an existing host</value></data>
+  <data name="本机不录像、不长期保存录像" xml:space="preserve"><value>Do not record or retain recordings on this computer</value></data>
+  <data name="连接现有主机查看录像" xml:space="preserve"><value>Connect to an existing host to view recordings</value></data>
+  <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>Keep order integration and test-order capabilities</value></data>
+  <data name="不接收其他设备录像" xml:space="preserve"><value>Do not receive recordings from other devices</value></data>
+  <data name="更改用途后程序会自动重启，并切换到对应界面" xml:space="preserve"><value>After changing the purpose, the app restarts automatically and opens the corresponding interface</value></data>
 </root>

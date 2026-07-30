@@ -247,7 +247,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Text=\"切换用途\"", mobileBackupXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding SwitchWorkstationButtonText}\"", recordingXaml, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding CanSwitchWorkstation}\"", recordingXaml, StringComparison.Ordinal);
-        Assert.Contains("new WorkstationSelectionWindow { Owner = this }", source, StringComparison.Ordinal);
+        Assert.Contains("new WorkstationSelectionWindow(DeploymentPresets.ViewerClient)", source, StringComparison.Ordinal);
         Assert.Contains("WorkstationNetwork.RestartAfterPurposeChange(this)", source, StringComparison.Ordinal);
 
         string launcher = ReadRepositoryFile(
@@ -288,12 +288,12 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void MobileBackupPurposeUsesPhoneIcon()
+    public void StorageHostPurposeUsesStorageIcon()
     {
-        string selector = ReadRepositoryFile(
+        string selectorSource = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "Workstations",
-            "WorkstationSelectionWindow.xaml");
+            "WorkstationSelectionWindow.xaml.cs");
         string settings = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",
@@ -303,9 +303,60 @@ public sealed class DeploymentStartupTests
             "Themes",
             "FluentIcons.xaml");
 
-        Assert.Contains("Data=\"{StaticResource FluentPhoneIcon}\"", selector, StringComparison.Ordinal);
-        Assert.Contains("Data=\"{StaticResource FluentPhoneIcon}\"", settings, StringComparison.Ordinal);
-        Assert.Contains("x:Key=\"FluentPhoneIcon\"", icons, StringComparison.Ordinal);
+        Assert.Contains("\"FluentStorageIcon\"", selectorSource, StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentStorageIcon}\"", settings, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"FluentStorageIcon\"", icons, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PurposeSelectorUsesOnePageTwoQuestionsAndRequiresConfirmation()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "WorkstationSelectionWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "WorkstationSelectionWindow.xaml.cs");
+
+        Assert.Contains("1. 这台电脑要用来录像吗？", xaml, StringComparison.Ordinal);
+        Assert.Contains("2. 这台电脑要负责长期保存录像吗？", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"RecordingStep\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"StorageStep\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ConfirmPurposeButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"确认用途\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ResultCapabilitiesList", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Mode=OneWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("RestoreCurrentAnswers();", source, StringComparison.Ordinal);
+        Assert.Contains("DialogResult = false;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsPurposeListContainsAllFourUnifiedRolesAndRestartHint()
+    {
+        string settings = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml");
+
+        foreach ((string tag, string text) in new[]
+        {
+            ("RecordingHost", "电脑录像并保存在本机"),
+            ("RecordingWorkstation", "电脑录像并保存到其他电脑"),
+            ("MobileBackupHost", "只作为保存主机"),
+            ("ViewerClient", "只连接主机查看")
+        })
+        {
+            Assert.Contains($"Tag=\"{tag}\"", settings, StringComparison.Ordinal);
+            Assert.Contains($"Text=\"{text}\"", settings, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(
+            "更改用途后程序会自动重启，并切换到对应界面",
+            settings,
+            StringComparison.Ordinal);
     }
 
     [Theory]

@@ -3076,7 +3076,10 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!CanSwitchWorkstation)
                 return;
 
-            var selector = new WorkstationSelectionWindow { Owner = Application.Current?.MainWindow };
+            var selector = new WorkstationSelectionWindow(Config.DeploymentPreset)
+            {
+                Owner = Application.Current?.MainWindow
+            };
             if (selector.ShowDialog() == true && !string.IsNullOrWhiteSpace(selector.SelectedPreset))
             {
                 if (string.Equals(

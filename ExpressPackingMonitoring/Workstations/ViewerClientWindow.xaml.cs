@@ -423,7 +423,10 @@ public partial class ViewerClientWindow : Window
 
     private void SwitchPurpose_Click(object sender, RoutedEventArgs e)
     {
-        var selector = new WorkstationSelectionWindow { Owner = this };
+        var selector = new WorkstationSelectionWindow(DeploymentPresets.ViewerClient)
+        {
+            Owner = this
+        };
         if (selector.ShowDialog() != true || string.IsNullOrWhiteSpace(selector.SelectedPreset))
             return;
 
