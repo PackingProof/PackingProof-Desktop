@@ -764,4 +764,7 @@
   <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>Keep order integration and test-order capabilities</value></data>
   <data name="不接收其他设备录像" xml:space="preserve"><value>Do not receive recordings from other devices</value></data>
   <data name="更改用途后程序会自动重启，并切换到对应界面" xml:space="preserve"><value>After changing the purpose, the app restarts automatically and opens the corresponding interface</value></data>
+  <data name="保存主机" xml:space="preserve"><value>Storage host</value></data>
+  <data name="录像上传" xml:space="preserve"><value>Recording upload</value></data>
+  <data name="待上传" xml:space="preserve"><value>Pending</value></data>
 </root>

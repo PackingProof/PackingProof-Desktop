@@ -728,54 +728,96 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <TextBlock Foreground="{DynamicResource TextPrimary}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis">
-                                    <Run Text="录制工位 · 保存主机："/>
-                                    <Run Text="{Binding BoundHostNameDisplay, Mode=OneWay}"/>
-                                </TextBlock>
-                                <TextBlock Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis">
-                                    <Run Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"/>
-                                    <Run Text=" · 待上传 "/>
-                                    <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
-                                </TextBlock>
-                                <TextBlock Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
-                                           Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding RecordingCacheUsageText, Mode=OneWay}"
-                                           Margin="0,3,0,0"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding RecordingCacheStatusText, Mode=OneWay}"
-                                           Margin="0,3,0,0"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource TextMuted}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsRecordingCacheWarning, Mode=OneWay}"
-                                                             Value="True">
-                                                    <Setter Property="Foreground"
-                                                            Value="{DynamicResource AccentOrange}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <ProgressBar Height="3"
-                                             Margin="0,5,0,0"
-                                             Minimum="0"
-                                             Maximum="100"
-                                             Value="{Binding RecordingCacheUsagePercent, Mode=OneWay}"/>
+                                <Border x:Name="RecordingWorkstationHostCard"
+                                        Background="{DynamicResource ControlBackground}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        Padding="10,8">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="18"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Data="{StaticResource FluentStorageIcon}"
+                                              Width="14"
+                                              Height="14"
+                                              Stretch="Uniform"
+                                              Fill="{DynamicResource AccentBlue}"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="保存主机"
+                                                   Margin="6,0,8,0"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.Column="1"
+                                                   Grid.ColumnSpan="2"
+                                                   Text="{Binding BoundHostNameDisplay, Mode=OneWay}"
+                                                   Margin="6,4,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border x:Name="RecordingWorkstationUploadCard"
+                                        Background="{DynamicResource ControlBackground}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        Padding="10,8"
+                                        Margin="0,6,0,0">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="18"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Data="{StaticResource FluentDataIcon}"
+                                              Width="14"
+                                              Height="14"
+                                              Stretch="Uniform"
+                                              Fill="{DynamicResource AccentBlue}"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="录像上传"
+                                                   Margin="6,0,8,0"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Grid.Column="2"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}">
+                                            <Run Text="待上传"/>
+                                            <Run Text=" "/>
+                                            <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.Column="1"
+                                                   Grid.ColumnSpan="2"
+                                                   Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
+                                                   Margin="6,4,0,0"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
                             <Grid Grid.Row="5" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>

@@ -764,4 +764,7 @@
   <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>保留订单联动和测试订单能力</value></data>
   <data name="不接收其他设备录像" xml:space="preserve"><value>不接收其他设备录像</value></data>
   <data name="更改用途后程序会自动重启，并切换到对应界面" xml:space="preserve"><value>更改用途后程序会自动重启，并切换到对应界面</value></data>
+  <data name="保存主机" xml:space="preserve"><value>保存主机</value></data>
+  <data name="录像上传" xml:space="preserve"><value>录像上传</value></data>
+  <data name="待上传" xml:space="preserve"><value>待上传</value></data>
 </root>

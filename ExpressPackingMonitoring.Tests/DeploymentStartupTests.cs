@@ -423,23 +423,45 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void RecordingWorkstationCompactStatusUsesOneWayBindingsInExistingStatusArea()
+    public void RecordingWorkstationStatusUsesTwoCompactCardsWithoutCacheDetails()
     {
         string mainWindow = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",
             "MainWindow.xaml");
+        string transferSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs");
 
         Assert.Contains(
             "x:Name=\"RecordingWorkstationCompactStatus\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "<Run Text=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"/>",
+            "x:Name=\"RecordingWorkstationHostCard\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "<Run Text=\"{Binding BoundHostOnlineStatusText, Mode=OneWay}\"/>",
+            "x:Name=\"RecordingWorkstationUploadCard\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            1,
+            mainWindow.Split(
+                "x:Name=\"RecordingWorkstationHostCard\"",
+                StringSplitOptions.None).Length - 1);
+        Assert.Equal(
+            1,
+            mainWindow.Split(
+                "x:Name=\"RecordingWorkstationUploadCard\"",
+                StringSplitOptions.None).Length - 1);
+        Assert.Contains(
+            "Text=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding BoundHostOnlineStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -451,20 +473,28 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Value=\"{Binding RecordingCacheUsagePercent, Mode=OneWay}\"",
-            mainWindow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Text=\"{Binding RecordingCacheUsageText, Mode=OneWay}\"",
-            mainWindow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "Text=\"{Binding RecordingCacheStatusText, Mode=OneWay}\"",
-            mainWindow,
-            StringComparison.Ordinal);
-        Assert.Contains(
             "Binding=\"{Binding IsRecordingWorkstation, Mode=OneWay}\"",
             mainWindow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "RecordingCacheUsagePercent",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "RecordingCacheUsageText",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "RecordingCacheStatusText",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "IsRecordingCacheWarning",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "? \"尚未绑定保存主机\"",
+            transferSource,
             StringComparison.Ordinal);
         Assert.DoesNotContain("当前用途：录制工位", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Command=\"{Binding RetryRecordingTransfersCommand", mainWindow, StringComparison.Ordinal);
@@ -484,7 +514,7 @@ public sealed class DeploymentStartupTests
         Assert.True(compactStatus > existingStatus);
         Assert.True(existingButtons > compactStatus);
         Assert.DoesNotMatch(
-            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|RecordingCacheUsageText|RecordingCacheStatusText|RecordingCacheUsagePercent|IsRecordingCacheWarning|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 

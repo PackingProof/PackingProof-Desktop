@@ -78,7 +78,7 @@ public partial class MainViewModel
             if (name.Length > 0)
                 return name;
             return string.IsNullOrWhiteSpace(BoundHostAddress)
-                ? "尚未绑定"
+                ? "尚未绑定保存主机"
                 : "已绑定主机";
         }
     }
