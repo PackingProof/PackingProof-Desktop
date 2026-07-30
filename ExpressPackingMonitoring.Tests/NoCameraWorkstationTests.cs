@@ -23,7 +23,7 @@ public sealed class NoCameraWorkstationTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.Equal(DeploymentPresets.MobileBackupHost, config.DeploymentPreset);
-        Assert.Equal("只作为保存主机", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
+        Assert.Equal("录像文件备份主机", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
     }
 
     [Fact]
@@ -51,8 +51,11 @@ public sealed class NoCameraWorkstationTests
             "Workstations",
             "PrintWorkstationWindow.xaml.cs");
 
-        Assert.Contains("PackingProof 手机备份主机", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"连接手机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PackingProof 录像文件备份主机", xaml, StringComparison.Ordinal);
+        Assert.Contains("集中保存手机/电脑上传的录像，并提供局域网回放和订单联动", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"连接手机/电脑\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("手机备份主机", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("集中保存手机录像", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"HostIdentityTextBlock\"", xaml, StringComparison.Ordinal);
         Assert.Contains("StatusTextBlock.Text = GetHostName();", source, StringComparison.Ordinal);
         Assert.Contains("StatusHintTextBlock.Text = title;", source, StringComparison.Ordinal);

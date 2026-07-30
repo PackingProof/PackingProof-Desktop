@@ -185,7 +185,7 @@ public partial class WorkstationSelectionWindow : Window
                 ]),
             DeploymentPresets.MobileBackupHost => new(
                 DeploymentPresets.MobileBackupHost,
-                "只作为保存主机",
+                "录像文件备份主机",
                 "这台电脑不录像，专门接收并长期保存其他设备的录像",
                 [
                     "本机不使用摄像头录像",

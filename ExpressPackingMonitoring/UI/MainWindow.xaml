@@ -719,7 +719,7 @@
                                               Stretch="Uniform"
                                               Fill="{DynamicResource AccentBlue}"
                                               VerticalAlignment="Center"/>
-                                        <TextBlock Text="手机、电脑备份"
+                                        <TextBlock Text="手机/电脑备份"
                                                    Margin="6,0,0,0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"

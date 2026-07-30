@@ -41,7 +41,7 @@ public static class DeploymentPresets
         RecordingHost => "电脑录像并保存在本机",
         RecordingWorkstation => "电脑录像并保存到其他电脑",
         ViewerClient => "只连接主机查看",
-        MobileBackupHost => "只作为保存主机",
+        MobileBackupHost => "录像文件备份主机",
         _ => "尚未配置"
     };
 }

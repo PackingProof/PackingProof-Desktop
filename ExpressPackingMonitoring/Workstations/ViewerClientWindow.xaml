@@ -219,13 +219,13 @@
                             </Button>
                             <Button x:Name="ViewerChangeHostButton"
                                     Style="{StaticResource ViewerActionButtonStyle}"
-                                    ToolTip="解除当前显示并选择另一台主机"
+                                    ToolTip="解除当前显示并选择另一台保存主机"
                                     Click="ChangeHost_Click">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="{StaticResource FluentArrowSyncIcon}"
                                           Width="16" Height="16" Stretch="Uniform"
                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    <TextBlock Text="更换主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="更换保存主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
                         </WrapPanel>
@@ -329,12 +329,12 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Margin="0,0,18,0">
                             <TextBlock x:Name="DiscoveryHeadingText"
-                                       Text="选择要连接的主机"
+                                       Text="选择保存主机"
                                        FontSize="18"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimary}"/>
                             <TextBlock x:Name="SearchStatusText"
-                                       Text="正在搜索同一网络中的主机"
+                                       Text="正在搜索同一网络中的保存主机"
                                        Margin="0,6,0,0"
                                        TextWrapping="Wrap"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -342,8 +342,8 @@
                         <Button x:Name="SearchHostsButton"
                                 Grid.Column="1"
                                 Style="{StaticResource ViewerActionButtonStyle}"
-                                ToolTip="重新搜索同一网络中的主机"
-                                AutomationProperties.Name="重新搜索主机"
+                                ToolTip="重新搜索同一网络中的保存主机"
+                                AutomationProperties.Name="重新搜索保存主机"
                                 Click="SearchHosts_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentSearchIcon}"
@@ -470,8 +470,8 @@
                                 Padding="16,0"
                                 IsEnabled="False"
                                 Style="{DynamicResource PrimaryButtonStyle}"
-                                ToolTip="连接列表中选中的主机"
-                                AutomationProperties.Name="连接选中的主机"
+                                ToolTip="连接列表中选中的保存主机"
+                                AutomationProperties.Name="连接选中的保存主机"
                                 Click="BindSelected_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentCheckIcon}"
@@ -480,7 +480,7 @@
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock x:Name="BindSelectedButtonText"
-                                           Text="连接主机"
+                                           Text="连接保存主机"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"/>
                             </StackPanel>

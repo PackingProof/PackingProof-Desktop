@@ -388,17 +388,13 @@
   <data name="发货" xml:space="preserve"><value>发货</value></data>
   <data name="退货" xml:space="preserve"><value>退货</value></data>
   <data name="已保存" xml:space="preserve"><value>已保存</value></data>
-  <data name="手机备份服务：未连接" xml:space="preserve"><value>手机备份服务：未连接</value></data>
-  <data name="手机备份服务：等待启动" xml:space="preserve"><value>手机备份服务：等待启动</value></data>
-  <data name="手机备份服务：Web 启动失败" xml:space="preserve"><value>手机备份服务：Web 启动失败</value></data>
-  <data name="手机备份服务：等待连接" xml:space="preserve"><value>手机备份服务：等待连接</value></data>
   <data name="设备备份服务：未连接" xml:space="preserve"><value>设备备份服务：未连接</value></data>
   <data name="设备备份服务：等待启动" xml:space="preserve"><value>设备备份服务：等待启动</value></data>
   <data name="设备备份服务：Web 启动失败" xml:space="preserve"><value>设备备份服务：Web 启动失败</value></data>
   <data name="设备备份服务：等待连接" xml:space="preserve"><value>设备备份服务：等待连接</value></data>
-  <data name="手机、电脑备份" xml:space="preserve"><value>手机、电脑备份</value></data>
-  <data name="暂无手机或电脑设备" xml:space="preserve"><value>暂无手机或电脑设备</value></data>
-  <data name="连接手机或电脑" xml:space="preserve"><value>连接手机或电脑</value></data>
+  <data name="手机/电脑备份" xml:space="preserve"><value>手机/电脑备份</value></data>
+  <data name="暂无手机/电脑设备" xml:space="preserve"><value>暂无手机/电脑设备</value></data>
+  <data name="连接手机/电脑" xml:space="preserve"><value>连接手机/电脑</value></data>
   <data name="录制电脑" xml:space="preserve"><value>录制电脑</value></data>
   <data name="Main.PrintTestOrder" xml:space="preserve"><value>{0} 收到测试订单</value></data>
   <data name="Main.PrintNoRefund" xml:space="preserve"><value>{0} 已响应，未收到订单</value></data>
@@ -409,7 +405,7 @@
   <data name="Main.ConnectionServiceUnavailable" xml:space="preserve"><value>连接服务不可用</value></data>
   <data name="Main.NoConnectedDevices" xml:space="preserve"><value>暂无设备连接</value></data>
   <data name="Main.ConnectedDevices" xml:space="preserve"><value>已连接 {0} 个设备</value></data>
-  <data name="Main.ConnectionEmptyTip" xml:space="preserve"><value>网页、快递端油猴脚本或手机备份设备连接后会显示在这里</value></data>
+  <data name="Main.ConnectionEmptyTip" xml:space="preserve"><value>网页、快递端油猴脚本或录像备份设备连接后会显示在这里</value></data>
   <data name="Main.ClientWebDesktop" xml:space="preserve"><value>电脑网页</value></data>
   <data name="Main.ClientWebMobile" xml:space="preserve"><value>手机网页</value></data>
   <data name="Main.ClientUserscript" xml:space="preserve"><value>快递端油猴脚本</value></data>
@@ -573,26 +569,26 @@
   <data name="选择电脑用途" xml:space="preserve"><value>选择电脑用途</value></data>
   <data name="这台电脑主要用来做什么？" xml:space="preserve"><value>这台电脑主要用来做什么？</value></data>
   <data name="选择后将只启动这个场景需要的设备、存储和网络服务" xml:space="preserve"><value>选择后将只启动这个场景需要的设备、存储和网络服务</value></data>
-  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机录像" xml:space="preserve"><value>使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机录像</value></data>
+  <data name="使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像" xml:space="preserve"><value>使用电脑摄像头和麦克风录制打包过程，优先由摄像头识别面单条码，也可选用扫码枪。本机会成为 PackingProof 主机，也可以接收手机或其他电脑上传的录像</value></data>
   <data name="不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本" xml:space="preserve"><value>不在本机录制或保存视频，连接局域网中的 PackingProof 主机查看录像，也可以安装快递助手联动脚本</value></data>
-  <data name="不使用电脑摄像头，手机录像备份到这台电脑。本机会成为 PackingProof 主机" xml:space="preserve"><value>不使用电脑摄像头，手机录像备份到这台电脑。本机会成为 PackingProof 主机</value></data>
+  <data name="不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机" xml:space="preserve"><value>不使用电脑摄像头，集中保存手机或其他电脑上传的录像。本机会成为 PackingProof 主机</value></data>
   <data name="安装或重新生成快递助手联动脚本" xml:space="preserve"><value>安装或重新生成快递助手联动脚本</value></data>
   <data name="快递助手联动" xml:space="preserve"><value>快递助手联动</value></data>
-  <data name="PackingProof 手机备份主机" xml:space="preserve"><value>PackingProof 手机备份主机</value></data>
-  <data name="手机备份主机" xml:space="preserve"><value>手机备份主机</value></data>
-  <data name="本机保存手机录像并提供局域网回放，不初始化电脑摄像头、麦克风或扫码设备" xml:space="preserve"><value>本机保存手机录像并提供局域网回放，不初始化电脑摄像头、麦克风或扫码设备</value></data>
+  <data name="PackingProof 录像文件备份主机" xml:space="preserve"><value>PackingProof 录像文件备份主机</value></data>
+  <data name="录像文件备份主机" xml:space="preserve"><value>录像文件备份主机</value></data>
+  <data name="本机保存手机或其他电脑上传的录像并提供局域网回放，不初始化电脑摄像头、麦克风或扫码设备" xml:space="preserve"><value>本机保存手机或其他电脑上传的录像并提供局域网回放，不初始化电脑摄像头、麦克风或扫码设备</value></data>
   <data name="更改部署场景" xml:space="preserve"><value>更改部署场景</value></data>
-  <data name="手机配对" xml:space="preserve"><value>手机配对</value></data>
+  <data name="设备连接" xml:space="preserve"><value>设备连接</value></data>
   <data name="当前录像设备：0" xml:space="preserve"><value>当前录像设备：0</value></data>
-  <data name="已连接手机：0" xml:space="preserve"><value>已连接手机：0</value></data>
-  <data name="手机录像存储：正在检查" xml:space="preserve"><value>手机录像存储：正在检查</value></data>
+  <data name="已连接设备：0" xml:space="preserve"><value>已连接设备：0</value></data>
+  <data name="录像存储：正在检查" xml:space="preserve"><value>录像存储：正在检查</value></data>
   <data name="脚本会从主机读取录像设备列表，并把订单直接发送给所有在线录像设备" xml:space="preserve"><value>脚本会从主机读取录像设备列表，并把订单直接发送给所有在线录像设备</value></data>
   <data name="局域网服务尚未就绪，暂时无法生成快递助手脚本" xml:space="preserve"><value>局域网服务尚未就绪，暂时无法生成快递助手脚本</value></data>
   <data name="RestartMode.Message" xml:space="preserve"><value>电脑用途已保存，需要重启程序后生效&#xA;&#xA;现在重启吗？</value></data>
   <data name="立即重启" xml:space="preserve"><value>立即重启</value></data>
   <data name="关闭窗口" xml:space="preserve"><value>关闭窗口</value></data>
   <data name="关闭窗口后，你希望程序怎么做？" xml:space="preserve"><value>关闭窗口后，你希望程序怎么做？</value></data>
-  <data name="最小化到托盘后，录像、手机备份和网页服务会继续运行" xml:space="preserve"><value>最小化到托盘后，录像、手机备份和网页服务会继续运行</value></data>
+  <data name="最小化到托盘后，录像、设备备份和网页服务会继续运行" xml:space="preserve"><value>最小化到托盘后，录像、设备备份和网页服务会继续运行</value></data>
   <data name="不再提示，记住我的选择" xml:space="preserve"><value>不再提示，记住我的选择</value></data>
   <data name="最小化到托盘" xml:space="preserve"><value>最小化到托盘</value></data>
   <data name="直接退出" xml:space="preserve"><value>直接退出</value></data>
@@ -601,39 +597,38 @@
   <data name="可以每次询问、最小化到托盘或直接退出" xml:space="preserve"><value>可以每次询问、最小化到托盘或直接退出</value></data>
   <data name="每次询问" xml:space="preserve"><value>每次询问</value></data>
   <data name="程序仍在后台运行，双击托盘图标可打开主界面" xml:space="preserve"><value>程序仍在后台运行，双击托盘图标可打开主界面</value></data>
-  <data name="正在启动手机录像备份服务" xml:space="preserve"><value>正在启动手机录像备份服务</value></data>
+  <data name="正在启动设备备份服务" xml:space="preserve"><value>正在启动设备备份服务</value></data>
   <data name="正在打开录像数据库和本机回放服务" xml:space="preserve"><value>正在打开录像数据库和本机回放服务</value></data>
-  <data name="连接手机" xml:space="preserve"><value>连接手机</value></data>
   <data name="查看录像" xml:space="preserve"><value>查看录像</value></data>
   <data name="局域网回放" xml:space="preserve"><value>局域网回放</value></data>
   <data name="服务启动后显示局域网地址" xml:space="preserve"><value>服务启动后显示局域网地址</value></data>
   <data name="复制局域网地址" xml:space="preserve"><value>复制局域网地址</value></data>
   <data name="修复局域网" xml:space="preserve"><value>修复局域网</value></data>
   <data name="订单工具" xml:space="preserve"><value>订单工具</value></data>
-  <data name="订单备注直接发送到本机，并写入录像数据库供手机录像关联" xml:space="preserve"><value>订单备注直接发送到本机，并写入录像数据库供手机录像关联</value></data>
+  <data name="订单备注直接发送到本机，并写入录像数据库供录像设备关联" xml:space="preserve"><value>订单备注直接发送到本机，并写入录像数据库供录像设备关联</value></data>
   <data name="测试接收" xml:space="preserve"><value>测试接收</value></data>
   <data name="选择是否使用这台电脑的摄像头录像" xml:space="preserve"><value>选择是否使用这台电脑的摄像头录像</value></data>
   <data name="网页回放" xml:space="preserve"><value>网页回放</value></data>
   <data name="数据统计" xml:space="preserve"><value>数据统计</value></data>
   <data name="录像回放" xml:space="preserve"><value>录像回放</value></data>
-  <data name="记录局域网服务和手机备份的详细信息" xml:space="preserve"><value>记录局域网服务和手机备份的详细信息</value></data>
+  <data name="记录局域网服务和设备备份的详细信息" xml:space="preserve"><value>记录局域网服务和设备备份的详细信息</value></data>
   <data name="暂不可用" xml:space="preserve"><value>暂不可用</value></data>
-  <data name="手机连接服务启用失败，请检查配置文件权限" xml:space="preserve"><value>手机连接服务启用失败，请检查配置文件权限</value></data>
-  <data name="正在启动手机连接服务..." xml:space="preserve"><value>正在启动手机连接服务...</value></data>
+  <data name="设备连接服务启用失败，请检查配置文件权限" xml:space="preserve"><value>设备连接服务启用失败，请检查配置文件权限</value></data>
+  <data name="正在启动设备连接服务..." xml:space="preserve"><value>正在启动设备连接服务...</value></data>
   <data name="安装或更新快递助手订单联动脚本" xml:space="preserve"><value>安装或更新快递助手订单联动脚本</value></data>
   <data name="脚本会读取最近使用过的录像设备，并把订单同时发送给所有设备" xml:space="preserve"><value>脚本会读取最近使用过的录像设备，并把订单同时发送给所有设备</value></data>
   <data name="尚未配置订单联动" xml:space="preserve"><value>尚未配置订单联动</value></data>
   <data name="安装订单联动" xml:space="preserve"><value>安装订单联动</value></data>
   <data name="发送测试订单" xml:space="preserve"><value>发送测试订单</value></data>
   <data name="向当前在线的全部录像设备发送测试订单" xml:space="preserve"><value>向当前在线的全部录像设备发送测试订单</value></data>
-  <data name="集中保存手机录像，并提供局域网回放和订单联动" xml:space="preserve"><value>集中保存手机录像，并提供局域网回放和订单联动</value></data>
+  <data name="集中保存手机/电脑上传的录像，并提供局域网回放和订单联动" xml:space="preserve"><value>集中保存手机/电脑上传的录像，并提供局域网回放和订单联动</value></data>
   <data name="正在获取电脑名称" xml:space="preserve"><value>正在获取电脑名称</value></data>
   <data name="今日备份" xml:space="preserve"><value>今日备份</value></data>
   <data name="累计备份" xml:space="preserve"><value>累计备份</value></data>
   <data name="个" xml:space="preserve"><value>个</value></data>
   <data name="已打开订单联动安装向导" xml:space="preserve"><value>已打开订单联动安装向导</value></data>
-  <data name="当前已经是接收手机录像用途" xml:space="preserve"><value>当前已经是接收手机录像用途</value></data>
-  <data name="手机录像正在备份，完成后将自动重启" xml:space="preserve"><value>手机录像正在备份，完成后将自动重启</value></data>
+  <data name="当前已经是录像文件备份主机用途" xml:space="preserve"><value>当前已经是录像文件备份主机用途</value></data>
+  <data name="设备录像正在备份，完成后将自动重启" xml:space="preserve"><value>设备录像正在备份，完成后将自动重启</value></data>
   <data name="3. 录制性能检测" xml:space="preserve"><value>3. 录制性能检测</value></data>
   <data name="4. 选择麦克风" xml:space="preserve"><value>4. 选择麦克风</value></data>
   <data name="5. 扫码枪（可选）" xml:space="preserve"><value>5. 扫码枪（可选）</value></data>
@@ -704,6 +699,13 @@
   <data name="可连接" xml:space="preserve"><value>可连接</value></data>
   <data name="确认后选择另一台保存主机" xml:space="preserve"><value>确认后选择另一台保存主机</value></data>
   <data name="更换保存主机" xml:space="preserve"><value>更换保存主机</value></data>
+  <data name="解除当前显示并选择另一台保存主机" xml:space="preserve"><value>解除当前显示并选择另一台保存主机</value></data>
+  <data name="选择保存主机" xml:space="preserve"><value>选择保存主机</value></data>
+  <data name="正在搜索同一网络中的保存主机" xml:space="preserve"><value>正在搜索同一网络中的保存主机</value></data>
+  <data name="重新搜索同一网络中的保存主机" xml:space="preserve"><value>重新搜索同一网络中的保存主机</value></data>
+  <data name="连接列表中选中的保存主机" xml:space="preserve"><value>连接列表中选中的保存主机</value></data>
+  <data name="连接保存主机" xml:space="preserve"><value>连接保存主机</value></data>
+  <data name="连接保存主机失败：{0}" xml:space="preserve"><value>连接保存主机失败：{0}</value></data>
   <data name="确认使用列表中选中的保存主机" xml:space="preserve"><value>确认使用列表中选中的保存主机</value></data>
   <data name="使用这台保存主机" xml:space="preserve"><value>使用这台保存主机</value></data>
   <data name="重新搜索局域网中的保存主机" xml:space="preserve"><value>重新搜索局域网中的保存主机</value></data>
@@ -765,7 +767,6 @@
   <data name="录像先安全保存在本地缓存" xml:space="preserve"><value>录像先安全保存在本地缓存</value></data>
   <data name="上传到绑定的保存电脑并等待完整性确认" xml:space="preserve"><value>上传到绑定的保存电脑并等待完整性确认</value></data>
   <data name="不接收或备份其他设备录像" xml:space="preserve"><value>不接收或备份其他设备录像</value></data>
-  <data name="只作为保存主机" xml:space="preserve"><value>只作为保存主机</value></data>
   <data name="这台电脑不录像，专门接收并长期保存其他设备的录像" xml:space="preserve"><value>这台电脑不录像，专门接收并长期保存其他设备的录像</value></data>
   <data name="本机不使用摄像头录像" xml:space="preserve"><value>本机不使用摄像头录像</value></data>
   <data name="接收并长期保存手机录像" xml:space="preserve"><value>接收并长期保存手机录像</value></data>

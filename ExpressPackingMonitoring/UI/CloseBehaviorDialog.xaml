@@ -24,7 +24,7 @@
 
         <TextBlock Grid.Row="1"
                    Margin="0,9,0,0"
-                   Text="最小化到托盘后，录像、手机备份和网页服务会继续运行"
+                   Text="最小化到托盘后，录像、设备备份和网页服务会继续运行"
                    TextWrapping="Wrap"
                    FontSize="13"
                    LineHeight="20"

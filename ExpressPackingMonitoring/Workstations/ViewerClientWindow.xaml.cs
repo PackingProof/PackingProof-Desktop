@@ -298,7 +298,7 @@ public partial class ViewerClientWindow : Window
                 out string error))
         {
             _isConnecting = false;
-            ShowConnectionError($"连接主机失败：{error}");
+            ShowConnectionError($"连接保存主机失败：{error}");
             return;
         }
 
@@ -744,7 +744,7 @@ public partial class ViewerClientWindow : Window
         ManualConnectionButton.IsEnabled = !busy;
         BindSelectedButtonText.Text = _isConnecting
             ? "正在连接"
-            : "连接主机";
+            : "连接保存主机";
     }
 
     private static string FirstNotEmpty(params string?[] values) =>

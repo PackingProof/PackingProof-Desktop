@@ -352,7 +352,7 @@ public sealed class DeploymentStartupTests
         {
             ("RecordingHost", "电脑录像并保存在本机"),
             ("RecordingWorkstation", "电脑录像并保存到其他电脑"),
-            ("MobileBackupHost", "只作为保存主机"),
+            ("MobileBackupHost", "录像文件备份主机"),
             ("ViewerClient", "只连接主机查看")
         })
         {
@@ -379,10 +379,10 @@ public sealed class DeploymentStartupTests
     }
 
     [Theory]
-    [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机或电脑")]
+    [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机/电脑")]
     [InlineData(DeploymentPresets.RecordingWorkstation, true, true, "管理保存主机")]
-    [InlineData(DeploymentPresets.ViewerClient, false, false, "连接手机")]
-    [InlineData(DeploymentPresets.MobileBackupHost, false, false, "连接手机")]
+    [InlineData(DeploymentPresets.ViewerClient, false, false, "连接保存主机")]
+    [InlineData(DeploymentPresets.MobileBackupHost, false, false, "连接手机/电脑")]
     public void MainConnectionEntryIsIsolatedByDeploymentPreset(
         string preset,
         bool expectedVisible,
@@ -589,7 +589,7 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains("Data=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("Text=\"手机、电脑备份\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
         Match orderRows = Regex.Match(
             mainWindow[orderCard..existingButtons],
             "<Grid.RowDefinitions>(?<rows>[\\s\\S]*?)</Grid.RowDefinitions>");
@@ -628,8 +628,8 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"SearchHostsButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"BindSelectedButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ManualConnectionButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"选择要连接的主机\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"连接主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"选择保存主机\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"连接保存主机\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"手动连接\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"在线\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
@@ -647,7 +647,7 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("x:Name=\"ManualAddressExpander\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("选择并连接主机", xaml, StringComparison.Ordinal);
         Assert.Equal(
-            1,
+            2,
             xaml.Split("Text=\"更换保存主机\"", StringSplitOptions.None).Length - 1);
         Assert.Equal(
             1,

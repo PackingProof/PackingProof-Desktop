@@ -328,14 +328,12 @@ public partial class MainViewModel
             StringComparison.Ordinal);
 
     internal static string GetMainConnectionButtonText(AppConfig? config) =>
-        ShouldManageBoundHostFromMainConnection(config)
-            ? "管理保存主机"
-            : string.Equals(
-                DeploymentPresets.Normalize(config?.DeploymentPreset),
-                DeploymentPresets.RecordingHost,
-                StringComparison.Ordinal)
-                ? "连接手机或电脑"
-                : "连接手机";
+        DeploymentPresets.Normalize(config?.DeploymentPreset) switch
+        {
+            DeploymentPresets.RecordingWorkstation => "管理保存主机",
+            DeploymentPresets.RecordingHost or DeploymentPresets.MobileBackupHost => "连接手机/电脑",
+            _ => "连接保存主机"
+        };
 
     public void ShowMainConnection(Window? owner = null)
     {

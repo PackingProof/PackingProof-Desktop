@@ -2881,7 +2881,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 MobileBackupDeviceStatuses.Add(new MobileBackupDeviceStatus
                 {
-                    DisplayText = "暂无手机或电脑设备",
+                    DisplayText = "暂无手机/电脑设备",
                     IsOnline = false
                 });
             }
@@ -3002,11 +3002,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!SaveConfig(notifyUser: false))
                 {
                     Config.EnableWebServer = false;
-                    ShowToast("手机连接服务启用失败，请检查配置文件权限");
+                    ShowToast("设备连接服务启用失败，请检查配置文件权限");
                 }
                 else
                 {
-                    ShowToast("正在启动手机连接服务...");
+                    ShowToast("正在启动设备连接服务...");
                     await RestartWebServerAsync(allowAccessSetup: true);
                 }
             }
@@ -3172,7 +3172,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_webServer?.HasActiveMobileBackups == true)
                 {
                     SwitchWorkstationButtonText = "等待备份完成";
-                    ShowToast("手机录像正在备份，完成后将自动重启");
+                    ShowToast("设备录像正在备份，完成后将自动重启");
                     await _webServer.WaitForMobileBackupsAsync(_purposeSwitchCts.Token);
                 }
 

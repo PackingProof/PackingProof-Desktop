@@ -149,7 +149,7 @@ public partial class PrintWorkstationWindow : Window
     private async Task StartServiceAsync()
     {
         SetControlsEnabled(false);
-        SetStatus("正在启动手机录像备份服务", "正在打开录像数据库和本机回放服务");
+        SetStatus("正在启动设备备份服务", "正在打开录像数据库和本机回放服务");
         try
         {
             await _host.StartAsync(
@@ -178,12 +178,12 @@ public partial class PrintWorkstationWindow : Window
         RefreshDeviceSummary();
         if (_host.IsLanAvailable)
         {
-            SetStatus("手机录像备份服务已启动", "手机可备份录像到本机，本机和局域网设备均可回放", StatusVisual.Success);
+            SetStatus("设备备份服务已启动", "手机或其他录制电脑可将录像备份到本机，本机和局域网设备均可回放", StatusVisual.Success);
         }
         else
         {
-            SetStatus("手机录像备份服务已启动 · 仅本机可用",
-                "本机回放不受影响；需要手机备份或局域网回放时，请点击“修复局域网”",
+            SetStatus("设备备份服务已启动 · 仅本机可用",
+                "本机回放不受影响；需要设备备份或局域网回放时，请点击“修复局域网”",
                 StatusVisual.Error);
         }
 
@@ -500,7 +500,7 @@ public partial class PrintWorkstationWindow : Window
 
         _host.UpdateConfig(nextConfig);
         SetControlsEnabled(false);
-        SetStatus("正在应用设置", "正在重启本机回放和手机备份服务");
+        SetStatus("正在应用设置", "正在重启本机回放和设备备份服务");
         try
         {
             _playbackWindow?.Close();
@@ -666,7 +666,7 @@ public partial class PrintWorkstationWindow : Window
                 window.SelectedPreset,
                 StringComparison.OrdinalIgnoreCase))
         {
-            ShowToast("当前已经是接收手机录像用途");
+            ShowToast("当前已经是录像文件备份主机用途");
             return;
         }
 
@@ -723,7 +723,7 @@ public partial class PrintWorkstationWindow : Window
             if (_host.HasActiveMobileBackups)
             {
                 SwitchPurposeButtonText.Text = "等待备份完成";
-                ShowToast("手机录像正在备份，完成后将自动重启", StatusVisual.Warning);
+                ShowToast("设备录像正在备份，完成后将自动重启", StatusVisual.Warning);
             }
 
             await _host.WaitForMobileBackupsAsync(_lifetimeCts.Token);

@@ -880,7 +880,7 @@
                                             <ComboBoxItem Tag="MobileBackupHost">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentStorageIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="只作为保存主机"/>
+                                                    <TextBlock Text="录像文件备份主机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                         </ComboBox>
@@ -2466,7 +2466,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,16,0">
                                         <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
-                                        <TextBlock Text="记录局域网服务和手机备份的详细信息"
+                                        <TextBlock Text="记录局域网服务和设备备份的详细信息"
                                                    Style="{StaticResource FieldHintStyle}"/>
                                     </StackPanel>
                                     <CheckBox Grid.Column="2"
