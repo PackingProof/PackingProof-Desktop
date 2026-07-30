@@ -78,6 +78,7 @@ public sealed class ConfigurationAndScannerTests
         Assert.Equal("", config.CameraIdleNoSleepEnd1);
         Assert.Equal("", config.CameraIdleNoSleepStart2);
         Assert.Equal("", config.CameraIdleNoSleepEnd2);
+        Assert.False(config.EnableCameraIdle);
         Assert.False(config.IsCameraIdleNoSleepTime(new DateTime(2026, 7, 18, 14, 0, 0)));
     }
 

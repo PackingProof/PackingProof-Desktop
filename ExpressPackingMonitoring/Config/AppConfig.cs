@@ -151,7 +151,7 @@ namespace ExpressPackingMonitoring.Config
         public double MaxDurationMinutes { get; set; } = 5.0;
         public double MinRecordingSeconds { get; set; } = 3.0;
         public int MinVideoFileSizeKB { get; set; } = 50;
-        public bool EnableCameraIdle { get; set; } = true;
+        public bool EnableCameraIdle { get; set; } = false;
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
