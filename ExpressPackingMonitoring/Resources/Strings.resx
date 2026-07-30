@@ -769,4 +769,6 @@
   <data name="待上传" xml:space="preserve"><value>Pending</value></data>
   <data name="电脑昵称" xml:space="preserve"><value>Computer nickname</value></data>
   <data name="用于区分不同的录像电脑，例如电脑1、电脑2" xml:space="preserve"><value>Used to distinguish recording computers, such as Computer 1 and Computer 2</value></data>
+  <data name="手机备份" xml:space="preserve"><value>Phone backup</value></data>
+  <data name="接收到的订单" xml:space="preserve"><value>Received orders</value></data>
 </root>

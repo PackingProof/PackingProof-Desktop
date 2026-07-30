@@ -423,7 +423,7 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void RecordingWorkstationStatusUsesTwoCompactCardsWithoutCacheDetails()
+    public void PcRecordingStatusUsesNicknameRoleCardsAndSharedOrderCard()
     {
         string mainWindow = ReadRepositoryFile(
             "ExpressPackingMonitoring",
@@ -446,6 +446,18 @@ public sealed class DeploymentStartupTests
             "x:Name=\"RecordingWorkstationUploadCard\"",
             mainWindow,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"ComputerNicknameHeading\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"RecordingHostMobileBackupStatus\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"ReceivedOrdersCard\"",
+            mainWindow,
+            StringComparison.Ordinal);
         Assert.Equal(
             1,
             mainWindow.Split(
@@ -456,6 +468,15 @@ public sealed class DeploymentStartupTests
             mainWindow.Split(
                 "x:Name=\"RecordingWorkstationUploadCard\"",
                 StringSplitOptions.None).Length - 1);
+        Assert.Equal(
+            1,
+            mainWindow.Split(
+                "x:Name=\"ReceivedOrdersCard\"",
+                StringSplitOptions.None).Length - 1);
+        Assert.Contains(
+            "Text=\"{Binding ComputerDisplayName, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
         Assert.Contains(
             "Text=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"",
             mainWindow,
@@ -500,21 +521,52 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("Command=\"{Binding RetryRecordingTransfersCommand", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Command=\"{Binding ChangeBoundHostCommand", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Command=\"{Binding OpenBoundHostCommand", mainWindow, StringComparison.Ordinal);
-        int existingStatus = mainWindow.IndexOf(
-            "Text=\"{Binding UserscriptSetupStatusText}\"",
+        Assert.Contains(
+            "Text=\"{Binding OrderIntegrationStatusText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding UserscriptSetupStatusText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<DataTrigger Binding=\"{Binding IsRecordingWorkstation, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        int nicknameHeading = mainWindow.IndexOf(
+            "x:Name=\"ComputerNicknameHeading\"",
             StringComparison.Ordinal);
         int compactStatus = mainWindow.IndexOf(
             "x:Name=\"RecordingWorkstationCompactStatus\"",
             StringComparison.Ordinal);
-        int existingButtons = mainWindow.IndexOf(
-            "x:Name=\"BtnSwitchWorkstation\"",
+        int hostCard = mainWindow.IndexOf(
+            "x:Name=\"RecordingWorkstationHostCard\"",
             compactStatus,
             StringComparison.Ordinal);
-        Assert.True(existingStatus >= 0);
-        Assert.True(compactStatus > existingStatus);
-        Assert.True(existingButtons > compactStatus);
+        int uploadCard = mainWindow.IndexOf(
+            "x:Name=\"RecordingWorkstationUploadCard\"",
+            hostCard,
+            StringComparison.Ordinal);
+        int orderCard = mainWindow.IndexOf(
+            "x:Name=\"ReceivedOrdersCard\"",
+            uploadCard,
+            StringComparison.Ordinal);
+        int existingButtons = mainWindow.IndexOf(
+            "x:Name=\"BtnSwitchWorkstation\"",
+            orderCard,
+            StringComparison.Ordinal);
+        Assert.True(nicknameHeading >= 0);
+        Assert.True(compactStatus > nicknameHeading);
+        Assert.True(hostCard > compactStatus);
+        Assert.True(uploadCard > hostCard);
+        Assert.True(orderCard > uploadCard);
+        Assert.True(existingButtons > orderCard);
         Assert.DoesNotMatch(
-            "\\{Binding (BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (ComputerDisplayName|WorkstationPrintStatusText|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 
@@ -1096,7 +1148,10 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("· 录像设备 {recorderCount}", source, StringComparison.Ordinal);
         Assert.Contains("public void OpenUserscriptGuide()", source, StringComparison.Ordinal);
         Assert.Contains("UserscriptGuideNavigation.TryOpen", source, StringComparison.Ordinal);
-        Assert.Contains("ItemsSource=\"{Binding MobileBackupDeviceStatuses}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+            xaml,
+            StringComparison.Ordinal);
         Assert.Contains(
             "Text=\"{Binding MainConnectionButtonText, Mode=OneWay}\"",
             xaml,

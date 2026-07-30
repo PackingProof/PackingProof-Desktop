@@ -653,11 +653,9 @@
                     </ListView>
 
                     <Border Grid.Row="3"
-                            Background="{DynamicResource ControlBackground}"
-                            BorderBrush="{DynamicResource BorderDefault}"
-                            BorderThickness="1"
-                            CornerRadius="7"
-                            Padding="10,7"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="0"
                             Margin="0,6,0,0">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -666,57 +664,85 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0"
-                                       Text="{Binding WorkstationPrintStatusText}"
-                                       Foreground="{DynamicResource TextMuted}"
-                                       FontSize="12"
+                            <TextBlock x:Name="ComputerNicknameHeading"
+                                       Grid.Row="0"
+                                       Text="{Binding ComputerDisplayName, Mode=OneWay}"
+                                       Foreground="{DynamicResource TextPrimary}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
                                        TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"/>
-                            <ItemsControl Grid.Row="1"
-                                          ItemsSource="{Binding MobileBackupDeviceStatuses}"
-                                          Margin="0,5,0,0"
-                                          MaxHeight="52"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="0,1">
-                                            <Ellipse Width="7" Height="7" Margin="1,0,7,0" VerticalAlignment="Center">
-                                                <Ellipse.Style>
-                                                    <Style TargetType="Ellipse">
-                                                        <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
-                                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Ellipse.Style>
-                                            </Ellipse>
-                                            <TextBlock Text="{Binding DisplayText}"
-                                                       Foreground="{DynamicResource TextMuted}"
-                                                       FontSize="12"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Grid.Row="2"
-                                       Text="{Binding OrderIntegrationStatusText}"
-                                       Foreground="{DynamicResource TextMuted}"
-                                       FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="3"
-                                       Text="{Binding UserscriptSetupStatusText}"
-                                       Foreground="{DynamicResource TextMuted}"
-                                       FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="0,5,0,0"/>
+                                       Margin="2,0,2,7"/>
+
+                            <Border x:Name="RecordingHostMobileBackupStatus"
+                                    Grid.Row="1"
+                                    Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    Padding="10,8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource FluentPhoneIcon}"
+                                              Width="14"
+                                              Height="14"
+                                              Stretch="Uniform"
+                                              Fill="{DynamicResource AccentBlue}"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Text="手机备份"
+                                                   Margin="6,0,0,0"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding WorkstationPrintStatusText, Mode=OneWay}"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"
+                                               Margin="20,4,0,0"/>
+                                    <ItemsControl ItemsSource="{Binding MobileBackupDeviceStatuses, Mode=OneWay}"
+                                                  Margin="20,4,0,0"
+                                                  MaxHeight="52"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                    <Ellipse Width="7" Height="7" Margin="1,0,7,0" VerticalAlignment="Center">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsOnline, Mode=OneWay}" Value="True">
+                                                                        <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                    <TextBlock Text="{Binding DisplayText, Mode=OneWay}"
+                                                               Foreground="{DynamicResource TextMuted}"
+                                                               FontSize="12"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
                             <StackPanel x:Name="RecordingWorkstationCompactStatus"
-                                        Grid.Row="4"
-                                        Margin="0,7,0,0">
+                                        Grid.Row="2">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -819,7 +845,55 @@
                                     </Grid>
                                 </Border>
                             </StackPanel>
-                            <Grid Grid.Row="5" Margin="0,8,0,0">
+
+                            <Border x:Name="ReceivedOrdersCard"
+                                    Grid.Row="3"
+                                    Background="{DynamicResource ControlBackground}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    Padding="10,8"
+                                    Margin="0,6,0,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Path Data="{StaticResource FluentIntegrationIcon}"
+                                          Width="14"
+                                          Height="14"
+                                          Stretch="Uniform"
+                                          Fill="{DynamicResource AccentBlue}"
+                                          VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="接收到的订单"
+                                               Margin="6,0,0,0"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="1"
+                                               Text="{Binding OrderIntegrationStatusText, Mode=OneWay}"
+                                               Margin="6,4,0,0"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="1"
+                                               Text="{Binding UserscriptSetupStatusText, Mode=OneWay}"
+                                               Margin="6,3,0,0"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="4" Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="8"/>
