@@ -695,6 +695,9 @@ public partial class ViewerClientWindow : Window
         BindingBoundActionsPanel.Visibility = _bindingOnly && showBoundHost
             ? Visibility.Visible
             : Visibility.Collapsed;
+        SearchProgressBar.Visibility = state == ConnectionViewState.Searching
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         if (!string.IsNullOrWhiteSpace(message))
             SearchStatusText.Text = message;
         if (state == ConnectionViewState.Connected)

@@ -585,6 +585,12 @@ public sealed class DeploymentStartupTests
 
         Assert.Contains("MaxHeight=\"244\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("MinHeight=\"150\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SearchProgressBar\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsIndeterminate=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "SearchProgressBar.Visibility = state == ConnectionViewState.Searching",
+            source,
+            StringComparison.Ordinal);
         Assert.Contains(
             "<Trigger Property=\"HasItems\" Value=\"False\">",
             xaml,
