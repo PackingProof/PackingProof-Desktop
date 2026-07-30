@@ -174,7 +174,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _recordingStartTimestamp;
         private bool _isDisposed = false; // 新增：防止销毁后操作 UI
         private WebServer _webServer;
-        private MobileAppUpdateAvailableInfo _pendingMobileAppUpdate;
         private Task<bool> _webServerStartupTask;
         private readonly SemaphoreSlim _webServerLifecycleLock = new(1, 1);
         private StatisticsWindow _statisticsWindow;
@@ -400,10 +399,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 OnPropertyChanged(nameof(CanSwitchWorkstation));
                 ScheduleRefreshBarcodes();
                 if (!value)
-                {
                     ClearPreviewOrderNotice();
-                    TryShowPendingMobileAppUpdate();
-                }
             }
         }
         public bool IsShutdownInProgress { get => _isShutdownInProgress; private set => SetProperty(ref _isShutdownInProgress, value); }
@@ -2770,28 +2766,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (_isDisposed)
                     return;
-                if (IsRecording)
-                {
-                    _pendingMobileAppUpdate = update;
-                    ShowToast("检测到新版手机 App，停止录制后将提示更新");
-                    return;
-                }
-
                 ShowMobileAppUpdate(update);
             });
-        }
-
-        private void TryShowPendingMobileAppUpdate()
-        {
-            MobileAppUpdateAvailableInfo update = _pendingMobileAppUpdate;
-            if (update == null || _isDisposed)
-                return;
-
-            _pendingMobileAppUpdate = null;
-            Application application = Application.Current;
-            if (application == null)
-                return;
-            _ = application.Dispatcher.InvokeAsync(() => ShowMobileAppUpdate(update));
         }
 
         private void ShowMobileAppUpdate(MobileAppUpdateAvailableInfo update)

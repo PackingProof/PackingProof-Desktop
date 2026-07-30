@@ -351,6 +351,9 @@
   <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>When the camera recognizes the next shipping-label barcode, it ends the previous recording and starts the next one.</value></data>
   <data name="稍后再说" xml:space="preserve"><value>Later</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>The camera has gone to sleep</value></data>
+  <data name="手机 App 更新" xml:space="preserve"><value>Phone app update</value></data>
+  <data name="发现新版手机 App" xml:space="preserve"><value>New phone app available</value></data>
+  <data name="稍后" xml:space="preserve"><value>Later</value></data>
   <data name="时间范围: " xml:space="preserve"><value>Time range:</value></data>
   <data name="时长" xml:space="preserve"><value>duration</value></data>
   <data name="实时音量" xml:space="preserve"><value>real time volume</value></data>

@@ -6,20 +6,15 @@ namespace ExpressPackingMonitoring.UI;
 
 internal static class MobileAppUpdatePrompt
 {
+    private static MobileAppUpdatePromptWindow? _visiblePrompt;
+
     internal static void ShowLatest(Window owner, MobileAppReleaseInfo release)
     {
-        bool shouldOpen = AppDialog.Confirm(
+        ShowNonModal(
             owner,
             $"手机版最新版本为 {release.Version}（内部版本 {release.BuildNumber}）\n\n"
             + "可前往手机版仓库下载更新",
-            "发现新版手机 App",
-            "前往下载",
-            "稍后",
-            AppDialogSeverity.Information,
-            isDangerous: false);
-
-        if (shouldOpen)
-            OpenDownloadPage(owner, release.DownloadUrl);
+            release.DownloadUrl);
     }
 
     internal static void Show(Window owner, MobileAppUpdateAvailableInfo update)
@@ -34,21 +29,32 @@ internal static class MobileAppUpdatePrompt
             : $"{update.CurrentVersion}（内部版本 {update.CurrentBuildNumber}）";
         string latestVersion =
             $"{update.LatestRelease.Version}（内部版本 {update.LatestRelease.BuildNumber}）";
-        bool shouldOpen = AppDialog.Confirm(
+        ShowNonModal(
             owner,
             $"检测到 {deviceName} 正在使用 {currentVersion}\n\n"
             + $"手机版最新版本为 {latestVersion}\n"
             + "建议前往下载更新；暂不更新时仍可继续使用当前可用功能",
-            "发现新版手机 App",
-            "前往下载",
-            "稍后",
-            AppDialogSeverity.Information,
-            isDangerous: false);
+            update.LatestRelease.DownloadUrl);
+    }
 
-        if (!shouldOpen)
-            return;
+    private static void ShowNonModal(Window owner, string message, string downloadUrl)
+    {
+        if (_visiblePrompt is { IsLoaded: true })
+            _visiblePrompt.Close();
 
-        OpenDownloadPage(owner, update.LatestRelease.DownloadUrl);
+        var prompt = new MobileAppUpdatePromptWindow(
+            message,
+            () => OpenDownloadPage(owner, downloadUrl))
+        {
+            Owner = owner
+        };
+        prompt.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_visiblePrompt, prompt))
+                _visiblePrompt = null;
+        };
+        _visiblePrompt = prompt;
+        prompt.Show();
     }
 
     private static void OpenDownloadPage(Window owner, string downloadUrl)

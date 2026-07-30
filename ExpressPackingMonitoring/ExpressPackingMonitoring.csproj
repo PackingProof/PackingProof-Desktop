@@ -153,6 +153,7 @@
     <Compile Include="UI\MainWindow.xaml.cs" />
     <Compile Include="UI\MarkdownFlowDocumentRenderer.cs" />
     <Compile Include="UI\MobileAppUpdatePrompt.cs" />
+    <Compile Include="UI\MobileAppUpdatePromptWindow.xaml.cs" />
     <Compile Include="UI\MobileConnectionWindow.xaml.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />

@@ -66,6 +66,33 @@ public sealed class AppDialogTests
         Assert.Contains("\"取消保存\"", settingsSource, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MobileAppUpdatePrompt_IsNonModalAndDoesNotStealScannerFocus()
+    {
+        string prompt = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MobileAppUpdatePrompt.cs");
+        string window = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MobileAppUpdatePromptWindow.xaml");
+        string mainViewModel = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+
+        Assert.Contains("prompt.Show();", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowDialog", prompt, StringComparison.Ordinal);
+        Assert.Contains("ShowActivated=\"False\"", window, StringComparison.Ordinal);
+        Assert.Contains("ShowInTaskbar=\"False\"", window, StringComparison.Ordinal);
+        Assert.DoesNotContain("_pendingMobileAppUpdate", mainViewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "停止录制后将提示更新",
+            mainViewModel,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadRepositoryFile(params string[] parts)
         => File.ReadAllText(FindRepositoryPath(parts));
 
