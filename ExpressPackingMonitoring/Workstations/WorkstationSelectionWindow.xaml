@@ -34,7 +34,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="24"/>
                                 </Grid.ColumnDefinitions>
-                                <Path Data="{StaticResource FluentCheckIcon}"
+                                <Path Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
                                       Width="20"
                                       Height="20"
                                       Stretch="Uniform"
@@ -109,6 +109,7 @@
                                  GroupName="RecordingPurpose"
                                  AutomationProperties.Name="要，使用这台电脑录像"
                                  Style="{StaticResource PurposeChoiceStyle}"
+                                 Tag="{StaticResource FluentCheckIcon}"
                                  Checked="RecordingChoice_Checked">
                         <StackPanel>
                             <TextBlock Text="要，使用这台电脑录像"
@@ -129,6 +130,7 @@
                                  GroupName="RecordingPurpose"
                                  AutomationProperties.Name="不要，这台电脑不录像"
                                  Style="{StaticResource PurposeChoiceStyle}"
+                                 Tag="{StaticResource FluentDismissIcon}"
                                  Checked="RecordingChoice_Checked">
                         <StackPanel>
                             <TextBlock Text="不要，这台电脑不录像"
@@ -164,6 +166,7 @@
                                  GroupName="StoragePurpose"
                                  AutomationProperties.Name="要，作为保存录像的电脑"
                                  Style="{StaticResource PurposeChoiceStyle}"
+                                 Tag="{StaticResource FluentCheckIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
                             <TextBlock Text="要，作为保存录像的电脑"
@@ -184,6 +187,7 @@
                                  GroupName="StoragePurpose"
                                  AutomationProperties.Name="不要，由其他电脑负责保存"
                                  Style="{StaticResource PurposeChoiceStyle}"
+                                 Tag="{StaticResource FluentDismissIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
                             <TextBlock Text="不要，由其他电脑负责保存"

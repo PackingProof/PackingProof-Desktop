@@ -5,6 +5,7 @@ using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.ViewModels;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -12,6 +13,33 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ConnectedClientTests
 {
+    [Theory]
+    [InlineData("mobile-app", "phone-1", "host-1", true)]
+    [InlineData("recording-workstation", "pc-1", "host-1", true)]
+    [InlineData("recording-workstation", "host-1", "host-1", false)]
+    [InlineData("web-desktop", "browser-1", "host-1", false)]
+    public void HostBackupCardsIncludePhoneAndRecordingComputerButExcludeSelf(
+        string clientType,
+        string nodeId,
+        string localNodeId,
+        bool expected)
+    {
+        var client = new ConnectedClientInfo(
+            nodeId,
+            clientType,
+            "设备",
+            "192.168.1.20",
+            DateTimeOffset.UtcNow,
+            nodeId,
+            clientType == "recording-workstation" ? "pc" : "mobile",
+            5280,
+            []);
+
+        Assert.Equal(
+            expected,
+            MainViewModel.ShouldIncludeBackupDeviceClient(client, localNodeId));
+    }
+
     [Fact]
     public void RegistryDeduplicatesSameClientButCountsDifferentClientTypes()
     {

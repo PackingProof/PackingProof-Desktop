@@ -387,9 +387,17 @@
   <data name="手机备份服务：等待启动" xml:space="preserve"><value>手机备份服务：等待启动</value></data>
   <data name="手机备份服务：Web 启动失败" xml:space="preserve"><value>手机备份服务：Web 启动失败</value></data>
   <data name="手机备份服务：等待连接" xml:space="preserve"><value>手机备份服务：等待连接</value></data>
-  <data name="Main.PrintTestOrder" xml:space="preserve"><value>手机录像备份：{0} 收到测试订单</value></data>
-  <data name="Main.PrintNoRefund" xml:space="preserve"><value>手机录像备份：{0} 已响应，未查到退款订单</value></data>
-  <data name="Main.PrintOrders" xml:space="preserve"><value>手机录像备份：{0} 收到 {1} 条订单</value></data>
+  <data name="设备备份服务：未连接" xml:space="preserve"><value>设备备份服务：未连接</value></data>
+  <data name="设备备份服务：等待启动" xml:space="preserve"><value>设备备份服务：等待启动</value></data>
+  <data name="设备备份服务：Web 启动失败" xml:space="preserve"><value>设备备份服务：Web 启动失败</value></data>
+  <data name="设备备份服务：等待连接" xml:space="preserve"><value>设备备份服务：等待连接</value></data>
+  <data name="手机、电脑备份" xml:space="preserve"><value>手机、电脑备份</value></data>
+  <data name="暂无手机或电脑设备" xml:space="preserve"><value>暂无手机或电脑设备</value></data>
+  <data name="连接手机或电脑" xml:space="preserve"><value>连接手机或电脑</value></data>
+  <data name="录制电脑" xml:space="preserve"><value>录制电脑</value></data>
+  <data name="Main.PrintTestOrder" xml:space="preserve"><value>{0} 收到测试订单</value></data>
+  <data name="Main.PrintNoRefund" xml:space="preserve"><value>{0} 已响应，未收到订单</value></data>
+  <data name="Main.PrintOrders" xml:space="preserve"><value>{0} 收到 {1} 个订单</value></data>
   <data name="订单联动" xml:space="preserve"><value>订单联动</value></data>
   <data name="Main.ConnectionServiceDisabled" xml:space="preserve"><value>连接服务未开启</value></data>
   <data name="Main.ConnectionServiceStarting" xml:space="preserve"><value>正在准备连接服务</value></data>

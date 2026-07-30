@@ -665,14 +665,25 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <TextBlock x:Name="ComputerNicknameHeading"
-                                       Grid.Row="0"
-                                       Text="{Binding ComputerDisplayName, Mode=OneWay}"
-                                       Foreground="{DynamicResource TextPrimary}"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="2,0,2,7"/>
+                            <Grid x:Name="ComputerNicknameHeading"
+                                  Grid.Row="0"
+                                  Margin="2,0,2,7">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding ComputerDisplayName, Mode=OneWay}"
+                                           Foreground="{DynamicResource TextPrimary}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding ComputerIpAddress, Mode=OneWay}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"
+                                           Margin="8,1,0,0"/>
+                            </Grid>
 
                             <Border x:Name="RecordingHostMobileBackupStatus"
                                     Grid.Row="1"
@@ -694,13 +705,13 @@
                                 </Border.Style>
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource FluentPhoneIcon}"
+                                        <Path Data="{StaticResource FluentBroadcastIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
                                               Fill="{DynamicResource AccentBlue}"
                                               VerticalAlignment="Center"/>
-                                        <TextBlock Text="手机备份"
+                                        <TextBlock Text="手机、电脑备份"
                                                    Margin="6,0,0,0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
@@ -858,13 +869,13 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="18"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <Path Data="{StaticResource FluentIntegrationIcon}"
+                                    <Path Data="{StaticResource FluentPrinterIcon}"
                                           Width="14"
                                           Height="14"
                                           Stretch="Uniform"
@@ -876,17 +887,17 @@
                                                FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding OrderIntegrationStatusText, Mode=OneWay}"
+                                               Margin="8,0,0,0"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Grid.Row="1"
                                                Grid.Column="1"
-                                               Text="{Binding OrderIntegrationStatusText, Mode=OneWay}"
-                                               Margin="6,4,0,0"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="12"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Grid.Row="2"
-                                               Grid.Column="1"
+                                               Grid.ColumnSpan="2"
                                                Text="{Binding UserscriptSetupStatusText, Mode=OneWay}"
-                                               Margin="6,3,0,0"
+                                               Margin="6,4,0,0"
                                                Foreground="{DynamicResource TextMuted}"
                                                FontSize="11"
                                                TextTrimming="CharacterEllipsis"/>
@@ -930,7 +941,7 @@
                                         <Path Width="14" Height="14" Stretch="Uniform" Fill="White">
                                             <Path.Style>
                                                 <Style TargetType="Path">
-                                                    <Setter Property="Data" Value="{StaticResource FluentPhoneIcon}"/>
+                                                    <Setter Property="Data" Value="{StaticResource FluentBroadcastIcon}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
                                                             <Setter Property="Data" Value="{StaticResource FluentStorageIcon}"/>

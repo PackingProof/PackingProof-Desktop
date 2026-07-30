@@ -330,7 +330,12 @@ public partial class MainViewModel
     internal static string GetMainConnectionButtonText(AppConfig? config) =>
         ShouldManageBoundHostFromMainConnection(config)
             ? "管理保存主机"
-            : "连接手机";
+            : string.Equals(
+                DeploymentPresets.Normalize(config?.DeploymentPreset),
+                DeploymentPresets.RecordingHost,
+                StringComparison.Ordinal)
+                ? "连接手机或电脑"
+                : "连接手机";
 
     public void ShowMainConnection(Window? owner = null)
     {

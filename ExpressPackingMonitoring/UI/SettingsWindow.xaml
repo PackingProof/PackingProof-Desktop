@@ -873,7 +873,7 @@
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="ViewerClient">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentWifiIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
+                                                    <Path Data="{StaticResource FluentPlayIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
                                                     <TextBlock Text="只连接主机查看"/>
                                                 </StackPanel>
                                             </ComboBoxItem>

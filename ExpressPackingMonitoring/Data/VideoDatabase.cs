@@ -379,7 +379,7 @@ namespace ExpressPackingMonitoring.Data
             {
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
-                    SELECT SourceDeviceId, MAX(SourceDeviceName), COUNT(1)
+                    SELECT SourceDeviceId, MAX(SourceDeviceName), COUNT(1), MAX(SourceDeviceKind)
                     FROM VideoRecords
                     WHERE IsDeleted = 0
                       AND SourceType = 'external'
@@ -397,7 +397,8 @@ namespace ExpressPackingMonitoring.Data
                     result.Add(new MobileBackupDailyCount(
                         reader.GetString(0),
                         reader.IsDBNull(1) ? "" : reader.GetString(1),
-                        reader.GetInt32(2)));
+                        reader.GetInt32(2),
+                        reader.IsDBNull(3) ? "" : reader.GetString(3)));
                 }
                 return result;
             }
@@ -413,7 +414,7 @@ namespace ExpressPackingMonitoring.Data
                 using (var dailyCommand = _connection.CreateCommand())
                 {
                     dailyCommand.CommandText = @"
-                        SELECT SourceDeviceId, MAX(SourceDeviceName), COUNT(1)
+                        SELECT SourceDeviceId, MAX(SourceDeviceName), COUNT(1), MAX(SourceDeviceKind)
                         FROM VideoRecords
                         WHERE SourceType = 'external'
                           AND SourceDeviceId <> ''
@@ -431,7 +432,8 @@ namespace ExpressPackingMonitoring.Data
                         deviceCounts.Add(new MobileBackupDailyCount(
                             reader.GetString(0),
                             reader.IsDBNull(1) ? "" : reader.GetString(1),
-                            reader.GetInt32(2)));
+                            reader.GetInt32(2),
+                            reader.IsDBNull(3) ? "" : reader.GetString(3)));
                     }
                 }
 
@@ -1924,7 +1926,8 @@ namespace ExpressPackingMonitoring.Data
     public sealed record MobileBackupDailyCount(
         string DeviceId,
         string DeviceName,
-        int VideoCount);
+        int VideoCount,
+        string DeviceKind = "");
 
     public sealed record MobileBackupOverview(
         IReadOnlyList<MobileBackupDailyCount> DeviceCounts,

@@ -27,6 +27,7 @@ public sealed class VideoDatabaseTests
             Assert.Equal("phone-a", count.DeviceId);
             Assert.Equal("手机1", count.DeviceName);
             Assert.Equal(2, count.VideoCount);
+            Assert.Equal("mobile", count.DeviceKind);
         }
         finally
         {

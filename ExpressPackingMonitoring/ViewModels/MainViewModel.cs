@@ -238,7 +238,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _maxDurationWarned = false;
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
         private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
-        private string _workstationPrintStatusText = "手机备份服务：未连接";
+        private string _workstationPrintStatusText = "设备备份服务：未连接";
         private string _workstationStatusToolTip = "";
         private string _orderIntegrationStatusText = "订单联动：暂未收到订单";
         private string _userscriptSetupStatusText = "尚未配置订单联动";
@@ -444,7 +444,26 @@ namespace ExpressPackingMonitoring.ViewModels
         public string ConnectedDeviceText { get => _connectedDeviceText; private set => SetProperty(ref _connectedDeviceText, value); }
         public string ConnectedDeviceToolTip { get => _connectedDeviceToolTip; private set => SetProperty(ref _connectedDeviceToolTip, value); }
         public bool HasConnectedDevices { get => _hasConnectedDevices; private set => SetProperty(ref _hasConnectedDevices, value); }
-        public string MonitorAccessAddress { get => _monitorAccessAddress; set => SetProperty(ref _monitorAccessAddress, value); }
+        public string MonitorAccessAddress
+        {
+            get => _monitorAccessAddress;
+            set
+            {
+                if (SetProperty(ref _monitorAccessAddress, value))
+                    OnPropertyChanged(nameof(ComputerIpAddress));
+            }
+        }
+        public string ComputerIpAddress
+        {
+            get
+            {
+                string address = MonitorAccessAddress?.Trim() ?? "";
+                if (Uri.TryCreate($"http://{address}", UriKind.Absolute, out Uri uri))
+                    return uri.Host;
+                int separator = address.LastIndexOf(':');
+                return separator > 0 ? address[..separator] : address;
+            }
+        }
 
         // 条形码（自动计算）
         private string _barcode1Label;
@@ -2587,7 +2606,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if ((!Config.EnableWebServer && !orderReceiverOnly) || _db == null || _isDisposed)
                 {
                     MonitorAccessAddress = "";
-                    WorkstationPrintStatusText = "手机备份服务：未连接";
+                    WorkstationPrintStatusText = "设备备份服务：未连接";
                     WorkstationStatusToolTip = "开启局域网查看后，可点击手机/电脑连接查看二维码或复制网址。";
                     SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                     return true;
@@ -2595,7 +2614,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 WorkstationPrintStatusText = orderReceiverOnly
                     ? "订单联动接收：等待启动"
-                    : "手机备份服务：等待启动";
+                    : "设备备份服务：等待启动";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 int port = Config.WebServerPort;
                 int cacheMaxMb = Config.TranscodeCacheMaxMB;
@@ -2663,7 +2682,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 try { newServer?.Dispose(); } catch { }
                 RuntimeLog.Error("Web", "LAN service start failed", ex);
                 MonitorAccessAddress = "";
-                WorkstationPrintStatusText = "手机备份服务：Web 启动失败";
+                WorkstationPrintStatusText = "设备备份服务：Web 启动失败";
                 WorkstationStatusToolTip = $"其他设备暂时无法连接这台电脑。\n{ex.Message}";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), ex.Message);
                 ShowToast($"警告：局域网服务启动失败: {ex.Message}");
@@ -2683,7 +2702,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 MonitorAccessAddress = "";
                 WorkstationPrintStatusText = IsRecordingWorkstation
                     ? "订单联动接收：未连接"
-                    : "手机备份服务：未连接";
+                    : "设备备份服务：未连接";
                 WorkstationStatusToolTip = "其他设备暂时无法连接这台电脑。";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 return;
@@ -2692,7 +2711,7 @@ namespace ExpressPackingMonitoring.ViewModels
             MonitorAccessAddress = "";
             WorkstationPrintStatusText = IsRecordingWorkstation
                 ? "订单联动接收：等待连接"
-                : "手机备份服务：等待连接";
+                : "设备备份服务：等待连接";
             WorkstationStatusToolTip = "正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内。";
             SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
 
@@ -2826,33 +2845,44 @@ namespace ExpressPackingMonitoring.ViewModels
             _mobileBackupStatusDate = DateTime.Today;
             IReadOnlyList<MobileBackupDailyCount> counts =
                 _db?.GetMobileBackupDailyCounts(_mobileBackupStatusDate) ?? [];
-            var statusByDevice = counts.ToDictionary(
+            var statusByDevice = counts
+                .Where(item => !string.Equals(
+                    item.DeviceId,
+                    Config.NodeId,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(
                 item => item.DeviceId,
                 item => new
                 {
                     Name = string.IsNullOrWhiteSpace(item.DeviceName)
-                        ? GetFallbackDeviceName(item.DeviceId)
+                        ? GetFallbackDeviceName(item.DeviceId, item.DeviceKind)
                         : item.DeviceName,
+                    Kind = item.DeviceKind,
                     Count = item.VideoCount,
                     Online = false
                 },
                 StringComparer.OrdinalIgnoreCase);
 
             foreach (ConnectedClientInfo client in _connectedClientSnapshot
-                .Where(client => string.Equals(
-                    client.ClientType,
-                    "mobile-app",
-                    StringComparison.OrdinalIgnoreCase)))
+                .Where(client => ShouldIncludeBackupDeviceClient(client, Config.NodeId)))
             {
                 string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
                     ? client.ClientId
                     : client.NodeId;
+                if (string.Equals(deviceId, Config.NodeId, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 statusByDevice.TryGetValue(deviceId, out var existing);
+                bool isComputer = string.Equals(
+                    client.ClientType,
+                    "recording-workstation",
+                    StringComparison.OrdinalIgnoreCase);
                 statusByDevice[deviceId] = new
                 {
                     Name = string.IsNullOrWhiteSpace(client.DisplayName)
-                        ? existing?.Name ?? "手机设备"
+                        ? existing?.Name ?? (isComputer ? "电脑设备" : "手机设备")
                         : client.DisplayName,
+                    Kind = isComputer ? "pc" : "mobile",
                     Count = existing?.Count ?? 0,
                     Online = true
                 };
@@ -2875,7 +2905,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 MobileBackupDeviceStatuses.Add(new MobileBackupDeviceStatus
                 {
-                    DisplayText = "暂无手机设备在线",
+                    DisplayText = "暂无手机或电脑设备",
                     IsOnline = false
                 });
             }
@@ -2893,14 +2923,37 @@ namespace ExpressPackingMonitoring.ViewModels
             UserscriptButtonText = status.ButtonText;
         }
 
-        private static string GetFallbackDeviceName(string deviceId)
+        private static string GetFallbackDeviceName(string deviceId, string deviceKind)
         {
             string normalized = new((deviceId ?? "")
                 .Where(char.IsLetterOrDigit)
                 .ToArray());
+            string fallback = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? "电脑设备"
+                : "手机设备";
             return normalized.Length == 0
-                ? "手机设备"
-                : $"设备 {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
+                ? fallback
+                : $"{fallback} {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
+        }
+
+        internal static bool ShouldIncludeBackupDeviceClient(
+            ConnectedClientInfo client,
+            string localNodeId)
+        {
+            if (client == null)
+                return false;
+
+            bool supportedType =
+                string.Equals(client.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(client.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase);
+            if (!supportedType)
+                return false;
+
+            string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
+                ? client.ClientId
+                : client.NodeId;
+            return !string.IsNullOrWhiteSpace(deviceId) &&
+                !string.Equals(deviceId, localNodeId, StringComparison.OrdinalIgnoreCase);
         }
 
         private void SetConnectedDeviceUnavailable(string text, string tooltip)
@@ -2917,6 +2970,7 @@ namespace ExpressPackingMonitoring.ViewModels
             "userscript" => AppLanguage.Get("Main.ClientUserscript"),
             "print-station" => AppLanguage.Get("Main.ClientPrintStation"),
             "mobile-app" => AppLanguage.Get("Main.ClientMobileApp"),
+            "recording-workstation" => AppLanguage.Get("录制电脑"),
             _ => AppLanguage.Get("Main.ClientOther")
         };
 
@@ -3193,9 +3247,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (_isDisposed) return;
                     if (_webServer != null)
                     {
-                        OrderIntegrationStatusText = printStatusText
-                            .Replace("手机录像备份：", "订单联动：", StringComparison.Ordinal)
-                            .Replace("Phone recording backup:", "Order integration:", StringComparison.Ordinal);
+                        OrderIntegrationStatusText = printStatusText;
                     }
 
                     string activeOrderId = IsRecording ? _recordingOrderId : CurrentOrderId;

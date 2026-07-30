@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -179,7 +180,7 @@ public sealed class DeploymentStartupTests
         }
 
         Assert.Matches(
-            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?StaticResource FluentPhoneIcon",
+            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?StaticResource FluentBroadcastIcon",
             recordingXaml);
         Assert.Matches(
             "x:Name=\"ConnectPhoneButton\"[\\s\\S]*?StaticResource FluentPhoneIcon",
@@ -329,6 +330,12 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Content=\"确认用途\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ResultCapabilitiesList", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding Mode=OneWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Matches(
+            "x:Name=\"RecordNoChoice\"[\\s\\S]*?Tag=\"\\{StaticResource FluentDismissIcon\\}\"",
+            xaml);
+        Assert.Matches(
+            "x:Name=\"StorageNoChoice\"[\\s\\S]*?Tag=\"\\{StaticResource FluentDismissIcon\\}\"",
+            xaml);
         Assert.Contains("RestoreCurrentAnswers();", source, StringComparison.Ordinal);
         Assert.Contains("DialogResult = false;", source, StringComparison.Ordinal);
     }
@@ -357,10 +364,22 @@ public sealed class DeploymentStartupTests
             "更改用途后程序会自动重启，并切换到对应界面",
             settings,
             StringComparison.Ordinal);
+        Assert.Matches(
+            "Tag=\"RecordingHost\"[\\s\\S]*?FluentVideoIcon",
+            settings);
+        Assert.Matches(
+            "Tag=\"RecordingWorkstation\"[\\s\\S]*?FluentWifiIcon",
+            settings);
+        Assert.Matches(
+            "Tag=\"ViewerClient\"[\\s\\S]*?FluentPlayIcon",
+            settings);
+        Assert.Matches(
+            "Tag=\"MobileBackupHost\"[\\s\\S]*?FluentStorageIcon",
+            settings);
     }
 
     [Theory]
-    [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机")]
+    [InlineData(DeploymentPresets.RecordingHost, true, false, "连接手机或电脑")]
     [InlineData(DeploymentPresets.RecordingWorkstation, true, true, "管理保存主机")]
     [InlineData(DeploymentPresets.ViewerClient, false, false, "连接手机")]
     [InlineData(DeploymentPresets.MobileBackupHost, false, false, "连接手机")]
@@ -408,7 +427,7 @@ public sealed class DeploymentStartupTests
             xaml,
             StringComparison.Ordinal);
         Assert.Matches(
-            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?FluentPhoneIcon[\\s\\S]*?FluentStorageIcon",
+            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?FluentBroadcastIcon[\\s\\S]*?FluentStorageIcon",
             xaml);
         Assert.Contains("viewModel.ShowMainConnection(this)", windowSource, StringComparison.Ordinal);
         Assert.Contains("ChangeBoundHost(owner);", transferSource, StringComparison.Ordinal);
@@ -565,8 +584,21 @@ public sealed class DeploymentStartupTests
         Assert.True(uploadCard > hostCard);
         Assert.True(orderCard > uploadCard);
         Assert.True(existingButtons > orderCard);
+        Assert.Contains(
+            "Text=\"{Binding ComputerIpAddress, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains("Data=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"手机、电脑备份\"", mainWindow, StringComparison.Ordinal);
+        Match orderRows = Regex.Match(
+            mainWindow[orderCard..existingButtons],
+            "<Grid.RowDefinitions>(?<rows>[\\s\\S]*?)</Grid.RowDefinitions>");
+        Assert.True(orderRows.Success);
+        Assert.Equal(
+            2,
+            Regex.Matches(orderRows.Groups["rows"].Value, "<RowDefinition Height=\"Auto\"/>").Count);
         Assert.DoesNotMatch(
-            "\\{Binding (ComputerDisplayName|WorkstationPrintStatusText|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 
