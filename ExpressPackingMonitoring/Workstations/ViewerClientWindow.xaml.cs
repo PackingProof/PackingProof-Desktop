@@ -57,14 +57,7 @@ public partial class ViewerClientWindow : Window
             DiscoveryHeadingText.Text = "选择保存主机";
             SearchStatusText.Text = "正在查找同一局域网中可用的保存主机";
             DeferBindingButton.Visibility = Visibility.Visible;
-            HostSummaryLabelColumn.Width = new GridLength(0);
-            CurrentHostLabel.Visibility = Visibility.Collapsed;
-            HostAddressLabel.Visibility = Visibility.Collapsed;
-            OnlineStatusLabel.Visibility = Visibility.Collapsed;
-            CapabilitiesLabel.Visibility = Visibility.Collapsed;
-            CapabilitiesText.Visibility = Visibility.Collapsed;
-            RecorderCountLabel.Visibility = Visibility.Collapsed;
-            RecorderCountText.Visibility = Visibility.Collapsed;
+            ViewerDetailsPanel.Visibility = Visibility.Collapsed;
         }
         ApplyConnectionViewState(
             ConnectionViewState.Searching,
@@ -118,6 +111,8 @@ public partial class ViewerClientWindow : Window
         HostAddressText.Text = node.Address;
         OnlineStatusText.Text = "在线";
         OnlineStatusText.Foreground = TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
+        OnlineStatusIndicator.Fill =
+            TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
         OpenWebButton.IsEnabled = true;
         if (_bindingOnly)
         {
@@ -157,6 +152,8 @@ public partial class ViewerClientWindow : Window
             ? "暂时离线，稍后会自动重试"
             : status;
         OnlineStatusText.Foreground = TryFindResource("TextSecondary") as Brush ?? Brushes.Gray;
+        OnlineStatusIndicator.Fill =
+            TryFindResource("TextSecondary") as Brush ?? Brushes.Gray;
         CapabilitiesText.Text = "—";
         RecorderCountText.Text = "0";
         OpenWebButton.IsEnabled = false;

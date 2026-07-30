@@ -561,6 +561,69 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void NonHostWindowUsesAdaptiveCompactLayoutWithoutEmptyRoleRows()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs");
+
+        Assert.Contains("Width=\"820\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("MaxHeight=\"680\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SizeToContent=\"Height\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotMatch("(?m)^\\s+Height=\"680\"$", xaml);
+        Assert.Contains("x:Name=\"HostSummaryBorder\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ViewerDetailsPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ViewerActionPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"订单联动\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BindingBoundActionsPanel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource PrimaryButtonStyle}\"", xaml, StringComparison.Ordinal);
+
+        Assert.Contains("MaxHeight=\"244\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("MinHeight=\"150\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "<Trigger Property=\"HasItems\" Value=\"False\">",
+            xaml,
+            StringComparison.Ordinal);
+        Assert.Matches(
+            "Trigger Property=\"HasItems\" Value=\"False\"[\\s\\S]*?" +
+            "Setter Property=\"Visibility\" Value=\"Collapsed\"",
+            xaml);
+
+        int manualConnection = xaml.IndexOf(
+            "x:Name=\"ManualConnectionButton\"",
+            StringComparison.Ordinal);
+        int deferBinding = xaml.IndexOf(
+            "x:Name=\"DeferBindingButton\"",
+            manualConnection,
+            StringComparison.Ordinal);
+        int primaryConnection = xaml.IndexOf(
+            "x:Name=\"BindSelectedButton\"",
+            deferBinding,
+            StringComparison.Ordinal);
+        Assert.True(
+            manualConnection >= 0
+            && deferBinding > manualConnection
+            && primaryConnection > deferBinding);
+
+        Assert.Contains(
+            "ViewerDetailsPanel.Visibility = Visibility.Collapsed;",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("HostSummaryLabelColumn", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CurrentHostLabel", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("HostAddressLabel", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CapabilitiesLabel", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RecorderCountLabel", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OnlineStatusIndicator\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("OnlineStatusIndicator.Fill =", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecordingWorkstationDiscoveryFiltersNonReceiverHostsWithoutChangingViewerResults()
     {
         PackingProofNodeInfo receiver = CreateDiscoveredHost(
