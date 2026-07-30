@@ -128,6 +128,7 @@ namespace ExpressPackingMonitoring.UI
         private string _originalTheme;
         private string _originalLanguage;
         private readonly string _originalDeploymentPreset;
+        private string _originalNodeName;
         private bool _isRecording;
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
@@ -148,6 +149,7 @@ namespace ExpressPackingMonitoring.UI
             _isRecording = isRecording;
             Config = clonedConfig;
             AppConfig.NormalizeAfterLoad(Config);
+            _originalNodeName = Config.NodeName;
             InitializeComponent();
 
             CurrentDiskUsagePercent = diskUsagePercent;
@@ -1074,6 +1076,23 @@ namespace ExpressPackingMonitoring.UI
             if (Capabilities.CanRecordPcVideo && !ConfirmCachedRecordingProfileRisk())
                 return false;
 
+            if (Capabilities.CanRecordPcVideo)
+            {
+                if (!TryNormalizeComputerNickname(Config.NodeName, out string normalizedNickname))
+                {
+                    AppDialog.ShowMessage(
+                        this,
+                        "电脑昵称需要填写 1 到 20 个字符，不能包含换行或其他控制字符",
+                        "电脑昵称不正确",
+                        AppDialogSeverity.Warning);
+                    ComputerNicknameTextBox?.Focus();
+                    return false;
+                }
+                Config.NodeName = normalizedNickname;
+                if (!string.Equals(Config.NodeName, _originalNodeName, StringComparison.Ordinal))
+                    Config.NodeNameCustomized = true;
+            }
+
             if (Capabilities.CanConfigureRecordingCache
                 && !ValidateRecordingCacheSettings())
             {
@@ -1185,6 +1204,7 @@ namespace ExpressPackingMonitoring.UI
             if (applied)
             {
                 _originalTheme = Config.Theme;
+                _originalNodeName = Config.NodeName;
                 if (_originalLanguage != Config.Language)
                 {
                     AppDialog.ShowMessage(
@@ -1196,6 +1216,13 @@ namespace ExpressPackingMonitoring.UI
                 }
             }
             return applied;
+        }
+
+        internal static bool TryNormalizeComputerNickname(string value, out string normalized)
+        {
+            normalized = value?.Trim() ?? "";
+            return normalized.Length is >= 1 and <= 20
+                && !normalized.Any(char.IsControl);
         }
 
         internal static void ApplyDeploymentPurposeBeforeSave(

@@ -525,17 +525,18 @@ public static class WorkstationNetwork
         }
     }
 
-    public static async Task<bool> SendRecordingWorkstationHeartbeatAsync(
+    public static async Task<RecordingWorkstationHeartbeatResult> SendRecordingWorkstationHeartbeatAsync(
         string address,
         string nodeId,
         string nodeName,
         int orderReceiverPort,
         bool connected = true,
+        bool nicknameCustomized = false,
         CancellationToken token = default)
     {
         address = NormalizeAddress(address);
         if (string.IsNullOrWhiteSpace(address) || string.IsNullOrWhiteSpace(nodeId))
-            return false;
+            return new RecordingWorkstationHeartbeatResult(false, "");
 
         try
         {
@@ -544,6 +545,7 @@ public static class WorkstationNetwork
                 clientId = nodeId,
                 clientType = "recording-workstation",
                 displayName = string.IsNullOrWhiteSpace(nodeName) ? Environment.MachineName : nodeName.Trim(),
+                nicknameCustomized,
                 connected,
                 nodeId,
                 deviceType = "pc",
@@ -558,11 +560,29 @@ public static class WorkstationNetwork
                 $"{ToUrl(address)}/api/connections/heartbeat",
                 content,
                 token);
-            return response.IsSuccessStatusCode;
+            if (!response.IsSuccessStatusCode)
+                return new RecordingWorkstationHeartbeatResult(false, "");
+
+            string assignedDisplayName = "";
+            try
+            {
+                string responseBody = await response.Content.ReadAsStringAsync(token);
+                using JsonDocument document = JsonDocument.Parse(responseBody);
+                if (document.RootElement.TryGetProperty("assignedDisplayName", out JsonElement assignedElement)
+                    && assignedElement.ValueKind == JsonValueKind.String)
+                {
+                    assignedDisplayName = assignedElement.GetString()?.Trim() ?? "";
+                }
+            }
+            catch
+            {
+                // 旧主机可能不返回该字段或返回空响应，在线状态仍然有效。
+            }
+            return new RecordingWorkstationHeartbeatResult(true, assignedDisplayName);
         }
         catch
         {
-            return false;
+            return new RecordingWorkstationHeartbeatResult(false, "");
         }
     }
 
@@ -1102,3 +1122,7 @@ public static class WorkstationNetwork
                (bytes[0] == 192 && bytes[1] == 168);
     }
 }
+
+public readonly record struct RecordingWorkstationHeartbeatResult(
+    bool Online,
+    string AssignedDisplayName);

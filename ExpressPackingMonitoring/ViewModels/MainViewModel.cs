@@ -421,9 +421,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(IsMainConnectionVisible));
                     OnPropertyChanged(nameof(MainConnectionButtonText));
                     OnPropertyChanged(nameof(MainConnectionButtonToolTip));
+                    OnPropertyChanged(nameof(ComputerDisplayName));
                 }
             }
         }
+        public string ComputerDisplayName =>
+            string.IsNullOrWhiteSpace(Config?.NodeName) ? "电脑1" : Config.NodeName.Trim();
         public string WorkstationPrintStatusText { get => _workstationPrintStatusText; set => SetProperty(ref _workstationPrintStatusText, value); }
         public string WorkstationStatusToolTip
         {
@@ -1812,7 +1815,15 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.TranscodeCacheMaxMB != nextConfig.TranscodeCacheMaxMB
                         || Config.EnableOrderInfoLog != nextConfig.EnableOrderInfoLog
                         || Config.RequireWebAccessKey != nextConfig.RequireWebAccessKey
-                        || !string.Equals(Config.WebAccessKey, nextConfig.WebAccessKey, StringComparison.Ordinal);
+                        || !string.Equals(Config.WebAccessKey, nextConfig.WebAccessKey, StringComparison.Ordinal)
+                        || (string.Equals(
+                                DeploymentPresets.Normalize(nextConfig.DeploymentPreset),
+                                DeploymentPresets.RecordingHost,
+                                StringComparison.Ordinal)
+                            && !string.Equals(Config.NodeName, nextConfig.NodeName, StringComparison.Ordinal));
+                    bool computerNicknameChanged =
+                        !string.Equals(Config.NodeName, nextConfig.NodeName, StringComparison.Ordinal)
+                        || Config.NodeNameCustomized != nextConfig.NodeNameCustomized;
                     bool webServerNeedsRecovery = nextConfig.EnableWebServer && _webServer == null;
 
                     AppConfig.NormalizeAfterLoad(nextConfig);
@@ -1822,6 +1833,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!SaveConfig(nextConfig, notifyUser: true))
                         return false;
                     Config = nextConfig;
+                    if (computerNicknameChanged && IsRecordingWorkstation)
+                        QueueRecordingWorkstationHeartbeat(force: true);
                     if (cameraBarcodeChanged)
                         ResetCameraBarcodeRecognition();
 
@@ -2603,13 +2616,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         accessKey,
                         mobileConnectionUrlProvider: BuildMonitorAccessUrl,
                         mobileBackupComputerId: Config.MobileBackupComputerId,
-                        mobileBackupComputerName: Environment.MachineName,
+                        mobileBackupComputerName: Config.NodeName,
                         mobileBackupStateDirectory: Path.Combine(AppPaths.CacheDir, "mobile-backup"),
                         mobileBackupRecordingRootResolver: ResolveBestStoragePath,
                         nodeId: Config.NodeId,
                         nodeName: Config.NodeName,
                         deploymentPreset: Config.DeploymentPreset,
-                        orderReceiverOnly: orderReceiverOnly)
+                        orderReceiverOnly: orderReceiverOnly,
+                        nodeNameCustomized: Config.NodeNameCustomized)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };

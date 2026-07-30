@@ -254,6 +254,7 @@ internal sealed class ConnectedClientHeartbeat
     public string ClientId { get; set; } = "";
     public string ClientType { get; set; } = "";
     public string DisplayName { get; set; } = "";
+    public bool NicknameCustomized { get; set; }
     public bool? Connected { get; set; }
     public string NodeId { get; set; } = "";
     public string DeviceType { get; set; } = "";

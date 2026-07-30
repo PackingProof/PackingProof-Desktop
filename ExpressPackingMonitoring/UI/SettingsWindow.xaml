@@ -889,6 +889,25 @@
                                                Margin="0,8,0,0"
                                                Style="{StaticResource FieldHintStyle}"/>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          Visibility="{Binding Capabilities.CanRecordPcVideo, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="电脑昵称" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="用于区分不同的录像电脑，例如电脑1、电脑2"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <TextBox x:Name="ComputerNicknameTextBox"
+                                                 Grid.Column="2"
+                                                 MaxLength="20"
+                                                 Text="{Binding Config.NodeName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 AutomationProperties.Name="电脑昵称"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

@@ -767,4 +767,6 @@
   <data name="保存主机" xml:space="preserve"><value>保存主机</value></data>
   <data name="录像上传" xml:space="preserve"><value>录像上传</value></data>
   <data name="待上传" xml:space="preserve"><value>待上传</value></data>
+  <data name="电脑昵称" xml:space="preserve"><value>电脑昵称</value></data>
+  <data name="用于区分不同的录像电脑，例如电脑1、电脑2" xml:space="preserve"><value>用于区分不同的录像电脑，例如电脑1、电脑2</value></data>
 </root>

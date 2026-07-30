@@ -107,6 +107,7 @@ namespace ExpressPackingMonitoring.Config
         public int DeploymentSchemaVersion { get; set; } = 0;
         public string NodeId { get; set; } = "";
         public string NodeName { get; set; } = "";
+        public bool NodeNameCustomized { get; set; }
         public string LastKnownHostNodeId { get; set; } = "";
         public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
@@ -333,8 +334,30 @@ namespace ExpressPackingMonitoring.Config
             }
 
             string normalizedNodeName = config.NodeName?.Trim() ?? "";
-            if (normalizedNodeName.Length == 0)
+            bool isPcRecorder = DeploymentPresets.IsKnown(normalizedPreset)
+                && DeploymentCapabilities.ForPreset(normalizedPreset).CanRecordPcVideo;
+            if (isPcRecorder)
+            {
+                if (!config.NodeNameCustomized
+                    && normalizedNodeName.Length > 0
+                    && !string.Equals(normalizedNodeName, Environment.MachineName, StringComparison.OrdinalIgnoreCase)
+                    && !IsAutomaticComputerName(normalizedNodeName))
+                {
+                    config.NodeNameCustomized = true;
+                    changed = true;
+                }
+
+                if (!config.NodeNameCustomized
+                    && (normalizedNodeName.Length == 0
+                        || string.Equals(normalizedNodeName, Environment.MachineName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    normalizedNodeName = "电脑1";
+                }
+            }
+            else if (normalizedNodeName.Length == 0)
+            {
                 normalizedNodeName = Environment.MachineName;
+            }
             if (!string.Equals(config.NodeName, normalizedNodeName, StringComparison.Ordinal))
             {
                 config.NodeName = normalizedNodeName;
@@ -544,6 +567,14 @@ namespace ExpressPackingMonitoring.Config
             }
 
             return changed;
+        }
+
+        internal static bool IsAutomaticComputerName(string? value)
+        {
+            string name = value?.Trim() ?? "";
+            return name.StartsWith("电脑", StringComparison.Ordinal)
+                && int.TryParse(name["电脑".Length..], out int number)
+                && number > 0;
         }
 
         private static List<StorageLocation> CreateDefaultStorageLocations()

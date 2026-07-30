@@ -77,7 +77,8 @@ internal static class RecordingDeviceCatalog
 
         foreach (ConnectedClientInfo client in connectedClients ?? [])
         {
-            if (!string.Equals(client.ClientType, "mobile-app", StringComparison.Ordinal)
+            if (!(string.Equals(client.ClientType, "mobile-app", StringComparison.Ordinal)
+                    || string.Equals(client.ClientType, "recording-workstation", StringComparison.Ordinal))
                 || client.Capabilities.Count == 0)
             {
                 continue;

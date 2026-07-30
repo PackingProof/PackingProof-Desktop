@@ -82,6 +82,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly Func<string> _mobileConnectionUrlProvider;
         private readonly MobileBackupService _mobileBackupService;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
+        private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -160,7 +161,8 @@ namespace ExpressPackingMonitoring.Services
             string nodeId = null,
             string nodeName = null,
             string deploymentPreset = null,
-            bool orderReceiverOnly = false)
+            bool orderReceiverOnly = false,
+            bool nodeNameCustomized = false)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -210,6 +212,10 @@ namespace ExpressPackingMonitoring.Services
             };
             _mobileOrderReceivers = new MobileOrderReceiverRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));
+            _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
+                Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"));
+            if (string.Equals(_deploymentPreset, DeploymentPresets.RecordingHost, StringComparison.Ordinal))
+                _recordingComputerNicknames.RegisterHost(_nodeId, _nodeName, nodeNameCustomized);
             _connectedClients = new ConnectedClientRegistry();
             _connectedClients.Changed += clients =>
             {
@@ -898,6 +904,15 @@ namespace ExpressPackingMonitoring.Services
             {
                 ConnectedClientHeartbeat heartbeat = ReadJsonBody<ConnectedClientHeartbeat>(ctx);
                 string remoteAddress = ctx.Request.RemoteEndPoint?.Address.ToString() ?? "unknown";
+                string assignedDisplayName = "";
+                if (string.Equals(heartbeat.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase))
+                {
+                    assignedDisplayName = _recordingComputerNicknames.Assign(
+                        heartbeat.NodeId,
+                        heartbeat.DisplayName,
+                        heartbeat.NicknameCustomized);
+                    heartbeat.DisplayName = assignedDisplayName;
+                }
                 _connectedClients.Heartbeat(heartbeat, remoteAddress);
                 if (heartbeat.Connected != false
                     && string.Equals(heartbeat.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
@@ -917,6 +932,7 @@ namespace ExpressPackingMonitoring.Services
                 SendJson(ctx, 200, new
                 {
                     ok = true,
+                    assignedDisplayName = assignedDisplayName.Length > 0 ? assignedDisplayName : null,
                     heartbeatIntervalSeconds = ConnectedClientRegistry.HeartbeatIntervalSeconds,
                     expiresInSeconds = ConnectedClientRegistry.ExpirationSeconds,
                     mobileAppUpdate = new

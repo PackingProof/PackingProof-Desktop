@@ -194,17 +194,21 @@ public partial class MainViewModel
     {
         try
         {
-            bool online = await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+            RecordingWorkstationHeartbeatResult heartbeat =
+                await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
                 Config.LastKnownHostAddress,
                 Config.NodeId,
                 Config.NodeName,
                 Config.WebServerPort,
-                connected: true);
+                connected: true,
+                nicknameCustomized: Config.NodeNameCustomized);
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 if (_isDisposed) return;
-                BoundHostOnlineStatusText = online ? "主机在线" : "主机离线";
-                if (!online && PendingRecordingTransferCount > 0)
+                if (heartbeat.Online)
+                    ApplyAssignedComputerNickname(heartbeat.AssignedDisplayName);
+                BoundHostOnlineStatusText = heartbeat.Online ? "主机在线" : "主机离线";
+                if (!heartbeat.Online && PendingRecordingTransferCount > 0)
                     RecordingTransferStatusText = "主机离线，录像已保存在本机，联网后自动上传";
             });
         }
@@ -243,6 +247,34 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(BoundHostDisplay));
             RetryRecordingTransfers();
         }
+    }
+
+    private void ApplyAssignedComputerNickname(string? assignedDisplayName)
+    {
+        string name = assignedDisplayName?.Trim() ?? "";
+        if (name.Length is < 1 or > 20
+            || name.Any(char.IsControl)
+            || string.Equals(name, Config.NodeName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!WorkstationConfigStore.TryUpdate(
+                config =>
+                {
+                    if (string.Equals(config.NodeId, Config.NodeId, StringComparison.OrdinalIgnoreCase))
+                        config.NodeName = name;
+                },
+                out AppConfig saved,
+                out _)
+            || !string.Equals(saved.NodeId, Config.NodeId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Config.NodeName = saved.NodeName;
+        Config.NodeNameCustomized = saved.NodeNameCustomized;
+        OnPropertyChanged(nameof(ComputerDisplayName));
     }
 
     internal static bool ShouldPromptRecordingWorkstationHostBinding(AppConfig? config) =>
@@ -643,7 +675,8 @@ public partial class MainViewModel
                 Config.NodeId,
                 Config.NodeName,
                 Config.WebServerPort,
-                connected: false);
+                connected: false,
+                nicknameCustomized: Config.NodeNameCustomized);
         }
         if (_recordingTransferService != null)
             _recordingTransferService.ProgressChanged -= OnRecordingTransferProgressChanged;
