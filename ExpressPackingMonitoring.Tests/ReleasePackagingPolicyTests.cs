@@ -62,6 +62,28 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_EmitsVerifiedLauncherBridgeAndKeepsSafetyGate()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("ExpressPackingMonitoring_Launcher_$releaseTag.zip", publishScript);
+        Assert.Contains("$updateManifest[\"launcher_package\"]", publishScript);
+        Assert.Contains("$launcherPackageHash", publishScript);
+        Assert.Contains("$launcherExecutableHash", publishScript);
+        Assert.Contains("protocol_version", publishScript);
+        Assert.Contains(
+            "AppPatch bridge validation failed: launcher changed but updated app assembly is missing",
+            publishScript);
+        Assert.Contains("elseif ($launcherPatchBlocked)", publishScript);
+        Assert.DoesNotContain(
+            "$launcherPatchBlocked = $true\r\n    }\r\n    elseif ([string]::IsNullOrWhiteSpace($launcherCheckInfo))",
+            publishScript);
+    }
+
+    [Fact]
     public void WindowsInstaller_UsesFixedPerUserIdentityAndSafeReleaseInputs()
     {
         string repositoryRoot = FindRepositoryRoot();

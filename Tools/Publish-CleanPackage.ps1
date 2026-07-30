@@ -787,6 +787,8 @@ $appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
 $manualUpdateZipName = "PackingProof_ManualUpdate_$releaseTag.zip"
 $manualUpdateZipPath = Join-Path $packageRoot $manualUpdateZipName
+$launcherPackageName = "ExpressPackingMonitoring_Launcher_$releaseTag.zip"
+$launcherPackagePath = Join-Path $packageRoot $launcherPackageName
 $updateJsonName = "update_$releaseTag.json"
 $updateJsonPath = Join-Path $packageRoot $updateJsonName
 $launcherManifestName = "launcher_manifest_$releaseTag.json"
@@ -798,8 +800,10 @@ $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"
 $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
+$launcherPackageUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
+$launcherPackagePlaceholderUrl = Expand-ReleaseTemplate -Template $launcherPackageUrlTemplate -ReleaseTag $releaseTag -FileName $launcherPackageName
 $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
 if ([string]::IsNullOrWhiteSpace($fullDownloadPageTemplate)) {
     $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
@@ -813,6 +817,45 @@ if (Test-Path $legacyAppFullZipPath) {
 if (Test-Path $appPatchZipPath) {
     Remove-Item -LiteralPath $appPatchZipPath -Force
 }
+if (Test-Path $launcherPackagePath) {
+    Remove-Item -LiteralPath $launcherPackagePath -Force
+}
+
+$launcherPackageStream = [System.IO.File]::Create($launcherPackagePath)
+try {
+    $launcherPackageArchive = [System.IO.Compression.ZipArchive]::new(
+        $launcherPackageStream,
+        [System.IO.Compression.ZipArchiveMode]::Create,
+        $false)
+    try {
+        $launcherEntry = $launcherPackageArchive.CreateEntry(
+            "ExpressPackingMonitoring.exe",
+            [System.IO.Compression.CompressionLevel]::Optimal)
+        $launcherEntryStream = $launcherEntry.Open()
+        try {
+            $launcherSourceStream = [System.IO.File]::OpenRead($launcherExe)
+            try {
+                $launcherSourceStream.CopyTo($launcherEntryStream)
+            }
+            finally {
+                $launcherSourceStream.Dispose()
+            }
+        }
+        finally {
+            $launcherEntryStream.Dispose()
+        }
+    }
+    finally {
+        $launcherPackageArchive.Dispose()
+    }
+}
+finally {
+    $launcherPackageStream.Dispose()
+}
+$launcherPackageHash = (Get-FileHash -LiteralPath $launcherPackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$launcherPackageSize = (Get-Item -LiteralPath $launcherPackagePath).Length
+$launcherExecutableHash = (Get-FileHash -LiteralPath $launcherExe -Algorithm SHA256).Hash.ToLowerInvariant()
+$launcherExecutableSize = (Get-Item -LiteralPath $launcherExe).Length
 if (-not (Test-Path -LiteralPath $installerBuildScript -PathType Leaf)) {
     throw "Installer build script not found: $installerBuildScript"
 }
@@ -874,9 +917,7 @@ else {
         }
     }
     if ($launcherChanged) {
-        $launcherCheckInfo = ConvertFrom-Utf8Base64 "5ZCv5Yqo5Zmo5rqQ56CB5oyH57q55bey5Y+Y5YyW77yM5bey56aB55So5aKe6YeP5pu05paw44CC"
-        $patchReason = ConvertFrom-Utf8Base64 "5pyq55Sf5oiQ5aKe6YeP5YyF77ya5ZCv5Yqo5Zmo5rqQ56CB5oyH57q55bey5Y+Y5YyW77yM6K+35omL5Yqo5LiL6L295a6M5pW05YyF44CC"
-        $launcherPatchBlocked = $true
+        $launcherCheckInfo = "Launcher sources changed; app bridge protocol v$launcherProtocolVersion will deliver the verified launcher package."
     }
     elseif ([string]::IsNullOrWhiteSpace($launcherCheckInfo)) {
         $launcherCheckInfo = ConvertFrom-Utf8Base64 "5ZCv5Yqo5Zmo5rqQ56CB5oyH57q55bey6YCa6L+H77yM5ZCv5Yqo5Zmo5pyq5Y+Y5YyW44CC"
@@ -921,6 +962,9 @@ else {
             throw "AppPatch package validation failed: missing changed camera barcode runtime dependency files/$runtimeFile"
         }
     }
+    if ($launcherChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/ExpressPackingMonitoring.dll")) {
+        throw "AppPatch bridge validation failed: launcher changed but updated app assembly is missing"
+    }
 
     $appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $appPatchSize = (Get-Item -LiteralPath $appPatchZipPath).Length
@@ -934,6 +978,15 @@ $updateManifest["title"] = ConvertFrom-Utf8Base64 "6K+35aGr5YaZ5pu05paw5qCH6aKY"
 $updateManifest["release_page"] = $releasePage
 $updateManifest["patch_baseline_version"] = $normalizedPatchBaselineVersion
 $updateManifest["patch_supported"] = $patchSupported
+$launcherPackageInfo = [ordered]@{}
+$launcherPackageInfo["protocol_version"] = [int]$launcherProtocolVersion
+$launcherPackageInfo["version"] = $normalizedVersion
+$launcherPackageInfo["url"] = $launcherPackagePlaceholderUrl
+$launcherPackageInfo["size"] = $launcherPackageSize
+$launcherPackageInfo["sha256"] = $launcherPackageHash
+$launcherPackageInfo["executable_size"] = $launcherExecutableSize
+$launcherPackageInfo["executable_sha256"] = $launcherExecutableHash
+$updateManifest["launcher_package"] = $launcherPackageInfo
 if ($patchSupported) {
     $patchPackageInfo = [ordered]@{}
     $patchPackageInfo["type"] = "baseline_patch"
@@ -1038,7 +1091,8 @@ $releaseInfoLines += "3. 完整包 ZIP（系统原生解压/故障恢复）：" 
 if ($patchSupported) {
     $releaseInfoLines += "4. 手动增量更新（普通用户手动下载）：" + $manualUpdateZipName
     $releaseInfoLines += "5. AppPatch（仅供启动器自动下载）：" + $patchReleaseInfo
-    $releaseInfoLines += "6. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    $releaseInfoLines += "6. 启动器更新包（仅供主程序自动下载）：" + $launcherPackageName
+    $releaseInfoLines += "7. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
 }
 else {
     $releaseInfoLines += "4. 本版本不提供增量包：" + $patchReason
@@ -1049,7 +1103,8 @@ $releaseInfoLines += "Gitee 手工上传："
 if ($patchSupported) {
     $releaseInfoLines += "1. 手动增量更新（普通用户手动下载）：" + $manualUpdateZipName
     $releaseInfoLines += "2. AppPatch（仅供启动器自动下载）：" + $patchReleaseInfo
-    $releaseInfoLines += "3. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    $releaseInfoLines += "3. 启动器更新包（仅供主程序自动下载）：" + $launcherPackageName
+    $releaseInfoLines += "4. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
 }
 else {
     $releaseInfoLines += "1. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName

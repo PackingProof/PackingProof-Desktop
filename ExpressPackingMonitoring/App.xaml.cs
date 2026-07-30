@@ -20,6 +20,7 @@ namespace ExpressPackingMonitoring
     public partial class App : Application
     {
         private WorkstationInstanceCoordinator? _instanceCoordinator;
+        private CancellationTokenSource? _launcherUpdateCancellation;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -50,6 +51,10 @@ namespace ExpressPackingMonitoring
             RuntimeLog.Info("App", "Application startup");
             RuntimeLog.LogSessionStart(e.Args);
             RuntimeLog.LogBuildInfo();
+            _launcherUpdateCancellation = new CancellationTokenSource();
+            _ = new LauncherUpdateService().CheckAndApplyAsync(
+                config.EnableAutoCheckUpdate,
+                _launcherUpdateCancellation.Token);
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             if (AudioProbe.TryHandleCommandLine(e.Args, out int exitCode))
@@ -238,6 +243,9 @@ namespace ExpressPackingMonitoring
                 (source, detail) = RuntimeLog.GetShutdownRequest();
             }
             RuntimeLog.Info("App", $"Session exit session={RuntimeLog.CurrentSessionId}, pid={Environment.ProcessId}, exitCode={e.ApplicationExitCode}, source={source}, detail={detail}");
+            _launcherUpdateCancellation?.Cancel();
+            _launcherUpdateCancellation?.Dispose();
+            _launcherUpdateCancellation = null;
             _instanceCoordinator?.Dispose();
             _instanceCoordinator = null;
             WorkstationNetwork.TryStartPendingRestart();
