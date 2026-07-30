@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
@@ -197,6 +198,7 @@ public partial class ViewerClientWindow : Window
             _bindingOnly
                 ? "正在查找同一局域网中可用的保存主机"
                 : "正在搜索同一网络中的主机");
+        await Dispatcher.Yield(DispatcherPriority.Render);
         try
         {
             IReadOnlyList<PackingProofNodeInfo> hosts = await WorkstationNetwork.FindHostsAsync(
@@ -695,14 +697,35 @@ public partial class ViewerClientWindow : Window
         BindingBoundActionsPanel.Visibility = _bindingOnly && showBoundHost
             ? Visibility.Visible
             : Visibility.Collapsed;
-        SearchProgressBar.Visibility = state == ConnectionViewState.Searching
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        UpdateSearchProgress(state == ConnectionViewState.Searching);
         if (!string.IsNullOrWhiteSpace(message))
             SearchStatusText.Text = message;
         if (state == ConnectionViewState.Connected)
             OfflineHostNotice.Visibility = Visibility.Collapsed;
         UpdateConnectionControls();
+    }
+
+    private void UpdateSearchProgress(bool searching)
+    {
+        SearchProgressTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        SearchProgressTransform.X = -140;
+        SearchProgressBar.Visibility = searching
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        if (!searching)
+            return;
+
+        var animation = new DoubleAnimation
+        {
+            From = -140,
+            To = 760,
+            Duration = TimeSpan.FromSeconds(1.35),
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        SearchProgressTransform.BeginAnimation(
+            TranslateTransform.XProperty,
+            animation,
+            HandoffBehavior.SnapshotAndReplace);
     }
 
     private void UpdateConnectionControls()

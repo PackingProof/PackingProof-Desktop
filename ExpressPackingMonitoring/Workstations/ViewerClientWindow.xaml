@@ -358,15 +358,26 @@
                         </Button>
                     </Grid>
 
-                    <ProgressBar x:Name="SearchProgressBar"
-                                 Height="4"
-                                 Margin="0,14,0,0"
-                                 IsIndeterminate="True"
-                                 Foreground="{DynamicResource AccentBlue}"
-                                 Background="{DynamicResource BorderLight}"
-                                 BorderThickness="0"
-                                 Visibility="Collapsed"
-                                 AutomationProperties.Name="正在搜索主机"/>
+                    <Border x:Name="SearchProgressBar"
+                            Height="4"
+                            Margin="0,14,0,0"
+                            CornerRadius="2"
+                            Background="{DynamicResource BorderLight}"
+                            ClipToBounds="True"
+                            IsHitTestVisible="False"
+                            Visibility="Collapsed"
+                            AutomationProperties.Name="正在搜索主机">
+                        <Border Width="140"
+                                Height="4"
+                                HorizontalAlignment="Left"
+                                CornerRadius="2"
+                                Background="{DynamicResource AccentBlue}">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="SearchProgressTransform"
+                                                    X="-140"/>
+                            </Border.RenderTransform>
+                        </Border>
+                    </Border>
 
                     <Border x:Name="OfflineHostNotice"
                             Margin="0,16,0,0"

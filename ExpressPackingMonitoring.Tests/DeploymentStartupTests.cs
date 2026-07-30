@@ -586,9 +586,22 @@ public sealed class DeploymentStartupTests
         Assert.Contains("MaxHeight=\"244\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("MinHeight=\"150\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SearchProgressBar\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("IsIndeterminate=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SearchProgressTransform\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ProgressBar", xaml, StringComparison.Ordinal);
         Assert.Contains(
-            "SearchProgressBar.Visibility = state == ConnectionViewState.Searching",
+            "await Dispatcher.Yield(DispatcherPriority.Render);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "UpdateSearchProgress(state == ConnectionViewState.Searching);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RepeatBehavior = RepeatBehavior.Forever",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "HandoffBehavior.SnapshotAndReplace",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
