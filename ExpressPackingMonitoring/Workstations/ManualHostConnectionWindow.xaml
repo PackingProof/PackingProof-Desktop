@@ -1,0 +1,73 @@
+<Window x:Class="ExpressPackingMonitoring.ManualHostConnectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="手动连接主机"
+        Width="520"
+        Height="280"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Icon="/app.ico"
+        Background="{DynamicResource WindowBackground}"
+        FontFamily="Microsoft YaHei UI, Segoe UI">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="手动连接主机"
+                   FontSize="22"
+                   FontWeight="Black"
+                   Foreground="{DynamicResource TextPrimary}"/>
+        <TextBlock x:Name="ConnectionHintText"
+                   Grid.Row="1"
+                   Margin="0,8,0,0"
+                   Text="输入主机地址，或粘贴完整连接链接"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextSecondary}"/>
+
+        <StackPanel Grid.Row="2" Margin="0,18,0,0">
+            <TextBlock Text="主机地址或连接链接"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}"/>
+            <TextBox x:Name="ConnectionInputTextBox"
+                     Height="40"
+                     Margin="0,8,0,0"
+                     Padding="10,0"
+                     VerticalContentAlignment="Center"
+                     AutomationProperties.Name="主机地址或连接链接"/>
+        </StackPanel>
+
+        <TextBlock x:Name="ValidationText"
+                   Grid.Row="3"
+                   Margin="0,8,0,0"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource AccentRed}"
+                   Visibility="Collapsed"/>
+
+        <StackPanel Grid.Row="4"
+                    Margin="0,18,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Content="取消"
+                    MinWidth="88"
+                    Height="38"
+                    Margin="0,0,10,0"
+                    IsCancel="True"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Click="Cancel_Click"/>
+            <Button x:Name="ConnectButton"
+                    MinWidth="96"
+                    Height="38"
+                    IsDefault="True"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Click="Connect_Click">
+                <TextBlock x:Name="ConnectButtonText" Text="连接"/>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

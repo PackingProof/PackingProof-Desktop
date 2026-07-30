@@ -10,15 +10,30 @@ namespace ExpressPackingMonitoring;
 
 public partial class ViewerClientWindow : Window
 {
+    private enum ConnectionViewState
+    {
+        Searching,
+        Ready,
+        Connecting,
+        Connected,
+        Offline,
+        Error
+    }
+
     private readonly AppConfig _config;
     private readonly string _deploymentPreset;
     private readonly bool _bindingOnly;
     private readonly DispatcherTimer _onlineTimer;
     private CancellationTokenSource? _searchCancellation;
     private PackingProofNodeInfo? _boundHost;
+    private ManualHostConnectionWindow? _manualConnectionWindow;
     private IReadOnlyList<RecordingDeviceInfo> _knownRecordingDevices = [];
     private bool _deploymentSetupPersisted;
+    private bool _isSearching;
+    private bool _isConnecting;
+    private bool _isChoosingHost;
     private bool _testOrderSending;
+    private ConnectionViewState _connectionViewState = ConnectionViewState.Searching;
 
     public ViewerClientWindow(AppConfig config, string? deploymentPreset = null)
     {
@@ -39,11 +54,9 @@ public partial class ViewerClientWindow : Window
             SwitchPurposeButton.Visibility = Visibility.Collapsed;
             ViewerActionPanel.Visibility = Visibility.Collapsed;
             UserscriptStatusText.Visibility = Visibility.Collapsed;
-            BindingDiscoveryActions.Visibility = Visibility.Visible;
             DiscoveryHeadingText.Text = "选择保存主机";
             SearchStatusText.Text = "正在查找同一局域网中可用的保存主机";
-            HostsList.ItemTemplate =
-                (DataTemplate)FindResource("RecordingWorkstationHostItemTemplate");
+            DeferBindingButton.Visibility = Visibility.Visible;
             HostSummaryLabelColumn.Width = new GridLength(0);
             CurrentHostLabel.Visibility = Visibility.Collapsed;
             HostAddressLabel.Visibility = Visibility.Collapsed;
@@ -52,14 +65,12 @@ public partial class ViewerClientWindow : Window
             CapabilitiesText.Visibility = Visibility.Collapsed;
             RecorderCountLabel.Visibility = Visibility.Collapsed;
             RecorderCountText.Visibility = Visibility.Collapsed;
-            bool hasSavedHost = HasSavedHost();
-            HostSummaryBorder.Visibility = hasSavedHost
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            DiscoveryPanel.Visibility = hasSavedHost
-                ? Visibility.Collapsed
-                : Visibility.Visible;
         }
+        ApplyConnectionViewState(
+            ConnectionViewState.Searching,
+            _bindingOnly
+                ? "正在查找同一局域网中可用的保存主机"
+                : "正在搜索同一网络中的主机");
         _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _onlineTimer.Tick += async (_, _) => await RefreshBoundHostAsync();
         Loaded += ViewerClientWindow_Loaded;
@@ -68,6 +79,7 @@ public partial class ViewerClientWindow : Window
             _onlineTimer.Stop();
             _searchCancellation?.Cancel();
             _searchCancellation?.Dispose();
+            CloseManualConnectionWindow();
         };
     }
 
@@ -79,8 +91,11 @@ public partial class ViewerClientWindow : Window
         _onlineTimer.Start();
     }
 
-    private async Task RefreshBoundHostAsync()
+    private async Task RefreshBoundHostAsync(bool allowWhileConnecting = false)
     {
+        if (_isSearching || (_isConnecting && !allowWhileConnecting))
+            return;
+
         string address = _config.LastKnownHostAddress;
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -101,14 +116,13 @@ public partial class ViewerClientWindow : Window
         CompleteDeploymentSetup(node);
         HostNameText.Text = node.NodeName;
         HostAddressText.Text = node.Address;
-        OnlineStatusText.Text = _bindingOnly ? "可连接" : "在线";
+        OnlineStatusText.Text = "在线";
         OnlineStatusText.Foreground = TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
         OpenWebButton.IsEnabled = true;
         if (_bindingOnly)
         {
-            HostSummaryBorder.Visibility = Visibility.Visible;
-            DiscoveryPanel.Visibility = Visibility.Collapsed;
-            BindingBoundActionsPanel.Visibility = Visibility.Visible;
+            if (!_isChoosingHost)
+                ApplyConnectionViewState(ConnectionViewState.Connected, "");
             return;
         }
 
@@ -125,6 +139,8 @@ public partial class ViewerClientWindow : Window
         UserscriptButton.IsEnabled = _knownRecordingDevices.Count > 0;
         SendTestOrderButton.IsEnabled = true;
         RefreshUserscriptStatus();
+        if (!_isChoosingHost)
+            ApplyConnectionViewState(ConnectionViewState.Connected, "");
     }
 
     private void SetOffline(string status)
@@ -147,49 +163,90 @@ public partial class ViewerClientWindow : Window
         UserscriptButton.IsEnabled = false;
         SendTestOrderButton.IsEnabled = false;
         UserscriptStatusText.Text = "主机离线，暂时无法检查订单联动设备";
-        if (_bindingOnly)
+        bool showBoundRecordingHost =
+            _bindingOnly && hasSavedHost && !_isChoosingHost;
+        if (!showBoundRecordingHost)
         {
-            HostSummaryBorder.Visibility = hasSavedHost
+            OfflineHostNotice.Visibility = hasSavedHost
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            BindingBoundActionsPanel.Visibility = hasSavedHost
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (hasSavedHost)
+            {
+                OfflineHostText.Text =
+                    $"{HostNameText.Text} · {HostAddressText.Text} · {status}";
+            }
         }
+        ApplyConnectionViewState(
+            showBoundRecordingHost
+                ? ConnectionViewState.Offline
+                : ConnectionViewState.Ready,
+            showBoundRecordingHost
+                ? ""
+                : hasSavedHost
+                    ? "正在查找其他可用主机"
+                    : status);
     }
 
     private async Task SearchHostsAsync()
     {
         _searchCancellation?.Cancel();
         _searchCancellation?.Dispose();
-        _searchCancellation = new CancellationTokenSource();
-        DiscoveryPanel.Visibility = Visibility.Visible;
-        if (_bindingOnly)
-            BindingBoundActionsPanel.Visibility = Visibility.Collapsed;
+        var searchCancellation = new CancellationTokenSource();
+        _searchCancellation = searchCancellation;
+        _isSearching = true;
         HostsList.ItemsSource = null;
-        SearchStatusText.Text = _bindingOnly
-            ? "正在查找同一局域网中可用的保存主机"
-            : "正在搜索局域网中的 PackingProof 主机";
-        var progress = new Progress<string>(message => SearchStatusText.Text = message);
+        ApplyConnectionViewState(
+            ConnectionViewState.Searching,
+            _bindingOnly
+                ? "正在查找同一局域网中可用的保存主机"
+                : "正在搜索同一网络中的主机");
         try
         {
             IReadOnlyList<PackingProofNodeInfo> hosts = await WorkstationNetwork.FindHostsAsync(
                 _config.LastKnownHostAddress,
                 _config.WebServerPort,
-                progress,
-                _searchCancellation.Token);
-            HostsList.ItemsSource = hosts;
-            SearchStatusText.Text = _bindingOnly
-                ? hosts.Count == 0
-                    ? "暂时没有找到保存主机，可以重新搜索或使用完整连接链接"
-                    : $"找到 {hosts.Count} 台可连接电脑，请选择一台作为保存主机"
-                : hosts.Count == 0
-                    ? "没有发现主机，可以检查网络后重新搜索或手动输入地址"
-                    : $"找到 {hosts.Count} 台 PackingProof 主机，请选择要绑定的主机";
+                progress: null,
+                token: searchCancellation.Token);
+            if (!ReferenceEquals(searchCancellation, _searchCancellation))
+                return;
+
+            IReadOnlyList<PackingProofNodeInfo> compatibleHosts =
+                FilterDiscoveredHosts(hosts, _bindingOnly);
+            HostsList.ItemsSource = compatibleHosts;
+            if (compatibleHosts.Count == 1)
+                HostsList.SelectedIndex = 0;
+
+            string message = compatibleHosts.Count switch
+            {
+                0 when _bindingOnly && hosts.Count > 0 =>
+                    "找到了主机，但没有可接收录像的保存主机",
+                0 => "没有找到主机，请检查两台电脑是否连接同一网络",
+                1 => "找到 1 台主机，确认后即可连接",
+                _ => $"找到 {compatibleHosts.Count} 台主机，请选择要连接的主机"
+            };
+            ApplyConnectionViewState(ConnectionViewState.Ready, message);
         }
         catch (OperationCanceledException)
         {
-            SearchStatusText.Text = "搜索已取消";
+            if (ReferenceEquals(searchCancellation, _searchCancellation))
+                ApplyConnectionViewState(ConnectionViewState.Ready, "搜索已取消");
+        }
+        catch (Exception ex)
+        {
+            if (ReferenceEquals(searchCancellation, _searchCancellation))
+            {
+                ApplyConnectionViewState(
+                    ConnectionViewState.Error,
+                    $"搜索主机失败：{ex.Message}");
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(searchCancellation, _searchCancellation))
+            {
+                _isSearching = false;
+                UpdateConnectionControls();
+            }
         }
     }
 
@@ -197,30 +254,31 @@ public partial class ViewerClientWindow : Window
     {
         if (!node.IsValidHost)
         {
-            SearchStatusText.Text = _bindingOnly
+            ShowConnectionError(_bindingOnly
                 ? "这台电脑暂时不能作为保存主机"
-                : "该地址不是有效的 PackingProof 主机";
+                : "该地址不是有效的 PackingProof 主机");
             return;
         }
-        if (_bindingOnly
-            && !node.Capabilities.Contains(
-                PackingProofCapabilities.MobileBackup,
-                StringComparer.OrdinalIgnoreCase))
+        if (_bindingOnly && !IsRecordingReceiverHost(node))
         {
-            SearchStatusText.Text = "该主机未启用录像接收能力";
+            ShowConnectionError("该主机未启用录像接收能力");
             return;
         }
 
         string resolvedAccessKey = accessKey?.Trim() ?? "";
         if (_bindingOnly && resolvedAccessKey.Length < 16)
         {
-            SearchStatusText.Text = "已选中这台电脑，请粘贴它提供的完整连接链接完成安全配对";
-            BindingManualAddressTextBox.Text = node.Address;
-            ManualAddressExpander.IsExpanded = true;
-            BindingManualAddressTextBox.Focus();
+            ApplyConnectionViewState(
+                ConnectionViewState.Ready,
+                $"已选择“{node.NodeName}”，请粘贴保存主机提供的完整连接链接");
+            OpenManualConnectionWindow("请粘贴保存主机提供的完整连接链接");
             return;
         }
 
+        _isConnecting = true;
+        ApplyConnectionViewState(
+            ConnectionViewState.Connecting,
+            $"正在连接“{node.NodeName}”");
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
                 {
@@ -240,7 +298,8 @@ public partial class ViewerClientWindow : Window
                 out AppConfig saved,
                 out string error))
         {
-            SearchStatusText.Text = $"绑定失败：{error}";
+            _isConnecting = false;
+            ShowConnectionError($"连接主机失败：{error}");
             return;
         }
 
@@ -253,12 +312,24 @@ public partial class ViewerClientWindow : Window
         _config.RecordingSetupVersion = saved.RecordingSetupVersion;
         _deploymentSetupPersisted = true;
         _boundHost = node;
-        DiscoveryPanel.Visibility = Visibility.Collapsed;
-        await RefreshBoundHostAsync();
-        if (_bindingOnly)
+        _isChoosingHost = false;
+        try
         {
-            DialogResult = true;
-            Close();
+            await RefreshBoundHostAsync(allowWhileConnecting: true);
+        }
+        finally
+        {
+            _isConnecting = false;
+            UpdateConnectionControls();
+        }
+        if (_boundHost != null)
+        {
+            CloseManualConnectionWindow();
+            if (_bindingOnly)
+            {
+                DialogResult = true;
+                Close();
+            }
         }
     }
 
@@ -287,6 +358,7 @@ public partial class ViewerClientWindow : Window
             return;
         }
 
+        _isChoosingHost = true;
         await SearchHostsAsync();
     }
 
@@ -443,47 +515,210 @@ public partial class ViewerClientWindow : Window
 
     private async void BindSelected_Click(object sender, RoutedEventArgs e)
     {
-        if (HostsList.SelectedItem is PackingProofNodeInfo node)
-            await BindHostAsync(
-                node,
-                string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
-                    ? _config.LastKnownHostAccessKey
-                    : "");
+        await BindSelectedHostAsync();
     }
 
     private async void HostsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (_bindingOnly)
-            return;
-        if (HostsList.SelectedItem is PackingProofNodeInfo node)
-            await BindHostAsync(
-                node,
-                string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
-                    ? _config.LastKnownHostAccessKey
-                    : "");
+        await BindSelectedHostAsync();
     }
 
-    private async void BindManual_Click(object sender, RoutedEventArgs e)
+    private void HostsList_SelectionChanged(
+        object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateConnectionControls();
+    }
+
+    private async Task BindSelectedHostAsync()
+    {
+        if (_isSearching
+            || _isConnecting
+            || HostsList.SelectedItem is not PackingProofNodeInfo node)
+        {
+            return;
+        }
+
+        string accessKey = string.Equals(
+            node.NodeId,
+            _config.LastKnownHostNodeId,
+            StringComparison.OrdinalIgnoreCase)
+                ? _config.LastKnownHostAccessKey
+                : "";
+        await BindHostAsync(node, accessKey);
+    }
+
+    private void OpenManualConnection_Click(object sender, RoutedEventArgs e)
+    {
+        OpenManualConnectionWindow();
+    }
+
+    private void OpenManualConnectionWindow(string? error = null)
+    {
+        if (_manualConnectionWindow != null)
+        {
+            if (!string.IsNullOrWhiteSpace(error))
+                _manualConnectionWindow.ShowError(error);
+            _manualConnectionWindow.Activate();
+            return;
+        }
+
+        var window = new ManualHostConnectionWindow(_bindingOnly) { Owner = this };
+        _manualConnectionWindow = window;
+        window.ConnectionSubmitted += ManualConnectionWindow_ConnectionSubmitted;
+        window.Closed += ManualConnectionWindow_Closed;
+        window.Show();
+        if (!string.IsNullOrWhiteSpace(error))
+            window.ShowError(error);
+    }
+
+    private void CloseManualConnectionWindow()
+    {
+        ManualHostConnectionWindow? window = _manualConnectionWindow;
+        if (window == null)
+            return;
+
+        window.ConnectionSubmitted -= ManualConnectionWindow_ConnectionSubmitted;
+        window.Closed -= ManualConnectionWindow_Closed;
+        _manualConnectionWindow = null;
+        window.Close();
+    }
+
+    private void ManualConnectionWindow_Closed(object? sender, EventArgs e)
+    {
+        if (sender is not ManualHostConnectionWindow window)
+            return;
+
+        window.ConnectionSubmitted -= ManualConnectionWindow_ConnectionSubmitted;
+        window.Closed -= ManualConnectionWindow_Closed;
+        if (ReferenceEquals(window, _manualConnectionWindow))
+            _manualConnectionWindow = null;
+    }
+
+    private async void ManualConnectionWindow_ConnectionSubmitted(string input)
     {
         WorkstationNetwork.ParseHostConnectionInput(
-            _bindingOnly
-                ? BindingManualAddressTextBox.Text
-                : ViewerManualAddressTextBox.Text,
+            input,
             out string address,
             out string accessKey);
-        SearchStatusText.Text = _bindingOnly
-            ? "正在确认保存主机"
-            : "正在验证手动输入的主机地址";
-        PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(address);
+        ManualHostConnectionWindow? window = _manualConnectionWindow;
+        if (window == null)
+            return;
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            window.ShowError("请输入主机地址或完整连接链接");
+            return;
+        }
+        if (_bindingOnly && accessKey.Length < 16)
+        {
+            window.ShowError("录制工位需要粘贴保存主机提供的完整连接链接");
+            return;
+        }
+
+        _isConnecting = true;
+        ApplyConnectionViewState(ConnectionViewState.Connecting, "正在验证主机");
+        PackingProofNodeInfo? node;
+        try
+        {
+            node = await WorkstationNetwork.GetNodeInfoAsync(address);
+        }
+        catch (Exception ex)
+        {
+            _isConnecting = false;
+            ShowConnectionError($"验证主机失败：{ex.Message}");
+            return;
+        }
+        finally
+        {
+            _isConnecting = false;
+            UpdateConnectionControls();
+        }
+        if (!ReferenceEquals(window, _manualConnectionWindow))
+        {
+            if (IsLoaded)
+            {
+                ApplyConnectionViewState(
+                    ConnectionViewState.Ready,
+                    "已取消手动连接");
+            }
+            return;
+        }
         if (node == null)
         {
-            SearchStatusText.Text = _bindingOnly
-                ? "无法连接这台电脑，请检查完整连接链接后重试"
-                : "该地址未返回合法的 PackingProof 主机身份";
+            ShowConnectionError("无法连接该主机，请检查地址和网络后重试");
             return;
         }
 
         await BindHostAsync(node, accessKey);
+        if (_boundHost == null
+            && ReferenceEquals(window, _manualConnectionWindow))
+        {
+            window.ShowError(SearchStatusText.Text);
+        }
+    }
+
+    private static bool IsRecordingReceiverHost(PackingProofNodeInfo node) =>
+        node.Capabilities.Contains(
+            PackingProofCapabilities.MobileBackup,
+            StringComparer.OrdinalIgnoreCase);
+
+    internal static IReadOnlyList<PackingProofNodeInfo> FilterDiscoveredHosts(
+        IEnumerable<PackingProofNodeInfo> hosts,
+        bool recordingWorkstation) =>
+        recordingWorkstation
+            ? hosts.Where(IsRecordingReceiverHost).ToArray()
+            : hosts.ToArray();
+
+    private void ShowConnectionError(string message)
+    {
+        _isConnecting = false;
+        ApplyConnectionViewState(ConnectionViewState.Error, message);
+        _manualConnectionWindow?.ShowError(message);
+    }
+
+    private void ApplyConnectionViewState(ConnectionViewState state, string message)
+    {
+        _connectionViewState = state;
+        bool showBoundHost = state == ConnectionViewState.Connected
+            || (_bindingOnly
+                && state == ConnectionViewState.Offline
+                && HasSavedHost());
+        HostSummaryBorder.Visibility = showBoundHost
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        DiscoveryPanel.Visibility = showBoundHost
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ViewerActionPanel.Visibility = !_bindingOnly && state == ConnectionViewState.Connected
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        UserscriptStatusText.Visibility = !_bindingOnly && state == ConnectionViewState.Connected
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        BindingBoundActionsPanel.Visibility = _bindingOnly && showBoundHost
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        if (!string.IsNullOrWhiteSpace(message))
+            SearchStatusText.Text = message;
+        if (state == ConnectionViewState.Connected)
+            OfflineHostNotice.Visibility = Visibility.Collapsed;
+        UpdateConnectionControls();
+    }
+
+    private void UpdateConnectionControls()
+    {
+        bool busy = _isSearching
+            || _isConnecting
+            || _connectionViewState is ConnectionViewState.Searching
+                or ConnectionViewState.Connecting;
+        SearchHostsButton.IsEnabled = !busy;
+        HostsList.IsEnabled = !busy;
+        BindSelectedButton.IsEnabled =
+            !busy && HostsList.SelectedItem is PackingProofNodeInfo;
+        ManualConnectionButton.IsEnabled = !busy;
+        BindSelectedButtonText.Text = _isConnecting
+            ? "正在连接"
+            : "连接主机";
     }
 
     private static string FirstNotEmpty(params string?[] values) =>

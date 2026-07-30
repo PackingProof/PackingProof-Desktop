@@ -159,6 +159,7 @@
     <Compile Include="UI\UpdateAvailableDialog.xaml.cs" />
     <Compile Include="Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="Workstations\WorkstationInstanceCoordinator.cs" />
+    <Compile Include="Workstations\ManualHostConnectionWindow.xaml.cs" />
     <Compile Include="Workstations\PrintWorkstationWindow.xaml.cs" />
     <Compile Include="Workstations\ViewerClientWindow.xaml.cs" />
     <Compile Include="Workstations\WorkstationLauncher.cs" />

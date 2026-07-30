@@ -709,4 +709,17 @@
   <data name="默认 100 GB，只是最高上限，不会预占磁盘空间" xml:space="preserve"><value>默认 100 GB，只是最高上限，不会预占磁盘空间</value></data>
   <data name="正在计算此磁盘可安全使用的空间" xml:space="preserve"><value>正在计算此磁盘可安全使用的空间</value></data>
   <data name="本地缓存空间不足，正在安全保存当前录像" xml:space="preserve"><value>本地缓存空间不足，正在安全保存当前录像</value></data>
+  <data name="手动连接主机" xml:space="preserve"><value>手动连接主机</value></data>
+  <data name="输入主机地址，或粘贴完整连接链接" xml:space="preserve"><value>输入主机地址，或粘贴完整连接链接</value></data>
+  <data name="主机地址或连接链接" xml:space="preserve"><value>主机地址或连接链接</value></data>
+  <data name="在线" xml:space="preserve"><value>在线</value></data>
+  <data name="选择要连接的主机" xml:space="preserve"><value>选择要连接的主机</value></data>
+  <data name="正在搜索同一网络中的主机" xml:space="preserve"><value>正在搜索同一网络中的主机</value></data>
+  <data name="重新搜索同一网络中的主机" xml:space="preserve"><value>重新搜索同一网络中的主机</value></data>
+  <data name="上次连接的主机当前离线" xml:space="preserve"><value>上次连接的主机当前离线</value></data>
+  <data name="连接列表中选中的主机" xml:space="preserve"><value>连接列表中选中的主机</value></data>
+  <data name="连接主机" xml:space="preserve"><value>连接主机</value></data>
+  <data name="手动输入主机地址或完整连接链接" xml:space="preserve"><value>手动输入主机地址或完整连接链接</value></data>
+  <data name="手动连接" xml:space="preserve"><value>手动连接</value></data>
+  <data name="请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里" xml:space="preserve"><value>请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里</value></data>
 </root>

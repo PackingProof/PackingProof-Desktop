@@ -17,19 +17,7 @@
             <Setter Property="Height" Value="38"/>
             <Setter Property="Padding" Value="12,0"/>
         </Style>
-        <DataTemplate x:Key="ViewerHostItemTemplate">
-            <Grid Margin="4">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220"/>
-                    <ColumnDefinition Width="180"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding NodeName}" FontWeight="SemiBold"/>
-                <TextBlock Grid.Column="1" Text="{Binding Address}"/>
-                <TextBlock Grid.Column="2" Text="{Binding Preset}"/>
-            </Grid>
-        </DataTemplate>
-        <DataTemplate x:Key="RecordingWorkstationHostItemTemplate">
+        <DataTemplate x:Key="HostItemTemplate">
             <Border Margin="2,4"
                     Padding="12"
                     CornerRadius="8"
@@ -53,10 +41,10 @@
                               Fill="{DynamicResource AccentBlue}"/>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="8,0,12,0">
-                        <TextBlock Text="{Binding NodeName}"
+                        <TextBlock Text="{Binding NodeName, Mode=OneWay}"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="{Binding Address}"
+                        <TextBlock Text="{Binding Address, Mode=OneWay}"
                                    Margin="0,3,0,0"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextMuted}"/>
@@ -68,7 +56,7 @@
                                  Height="7"
                                  Margin="0,0,6,0"
                                  Fill="{DynamicResource AccentGreen}"/>
-                        <TextBlock Text="可连接"
+                        <TextBlock Text="在线"
                                    FontSize="12"
                                    Foreground="{DynamicResource AccentGreen}"/>
                     </StackPanel>
@@ -178,18 +166,6 @@
                             <TextBlock Text="打开网页回放" Margin="6,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="SearchHostsButton"
-                            Style="{StaticResource ViewerActionButtonStyle}"
-                            ToolTip="重新扫描局域网中的 PackingProof 主机"
-                            Margin="0,0,10,10"
-                            Click="SearchHosts_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource FluentSearchIcon}"
-                                  Width="16" Height="16" Stretch="Uniform"
-                                  Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                            <TextBlock Text="重新搜索主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
                     <Button x:Name="ViewerChangeHostButton"
                             Style="{StaticResource ViewerActionButtonStyle}"
                             ToolTip="解除当前显示并选择另一台主机"
@@ -271,129 +247,140 @@
                     BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1">
                 <StackPanel>
-                    <TextBlock x:Name="DiscoveryHeadingText"
-                               Text="搜索并选择主机" FontSize="18" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimary}"/>
-                    <TextBlock x:Name="SearchStatusText" Text="可以搜索局域网，也可以手动输入主机地址"
-                               Margin="0,6,0,12" Foreground="{DynamicResource TextSecondary}"/>
-                    <ListBox x:Name="HostsList" MinHeight="120" MaxHeight="220"
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Margin="0,0,18,0">
+                            <TextBlock x:Name="DiscoveryHeadingText"
+                                       Text="选择要连接的主机"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock x:Name="SearchStatusText"
+                                       Text="正在搜索同一网络中的主机"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                        <Button x:Name="SearchHostsButton"
+                                Grid.Column="1"
+                                Style="{StaticResource ViewerActionButtonStyle}"
+                                ToolTip="重新搜索同一网络中的主机"
+                                AutomationProperties.Name="重新搜索主机"
+                                Click="SearchHosts_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource FluentSearchIcon}"
+                                      Width="16"
+                                      Height="16"
+                                      Stretch="Uniform"
+                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="重新搜索"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <Border x:Name="OfflineHostNotice"
+                            Margin="0,16,0,0"
+                            Padding="12"
+                            CornerRadius="8"
+                            Background="{DynamicResource BorderLight}"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="上次连接的主机当前离线"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock x:Name="OfflineHostText"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox x:Name="HostsList"
+                             MinHeight="150"
+                             MaxHeight="260"
+                             Margin="0,16,0,0"
                              HorizontalContentAlignment="Stretch"
-                             ItemTemplate="{StaticResource ViewerHostItemTemplate}"
+                             ItemTemplate="{StaticResource HostItemTemplate}"
+                             AutomationProperties.Name="可连接的主机"
+                             SelectionChanged="HostsList_SelectionChanged"
                              MouseDoubleClick="HostsList_MouseDoubleClick">
                     </ListBox>
-                    <WrapPanel x:Name="ViewerDiscoveryActions"
-                               Margin="0,12,0,0">
-                        <Button x:Name="ViewerBindSelectedButton"
-                                Height="38"
-                                Padding="12,0"
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BindSelectedButton"
+                                Height="40"
+                                MinWidth="132"
+                                Padding="16,0"
+                                IsEnabled="False"
                                 Style="{DynamicResource PrimaryButtonStyle}"
-                                ToolTip="保存并连接列表中选中的主机"
-                                Margin="0,0,10,10"
+                                ToolTip="连接列表中选中的主机"
+                                AutomationProperties.Name="连接选中的主机"
                                 Click="BindSelected_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentCheckIcon}"
-                                      Width="16" Height="16" Stretch="Uniform"
+                                      Width="16"
+                                      Height="16"
+                                      Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                <TextBlock Text="绑定所选主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="BindSelectedButtonText"
+                                           Text="连接主机"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                        <TextBox x:Name="ViewerManualAddressTextBox" Width="260" Height="38"
-                                 Margin="0,0,10,10" VerticalContentAlignment="Center"
-                                 ToolTip="录制工位请粘贴主机“手机/电脑连接”中的完整链接"/>
-                        <Button Style="{StaticResource ViewerActionButtonStyle}"
-                                ToolTip="连接输入的主机地址"
-                                Margin="0,0,10,10"
-                                Click="BindManual_Click">
+
+                        <Button x:Name="ManualConnectionButton"
+                                Grid.Column="1"
+                                Height="40"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource ViewerActionButtonStyle}"
+                                ToolTip="手动输入主机地址或完整连接链接"
+                                AutomationProperties.Name="手动连接主机"
+                                Click="OpenManualConnection_Click">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource FluentLinkIcon}"
-                                      Width="16" Height="16" Stretch="Uniform"
+                                      Width="15"
+                                      Height="15"
+                                      Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                <TextBlock Text="连接手动地址" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="手动连接"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                    </WrapPanel>
-                    <StackPanel x:Name="BindingDiscoveryActions"
-                                Margin="0,14,0,0"
-                                Visibility="Collapsed">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="BindSelectedButton"
-                                    Height="40"
-                                    Padding="16,0"
-                                    Style="{DynamicResource PrimaryButtonStyle}"
-                                    ToolTip="确认使用列表中选中的保存主机"
-                                    Click="BindSelected_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentCheckIcon}"
-                                          Width="16" Height="16" Stretch="Uniform"
-                                          Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    <TextBlock Text="使用这台保存主机"
-                                               Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Grid.Column="1"
-                                    Height="40"
-                                    Padding="12,0"
-                                    Margin="10,0,0,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    ToolTip="重新搜索局域网中的保存主机"
-                                    Click="SearchHosts_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentSearchIcon}"
-                                          Width="16" Height="16" Stretch="Uniform"
-                                          Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    <TextBlock Text="重新搜索"
-                                               Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="DeferBindingButton"
-                                    Grid.Column="2"
-                                    Height="40"
-                                    Padding="12,0"
-                                    Margin="10,0,0,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    ToolTip="暂不设置，返回已经运行的电脑录像主界面"
-                                    Click="DeferBinding_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentClockIcon}"
-                                          Width="16" Height="16" Stretch="Uniform"
-                                          Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                    <TextBlock Text="稍后设置"
-                                               Margin="6,0,0,0"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
-                        <Expander x:Name="ManualAddressExpander"
-                                  Header="已有完整连接链接？"
-                                  Margin="0,14,0,0"
-                                  Foreground="{DynamicResource TextSecondary}">
-                            <StackPanel Margin="0,10,0,0">
-                                <TextBlock Text="从保存电脑复制完整连接链接并粘贴到这里"
-                                           Margin="0,0,0,8"
-                                           Foreground="{DynamicResource TextSecondary}"/>
-                                <DockPanel LastChildFill="True">
-                                    <Button DockPanel.Dock="Right"
-                                            Height="38"
-                                            Padding="14,0"
-                                            Margin="10,0,0,0"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Content="验证并绑定"
-                                            Click="BindManual_Click"/>
-                                    <TextBox x:Name="BindingManualAddressTextBox"
-                                             Height="38"
-                                             VerticalContentAlignment="Center"
-                                             ToolTip="请粘贴包含安全密钥的完整连接链接"/>
-                                </DockPanel>
+
+                        <Button x:Name="DeferBindingButton"
+                                Grid.Column="3"
+                                Height="40"
+                                Padding="12,0"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                ToolTip="暂不设置，返回已经运行的电脑录像主界面"
+                                AutomationProperties.Name="稍后设置保存主机"
+                                Visibility="Collapsed"
+                                Click="DeferBinding_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource FluentClockIcon}"
+                                      Width="16"
+                                      Height="16"
+                                      Stretch="Uniform"
+                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="稍后设置"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Expander>
-                    </StackPanel>
+                        </Button>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
