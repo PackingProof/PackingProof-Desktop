@@ -174,7 +174,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("event.key==='Escape'&&menu.classList.contains('open')", html);
         Assert.Contains("localStorage.removeItem(key)", html);
         Assert.Contains("localStorage.setItem(key,value)", html);
-        Assert.Contains("target=mobile?document.querySelector('.top-actions'):document.getElementById('floatingTools')", html);
+        Assert.Contains("syncTarget=()=>{const mobile=window.matchMedia&&window.matchMedia('(max-width:900px)').matches", html);
+        Assert.Contains("window.addEventListener('resize',syncTarget)", html);
         Assert.Contains(".top-actions>.language-float{position:relative;display:flex}", html);
         Assert.DoesNotContain("document.createElement('select')", html);
         Assert.DoesNotContain("select.style.cssText", html);
