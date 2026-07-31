@@ -785,7 +785,7 @@ namespace ExpressPackingMonitoring.Services
 
         internal static double CalculateThumbnailSecond(double duration)
         {
-            return ClampPreviewSecond(RoundToTenth(duration * 0.8), duration);
+            return ClampPreviewSecond(RoundToTenth(duration * 0.5), duration);
         }
 
         private static string ResolveFileInDirectory(string directory, string fileName, string extension)

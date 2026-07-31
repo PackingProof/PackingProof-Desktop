@@ -14,6 +14,14 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await assert.doesNotReject(() => page.getByRole('heading', { name: '快递打包录像回放' }).waitFor());
 
+    const appDownloadButton = page.getByRole('button', { name: '下载 App' });
+    await appDownloadButton.click();
+    await assert.doesNotReject(() => page.locator('#desktopAppDownloadPopover.open').waitFor());
+    await assert.doesNotReject(() => page.locator('#desktopAppDownloadQr[src^="data:image/png;base64,"]').waitFor());
+    assert.equal(await appDownloadButton.getAttribute('aria-expanded'), 'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await appDownloadButton.getAttribute('aria-expanded'), 'false');
+
     const mobileConnectButton = page.getByRole('button', { name: '手机打开' });
     await assert.doesNotReject(() => mobileConnectButton.waitFor());
     await mobileConnectButton.click();
@@ -25,6 +33,11 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.equal(await mobileConnectButton.isVisible(), false);
     await assert.doesNotReject(() => page.getByRole('link', { name: '下载手机 App' }).waitFor());
     assert.equal(await page.locator('#mobileConnectQr').isVisible(), false);
+    assert.equal(await page.locator('#desktopAppDownloadQr').isVisible(), false);
+    assert.equal(
+      await page.locator('#languageFloat').evaluate(element => element.parentElement?.classList.contains('top-actions')),
+      true
+    );
     const compactOverview = await page.locator('.overview').evaluate(overview => {
       const cards = overview.querySelectorAll('.summary-card');
       return {
@@ -41,6 +54,18 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       retentionNoteDisplay: 'none'
     });
     await page.setViewportSize({ width: 1280, height: 900 });
+
+    const mobilePage = await context.newPage();
+    await mobilePage.setViewportSize({ width: 390, height: 844 });
+    let mobileDownloadInfoRequests = 0;
+    mobilePage.on('request', request => {
+      if (new URL(request.url()).pathname === '/api/mobile-app-download') mobileDownloadInfoRequests++;
+    });
+    await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
+    assert.equal(await mobilePage.getByRole('link', { name: '下载手机 App' }).isVisible(), true);
+    assert.equal(await mobilePage.locator('#desktopAppDownloadQr').isVisible(), false);
+    assert.equal(mobileDownloadInfoRequests, 0);
+    await mobilePage.close();
 
     const search = page.getByPlaceholder('输入订单号关键词搜索');
     await search.fill('AUTO_WEB_001');

@@ -6,6 +6,25 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class MobileAppUpdatePolicyTests
 {
     [Fact]
+    public void WebDownloadInfoUsesCachedReleaseOrStableFallbackImmediately()
+    {
+        MobileAppDownloadInfo cached = WebServer.CreateMobileAppDownloadInfo(
+            new MobileAppReleaseInfo(
+                "v0.5.8+11008",
+                "0.5.8",
+                11008,
+                "https://gitee.com/PackingProof/PackingProof-Mobile/attach_files/1/download"));
+        MobileAppDownloadInfo fallback = WebServer.CreateMobileAppDownloadInfo(null!);
+
+        Assert.Equal("0.5.8", cached.Version);
+        Assert.Contains("attach_files/1/download", cached.DownloadUrl, StringComparison.Ordinal);
+        Assert.StartsWith("data:image/png;base64,", cached.QrCode, StringComparison.Ordinal);
+        Assert.Equal("", fallback.Version);
+        Assert.Equal(MobileAppUpdatePolicyProvider.ReleasesUrl, fallback.DownloadUrl);
+        Assert.StartsWith("data:image/png;base64,", fallback.QrCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MinimumPolicyIsBuiltIntoDesktopAndUsesRequiredMessage()
     {
         MobileAppUpdatePolicy policy = MobileAppUpdatePolicyProvider.MinimumPolicy;

@@ -111,7 +111,10 @@ public sealed class WebRequestLimitTests
             html);
         Assert.Contains(".mobile-app-download{display:flex}", html);
         Assert.Contains(".mobile-app-download{grid-column:1/-1;grid-row:2}", html);
-        Assert.DoesNotContain("mobile-app-download-qr", html);
+        Assert.Contains("id=\"desktopAppDownloadQr\"", html);
+        Assert.Contains("fetch('/api/mobile-app-download'", html);
+        Assert.Contains(".floating-tools{display:none}", html);
+        Assert.Contains("if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches)return", html);
     }
 
     [Fact]
@@ -153,9 +156,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("localStorage.getItem(compatStorageKey)===null", html);
         Assert.Contains("window.matchMedia('(max-width:900px)').matches", html);
         Assert.Contains("localStorage.setItem(compatStorageKey,'0')", html);
-        Assert.Contains(
-            ".language-float{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom))",
-            html);
+        Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:50%", html);
     }
 
     [Fact]
@@ -173,7 +174,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("event.key==='Escape'&&menu.classList.contains('open')", html);
         Assert.Contains("localStorage.removeItem(key)", html);
         Assert.Contains("localStorage.setItem(key,value)", html);
-        Assert.Contains("right:max(10px,env(safe-area-inset-right))", html);
+        Assert.Contains("target=mobile?document.querySelector('.top-actions'):document.getElementById('floatingTools')", html);
+        Assert.Contains(".top-actions>.language-float{position:relative;display:flex}", html);
         Assert.DoesNotContain("document.createElement('select')", html);
         Assert.DoesNotContain("select.style.cssText", html);
     }

@@ -42,6 +42,11 @@ namespace ExpressPackingMonitoring.Services
         public bool IsTest { get; set; }
     }
 
+    internal sealed record MobileAppDownloadInfo(
+        string Version,
+        string DownloadUrl,
+        string QrCode);
+
     public sealed class OrderLookupResult
     {
         public bool Responded { get; set; }
@@ -618,6 +623,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/storage":
                         HandleStorageOverview(ctx);
                         break;
+                    case "/api/mobile-app-download" when method == "GET":
+                        HandleMobileAppDownload(ctx);
+                        break;
                     case "/api/mobile-connection" when method == "GET":
                         HandleMobileConnection(ctx);
                         break;
@@ -1141,6 +1149,25 @@ namespace ExpressPackingMonitoring.Services
                 qrCode = MobileConnectionService.CreateQrDataUri(url),
                 accessProtected = _requireAccessKey
             });
+        }
+
+        private void HandleMobileAppDownload(HttpListenerContext ctx)
+        {
+            _mobileAppUpdatePolicy.RefreshInBackground();
+            MobileAppDownloadInfo info = CreateMobileAppDownloadInfo(
+                _mobileAppUpdatePolicy.LatestRelease);
+            SendJson(ctx, 200, info);
+        }
+
+        internal static MobileAppDownloadInfo CreateMobileAppDownloadInfo(
+            MobileAppReleaseInfo latestRelease)
+        {
+            string downloadUrl = latestRelease?.DownloadUrl
+                ?? MobileAppUpdatePolicyProvider.ReleasesUrl;
+            return new MobileAppDownloadInfo(
+                latestRelease?.Version ?? "",
+                downloadUrl,
+                MobileConnectionService.CreateQrDataUri(downloadUrl));
         }
 
         private bool TryAuthorizeRequest(HttpListenerContext ctx, out bool authorizedByQuery)
