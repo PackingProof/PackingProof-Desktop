@@ -276,6 +276,11 @@ public partial class ViewerClientWindow : Window
         }
 
         _isConnecting = true;
+        string backupCredential = _bindingOnly
+            ? BackupRequestAuthentication.DeriveDeviceCredential(
+                resolvedAccessKey,
+                _config.NodeId)
+            : resolvedAccessKey;
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
             $"正在连接“{node.NodeName}”");
@@ -292,7 +297,11 @@ public partial class ViewerClientWindow : Window
                     config.LastKnownHostNodeName = node.NodeName;
                     config.LastKnownHostAddress = node.Address;
                     if (_bindingOnly)
-                        config.LastKnownHostAccessKey = resolvedAccessKey;
+                    {
+                        config.LastKnownHostAccessKey = backupCredential;
+                        config.LastKnownHostBackupAuthVersion =
+                            BackupRequestAuthentication.CurrentVersion;
+                    }
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
                 out AppConfig saved,
@@ -307,6 +316,7 @@ public partial class ViewerClientWindow : Window
         _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
         _config.LastKnownHostAccessKey = saved.LastKnownHostAccessKey;
+        _config.LastKnownHostBackupAuthVersion = saved.LastKnownHostBackupAuthVersion;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = saved.DeploymentSetupVersion;
         _config.RecordingSetupVersion = saved.RecordingSetupVersion;

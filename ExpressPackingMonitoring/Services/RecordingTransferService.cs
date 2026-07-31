@@ -224,7 +224,19 @@ internal sealed class RecordingTransferService : IDisposable
                 throw new InvalidDataException("主机未明确确认录像已经校验并入库");
             }
 
-            _store.MarkUploaded(task.Id, completed.RecordId, DateTime.UtcNow);
+            int verificationVersion = ValidateVerifiedReceipt(
+                completed,
+                config,
+                task,
+                sha256,
+                totalBytes);
+
+            _store.MarkUploaded(
+                task.Id,
+                completed.RecordId,
+                verificationVersion,
+                completed.ReceiptSignature,
+                DateTime.UtcNow);
             _database.MarkVideoUploaded(task.LocalVideoRecordId, completed.RecordId);
             ProgressChanged?.Invoke(new RecordingTransferProgress(
                 task.Id, totalBytes, totalBytes, RecordingTransferStates.Uploaded));
@@ -300,11 +312,11 @@ internal sealed class RecordingTransferService : IDisposable
             using var request = new HttpRequestMessage(
                 HttpMethod.Put,
                 $"{BaseUrl(task.TargetAddress)}/api/mobile-backup/uploads/{Uri.EscapeDataString(uploadId)}/chunks");
-            AddIdentityHeaders(request, config);
             request.Headers.TryAddWithoutValidation("X-Chunk-SHA256", chunkSha256);
             request.Content = new ByteArrayContent(chunk);
             request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             request.Content.Headers.ContentRange = new ContentRangeHeaderValue(offset, end, totalBytes);
+            AddAuthenticationHeaders(request, config, chunk);
             MobileBackupChunkResponse response =
                 await SendAsync<MobileBackupChunkResponse>(request, cancellationToken).ConfigureAwait(false);
             long nextOffset = response.Offset > offset ? response.Offset : end + 1;
@@ -355,19 +367,23 @@ internal sealed class RecordingTransferService : IDisposable
         AppConfig config)
     {
         var request = new HttpRequestMessage(method, url);
-        AddIdentityHeaders(request, config);
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(payload, JsonOptions),
-            Encoding.UTF8,
-            "application/json");
+        byte[] content = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
+        request.Content = new ByteArrayContent(content);
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json")
+        {
+            CharSet = "utf-8"
+        };
+        AddAuthenticationHeaders(request, config, content);
         return request;
     }
 
-    private void AddIdentityHeaders(HttpRequestMessage request, AppConfig config)
+    private static void AddAuthenticationHeaders(
+        HttpRequestMessage request,
+        AppConfig config,
+        ReadOnlySpan<byte> content)
     {
         if (string.IsNullOrWhiteSpace(config.LastKnownHostAccessKey))
             throw new InvalidOperationException("保存主机尚未完成安全配对");
-        request.Headers.TryAddWithoutValidation("X-EPM-Access-Key", config.LastKnownHostAccessKey);
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", config.NodeId);
         request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
         request.Headers.TryAddWithoutValidation(
@@ -375,6 +391,74 @@ internal sealed class RecordingTransferService : IDisposable
             Uri.EscapeDataString(string.IsNullOrWhiteSpace(config.NodeName)
                 ? Environment.MachineName
                 : config.NodeName));
+
+        if (config.LastKnownHostBackupAuthVersion < BackupRequestAuthentication.CurrentVersion)
+        {
+            request.Headers.TryAddWithoutValidation(
+                "X-EPM-Access-Key",
+                config.LastKnownHostAccessKey);
+            return;
+        }
+
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string contentHash = BackupRequestAuthentication.ComputeContentHash(content);
+        string path = request.RequestUri?.PathAndQuery ?? "/";
+        string signature = BackupRequestAuthentication.CreateRequestSignature(
+            config.LastKnownHostAccessKey,
+            request.Method.Method,
+            path,
+            timestamp,
+            nonce,
+            contentHash,
+            config.NodeId);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.VersionHeader,
+            BackupRequestAuthentication.CurrentVersion.ToString());
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.TimestampHeader,
+            timestamp.ToString());
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.ContentHashHeader,
+            contentHash);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.SignatureHeader,
+            signature);
+    }
+
+    private static int ValidateVerifiedReceipt(
+        MobileBackupCompleteResponse completed,
+        AppConfig config,
+        RecordingTransferTask task,
+        string fileSha256,
+        long fileSizeBytes)
+    {
+        if (config.LastKnownHostBackupAuthVersion < BackupRequestAuthentication.CurrentVersion)
+            return 0;
+        if (completed.AuthVersion != BackupRequestAuthentication.CurrentVersion
+            || !string.Equals(completed.HostNodeId, task.TargetNodeId, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(completed.SourceDeviceId, config.NodeId, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(completed.SourceSessionId, task.SourceSessionId, StringComparison.Ordinal)
+            || completed.FileSizeBytes != fileSizeBytes
+            || !BackupRequestAuthentication.IsFresh(
+                completed.VerifiedAtUnixSeconds,
+                DateTimeOffset.UtcNow))
+        {
+            throw new InvalidDataException("保存主机返回的完整性确认信息不一致");
+        }
+        string expected = BackupRequestAuthentication.CreateReceiptSignature(
+            config.LastKnownHostAccessKey,
+            completed.HostNodeId,
+            completed.SourceDeviceId,
+            completed.SourceSessionId,
+            fileSha256,
+            fileSizeBytes,
+            completed.RecordId,
+            completed.VerifiedAtUnixSeconds);
+        if (!BackupRequestAuthentication.FixedTimeEquals(expected, completed.ReceiptSignature))
+            throw new InvalidDataException("保存主机的完整性确认签名无效");
+        return BackupRequestAuthentication.CurrentVersion;
     }
 
     private async Task<T> SendAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -462,6 +546,45 @@ internal sealed class RecordingTransferService : IDisposable
         catch { return 0; }
     }
 
+    internal async Task<bool> VerifyRemoteRecordForCleanupAsync(
+        RecordingTransferTask task,
+        long localFileSizeBytes,
+        CancellationToken cancellationToken = default)
+    {
+        if (task.RemoteVideoRecordId is not long recordId || recordId <= 0
+            || task.VerificationVersion < BackupRequestAuthentication.CurrentVersion
+            || string.IsNullOrWhiteSpace(task.FileSha256))
+            return false;
+        try
+        {
+            AppConfig config = _configProvider();
+            ValidateTaskTarget(task, config);
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{BaseUrl(task.TargetAddress)}/api/mobile-backup/records/{recordId}/attestation");
+            AddAuthenticationHeaders(request, config, ReadOnlySpan<byte>.Empty);
+            MobileBackupCompleteResponse attestation =
+                await SendAsync<MobileBackupCompleteResponse>(request, cancellationToken)
+                    .ConfigureAwait(false);
+            return string.Equals(attestation.Status, "verified", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(attestation.FileSha256, task.FileSha256, StringComparison.OrdinalIgnoreCase)
+                && attestation.RecordId == recordId
+                && ValidateVerifiedReceipt(
+                    attestation,
+                    config,
+                    task,
+                    task.FileSha256,
+                    localFileSizeBytes) == BackupRequestAuthentication.CurrentVersion;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn(
+                "RecordingTransfer",
+                $"Remote verification unavailable; local cache retained record={task.LocalVideoRecordId}, error={ex.Message}");
+            return false;
+        }
+    }
+
     private static string BaseUrl(string address) => WorkstationNetwork.ToUrl(address).TrimEnd('/');
 
     private void Signal()
@@ -502,5 +625,12 @@ internal sealed class RecordingTransferService : IDisposable
         public string Status { get; set; } = "";
         public string FileSha256 { get; set; } = "";
         public long RecordId { get; set; }
+        public int AuthVersion { get; set; }
+        public string HostNodeId { get; set; } = "";
+        public string SourceDeviceId { get; set; } = "";
+        public string SourceSessionId { get; set; } = "";
+        public long FileSizeBytes { get; set; }
+        public long VerifiedAtUnixSeconds { get; set; }
+        public string ReceiptSignature { get; set; } = "";
     }
 }

@@ -114,6 +114,9 @@ namespace ExpressPackingMonitoring.Services
         private readonly Dictionary<string, OrderInfo> _orderInfoCache = new();
         private readonly object _orderInfoLock = new();
         private readonly ConcurrentDictionary<string, PendingOrderLookup> _pendingOrderLookups = new();
+        private readonly ConcurrentDictionary<HttpListenerContext, byte[]> _authenticatedRequestBodies = new();
+        private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKeys = new();
+        private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
         private readonly SemaphoreSlim _orderLookupSignal = new(0);
         private int _activeOrderLookupPolls;
         private long _lastOrderLookupPollUtcTicks;
@@ -538,7 +541,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256");
 
                 if (method == "POST")
                 {
@@ -673,6 +676,8 @@ namespace ExpressPackingMonitoring.Services
                             HandleMobileBackupChunk(ctx, chunkUploadId);
                         else if (method == "POST" && IsMobileBackupUploadPath(path, "/complete", out string completeUploadId))
                             HandleCompleteMobileBackupUpload(ctx, completeUploadId);
+                        else if (method == "GET" && TryParseMobileBackupAttestationPath(path, out long remoteRecordId))
+                            HandleMobileBackupAttestation(ctx, remoteRecordId);
                         else if (method == "HEAD" && path.StartsWith("/api/videos/") && path.EndsWith("/play"))
                         {
                             // HEAD 请求只返回 headers，不启动转码/传输
@@ -706,6 +711,11 @@ namespace ExpressPackingMonitoring.Services
             {
                 Log($"!!! HandleRequest 异常: {ex}");
                 try { SendJson(ctx, 500, new { error = ex.Message }); } catch { }
+            }
+            finally
+            {
+                _authenticatedRequestBodies.TryRemove(ctx, out _);
+                _authenticatedDeviceKeys.TryRemove(ctx, out _);
             }
         }
 
@@ -801,6 +811,14 @@ namespace ExpressPackingMonitoring.Services
 
         private bool TryAuthorizeMobileBackupRequest(HttpListenerContext ctx, out bool missingKey)
         {
+            if (string.Equals(
+                    ctx.Request.Headers[BackupRequestAuthentication.VersionHeader],
+                    BackupRequestAuthentication.CurrentVersion.ToString(),
+                    StringComparison.Ordinal))
+            {
+                return TryAuthorizeSignedBackupRequest(ctx, out missingKey);
+            }
+
             string headerKey = ctx.Request.Headers["X-EPM-Access-Key"];
             missingKey = string.IsNullOrWhiteSpace(headerKey);
             bool authorized = !missingKey && AccessKeysEqual(headerKey, _accessKey);
@@ -855,6 +873,79 @@ namespace ExpressPackingMonitoring.Services
             return authorized;
         }
 
+        private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
+        {
+            string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+            string timestampText = ctx.Request.Headers[BackupRequestAuthentication.TimestampHeader]?.Trim() ?? "";
+            string nonce = ctx.Request.Headers[BackupRequestAuthentication.NonceHeader]?.Trim() ?? "";
+            string declaredHash = ctx.Request.Headers[BackupRequestAuthentication.ContentHashHeader]?.Trim() ?? "";
+            string signature = ctx.Request.Headers[BackupRequestAuthentication.SignatureHeader]?.Trim() ?? "";
+            missingKey = deviceId.Length == 0 || timestampText.Length == 0 || nonce.Length == 0
+                || declaredHash.Length == 0 || signature.Length == 0;
+            long timestamp = 0;
+            if (missingKey || !long.TryParse(timestampText, out timestamp)
+                || !BackupRequestAuthentication.IsFresh(timestamp, DateTimeOffset.UtcNow)
+                || nonce.Length is < 16 or > 128)
+            {
+                return false;
+            }
+
+            int maxBytes = string.Equals(ctx.Request.HttpMethod, "PUT", StringComparison.OrdinalIgnoreCase)
+                ? MobileBackupService.ChunkSizeBytes
+                : MaxJsonBodyBytes;
+            byte[] body;
+            try { body = ReadRequestBytesCore(ctx, maxBytes); }
+            catch { return false; }
+            string actualHash = BackupRequestAuthentication.ComputeContentHash(body);
+            if (!BackupRequestAuthentication.FixedTimeEquals(actualHash, declaredHash))
+                return false;
+
+            string credential = BackupRequestAuthentication.DeriveDeviceCredential(_accessKey, deviceId);
+            string expected = BackupRequestAuthentication.CreateRequestSignature(
+                credential,
+                ctx.Request.HttpMethod,
+                ctx.Request.Url?.PathAndQuery ?? "/",
+                timestamp,
+                nonce,
+                actualHash,
+                deviceId);
+            if (!BackupRequestAuthentication.FixedTimeEquals(expected, signature))
+                return false;
+
+            string replayKey = $"{deviceId.ToLowerInvariant()}:{nonce}";
+            if (!_backupRequestNonces.TryAdd(replayKey, timestamp))
+                return false;
+            long cutoff = DateTimeOffset.UtcNow.Subtract(
+                BackupRequestAuthentication.AllowedClockSkew).ToUnixTimeSeconds();
+            if (_backupRequestNonces.Count > 4096)
+            {
+                foreach ((string key, long value) in _backupRequestNonces)
+                    if (value < cutoff) _backupRequestNonces.TryRemove(key, out _);
+            }
+
+            _authenticatedRequestBodies[ctx] = body;
+            _authenticatedDeviceKeys[ctx] = credential;
+            RegisterAuthorizedBackupClient(ctx, deviceId);
+            return true;
+        }
+
+        private void RegisterAuthorizedBackupClient(HttpListenerContext ctx, string deviceId)
+        {
+            IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
+            string deviceName = ctx.Request.Headers["X-EPM-Device-Name"];
+            string deviceKind = string.Equals(
+                ctx.Request.Headers["X-EPM-Device-Kind"], "pc", StringComparison.OrdinalIgnoreCase)
+                    ? "pc"
+                    : "mobile";
+            try { deviceName = Uri.UnescapeDataString(deviceName ?? ""); } catch { }
+            _mobileOrderReceivers.Register(
+                remoteAddress,
+                deviceId,
+                deviceName,
+                MobileOrderReceiverRegistry.OrderReceiverPort,
+                [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver]);
+        }
+
         private static bool IsMobileBackupUploadPath(string path, string suffix, out string uploadId)
         {
             uploadId = "";
@@ -870,6 +961,18 @@ namespace ExpressPackingMonitoring.Services
             if (length <= 0) return false;
             uploadId = path.Substring(prefix.Length, length).Trim('/');
             return uploadId.Length > 0 && !uploadId.Contains('/');
+        }
+
+        private static bool TryParseMobileBackupAttestationPath(string path, out long recordId)
+        {
+            recordId = 0;
+            const string prefix = "/api/mobile-backup/records/";
+            const string suffix = "/attestation";
+            if (path == null || !path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return false;
+            string value = path[prefix.Length..^suffix.Length].Trim('/');
+            return long.TryParse(value, out recordId) && recordId > 0;
         }
 
         private void HandleMobileBackupCapabilities(HttpListenerContext ctx)
@@ -1051,6 +1154,29 @@ namespace ExpressPackingMonitoring.Services
                         request.SourceDeviceName?.Trim() ?? "");
                 }
                 catch { }
+                int authVersion = 0;
+                long verifiedAtUnixSeconds = 0;
+                long fileSizeBytes = 0;
+                string receiptSignature = "";
+                string receiptSessionId = request.GetSessions().FirstOrDefault()?.SessionId ?? request.SessionId;
+                if (_authenticatedDeviceKeys.TryGetValue(ctx, out string deviceCredential))
+                {
+                    VideoRecord verifiedRecord = _db.GetVideoById(result.RecordId);
+                    fileSizeBytes = verifiedRecord?.FileSizeBytes ?? 0;
+                    if (fileSizeBytes <= 0 && verifiedRecord != null && File.Exists(verifiedRecord.FilePath))
+                        fileSizeBytes = new FileInfo(verifiedRecord.FilePath).Length;
+                    verifiedAtUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    authVersion = BackupRequestAuthentication.CurrentVersion;
+                    receiptSignature = BackupRequestAuthentication.CreateReceiptSignature(
+                        deviceCredential,
+                        _nodeId,
+                        request.SourceDeviceId,
+                        receiptSessionId,
+                        result.FileSha256,
+                        fileSizeBytes,
+                        result.RecordId,
+                        verifiedAtUnixSeconds);
+                }
                 SendJson(ctx, 200, new
                 {
                     status = result.Status,
@@ -1058,6 +1184,13 @@ namespace ExpressPackingMonitoring.Services
                     recordId = result.RecordId,
                     recordIds = result.RecordIds,
                     alreadyCompleted = result.AlreadyCompleted,
+                    authVersion,
+                    hostNodeId = authVersion > 0 ? _nodeId : null,
+                    sourceDeviceId = authVersion > 0 ? request.SourceDeviceId : null,
+                    sourceSessionId = authVersion > 0 ? receiptSessionId : null,
+                    fileSizeBytes,
+                    verifiedAtUnixSeconds,
+                    receiptSignature = authVersion > 0 ? receiptSignature : null,
                     message = "电脑校验完成，备份成功"
                 });
             }
@@ -1065,6 +1198,52 @@ namespace ExpressPackingMonitoring.Services
             {
                 SendMobileBackupError(ctx, ex);
             }
+        }
+
+        private void HandleMobileBackupAttestation(HttpListenerContext ctx, long recordId)
+        {
+            if (!_authenticatedDeviceKeys.TryGetValue(ctx, out string deviceCredential))
+            {
+                SendJson(ctx, 403, new { errorCode = "signed_auth_required", error = "需要重新扫码以启用安全清理" });
+                return;
+            }
+            VideoRecord record = _db.GetVideoById(recordId);
+            string sourceDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+            if (record == null || record.IsDeleted || !File.Exists(record.FilePath)
+                || !string.Equals(record.SourceDeviceId, sourceDeviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                SendJson(ctx, 404, new { errorCode = "verified_record_missing", error = "保存主机未找到完整录像" });
+                return;
+            }
+            long fileSizeBytes = new FileInfo(record.FilePath).Length;
+            if (fileSizeBytes <= 0 || string.IsNullOrWhiteSpace(record.ContentSha256))
+            {
+                SendJson(ctx, 409, new { errorCode = "verified_record_invalid", error = "保存主机录像尚未完成校验" });
+                return;
+            }
+            long verifiedAtUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string receiptSignature = BackupRequestAuthentication.CreateReceiptSignature(
+                deviceCredential,
+                _nodeId,
+                sourceDeviceId,
+                record.SourceSessionId,
+                record.ContentSha256,
+                fileSizeBytes,
+                record.Id,
+                verifiedAtUnixSeconds);
+            SendJson(ctx, 200, new
+            {
+                status = "verified",
+                fileSha256 = record.ContentSha256,
+                recordId = record.Id,
+                authVersion = BackupRequestAuthentication.CurrentVersion,
+                hostNodeId = _nodeId,
+                sourceDeviceId,
+                sourceSessionId = record.SourceSessionId,
+                fileSizeBytes,
+                verifiedAtUnixSeconds,
+                receiptSignature
+            });
         }
 
         private static void SendMobileBackupError(HttpListenerContext ctx, Exception exception)
@@ -2595,20 +2774,27 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private static T ReadJsonBody<T>(HttpListenerContext ctx)
+        private T ReadJsonBody<T>(HttpListenerContext ctx)
         {
             string body = ReadRequestBody(ctx, MaxJsonBodyBytes);
             return JsonSerializer.Deserialize<T>(body, _jsonOptions) ?? throw new InvalidDataException("请求内容无效");
         }
 
-        private static string ReadRequestBody(HttpListenerContext ctx, int maxBytes)
+        private string ReadRequestBody(HttpListenerContext ctx, int maxBytes)
         {
             byte[] bytes = ReadRequestBytes(ctx, maxBytes);
             Encoding encoding = ctx.Request.ContentEncoding ?? Encoding.UTF8;
             return encoding.GetString(bytes);
         }
 
-        private static byte[] ReadRequestBytes(HttpListenerContext ctx, int maxBytes)
+        private byte[] ReadRequestBytes(HttpListenerContext ctx, int maxBytes)
+        {
+            if (_authenticatedRequestBodies.TryRemove(ctx, out byte[] authenticatedBody))
+                return authenticatedBody;
+            return ReadRequestBytesCore(ctx, maxBytes);
+        }
+
+        private static byte[] ReadRequestBytesCore(HttpListenerContext ctx, int maxBytes)
         {
             long contentLength = ctx.Request.ContentLength64;
             if (contentLength > maxBytes)

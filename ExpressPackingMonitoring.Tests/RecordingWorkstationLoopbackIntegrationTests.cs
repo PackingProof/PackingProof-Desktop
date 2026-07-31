@@ -140,7 +140,12 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             workstationConfig.LastKnownHostNodeId = hostNode.NodeId;
             workstationConfig.LastKnownHostNodeName = hostNode.NodeName;
             workstationConfig.LastKnownHostAddress = hostNode.Address;
-            workstationConfig.LastKnownHostAccessKey = parsedAccessKey;
+            workstationConfig.LastKnownHostAccessKey =
+                BackupRequestAuthentication.DeriveDeviceCredential(
+                    parsedAccessKey,
+                    workstationConfig.NodeId);
+            workstationConfig.LastKnownHostBackupAuthVersion =
+                BackupRequestAuthentication.CurrentVersion;
 
             Assert.Equal(1, transferService.EnqueueCompletedRecordings());
             RecordingTransferTask queued = Assert.Single(
@@ -158,7 +163,13 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
                 transferStore.GetUploadedWithLocalCache());
             Assert.Equal(RecordingTransferStates.Uploaded, uploaded.State);
             Assert.True(uploaded.RemoteVideoRecordId > 0);
+            Assert.Equal(BackupRequestAuthentication.CurrentVersion, uploaded.VerificationVersion);
+            Assert.NotEmpty(uploaded.VerificationReceipt);
             Assert.True(File.Exists(localVideoPath));
+            Assert.True(await transferService.VerifyRemoteRecordForCleanupAsync(
+                uploaded,
+                new FileInfo(localVideoPath).Length,
+                timeout.Token));
 
             VideoRecord localRecord = Assert.IsType<VideoRecord>(
                 workstationDatabase.GetVideoById(localRecordId));

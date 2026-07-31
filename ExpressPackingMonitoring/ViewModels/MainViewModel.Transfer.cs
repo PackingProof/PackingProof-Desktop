@@ -506,7 +506,9 @@ public partial class MainViewModel
                 foreach (RecordingTransferTask task in uploaded)
                 {
                     if (task.RemoteVideoRecordId is not long remoteRecordId
-                        || remoteRecordId <= 0)
+                        || remoteRecordId <= 0
+                        || task.VerificationVersion < BackupRequestAuthentication.CurrentVersion
+                        || string.IsNullOrWhiteSpace(task.VerificationReceipt))
                     {
                         continue;
                     }
@@ -564,6 +566,24 @@ public partial class MainViewModel
                     if (File.Exists(path))
                     {
                         size = new FileInfo(path).Length;
+                        RecordingTransferService? transferService = _recordingTransferService;
+                        bool remotelyVerified = transferService != null;
+                        foreach (RecordingTransferTask task in tasks)
+                        {
+                            if (!remotelyVerified)
+                                break;
+                            remotelyVerified = transferService!
+                                .VerifyRemoteRecordForCleanupAsync(task, size)
+                                .GetAwaiter()
+                                .GetResult();
+                        }
+                        if (!remotelyVerified)
+                        {
+                            RuntimeLog.Warn(
+                                "RecordingTransfer",
+                                $"Cache retained because fresh host verification was unavailable records={tasks.Count}");
+                            continue;
+                        }
                         File.Delete(path);
                     }
                     foreach (RecordingTransferTask task in tasks)

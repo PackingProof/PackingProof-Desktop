@@ -112,6 +112,7 @@ namespace ExpressPackingMonitoring.Config
         public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
         public string LastKnownHostAccessKey { get; set; } = "";
+        public int LastKnownHostBackupAuthVersion { get; set; }
         public string RecordingCachePolicy { get; set; } = "KeepWithinSize";
         public int RecordingCacheKeepDays { get; set; } = 3;
         public int RecordingCacheMaxGB { get; set; } = 100;

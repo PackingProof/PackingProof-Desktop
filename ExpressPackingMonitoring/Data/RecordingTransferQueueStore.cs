@@ -26,6 +26,8 @@ internal sealed class RecordingTransferTask
     public string LastError { get; init; } = "";
     public DateTime? NextAttemptAt { get; init; }
     public long? RemoteVideoRecordId { get; init; }
+    public int VerificationVersion { get; init; }
+    public string VerificationReceipt { get; init; } = "";
     public DateTime? CacheDeletedAt { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -68,12 +70,16 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                 LastError TEXT DEFAULT '',
                 NextAttemptAt TEXT,
                 RemoteVideoRecordId INTEGER,
+                VerificationVersion INTEGER NOT NULL DEFAULT 0,
+                VerificationReceipt TEXT DEFAULT '',
                 CacheDeletedAt TEXT,
                 CreatedAt TEXT NOT NULL,
                 UpdatedAt TEXT NOT NULL
             );");
         EnsureColumn("NextAttemptAt", "TEXT");
         EnsureColumn("CacheDeletedAt", "TEXT");
+        EnsureColumn("VerificationVersion", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn("VerificationReceipt", "TEXT DEFAULT ''");
         Execute("CREATE UNIQUE INDEX IF NOT EXISTS IX_RecordingTransferQueue_LocalVideoRecordId ON RecordingTransferQueue(LocalVideoRecordId);");
         Execute("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_UpdatedAt ON RecordingTransferQueue(State, UpdatedAt);");
     }
@@ -131,7 +137,8 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             cmd.CommandText = @"
                 SELECT Id, LocalVideoRecordId, LocalFilePath, FileSha256, SourceSessionId,
                        TargetNodeId, TargetAddress, State, ServerOffset, RetryCount,
-                       LastError, NextAttemptAt, RemoteVideoRecordId, CacheDeletedAt,
+                       LastError, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
+                       VerificationReceipt, CacheDeletedAt,
                        CreatedAt, UpdatedAt
                 FROM RecordingTransferQueue
                 WHERE State IN ('Pending', 'Failed')
@@ -164,10 +171,19 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             "State = 'Failed', RetryCount = @retry, LastError = @error, NextAttemptAt = @next, UpdatedAt = @now",
             ("@retry", retryCount), ("@error", TrimError(error)), ("@next", Format(nextAttemptAt)), ("@now", Format(now)));
 
-    public void MarkUploaded(long id, long remoteRecordId, DateTime now) =>
+    public void MarkUploaded(
+        long id,
+        long remoteRecordId,
+        int verificationVersion,
+        string verificationReceipt,
+        DateTime now) =>
         Update(id,
-            "State = 'Uploaded', RemoteVideoRecordId = @remoteId, LastError = '', NextAttemptAt = NULL, UpdatedAt = @now",
-            ("@remoteId", remoteRecordId), ("@now", Format(now)));
+            "State = 'Uploaded', RemoteVideoRecordId = @remoteId, VerificationVersion = @version, VerificationReceipt = @receipt, LastError = '', NextAttemptAt = NULL, UpdatedAt = @now",
+            ("@remoteId", remoteRecordId), ("@version", verificationVersion),
+            ("@receipt", verificationReceipt ?? ""), ("@now", Format(now)));
+
+    public void MarkUploaded(long id, long remoteRecordId, DateTime now) =>
+        MarkUploaded(id, remoteRecordId, 0, "", now);
 
     public void MarkCacheDeleted(long id, DateTime now) =>
         Update(id, "CacheDeletedAt = @now, UpdatedAt = @now", ("@now", Format(now)));
@@ -180,7 +196,8 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             cmd.CommandText = @"
                 SELECT Id, LocalVideoRecordId, LocalFilePath, FileSha256, SourceSessionId,
                        TargetNodeId, TargetAddress, State, ServerOffset, RetryCount,
-                       LastError, NextAttemptAt, RemoteVideoRecordId, CacheDeletedAt,
+                       LastError, NextAttemptAt, RemoteVideoRecordId, VerificationVersion,
+                       VerificationReceipt, CacheDeletedAt,
                        CreatedAt, UpdatedAt
                 FROM RecordingTransferQueue
                 WHERE State = 'Uploaded' AND CacheDeletedAt IS NULL
@@ -300,9 +317,11 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         LastError = reader.IsDBNull(10) ? "" : reader.GetString(10),
         NextAttemptAt = ParseNullable(reader, 11),
         RemoteVideoRecordId = reader.IsDBNull(12) ? null : reader.GetInt64(12),
-        CacheDeletedAt = ParseNullable(reader, 13),
-        CreatedAt = DateTime.Parse(reader.GetString(14)),
-        UpdatedAt = DateTime.Parse(reader.GetString(15))
+        VerificationVersion = reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
+        VerificationReceipt = reader.IsDBNull(14) ? "" : reader.GetString(14),
+        CacheDeletedAt = ParseNullable(reader, 15),
+        CreatedAt = DateTime.Parse(reader.GetString(16)),
+        UpdatedAt = DateTime.Parse(reader.GetString(17))
     };
 
     private static DateTime? ParseNullable(SqliteDataReader reader, int ordinal) =>
