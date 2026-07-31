@@ -829,22 +829,41 @@
                                               VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="1"
                                                    Text="保存主机"
-                                                   Margin="6,0,8,0"
+                                                   Margin="6,0,0,0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimary}"/>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
                                                    FontSize="11"
-                                                   Foreground="{DynamicResource TextMuted}"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
+                                                                     Value="检查中">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
+                                                                     Value="在线">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding BoundHostOnlineStatusText, Mode=OneWay}"
+                                                                     Value="离线">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Grid.Row="1"
                                                    Grid.Column="1"
                                                    Grid.ColumnSpan="2"
                                                    Text="{Binding BoundHostNameDisplay, Mode=OneWay}"
                                                    Margin="6,4,0,0"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
                                                    TextTrimming="CharacterEllipsis"/>
                                     </Grid>
                                 </Border>
@@ -874,24 +893,46 @@
                                               VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="1"
                                                    Text="录像上传"
-                                                   Margin="6,0,8,0"
+                                                   Margin="6,0,0,0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimary}"/>
                                         <TextBlock Grid.Column="2"
+                                                   Text="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
                                                    FontSize="11"
-                                                   Foreground="{DynamicResource TextMuted}">
-                                            <Run Text="待上传"/>
-                                            <Run Text=" "/>
-                                            <Run Text="{Binding PendingRecordingTransferCount, Mode=OneWay}"/>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding LastRecordingTransferError, Mode=OneWay}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
+                                                                     Value="上传中">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
+                                                                     Value="已完成">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
+                                                                     Value="待上传">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
+                                                                     Value="上传失败">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
                                         </TextBlock>
                                         <TextBlock Grid.Row="1"
                                                    Grid.Column="1"
                                                    Grid.ColumnSpan="2"
                                                    Text="{Binding RecordingTransferStatusText, Mode=OneWay}"
                                                    Margin="6,4,0,0"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextSecondary}"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
                                                    TextTrimming="CharacterEllipsis"/>
                                     </Grid>
                                 </Border>

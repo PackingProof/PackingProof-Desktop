@@ -248,7 +248,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _orderIntegrationStatusText = "暂未收到订单";
         private string _userscriptSetupStatusText = "未配置订单联动";
         private string _userscriptSetupShortStatusText = "未配置";
-        private string _userscriptButtonText = "安装订单联动插件";
+        private string _userscriptButtonText = "安装订单联动";
         private IReadOnlyList<ConnectedClientInfo> _connectedClientSnapshot = [];
         private DateTime _mobileBackupStatusDate = DateTime.Today;
         private DateTime _lastUserscriptStatusRefreshAt = DateTime.MinValue;

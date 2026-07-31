@@ -566,6 +566,10 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
+            "Text=\"{Binding RecordingTransferShortStatusText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
             "<Run Text=\"{Binding PendingRecordingTransferCount, Mode=OneWay}\"/>",
             mainWindow,
             StringComparison.Ordinal);
@@ -647,10 +651,9 @@ public sealed class DeploymentStartupTests
         Assert.Contains("_userscriptSetupStatusText = \"未配置订单联动\"", mainSource, StringComparison.Ordinal);
         Assert.Contains("_boundHostOnlineStatusText = \"检查中\"", transferSource, StringComparison.Ordinal);
         Assert.Contains("heartbeat.Online ? \"在线\" : \"离线\"", transferSource, StringComparison.Ordinal);
-        Assert.Contains("RecordingTransferStatusText = \"暂无待上传录像\"", transferSource, StringComparison.Ordinal);
-        Assert.Contains("RecordingTransferStatusText = \"最近录像已上传\"", transferSource, StringComparison.Ordinal);
+        Assert.Contains("recentlyUploaded ? \"最近录像已上传\" : \"暂无待上传录像\"", transferSource, StringComparison.Ordinal);
         Assert.Contains(
-            "RecordingTransferStatusText = \"已保存在本机，联网后自动上传\"",
+            "$\"{totalCount} 个录像已保存在本机，联网后自动上传\"",
             transferSource,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -697,6 +700,23 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Data=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Text=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
         string orderMarkup = mainWindow[orderCard..existingButtons];
+        string hostMarkup = mainWindow[hostCard..uploadCard];
+        string uploadMarkup = mainWindow[uploadCard..orderCard];
+        Assert.Contains("Value=\"检查中\"", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"在线\"", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"离线\"", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentBlue", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentGreen", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentOrange", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"上传中\"", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已完成\"", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"待上传\"", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"上传失败\"", uploadMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain("PendingRecordingTransferCount, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
+        Assert.Equal(2, hostMarkup.Split("FontSize=\"11\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, uploadMarkup.Split("FontSize=\"11\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("Text=\"订单联动\"", orderMarkup, StringComparison.Ordinal);
         Assert.Contains("Value=\"已就绪\"", orderMarkup, StringComparison.Ordinal);
         Assert.Contains("Value=\"需更新\"", orderMarkup, StringComparison.Ordinal);
@@ -708,7 +728,7 @@ public sealed class DeploymentStartupTests
             2,
             Regex.Matches(orderRows.Groups["rows"].Value, "<RowDefinition Height=\"Auto\"/>").Count);
         Assert.DoesNotMatch(
-            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|WorkstationStatusToolTip|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|UserscriptSetupShortStatusText|UserscriptButtonText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|WorkstationStatusToolTip|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|UserscriptSetupShortStatusText|UserscriptButtonText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferShortStatusText|RecordingTransferStatusText|LastRecordingTransferError|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 
@@ -1371,18 +1391,23 @@ public sealed class DeploymentStartupTests
         string state = ReadRepositoryFile("ExpressPackingMonitoring", "Services", "UserscriptTargetState.cs");
 
         Assert.Contains("UserscriptButtonText, Mode=OneWay", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("Content=\"安装订单联动插件\"", settings, StringComparison.Ordinal);
-        Assert.Contains("Text=\"安装订单联动插件\"", viewer, StringComparison.Ordinal);
-        Assert.Contains("Text=\"安装订单联动插件\"", backupHost, StringComparison.Ordinal);
-        Assert.Contains(">安装订单联动插件</a>", guide, StringComparison.Ordinal);
+        Assert.Contains("Content=\"安装订单联动\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Text=\"安装订单联动\"", viewer, StringComparison.Ordinal);
+        Assert.Contains("Text=\"安装订单联动\"", backupHost, StringComparison.Ordinal);
+        Assert.Contains(">安装订单联动</a>", guide, StringComparison.Ordinal);
         Assert.Contains(
-            "map['安装订单联动插件']='Install order integration plugin'",
+            "map['安装订单联动']='Install order integration'",
             guideTemplate,
             StringComparison.Ordinal);
-        Assert.Equal(4, state.Split("\"安装订单联动插件\"", StringSplitOptions.None).Length - 1);
+        Assert.Equal(4, state.Split("\"安装订单联动\"", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("安装订单联动插件", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", viewer, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", backupHost, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", guide, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", guideTemplate, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装订单联动插件", state, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"安装订单备注插件\"", settings, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"安装订单联动\"", viewer, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"安装订单联动\"", backupHost, StringComparison.Ordinal);
     }
 
     [Fact]

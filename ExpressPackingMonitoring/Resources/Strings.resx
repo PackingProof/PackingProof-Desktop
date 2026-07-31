@@ -400,7 +400,6 @@
   <data name="Main.PrintNoRefund" xml:space="preserve"><value>{0} Responded; no orders received</value></data>
   <data name="Main.PrintOrders" xml:space="preserve"><value>{0} Received {1} orders</value></data>
   <data name="订单联动" xml:space="preserve"><value>Order integration</value></data>
-  <data name="安装订单联动插件" xml:space="preserve"><value>Install order integration plugin</value></data>
   <data name="打开订单联动插件安装向导" xml:space="preserve"><value>Open the order integration plugin setup guide</value></data>
   <data name="接收订单、备注和退款提醒" xml:space="preserve"><value>Receive orders, notes, and refund alerts</value></data>
   <data name="已就绪" xml:space="preserve"><value>Ready</value></data>

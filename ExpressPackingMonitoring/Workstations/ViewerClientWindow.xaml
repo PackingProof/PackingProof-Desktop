@@ -261,7 +261,7 @@
                                                   Width="16" Height="16" Stretch="Uniform"
                                                   Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                             <TextBlock x:Name="UserscriptButtonText"
-                                                       Text="安装订单联动插件"
+                                                       Text="安装订单联动"
                                                        Margin="6,0,0,0"
                                                        VerticalAlignment="Center"/>
                                         </StackPanel>

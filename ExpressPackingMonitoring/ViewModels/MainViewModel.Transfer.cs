@@ -10,11 +10,16 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace ExpressPackingMonitoring.ViewModels;
 
+internal readonly record struct RecordingTransferCardState(
+    string ShortStatusText,
+    string DetailText);
+
 public partial class MainViewModel
 {
     private RecordingTransferService? _recordingTransferService;
     private RecordingTransferQueueStore? _recordingTransferStore;
-    private string _recordingTransferStatusText = "";
+    private string _recordingTransferShortStatusText = "检查中";
+    private string _recordingTransferStatusText = "正在检查待上传录像";
     private int _pendingRecordingTransferCount;
     private double _recordingTransferProgress;
     private string _lastRecordingTransferError = "";
@@ -85,6 +90,12 @@ public partial class MainViewModel
         }
     }
 
+    public string RecordingTransferShortStatusText
+    {
+        get => _recordingTransferShortStatusText;
+        private set { _recordingTransferShortStatusText = value; OnPropertyChanged(); }
+    }
+
     public string BoundHostDisplay
     {
         get
@@ -124,6 +135,7 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             RuntimeLog.Error("RecordingTransfer", "Transfer service startup failed", ex);
+            RecordingTransferShortStatusText = "上传失败";
             RecordingTransferStatusText = "上传启动失败，录像保留在本机";
             LastRecordingTransferError = ex.Message;
         }
@@ -148,6 +160,7 @@ public partial class MainViewModel
     {
         _recordingTransferService?.EnqueueCompletedRecordings();
         _recordingTransferService?.RetryNow();
+        RecordingTransferShortStatusText = "检查中";
         RecordingTransferStatusText = "正在重新连接";
     }
 
@@ -210,8 +223,7 @@ public partial class MainViewModel
                 if (heartbeat.Online)
                     ApplyAssignedComputerNickname(heartbeat.AssignedDisplayName);
                 BoundHostOnlineStatusText = heartbeat.Online ? "在线" : "离线";
-                if (!heartbeat.Online && PendingRecordingTransferCount > 0)
-                    RecordingTransferStatusText = "已保存在本机，联网后自动上传";
+                RefreshRecordingTransferSummary();
             });
         }
         finally
@@ -359,34 +371,73 @@ public partial class MainViewModel
                 : Math.Clamp(progress.SentBytes * 100d / progress.TotalBytes, 0, 100);
             if (progress.State == RecordingTransferStates.Uploaded)
             {
-                RecordingTransferStatusText = "最近录像已上传";
+                RefreshRecordingTransferSummary(recentlyUploaded: true);
                 RunRecordingCacheCleanup();
-            }
-            else if (progress.State == RecordingTransferStates.Failed)
-            {
-                RecordingTransferStatusText = "上传失败，录像保留在本机，联网后自动重试";
-                LastRecordingTransferError = progress.Error;
             }
             else
             {
-                RecordingTransferStatusText = $"正在上传 {RecordingTransferProgress:F0}%";
+                if (progress.State == RecordingTransferStates.Failed)
+                    LastRecordingTransferError = progress.Error;
+                RefreshRecordingTransferSummary();
             }
-            RefreshRecordingTransferSummary();
         });
     }
 
-    private void RefreshRecordingTransferSummary()
+    private void RefreshRecordingTransferSummary(bool recentlyUploaded = false)
     {
         RecordingTransferSummary? summary = _recordingTransferStore?.GetSummary();
         if (summary == null) return;
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
         LastRecordingTransferError = summary.LastError;
-        if (summary.UploadingCount == 0 && PendingRecordingTransferCount > 0)
-            RecordingTransferStatusText = "等待主机恢复后自动上传";
-        else if (PendingRecordingTransferCount == 0
-                 && string.IsNullOrWhiteSpace(RecordingTransferStatusText))
-            RecordingTransferStatusText = "暂无待上传录像";
+        RecordingTransferCardState cardState = BuildRecordingTransferCardState(
+            summary.PendingCount,
+            summary.UploadingCount,
+            summary.FailedCount,
+            RecordingTransferProgress,
+            string.Equals(BoundHostOnlineStatusText, "离线", StringComparison.Ordinal),
+            recentlyUploaded);
+        RecordingTransferShortStatusText = cardState.ShortStatusText;
+        RecordingTransferStatusText = cardState.DetailText;
+    }
+
+    internal static RecordingTransferCardState BuildRecordingTransferCardState(
+        int pendingCount,
+        int uploadingCount,
+        int failedCount,
+        double progress,
+        bool hostOffline,
+        bool recentlyUploaded)
+    {
+        int totalCount = Math.Max(0, pendingCount)
+            + Math.Max(0, uploadingCount)
+            + Math.Max(0, failedCount);
+        if (uploadingCount > 0)
+        {
+            return new RecordingTransferCardState(
+                "上传中",
+                $"正在上传 {Math.Clamp(progress, 0, 100):F0}% · 共 {totalCount} 个待上传");
+        }
+
+        if (failedCount > 0)
+        {
+            return new RecordingTransferCardState(
+                "上传失败",
+                $"{totalCount} 个录像等待重试，录像仍保存在本机");
+        }
+
+        if (totalCount > 0)
+        {
+            return new RecordingTransferCardState(
+                "待上传",
+                hostOffline
+                    ? $"{totalCount} 个录像已保存在本机，联网后自动上传"
+                    : $"{totalCount} 个录像等待上传");
+        }
+
+        return new RecordingTransferCardState(
+            "已完成",
+            recentlyUploaded ? "最近录像已上传" : "暂无待上传录像");
     }
 
     private void RunRecordingCacheCleanup()
