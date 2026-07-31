@@ -71,8 +71,16 @@ public sealed class WebRequestLimitTests
         Assert.Contains("id=\"clipSourcePlayer\"", html);
         Assert.Contains("id=\"clipPlayhead\"", html);
         Assert.Contains("id=\"clipPlaySelectionBtn\"", html);
+        Assert.Contains("id=\"clipEditorBody\"", html);
         Assert.Contains("生成并下载", html);
         Assert.Contains("resolvePlaybackUrl(v.id)", html);
+        Assert.Contains("function applyClipSourceLayout(width,height)", html);
+        Assert.Contains("body.clip-open{overflow:hidden}", html);
+        Assert.Contains(".clip-actions{position:relative;bottom:auto;flex:0 0 auto;", html);
+        Assert.Contains(".clip-editor-body[data-orientation=\"portrait\"]", html);
+        Assert.Contains(".clip-info{grid-template-columns:repeat(3,minmax(0,1fr))", html);
+        Assert.Contains(".clip-summary-item:first-child{display:none}", html);
+        Assert.Contains("padding:12px 18px 18px", html);
         Assert.DoesNotContain("id=\"clipResult\"", html);
         Assert.DoesNotContain("/clip/preview", html);
         Assert.DoesNotContain("/clip/frame", html);

@@ -118,6 +118,42 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
 
     await article.getByRole('button', { name: '剪辑' }).click();
     await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
+    await page.evaluate(() => applyClipSourceLayout(1080, 1920));
+    assert.equal(await page.locator('#clipMainPreview').getAttribute('data-orientation'), 'portrait');
+    assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const portraitClipGeometry = await page.locator('#clipOverlay').evaluate(overlay => {
+      const preview = overlay.querySelector('#clipMainPreview').getBoundingClientRect();
+      const actions = overlay.querySelector('.clip-actions').getBoundingClientRect();
+      const submit = overlay.querySelector('#clipSubmitBtn').getBoundingClientRect();
+      return {
+        previewHeight: preview.height,
+        previewWidth: preview.width,
+        actionsTop: actions.top,
+        actionsBottom: actions.bottom,
+        submitTop: submit.top,
+        submitBottom: submit.bottom,
+        viewportHeight: window.innerHeight
+      };
+    });
+    assert.ok(portraitClipGeometry.previewHeight > 300);
+    assert.ok(portraitClipGeometry.previewWidth <= 560);
+    assert.ok(portraitClipGeometry.actionsTop >= 0);
+    assert.ok(portraitClipGeometry.actionsBottom <= portraitClipGeometry.viewportHeight);
+    assert.ok(portraitClipGeometry.submitTop >= 0);
+    assert.ok(portraitClipGeometry.submitBottom <= portraitClipGeometry.viewportHeight);
+    const compactInfo = await page.locator('#clipEditorBody').evaluate(body => ({
+      infoColumns: getComputedStyle(body.querySelector('.clip-info')).gridTemplateColumns.split(' ').length,
+      rangeDisplay: getComputedStyle(body.querySelector('.clip-summary-item')).display,
+      durationDisplay: getComputedStyle(body.querySelector('.clip-summary-item.duration')).display
+    }));
+    assert.deepEqual(compactInfo, {
+      infoColumns: 3,
+      rangeDisplay: 'none',
+      durationDisplay: 'flex'
+    });
+    await page.locator('#clipCloseBtn').click();
+    assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), false);
   } finally {
     await browser.close();
   }
