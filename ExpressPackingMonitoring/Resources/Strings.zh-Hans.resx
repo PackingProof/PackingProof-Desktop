@@ -113,7 +113,7 @@
   <data name="打开仓库" xml:space="preserve"><value>打开仓库</value></data>
   <data name="打开软件后后台检查，有新版本时提示下载" xml:space="preserve"><value>打开软件后后台检查，有新版本时提示下载</value></data>
   <data name="根目录启动器后台下载增量包，下次启动时自动安装" xml:space="preserve"><value>根目录启动器后台下载增量包，下次启动时自动安装</value></data>
-  <data name="推荐继续使用根目录启动器自动更新。手动下载增量包时，请完整解压后双击包内的“双击安装增量更新.cmd”" xml:space="preserve"><value>推荐继续使用根目录启动器自动更新。手动下载增量包时，请完整解压后双击包内的“双击安装增量更新.cmd”</value></data>
+  <data name="推荐继续使用根目录启动器自动更新。手动更新时，请完整解压 AppPatch 后双击包内的“双击更新主程序.cmd”" xml:space="preserve"><value>推荐继续使用根目录启动器自动更新。手动更新时，请完整解压 AppPatch 后双击包内的“双击更新主程序.cmd”</value></data>
   <data name="打印后退款报警" xml:space="preserve"><value>打印后退款报警</value></data>
   <data name="单个录像超过这个时间就自动停止" xml:space="preserve"><value>单个录像超过这个时间就自动停止</value></data>
   <data name="单号判断规则" xml:space="preserve"><value>单号判断规则</value></data>

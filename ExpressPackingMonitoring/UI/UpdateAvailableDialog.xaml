@@ -42,7 +42,7 @@
                                           Foreground="{DynamicResource TextSecondary}"/>
             </Border>
             <TextBlock Margin="0,12,0,0"
-                       Text="推荐继续使用根目录启动器自动更新。手动下载增量包时，请完整解压后双击包内的“双击安装增量更新.cmd”"
+                       Text="推荐继续使用根目录启动器自动更新。手动更新时，请完整解压 AppPatch 后双击包内的“双击更新主程序.cmd”"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondary}"
                        TextWrapping="Wrap"/>

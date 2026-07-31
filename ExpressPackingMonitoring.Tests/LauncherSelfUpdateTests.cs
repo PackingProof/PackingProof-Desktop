@@ -222,6 +222,22 @@ public sealed class LauncherSelfUpdateTests
             string path = Path.Combine(Root, $"package-{Guid.NewGuid():N}.zip");
             using ZipArchive archive = ZipFile.Open(path, ZipArchiveMode.Create);
             WriteEntry(archive, LauncherUpdateService.LauncherFileName, launcher);
+            WriteEntry(
+                archive,
+                LauncherUpdateService.ManualInstallerCommandName,
+                Encoding.UTF8.GetBytes("cmd"));
+            WriteEntry(
+                archive,
+                LauncherUpdateService.ManualInstallerScriptName,
+                Encoding.UTF8.GetBytes("script"));
+            WriteEntry(
+                archive,
+                LauncherUpdateService.ManualInstallerManifestName,
+                Encoding.UTF8.GetBytes("{}"));
+            WriteEntry(
+                archive,
+                LauncherUpdateService.ManualInstallerNoticeName,
+                Encoding.UTF8.GetBytes("notice"));
             if (addUnexpectedEntry)
                 WriteEntry(archive, "unexpected.txt", Encoding.UTF8.GetBytes("unexpected"));
             return path;

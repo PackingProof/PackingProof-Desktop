@@ -39,6 +39,10 @@ internal sealed class LauncherUpdateService
 {
     internal const int SupportedProtocolVersion = 1;
     internal const string LauncherFileName = "ExpressPackingMonitoring.exe";
+    internal const string ManualInstallerCommandName = "双击更新启动器.cmd";
+    internal const string ManualInstallerScriptName = "apply_launcher_patch.ps1";
+    internal const string ManualInstallerManifestName = "launcher_patch_manifest.json";
+    internal const string ManualInstallerNoticeName = "启动器更新说明.txt";
     internal const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
     internal const string PendingDescriptorFileName = "launcher-package.json";
     internal const string CheckStateFileName = "launcher-check-state.json";
@@ -370,13 +374,25 @@ internal sealed class LauncherUpdateService
                 ZipArchiveEntry[] entries = archive.Entries
                     .Where(entry => !string.IsNullOrEmpty(entry.Name))
                     .ToArray();
-                if (entries.Length != 1 ||
-                    !string.Equals(entries[0].FullName, LauncherFileName, StringComparison.Ordinal))
+                string[] expectedEntries =
+                [
+                    LauncherFileName,
+                    ManualInstallerCommandName,
+                    ManualInstallerScriptName,
+                    ManualInstallerManifestName,
+                    ManualInstallerNoticeName
+                ];
+                if (entries.Length != expectedEntries.Length ||
+                    expectedEntries.Any(expected => !entries.Any(entry =>
+                        string.Equals(entry.FullName, expected, StringComparison.Ordinal))))
                 {
-                    throw new InvalidDataException("启动器更新包只能包含根目录启动器");
+                    throw new InvalidDataException("启动器更新包包含缺失、额外或越界文件");
                 }
 
-                entries[0].ExtractToFile(temporaryPath, overwrite: false);
+                entries.Single(entry => string.Equals(
+                    entry.FullName,
+                    LauncherFileName,
+                    StringComparison.Ordinal)).ExtractToFile(temporaryPath, overwrite: false);
             }
 
             ValidateFile(

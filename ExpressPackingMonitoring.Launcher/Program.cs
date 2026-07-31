@@ -940,13 +940,13 @@ internal static class Program
     {
         string reasonText = _useChinese ? reason switch
         {
-            ManualUpdateReason.PatchNotSupported => "本次包含启动器或基础组件更新，需要下载完整包后解压覆盖安装。",
+            ManualUpdateReason.PatchNotSupported => "本版本未提供可用的主程序增量包，需要下载完整包后解压覆盖安装。",
             ManualUpdateReason.VersionBelowBaseline => "当前版本过旧，不能直接使用本次增量更新，需要下载完整包后解压覆盖安装。",
             ManualUpdateReason.PatchDescriptorUnavailable => "本版本需要完整更新，需要下载完整包后解压覆盖安装。",
             _ => "本版本需要完整更新，需要下载完整包后解压覆盖安装。"
         } : reason switch
         {
-            ManualUpdateReason.PatchNotSupported => "This release updates the launcher or core components. Download and extract the full package.",
+            ManualUpdateReason.PatchNotSupported => "No compatible main-app patch is available for this release. Download and extract the full package.",
             ManualUpdateReason.VersionBelowBaseline => "The installed version is too old for this patch. Download and extract the full package.",
             _ => "This release requires a full update. Download and extract the full package."
         };

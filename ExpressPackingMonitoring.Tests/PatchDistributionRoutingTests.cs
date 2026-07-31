@@ -39,7 +39,7 @@ public sealed class PatchDistributionRoutingTests
     }
 
     [Fact]
-    public void Publisher_WrapsOriginalPatchAndMatchingManifestWithoutRecompression()
+    public void Publisher_EmbedsManualInstallerDirectlyInOriginalPatch()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publisher = File.ReadAllText(
@@ -49,45 +49,37 @@ public sealed class PatchDistributionRoutingTests
         int patchHashIndex = publisher.IndexOf(
             "$appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath",
             StringComparison.Ordinal);
-        int manifestWriteIndex = publisher.IndexOf(
-            "Set-Content -LiteralPath $updateJsonPath",
-            StringComparison.Ordinal);
-        int manualPackageIndex = publisher.IndexOf(
-            "New-ManualUpdatePackage `",
+        int installerCopyIndex = publisher.IndexOf(
+            "Copy-Item -LiteralPath $InstallerCmdPath",
             StringComparison.Ordinal);
 
         Assert.True(patchHashIndex >= 0);
-        Assert.True(manifestWriteIndex > patchHashIndex);
-        Assert.True(manualPackageIndex > manifestWriteIndex);
+        Assert.True(installerCopyIndex >= 0);
+        Assert.True(patchHashIndex > installerCopyIndex);
         Assert.Contains(
             "$appPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
             publisher);
         Assert.Contains(
             "$launcherPackageName = \"PackingProof_LauncherPatch_$releaseTag.zip\"",
             publisher);
-        Assert.Contains(
-            "Copy-Item -LiteralPath $PatchZipPath -Destination",
-            publisher);
-        Assert.Contains(
-            "Copy-Item -LiteralPath $UpdateManifestPath -Destination (Join-Path $manualWorkDir \"update_manifest.json\")",
-            publisher);
-        Assert.DoesNotContain("Compress-Archive -Path $PatchZipPath", publisher);
+        Assert.Contains("$appPatchInstallerCmdName = \"双击更新主程序.cmd\"", publisher);
+        Assert.Contains("$appPatchInstallerScriptName = \"apply_app_patch.ps1\"", publisher);
+        Assert.DoesNotContain("New-ManualUpdatePackage", publisher);
     }
 
     [Fact]
-    public void ManualStager_CopiesProvidedManifestAndPatchWithoutGeneratingOrCompressingThem()
+    public void ManualInstaller_AppliesExtractedPatchWithValidationAndRollback()
     {
         string repositoryRoot = FindRepositoryRoot();
-        string stager = File.ReadAllText(
-            Path.Combine(repositoryRoot, "Tools", "Stage-AppPatch.ps1"),
+        string installer = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Apply-AppPatch.ps1"),
             Encoding.UTF8);
 
-        Assert.Contains("$manifestText = [System.IO.File]::ReadAllText", stager);
-        Assert.Contains("Copy-Item -LiteralPath $patchZipPath", stager);
-        Assert.Contains("$manifestText,", stager);
-        Assert.DoesNotContain("ConvertTo-Json", stager);
-        Assert.DoesNotContain("Compress-Archive", stager);
-        Assert.DoesNotContain("ZipFile]::CreateFromDirectory", stager);
+        Assert.Contains("patch_manifest.json", installer);
+        Assert.Contains("Get-FileSha256", installer);
+        Assert.Contains("Stop-TargetApplication", installer);
+        Assert.Contains("File]::Replace", installer);
+        Assert.Contains("正在恢复原文件", installer);
     }
 
     private static string FindRepositoryRoot()

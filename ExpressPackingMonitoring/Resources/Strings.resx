@@ -113,7 +113,7 @@
   <data name="打开仓库" xml:space="preserve"><value>Open repository</value></data>
   <data name="打开软件后后台检查，有新版本时提示下载" xml:space="preserve"><value>After opening the software, it will check in the background and prompt you to download when there is a new version.</value></data>
   <data name="根目录启动器后台下载增量包，下次启动时自动安装" xml:space="preserve"><value>The root launcher downloads incremental updates in the background and installs them on the next launch</value></data>
-  <data name="推荐继续使用根目录启动器自动更新。手动下载增量包时，请完整解压后双击包内的“双击安装增量更新.cmd”" xml:space="preserve"><value>We recommend using the root launcher for automatic updates. For a manual patch, extract the entire archive and double-click the included CMD installer</value></data>
+  <data name="推荐继续使用根目录启动器自动更新。手动更新时，请完整解压 AppPatch 后双击包内的“双击更新主程序.cmd”" xml:space="preserve"><value>We recommend using the root launcher for automatic updates. To update manually, fully extract AppPatch and run the included main-app update CMD</value></data>
   <data name="打印后退款报警" xml:space="preserve"><value>Refund alarm after printing</value></data>
   <data name="单个录像超过这个时间就自动停止" xml:space="preserve"><value>If a single recording exceeds this time, it will automatically stop</value></data>
   <data name="单号判断规则" xml:space="preserve"><value>Order number validation</value></data>
