@@ -167,7 +167,8 @@ namespace ExpressPackingMonitoring
             }
 
             AutoStartService.Apply(config.AutoStartOnBoot);
-            MainViewModel.AllowLanAccessSetupOnStartup = true;
+            bool allowLanAccessSetup = !IsLanAccessSetupDisabled();
+            MainViewModel.AllowLanAccessSetupOnStartup = allowLanAccessSetup;
 
             Window window = DeploymentPresets.Normalize(startupPreset) switch
             {
@@ -175,7 +176,7 @@ namespace ExpressPackingMonitoring
                 DeploymentPresets.MobileBackupHost => new PrintWorkstationWindow(
                     config,
                     openPlaybackOnStartup: true,
-                    requestLanAccessOnStartup: true,
+                    requestLanAccessOnStartup: allowLanAccessSetup,
                     enableCloseBehaviorPrompt: true),
                 _ => new MainWindow(enableCloseBehaviorPrompt: true)
             };
@@ -188,6 +189,13 @@ namespace ExpressPackingMonitoring
             _instanceCoordinator?.StartActivationListener(window);
             window.Show();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
+        }
+
+        private static bool IsLanAccessSetupDisabled()
+        {
+            string? value = Environment.GetEnvironmentVariable("EPM_DISABLE_LAN_ACCESS_SETUP");
+            return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
         }
 
         private bool TrySaveStartupPreset(AppConfig config, string preset)

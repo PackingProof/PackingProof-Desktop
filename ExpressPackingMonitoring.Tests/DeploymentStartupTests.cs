@@ -1361,6 +1361,26 @@ public sealed class DeploymentStartupTests
             "RecordingSetupVersion = $recordingSetupVersion",
             script,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "CameraBarcodeSetupVersion = $cameraBarcodeSetupVersion",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "MobileConnectionSetupVersion = $mobileConnectionSetupVersion",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "FirstUseWizardCompleted = $true",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$env:EPM_DISABLE_LAN_ACCESS_SETUP = \"1\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$env:EPM_DISABLE_LAN_ACCESS_SETUP = $previousDisableLanAccessSetup",
+            script,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingSetupVersion = 1", script, StringComparison.Ordinal);
     }
 

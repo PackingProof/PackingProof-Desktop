@@ -82,8 +82,10 @@ try {
     if (-not (Test-Path $appExecutable)) { throw "Built WPF executable not found: $appExecutable" }
     $previousUserDataDir = $env:EPM_USER_DATA_DIR
     $previousInstanceScope = $env:EPM_INSTANCE_SCOPE
+    $previousDisableLanAccessSetup = $env:EPM_DISABLE_LAN_ACCESS_SETUP
     $env:EPM_USER_DATA_DIR = $wpfDataRoot
     $env:EPM_INSTANCE_SCOPE = "automation$PID"
+    $env:EPM_DISABLE_LAN_ACCESS_SETUP = "1"
     $deploymentSetupVersion = Get-AppConfigVersion "CurrentDeploymentSetupVersion"
     $recordingSetupVersion = Get-AppConfigVersion "CurrentRecordingSetupVersion"
     $cameraBarcodeSetupVersion = Get-AppConfigVersion "CurrentCameraBarcodeSetupVersion"
@@ -94,7 +96,11 @@ try {
         $noCameraStorage = Join-Path $wpfDataRoot "recordings"
         $noCameraConfig = @{
             WorkstationRole = "PrintStation"
+            FirstUseWizardCompleted = $true
             DeploymentSetupVersion = $deploymentSetupVersion
+            RecordingSetupVersion = $recordingSetupVersion
+            CameraBarcodeSetupVersion = $cameraBarcodeSetupVersion
+            MobileConnectionSetupVersion = $mobileConnectionSetupVersion
             WebServerPort = $noCameraPort
             StorageLocations = @(@{
                 Path = $noCameraStorage
@@ -165,6 +171,7 @@ try {
         if ($wpfProcess -and -not $wpfProcess.HasExited) { Stop-Process -Id $wpfProcess.Id -Force -ErrorAction SilentlyContinue }
         $env:EPM_USER_DATA_DIR = $previousUserDataDir
         $env:EPM_INSTANCE_SCOPE = $previousInstanceScope
+        $env:EPM_DISABLE_LAN_ACCESS_SETUP = $previousDisableLanAccessSetup
     }
 
     Write-Host "[3/7] Restoring the pinned Playwright test dependency..."
