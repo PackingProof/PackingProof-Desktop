@@ -66,7 +66,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [InlineData("关闭窗口时")]
     [InlineData("界面语言")]
     [InlineData("外观主题")]
-    [InlineData("高级模式")]
+    [InlineData("点击显示/隐藏高级选项")]
     [InlineData("开机自启动")]
     [InlineData("自动检查更新")]
     public void SharedSettingsAreNotHiddenByWorkstationCapabilities(string label)

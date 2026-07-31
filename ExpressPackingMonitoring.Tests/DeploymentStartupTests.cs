@@ -398,7 +398,7 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void SettingsPurposeListContainsAllFourUnifiedRolesAndRestartHint()
+    public void SettingsPurposeListContainsAllFourUnifiedRolesWithoutRedundantRestartHint()
     {
         string settings = ReadRepositoryFile(
             "ExpressPackingMonitoring",
@@ -417,7 +417,7 @@ public sealed class DeploymentStartupTests
             Assert.Contains($"Text=\"{text}\"", settings, StringComparison.Ordinal);
         }
 
-        Assert.Contains(
+        Assert.DoesNotContain(
             "更改用途后程序会自动重启，并切换到对应界面",
             settings,
             StringComparison.Ordinal);

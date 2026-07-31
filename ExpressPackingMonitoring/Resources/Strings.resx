@@ -535,17 +535,15 @@
   <data name="下一页" xml:space="preserve"><value>Next</value></data>
   <data name="显示高级设置" xml:space="preserve"><value>Show advanced settings</value></data>
   <data name="高级模式" xml:space="preserve"><value>Advanced mode</value></data>
-  <data name="已开启" xml:space="preserve"><value>On</value></data>
-  <data name="已关闭" xml:space="preserve"><value>Off</value></data>
-  <data name="切换高级模式" xml:space="preserve"><value>Toggle advanced mode</value></data>
-  <data name="实验：音频直接写入 MKV" xml:space="preserve"><value>Experimental: write audio directly to MKV</value></data>
-  <data name="减少临时文件和后处理，开启前请先完成一次测试录像" xml:space="preserve"><value>Reduces temporary files and post-processing; make a test recording before enabling it in production</value></data>
-  <data name="开启实验录音方式？" xml:space="preserve"><value>Enable experimental audio recording?</value></data>
-  <data name="这是实验功能。部分麦克风、驱动或 FFmpeg 环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式" xml:space="preserve"><value>This is experimental. Some microphones, drivers, or FFmpeg environments may fail to start recording, lose audio, or drift out of sync. Record and play back a test clip first. Turning it off restores the more reliable temporary WAV path</value></data>
+  <data name="点击显示/隐藏高级选项" xml:space="preserve"><value>Click to show or hide advanced options</value></data>
+  <data name="音频直接写入 MKV" xml:space="preserve"><value>Write audio directly to MKV</value></data>
+  <data name="将声音直接编码到临时录像文件，减少临时文件和后处理" xml:space="preserve"><value>Encode audio directly into the temporary recording to reduce temporary files and post-processing</value></data>
+  <data name="开启音频直接写入 MKV？" xml:space="preserve"><value>Write audio directly to MKV?</value></data>
+  <data name="此模式对麦克风、驱动和 FFmpeg 的兼容性要求较高，部分环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式" xml:space="preserve"><value>This mode has stricter compatibility requirements for microphones, drivers, and FFmpeg. Some environments may fail to start recording, lose audio, or drift out of sync. Record and play back a test clip first. Turning it off restores the more reliable temporary WAV path</value></data>
   <data name="了解风险并开启" xml:space="preserve"><value>Accept risk and enable</value></data>
   <data name="保持关闭" xml:space="preserve"><value>Keep off</value></data>
   <data name="实时 AAC 音频管道初始化失败，已取消开录" xml:space="preserve"><value>Could not initialize the real-time AAC audio pipe. Recording was not started</value></data>
-  <data name="实验功能；部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步" xml:space="preserve"><value>Experimental; some microphones, drivers, or FFmpeg environments may fail to start, lose audio, or drift out of sync</value></data>
+  <data name="兼容性提示：部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步" xml:space="preserve"><value>Compatibility note: some microphones, drivers, or FFmpeg environments may fail to start, lose audio, or drift out of sync</value></data>
   <data name="显示编码、阈值、时序等专业参数" xml:space="preserve"><value>Show professional options for encoding, thresholds, and timing</value></data>
   <data name="选择录像方式" xml:space="preserve"><value>Choose recording mode</value></data>
   <data name="请选择录像方式" xml:space="preserve"><value>Choose how to record</value></data>
@@ -806,7 +804,6 @@
   <data name="连接现有主机查看录像" xml:space="preserve"><value>Connect to an existing host to view recordings</value></data>
   <data name="保留订单联动和测试订单能力" xml:space="preserve"><value>Keep order integration and test-order capabilities</value></data>
   <data name="不接收其他设备录像" xml:space="preserve"><value>Do not receive recordings from other devices</value></data>
-  <data name="更改用途后程序会自动重启，并切换到对应界面" xml:space="preserve"><value>After changing the purpose, the app restarts automatically and opens the corresponding interface</value></data>
   <data name="保存主机" xml:space="preserve"><value>Storage host</value></data>
   <data name="录像上传" xml:space="preserve"><value>Recording upload</value></data>
   <data name="待上传" xml:space="preserve"><value>Pending</value></data>

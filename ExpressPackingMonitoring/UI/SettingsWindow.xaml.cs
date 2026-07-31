@@ -240,8 +240,8 @@ namespace ExpressPackingMonitoring.UI
 
             bool confirmed = AppDialog.Confirm(
                 this,
-                AppLanguage.Get("这是实验功能。部分麦克风、驱动或 FFmpeg 环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式"),
-                AppLanguage.Get("开启实验录音方式？"),
+                AppLanguage.Get("此模式对麦克风、驱动和 FFmpeg 的兼容性要求较高，部分环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式"),
+                AppLanguage.Get("开启音频直接写入 MKV？"),
                 confirmText: AppLanguage.Get("了解风险并开启"),
                 cancelText: AppLanguage.Get("保持关闭"),
                 severity: AppDialogSeverity.Warning);

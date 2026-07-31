@@ -22,7 +22,13 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Contains(
             "Config.ShowAdvancedSettings",
             (string?)toggle.Attribute("IsChecked") ?? string.Empty);
-        Assert.Equal("切换高级模式", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.Equal("点击显示/隐藏高级选项", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.Contains(
+            toggle.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "点击显示/隐藏高级选项");
+        Assert.DoesNotContain(
+            toggle.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") is "已开启" or "已关闭");
         Assert.DoesNotContain(
             document.Descendants(Presentation + "CheckBox"),
             element => (string?)element.Attribute(Xaml + "Name") == "ShowAdvancedSettingsCheckBox");
@@ -43,7 +49,7 @@ public sealed class SettingsAdvancedVisibilityTests
             "网页访问端口", "网页临时缓存上限", "调试日志",
             "同码消失时间", "同码确认时间", "单号判断规则", "扫码间隔保护",
             "扫码最小长度", "自动提交停顿", "平均输入间隔", "单字符间隔上限",
-            "实验：音频直接写入 MKV", "声音同步微调"
+            "音频直接写入 MKV", "声音同步微调"
         ];
 
         foreach (string label in hiddenLabels)
@@ -51,6 +57,46 @@ public sealed class SettingsAdvancedVisibilityTests
             XElement labelElement = FindLabel(document, label);
             Assert.True(IsControlledByAdvancedToggle(labelElement), $"{label} 未接入高级设置开关");
         }
+    }
+
+    [Fact]
+    public void SettingRows_HighlightOnlyWhileEnabledAndPurposeHintIsRemoved()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement style = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "SettingRowStyle");
+
+        XElement hoverTrigger = Assert.Single(style.Descendants(Presentation + "MultiTrigger"));
+        Assert.Contains(
+            hoverTrigger.Descendants(Presentation + "Condition"),
+            element => (string?)element.Attribute("Property") == "IsMouseOver"
+                && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(
+            hoverTrigger.Descendants(Presentation + "Condition"),
+            element => (string?)element.Attribute("Property") == "IsEnabled"
+                && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(
+            hoverTrigger.Descendants(Presentation + "Setter"),
+            element => (string?)element.Attribute("Value") == "{DynamicResource ControlBackgroundHover}");
+
+        Assert.DoesNotContain(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "更改用途后程序会自动重启，并切换到对应界面");
+    }
+
+    [Fact]
+    public void DirectMkvAudio_UsesStableCopyAndKeepsCompatibilityWarning()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement label = FindLabel(document, "音频直接写入 MKV");
+        XElement row = Assert.Single(label.Ancestors(Presentation + "Grid").Take(1));
+
+        Assert.Contains(
+            row.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "将声音直接编码到临时录像文件，减少临时文件和后处理");
+        Assert.Contains("兼容", (string?)row.Attribute("ToolTip") ?? string.Empty);
+        Assert.DoesNotContain("实验", row.ToString(SaveOptions.DisableFormatting));
     }
 
     [Theory]

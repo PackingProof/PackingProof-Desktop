@@ -514,7 +514,15 @@
         <Style x:Key="SettingRowStyle" TargetType="Grid">
             <Setter Property="Margin" Value="{StaticResource SettingRowMargin}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Style.Triggers>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="IsEnabled" Value="True"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                </MultiTrigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.58"/>
                 </Trigger>
@@ -821,30 +829,20 @@
                                               Style="{StaticResource AdvancedModeButtonStyle}"
                                               IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               Unchecked="AdvancedModeButton_Unchecked"
-                                              AutomationProperties.Name="切换高级模式">
+                                              AutomationProperties.Name="点击显示/隐藏高级选项">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Path Data="{StaticResource FluentSettingsIcon}"
                                               Width="16" Height="16" Stretch="Uniform"
                                               Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}, Mode=OneWay}"
                                               Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Column="1" Text="高级模式" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="已关闭"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=AdvancedModeButton, Mode=OneWay}" Value="True">
-                                                            <Setter Property="Text" Value="已开启"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="点击显示/隐藏高级选项"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"/>
                                     </Grid>
                                 </ToggleButton>
                             </Grid>
@@ -961,10 +959,6 @@
                                             </ComboBoxItem>
                                         </ComboBox>
                                     </Grid>
-                                    <TextBlock Text="更改用途后程序会自动重启，并切换到对应界面"
-                                               Margin="0,8,0,0"
-                                               Style="{StaticResource FieldHintStyle}"/>
-
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           Visibility="{Binding Capabilities.CanRecordPcVideo, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
@@ -2938,15 +2932,15 @@
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, Mode=OneWay, TargetNullValue=False}"
-                                          ToolTip="实验功能；部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
+                                          ToolTip="兼容性提示：部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="实验：音频直接写入 MKV" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="减少临时文件和后处理，开启前请先完成一次测试录像"
+                                            <TextBlock Text="音频直接写入 MKV" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="将声音直接编码到临时录像文件，减少临时文件和后处理"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="DirectAacRecordingCheckBox"
@@ -2956,7 +2950,7 @@
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"
-                                                  AutomationProperties.Name="实验：音频直接写入 MKV"/>
+                                                  AutomationProperties.Name="音频直接写入 MKV"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
