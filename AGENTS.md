@@ -5,7 +5,7 @@
 - `ExpressPackingMonitoring.sln` is the main solution.
 - `ExpressPackingMonitoring/` contains the WPF application, including XAML views, view models, services, SQLite access, recording logic, and `Web/index.html`.
 - `ExpressPackingMonitoring.Launcher/` contains the small launcher executable used by the clean package layout.
-- `Tools/Publish-CleanPackage.ps1` creates the per-user Setup, distributable directory, LZMA2 solid 7z, compatibility zip, update manifest, launcher manifest, and optional AppPatch package.
+- `Tools/Publish-CleanPackage.ps1` creates the per-user Setup, distributable directory, LZMA2 solid 7z, compatibility zip, update manifest, launcher manifest, optional AppPatch, and a separate LauncherPatch.
 - `Scripts/快递助手订单推送.user.js` is the browser userscript for order push integration.
 - `Image/` stores README and project screenshots. `Test/HTML/` contains captured sample pages for script/debug reference, not an automated test suite.
 
@@ -39,13 +39,14 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 ## Update & Release Workflow
 
 - Users should start the root launcher. The launcher starts the app immediately, checks updates in the background, downloads verified AppPatch packages into `%LOCALAPPDATA%\ExpressPackingMonitoring\cache\updates`, and installs pending patches on the next launcher run.
-- The launcher must not update itself. If launcher source or project configuration changes, disable AppPatch for that release and require a full package update.
+- The main app may update the root launcher through the optional, separately verified `launcher_package` descriptor. It must wait for the old launcher process to exit, use the shared update mutex, replace only the standard root launcher, verify the result, and restore the previous launcher on failure.
 - AppPatch packages are fixed-baseline cumulative patches. The default patch baseline is `0.0.18`, but scripts may allow overriding it when a new formal baseline is chosen.
 - Keep update URLs configurable through environment variables or `.env`. The default update check URL is GitHub releases latest API; `.env` may point to another release provider.
-- Do not generate AppFull packages. GitHub Release uploads normally include the Setup, full 7z, compatibility zip, `update_vX.Y.Z.json`, and optional `PackingProof_AppPatch_vX.Y.Z.zip`.
+- Do not generate AppFull or ManualUpdate packages. GitHub Release uploads normally include the Setup, full 7z, compatibility zip, `update_vX.Y.Z.json`, optional `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`, and `PackingProof_LauncherPatch_vX.Y.Z.zip`.
+- AppPatch and LauncherPatch are separate ZIP files. Each includes its own double-click manual installer and instructions; AppPatch must never contain the launcher executable.
 - Keep release notes in `update_vX.Y.Z.json` synchronized with the final release description before uploading.
 - Keep `launcher_manifest_vX.Y.Z.json` and `release_info_vX.Y.Z.txt` as local verification and handoff files; do not upload them to GitHub or Gitee by default.
-- Gitee releases receive the update JSON and optional AppPatch, but not the Setup, full package 7z, or full package zip.
+- Gitee releases receive the update JSON, optional AppPatch, and LauncherPatch, but not the Setup, full package 7z, or full package zip.
 - For Gitee, open the new-release page for the user and let the user complete the form and upload files manually; do not automate submission unless the user explicitly changes this workflow.
 - Do not update ExpressPackingMonitoring.Launcher unless necessary
 
