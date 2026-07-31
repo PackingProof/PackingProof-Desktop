@@ -1231,6 +1231,10 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"BtnInstallUserscript\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Config.NodeName", source, StringComparison.Ordinal);
         Assert.Contains(
+            "WorkstationPrintStatusText = \"设备备份服务：已就绪\";",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
             "WorkstationPrintStatusText = $\"{Config.NodeName} · {verifiedAddress}\";",
             source,
             StringComparison.Ordinal);
