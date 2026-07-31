@@ -1,4 +1,5 @@
 using System.Windows;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 
 namespace ExpressPackingMonitoring.UI;
@@ -7,6 +8,7 @@ public partial class MobileConnectionWindow : Window
 {
     private readonly string _url;
     private readonly bool _containsAccessKey;
+    private string _mobileAppDownloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
 
     public bool OpenSettingsRequested { get; private set; }
 
@@ -42,6 +44,37 @@ public partial class MobileConnectionWindow : Window
                 ? "局域网服务尚未准备完成，请稍后重试"
                 : unavailableMessage;
         }
+
+        UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
+        Loaded += MobileConnectionWindow_Loaded;
+        Loaded += (_, _) =>
+            (isReady ? CopyButton : OpenMobileAppDownloadButton).Focus();
+    }
+
+    private async void MobileConnectionWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            MobileAppReleaseInfo release =
+                await MobileAppUpdatePolicyProvider.Shared.CheckLatestAsync();
+            if (IsLoaded)
+                UpdateMobileAppDownload(release);
+        }
+        catch
+        {
+            // The stable releases page is already available in the QR code.
+        }
+    }
+
+    private void UpdateMobileAppDownload(MobileAppReleaseInfo? release)
+    {
+        _mobileAppDownloadUrl = release?.DownloadUrl
+            ?? MobileAppUpdatePolicyProvider.ReleasesUrl;
+        MobileAppQrCodeImage.Source =
+            MobileConnectionService.CreateQrBitmap(_mobileAppDownloadUrl);
+        MobileAppVersionText.Text = release == null
+            ? AppLanguage.Get("Android 版 · 扫码打开下载页")
+            : AppLanguage.Format("Android 最新版 v{0}", release.Version);
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e)
@@ -63,6 +96,18 @@ public partial class MobileConnectionWindow : Window
             return;
 
         AppDialog.ShowMessage(this, $"打开网页失败：{error}", "手机/电脑连接", AppDialogSeverity.Warning);
+    }
+
+    private void OpenMobileAppDownload_Click(object sender, RoutedEventArgs e)
+    {
+        if (WorkstationNetwork.TryOpenUrl(_mobileAppDownloadUrl, out string error))
+            return;
+
+        AppDialog.ShowMessage(
+            this,
+            AppLanguage.Format("打开手机 App 下载页失败：{0}", error),
+            AppLanguage.Get("手机/电脑连接"),
+            AppDialogSeverity.Warning);
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)

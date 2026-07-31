@@ -502,6 +502,23 @@
   <data name="不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空" xml:space="preserve"><value>不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空</value></data>
   <data name="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。" xml:space="preserve"><value>完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。</value></data>
   <data name="手机/电脑连接" xml:space="preserve"><value>手机/电脑连接</value></data>
+  <data name="连接录像网页，或先下载 PackingProof 手机录像 App" xml:space="preserve"><value>连接录像网页，或先下载 PackingProof 手机录像 App</value></data>
+  <data name="连接录像网页" xml:space="preserve"><value>连接录像网页</value></data>
+  <data name="手机或其他电脑连接同一个局域网后，扫描二维码即可打开录像" xml:space="preserve"><value>手机或其他电脑连接同一个局域网后，扫描二维码即可打开录像</value></data>
+  <data name="录像网页连接二维码" xml:space="preserve"><value>录像网页连接二维码</value></data>
+  <data name="录像网页访问网址" xml:space="preserve"><value>录像网页访问网址</value></data>
+  <data name="复制录像网页网址" xml:space="preserve"><value>复制录像网页网址</value></data>
+  <data name="在电脑打开录像网页" xml:space="preserve"><value>在电脑打开录像网页</value></data>
+  <data name="暂时无法生成连接二维码" xml:space="preserve"><value>暂时无法生成连接二维码</value></data>
+  <data name="下载手机 App" xml:space="preserve"><value>下载手机 App</value></data>
+  <data name="使用 Android 手机扫码，下载 PackingProof 手机录像 App" xml:space="preserve"><value>使用 Android 手机扫码，下载 PackingProof 手机录像 App</value></data>
+  <data name="手机 App 下载二维码" xml:space="preserve"><value>手机 App 下载二维码</value></data>
+  <data name="Android 版 · 扫码打开下载页" xml:space="preserve"><value>Android 版 · 扫码打开下载页</value></data>
+  <data name="Android 最新版 v{0}" xml:space="preserve"><value>Android 最新版 v{0}</value></data>
+  <data name="下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑" xml:space="preserve"><value>下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑</value></data>
+  <data name="电脑打开下载页" xml:space="preserve"><value>电脑打开下载页</value></data>
+  <data name="在电脑打开手机 App 下载页" xml:space="preserve"><value>在电脑打开手机 App 下载页</value></data>
+  <data name="打开手机 App 下载页失败：{0}" xml:space="preserve"><value>打开手机 App 下载页失败：{0}</value></data>
   <data name="用手机或其他电脑查看录像" xml:space="preserve"><value>用手机或其他电脑查看录像</value></data>
   <data name="手机或其他电脑连接同一个局域网后，扫描二维码或复制网址即可打开" xml:space="preserve"><value>手机或其他电脑连接同一个局域网后，扫描二维码或复制网址即可打开</value></data>
   <data name="访问网址" xml:space="preserve"><value>访问网址</value></data>

@@ -116,7 +116,34 @@ internal sealed class MobileAppUpdatePolicyProvider
             tagName,
             version,
             buildNumber,
-            ReleasesUrl);
+            ResolveDownloadUrl(document?.Assets));
+    }
+
+    private static string ResolveDownloadUrl(IReadOnlyList<MobileAppReleaseAsset>? assets)
+    {
+        if (assets == null || assets.Count == 0)
+            return ReleasesUrl;
+
+        IEnumerable<MobileAppReleaseAsset> candidates = assets
+            .OrderByDescending(asset => string.Equals(
+                asset.Name?.Trim(),
+                "PackingProof-Mobile.apk",
+                StringComparison.OrdinalIgnoreCase))
+            .Where(asset => asset.Name?.Trim().EndsWith(
+                ".apk",
+                StringComparison.OrdinalIgnoreCase) == true);
+
+        foreach (MobileAppReleaseAsset asset in candidates)
+        {
+            if (Uri.TryCreate(asset.BrowserDownloadUrl?.Trim(), UriKind.Absolute, out Uri? uri)
+                && uri.Scheme == Uri.UriSchemeHttps
+                && string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return uri.AbsoluteUri;
+            }
+        }
+
+        return ReleasesUrl;
     }
 
     internal static bool IsUpdateAvailable(int currentBuildNumber, MobileAppReleaseInfo latestRelease)
@@ -130,6 +157,18 @@ internal sealed class MobileAppUpdatePolicyProvider
     {
         [JsonPropertyName("tag_name")]
         public string TagName { get; set; } = "";
+
+        [JsonPropertyName("assets")]
+        public List<MobileAppReleaseAsset> Assets { get; set; } = [];
+    }
+
+    private sealed class MobileAppReleaseAsset
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("browser_download_url")]
+        public string BrowserDownloadUrl { get; set; } = "";
     }
 
     private static MobileAppReleaseInfo? LoadCachedRelease()

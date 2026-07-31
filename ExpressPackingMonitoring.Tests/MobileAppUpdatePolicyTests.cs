@@ -17,7 +17,7 @@ public sealed class MobileAppUpdatePolicyTests
     }
 
     [Fact]
-    public void LatestMobileReleaseUsesGiteeRepositoryAsDownloadPage()
+    public void LatestMobileReleaseFallsBackToGiteeRepositoryWhenNoApkAssetExists()
     {
         MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
             """{"tag_name":"v0.6.1+12001","name":"v0.6.1"}""");
@@ -28,6 +28,46 @@ public sealed class MobileAppUpdatePolicyTests
         Assert.Equal(
             "https://gitee.com/PackingProof/PackingProof-Mobile/releases",
             release.DownloadUrl);
+    }
+
+    [Fact]
+    public void LatestMobileReleasePrefersNamedGiteeApkAsset()
+    {
+        MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
+            """
+            {
+              "tag_name":"v0.6.1+12001",
+              "assets":[
+                {
+                  "name":"another.apk",
+                  "browser_download_url":"https://gitee.com/PackingProof/PackingProof-Mobile/releases/download/v0.6.1/another.apk"
+                },
+                {
+                  "name":"PackingProof-Mobile.apk",
+                  "browser_download_url":"https://gitee.com/PackingProof/PackingProof-Mobile/releases/download/v0.6.1/PackingProof-Mobile.apk"
+                }
+              ]
+            }
+            """);
+
+        Assert.Equal(
+            "https://gitee.com/PackingProof/PackingProof-Mobile/releases/download/v0.6.1/PackingProof-Mobile.apk",
+            release.DownloadUrl);
+    }
+
+    [Theory]
+    [InlineData("http://gitee.com/PackingProof/PackingProof-Mobile/releases/download/v0.6.1/PackingProof-Mobile.apk")]
+    [InlineData("https://example.com/PackingProof-Mobile.apk")]
+    [InlineData("not-a-url")]
+    public void LatestMobileReleaseRejectsUntrustedApkAssetUrl(string downloadUrl)
+    {
+        string json =
+            $$"""{"tag_name":"v0.6.1+12001","assets":[{"name":"PackingProof-Mobile.apk","browser_download_url":"{{downloadUrl}}"}]}""";
+
+        MobileAppReleaseInfo release =
+            MobileAppUpdatePolicyProvider.ParseLatestRelease(json);
+
+        Assert.Equal(MobileAppUpdatePolicyProvider.ReleasesUrl, release.DownloadUrl);
     }
 
     [Theory]

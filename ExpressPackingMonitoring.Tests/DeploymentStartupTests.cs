@@ -45,10 +45,32 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "UI",
             "MobileConnectionWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "MobileConnectionWindow.xaml.cs");
 
         Assert.Contains("<TextBlock x:Name=\"SecurityNotice\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Foreground=\"{DynamicResource AccentOrange}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("<Border x:Name=\"SecurityNotice\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"QrCodeImage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MobileAppQrCodeImage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"下载手机 App\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("使用 Android 手机扫码", xaml, StringComparison.Ordinal);
+        Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OpenMobileAppDownloadButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "await MobileAppUpdatePolicyProvider.Shared.CheckLatestAsync();",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "MobileAppUpdatePolicyProvider.ReleasesUrl",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Theory]
