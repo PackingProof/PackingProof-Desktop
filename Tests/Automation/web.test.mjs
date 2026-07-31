@@ -23,6 +23,8 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 811, height: 900 });
     assert.equal(await mobileConnectButton.isVisible(), false);
+    await assert.doesNotReject(() => page.getByRole('link', { name: '下载手机 App' }).waitFor());
+    assert.equal(await page.locator('#mobileConnectQr').isVisible(), false);
     const compactOverview = await page.locator('.overview').evaluate(overview => {
       const cards = overview.querySelectorAll('.summary-card');
       return {
@@ -116,8 +118,13 @@ test('Web UI follows browser language and persists an explicit override', { skip
     assert.doesNotMatch(guideText, /[\u3400-\u9fff]/);
 
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
-    await page.locator('select[aria-label="Display language"]').selectOption('zh-Hans');
-    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Display language' }).click();
+    const simplifiedChinese = page.getByRole('menuitemradio', { name: '简体中文' });
+    await assert.doesNotReject(() => simplifiedChinese.waitFor());
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle' }),
+      simplifiedChinese.click()
+    ]);
     await assert.doesNotReject(() => page.getByRole('heading', { name: '快递打包录像回放' }).waitFor());
     assert.equal(await page.evaluate(() => localStorage.getItem('expressWebLanguage')), 'zh-Hans');
   } finally {

@@ -105,6 +105,13 @@ public sealed class WebRequestLimitTests
         Assert.Contains("text('resultsInfo','第 '+res.page+' / '+totalPages+' 页')", html);
         Assert.DoesNotContain("'共 '+res.total+' 条记录", html);
         Assert.Contains(".mobile-connect-toggle,.install-card{display:none}", html);
+        Assert.Contains("class=\"mobile-app-download\"", html);
+        Assert.Contains(
+            "href=\"https://gitee.com/PackingProof/PackingProof-Mobile/releases\"",
+            html);
+        Assert.Contains(".mobile-app-download{display:flex}", html);
+        Assert.Contains(".mobile-app-download{grid-column:1/-1;grid-row:2}", html);
+        Assert.DoesNotContain("mobile-app-download-qr", html);
     }
 
     [Fact]
@@ -146,6 +153,28 @@ public sealed class WebRequestLimitTests
         Assert.Contains("localStorage.getItem(compatStorageKey)===null", html);
         Assert.Contains("window.matchMedia('(max-width:900px)').matches", html);
         Assert.Contains("localStorage.setItem(compatStorageKey,'0')", html);
-        Assert.Contains("right:16px;bottom:96px", html);
+        Assert.Contains(
+            ".language-float{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom))",
+            html);
+    }
+
+    [Fact]
+    public void LanguagePickerUsesAccessibleFloatingMenuInsteadOfNativeSelect()
+    {
+        string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));
+
+        Assert.Contains("wrap.id='languageFloat'", html);
+        Assert.Contains("trigger.id='languageTrigger'", html);
+        Assert.Contains("menu.id='languageMenu'", html);
+        Assert.Contains("trigger.setAttribute('aria-expanded','false')", html);
+        Assert.Contains("option.setAttribute('role','menuitemradio')", html);
+        Assert.Contains("option.setAttribute('aria-checked'", html);
+        Assert.Contains("event.key==='ArrowDown'", html);
+        Assert.Contains("event.key==='Escape'&&menu.classList.contains('open')", html);
+        Assert.Contains("localStorage.removeItem(key)", html);
+        Assert.Contains("localStorage.setItem(key,value)", html);
+        Assert.Contains("right:max(10px,env(safe-area-inset-right))", html);
+        Assert.DoesNotContain("document.createElement('select')", html);
+        Assert.DoesNotContain("select.style.cssText", html);
     }
 }
