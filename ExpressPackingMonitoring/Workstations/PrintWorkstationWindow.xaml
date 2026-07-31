@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PackingProof 录像文件备份主机"
         Width="880"
-        Height="500"
         MinWidth="780"
-        MinHeight="450"
+        MaxHeight="720"
+        SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBackground}">
     <Window.Resources>

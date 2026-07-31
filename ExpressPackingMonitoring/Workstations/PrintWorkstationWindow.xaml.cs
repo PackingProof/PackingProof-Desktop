@@ -85,6 +85,7 @@ public partial class PrintWorkstationWindow : Window
         bool enableCloseBehaviorPrompt = true)
     {
         InitializeComponent();
+        MaxHeight = CalculateWindowMaxHeight(SystemParameters.WorkArea.Height);
         _config = config;
         _openPlaybackOnStartup = openPlaybackOnStartup;
         _requestLanAccessOnStartup = requestLanAccessOnStartup;
@@ -116,6 +117,14 @@ public partial class PrintWorkstationWindow : Window
             _host.Dispose();
             _lifetimeCts.Dispose();
         };
+    }
+
+    internal static double CalculateWindowMaxHeight(double workAreaHeight)
+    {
+        if (!double.IsFinite(workAreaHeight))
+            return 720;
+
+        return Math.Min(720, Math.Max(1, workAreaHeight - 32));
     }
 
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

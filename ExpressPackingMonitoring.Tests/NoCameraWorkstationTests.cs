@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Xml.Linq;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -91,6 +92,41 @@ public sealed class NoCameraWorkstationTests
         Assert.Contains("TimeSpan.FromSeconds(4)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("MessageBox.Show", source, StringComparison.Ordinal);
         Assert.Contains("AppDialog.ShowMessage(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MobileBackupWindow_SizesToContentAndScrollsBelowScreenLimit()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml.cs");
+        XElement window = Assert.IsType<XElement>(XDocument.Parse(xaml).Root);
+
+        Assert.Equal("Height", (string?)window.Attribute("SizeToContent"));
+        Assert.Equal("720", (string?)window.Attribute("MaxHeight"));
+        Assert.Null(window.Attribute("Height"));
+        Assert.Null(window.Attribute("MinHeight"));
+        Assert.Contains("VerticalScrollBarVisibility=\"Auto\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "MaxHeight = CalculateWindowMaxHeight(SystemParameters.WorkArea.Height);",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(1080, 720)]
+    [InlineData(728, 696)]
+    [InlineData(500, 468)]
+    public void CalculateWindowMaxHeight_LeavesMarginAndCapsLargeScreens(
+        double workAreaHeight,
+        double expected)
+    {
+        Assert.Equal(expected, PrintWorkstationWindow.CalculateWindowMaxHeight(workAreaHeight));
     }
 
     [Fact]
