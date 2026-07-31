@@ -33,6 +33,7 @@ public sealed class DefaultConfigurationTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.False(config.ShowAdvancedSettings);
+        Assert.False(config.EnableDirectAacRecording);
         Assert.Equal(19, config.VideoCqp);
         Assert.Equal(345, config.ScannerAutoSubmitQuietMs);
     }
@@ -43,6 +44,7 @@ public sealed class DefaultConfigurationTests
         var original = new AppConfig
         {
             ShowAdvancedSettings = true,
+            EnableDirectAacRecording = true,
             VideoCqp = 22,
             ScannerAutoSubmitQuietMs = 310
         };
@@ -51,6 +53,7 @@ public sealed class DefaultConfigurationTests
             JsonSerializer.Serialize(original))!;
 
         Assert.True(restored.ShowAdvancedSettings);
+        Assert.True(restored.EnableDirectAacRecording);
         Assert.Equal(22, restored.VideoCqp);
         Assert.Equal(310, restored.ScannerAutoSubmitQuietMs);
     }

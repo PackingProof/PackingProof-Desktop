@@ -175,6 +175,7 @@ namespace ExpressPackingMonitoring.Config
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
         public bool EnableAudioRecording { get; set; } = true;
+        public bool EnableDirectAacRecording { get; set; } = false;
         public string AudioDeviceName { get; set; } = "";
         public string AudioDeviceMoniker { get; set; } = "";
         public int AudioSyncOffsetMs { get; set; } = 0;

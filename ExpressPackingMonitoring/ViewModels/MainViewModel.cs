@@ -67,6 +67,12 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly object _audioLock = new object();
         private NAudio.CoreAudioApi.WasapiCapture _audioCapture;
         private NAudio.Wave.WaveFileWriter _audioWriter;
+        private NAudio.Wave.WaveFormat _audioTargetFormat;
+        private System.IO.Pipes.NamedPipeServerStream _audioPipeServer;
+        private Task _audioPipeConnectionTask;
+        private string _currentAudioPipeName;
+        private bool _currentAudioUsesDirectAac;
+        private int _audioInitialOffsetBytesRemaining;
         private BlockingCollection<byte[]> _audioWriteQueue;
         private Task _audioFileWriteTask;
         private bool _audioWriteFailed;

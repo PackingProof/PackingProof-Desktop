@@ -39,6 +39,7 @@ namespace ExpressPackingMonitoring.ViewModels
             BlockingCollection<Mat> oldQueue;
             Task oldWriteTask;
             string? audioFilePath;
+            bool directAacForThisRecording;
             bool audioFailedForThisRecording;
             long audioBytesWrittenForThisRecording;
 
@@ -55,6 +56,7 @@ namespace ExpressPackingMonitoring.ViewModels
             // 2. 停止生产
             try { oldQueue?.CompleteAdding(); } catch { }
             oldCts?.Cancel(); // 3. 通知 FFmpeg 线程停止
+            directAacForThisRecording = _currentAudioUsesDirectAac;
             audioFilePath = StopAudioRecording();
             audioFailedForThisRecording = _audioFailedForCurrentRecording;
             audioBytesWrittenForThisRecording = _audioBytesWritten;
@@ -107,7 +109,10 @@ namespace ExpressPackingMonitoring.ViewModels
             var audioLogPath = _currentAudioLogPath;
             if (Config.EnableAudioRecording
                 && HasConfiguredAudioDevice()
-                && (audioFailedForThisRecording || string.IsNullOrWhiteSpace(audioFilePath)))
+                && (audioFailedForThisRecording
+                    || (directAacForThisRecording
+                        ? audioBytesWrittenForThisRecording <= 0
+                        : string.IsNullOrWhiteSpace(audioFilePath))))
             {
                 stopReason = string.IsNullOrWhiteSpace(stopReason) ? "音频异常" : $"{stopReason}（音频异常）";
                 RuntimeLog.Warn("Audio", $"Recording audio unavailable id={recordId}, file={Path.GetFileName(filePath ?? "")}, failed={audioFailedForThisRecording}, bytes={audioBytesWrittenForThisRecording}");
@@ -145,6 +150,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                         bool videoDeleted = DeleteVideoFileForRule(filePath, deleteReason);
                         DeleteAudioTempFile(audioFilePath);
+                        DeleteEmbeddedAudioMarker(filePath);
                         if (videoDeleted && !string.IsNullOrWhiteSpace(filePath))
                             _db?.MarkVideoDeleted(filePath, deleteReason);
 
@@ -525,6 +531,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
 
                 bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
+                bool useDirectAac = startAudioAfterVideo && Config.EnableDirectAacRecording;
 
                 // 1. 彻底清理环境：如果系统残留了任何挂死的 ffmpeg，全部清掉
                 _ = Task.Run(() => {
@@ -587,6 +594,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
+                if (useDirectAac && !PrepareDirectAudioPipe())
+                {
+                    ShowToast("实时 AAC 音频管道初始化失败，已取消开录");
+                    ClearCurrentAudioLogPath(audioLogPath);
+                    return;
+                }
+
                 // 3. 开启新的生产者-消费者通道
                 lock (_videoLock)
                 {
@@ -610,7 +624,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 4. 启动录制任务
                 _recordingStartTimestamp = Stopwatch.GetTimestamp();
                 _firstRecordingFrameWritten = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _writeTask = Task.Run(() => BackgroundFFmpegRecordingLoop(filePath, ffmpegPath, _writeCts.Token));
+                _writeTask = Task.Run(() => BackgroundFFmpegRecordingLoop(
+                    filePath,
+                    ffmpegPath,
+                    _writeCts.Token,
+                    useDirectAac,
+                    useDirectAac ? _currentAudioPipeName : null));
 
                 IsRecording = true;
                 _recordStartTime = DateTime.Now;
@@ -642,7 +661,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (startAudioAfterVideo)
                 {
                     WriteAudioDiagnostic($"准备启动麦克风录制: name={Config.AudioDeviceName}, moniker={(string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker) ? "(empty)" : Config.AudioDeviceMoniker)}");
-                    if (!StartAudioRecording(audioFilePath))
+                    if (!StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac))
                     {
                         WriteAudioDiagnostic("麦克风录音启动失败");
                         ShowToast("音频录制启动失败");
@@ -659,6 +678,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         catch { }
                         IsRecording = false;
                         try { if (File.Exists(filePath)) File.Delete(filePath); } catch { }
+                        DeleteEmbeddedAudioMarker(filePath);
                         ClearCurrentAudioLogPath(audioLogPath);
                         return;
                     }
@@ -689,29 +709,35 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private void BackgroundFFmpegRecordingLoop(string filePath, string ffmpegPath, CancellationToken token)
+        private void BackgroundFFmpegRecordingLoop(
+            string filePath,
+            string ffmpegPath,
+            CancellationToken token,
+            bool withDirectAudio = false,
+            string? audioPipeName = null)
         {
             int w = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
             int h = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
             int fps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
             string encoder = ResolveEncoder();
-            bool hasAudio = false;
+            bool hasAudio = withDirectAudio;
             string requestedEncoder = encoder;
             string? firstError = null;
 
-            var (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio);
+            var (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
             if (!ok && !token.IsCancellationRequested)
             {
                 firstError = err;
                 string fallbackEncoder = GetCpuEncoder();
-                if (!string.Equals(encoder, fallbackEncoder, StringComparison.OrdinalIgnoreCase))
+                if (!withDirectAudio
+                    && !string.Equals(encoder, fallbackEncoder, StringComparison.OrdinalIgnoreCase))
                 {
                     RuntimeLog.Warn("FFmpeg", $"Encoder failed, retrying CPU. requested={encoder}, fallback={fallbackEncoder}, error={err}");
                     WriteAudioDiagnostic($"视频编码器启动失败，改用 CPU 软编码重试: requested={encoder}, fallback={fallbackEncoder}, error={err}");
                     try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
 
                     encoder = fallbackEncoder;
-                    (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio);
+                    (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
                 }
             }
             
@@ -822,7 +848,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private (bool ok, string error) RunFFmpegPipeline(string filePath, string ffmpegPath, CancellationToken token,
-            int w, int h, int fps, string encoder, bool withAudio)
+            int w, int h, int fps, string encoder, bool withAudio, string? audioPipeName = null)
         {
             Process? ffmpeg = null;
             Stream? stdin = null;
@@ -833,7 +859,15 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try
             {
-                string args = BuildFFmpegArgs(w, h, fps, filePath, encoder, withAudio, GetVideoCqp());
+                string args = BuildFFmpegArgs(
+                    w,
+                    h,
+                    fps,
+                    filePath,
+                    encoder,
+                    withAudio,
+                    GetVideoCqp(),
+                    audioPipeName);
                 Debug.WriteLine($"[FFmpeg] encoder={encoder} audio={withAudio} args={args}");
                 RuntimeLog.Info("FFmpeg", $"Start encoder={encoder}, audio={withAudio}, size={w}x{h}, fps={fps}, file={Path.GetFileName(filePath)}");
 
@@ -1027,10 +1061,26 @@ namespace ExpressPackingMonitoring.ViewModels
             return text.Length <= 500 ? text : text[..500];
         }
 
-        internal static string BuildFFmpegArgs(int w, int h, int fps, string filePath, string encoder, bool withAudio, int videoCqp)
+        internal static string BuildFFmpegArgs(
+            int w,
+            int h,
+            int fps,
+            string filePath,
+            string encoder,
+            bool withAudio,
+            int videoCqp,
+            string? audioPipeName = null)
         {
             string args = $"-y -fflags +genpts -use_wallclock_as_timestamps 1 -f rawvideo -video_size {w}x{h} -pixel_format bgr24 -framerate {fps} -i pipe:0";
+            if (withAudio)
+            {
+                if (string.IsNullOrWhiteSpace(audioPipeName))
+                    throw new InvalidOperationException("启用实时 AAC 时必须提供音频管道名称");
+                args += $" -thread_queue_size 512 -f s16le -ar 48000 -ac 1 -i \\\\.\\pipe\\{audioPipeName}";
+            }
             args += $" {BuildFFmpegEncoderArgs(w, h, fps, encoder, videoCqp)}";
+            if (withAudio)
+                args += " -map 0:v:0 -map 1:a:0 -c:a aac -profile:a aac_low -b:a 128k -af aresample=async=1:first_pts=0";
             args += " -muxdelay 0 -muxpreload 0";
             args += $" \"{filePath}\"";
             return args;
@@ -1067,11 +1117,45 @@ namespace ExpressPackingMonitoring.ViewModels
             return 8;
         }
 
-        private bool StartAudioRecording(string audioFilePath)
+        private bool PrepareDirectAudioPipe()
         {
             try
             {
-                StopAudioRecording();
+                DeleteAudioTempFile(StopAudioRecording());
+                lock (_audioLock)
+                {
+                    try { _audioPipeServer?.Dispose(); } catch { }
+                    _currentAudioPipeName = $"PackingProof-audio-{Environment.ProcessId}-{Guid.NewGuid():N}";
+                    _audioPipeServer = new System.IO.Pipes.NamedPipeServerStream(
+                        _currentAudioPipeName,
+                        System.IO.Pipes.PipeDirection.Out,
+                        1,
+                        System.IO.Pipes.PipeTransmissionMode.Byte,
+                        System.IO.Pipes.PipeOptions.Asynchronous,
+                        64 * 1024,
+                        64 * 1024);
+                    _audioPipeConnectionTask = _audioPipeServer.WaitForConnectionAsync();
+                    _currentAudioUsesDirectAac = true;
+                    _audioBytesWritten = 0;
+                    _audioWriteFailed = false;
+                    _audioCaptureUnstable = false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Audio", "Failed to prepare direct AAC pipe", ex);
+                WriteAudioDiagnostic($"实时 AAC 管道初始化失败: {ex.Message}");
+                return false;
+            }
+        }
+
+        private bool StartAudioRecording(string? audioFilePath, bool directAac = false)
+        {
+            try
+            {
+                if (!directAac)
+                    DeleteAudioTempFile(StopAudioRecording());
 
                 var device = ResolveAudioEndpoint();
                 if (device == null)
@@ -1081,21 +1165,55 @@ namespace ExpressPackingMonitoring.ViewModels
                     return false;
                 }
 
-                Directory.CreateDirectory(Path.GetDirectoryName(audioFilePath)!);
-
                 var capture = CreateWasapiCapture(device);
-                var writerFormat = CreatePcm16WaveFormat(capture.WaveFormat);
-                var writer = new WaveFileWriter(audioFilePath, writerFormat);
+                var targetFormat = CreatePcm16WaveFormat(capture.WaveFormat);
+                WaveFileWriter? writer = null;
+                Stream output;
+                string outputKind;
+                if (directAac)
+                {
+                    System.IO.Pipes.NamedPipeServerStream pipe;
+                    Task connectionTask;
+                    lock (_audioLock)
+                    {
+                        pipe = _audioPipeServer;
+                        connectionTask = _audioPipeConnectionTask;
+                    }
+                    if (pipe == null
+                        || connectionTask == null
+                        || !connectionTask.Wait(TimeSpan.FromSeconds(3))
+                        || !pipe.IsConnected)
+                    {
+                        capture.Dispose();
+                        throw new IOException("FFmpeg 未在限定时间内连接实时 AAC 管道");
+                    }
+                    output = pipe;
+                    outputKind = "实时 AAC 管道";
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(audioFilePath))
+                        throw new IOException("WAV 临时文件路径无效");
+                    Directory.CreateDirectory(Path.GetDirectoryName(audioFilePath)!);
+                    writer = new WaveFileWriter(audioFilePath, targetFormat);
+                    output = writer;
+                    outputKind = "WAV";
+                }
                 var writeQueue = new BlockingCollection<byte[]>(boundedCapacity: 150);
-                var writeTask = Task.Run(() => AudioFileWriteLoop(writer, writeQueue));
+                var writeTask = Task.Run(() => AudioStreamWriteLoop(output, writeQueue, outputKind));
 
                 lock (_audioLock)
                 {
                     _audioCapture = capture;
                     _audioWriter = writer;
+                    _audioTargetFormat = targetFormat;
                     _audioWriteQueue = writeQueue;
                     _audioFileWriteTask = writeTask;
                     _currentAudioFilePath = audioFilePath;
+                    _currentAudioUsesDirectAac = directAac;
+                    _audioInitialOffsetBytesRemaining = directAac
+                        ? CalculateInitialAudioOffsetBytes(Config.AudioSyncOffsetMs, targetFormat)
+                        : 0;
                     _audioStopRequested = false;
                     _audioRestarting = false;
                     _lastAudioDataAt = DateTime.Now;
@@ -1122,11 +1240,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioMonitorCts = new CancellationTokenSource();
                 }
 
+                if (directAac && !string.IsNullOrWhiteSpace(_currentVideoFilePath))
+                    WriteEmbeddedAudioMarker(_currentVideoFilePath, 0, Config.AudioSyncOffsetMs);
+
                 capture.StartRecording();
                 _audioMonitorTask = Task.Run(() => AudioCaptureMonitorLoop(_audioMonitorCts.Token));
                 Debug.WriteLine($"[Audio] 开始录音: {device.FriendlyName}");
-                WriteAudioDiagnostic($"开始录音: device={device.FriendlyName}, sourceFormat={capture.WaveFormat}, wavFormat={writerFormat}");
-                WriteAudioDiagnostic("WASAPI 采集模式: eventSync=true, bufferMs=20");
+                WriteAudioDiagnostic($"开始录音: device={device.FriendlyName}, sourceFormat={capture.WaveFormat}, targetFormat={targetFormat}, output={outputKind}");
+                WriteAudioDiagnostic($"WASAPI 采集模式: eventSync=true, bufferMs=20, syncOffsetMs={(directAac ? Config.AudioSyncOffsetMs : 0)}");
                 return true;
             }
             catch (Exception ex)
@@ -1135,8 +1256,19 @@ namespace ExpressPackingMonitoring.ViewModels
                 WriteAudioDiagnostic($"启动失败: {ex.Message}");
                 StopAudioRecording();
                 DeleteAudioTempFile(audioFilePath);
+                DeleteEmbeddedAudioMarker(_currentVideoFilePath);
                 return false;
             }
+        }
+
+        internal static int CalculateInitialAudioOffsetBytes(int offsetMs, WaveFormat format)
+        {
+            int clamped = Math.Clamp(offsetMs, -5000, 5000);
+            int blockAlign = Math.Max(1, format.BlockAlign);
+            long bytes = (long)Math.Abs(clamped) * format.AverageBytesPerSecond / 1000;
+            bytes -= bytes % blockAlign;
+            int bounded = (int)Math.Min(int.MaxValue, bytes);
+            return clamped < 0 ? -bounded : bounded;
         }
 
         private string? StopAudioRecording()
@@ -1150,6 +1282,8 @@ namespace ExpressPackingMonitoring.ViewModels
             string? audioFilePath;
             CancellationTokenSource? monitorCts;
             Task? monitorTask;
+            System.IO.Pipes.NamedPipeServerStream? pipe;
+            bool directAac;
 
             lock (_audioLock)
             {
@@ -1176,8 +1310,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 writeFailed = _audioWriteFailed;
                 resampleTailBytes = FlushResamplerTail(_audioPreviousSourceSample, _audioHasPreviousSourceSample, ref _audioResamplePosition);
                 audioFilePath = _currentAudioFilePath;
+                pipe = _audioPipeServer;
+                directAac = _currentAudioUsesDirectAac;
                 _audioCapture = null;
                 _audioWriter = null;
+                _audioTargetFormat = null;
+                _audioPipeServer = null;
+                _audioPipeConnectionTask = null;
+                _currentAudioPipeName = null;
+                _currentAudioUsesDirectAac = false;
+                _audioInitialOffsetBytesRemaining = 0;
                 _audioWriteQueue = null;
                 _audioFileWriteTask = null;
                 _currentAudioFilePath = null;
@@ -1212,23 +1354,39 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!writeCompleted)
             {
                 writeFailed = true;
-                WriteAudioDiagnostic("WAV 写入超时，放弃本次音频");
+                WriteAudioDiagnostic($"{(directAac ? "实时 AAC 管道" : "WAV")}写入超时，已标记本次音频异常");
             }
             if (_audioWriteQueueFullLogged && !_audioWriteQueueFullReported)
             {
                 _audioWriteQueueFullReported = true;
-                WriteAudioDiagnostic("WAV 写入队列已满，放弃本次音频");
+                WriteAudioDiagnostic($"{(directAac ? "实时 AAC 管道" : "WAV")}写入队列已满，已标记本次音频异常");
             }
             if (writeTask == null)
             {
                 try { writer?.Flush(); } catch { }
                 try { writer?.Dispose(); } catch { }
+                try { pipe?.Dispose(); } catch { }
             }
             try { writeQueue?.Dispose(); } catch { }
 
             lock (_audioLock)
             {
                 writeFailed = writeFailed || _audioWriteFailed;
+            }
+
+            if (directAac)
+            {
+                if (writeFailed || _audioCaptureUnstable)
+                {
+                    _audioFailedForCurrentRecording = true;
+                    WriteAudioDiagnostic(
+                        $"实时 AAC 音频异常: writeFailed={writeFailed}, gaps={_audioGapCount}, maxGapMs={_audioMaxGapMs:F0}, paddedBytes={_audioGapPaddingBytes}");
+                }
+                else if (_audioBytesWritten > 0 && !string.IsNullOrWhiteSpace(_currentVideoFilePath))
+                {
+                    WriteEmbeddedAudioMarker(_currentVideoFilePath, _audioBytesWritten, Config.AudioSyncOffsetMs);
+                }
+                return null;
             }
 
             if (string.IsNullOrEmpty(audioFilePath)) return null;
@@ -1319,7 +1477,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 string? diagnosticMessage = null;
                 lock (_audioLock)
                 {
-                    if (_audioWriter == null || e.BytesRecorded <= 0) return;
+                    WaveFormat? targetFormat = _audioTargetFormat;
+                    if (targetFormat == null || e.BytesRecorded <= 0) return;
                     var now = DateTime.Now;
                     _lastAudioPacketAt = now;
                     int selectedChannel = _audioSelectedSourceChannel;
@@ -1327,7 +1486,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         e.Buffer,
                         e.BytesRecorded,
                         capture.WaveFormat,
-                        _audioWriter.WaveFormat,
+                        targetFormat,
                         ref selectedChannel,
                         ref _audioResamplePosition,
                         ref _audioPreviousSourceSample,
@@ -1360,7 +1519,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             diagnosticMessage = string.IsNullOrEmpty(diagnosticMessage)
                                 ? gapDiagnostic
                                 : $"{diagnosticMessage}; {gapDiagnostic}";
-                        UpdateAudioLevelStats(pcmBytes, pcmBytes.Length, _audioWriter.WaveFormat);
+                        UpdateAudioLevelStats(pcmBytes, pcmBytes.Length, targetFormat);
                         _audioBytesWritten += EnqueueAudioBytes(pcmBytes);
                         _lastAudioDataAt = DateTime.Now;
                     }
@@ -1385,13 +1544,14 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string? PadAudioGapIfNeeded(DateTime now)
         {
-            if (_audioWriter == null || _lastAudioDataAt == DateTime.MinValue) return null;
+            WaveFormat? targetFormat = _audioTargetFormat;
+            if (targetFormat == null || _lastAudioDataAt == DateTime.MinValue) return null;
 
             double gapMs = (now - _lastAudioDataAt).TotalMilliseconds;
             if (gapMs <= 750) return null;
 
-            int bytesPerSecond = _audioWriter.WaveFormat.AverageBytesPerSecond;
-            int blockAlign = Math.Max(1, _audioWriter.WaveFormat.BlockAlign);
+            int bytesPerSecond = targetFormat.AverageBytesPerSecond;
+            int blockAlign = Math.Max(1, targetFormat.BlockAlign);
             int silenceBytes = (int)(bytesPerSecond * (gapMs / 1000.0));
             silenceBytes -= silenceBytes % blockAlign;
             if (silenceBytes <= 0) return null;
@@ -1433,12 +1593,40 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_audioWriteFailed || _audioWriteQueue == null || _audioWriteQueue.IsAddingCompleted || bytes.Length == 0) return 0;
             try
             {
+                int acceptedBytes = 0;
+                if (_currentAudioUsesDirectAac && _audioInitialOffsetBytesRemaining > 0)
+                {
+                    int remainingSilence = _audioInitialOffsetBytesRemaining;
+                    byte[] silence = new byte[Math.Min(remainingSilence, 48_000 * 2)];
+                    while (remainingSilence > 0)
+                    {
+                        int count = Math.Min(remainingSilence, silence.Length);
+                        byte[] chunk = count == silence.Length ? silence : new byte[count];
+                        if (!_audioWriteQueue.TryAdd(chunk))
+                        {
+                            MarkAudioWriteQueueFull();
+                            return acceptedBytes;
+                        }
+                        acceptedBytes += count;
+                        remainingSilence -= count;
+                    }
+                    _audioInitialOffsetBytesRemaining = 0;
+                }
+                else if (_currentAudioUsesDirectAac && _audioInitialOffsetBytesRemaining < 0)
+                {
+                    int discard = Math.Min(-_audioInitialOffsetBytesRemaining, bytes.Length);
+                    _audioInitialOffsetBytesRemaining += discard;
+                    if (discard >= bytes.Length)
+                        return 0;
+                    bytes = bytes[discard..];
+                }
+
                 if (!_audioWriteQueue.TryAdd(bytes))
                 {
                     MarkAudioWriteQueueFull();
-                    return 0;
+                    return acceptedBytes;
                 }
-                return bytes.Length;
+                return acceptedBytes + bytes.Length;
             }
             catch
             {
@@ -1453,26 +1641,26 @@ namespace ExpressPackingMonitoring.ViewModels
             _audioWriteQueueFullLogged = true;
         }
 
-        private void AudioFileWriteLoop(WaveFileWriter writer, BlockingCollection<byte[]> queue)
+        private void AudioStreamWriteLoop(Stream output, BlockingCollection<byte[]> queue, string outputKind)
         {
             try
             {
                 foreach (var bytes in queue.GetConsumingEnumerable())
-                    writer.Write(bytes, 0, bytes.Length);
+                    output.Write(bytes, 0, bytes.Length);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[Audio] WAV 写入异常: {ex.Message}");
+                Debug.WriteLine($"[Audio] {outputKind}写入异常: {ex.Message}");
                 lock (_audioLock)
                 {
                     _audioWriteFailed = true;
                 }
-                WriteAudioDiagnostic($"WAV 写入异常: {ex.Message}");
+                WriteAudioDiagnostic($"{outputKind}写入异常: {ex.Message}");
             }
             finally
             {
-                try { writer.Flush(); } catch { }
-                try { writer.Dispose(); } catch { }
+                try { output.Flush(); } catch { }
+                try { output.Dispose(); } catch { }
             }
         }
 
@@ -1775,7 +1963,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool shouldReportQueueFull;
                     lock (_audioLock)
                     {
-                        shouldMonitor = !_audioStopRequested && _audioWriter != null && _audioCapture != null;
+                        shouldMonitor = !_audioStopRequested && _audioTargetFormat != null && _audioCapture != null;
                         lastDataAt = _lastAudioDataAt;
                         if (_lastAudioPacketAt > lastDataAt)
                             lastDataAt = _lastAudioPacketAt;
@@ -1797,7 +1985,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
 
                     if (shouldReportQueueFull)
-                        WriteAudioDiagnostic("WAV 写入队列已满，放弃本次音频");
+                        WriteAudioDiagnostic($"{(_currentAudioUsesDirectAac ? "实时 AAC 管道" : "WAV")}写入队列已满，已标记本次音频异常");
 
                     if (shouldMonitor && (DateTime.Now - lastDataAt).TotalSeconds > 5)
                     {
@@ -1823,7 +2011,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             lock (_audioLock)
             {
-                return !_audioStopRequested && _audioWriter != null && !_audioRestarting;
+                return !_audioStopRequested && _audioTargetFormat != null && !_audioRestarting;
             }
         }
 
@@ -1833,7 +2021,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             lock (_audioLock)
             {
-                if (_audioStopRequested || _audioWriter == null || _audioRestarting) return;
+                if (_audioStopRequested || _audioTargetFormat == null || _audioRestarting) return;
                 _audioRestarting = true;
                 oldCapture = _audioCapture;
                 _audioCapture = null;
@@ -1855,17 +2043,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 var capture = CreateWasapiCapture(device);
                 lock (_audioLock)
                 {
-                    if (_audioStopRequested || _audioWriter == null)
+                    if (_audioStopRequested || _audioTargetFormat == null)
                     {
                         try { capture.Dispose(); } catch { }
                         return;
                     }
                     var restartFormat = CreatePcm16WaveFormat(capture.WaveFormat);
-                    if (restartFormat.SampleRate != _audioWriter.WaveFormat.SampleRate
-                        || restartFormat.Channels != _audioWriter.WaveFormat.Channels)
+                    if (restartFormat.SampleRate != _audioTargetFormat.SampleRate
+                        || restartFormat.Channels != _audioTargetFormat.Channels)
                     {
                         try { capture.Dispose(); } catch { }
-                        WriteAudioDiagnostic($"重启失败({reason}): 麦克风格式变化 sourceFormat={capture.WaveFormat}, wavFormat={_audioWriter.WaveFormat}");
+                        WriteAudioDiagnostic($"重启失败({reason}): 麦克风格式变化 sourceFormat={capture.WaveFormat}, targetFormat={_audioTargetFormat}");
                         return;
                     }
                     _audioCapture = capture;
@@ -1962,6 +2150,36 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { }
         }
 
+        private static string GetEmbeddedAudioMarkerPath(string mediaPath) =>
+            Path.ChangeExtension(mediaPath, ".embedded-audio");
+
+        private static void WriteEmbeddedAudioMarker(string mediaPath, long audioBytes, int syncOffsetMs)
+        {
+            try
+            {
+                File.WriteAllText(
+                    GetEmbeddedAudioMarkerPath(mediaPath),
+                    $"pcmBytes={audioBytes}{Environment.NewLine}syncOffsetMs={Math.Clamp(syncOffsetMs, -5000, 5000)}{Environment.NewLine}");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Audio", $"Failed to write embedded-audio marker file={Path.GetFileName(mediaPath)}: {ex.Message}");
+            }
+        }
+
+        private static bool HasEmbeddedAudioMarker(string mediaPath) =>
+            !string.IsNullOrWhiteSpace(mediaPath) && File.Exists(GetEmbeddedAudioMarkerPath(mediaPath));
+
+        private static void DeleteEmbeddedAudioMarker(string? mediaPath)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(mediaPath))
+                    File.Delete(GetEmbeddedAudioMarkerPath(mediaPath));
+            }
+            catch { }
+        }
+
         private bool HasConfiguredAudioDevice()
         {
             return !string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker)
@@ -2041,11 +2259,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 bool convertExited = WaitForProcessExit(process, GetMediaProcessTimeoutMs(mkvPath, audioPath), out convertStderr);
 
                 bool hasExternalAudio = !string.IsNullOrEmpty(audioPath) && File.Exists(audioPath);
+                bool hasEmbeddedAudio = HasEmbeddedAudioMarker(mkvPath);
                 bool convertedOk = convertExited
                     && process.ExitCode == 0
                     && File.Exists(mp4Path)
                     && new FileInfo(mp4Path).Length > 0
-                    && ValidateConvertedMp4(ffmpegPath, mp4Path, hasExternalAudio, audioLogPath);
+                    && ValidateConvertedMp4(ffmpegPath, mp4Path, hasExternalAudio || hasEmbeddedAudio, audioLogPath);
                 if (!convertExited)
                     WriteAudioDiagnostic($"MP4 转换超时: {convertStderr}", audioLogPath);
 
@@ -2054,6 +2273,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 转换成功，删除原始 MKV
                     try { File.Delete(mkvPath); } catch { }
                     DeleteAudioTempFile(audioPath);
+                    DeleteEmbeddedAudioMarker(mkvPath);
                     // 更新数据库中的文件路径
                     _db?.UpdateVideoFilePath(mkvPath, mp4Path);
                     Debug.WriteLine($"[MkvToMp4] 转换成功: {mp4Path}");
@@ -2178,11 +2398,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 string stderr;
                 bool exited = WaitForProcessExit(process, GetMediaProcessTimeoutMs(mkvPath, audioPath), cancellationToken, out stderr);
                 bool hasExternalAudio = !string.IsNullOrEmpty(audioPath) && File.Exists(audioPath);
+                bool hasEmbeddedAudio = HasEmbeddedAudioMarker(mkvPath);
                 bool ok = exited
                     && process.ExitCode == 0
                     && File.Exists(mp4Path)
                     && new FileInfo(mp4Path).Length > 0
-                    && ValidateConvertedMp4(ffmpegPath, mp4Path, hasExternalAudio, audioLogPath, cancellationToken);
+                    && ValidateConvertedMp4(ffmpegPath, mp4Path, hasExternalAudio || hasEmbeddedAudio, audioLogPath, cancellationToken);
 
                 if (!ok)
                 {
@@ -2194,8 +2415,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 try { File.Delete(mkvPath); } catch { }
                 DeleteAudioTempFile(audioPath);
+                DeleteEmbeddedAudioMarker(mkvPath);
                 _db?.UpdateVideoFilePath(mkvPath, mp4Path);
-                RuntimeLog.Info("MkvToMp4", $"Converted file={Path.GetFileName(mkvPath)}, audio={(hasExternalAudio ? "yes" : "no")}");
+                RuntimeLog.Info("MkvToMp4", $"Converted file={Path.GetFileName(mkvPath)}, audio={(hasExternalAudio || hasEmbeddedAudio ? "yes" : "no")}");
                 return MkvConversionResult.Ok(mp4Path);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -2255,7 +2477,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private static bool HasMuxRecoverySidecar(string mkvPath)
         {
             return File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
-                || File.Exists(Path.ChangeExtension(mkvPath, ".audio.log"));
+                || File.Exists(Path.ChangeExtension(mkvPath, ".audio.log"))
+                || HasEmbeddedAudioMarker(mkvPath);
         }
 
         private static bool HasMuxRecoverySidecar(string? audioPath, string? audioLogPath)
@@ -2267,7 +2490,7 @@ namespace ExpressPackingMonitoring.ViewModels
         internal static string BuildMkvToMp4Args(string mkvPath, string? audioPath, string mp4Path, int audioSyncOffsetMs)
         {
             if (string.IsNullOrEmpty(audioPath) || !File.Exists(audioPath))
-                return $"-y -i \"{mkvPath}\" -vcodec copy -acodec copy \"{mp4Path}\"";
+                return $"-y -i \"{mkvPath}\" -map 0:v:0 -map 0:a? -c copy \"{mp4Path}\"";
 
             int offsetMs = Math.Clamp(audioSyncOffsetMs, -5000, 5000);
             string audioMap = "[a]";
