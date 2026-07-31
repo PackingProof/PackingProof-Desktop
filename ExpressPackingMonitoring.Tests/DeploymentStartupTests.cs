@@ -1345,6 +1345,25 @@ public sealed class DeploymentStartupTests
         Assert.Contains("UserscriptGuideNavigation.TryOpen", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ReleaseStartupSmokeTestReadsCurrentSetupVersions()
+    {
+        string script = ReadRepositoryFile(
+            "Tools",
+            "Test-Release-Automated.ps1");
+
+        Assert.Contains("function Get-AppConfigVersion", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "Get-AppConfigVersion \"CurrentRecordingSetupVersion\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RecordingSetupVersion = $recordingSetupVersion",
+            script,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordingSetupVersion = 1", script, StringComparison.Ordinal);
+    }
+
     private static PackingProofNodeInfo CreateDiscoveredHost(
         string nodeId,
         string capability) =>

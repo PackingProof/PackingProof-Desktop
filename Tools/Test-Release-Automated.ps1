@@ -34,6 +34,21 @@ function Get-FreeTcpPort {
     finally { $listener.Stop() }
 }
 
+function Get-AppConfigVersion {
+    param([Parameter(Mandatory)] [string]$ConstantName)
+
+    $appConfigPath = Join-Path $repoRoot "ExpressPackingMonitoring\Config\AppConfig.cs"
+    $source = [System.IO.File]::ReadAllText(
+        $appConfigPath,
+        [System.Text.Encoding]::UTF8)
+    $pattern = "public\s+const\s+int\s+$([Regex]::Escape($ConstantName))\s*=\s*(\d+)\s*;"
+    $match = [Regex]::Match($source, $pattern)
+    if (-not $match.Success) {
+        throw "Unable to resolve AppConfig constant: $ConstantName"
+    }
+    return [int]$match.Groups[1].Value
+}
+
 function Wait-ForWebServer {
     param([string]$Url, [int]$TimeoutSeconds = 20)
 
@@ -69,13 +84,17 @@ try {
     $previousInstanceScope = $env:EPM_INSTANCE_SCOPE
     $env:EPM_USER_DATA_DIR = $wpfDataRoot
     $env:EPM_INSTANCE_SCOPE = "automation$PID"
+    $deploymentSetupVersion = Get-AppConfigVersion "CurrentDeploymentSetupVersion"
+    $recordingSetupVersion = Get-AppConfigVersion "CurrentRecordingSetupVersion"
+    $cameraBarcodeSetupVersion = Get-AppConfigVersion "CurrentCameraBarcodeSetupVersion"
+    $mobileConnectionSetupVersion = Get-AppConfigVersion "CurrentMobileConnectionSetupVersion"
     $wpfProcess = $null
     try {
         $noCameraPort = Get-FreeTcpPort
         $noCameraStorage = Join-Path $wpfDataRoot "recordings"
         $noCameraConfig = @{
             WorkstationRole = "PrintStation"
-            DeploymentSetupVersion = 1
+            DeploymentSetupVersion = $deploymentSetupVersion
             WebServerPort = $noCameraPort
             StorageLocations = @(@{
                 Path = $noCameraStorage
@@ -108,10 +127,10 @@ try {
         $cameraConfig = @{
             WorkstationRole = "CameraMonitor"
             FirstUseWizardCompleted = $true
-            DeploymentSetupVersion = 1
-            RecordingSetupVersion = 1
-            CameraBarcodeSetupVersion = 1
-            MobileConnectionSetupVersion = 1
+            DeploymentSetupVersion = $deploymentSetupVersion
+            RecordingSetupVersion = $recordingSetupVersion
+            CameraBarcodeSetupVersion = $cameraBarcodeSetupVersion
+            MobileConnectionSetupVersion = $mobileConnectionSetupVersion
             EnableCameraBarcodeRecognition = $false
             EnableGlobalKeyboard = $false
             Language = "zh-Hans"
