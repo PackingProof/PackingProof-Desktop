@@ -116,7 +116,8 @@ public sealed class NoCameraWorkstationTests
             PrintWorkstationWindow.BuildMobileBackupStatuses(
                 [
                     new MobileBackupDailyCount("phone-1", "手机1", 3),
-                    new MobileBackupDailyCount("phone-2", "手机2", 2)
+                    new MobileBackupDailyCount("phone-2", "手机2", 2),
+                    new MobileBackupDailyCount("host-1", "本机", 9, "pc")
                 ],
                 [
                     new RecordingDeviceInfo
@@ -132,14 +133,56 @@ public sealed class NoCameraWorkstationTests
                         NodeName = "手机1",
                         DeviceType = "mobile",
                         Online = true
+                    },
+                    new RecordingDeviceInfo
+                    {
+                        NodeId = "pc-1",
+                        NodeName = "电脑1",
+                        DeviceType = "pc",
+                        Online = true
+                    },
+                    new RecordingDeviceInfo
+                    {
+                        NodeId = "host-1",
+                        NodeName = "本机",
+                        DeviceType = "pc",
+                        Online = true
                     }
-                ]);
+                ],
+                "host-1");
 
-        Assert.Equal(2, statuses.Count);
+        Assert.Equal(3, statuses.Count);
         Assert.Contains(statuses, item =>
             item.DeviceId == "phone-1" && item.IsOnline && item.DisplayText == "手机1 · 今日备份 3 个");
         Assert.Contains(statuses, item =>
             item.DeviceId == "phone-2" && !item.IsOnline && item.DisplayText == "手机2 · 今日备份 2 个");
+        Assert.Contains(statuses, item =>
+            item.DeviceId == "pc-1" && item.IsOnline && item.DisplayText == "电脑1 · 今日备份 0 个");
+        Assert.DoesNotContain(statuses, item => item.DeviceId == "host-1");
+    }
+
+    [Fact]
+    public void MobileBackupStatus_UsesRemoteIdSuffixOnlyForUnnamedRemoteDevices()
+    {
+        IReadOnlyList<PrintWorkstationWindow.MobileBackupStatusItem> statuses =
+            PrintWorkstationWindow.BuildMobileBackupStatuses(
+                [new MobileBackupDailyCount("remote-pc-ABC123", "", 1, "pc")],
+                [],
+                "host-1");
+
+        PrintWorkstationWindow.MobileBackupStatusItem status = Assert.Single(statuses);
+        Assert.Equal("remote-pc-ABC123", status.DeviceId);
+        Assert.Equal("电脑设备 ABC123 · 今日备份 1 个", status.DisplayText);
+    }
+
+    [Fact]
+    public void MobileBackupStatus_UsesUnifiedEmptyDeviceCopy()
+    {
+        PrintWorkstationWindow.MobileBackupStatusItem status = Assert.Single(
+            PrintWorkstationWindow.BuildMobileBackupStatuses([], [], "host-1"));
+
+        Assert.Equal("", status.DeviceId);
+        Assert.Equal("暂无手机/电脑设备", status.DisplayText);
     }
 
     [Fact]

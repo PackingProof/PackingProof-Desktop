@@ -40,6 +40,19 @@ public sealed class ConnectedClientTests
             MainViewModel.ShouldIncludeBackupDeviceClient(client, localNodeId));
     }
 
+    [Theory]
+    [InlineData("host-1", "host-1", false)]
+    [InlineData("HOST-1", "host-1", false)]
+    [InlineData("", "host-1", false)]
+    [InlineData("phone-1", "host-1", true)]
+    public void BackupDeviceIdentityExcludesLocalNodeId(
+        string deviceId,
+        string localNodeId,
+        bool expected)
+    {
+        Assert.Equal(expected, BackupDeviceIdentity.IsRemote(deviceId, localNodeId));
+    }
+
     [Fact]
     public void RegistryDeduplicatesSameClientButCountsDifferentClientTypes()
     {

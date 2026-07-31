@@ -366,7 +366,8 @@ public partial class PrintWorkstationWindow : Window
         MobileBackupOverview overview = _host.Database.GetMobileBackupOverview(DateTime.Today);
         foreach (MobileBackupStatusItem status in BuildMobileBackupStatuses(
             overview.DeviceCounts,
-            _host.GetRecordingDevices()))
+            _host.GetRecordingDevices(),
+            _config.NodeId))
         {
             MobileBackupDeviceStatuses.Add(status);
         }
@@ -377,13 +378,16 @@ public partial class PrintWorkstationWindow : Window
 
     internal static IReadOnlyList<MobileBackupStatusItem> BuildMobileBackupStatuses(
         IEnumerable<MobileBackupDailyCount> counts,
-        IEnumerable<RecordingDeviceInfo> devices)
+        IEnumerable<RecordingDeviceInfo> devices,
+        string localNodeId)
     {
-        var statuses = counts.ToDictionary(
+        var statuses = counts
+            .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, localNodeId))
+            .ToDictionary(
             item => item.DeviceId,
             item => (
                 Name: string.IsNullOrWhiteSpace(item.DeviceName)
-                    ? GetFallbackDeviceName(item.DeviceId)
+                    ? GetFallbackDeviceName(item.DeviceId, item.DeviceKind)
                     : item.DeviceName,
                 Count: item.VideoCount,
                 Online: false),
@@ -391,13 +395,14 @@ public partial class PrintWorkstationWindow : Window
 
         foreach (RecordingDeviceInfo device in devices
             .Where(device => device.Online
-                && string.Equals(device.DeviceType, "mobile", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(device.NodeId)))
+                && (string.Equals(device.DeviceType, "mobile", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(device.DeviceType, "pc", StringComparison.OrdinalIgnoreCase))
+                && BackupDeviceIdentity.IsRemote(device.NodeId, localNodeId)))
         {
             statuses.TryGetValue(device.NodeId, out var existing);
             statuses[device.NodeId] = (
                 string.IsNullOrWhiteSpace(device.NodeName)
-                    ? existing.Name ?? GetFallbackDeviceName(device.NodeId)
+                    ? existing.Name ?? GetFallbackDeviceName(device.NodeId, device.DeviceType)
                     : device.NodeName,
                 existing.Count,
                 true);
@@ -417,7 +422,7 @@ public partial class PrintWorkstationWindow : Window
         {
             result.Add(new MobileBackupStatusItem
             {
-                DisplayText = "暂无手机设备在线",
+                DisplayText = "暂无手机/电脑设备",
                 IsOnline = false
             });
         }
@@ -428,7 +433,7 @@ public partial class PrintWorkstationWindow : Window
     {
         MobileBackupDeviceStatuses.Add(new MobileBackupStatusItem
         {
-            DisplayText = "暂无手机设备在线",
+            DisplayText = "暂无手机/电脑设备",
             IsOnline = false
         });
     }
@@ -436,9 +441,17 @@ public partial class PrintWorkstationWindow : Window
     private string GetHostName() =>
         string.IsNullOrWhiteSpace(_config.NodeName) ? Environment.MachineName : _config.NodeName;
 
-    private static string GetFallbackDeviceName(string _)
+    private static string GetFallbackDeviceName(string deviceId, string deviceKind)
     {
-        return "手机";
+        string normalized = new((deviceId ?? "")
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
+        string fallback = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+            ? "电脑设备"
+            : "手机设备";
+        return normalized.Length == 0
+            ? fallback
+            : $"{fallback} {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
     }
 
     private void OnMobileBackupStatusChanged()

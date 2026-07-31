@@ -2822,10 +2822,7 @@ namespace ExpressPackingMonitoring.ViewModels
             IReadOnlyList<MobileBackupDailyCount> counts =
                 _db?.GetMobileBackupDailyCounts(_mobileBackupStatusDate) ?? [];
             var statusByDevice = counts
-                .Where(item => !string.Equals(
-                    item.DeviceId,
-                    Config.NodeId,
-                    StringComparison.OrdinalIgnoreCase))
+                .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, Config.NodeId))
                 .ToDictionary(
                 item => item.DeviceId,
                 item => new
@@ -2845,7 +2842,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
                     ? client.ClientId
                     : client.NodeId;
-                if (string.Equals(deviceId, Config.NodeId, StringComparison.OrdinalIgnoreCase))
+                if (!BackupDeviceIdentity.IsRemote(deviceId, Config.NodeId))
                     continue;
 
                 statusByDevice.TryGetValue(deviceId, out var existing);
@@ -2928,8 +2925,7 @@ namespace ExpressPackingMonitoring.ViewModels
             string deviceId = string.IsNullOrWhiteSpace(client.NodeId)
                 ? client.ClientId
                 : client.NodeId;
-            return !string.IsNullOrWhiteSpace(deviceId) &&
-                !string.Equals(deviceId, localNodeId, StringComparison.OrdinalIgnoreCase);
+            return BackupDeviceIdentity.IsRemote(deviceId, localNodeId);
         }
 
         private void SetConnectedDeviceUnavailable(string text, string tooltip)
