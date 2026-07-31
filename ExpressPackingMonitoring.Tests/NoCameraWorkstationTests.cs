@@ -65,7 +65,7 @@ public sealed class NoCameraWorkstationTests
         Assert.DoesNotContain("x:Name=\"CopyLanAddressButton\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"StoragePathTextBlock\"", xaml, StringComparison.Ordinal);
         Assert.Equal(2, xaml.Split("Style=\"{StaticResource CardStyle}\"", StringSplitOptions.None).Length - 1);
-        Assert.Contains("FluentPhoneIcon", xaml, StringComparison.Ordinal);
+        Assert.Contains("FluentDatabaseIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("FluentDataIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("FluentVideoIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("FluentSettingsIcon", xaml, StringComparison.Ordinal);

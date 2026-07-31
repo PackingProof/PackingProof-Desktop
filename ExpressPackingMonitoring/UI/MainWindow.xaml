@@ -713,7 +713,7 @@
                                 </Border.Style>
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource FluentBroadcastIcon}"
+                                        <Path Data="{StaticResource FluentDatabaseIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
@@ -949,7 +949,7 @@
                                         <Path Width="14" Height="14" Stretch="Uniform" Fill="White">
                                             <Path.Style>
                                                 <Style TargetType="Path">
-                                                    <Setter Property="Data" Value="{StaticResource FluentBroadcastIcon}"/>
+                                                    <Setter Property="Data" Value="{StaticResource FluentDatabaseIcon}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
                                                             <Setter Property="Data" Value="{StaticResource FluentStorageIcon}"/>

@@ -209,10 +209,10 @@ public partial class PrintWorkstationWindow : Window
 
         string iconKey = visual switch
         {
-            StatusVisual.Success => "FluentCheckIcon",
+            StatusVisual.Success => "FluentDatabaseIcon",
             StatusVisual.Warning => "FluentWarningIcon",
             StatusVisual.Error => "FluentDismissIcon",
-            _ => "FluentHourglassIcon"
+            _ => "FluentDatabaseIcon"
         };
         string brushKey = visual switch
         {

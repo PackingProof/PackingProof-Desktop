@@ -89,7 +89,7 @@
                         <Border Width="48" Height="48" CornerRadius="15"
                                 Background="{DynamicResource ControlBackground}">
                             <Path x:Name="StatusIconPath"
-                                  Data="{StaticResource FluentHourglassIcon}"
+                                  Data="{StaticResource FluentDatabaseIcon}"
                                   Width="24" Height="24" Stretch="Uniform"
                                   Fill="{DynamicResource AccentBlue}"
                                   HorizontalAlignment="Center"
@@ -175,7 +175,7 @@
                                 Style="{StaticResource IconActionButtonStyle}"
                                 Click="ConnectPhone_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Path Data="{StaticResource FluentPhoneIcon}"
+                                <Path Data="{StaticResource FluentDatabaseIcon}"
                                       Width="16" Height="16" Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="连接手机/电脑" Margin="6,0,0,0" VerticalAlignment="Center"/>

@@ -208,11 +208,15 @@ public sealed class DeploymentStartupTests
         }
 
         Assert.Matches(
-            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?StaticResource FluentBroadcastIcon",
+            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?StaticResource FluentDatabaseIcon",
             recordingXaml);
         Assert.Matches(
-            "x:Name=\"ConnectPhoneButton\"[\\s\\S]*?StaticResource FluentPhoneIcon",
+            "x:Name=\"ConnectPhoneButton\"[\\s\\S]*?StaticResource FluentDatabaseIcon",
             mobileBackupXaml);
+        Assert.Contains("x:Key=\"FluentDatabaseIcon\"", ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Themes",
+            "FluentIcons.xaml"), StringComparison.Ordinal);
         Assert.Matches(
             "x:Name=\"OpenWebButton\"[\\s\\S]*?StaticResource FluentPlayIcon",
             viewerXaml);
@@ -455,7 +459,7 @@ public sealed class DeploymentStartupTests
             xaml,
             StringComparison.Ordinal);
         Assert.Matches(
-            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?FluentBroadcastIcon[\\s\\S]*?FluentStorageIcon",
+            "x:Name=\"BtnMobileConnection\"[\\s\\S]*?FluentDatabaseIcon[\\s\\S]*?FluentStorageIcon",
             xaml);
         Assert.Contains("viewModel.ShowMainConnection(this)", windowSource, StringComparison.Ordinal);
         Assert.Contains("ChangeBoundHost(owner);", transferSource, StringComparison.Ordinal);
