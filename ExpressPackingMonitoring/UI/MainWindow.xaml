@@ -712,24 +712,50 @@
                                     </Style>
                                 </Border.Style>
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="18"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <Path Data="{StaticResource FluentWifiIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
                                               Fill="{DynamicResource AccentBlue}"
                                               VerticalAlignment="Center"/>
-                                        <TextBlock Text="手机/电脑备份"
-                                                   Margin="6,0,0,0"
+                                        <TextBlock Grid.Column="1"
+                                                   Text="手机/电脑备份"
+                                                   Margin="6,0,8,0"
                                                    FontSize="12"
                                                    FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextPrimary}"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding WorkstationPrintStatusText, Mode=OneWay}"
-                                               Foreground="{DynamicResource TextSecondary}"
-                                               FontSize="12"
-                                               TextTrimming="CharacterEllipsis"
-                                               Margin="20,4,0,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding WorkstationPrintStatusText, Mode=OneWay}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding WorkstationStatusToolTip, Mode=OneWay}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding WorkstationPrintStatusText, Mode=OneWay}"
+                                                                     Value="启动中">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding WorkstationPrintStatusText, Mode=OneWay}"
+                                                                     Value="已就绪">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding WorkstationPrintStatusText, Mode=OneWay}"
+                                                                     Value="启动失败">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                     <ItemsControl ItemsSource="{Binding MobileBackupDeviceStatuses, Mode=OneWay}"
                                                   Margin="20,4,0,0"
                                                   MaxHeight="52"

@@ -13,6 +13,27 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class RecordingDeviceCatalogTests
 {
     [Fact]
+    public void UserscriptTargetStatusUsesCompactMainWindowCopy()
+    {
+        var config = new AppConfig();
+        Assert.Equal(
+            "暂无订单接收设备",
+            UserscriptTargetState.GetStatus(config, []).StatusText);
+
+        var phone = new RecordingDeviceInfo
+        {
+            NodeId = "phone-1",
+            NodeName = "手机1",
+            DeviceType = "mobile",
+            Address = "http://192.168.1.31:5280",
+            Online = true
+        };
+        Assert.Equal(
+            "未配置订单联动",
+            UserscriptTargetState.GetStatus(config, [phone]).StatusText);
+    }
+
+    [Fact]
     public void UserscriptTargetSignatureChangesOnlyForOrderReceiverAddresses()
     {
         var config = new AppConfig();
@@ -31,11 +52,11 @@ public sealed class RecordingDeviceCatalogTests
         phone.NodeId = "replacement-phone-id";
         phone.DeviceType = "future-recorder";
         UserscriptTargetStatus unchanged = UserscriptTargetState.GetStatus(config, [phone]);
-        Assert.Equal("订单联动设备列表已是最新", unchanged.StatusText);
+        Assert.Equal("订单联动已就绪", unchanged.StatusText);
 
         phone.Address = "http://192.168.1.32:5280";
         UserscriptTargetStatus changed = UserscriptTargetState.GetStatus(config, [phone]);
-        Assert.Equal("录像设备地址有变化，请更新订单联动脚本", changed.StatusText);
+        Assert.Equal("需要更新订单联动", changed.StatusText);
         Assert.Equal("更新订单联动", changed.ButtonText);
     }
 

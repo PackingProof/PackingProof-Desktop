@@ -237,10 +237,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _maxDurationWarned = false;
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
         private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
-        private string _workstationPrintStatusText = "设备备份服务：未连接";
+        private string _workstationPrintStatusText = "未连接";
         private string _workstationStatusToolTip = "";
-        private string _orderIntegrationStatusText = "订单联动：暂未收到订单";
-        private string _userscriptSetupStatusText = "尚未配置订单联动";
+        private string _orderIntegrationStatusText = "暂未收到订单";
+        private string _userscriptSetupStatusText = "未配置订单联动";
         private string _userscriptButtonText = "订单联动";
         private IReadOnlyList<ConnectedClientInfo> _connectedClientSnapshot = [];
         private DateTime _mobileBackupStatusDate = DateTime.Today;
@@ -2602,7 +2602,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if ((!Config.EnableWebServer && !orderReceiverOnly) || _db == null || _isDisposed)
                 {
                     MonitorAccessAddress = "";
-                    WorkstationPrintStatusText = "设备备份服务：未连接";
+                    WorkstationPrintStatusText = "未连接";
                     WorkstationStatusToolTip = "开启局域网查看后，可点击手机/电脑连接查看二维码或复制网址。";
                     SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                     return true;
@@ -2610,7 +2610,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 WorkstationPrintStatusText = orderReceiverOnly
                     ? "订单联动接收：等待启动"
-                    : "设备备份服务：等待启动";
+                    : "启动中";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 int port = Config.WebServerPort;
                 int cacheMaxMb = Config.TranscodeCacheMaxMB;
@@ -2678,7 +2678,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 try { newServer?.Dispose(); } catch { }
                 RuntimeLog.Error("Web", "LAN service start failed", ex);
                 MonitorAccessAddress = "";
-                WorkstationPrintStatusText = "设备备份服务：Web 启动失败";
+                WorkstationPrintStatusText = IsRecordingWorkstation
+                    ? "订单联动接收：启动失败"
+                    : "启动失败";
                 WorkstationStatusToolTip = $"其他设备暂时无法连接这台电脑。\n{ex.Message}";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), ex.Message);
                 ShowToast($"警告：局域网服务启动失败: {ex.Message}");
@@ -2698,7 +2700,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 MonitorAccessAddress = "";
                 WorkstationPrintStatusText = IsRecordingWorkstation
                     ? "订单联动接收：未连接"
-                    : "设备备份服务：未连接";
+                    : "未连接";
                 WorkstationStatusToolTip = "其他设备暂时无法连接这台电脑。";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 return;
@@ -2707,7 +2709,7 @@ namespace ExpressPackingMonitoring.ViewModels
             MonitorAccessAddress = "";
             WorkstationPrintStatusText = IsRecordingWorkstation
                 ? "订单联动接收：等待连接"
-                : "设备备份服务：等待连接";
+                : "启动中";
             WorkstationStatusToolTip = "正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内。";
             SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
 
@@ -2732,7 +2734,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             else
             {
-                WorkstationPrintStatusText = "设备备份服务：已就绪";
+                WorkstationPrintStatusText = "已就绪";
                 WorkstationStatusToolTip = Config.RequireWebAccessKey
                     ? "访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备。"
                     : $"其他电脑在浏览器输入 http://{MonitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙。";

@@ -509,6 +509,10 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.Transfer.cs");
+        string mainSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
 
         Assert.Contains(
             "x:Name=\"RecordingWorkstationCompactStatus\"",
@@ -609,6 +613,42 @@ public sealed class DeploymentStartupTests
             "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
+        int backupCard = mainWindow.IndexOf(
+            "x:Name=\"RecordingHostMobileBackupStatus\"",
+            StringComparison.Ordinal);
+        int backupCardEnd = mainWindow.IndexOf(
+            "x:Name=\"RecordingWorkstationCompactStatus\"",
+            backupCard,
+            StringComparison.Ordinal);
+        string backupCardMarkup = mainWindow[backupCard..backupCardEnd];
+        Assert.Matches(
+            "Grid\\.Column=\"2\"\\s+Text=\"\\{Binding WorkstationPrintStatusText, Mode=OneWay\\}\"",
+            backupCardMarkup);
+        Assert.True(
+            backupCardMarkup.IndexOf(
+                "Text=\"{Binding WorkstationPrintStatusText, Mode=OneWay}\"",
+                StringComparison.Ordinal)
+            < backupCardMarkup.IndexOf(
+                "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+                StringComparison.Ordinal));
+        Assert.Contains("Value=\"已就绪\"", backupCardMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"启动中\"", backupCardMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"启动失败\"", backupCardMarkup, StringComparison.Ordinal);
+        Assert.Contains("_workstationPrintStatusText = \"未连接\"", mainSource, StringComparison.Ordinal);
+        Assert.Contains(": \"启动中\";", mainSource, StringComparison.Ordinal);
+        Assert.Contains(": \"启动失败\";", mainSource, StringComparison.Ordinal);
+        Assert.Contains("WorkstationPrintStatusText = \"已就绪\"", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("设备备份服务：", mainSource, StringComparison.Ordinal);
+        Assert.Contains("_orderIntegrationStatusText = \"暂未收到订单\"", mainSource, StringComparison.Ordinal);
+        Assert.Contains("_userscriptSetupStatusText = \"未配置订单联动\"", mainSource, StringComparison.Ordinal);
+        Assert.Contains("_boundHostOnlineStatusText = \"检查中\"", transferSource, StringComparison.Ordinal);
+        Assert.Contains("heartbeat.Online ? \"在线\" : \"离线\"", transferSource, StringComparison.Ordinal);
+        Assert.Contains("RecordingTransferStatusText = \"暂无待上传录像\"", transferSource, StringComparison.Ordinal);
+        Assert.Contains("RecordingTransferStatusText = \"最近录像已上传\"", transferSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "RecordingTransferStatusText = \"已保存在本机，联网后自动上传\"",
+            transferSource,
+            StringComparison.Ordinal);
         Assert.Contains(
             "<DataTrigger Binding=\"{Binding IsRecordingWorkstation, Mode=OneWay}\"",
             mainWindow,
@@ -655,7 +695,7 @@ public sealed class DeploymentStartupTests
             2,
             Regex.Matches(orderRows.Groups["rows"].Value, "<RowDefinition Height=\"Auto\"/>").Count);
         Assert.DoesNotMatch(
-            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|WorkstationStatusToolTip|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 
@@ -1231,7 +1271,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"BtnInstallUserscript\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Config.NodeName", source, StringComparison.Ordinal);
         Assert.Contains(
-            "WorkstationPrintStatusText = \"设备备份服务：已就绪\";",
+            "WorkstationPrintStatusText = \"已就绪\";",
             source,
             StringComparison.Ordinal);
         Assert.DoesNotContain(

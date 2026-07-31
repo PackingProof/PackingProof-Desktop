@@ -29,7 +29,7 @@ internal static class UserscriptTargetState
         if (currentSignature.Length == 0)
         {
             return new UserscriptTargetStatus(
-                "当前没有可接收订单的录像设备",
+                "暂无订单接收设备",
                 "安装订单联动",
                 currentSignature);
         }
@@ -37,7 +37,7 @@ internal static class UserscriptTargetState
         if (string.IsNullOrWhiteSpace(config.LastUserscriptTargetSignature))
         {
             return new UserscriptTargetStatus(
-                "尚未配置订单联动",
+                "未配置订单联动",
                 "安装订单联动",
                 currentSignature);
         }
@@ -48,13 +48,13 @@ internal static class UserscriptTargetState
                 StringComparison.Ordinal))
         {
             return new UserscriptTargetStatus(
-                "录像设备地址有变化，请更新订单联动脚本",
+                "需要更新订单联动",
                 "更新订单联动",
                 currentSignature);
         }
 
         return new UserscriptTargetStatus(
-            "订单联动设备列表已是最新",
+            "订单联动已就绪",
             "订单联动",
             currentSignature);
     }
