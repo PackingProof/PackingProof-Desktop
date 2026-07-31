@@ -1227,7 +1227,7 @@ namespace ExpressPackingMonitoring.UI
 
         internal static void ApplyDeploymentPurposeBeforeSave(
             AppConfig config,
-            string? previousPreset,
+            string previousPreset,
             DateTime activatedAtUtc)
         {
             ArgumentNullException.ThrowIfNull(config);

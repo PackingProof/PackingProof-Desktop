@@ -78,8 +78,8 @@ public partial class WorkstationSelectionWindow : Window
         }
 
         WorkstationPurposeSummary summary = GetPurposeSummary(
-            _recordOnThisComputer.Value,
-            _useAsStorageHost.Value);
+            _recordOnThisComputer.GetValueOrDefault(),
+            _useAsStorageHost.GetValueOrDefault());
         bool unchanged = string.Equals(
             summary.Preset,
             _currentPreset,
