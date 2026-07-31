@@ -233,6 +233,33 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
+        private void DirectAacRecordingCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            bool confirmed = AppDialog.Confirm(
+                this,
+                AppLanguage.Get("这是实验功能。部分麦克风、驱动或 FFmpeg 环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式"),
+                AppLanguage.Get("开启实验录音方式？"),
+                confirmText: AppLanguage.Get("了解风险并开启"),
+                cancelText: AppLanguage.Get("保持关闭"),
+                severity: AppDialogSeverity.Warning);
+            if (confirmed)
+                return;
+
+            Config.EnableDirectAacRecording = false;
+            if (sender is CheckBox checkBox)
+                checkBox.IsChecked = false;
+        }
+
+        private void AdvancedModeButton_Unchecked(object sender, RoutedEventArgs e)
+        {
+            Keyboard.ClearFocus();
+            if (sender is System.Windows.Controls.Primitives.ToggleButton button)
+                button.Focus();
+        }
+
         private void SyncScannerModeControlsFromConfig()
         {
             if (GlobalKeyboardCheckBox == null || ScannerAutoSubmitCheckBox == null)

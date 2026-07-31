@@ -459,6 +459,44 @@
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
         </Style>
 
+        <Style x:Key="AdvancedModeButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Chrome"
+                                Padding="12,10"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource BorderLight}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PanelBackground}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -505,7 +543,7 @@
                TargetType="Grid"
                BasedOn="{StaticResource SettingRowStyle}">
             <Setter Property="Visibility"
-                    Value="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}"/>
+                    Value="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
         </Style>
 
         <Style x:Key="AdvancedSettingRowLastStyle"
@@ -770,8 +808,46 @@
                                 BorderThickness="1"
                                 CornerRadius="12"
                                 Padding="8">
-                            <TabPanel IsItemsHost="True"
-                                      KeyboardNavigation.TabIndex="1"/>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TabPanel IsItemsHost="True"
+                                          KeyboardNavigation.TabIndex="1"/>
+                                <ToggleButton x:Name="AdvancedModeButton"
+                                              Grid.Row="1"
+                                              Margin="0,8,0,0"
+                                              Style="{StaticResource AdvancedModeButtonStyle}"
+                                              IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              Unchecked="AdvancedModeButton_Unchecked"
+                                              AutomationProperties.Name="切换高级模式">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Data="{StaticResource FluentSettingsIcon}"
+                                              Width="16" Height="16" Stretch="Uniform"
+                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}, Mode=OneWay}"
+                                              Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="1" Text="高级模式" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="已关闭"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsChecked, ElementName=AdvancedModeButton, Mode=OneWay}" Value="True">
+                                                            <Setter Property="Text" Value="已开启"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </ToggleButton>
+                            </Grid>
                         </Border>
 
                         <ContentPresenter x:Name="PART_SelectedContentHost"
@@ -1221,7 +1297,7 @@
                                     </Grid>
 
                                     <Border Style="{StaticResource SectionDividerStyle}"
-                                            Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}"/>
+                                            Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -1441,7 +1517,7 @@
                                     </Grid>
 
                                     <Border Style="{StaticResource SectionDividerStyle}"
-                                            Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}"/>
+                                            Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -1836,7 +1912,7 @@
                             </Border>
 
                             <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}">
+                                    Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -2013,7 +2089,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}">
+                            <Border Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource SectionCardStyle}">
                                         <Setter Property="IsEnabled" Value="False"/>
@@ -2159,7 +2235,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}">
+                            <Border Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource SectionCardStyle}">
                                         <Setter Property="IsEnabled" Value="False"/>
@@ -2586,7 +2662,7 @@
 
                             <!-- 基础扫码设置 -->
                             <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding IsChecked, ElementName=ShowAdvancedSettingsCheckBox, Converter={StaticResource BoolToVisibility}}">
+                                    Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
@@ -2819,27 +2895,6 @@
                 <Border Background="Transparent" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <Border Style="{StaticResource SectionCardStyle}">
-                                <Grid Style="{StaticResource SettingRowLastStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="24"/>
-                                        <ColumnDefinition Width="260"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="显示高级设置" Style="{StaticResource FieldLabelStyle}"/>
-                                        <TextBlock Text="显示编码、阈值、时序等专业参数"
-                                                   Style="{StaticResource FieldHintStyle}"/>
-                                    </StackPanel>
-                                    <CheckBox x:Name="ShowAdvancedSettingsCheckBox"
-                                              Grid.Column="2"
-                                              IsChecked="{Binding Config.ShowAdvancedSettings, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left"
-                                              Style="{StaticResource ToggleSwitchStyle}"/>
-                                </Grid>
-                            </Border>
-
                             <!-- 水印设置 -->
                             <Border Style="{StaticResource SectionCardStyle}"
                                     Visibility="{Binding Capabilities.CanRecordPcVideo, Converter={StaticResource BoolToVisibility}}">
@@ -2881,6 +2936,29 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                          IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, Mode=OneWay, TargetNullValue=False}"
+                                          ToolTip="实验功能；部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="实验：音频直接写入 MKV" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="减少临时文件和后处理，开启前请先完成一次测试录像"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="DirectAacRecordingCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableDirectAacRecording, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Checked="DirectAacRecordingCheckBox_Checked"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="实验：音频直接写入 MKV"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
                                           ToolTip="负数表示让音频提前，正数表示让音频延后；通常保持 0">
                                         <Grid.ColumnDefinitions>
@@ -2896,7 +2974,7 @@
                                         <StackPanel Grid.Column="2">
                                             <Grid>
                                                 <TextBlock Text="更提前" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding Config.AudioSyncOffsetMs, StringFormat={}{0} ms}"
+                                                <TextBlock Text="{Binding Config.AudioSyncOffsetMs, Mode=OneWay, StringFormat={}{0} ms}"
                                                            Style="{StaticResource SliderValueTextStyle}"
                                                            HorizontalAlignment="Center"/>
                                                 <TextBlock Text="更延后" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>

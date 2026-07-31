@@ -3454,7 +3454,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         IsCameraSleeping = true; // SetProperty 会同时更新字段并触发 PropertyChanged
                         VideoFrame = null;
                         ShowToast(AppLanguage.Format(
-                            "摄像头已休眠（空闲 {0} 分钟），可在设置的高级设置中打开“显示高级设置”，再到录制控制关闭“长时间不用时关闭摄像头”",
+                            "摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”",
                             Config.CameraIdleMinutes));
                         Debug.WriteLine($"[Idle] 摄像头休眠: 空闲{idleMinutes:F1}分钟");
                         RuntimeLog.Info("MkvRecover", "Camera idle, start pending MKV conversion");

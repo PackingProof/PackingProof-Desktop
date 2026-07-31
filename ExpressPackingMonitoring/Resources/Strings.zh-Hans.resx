@@ -351,8 +351,8 @@
   <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>摄像头识别下一张面单条码后，自动结束上一单并开始下一单。</value></data>
   <data name="稍后再说" xml:space="preserve"><value>稍后再说</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>摄像头已休眠</value></data>
-  <data name="摄像头已休眠（空闲 {0} 分钟），可在设置的高级设置中打开“显示高级设置”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在设置的高级设置中打开“显示高级设置”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
-  <data name="关闭路径：设置 &gt; 高级设置 &gt; 显示高级设置，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置 &gt; 高级设置 &gt; 显示高级设置，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
+  <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
+  <data name="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
   <data name="手机 App 更新" xml:space="preserve"><value>手机 App 更新</value></data>
   <data name="发现新版手机 App" xml:space="preserve"><value>发现新版手机 App</value></data>
   <data name="稍后" xml:space="preserve"><value>稍后</value></data>
@@ -534,6 +534,18 @@
   <data name="上一页" xml:space="preserve"><value>上一页</value></data>
   <data name="下一页" xml:space="preserve"><value>下一页</value></data>
   <data name="显示高级设置" xml:space="preserve"><value>显示高级设置</value></data>
+  <data name="高级模式" xml:space="preserve"><value>高级模式</value></data>
+  <data name="已开启" xml:space="preserve"><value>已开启</value></data>
+  <data name="已关闭" xml:space="preserve"><value>已关闭</value></data>
+  <data name="切换高级模式" xml:space="preserve"><value>切换高级模式</value></data>
+  <data name="实验：音频直接写入 MKV" xml:space="preserve"><value>实验：音频直接写入 MKV</value></data>
+  <data name="减少临时文件和后处理，开启前请先完成一次测试录像" xml:space="preserve"><value>减少临时文件和后处理，开启前请先完成一次测试录像</value></data>
+  <data name="开启实验录音方式？" xml:space="preserve"><value>开启实验录音方式？</value></data>
+  <data name="这是实验功能。部分麦克风、驱动或 FFmpeg 环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式" xml:space="preserve"><value>这是实验功能。部分麦克风、驱动或 FFmpeg 环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式</value></data>
+  <data name="了解风险并开启" xml:space="preserve"><value>了解风险并开启</value></data>
+  <data name="保持关闭" xml:space="preserve"><value>保持关闭</value></data>
+  <data name="实时 AAC 音频管道初始化失败，已取消开录" xml:space="preserve"><value>实时 AAC 音频管道初始化失败，已取消开录</value></data>
+  <data name="实验功能；部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步" xml:space="preserve"><value>实验功能；部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步</value></data>
   <data name="显示编码、阈值、时序等专业参数" xml:space="preserve"><value>显示编码、阈值、时序等专业参数</value></data>
   <data name="选择录像方式" xml:space="preserve"><value>选择录像方式</value></data>
   <data name="请选择录像方式" xml:space="preserve"><value>请选择录像方式</value></data>

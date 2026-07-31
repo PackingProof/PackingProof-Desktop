@@ -16,12 +16,22 @@ public sealed class SettingsAdvancedVisibilityTests
     {
         XDocument document = LoadSettingsXaml();
         XElement toggle = Assert.Single(
-            document.Descendants(Presentation + "CheckBox"),
-            element => (string?)element.Attribute(Xaml + "Name") == "ShowAdvancedSettingsCheckBox");
+            document.Descendants(Presentation + "ToggleButton"),
+            element => (string?)element.Attribute(Xaml + "Name") == "AdvancedModeButton");
 
         Assert.Contains(
             "Config.ShowAdvancedSettings",
             (string?)toggle.Attribute("IsChecked") ?? string.Empty);
+        Assert.Equal("切换高级模式", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.DoesNotContain(
+            document.Descendants(Presentation + "CheckBox"),
+            element => (string?)element.Attribute(Xaml + "Name") == "ShowAdvancedSettingsCheckBox");
+
+        XElement directAacToggle = Assert.Single(
+            document.Descendants(Presentation + "CheckBox"),
+            element => (string?)element.Attribute(Xaml + "Name") == "DirectAacRecordingCheckBox");
+        Assert.Contains("Config.EnableDirectAacRecording", (string?)directAacToggle.Attribute("IsChecked") ?? string.Empty);
+        Assert.Equal("DirectAacRecordingCheckBox_Checked", (string?)directAacToggle.Attribute("Checked"));
 
         string[] hiddenLabels =
         [
@@ -33,7 +43,7 @@ public sealed class SettingsAdvancedVisibilityTests
             "网页访问端口", "网页临时缓存上限", "调试日志",
             "同码消失时间", "同码确认时间", "单号判断规则", "扫码间隔保护",
             "扫码最小长度", "自动提交停顿", "平均输入间隔", "单字符间隔上限",
-            "声音同步微调"
+            "实验：音频直接写入 MKV", "声音同步微调"
         ];
 
         foreach (string label in hiddenLabels)
@@ -68,7 +78,7 @@ public sealed class SettingsAdvancedVisibilityTests
             .Ancestors(Presentation + "Border")
             .Select(border => (string?)border.Attribute("Visibility"))
             .Any(visibility => visibility?.Contains(
-                "ShowAdvancedSettingsCheckBox",
+                "Config.ShowAdvancedSettings",
                 StringComparison.Ordinal) == true);
     }
 

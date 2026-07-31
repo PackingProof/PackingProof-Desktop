@@ -419,7 +419,7 @@
                                 <Path Data="{StaticResource FluentSleepIcon}" Width="52" Height="52" Stretch="Uniform" Fill="#AAFFFFFF" HorizontalAlignment="Center" Margin="0,0,0,12"/>
                                 <TextBlock Text="摄像头已休眠" FontSize="22" FontWeight="Bold" Foreground="#AAFFFFFF" HorizontalAlignment="Center"/>
                                 <TextBlock Text="点击任意位置唤醒，再将面单放入识别框" FontSize="14" Foreground="#88FFFFFF" HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                                <TextBlock Text="关闭路径：设置 > 高级设置 > 显示高级设置，再到录制控制关闭“长时间不用时关闭摄像头”"
+                                <TextBlock Text="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”"
                                            FontSize="12"
                                            Foreground="#77FFFFFF"
                                            TextAlignment="Center"
