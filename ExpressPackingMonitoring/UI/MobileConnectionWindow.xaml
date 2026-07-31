@@ -32,7 +32,9 @@
                            Foreground="{DynamicResource TextSecondary}"/>
             </StackPanel>
 
-            <Grid Grid.Row="1" Margin="0,18,0,0">
+            <Grid Grid.Row="1"
+                  Margin="0,18,0,0"
+                  Grid.IsSharedSizeScope="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="14"/>
@@ -45,12 +47,20 @@
                         Background="{DynamicResource ControlBackground}"
                         BorderBrush="{DynamicResource BorderDefault}"
                         BorderThickness="1">
-                    <StackPanel>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardTitle"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardDescription"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardQr"/>
+                            <RowDefinition Height="*" SharedSizeGroup="ConnectionCardDetails"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardActions"/>
+                        </Grid.RowDefinitions>
                         <TextBlock Text="连接录像网页"
                                    FontSize="16"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="手机或其他电脑连接同一个局域网后，扫描二维码即可打开录像"
+                        <TextBlock Grid.Row="1"
+                                   Text="手机或其他电脑连接同一个局域网后，扫描二维码即可打开录像"
                                    Margin="0,6,0,0"
                                    MinHeight="40"
                                    FontSize="12"
@@ -58,8 +68,18 @@
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondary}"/>
 
-                        <StackPanel x:Name="ReadyPanel" Margin="0,14,0,0">
+                        <Grid x:Name="ReadyPanel"
+                              Grid.Row="2"
+                              Grid.RowSpan="3"
+                              Margin="0,14,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="232"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Border HorizontalAlignment="Center"
+                                    Width="232"
+                                    Height="232"
                                     Padding="10"
                                     CornerRadius="10"
                                     Background="White"
@@ -68,33 +88,37 @@
                                 <Image x:Name="QrCodeImage"
                                        Width="210"
                                        Height="210"
-                                       Stretch="None"
+                                       Stretch="Uniform"
                                        SnapsToDevicePixels="True"
                                        AutomationProperties.Name="录像网页连接二维码"/>
                             </Border>
 
-                            <TextBlock Text="访问网址"
-                                       Margin="0,13,0,5"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBox x:Name="AccessUrlTextBox"
-                                     IsReadOnly="True"
-                                     TextWrapping="NoWrap"
-                                     HorizontalScrollBarVisibility="Auto"
-                                     VerticalContentAlignment="Center"
-                                     Padding="9,7"
-                                     AutomationProperties.Name="录像网页访问网址"/>
-                            <TextBlock x:Name="SecurityNotice"
-                                       Text="此网址包含录像访问密钥，请不要发送给无关人员"
-                                       Margin="0,8,0,0"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource AccentOrange}"
-                                       Visibility="Collapsed"/>
+                            <StackPanel Grid.Row="1">
+                                <TextBlock Text="访问网址"
+                                           Margin="0,13,0,5"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBox x:Name="AccessUrlTextBox"
+                                         IsReadOnly="True"
+                                         TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         VerticalContentAlignment="Center"
+                                         Padding="9,7"
+                                         AutomationProperties.Name="录像网页访问网址"/>
+                                <TextBlock x:Name="SecurityNotice"
+                                           Text="此网址包含录像访问密钥，请不要发送给无关人员"
+                                           Margin="0,8,0,0"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource AccentOrange}"
+                                           Visibility="Collapsed"/>
+                            </StackPanel>
 
-                            <WrapPanel HorizontalAlignment="Right" Margin="0,14,0,0">
+                            <WrapPanel Grid.Row="2"
+                                       HorizontalAlignment="Right"
+                                       Margin="0,14,0,0">
                                 <Button x:Name="CopyButton"
                                         Content="复制网址"
                                         Style="{StaticResource SecondaryButtonStyle}"
@@ -107,9 +131,11 @@
                                         AutomationProperties.Name="在电脑打开录像网页"
                                         Click="Open_Click"/>
                             </WrapPanel>
-                        </StackPanel>
+                        </Grid>
 
                         <Border x:Name="UnavailablePanel"
+                                Grid.Row="2"
+                                Grid.RowSpan="3"
                                 Margin="0,14,0,0"
                                 Padding="14"
                                 CornerRadius="8"
@@ -130,7 +156,7 @@
                                            Foreground="{DynamicResource TextSecondary}"/>
                             </StackPanel>
                         </Border>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <Border Grid.Column="2"
@@ -139,12 +165,20 @@
                         Background="{DynamicResource ControlBackground}"
                         BorderBrush="{DynamicResource BorderDefault}"
                         BorderThickness="1">
-                    <StackPanel>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardTitle"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardDescription"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardQr"/>
+                            <RowDefinition Height="*" SharedSizeGroup="ConnectionCardDetails"/>
+                            <RowDefinition Height="Auto" SharedSizeGroup="ConnectionCardActions"/>
+                        </Grid.RowDefinitions>
                         <TextBlock Text="下载手机 App"
                                    FontSize="16"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="使用 Android 手机扫码，下载 PackingProof 手机录像 App"
+                        <TextBlock Grid.Row="1"
+                                   Text="使用 Android 手机扫码，下载 PackingProof 手机录像 App"
                                    Margin="0,6,0,0"
                                    MinHeight="40"
                                    FontSize="12"
@@ -152,8 +186,11 @@
                                    TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondary}"/>
 
-                        <Border HorizontalAlignment="Center"
+                        <Border Grid.Row="2"
+                                HorizontalAlignment="Center"
                                 Margin="0,14,0,0"
+                                Width="232"
+                                Height="232"
                                 Padding="10"
                                 CornerRadius="10"
                                 Background="White"
@@ -162,33 +199,36 @@
                             <Image x:Name="MobileAppQrCodeImage"
                                    Width="210"
                                    Height="210"
-                                   Stretch="None"
+                                   Stretch="Uniform"
                                    SnapsToDevicePixels="True"
                                    AutomationProperties.Name="手机 App 下载二维码"/>
                         </Border>
 
-                        <TextBlock x:Name="MobileAppVersionText"
-                                   Text="Android 版 · 扫码打开下载页"
-                                   Margin="0,13,0,0"
-                                   HorizontalAlignment="Center"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑"
-                                   Margin="0,8,0,0"
-                                   FontSize="12"
-                                   LineHeight="18"
-                                   TextWrapping="Wrap"
-                                   Foreground="{DynamicResource TextSecondary}"/>
+                        <StackPanel Grid.Row="3">
+                            <TextBlock x:Name="MobileAppVersionText"
+                                       Text="Android 版 · 扫码打开下载页"
+                                       Margin="0,13,0,0"
+                                       HorizontalAlignment="Center"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑"
+                                       Margin="0,8,0,0"
+                                       FontSize="12"
+                                       LineHeight="18"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
 
                         <Button x:Name="OpenMobileAppDownloadButton"
+                                Grid.Row="4"
                                 Content="电脑打开下载页"
                                 Margin="0,14,0,0"
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 AutomationProperties.Name="在电脑打开手机 App 下载页"
                                 Click="OpenMobileAppDownload_Click"/>
-                    </StackPanel>
+                    </Grid>
                 </Border>
             </Grid>
 

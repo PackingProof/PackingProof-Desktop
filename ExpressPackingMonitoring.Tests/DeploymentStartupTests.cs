@@ -55,6 +55,12 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("<Border x:Name=\"SecurityNotice\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"QrCodeImage\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MobileAppQrCodeImage\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(xaml, "<ColumnDefinition Width=\"\\*\"/>").Count);
+        Assert.Equal(2, Regex.Matches(xaml, "Width=\"232\"[\\s\\S]*?Height=\"232\"").Count);
+        Assert.Equal(2, Regex.Matches(xaml, "Stretch=\"Uniform\"").Count);
+        Assert.Contains("Grid.IsSharedSizeScope=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(2, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardQr\"").Count);
+        Assert.Equal(2, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardActions\"").Count);
         Assert.Contains("Text=\"下载手机 App\"", xaml, StringComparison.Ordinal);
         Assert.Contains("使用 Android 手机扫码", xaml, StringComparison.Ordinal);
         Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
