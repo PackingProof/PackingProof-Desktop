@@ -320,7 +320,8 @@ namespace ExpressPackingMonitoring.Data
             string sourceSessionId,
             string contentSha256,
             OrderInfo orderInfo = null,
-            string sourceDeviceKind = "mobile")
+            string sourceDeviceKind = "mobile",
+            string mode = "发货")
         {
             string normalizedTracking = trackingNumber?.Trim().ToUpperInvariant() ?? "";
             string orderId = string.IsNullOrEmpty(normalizedTracking) ? "未识别面单" : normalizedTracking;
@@ -337,12 +338,13 @@ namespace ExpressPackingMonitoring.Data
                         SourceDeviceKind, SourceSessionId, ContentSha256, FilePath, FileSizeBytes, StartTime, EndTime,
                         DurationSeconds, StopReason, BackupCompletedAt)
                     VALUES (
-                        @orderId, '发货', @trackingNumber, @sourceOrderId, @buyerMessage, @sellerMemo, @productInfo,
+                        @orderId, @mode, @trackingNumber, @sourceOrderId, @buyerMessage, @sellerMemo, @productInfo,
                         @orderInfoPushTime, @orderInfoJson, 'external', @sourceDeviceId, @sourceDeviceName,
                         @sourceDeviceKind, @sourceSessionId, @contentSha256, @filePath, @fileSizeBytes, @startTime, @endTime,
                         @durationSeconds, @stopReason, @backupCompletedAt);
                     SELECT last_insert_rowid();";
                 cmd.Parameters.AddWithValue("@orderId", orderId);
+                cmd.Parameters.AddWithValue("@mode", NormalizeRecordingMode(mode));
                 cmd.Parameters.AddWithValue("@trackingNumber", normalizedTracking);
                 cmd.Parameters.AddWithValue("@sourceOrderId", orderInfo?.OrderId ?? "");
                 cmd.Parameters.AddWithValue("@buyerMessage", orderInfo?.BuyerMessage ?? "");
@@ -369,6 +371,15 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@backupCompletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 return (long)cmd.ExecuteScalar();
             }
+        }
+
+        internal static string NormalizeRecordingMode(string mode)
+        {
+            string normalized = mode?.Trim() ?? "";
+            return normalized.Equals("return", StringComparison.OrdinalIgnoreCase)
+                   || normalized.Equals("退货", StringComparison.Ordinal)
+                ? "退货"
+                : "发货";
         }
 
         public IReadOnlyList<MobileBackupDailyCount> GetMobileBackupDailyCounts(DateTime day)

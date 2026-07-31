@@ -113,6 +113,7 @@ public sealed class MobileBackupTests
                     TrackingNumber = "TRACK-001",
                     StartedAt = completeRequest.StartedAt,
                     DurationMilliseconds = completeRequest.DurationMilliseconds,
+                    Mode = "return",
                     OrderInfo = order
                 }
             };
@@ -129,6 +130,7 @@ public sealed class MobileBackupTests
             Assert.Equal("打包手机", record.SourceDeviceName);
             Assert.Equal("session-1", record.SourceSessionId);
             Assert.Equal(fileSha, record.ContentSha256);
+            Assert.Equal("退货", record.Mode);
             Assert.Equal("买家留言", record.BuyerMessage);
             Assert.Equal("卖家备注", record.SellerMemo);
             Assert.Equal("商品 A", record.ProductInfo);
@@ -140,7 +142,7 @@ public sealed class MobileBackupTests
                     "手机备份",
                     "打包手机-PHONE1",
                     "2026-07-19",
-                    "TRACK-001_20260719_100000_发货.mp4"),
+                    "TRACK-001_20260719_100000_退货.mp4"),
                 record.FilePath);
         }
         finally
@@ -177,6 +179,7 @@ public sealed class MobileBackupTests
             Assert.Equal("一号录制工位", record.SourceDeviceName);
             Assert.Equal("pc", record.SourceDeviceKind);
             Assert.Equal("电脑工位上传", record.StopReason);
+            Assert.Equal("发货", record.Mode);
             Assert.Contains(
                 $"{Path.DirectorySeparatorChar}电脑上传{Path.DirectorySeparatorChar}",
                 record.FilePath);
@@ -186,6 +189,23 @@ public sealed class MobileBackupTests
         {
             DeleteTempDirectory(directory);
         }
+    }
+
+    [Theory]
+    [InlineData("", "发货")]
+    [InlineData("shipping", "发货")]
+    [InlineData("unknown", "发货")]
+    [InlineData("return", "退货")]
+    [InlineData("退货", "退货")]
+    public void ExternalRecordingModeSafelyNormalizes(string input, string expected)
+    {
+        Assert.Equal(expected, VideoDatabase.NormalizeRecordingMode(input));
+    }
+
+    [Fact]
+    public void MissingExternalRecordingModeDefaultsToShipping()
+    {
+        Assert.Equal("发货", VideoDatabase.NormalizeRecordingMode(null!));
     }
 
     [Fact]

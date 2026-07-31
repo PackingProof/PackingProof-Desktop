@@ -97,7 +97,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             DateTime startedAt = DateTime.Now.AddSeconds(-2);
             long localRecordId = workstationDatabase.InsertVideoRecord(
                 "LOOPBACK-TRACKING-001",
-                "发货",
+                "退货",
                 "mpeg4",
                 "test-fixture",
                 localVideoPath,
@@ -169,6 +169,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
                 hostDatabase.GetVideoById(uploaded.RemoteVideoRecordId!.Value));
             Assert.Equal("external", hostRecord.SourceType);
             Assert.Equal("pc", hostRecord.SourceDeviceKind);
+            Assert.Equal("退货", hostRecord.Mode);
             Assert.Equal(workstationConfig.NodeId, hostRecord.SourceDeviceId);
             Assert.Equal(
                 $"{workstationConfig.NodeId}:{localRecordId}",

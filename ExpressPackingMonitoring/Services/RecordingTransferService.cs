@@ -337,6 +337,7 @@ internal sealed class RecordingTransferService : IDisposable
                 FileSha256 = sha256,
                 SessionId = task.SourceSessionId,
                 TrackingNumber = trackingNumber,
+                Mode = record.Mode,
                 StartedAt = new DateTimeOffset(record.StartTime),
                 DurationMilliseconds = Math.Max(1, (long)(record.DurationSeconds * 1000)),
                 SourceDeviceId = config.NodeId,

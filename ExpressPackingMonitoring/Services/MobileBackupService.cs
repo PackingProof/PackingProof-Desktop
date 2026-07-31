@@ -273,7 +273,8 @@ internal sealed class MobileBackupService
                     session.SessionId,
                     fileSha256,
                     orderInfo,
-                    request.SourceDeviceKind));
+                    request.SourceDeviceKind,
+                    session.Mode));
             }
 
             DeleteStateFile(uploadId);
@@ -372,7 +373,8 @@ internal sealed class MobileBackupService
                 : "手机备份",
             GetDeviceDirectoryName(sourceDeviceId, sourceDeviceName),
             startedAt.ToString("yyyy-MM-dd"));
-        string baseName = SanitizeFileName($"{trackingNumber}_{startedAt:yyyyMMdd_HHmmss}_发货");
+        string mode = VideoDatabase.NormalizeRecordingMode(earliest.Mode);
+        string baseName = SanitizeFileName($"{trackingNumber}_{startedAt:yyyyMMdd_HHmmss}_{mode}");
         string preferredPath = Path.Combine(dateDirectory, $"{baseName}.mp4");
         if (!File.Exists(preferredPath) || FileMatchesSha256(preferredPath, fileSha256))
             return preferredPath;
@@ -573,6 +575,7 @@ internal sealed class MobileBackupCompleteRequest
     public string TrackingNumber { get; set; } = "";
     public DateTimeOffset StartedAt { get; set; }
     public long DurationMilliseconds { get; set; }
+    public string Mode { get; set; } = "";
     public string SourceDeviceId { get; set; } = "";
     public string SourceDeviceName { get; set; } = "";
     // 旧手机客户端不发送此字段时保持既有行为；PC 录制工位使用 "pc"。
@@ -589,7 +592,8 @@ internal sealed class MobileBackupCompleteRequest
                 SessionId = SessionId,
                 TrackingNumber = TrackingNumber,
                 StartedAt = StartedAt,
-                DurationMilliseconds = DurationMilliseconds
+                DurationMilliseconds = DurationMilliseconds,
+                Mode = Mode
             }
         };
     }
@@ -601,6 +605,7 @@ internal sealed class MobileBackupSessionRequest
     public string TrackingNumber { get; set; } = "";
     public DateTimeOffset StartedAt { get; set; }
     public long DurationMilliseconds { get; set; }
+    public string Mode { get; set; } = "";
     public OrderInfo? OrderInfo { get; set; }
 }
 

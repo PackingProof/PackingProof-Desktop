@@ -159,7 +159,7 @@ public sealed class RecordingTransferTests
                 TestContext.Current.CancellationToken);
             long recordId;
             using var database = new VideoDatabase(databasePath);
-            recordId = database.InsertVideoRecord("TRACK-1", "发货", "", "", videoPath, DateTime.Now.AddMinutes(-1));
+            recordId = database.InsertVideoRecord("TRACK-1", "退货", "", "", videoPath, DateTime.Now.AddMinutes(-1));
             database.UpdateVideoRecordOnStop(recordId, DateTime.Now, 60, new FileInfo(videoPath).Length, "手动");
 
             string targetNodeId = Guid.NewGuid().ToString("D");
@@ -186,6 +186,7 @@ public sealed class RecordingTransferTests
             Assert.True(File.Exists(videoPath));
             Assert.True(handler.SawAccessKey);
             Assert.True(handler.SawPcSource);
+            Assert.Equal("退货", handler.ReceivedMode);
             Assert.Equal(new FileInfo(videoPath).Length, handler.ReceivedBytes);
         }
         finally
@@ -471,6 +472,7 @@ public sealed class RecordingTransferTests
         public long ReceivedBytes { get; private set; }
         public bool SawAccessKey { get; private set; }
         public bool SawPcSource { get; private set; }
+        public string ReceivedMode { get; private set; } = "";
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -505,6 +507,7 @@ public sealed class RecordingTransferTests
                 using JsonDocument document = JsonDocument.Parse(
                     await request.Content!.ReadAsStringAsync(cancellationToken));
                 SawPcSource = document.RootElement.GetProperty("sourceDeviceKind").GetString() == "pc";
+                ReceivedMode = document.RootElement.GetProperty("mode").GetString() ?? "";
                 return Json(new
                 {
                     status = verified ? "verified" : "processing",
