@@ -34,7 +34,7 @@
                             Height="30"
                             CornerRadius="8"
                             Background="{DynamicResource ControlBackgroundHover}">
-                        <Path Data="{StaticResource FluentStorageIcon}"
+                        <Path Data="{StaticResource FluentDatabaseIcon}"
                               Width="16"
                               Height="16"
                               Stretch="Uniform"
@@ -121,7 +121,7 @@
                                 Height="40"
                                 CornerRadius="10"
                                 Background="{DynamicResource ControlBackgroundHover}">
-                            <Path Data="{StaticResource FluentStorageIcon}"
+                            <Path Data="{StaticResource FluentDatabaseIcon}"
                                   Width="20"
                                   Height="20"
                                   Stretch="Uniform"
@@ -222,7 +222,7 @@
                                     ToolTip="解除当前显示并选择另一台保存主机"
                                     Click="ChangeHost_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentArrowSyncIcon}"
+                                    <Path Data="{StaticResource FluentDatabaseIcon}"
                                           Width="16" Height="16" Stretch="Uniform"
                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                     <TextBlock Text="更换保存主机" Margin="6,0,0,0" VerticalAlignment="Center"/>
@@ -296,7 +296,7 @@
                                 Margin="0,0,10,0"
                                 Click="ChangeHost_Click">
                             <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource FluentArrowSyncIcon}"
+                                <Path Data="{StaticResource FluentDatabaseIcon}"
                                       Width="16" Height="16" Stretch="Uniform"
                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="更换保存主机"
@@ -474,7 +474,7 @@
                                 AutomationProperties.Name="连接选中的保存主机"
                                 Click="BindSelected_Click">
                             <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource FluentCheckIcon}"
+                                <Path Data="{StaticResource FluentWifiIcon}"
                                       Width="16"
                                       Height="16"
                                       Stretch="Uniform"

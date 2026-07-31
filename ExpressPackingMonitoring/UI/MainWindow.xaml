@@ -713,7 +713,7 @@
                                 </Border.Style>
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource FluentDatabaseIcon}"
+                                        <Path Data="{StaticResource FluentWifiIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
@@ -789,7 +789,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Path Data="{StaticResource FluentStorageIcon}"
+                                        <Path Data="{StaticResource FluentDatabaseIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
@@ -949,10 +949,10 @@
                                         <Path Width="14" Height="14" Stretch="Uniform" Fill="White">
                                             <Path.Style>
                                                 <Style TargetType="Path">
-                                                    <Setter Property="Data" Value="{StaticResource FluentDatabaseIcon}"/>
+                                                    <Setter Property="Data" Value="{StaticResource FluentWifiIcon}"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsRecordingWorkstation, Mode=OneWay}" Value="True">
-                                                            <Setter Property="Data" Value="{StaticResource FluentStorageIcon}"/>
+                                                            <Setter Property="Data" Value="{StaticResource FluentDatabaseIcon}"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

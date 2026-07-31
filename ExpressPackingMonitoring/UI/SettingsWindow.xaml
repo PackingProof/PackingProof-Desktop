@@ -879,7 +879,7 @@
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="MobileBackupHost">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <Path Data="{StaticResource FluentStorageIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
+                                                    <Path Data="{StaticResource FluentDatabaseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
                                                     <TextBlock Text="录像文件备份主机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>

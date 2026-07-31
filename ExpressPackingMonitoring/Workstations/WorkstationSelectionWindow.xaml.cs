@@ -95,7 +95,7 @@ public partial class WorkstationSelectionWindow : Window
             {
                 DeploymentPresets.RecordingHost => "FluentVideoIcon",
                 DeploymentPresets.RecordingWorkstation => "FluentWifiIcon",
-                DeploymentPresets.MobileBackupHost => "FluentStorageIcon",
+                DeploymentPresets.MobileBackupHost => "FluentDatabaseIcon",
                 _ => "FluentPlayIcon"
             });
     }
