@@ -201,6 +201,14 @@ namespace ExpressPackingMonitoring.Data
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_UpdatedAt ON RecordingTransferQueue(State, UpdatedAt);");
             ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS IX_RecordingTransferQueue_LocalVideoRecordId ON RecordingTransferQueue(LocalVideoRecordId);");
 
+            // 本地录像文件清单。录制工位用它做高频容量统计，避免反复递归扫描缓存目录。
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS LocalVideoFileInventory (
+                    FilePath TEXT PRIMARY KEY COLLATE NOCASE,
+                    FileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                    UpdatedAt TEXT NOT NULL
+                );");
+
             // 删除日志表
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS DeleteLogs (
@@ -667,6 +675,9 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@videoCodec", (object)videoCodec ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@videoEncoder", (object)videoEncoder ?? DBNull.Value);
                 cmd.ExecuteNonQuery();
+                string filePath = GetVideoFilePath(recordId);
+                if (!string.IsNullOrWhiteSpace(filePath) && fileSizeBytes > 0)
+                    UpsertLocalVideoFileCore(filePath, fileSizeBytes);
             }
         }
 
@@ -687,12 +698,23 @@ namespace ExpressPackingMonitoring.Data
         /// </summary>
         public void UpdateVideoFilePath(string oldPath, string newPath)
         {
+            long fileSizeBytes = 0;
+            try
+            {
+                if (File.Exists(newPath))
+                    fileSizeBytes = new FileInfo(newPath).Length;
+            }
+            catch
+            {
+            }
+
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
                     UPDATE VideoRecords
                     SET FilePath = @newPath,
+                        FileSizeBytes = CASE WHEN @fileSize > 0 THEN @fileSize ELSE FileSizeBytes END,
                         MkvFirstFailedAt = NULL,
                         MkvLastAttemptAt = NULL,
                         MkvFailureCount = 0,
@@ -701,7 +723,116 @@ namespace ExpressPackingMonitoring.Data
                     WHERE FilePath = @oldPath;";
                 cmd.Parameters.AddWithValue("@oldPath", oldPath);
                 cmd.Parameters.AddWithValue("@newPath", newPath);
+                cmd.Parameters.AddWithValue("@fileSize", fileSizeBytes);
                 cmd.ExecuteNonQuery();
+                RemoveLocalVideoFileCore(oldPath);
+                if (fileSizeBytes > 0)
+                    UpsertLocalVideoFileCore(newPath, fileSizeBytes);
+            }
+        }
+
+        public List<StorageVideoFile> GetLocalVideoFileInventory()
+        {
+            lock (_lock)
+            {
+                var files = new List<StorageVideoFile>();
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT FilePath, FileSizeBytes, UpdatedAt
+                    FROM LocalVideoFileInventory
+                    ORDER BY FilePath;";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    files.Add(new StorageVideoFile
+                    {
+                        FilePath = reader.GetString(0),
+                        FileSizeBytes = reader.GetInt64(1),
+                        StartTime = DateTime.TryParse(reader.GetString(2), out DateTime updatedAt)
+                            ? updatedAt
+                            : DateTime.MinValue
+                    });
+                }
+                return files;
+            }
+        }
+
+        public void ReplaceLocalVideoFileInventory(
+            string rootPath,
+            IEnumerable<StorageVideoFile> files)
+        {
+            string normalizedRoot = Path.GetFullPath(rootPath);
+            StorageVideoFile[] normalizedFiles = files
+                .Where(file => file != null
+                    && !string.IsNullOrWhiteSpace(file.FilePath)
+                    && file.FileSizeBytes >= 0)
+                .Select(file => new StorageVideoFile
+                {
+                    FilePath = Path.GetFullPath(file.FilePath),
+                    FileSizeBytes = file.FileSizeBytes,
+                    StartTime = file.StartTime
+                })
+                .Where(file => IsPathInside(file.FilePath, normalizedRoot))
+                .GroupBy(file => file.FilePath, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToArray();
+
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                using (var select = _connection.CreateCommand())
+                {
+                    select.Transaction = transaction;
+                    select.CommandText = "SELECT FilePath FROM LocalVideoFileInventory;";
+                    using var reader = select.ExecuteReader();
+                    var stalePaths = new List<string>();
+                    while (reader.Read())
+                    {
+                        string existingPath = reader.GetString(0);
+                        if (IsPathInside(existingPath, normalizedRoot))
+                            stalePaths.Add(existingPath);
+                    }
+                    reader.Close();
+                    foreach (string stalePath in stalePaths)
+                        RemoveLocalVideoFileCore(stalePath, transaction);
+                }
+
+                foreach (StorageVideoFile file in normalizedFiles)
+                    UpsertLocalVideoFileCore(file.FilePath, file.FileSizeBytes, transaction);
+                transaction.Commit();
+            }
+        }
+
+        public bool IsLocalVideoFileFullyVerifiedForCacheDeletion(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return false;
+            string normalizedPath = Path.GetFullPath(filePath);
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT COUNT(1),
+                           SUM(CASE WHEN
+                               v.StorageState <> 'Uploaded'
+                               OR v.RemoteVideoRecordId IS NULL
+                               OR v.RemoteVideoRecordId <= 0
+                               OR q.State <> 'Uploaded'
+                               OR q.RemoteVideoRecordId IS NULL
+                               OR q.RemoteVideoRecordId <= 0
+                           THEN 1 ELSE 0 END)
+                    FROM VideoRecords v
+                    LEFT JOIN RecordingTransferQueue q
+                      ON q.LocalVideoRecordId = v.Id
+                    WHERE v.IsDeleted = 0
+                      AND v.SourceType = 'pc'
+                      AND v.FilePath = @filePath;";
+                cmd.Parameters.AddWithValue("@filePath", normalizedPath);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read()
+                    && reader.GetInt64(0) > 0
+                    && !reader.IsDBNull(1)
+                    && reader.GetInt64(1) == 0;
             }
         }
 
@@ -931,6 +1062,7 @@ namespace ExpressPackingMonitoring.Data
                         cmd.ExecuteNonQuery();
                     }
 
+                    RemoveLocalVideoFileCore(filePath, transaction);
                     transaction.Commit();
                 }
                 catch
@@ -1263,6 +1395,7 @@ namespace ExpressPackingMonitoring.Data
         {
             lock (_lock)
             {
+                string filePath = GetVideoFilePath(localRecordId);
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
                     UPDATE VideoRecords
@@ -1272,6 +1405,8 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@id", localRecordId);
                 cmd.Parameters.AddWithValue("@remoteRecordId", remoteRecordId);
                 cmd.ExecuteNonQuery();
+                if (!string.IsNullOrWhiteSpace(filePath))
+                    RemoveLocalVideoFileCore(filePath);
             }
         }
 
@@ -1788,6 +1923,60 @@ namespace ExpressPackingMonitoring.Data
                 }
                 return results;
             }
+        }
+
+        private string GetVideoFilePath(long recordId)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT FilePath FROM VideoRecords WHERE Id = @id LIMIT 1;";
+            cmd.Parameters.AddWithValue("@id", recordId);
+            return cmd.ExecuteScalar() as string ?? "";
+        }
+
+        private void UpsertLocalVideoFileCore(
+            string filePath,
+            long fileSizeBytes,
+            SqliteTransaction transaction = null)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return;
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = @"
+                INSERT INTO LocalVideoFileInventory (FilePath, FileSizeBytes, UpdatedAt)
+                VALUES (@filePath, @fileSize, @updatedAt)
+                ON CONFLICT(FilePath) DO UPDATE SET
+                    FileSizeBytes = excluded.FileSizeBytes,
+                    UpdatedAt = excluded.UpdatedAt;";
+            cmd.Parameters.AddWithValue("@filePath", Path.GetFullPath(filePath));
+            cmd.Parameters.AddWithValue("@fileSize", Math.Max(0, fileSizeBytes));
+            cmd.Parameters.AddWithValue("@updatedAt", DateTime.UtcNow.ToString("O"));
+            cmd.ExecuteNonQuery();
+        }
+
+        private void RemoveLocalVideoFileCore(
+            string filePath,
+            SqliteTransaction transaction = null)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return;
+            string normalizedPath;
+            try { normalizedPath = Path.GetFullPath(filePath); }
+            catch { return; }
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = "DELETE FROM LocalVideoFileInventory WHERE FilePath = @filePath;";
+            cmd.Parameters.AddWithValue("@filePath", normalizedPath);
+            cmd.ExecuteNonQuery();
+        }
+
+        private static bool IsPathInside(string filePath, string rootPath)
+        {
+            string root = Path.GetFullPath(rootPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string candidate = Path.GetFullPath(filePath);
+            return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
         }
 
 

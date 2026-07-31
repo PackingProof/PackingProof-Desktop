@@ -463,6 +463,14 @@ namespace ExpressPackingMonitoring.ViewModels
             if (result.IsAvailable && result.CanFitRequiredHeadroom)
                 return true;
 
+            result = await Task.Run(
+                () => RunRecordingCacheMaintenance(
+                    RecordingWorkstationCachePolicy
+                        .RecordingAndPackagingHeadroomBytes,
+                    forceReconcile: true));
+            if (result.IsAvailable && result.CanFitRequiredHeadroom)
+                return true;
+
             if (_recordingCacheBlockedDialogShown)
                 return false;
 

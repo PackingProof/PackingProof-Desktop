@@ -1,5 +1,7 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using Microsoft.Data.Sqlite;
 using System.Text;
 using Xunit;
 
@@ -314,6 +316,146 @@ public sealed class RecordingWorkstationCacheTests
         Assert.Contains("SettingsTabControl.SelectedItem = RecordingCacheTabItem;", settings, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void LocalVideoInventory_TracksFinalPathAndSizeWithoutDirectoryScanning()
+    {
+        string root = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(root, "videos.db");
+            string mkvPath = Path.Combine(root, "recording.mkv");
+            string mp4Path = Path.Combine(root, "recording.mp4");
+            File.WriteAllBytes(mkvPath, new byte[128]);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "ORDER-1",
+                "发货",
+                "",
+                "",
+                mkvPath,
+                DateTime.Now.AddMinutes(-1));
+
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                60,
+                128,
+                "手动");
+
+            StorageVideoFile initial = Assert.Single(database.GetLocalVideoFileInventory());
+            Assert.Equal(Path.GetFullPath(mkvPath), initial.FilePath);
+            Assert.Equal(128, initial.FileSizeBytes);
+
+            File.WriteAllBytes(mp4Path, new byte[64]);
+            database.UpdateVideoFilePath(mkvPath, mp4Path);
+
+            StorageVideoFile converted = Assert.Single(database.GetLocalVideoFileInventory());
+            Assert.Equal(Path.GetFullPath(mp4Path), converted.FilePath);
+            Assert.Equal(64, converted.FileSizeBytes);
+            Assert.Equal(64, database.GetVideoById(recordId).FileSizeBytes);
+            database.Dispose();
+        }
+        finally
+        {
+            DeleteTempDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void LocalVideoInventory_ReconciliationCountsUnknownFilesAndPreservesOtherRoots()
+    {
+        string root = CreateTempDirectory();
+        string otherRoot = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(root, "videos.db"));
+            string unknownPath = Path.Combine(root, "unknown.mp4");
+            string stalePath = Path.Combine(root, "stale.mp4");
+            string otherPath = Path.Combine(otherRoot, "other.mp4");
+            database.ReplaceLocalVideoFileInventory(
+                root,
+                [new StorageVideoFile { FilePath = stalePath, FileSizeBytes = 20 }]);
+            database.ReplaceLocalVideoFileInventory(
+                otherRoot,
+                [new StorageVideoFile { FilePath = otherPath, FileSizeBytes = 30 }]);
+
+            database.ReplaceLocalVideoFileInventory(
+                root,
+                [new StorageVideoFile { FilePath = unknownPath, FileSizeBytes = 40 }]);
+
+            StorageVideoFile[] files = database.GetLocalVideoFileInventory().ToArray();
+            Assert.DoesNotContain(files, file =>
+                string.Equals(file.FilePath, stalePath, StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(files, file =>
+                string.Equals(file.FilePath, unknownPath, StringComparison.OrdinalIgnoreCase)
+                && file.FileSizeBytes == 40);
+            Assert.Contains(files, file =>
+                string.Equals(file.FilePath, otherPath, StringComparison.OrdinalIgnoreCase)
+                && file.FileSizeBytes == 30);
+            database.Dispose();
+        }
+        finally
+        {
+            DeleteTempDirectory(root);
+            DeleteTempDirectory(otherRoot);
+        }
+    }
+
+    [Fact]
+    public void CacheDeletionRequiresEveryRecordSharingTheFileToBeVerified()
+    {
+        string root = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(root, "videos.db");
+            string videoPath = Path.Combine(root, "shared.mp4");
+            File.WriteAllBytes(videoPath, new byte[64]);
+            using var database = new VideoDatabase(databasePath);
+            using var queue = new RecordingTransferQueueStore(databasePath);
+            long firstId = database.InsertVideoRecord(
+                "ORDER-1", "发货", "", "", videoPath, DateTime.Now.AddMinutes(-2));
+            long secondId = database.InsertVideoRecord(
+                "ORDER-2", "发货", "", "", videoPath, DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(firstId, DateTime.Now, 60, 64, "手动");
+            database.UpdateVideoRecordOnStop(secondId, DateTime.Now, 60, 64, "手动");
+            queue.Enqueue(firstId, videoPath, "session-1", "host", "http://host", DateTime.UtcNow);
+            queue.Enqueue(secondId, videoPath, "session-2", "host", "http://host", DateTime.UtcNow);
+            RecordingTransferTask[] tasks = queue.GetReady(DateTime.UtcNow.AddMinutes(1), 10).ToArray();
+
+            queue.MarkUploaded(tasks[0].Id, 101, DateTime.UtcNow);
+            database.MarkVideoUploaded(firstId, 101);
+            Assert.False(database.IsLocalVideoFileFullyVerifiedForCacheDeletion(videoPath));
+
+            queue.MarkUploaded(tasks[1].Id, 102, DateTime.UtcNow);
+            database.MarkVideoUploaded(secondId, 102);
+            Assert.True(database.IsLocalVideoFileFullyVerifiedForCacheDeletion(videoPath));
+            queue.Dispose();
+            database.Dispose();
+        }
+        finally
+        {
+            DeleteTempDirectory(root);
+        }
+    }
+
+    [Fact]
+    public void RecordingWorkstationHotMaintenance_UsesDatabaseInventoryAndOnlyReconcilesOnDemand()
+    {
+        string transfer = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs");
+
+        Assert.Contains("GetRecordingCacheInventoryBytes(cachePath)", transfer, StringComparison.Ordinal);
+        Assert.Contains("ReconcileRecordingCacheInventory(cachePath)", transfer, StringComparison.Ordinal);
+        Assert.Contains("forceReconcile", transfer, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetVideoBytes(cachePath)", transfer, StringComparison.Ordinal);
+        Assert.Contains(
+            "_db.IsLocalVideoFileFullyVerifiedForCacheDeletion(path)",
+            transfer,
+            StringComparison.Ordinal);
+    }
+
     private static RecordingCacheDriveCandidate Candidate(
         string root,
         bool isSystem,
@@ -338,6 +480,22 @@ public sealed class RecordingWorkstationCacheTests
             FindRepositoryRoot(),
             Path.Combine(relativeParts));
         return File.ReadAllText(path, Encoding.UTF8);
+    }
+
+    private static string CreateTempDirectory()
+    {
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            $"RecordingWorkstationCacheTests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void DeleteTempDirectory(string path)
+    {
+        SqliteConnection.ClearAllPools();
+        if (Directory.Exists(path))
+            Directory.Delete(path, recursive: true);
     }
 
     private static string FindRepositoryRoot()
