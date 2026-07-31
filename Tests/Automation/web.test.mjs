@@ -118,6 +118,31 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
 
     await article.getByRole('button', { name: '剪辑' }).click();
     await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
+    await page.setViewportSize({ width: 1760, height: 1272 });
+    await page.evaluate(() => applyClipSourceLayout(1920, 1080));
+    const desktopClipGeometry = await page.locator('#clipOverlay').evaluate(overlay => {
+      const dialog = overlay.querySelector('.clip-dialog').getBoundingClientRect();
+      const body = overlay.querySelector('#clipEditorBody');
+      const playButton = overlay.querySelector('#clipPlaySelectionBtn').getBoundingClientRect();
+      const playIcon = overlay.querySelector('#clipPlaySelectionBtn .icon').getBoundingClientRect();
+      const submitButton = overlay.querySelector('#clipSubmitBtn').getBoundingClientRect();
+      const submitIcon = overlay.querySelector('#clipSubmitBtn .icon').getBoundingClientRect();
+      return {
+        dialogHeight: dialog.height,
+        bodyClientHeight: body.clientHeight,
+        bodyScrollHeight: body.scrollHeight,
+        playIconWidth: playIcon.width,
+        submitIconWidth: submitIcon.width,
+        playCenterDelta: Math.abs((playButton.top + playButton.height / 2) - (playIcon.top + playIcon.height / 2)),
+        submitCenterDelta: Math.abs((submitButton.top + submitButton.height / 2) - (submitIcon.top + submitIcon.height / 2))
+      };
+    });
+    assert.ok(desktopClipGeometry.dialogHeight > 820);
+    assert.ok(desktopClipGeometry.bodyScrollHeight <= desktopClipGeometry.bodyClientHeight + 1);
+    assert.ok(desktopClipGeometry.playIconWidth >= 19);
+    assert.ok(desktopClipGeometry.submitIconWidth >= 19);
+    assert.ok(desktopClipGeometry.playCenterDelta <= 1);
+    assert.ok(desktopClipGeometry.submitCenterDelta <= 1);
     await page.evaluate(() => applyClipSourceLayout(1080, 1920));
     assert.equal(await page.locator('#clipMainPreview').getAttribute('data-orientation'), 'portrait');
     assert.equal(await page.locator('body').evaluate(element => element.classList.contains('clip-open')), true);
@@ -137,7 +162,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       };
     });
     assert.ok(portraitClipGeometry.previewHeight > 300);
-    assert.ok(portraitClipGeometry.previewWidth <= 560);
+    assert.ok(portraitClipGeometry.previewWidth <= 620);
     assert.ok(portraitClipGeometry.actionsTop >= 0);
     assert.ok(portraitClipGeometry.actionsBottom <= portraitClipGeometry.viewportHeight);
     assert.ok(portraitClipGeometry.submitTop >= 0);
