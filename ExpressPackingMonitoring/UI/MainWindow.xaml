@@ -673,25 +673,31 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <Grid x:Name="ComputerNicknameHeading"
-                                  Grid.Row="0"
-                                  Margin="2,0,2,7">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding ComputerDisplayName, Mode=OneWay}"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding ComputerIpAddress, Mode=OneWay}"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           FontSize="11"
-                                           VerticalAlignment="Center"
-                                           Margin="8,1,0,0"/>
-                            </Grid>
+                            <Border x:Name="ComputerNicknameHeading"
+                                    Grid.Row="0"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="2,6,2,0"
+                                    Margin="0,0,0,7">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding ComputerDisplayName, Mode=OneWay}"
+                                               Foreground="{DynamicResource TextPrimary}"
+                                               FontSize="18"
+                                               FontWeight="Black"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding ComputerIpAddress, Mode=OneWay}"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               VerticalAlignment="Center"
+                                               Margin="7,2,0,0"/>
+                                </Grid>
+                            </Border>
 
                             <Border x:Name="RecordingHostMobileBackupStatus"
                                     Grid.Row="1"
@@ -916,21 +922,37 @@
                                           Fill="{DynamicResource AccentBlue}"
                                           VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="1"
-                                               Text="接收到的订单"
+                                               Text="订单联动"
                                                Margin="6,0,0,0"
                                                FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextPrimary}"/>
                                     <TextBlock Grid.Column="2"
-                                               Text="{Binding OrderIntegrationStatusText, Mode=OneWay}"
+                                               Text="{Binding UserscriptSetupShortStatusText, Mode=OneWay}"
                                                Margin="8,0,0,0"
-                                               Foreground="{DynamicResource TextMuted}"
                                                FontSize="11"
-                                               TextTrimming="CharacterEllipsis"/>
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding UserscriptSetupStatusText, Mode=OneWay}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding UserscriptSetupShortStatusText, Mode=OneWay}"
+                                                                 Value="已就绪">
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding UserscriptSetupShortStatusText, Mode=OneWay}"
+                                                                 Value="需更新">
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <TextBlock Grid.Row="1"
                                                Grid.Column="1"
                                                Grid.ColumnSpan="2"
-                                               Text="{Binding UserscriptSetupStatusText, Mode=OneWay}"
+                                               Text="{Binding OrderIntegrationStatusText, Mode=OneWay}"
                                                Margin="6,4,0,0"
                                                Foreground="{DynamicResource TextMuted}"
                                                FontSize="11"
@@ -997,11 +1019,11 @@
                                         Height="32"
                                         Padding="9,0"
                                         Style="{StaticResource SecondaryButtonStyle}"
-                                        ToolTip="安装或更新快递助手订单联动脚本"
+                                        ToolTip="打开订单联动插件安装向导"
                                         Focusable="False">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
                                         <Path Data="{StaticResource FluentIntegrationIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                        <TextBlock Text="{Binding UserscriptButtonText}" Margin="5,0,0,0" FontSize="12" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding UserscriptButtonText, Mode=OneWay}" Margin="5,0,0,0" FontSize="12" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="BtnSendTestOrder"

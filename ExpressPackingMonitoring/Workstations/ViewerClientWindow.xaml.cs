@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 
@@ -418,7 +419,7 @@ public partial class ViewerClientWindow : Window
             _config,
             _knownRecordingDevices);
         UserscriptStatusText.Text = status.StatusText;
-        UserscriptButtonText.Text = status.ButtonText;
+        UserscriptButtonText.Text = AppLanguage.Get(status.ButtonText);
     }
 
     private void SwitchPurpose_Click(object sender, RoutedEventArgs e)

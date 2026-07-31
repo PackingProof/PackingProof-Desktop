@@ -400,6 +400,17 @@
   <data name="Main.PrintNoRefund" xml:space="preserve"><value>{0} 已响应，未收到订单</value></data>
   <data name="Main.PrintOrders" xml:space="preserve"><value>{0} 收到 {1} 个订单</value></data>
   <data name="订单联动" xml:space="preserve"><value>订单联动</value></data>
+  <data name="安装订单联动插件" xml:space="preserve"><value>安装订单联动插件</value></data>
+  <data name="打开订单联动插件安装向导" xml:space="preserve"><value>打开订单联动插件安装向导</value></data>
+  <data name="接收订单、备注和退款提醒" xml:space="preserve"><value>接收订单、备注和退款提醒</value></data>
+  <data name="已就绪" xml:space="preserve"><value>已就绪</value></data>
+  <data name="需更新" xml:space="preserve"><value>需更新</value></data>
+  <data name="未配置" xml:space="preserve"><value>未配置</value></data>
+  <data name="暂无设备" xml:space="preserve"><value>暂无设备</value></data>
+  <data name="暂无订单接收设备" xml:space="preserve"><value>暂无订单接收设备</value></data>
+  <data name="未配置订单联动" xml:space="preserve"><value>未配置订单联动</value></data>
+  <data name="需要更新订单联动" xml:space="preserve"><value>需要更新订单联动</value></data>
+  <data name="订单联动已就绪" xml:space="preserve"><value>订单联动已就绪</value></data>
   <data name="Main.ConnectionServiceDisabled" xml:space="preserve"><value>连接服务未开启</value></data>
   <data name="Main.ConnectionServiceStarting" xml:space="preserve"><value>正在准备连接服务</value></data>
   <data name="Main.ConnectionServiceUnavailable" xml:space="preserve"><value>连接服务不可用</value></data>

@@ -180,7 +180,7 @@ public sealed class DeploymentStartupTests
 
         Assert.Contains("x:Name=\"UserscriptButtonText\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SendTestOrderButtonText\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("UserscriptButtonText.Text = status.ButtonText", source, StringComparison.Ordinal);
+        Assert.Contains("UserscriptButtonText.Text = AppLanguage.Get(status.ButtonText)", source, StringComparison.Ordinal);
         Assert.Contains("SendTestOrderButtonText.Text = \"正在发送\"", source, StringComparison.Ordinal);
     }
 
@@ -606,7 +606,11 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding UserscriptSetupStatusText, Mode=OneWay}\"",
+            "Text=\"{Binding UserscriptSetupShortStatusText, Mode=OneWay}\"",
+            mainWindow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ToolTip=\"{Binding UserscriptSetupStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -685,17 +689,26 @@ public sealed class DeploymentStartupTests
             "Text=\"{Binding ComputerIpAddress, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
+        string nicknameMarkup = mainWindow[nicknameHeading..compactStatus];
+        Assert.Contains("BorderThickness=\"0,1,0,0\"", nicknameMarkup, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"18\"", nicknameMarkup, StringComparison.Ordinal);
+        Assert.Contains("FontWeight=\"Black\"", nicknameMarkup, StringComparison.Ordinal);
+        Assert.Contains("<ColumnDefinition Width=\"Auto\"/>", nicknameMarkup, StringComparison.Ordinal);
         Assert.Contains("Data=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Text=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
+        string orderMarkup = mainWindow[orderCard..existingButtons];
+        Assert.Contains("Text=\"订单联动\"", orderMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已就绪\"", orderMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"需更新\"", orderMarkup, StringComparison.Ordinal);
         Match orderRows = Regex.Match(
-            mainWindow[orderCard..existingButtons],
+            orderMarkup,
             "<Grid.RowDefinitions>(?<rows>[\\s\\S]*?)</Grid.RowDefinitions>");
         Assert.True(orderRows.Success);
         Assert.Equal(
             2,
             Regex.Matches(orderRows.Groups["rows"].Value, "<RowDefinition Height=\"Auto\"/>").Count);
         Assert.DoesNotMatch(
-            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|WorkstationStatusToolTip|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
+            "\\{Binding (ComputerDisplayName|ComputerIpAddress|WorkstationPrintStatusText|WorkstationStatusToolTip|MobileBackupDeviceStatuses|IsOnline|DisplayText|OrderIntegrationStatusText|UserscriptSetupStatusText|UserscriptSetupShortStatusText|UserscriptButtonText|BoundHostNameDisplay|BoundHostOnlineStatusText|PendingRecordingTransferCount|RecordingTransferStatusText|IsRecordingWorkstation)(?![^}]*Mode=OneWay)[^}]*\\}",
             mainWindow);
     }
 
@@ -1289,8 +1302,9 @@ public sealed class DeploymentStartupTests
             "Text=\"{Binding MainConnectionButtonText, Mode=OneWay}\"",
             xaml,
             StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding UserscriptButtonText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding UserscriptButtonText, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("UserscriptSetupStatusText", source, StringComparison.Ordinal);
+        Assert.Contains("UserscriptSetupShortStatusText", source, StringComparison.Ordinal);
         Assert.Contains("OrderIntegrationStatusText", source, StringComparison.Ordinal);
     }
 
@@ -1343,6 +1357,32 @@ public sealed class DeploymentStartupTests
 
         Assert.Contains("OpenUserscriptGuide = OpenUserscriptGuide", source, StringComparison.Ordinal);
         Assert.Contains("UserscriptGuideNavigation.TryOpen", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EveryOrderIntegrationEntryUsesUnifiedPluginCopy()
+    {
+        string mainWindow = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");
+        string settings = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "SettingsWindow.xaml");
+        string viewer = ReadRepositoryFile("ExpressPackingMonitoring", "Workstations", "ViewerClientWindow.xaml");
+        string backupHost = ReadRepositoryFile("ExpressPackingMonitoring", "Workstations", "PrintWorkstationWindow.xaml");
+        string guide = ReadRepositoryFile("ExpressPackingMonitoring", "Workstations", "PrintToolInstallGuide.cs");
+        string guideTemplate = ReadRepositoryFile("ExpressPackingMonitoring", "Web", "kuaidizs-install-guide.html");
+        string state = ReadRepositoryFile("ExpressPackingMonitoring", "Services", "UserscriptTargetState.cs");
+
+        Assert.Contains("UserscriptButtonText, Mode=OneWay", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"安装订单联动插件\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Text=\"安装订单联动插件\"", viewer, StringComparison.Ordinal);
+        Assert.Contains("Text=\"安装订单联动插件\"", backupHost, StringComparison.Ordinal);
+        Assert.Contains(">安装订单联动插件</a>", guide, StringComparison.Ordinal);
+        Assert.Contains(
+            "map['安装订单联动插件']='Install order integration plugin'",
+            guideTemplate,
+            StringComparison.Ordinal);
+        Assert.Equal(4, state.Split("\"安装订单联动插件\"", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("Content=\"安装订单备注插件\"", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"安装订单联动\"", viewer, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"安装订单联动\"", backupHost, StringComparison.Ordinal);
     }
 
     [Fact]

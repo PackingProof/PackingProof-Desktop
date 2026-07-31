@@ -247,7 +247,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _workstationStatusToolTip = "";
         private string _orderIntegrationStatusText = "暂未收到订单";
         private string _userscriptSetupStatusText = "未配置订单联动";
-        private string _userscriptButtonText = "订单联动";
+        private string _userscriptSetupShortStatusText = "未配置";
+        private string _userscriptButtonText = "安装订单联动插件";
         private IReadOnlyList<ConnectedClientInfo> _connectedClientSnapshot = [];
         private DateTime _mobileBackupStatusDate = DateTime.Today;
         private DateTime _lastUserscriptStatusRefreshAt = DateTime.MinValue;
@@ -441,6 +442,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
         public string OrderIntegrationStatusText { get => _orderIntegrationStatusText; private set => SetProperty(ref _orderIntegrationStatusText, value); }
         public string UserscriptSetupStatusText { get => _userscriptSetupStatusText; private set => SetProperty(ref _userscriptSetupStatusText, value); }
+        public string UserscriptSetupShortStatusText { get => _userscriptSetupShortStatusText; private set => SetProperty(ref _userscriptSetupShortStatusText, value); }
         public string UserscriptButtonText { get => _userscriptButtonText; private set => SetProperty(ref _userscriptButtonText, value); }
         public ObservableCollection<MobileBackupDeviceStatus> MobileBackupDeviceStatuses { get; } = new();
         public string ConnectedDeviceText { get => _connectedDeviceText; private set => SetProperty(ref _connectedDeviceText, value); }
@@ -2900,8 +2902,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 MonitorAccessAddress,
                 includeKnown: true) ?? [];
             UserscriptTargetStatus status = UserscriptTargetState.GetStatus(Config, devices);
-            UserscriptSetupStatusText = status.StatusText;
-            UserscriptButtonText = status.ButtonText;
+            UserscriptSetupStatusText = AppLanguage.Get(status.StatusText);
+            string shortStatus = status.StatusText switch
+            {
+                "订单联动已就绪" => "已就绪",
+                "需要更新订单联动" => "需更新",
+                "暂无订单接收设备" => "暂无设备",
+                _ => "未配置"
+            };
+            UserscriptSetupShortStatusText = AppLanguage.Get(shortStatus);
+            UserscriptButtonText = AppLanguage.Get(status.ButtonText);
         }
 
         private static string GetFallbackDeviceName(string deviceId, string deviceKind)

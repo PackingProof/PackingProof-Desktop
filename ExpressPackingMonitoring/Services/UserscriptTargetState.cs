@@ -30,7 +30,7 @@ internal static class UserscriptTargetState
         {
             return new UserscriptTargetStatus(
                 "暂无订单接收设备",
-                "安装订单联动",
+                "安装订单联动插件",
                 currentSignature);
         }
 
@@ -38,7 +38,7 @@ internal static class UserscriptTargetState
         {
             return new UserscriptTargetStatus(
                 "未配置订单联动",
-                "安装订单联动",
+                "安装订单联动插件",
                 currentSignature);
         }
 
@@ -49,13 +49,13 @@ internal static class UserscriptTargetState
         {
             return new UserscriptTargetStatus(
                 "需要更新订单联动",
-                "更新订单联动",
+                "安装订单联动插件",
                 currentSignature);
         }
 
         return new UserscriptTargetStatus(
             "订单联动已就绪",
-            "订单联动",
+            "安装订单联动插件",
             currentSignature);
     }
 

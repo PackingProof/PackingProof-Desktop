@@ -351,7 +351,7 @@ public partial class PrintWorkstationWindow : Window
             _config,
             _host.GetRecordingDevices(includeKnown: true));
         UserscriptStatusTextBlock.Text = userscriptStatus.StatusText;
-        InstallUserscriptButtonText.Text = userscriptStatus.ButtonText;
+        InstallUserscriptButtonText.Text = AppLanguage.Get(userscriptStatus.ButtonText);
         InstallUserscriptButton.IsEnabled = userscriptStatus.CurrentSignature.Length > 0;
 
         MobileBackupDeviceStatuses.Clear();

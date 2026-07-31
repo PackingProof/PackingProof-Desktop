@@ -2454,12 +2454,12 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="安装订单备注插件" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="播报买家留言和卖家备注"
+                                            <TextBlock Text="安装订单联动插件" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="接收订单、备注和退款提醒"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <Button Grid.Column="2"
-                                                Content="安装订单备注插件"
+                                                Content="安装订单联动插件"
                                                 Click="InstallTool_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>

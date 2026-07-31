@@ -400,6 +400,17 @@
   <data name="Main.PrintNoRefund" xml:space="preserve"><value>{0} Responded; no orders received</value></data>
   <data name="Main.PrintOrders" xml:space="preserve"><value>{0} Received {1} orders</value></data>
   <data name="订单联动" xml:space="preserve"><value>Order integration</value></data>
+  <data name="安装订单联动插件" xml:space="preserve"><value>Install order integration plugin</value></data>
+  <data name="打开订单联动插件安装向导" xml:space="preserve"><value>Open the order integration plugin setup guide</value></data>
+  <data name="接收订单、备注和退款提醒" xml:space="preserve"><value>Receive orders, notes, and refund alerts</value></data>
+  <data name="已就绪" xml:space="preserve"><value>Ready</value></data>
+  <data name="需更新" xml:space="preserve"><value>Update needed</value></data>
+  <data name="未配置" xml:space="preserve"><value>Not configured</value></data>
+  <data name="暂无设备" xml:space="preserve"><value>No devices</value></data>
+  <data name="暂无订单接收设备" xml:space="preserve"><value>No order-receiving devices</value></data>
+  <data name="未配置订单联动" xml:space="preserve"><value>Order integration is not configured</value></data>
+  <data name="需要更新订单联动" xml:space="preserve"><value>Order integration needs an update</value></data>
+  <data name="订单联动已就绪" xml:space="preserve"><value>Order integration is ready</value></data>
   <data name="Main.ConnectionServiceDisabled" xml:space="preserve"><value>Connection service is off</value></data>
   <data name="Main.ConnectionServiceStarting" xml:space="preserve"><value>Preparing connections</value></data>
   <data name="Main.ConnectionServiceUnavailable" xml:space="preserve"><value>Connections unavailable</value></data>

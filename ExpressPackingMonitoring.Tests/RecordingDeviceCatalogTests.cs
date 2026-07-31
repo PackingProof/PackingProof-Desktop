@@ -19,6 +19,9 @@ public sealed class RecordingDeviceCatalogTests
         Assert.Equal(
             "暂无订单接收设备",
             UserscriptTargetState.GetStatus(config, []).StatusText);
+        Assert.Equal(
+            "安装订单联动插件",
+            UserscriptTargetState.GetStatus(config, []).ButtonText);
 
         var phone = new RecordingDeviceInfo
         {
@@ -31,6 +34,9 @@ public sealed class RecordingDeviceCatalogTests
         Assert.Equal(
             "未配置订单联动",
             UserscriptTargetState.GetStatus(config, [phone]).StatusText);
+        Assert.Equal(
+            "安装订单联动插件",
+            UserscriptTargetState.GetStatus(config, [phone]).ButtonText);
     }
 
     [Fact]
@@ -57,7 +63,7 @@ public sealed class RecordingDeviceCatalogTests
         phone.Address = "http://192.168.1.32:5280";
         UserscriptTargetStatus changed = UserscriptTargetState.GetStatus(config, [phone]);
         Assert.Equal("需要更新订单联动", changed.StatusText);
-        Assert.Equal("更新订单联动", changed.ButtonText);
+        Assert.Equal("安装订单联动插件", changed.ButtonText);
     }
 
     private static readonly string[] RecorderCapabilities =
