@@ -79,7 +79,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("height:min(1080px,calc(100dvh - 32px))", html);
         Assert.Contains(".clip-editor-body{min-height:0;flex:1 1 auto;overflow:hidden}", html);
         Assert.Contains(".clip-actions{position:relative;bottom:auto;flex:0 0 auto;", html);
-        Assert.Contains(".clip-actions .btn .icon{width:19px;height:19px", html);
+        Assert.Contains(".clip-actions .btn>[data-icon]{display:grid;width:19px;height:19px", html);
+        Assert.Contains(".clip-actions .btn .icon{display:block;width:19px;height:19px", html);
         Assert.Contains(".clip-editor-body[data-orientation=\"portrait\"]", html);
         Assert.Contains(".clip-info{grid-template-columns:repeat(3,minmax(0,1fr))", html);
         Assert.Contains(".clip-summary-item:first-child{display:none}", html);
