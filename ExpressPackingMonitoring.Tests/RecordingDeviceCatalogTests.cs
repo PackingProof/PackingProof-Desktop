@@ -106,6 +106,29 @@ public sealed class RecordingDeviceCatalogTests
     }
 
     [Fact]
+    public void RecordingWorkstationIncludesItsOwnOrderReceiverAddress()
+    {
+        string workstationNodeId = Guid.NewGuid().ToString("D");
+
+        IReadOnlyList<RecordingDeviceInfo> devices = RecordingDeviceCatalog.Build(
+            DeploymentPresets.RecordingWorkstation,
+            workstationNodeId,
+            "电脑2",
+            5280,
+            "http://192.168.1.42:5280",
+            mobileOrderReceivers: null,
+            connectedClients: null);
+
+        RecordingDeviceInfo workstation = Assert.Single(devices);
+        Assert.Equal(workstationNodeId, workstation.NodeId);
+        Assert.Equal("电脑2", workstation.NodeName);
+        Assert.Equal("pc", workstation.DeviceType);
+        Assert.Equal("http://192.168.1.42:5280", workstation.Address);
+        Assert.Contains(PackingProofCapabilities.Recording, workstation.Capabilities);
+        Assert.Contains(PackingProofCapabilities.OrderReceiver, workstation.Capabilities);
+    }
+
+    [Fact]
     public void ViewerAndOrdinaryMobileBackupHostAreNotRecordingDevices()
     {
         foreach (string preset in new[]

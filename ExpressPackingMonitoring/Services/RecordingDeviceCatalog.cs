@@ -39,10 +39,9 @@ internal static class RecordingDeviceCatalog
         bool includeOffline = false)
     {
         var candidates = new List<RecordingDeviceInfo>();
-        if (string.Equals(
-                DeploymentPresets.Normalize(deploymentPreset),
-                DeploymentPresets.RecordingHost,
-                StringComparison.Ordinal))
+        string normalizedPreset = DeploymentPresets.Normalize(deploymentPreset);
+        if (string.Equals(normalizedPreset, DeploymentPresets.RecordingHost, StringComparison.Ordinal)
+            || string.Equals(normalizedPreset, DeploymentPresets.RecordingWorkstation, StringComparison.Ordinal))
         {
             candidates.Add(new RecordingDeviceInfo
             {
