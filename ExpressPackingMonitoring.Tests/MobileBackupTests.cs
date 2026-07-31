@@ -18,6 +18,56 @@ public sealed class MobileBackupTests
     private const string AccessKey = "0123456789abcdef0123456789abcdef";
 
     [Fact]
+    public void PairingTokenCanBeClaimedOnlyOnceAndPersistsEncryptedDeviceCredential()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            var service = new BackupPairingTokenService(directory, AccessKey);
+            BackupPairingToken token = service.CreateToken();
+
+            Assert.True(service.TryGetTokenCredential(token.TokenId, out string pendingCredential));
+            Assert.Equal(token.Secret, pendingCredential);
+            Assert.True(service.TryClaim(token.TokenId, "pc-node-1", "pc", out string credential));
+            Assert.Equal(token.Secret, credential);
+            Assert.False(service.TryClaim(token.TokenId, "pc-node-2", "pc", out _));
+
+            string storedJson = File.ReadAllText(
+                Path.Combine(directory, "backup-device-credentials.json"),
+                Encoding.UTF8);
+            Assert.DoesNotContain(token.Secret, storedJson, StringComparison.Ordinal);
+
+            var restarted = new BackupPairingTokenService(directory, AccessKey);
+            Assert.True(restarted.TryGetDeviceCredential("pc-node-1", out string restored));
+            Assert.Equal(token.Secret, restored);
+            Assert.True(restarted.TryGetDeviceCredential("pc-node-1", out _, out string deviceKind));
+            Assert.Equal("pc", deviceKind);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void ExpiredPairingTokenCannotAuthenticateOrBeClaimed()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            var service = new BackupPairingTokenService(directory, AccessKey);
+            BackupPairingToken token = service.CreateToken(TimeSpan.FromMilliseconds(-1));
+
+            Assert.False(service.TryGetTokenCredential(token.TokenId, out _));
+            Assert.False(service.TryClaim(token.TokenId, "pc-node-1", "pc", out _));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void ComputerIdIsGeneratedOnceAndThenRemainsStable()
     {
         var config = new AppConfig { WebAccessKey = AccessKey };

@@ -7,6 +7,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.ViewModels;
 
 namespace ExpressPackingMonitoring;
 
@@ -27,6 +28,7 @@ public partial class ViewerClientWindow : Window
     private readonly bool _bindingOnly;
     private readonly DispatcherTimer _onlineTimer;
     private CancellationTokenSource? _searchCancellation;
+    private CancellationTokenSource? _qrScanCancellation;
     private PackingProofNodeInfo? _boundHost;
     private ManualHostConnectionWindow? _manualConnectionWindow;
     private IReadOnlyList<RecordingDeviceInfo> _knownRecordingDevices = [];
@@ -59,6 +61,7 @@ public partial class ViewerClientWindow : Window
             DiscoveryHeadingText.Text = "选择保存主机";
             SearchStatusText.Text = "正在查找同一局域网中可用的保存主机";
             DeferBindingButton.Visibility = Visibility.Visible;
+            ScanPhonePairingButton.Visibility = Visibility.Visible;
             ViewerDetailsPanel.Visibility = Visibility.Collapsed;
         }
         ApplyConnectionViewState(
@@ -74,6 +77,8 @@ public partial class ViewerClientWindow : Window
             _onlineTimer.Stop();
             _searchCancellation?.Cancel();
             _searchCancellation?.Dispose();
+            _qrScanCancellation?.Cancel();
+            _qrScanCancellation?.Dispose();
             CloseManualConnectionWindow();
         };
     }
@@ -276,11 +281,32 @@ public partial class ViewerClientWindow : Window
         }
 
         _isConnecting = true;
-        string backupCredential = _bindingOnly
-            ? BackupRequestAuthentication.DeriveDeviceCredential(
+        string backupCredential = resolvedAccessKey;
+        if (_bindingOnly && resolvedAccessKey.StartsWith("pair:", StringComparison.Ordinal))
+        {
+            try
+            {
+                backupCredential = await WorkstationNetwork.ClaimTemporaryPairingAsync(
+                    node.Address,
+                    resolvedAccessKey,
+                    _config.NodeId,
+                    string.IsNullOrWhiteSpace(_config.NodeName)
+                        ? Environment.MachineName
+                        : _config.NodeName);
+            }
+            catch (Exception ex)
+            {
+                _isConnecting = false;
+                ShowConnectionError(ex.Message);
+                return;
+            }
+        }
+        else if (_bindingOnly)
+        {
+            backupCredential = BackupRequestAuthentication.DeriveDeviceCredential(
                 resolvedAccessKey,
-                _config.NodeId)
-            : resolvedAccessKey;
+                _config.NodeId);
+        }
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
             $"正在连接“{node.NodeName}”");
@@ -564,6 +590,51 @@ public partial class ViewerClientWindow : Window
     private void OpenManualConnection_Click(object sender, RoutedEventArgs e)
     {
         OpenManualConnectionWindow();
+    }
+
+    private async void ScanPhonePairing_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_bindingOnly || Owner?.DataContext is not MainViewModel viewModel)
+        {
+            ShowConnectionError("未找到正在运行的电脑录像界面，请使用手动连接");
+            return;
+        }
+
+        _qrScanCancellation?.Cancel();
+        _qrScanCancellation?.Dispose();
+        _qrScanCancellation = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        ScanPhonePairingButton.IsEnabled = false;
+        ApplyConnectionViewState(
+            ConnectionViewState.Connecting,
+            "请将手机上两分钟内有效的连接二维码对准电脑摄像头");
+        try
+        {
+            string input = await viewModel.ScanHostPairingQrAsync(_qrScanCancellation.Token);
+            WorkstationNetwork.ParseHostConnectionInput(input, out string address, out string accessKey);
+            if (string.IsNullOrWhiteSpace(address) || !accessKey.StartsWith("pair:", StringComparison.Ordinal))
+                throw new InvalidOperationException("这不是手机生成的录制电脑临时连接码");
+
+            PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(
+                address,
+                _qrScanCancellation.Token);
+            if (node == null)
+                throw new InvalidOperationException("无法连接二维码中的保存主机，请检查两台设备是否在同一网络");
+            await BindHostAsync(node, accessKey);
+        }
+        catch (OperationCanceledException)
+        {
+            if (IsLoaded)
+                ApplyConnectionViewState(ConnectionViewState.Ready, "未识别到连接码，可重新扫码或手动连接");
+        }
+        catch (Exception ex)
+        {
+            ShowConnectionError(ex.Message);
+        }
+        finally
+        {
+            if (IsLoaded)
+                ScanPhonePairingButton.IsEnabled = true;
+        }
     }
 
     private void OpenManualConnectionWindow(string? error = null)

@@ -86,6 +86,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _accessKey;
         private readonly Func<string> _mobileConnectionUrlProvider;
         private readonly MobileBackupService _mobileBackupService;
+        private readonly BackupPairingTokenService _backupPairingTokens;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
         private readonly ConnectedClientRegistry _connectedClients;
@@ -209,6 +210,9 @@ namespace ExpressPackingMonitoring.Services
             LoadOrderInfoCacheFromDatabase();
             string resolvedMobileBackupStateDirectory = mobileBackupStateDirectory
                 ?? Path.Combine(AppPaths.CacheDir, "mobile-backup");
+            _backupPairingTokens = new BackupPairingTokenService(
+                resolvedMobileBackupStateDirectory,
+                _accessKey);
             _mobileBackupService = new MobileBackupService(
                 _db,
                 resolvedMobileBackupStateDirectory,
@@ -575,7 +579,32 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                if (IsMobileBackupPath(path) && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey))
+                string pairingTokenId = "";
+                bool isPairingClaim = method == "POST"
+                    && TryParseBackupPairingClaimPath(path, out pairingTokenId);
+                if (isPairingClaim)
+                {
+                    string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+                    bool authorized = _backupPairingTokens.TryGetTokenCredential(
+                            pairingTokenId,
+                            out string tokenCredential)
+                        && TryAuthorizeSignedRequest(
+                            ctx,
+                            deviceId,
+                            tokenCredential,
+                            out _)
+                        && _backupPairingTokens.TryClaim(
+                            pairingTokenId,
+                            deviceId,
+                            "pc",
+                            out _);
+                    if (!authorized)
+                    {
+                        SendJson(ctx, 403, new { errorCode = "pairing_token_invalid", error = "临时连接码已失效，请在手机上重新生成" });
+                        return;
+                    }
+                }
+                else if (IsMobileBackupPath(path) && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey))
                 {
                     SendJson(ctx, missingBackupKey ? 401 : 403, new
                     {
@@ -638,6 +667,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/mobile-backup/uploads" when method == "POST":
                         HandleCreateMobileBackupUpload(ctx);
                         break;
+                    case "/api/mobile-backup/pairing-tokens" when method == "POST":
+                        HandleCreateBackupPairingToken(ctx);
+                        break;
                     case "/api/connections/heartbeat" when method == "POST":
                         HandleConnectionHeartbeat(ctx);
                         break;
@@ -678,6 +710,8 @@ namespace ExpressPackingMonitoring.Services
                             HandleCompleteMobileBackupUpload(ctx, completeUploadId);
                         else if (method == "GET" && TryParseMobileBackupAttestationPath(path, out long remoteRecordId))
                             HandleMobileBackupAttestation(ctx, remoteRecordId);
+                        else if (isPairingClaim)
+                            SendJson(ctx, 200, new { ok = true, authVersion = BackupRequestAuthentication.CurrentVersion });
                         else if (method == "HEAD" && path.StartsWith("/api/videos/") && path.EndsWith("/play"))
                         {
                             // HEAD 请求只返回 headers，不启动转码/传输
@@ -876,6 +910,18 @@ namespace ExpressPackingMonitoring.Services
         private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
         {
             string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+            string credential = _backupPairingTokens.TryGetDeviceCredential(deviceId, out string pairedCredential)
+                ? pairedCredential
+                : BackupRequestAuthentication.DeriveDeviceCredential(_accessKey, deviceId);
+            return TryAuthorizeSignedRequest(ctx, deviceId, credential, out missingKey);
+        }
+
+        private bool TryAuthorizeSignedRequest(
+            HttpListenerContext ctx,
+            string deviceId,
+            string credential,
+            out bool missingKey)
+        {
             string timestampText = ctx.Request.Headers[BackupRequestAuthentication.TimestampHeader]?.Trim() ?? "";
             string nonce = ctx.Request.Headers[BackupRequestAuthentication.NonceHeader]?.Trim() ?? "";
             string declaredHash = ctx.Request.Headers[BackupRequestAuthentication.ContentHashHeader]?.Trim() ?? "";
@@ -900,7 +946,6 @@ namespace ExpressPackingMonitoring.Services
             if (!BackupRequestAuthentication.FixedTimeEquals(actualHash, declaredHash))
                 return false;
 
-            string credential = BackupRequestAuthentication.DeriveDeviceCredential(_accessKey, deviceId);
             string expected = BackupRequestAuthentication.CreateRequestSignature(
                 credential,
                 ctx.Request.HttpMethod,
@@ -973,6 +1018,45 @@ namespace ExpressPackingMonitoring.Services
                 return false;
             string value = path[prefix.Length..^suffix.Length].Trim('/');
             return long.TryParse(value, out recordId) && recordId > 0;
+        }
+
+        private static bool TryParseBackupPairingClaimPath(string path, out string tokenId)
+        {
+            tokenId = "";
+            const string prefix = "/api/mobile-backup/pairing-tokens/";
+            const string suffix = "/claim";
+            if (path == null || !path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return false;
+            tokenId = path[prefix.Length..^suffix.Length].Trim('/');
+            return tokenId.Length is >= 16 and <= 64 && tokenId.All(Uri.IsHexDigit);
+        }
+
+        private void HandleCreateBackupPairingToken(HttpListenerContext ctx)
+        {
+            string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
+            bool registeredAsNonMobile = _backupPairingTokens.TryGetDeviceCredential(
+                    deviceId,
+                    out _,
+                    out string registeredKind)
+                && !string.Equals(registeredKind, "mobile", StringComparison.OrdinalIgnoreCase);
+            if (registeredAsNonMobile || !string.Equals(
+                    ctx.Request.Headers["X-EPM-Device-Kind"],
+                    "mobile",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                SendJson(ctx, 403, new { errorCode = "mobile_device_required", error = "请使用已连接的手机生成临时连接码" });
+                return;
+            }
+            BackupPairingToken token = _backupPairingTokens.CreateToken();
+            string authority = ctx.Request.Url?.Authority ?? $"127.0.0.1:{Port}";
+            string link = $"http://{authority}/?pairToken={token.TokenId}&pairSecret={token.Secret}&nodeId={Uri.EscapeDataString(_nodeId)}";
+            SendJson(ctx, 200, new
+            {
+                pairingLink = link,
+                expiresAt = token.ExpiresAt,
+                expiresInSeconds = Math.Max(1, (int)(token.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds)
+            });
         }
 
         private void HandleMobileBackupCapabilities(HttpListenerContext ctx)

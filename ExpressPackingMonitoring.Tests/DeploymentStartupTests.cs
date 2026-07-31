@@ -153,6 +153,40 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void RecordingWorkstationCanScanPhoneTemporaryPairingCodeWithoutOwningCamera()
+    {
+        string xaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml");
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs");
+
+        Assert.Contains("x:Name=\"ScanPhonePairingButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"扫描手机临时连接码\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource FluentCameraIcon", xaml, StringComparison.Ordinal);
+        Assert.Contains("Owner?.DataContext is not MainViewModel", source, StringComparison.Ordinal);
+        Assert.Contains("viewModel.ScanHostPairingQrAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoCaptureDevice", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TemporaryPairingLinkPreservesAddressAndCaseSensitiveSecret()
+    {
+        const string link =
+            "http://192.168.1.8:5280/?pairToken=aBcD0123456789ef&pairSecret=AbCd0123456789abcdef0123456789abcdef";
+
+        WorkstationNetwork.ParseHostConnectionInput(link, out string address, out string accessKey);
+
+        Assert.Equal("192.168.1.8:5280", address);
+        Assert.Equal(
+            "pair:aBcD0123456789ef:AbCd0123456789abcdef0123456789abcdef",
+            accessKey);
+    }
+
+    [Fact]
     public void ViewerClientActionButtonsUseFluentIconsAndNamedDynamicLabels()
     {
         string xaml = ReadRepositoryFile(

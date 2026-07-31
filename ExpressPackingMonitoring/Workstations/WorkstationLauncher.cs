@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Windows;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Localization;
@@ -315,6 +316,24 @@ public static class WorkstationNetwork
                     break;
                 }
             }
+            if (accessKey.Length == 0)
+            {
+                Dictionary<string, string> query = uri.Query.TrimStart('?')
+                    .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(item => item.Split('=', 2))
+                    .Where(pair => pair.Length == 2)
+                    .ToDictionary(
+                        pair => Uri.UnescapeDataString(pair[0]),
+                        pair => Uri.UnescapeDataString(pair[1]),
+                        StringComparer.OrdinalIgnoreCase);
+                if (query.TryGetValue("pairToken", out string? tokenId)
+                    && query.TryGetValue("pairSecret", out string? tokenSecret)
+                    && tokenId.Length >= 16
+                    && tokenSecret.Length >= 32)
+                {
+                    accessKey = $"pair:{tokenId.Trim()}:{tokenSecret.Trim()}";
+                }
+            }
             return;
         }
         address = NormalizeAddress(input);
@@ -584,6 +603,50 @@ public static class WorkstationNetwork
         {
             return new RecordingWorkstationHeartbeatResult(false, "");
         }
+    }
+
+    internal static async Task<string> ClaimTemporaryPairingAsync(
+        string address,
+        string encodedCredential,
+        string deviceId,
+        string deviceName,
+        CancellationToken cancellationToken = default)
+    {
+        string[] parts = (encodedCredential ?? "").Split(':', 3);
+        if (parts.Length != 3 || parts[0] != "pair")
+            return encodedCredential?.Trim() ?? "";
+        string tokenId = parts[1].Trim();
+        string tokenSecret = parts[2].Trim();
+        string path = $"/api/mobile-backup/pairing-tokens/{Uri.EscapeDataString(tokenId)}/claim";
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string contentHash = BackupRequestAuthentication.ComputeContentHash([]);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{ToUrl(address).TrimEnd('/')}{path}");
+        request.Content = new ByteArrayContent([]);
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", deviceId);
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Name", Uri.EscapeDataString(deviceName));
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "2");
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.TimestampHeader, timestamp.ToString());
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.ContentHashHeader, contentHash);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.SignatureHeader,
+            BackupRequestAuthentication.CreateRequestSignature(
+                tokenSecret,
+                "POST",
+                path,
+                timestamp,
+                nonce,
+                contentHash,
+                deviceId));
+        using var client = CreateLanHttpClient(TimeSpan.FromSeconds(8));
+        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException("手机临时连接码已失效，请在手机上重新生成");
+        return tokenSecret;
     }
 
     public static async Task<TestOrderBroadcastResult> SendTestOrderToRecordingDevicesAsync(

@@ -825,4 +825,6 @@
   <data name="用于区分不同的录像电脑，例如电脑1、电脑2" xml:space="preserve"><value>用于区分不同的录像电脑，例如电脑1、电脑2</value></data>
   <data name="手机备份" xml:space="preserve"><value>手机备份</value></data>
   <data name="接收到的订单" xml:space="preserve"><value>接收到的订单</value></data>
+  <data name="使用本机录像摄像头扫描手机上的临时连接码" xml:space="preserve"><value>使用本机录像摄像头扫描手机上的临时连接码</value></data>
+  <data name="摄像头扫码" xml:space="preserve"><value>摄像头扫码</value></data>
 </root>

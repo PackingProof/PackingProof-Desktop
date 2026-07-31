@@ -356,6 +356,18 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal("YT123456789012", decoder.DecodeGuideRegion(frame));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PairingQrDecoderPreservesCompleteConnectionLink(bool rotate90)
+    {
+        const string link = "http://192.168.1.8:5280/?pairToken=aBcD0123456789ef&pairSecret=0123456789abcdef0123456789abcdef";
+        using Mat frame = CreateFrameWithQrCode(link, rotate90);
+        using var decoder = new CameraPairingQrFrameDecoder();
+
+        Assert.Equal(link, decoder.Decode(frame));
+    }
+
     [Fact]
     public void Decoder_GuideRegionCoversMostOfFrameWithoutBecomingFullFrame()
     {
@@ -734,4 +746,38 @@ public sealed class CameraBarcodeRecognitionTests
 
     private static Mat CreateSolidFrame(byte value) =>
         new(new OpenCvSharp.Size(1280, 720), MatType.CV_8UC3, new Scalar(value, value, value));
+
+    private static Mat CreateFrameWithQrCode(string value, bool rotate90)
+    {
+        var writer = new BarcodeWriterPixelData
+        {
+            Format = BarcodeFormat.QR_CODE,
+            Options = new EncodingOptions
+            {
+                Width = 420,
+                Height = 420,
+                Margin = 3
+            }
+        };
+        var pixels = writer.Write(value);
+        using Mat bgra = Mat.FromPixelData(
+            pixels.Height,
+            pixels.Width,
+            MatType.CV_8UC4,
+            pixels.Pixels).Clone();
+        using Mat qr = new();
+        Cv2.CvtColor(bgra, qr, ColorConversionCodes.BGRA2BGR);
+        using Mat oriented = new();
+        if (rotate90)
+            Cv2.Rotate(qr, oriented, RotateFlags.Rotate90Clockwise);
+        else
+            qr.CopyTo(oriented);
+
+        var frame = new Mat(new OpenCvSharp.Size(1280, 720), MatType.CV_8UC3, Scalar.White);
+        int x = (frame.Width - oriented.Width) / 2;
+        int y = (frame.Height - oriented.Height) / 2;
+        using Mat target = frame.SubMat(new Rect(x, y, oriented.Width, oriented.Height));
+        oriented.CopyTo(target);
+        return frame;
+    }
 }

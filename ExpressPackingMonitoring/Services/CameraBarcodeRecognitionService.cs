@@ -528,6 +528,101 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     }
 }
 
+internal sealed class CameraPairingQrFrameDecoder : IDisposable
+{
+    private readonly BarcodeReaderGeneric _reader = new()
+    {
+        AutoRotate = false,
+        Options = new DecodingOptions
+        {
+            TryHarder = true,
+            PossibleFormats = [BarcodeFormat.QR_CODE]
+        }
+    };
+    private readonly Mat _gray = new();
+    private readonly Mat _scaled = new();
+    private readonly Mat _continuous = new();
+    private byte[] _pixels = [];
+    private byte[] _orientationScratch = [];
+    private bool _disposed;
+
+    public string? Decode(Mat frame)
+    {
+        if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
+            return null;
+
+        switch (frame.Channels())
+        {
+            case 1:
+                frame.CopyTo(_gray);
+                break;
+            case 3:
+                Cv2.CvtColor(frame, _gray, ColorConversionCodes.BGR2GRAY);
+                break;
+            case 4:
+                Cv2.CvtColor(frame, _gray, ColorConversionCodes.BGRA2GRAY);
+                break;
+            default:
+                return null;
+        }
+
+        double dimensionScale = (double)CameraBarcodeFrameDecoder.MaxDecodeDimension /
+            Math.Max(_gray.Width, _gray.Height);
+        double pixelScale = Math.Sqrt(
+            (double)CameraBarcodeFrameDecoder.MaxDecodePixels /
+            (_gray.Width * (double)_gray.Height));
+        double scale = Math.Min(1, Math.Min(dimensionScale, pixelScale));
+        Mat source = _gray;
+        if (scale < 0.999)
+        {
+            int width = Math.Max(1, (int)Math.Round(_gray.Width * scale));
+            int height = Math.Max(1, (int)Math.Round(_gray.Height * scale));
+            Cv2.Resize(_gray, _scaled, new OpenCvSharp.Size(width, height), interpolation: InterpolationFlags.Area);
+            source = _scaled;
+        }
+        if (!source.IsContinuous())
+        {
+            source.CopyTo(_continuous);
+            source = _continuous;
+        }
+
+        int length = checked(source.Width * source.Height);
+        if (_pixels.Length != length)
+        {
+            _pixels = GC.AllocateUninitializedArray<byte>(length);
+            _orientationScratch = GC.AllocateUninitializedArray<byte>(length);
+        }
+        Marshal.Copy(source.Data, _pixels, 0, length);
+
+        for (int orientation = 0; orientation < 4; orientation++)
+        {
+            var luminance = new ReusableGrayLuminanceSource(
+                _pixels,
+                _orientationScratch,
+                source.Width,
+                source.Height,
+                orientation);
+            Result? result = _reader.Decode(luminance);
+            if (result?.BarcodeFormat == BarcodeFormat.QR_CODE)
+            {
+                string value = (result.Text ?? "").Trim();
+                return value.Length == 0 ? null : value;
+            }
+        }
+        return null;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _gray.Dispose();
+        _scaled.Dispose();
+        _continuous.Dispose();
+    }
+}
+
 internal sealed class ReusableGrayLuminanceSource : LuminanceSource
 {
     private readonly byte[] _pixels;

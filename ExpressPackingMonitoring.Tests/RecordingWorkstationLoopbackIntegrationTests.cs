@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -137,6 +138,63 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             Assert.Equal(hostConfig.NodeId, hostNode.NodeId);
             Assert.Equal(hostConfig.WebAccessKey, parsedAccessKey);
 
+            string phoneDeviceId = Guid.NewGuid().ToString("D");
+            string phoneCredential = BackupRequestAuthentication.DeriveDeviceCredential(
+                parsedAccessKey,
+                phoneDeviceId);
+            using HttpResponseMessage pairingResponse = await SendSignedAsync(
+                hostNode.Address,
+                "/api/mobile-backup/pairing-tokens",
+                HttpMethod.Post,
+                phoneDeviceId,
+                "mobile",
+                phoneCredential,
+                TestContext.Current.CancellationToken);
+            Assert.True(
+                pairingResponse.IsSuccessStatusCode,
+                await pairingResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            using JsonDocument pairingDocument = JsonDocument.Parse(
+                await pairingResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            string pairingLink = Assert.IsType<string>(
+                pairingDocument.RootElement.GetProperty("pairingLink").GetString());
+            WorkstationNetwork.ParseHostConnectionInput(
+                pairingLink,
+                out string temporaryHostAddress,
+                out string temporaryAccessKey);
+            string temporaryDeviceId = Guid.NewGuid().ToString("D");
+            string claimedCredential = await WorkstationNetwork.ClaimTemporaryPairingAsync(
+                temporaryHostAddress,
+                temporaryAccessKey,
+                temporaryDeviceId,
+                "临时录制电脑",
+                TestContext.Current.CancellationToken);
+            Assert.Equal(temporaryAccessKey.Split(':', 3)[2], claimedCredential);
+            using HttpResponseMessage temporaryCapabilityResponse = await SendSignedAsync(
+                hostNode.Address,
+                "/api/mobile-backup/capabilities",
+                HttpMethod.Get,
+                temporaryDeviceId,
+                "pc",
+                claimedCredential,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, temporaryCapabilityResponse.StatusCode);
+            using HttpResponseMessage chainedPairingResponse = await SendSignedAsync(
+                hostNode.Address,
+                "/api/mobile-backup/pairing-tokens",
+                HttpMethod.Post,
+                temporaryDeviceId,
+                "mobile",
+                claimedCredential,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, chainedPairingResponse.StatusCode);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                WorkstationNetwork.ClaimTemporaryPairingAsync(
+                    temporaryHostAddress,
+                    temporaryAccessKey,
+                    Guid.NewGuid().ToString("D"),
+                    "另一台电脑",
+                    TestContext.Current.CancellationToken));
+
             workstationConfig.LastKnownHostNodeId = hostNode.NodeId;
             workstationConfig.LastKnownHostNodeName = hostNode.NodeName;
             workstationConfig.LastKnownHostAddress = hostNode.Address;
@@ -262,6 +320,49 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
             useAsync: true);
         byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static async Task<HttpResponseMessage> SendSignedAsync(
+        string hostAddress,
+        string path,
+        HttpMethod method,
+        string deviceId,
+        string deviceKind,
+        string credential,
+        CancellationToken cancellationToken)
+    {
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string contentHash = BackupRequestAuthentication.ComputeContentHash([]);
+        var request = new HttpRequestMessage(
+            method,
+            $"{hostAddress.TrimEnd('/')}{path}");
+        if (method != HttpMethod.Get)
+            request.Content = new ByteArrayContent([]);
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", deviceId);
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", deviceKind);
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "2");
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.TimestampHeader,
+            timestamp.ToString());
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.ContentHashHeader,
+            contentHash);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.SignatureHeader,
+            BackupRequestAuthentication.CreateRequestSignature(
+                credential,
+                method.Method,
+                path,
+                timestamp,
+                nonce,
+                contentHash,
+                deviceId));
+        using var client = new HttpClient(
+            WorkstationNetwork.CreateLanHttpMessageHandler(),
+            disposeHandler: true);
+        return await client.SendAsync(request, cancellationToken);
     }
 
     private static string CreateTempDirectory()

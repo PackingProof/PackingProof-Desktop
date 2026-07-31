@@ -187,6 +187,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private GlobalKeyboardHook _globalKeyHook;
         private CameraBarcodeRecognitionService _cameraBarcodeRecognition;
         private CancellationTokenSource _cameraBarcodeFeedbackCts;
+        private readonly CameraPairingQrFrameDecoder _cameraPairingQrDecoder = new();
+        private readonly object _cameraPairingQrLock = new();
+        private TaskCompletionSource<string> _cameraPairingQrScan;
+        private int _cameraPairingQrDecodeBusy;
 
         private bool _isBusy;
         public bool IsBusy
@@ -739,6 +743,60 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             _cameraBarcodeRecognition?.TrySubmitFrame(frame, allowFullFrame: !IsRecording);
+        }
+
+        public async Task<string> ScanHostPairingQrAsync(CancellationToken cancellationToken)
+        {
+            TaskCompletionSource<string> scan = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_cameraPairingQrLock)
+            {
+                if (_cameraPairingQrScan != null)
+                    throw new InvalidOperationException("正在识别连接二维码");
+                _cameraPairingQrScan = scan;
+            }
+
+            try
+            {
+                return await scan.Task.WaitAsync(cancellationToken);
+            }
+            finally
+            {
+                lock (_cameraPairingQrLock)
+                {
+                    if (ReferenceEquals(_cameraPairingQrScan, scan))
+                        _cameraPairingQrScan = null;
+                }
+            }
+        }
+
+        private void TrySubmitCameraPairingQrFrame(Mat frame)
+        {
+            TaskCompletionSource<string> scan;
+            lock (_cameraPairingQrLock)
+                scan = _cameraPairingQrScan;
+            if (scan == null || scan.Task.IsCompleted
+                || Interlocked.CompareExchange(ref _cameraPairingQrDecodeBusy, 1, 0) != 0)
+                return;
+
+            Mat copy = frame.Clone();
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    string result = _cameraPairingQrDecoder.Decode(copy);
+                    if (!string.IsNullOrWhiteSpace(result))
+                        scan.TrySetResult(result);
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("保存主机", $"识别连接二维码失败：{ex.Message}");
+                }
+                finally
+                {
+                    copy.Dispose();
+                    Interlocked.Exchange(ref _cameraPairingQrDecodeBusy, 0);
+                }
+            });
         }
 
         private void OnCameraBarcodeConfirmed(string code)
@@ -3806,6 +3864,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     if (currentFrame != null && !currentFrame.Empty())
                     {
+                        TrySubmitCameraPairingQrFrame(currentFrame);
                         TrySubmitCameraBarcodeFrame(currentFrame);
                         Mat processedFrame = currentFrame;
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
@@ -4406,6 +4465,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _cameraBarcodeFeedbackCts?.Cancel();
             _previewAlertCts?.Cancel();
             try { _cameraBarcodeRecognition?.Dispose(); } catch { }
+            try { _cameraPairingQrDecoder.Dispose(); } catch { }
             try { _uiHeartbeatTimer?.Stop(); } catch { }
             _stopReason = "程序退出";
 
