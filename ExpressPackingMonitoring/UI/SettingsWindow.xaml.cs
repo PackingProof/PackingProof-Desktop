@@ -94,6 +94,15 @@ namespace ExpressPackingMonitoring.UI
             targetTypes.Select(_ => Binding.DoNothing).ToArray();
     }
 
+    public sealed class AdvancedModeTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+            AppLanguage.Get(value is true ? "点击隐藏高级选项" : "点击显示高级选项");
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            Binding.DoNothing;
+    }
+
     public partial class SettingsWindow : Window
     {
         public SettingsContext Context { get; }
@@ -104,6 +113,8 @@ namespace ExpressPackingMonitoring.UI
         public string CurrentDiskUsageText { get; set; }
         public string AppVersion { get; } = ExpressPackingMonitoring.Config.AppVersion.Current;
         public string AppBuildDate { get; } = ExpressPackingMonitoring.Config.AppVersion.BuildDateText;
+        public string AppCommitText { get; } = GetAppCommitText();
+        public string AppCommitToolTip { get; } = GetAppCommitToolTip();
         public ImageSource AppIconImage { get; } = GetLargestAppIconImage();
         public List<EdgeVoiceOption> EdgeVoiceOptions { get; } = new()
         {
@@ -128,6 +139,22 @@ namespace ExpressPackingMonitoring.UI
         private string _originalTheme;
         private string _originalLanguage;
         private readonly string _originalDeploymentPreset;
+
+        private static string GetAppCommitText()
+        {
+            string shortId = ExpressPackingMonitoring.Config.AppVersion.CommitShortId;
+            return shortId.Length == 0
+                ? AppLanguage.Get("Commit 未知")
+                : AppLanguage.Format("Commit {0}", shortId);
+        }
+
+        private static string GetAppCommitToolTip()
+        {
+            string commitId = ExpressPackingMonitoring.Config.AppVersion.CommitId;
+            return commitId.Length == 0
+                ? AppLanguage.Get("Commit 未知")
+                : AppLanguage.Format("完整 Commit ID：{0}", commitId);
+        }
         private string _originalNodeName;
         private bool _isRecording;
         private bool _isLoadingDevices;

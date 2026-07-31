@@ -66,7 +66,6 @@ public sealed class SettingsCapabilityVisibilityTests
     [InlineData("关闭窗口时")]
     [InlineData("界面语言")]
     [InlineData("外观主题")]
-    [InlineData("点击显示/隐藏高级选项")]
     [InlineData("开机自启动")]
     [InlineData("自动检查更新")]
     public void SharedSettingsAreNotHiddenByWorkstationCapabilities(string label)
@@ -77,6 +76,20 @@ public sealed class SettingsCapabilityVisibilityTests
 
         Assert.DoesNotContain(
             labelElement.AncestorsAndSelf()
+                .Select(element => (string?)element.Attribute("Visibility"))
+                .Where(value => value != null),
+            value => value!.Contains("Capabilities.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AdvancedSettingsEntry_IsNotHiddenByWorkstationCapabilities()
+    {
+        XElement toggle = Assert.Single(
+            LoadSettingsXaml().Descendants(Presentation + "ToggleButton"),
+            element => (string?)element.Attribute(Xaml + "Name") == "AdvancedModeButton");
+
+        Assert.DoesNotContain(
+            toggle.AncestorsAndSelf()
                 .Select(element => (string?)element.Attribute("Visibility"))
                 .Where(value => value != null),
             value => value!.Contains("Capabilities.", StringComparison.Ordinal));

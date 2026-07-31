@@ -546,7 +546,11 @@
   <data name="下一页" xml:space="preserve"><value>下一页</value></data>
   <data name="显示高级设置" xml:space="preserve"><value>显示高级设置</value></data>
   <data name="高级模式" xml:space="preserve"><value>高级模式</value></data>
-  <data name="点击显示/隐藏高级选项" xml:space="preserve"><value>点击显示/隐藏高级选项</value></data>
+  <data name="点击显示高级选项" xml:space="preserve"><value>点击显示高级选项</value></data>
+  <data name="点击隐藏高级选项" xml:space="preserve"><value>点击隐藏高级选项</value></data>
+  <data name="Commit 未知" xml:space="preserve"><value>Commit 未知</value></data>
+  <data name="Commit {0}" xml:space="preserve"><value>Commit {0}</value></data>
+  <data name="完整 Commit ID：{0}" xml:space="preserve"><value>完整 Commit ID：{0}</value></data>
   <data name="音频直接写入 MKV" xml:space="preserve"><value>音频直接写入 MKV</value></data>
   <data name="将声音直接编码到临时录像文件，减少临时文件和后处理" xml:space="preserve"><value>将声音直接编码到临时录像文件，减少临时文件和后处理</value></data>
   <data name="开启音频直接写入 MKV？" xml:space="preserve"><value>开启音频直接写入 MKV？</value></data>

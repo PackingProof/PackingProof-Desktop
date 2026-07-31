@@ -22,13 +22,40 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Contains(
             "Config.ShowAdvancedSettings",
             (string?)toggle.Attribute("IsChecked") ?? string.Empty);
-        Assert.Equal("点击显示/隐藏高级选项", (string?)toggle.Attribute("AutomationProperties.Name"));
+        Assert.Null(toggle.Attribute("AutomationProperties.Name"));
+        Assert.Empty(toggle.Descendants(Presentation + "Path"));
+
+        XElement text = Assert.Single(toggle.Descendants(Presentation + "TextBlock"));
+        Assert.Contains("AdvancedModeTextConverter", (string?)text.Attribute("Text") ?? string.Empty);
+        Assert.Contains("Mode=OneWay", (string?)text.Attribute("Text") ?? string.Empty);
+
+        XElement style = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "AdvancedModeButtonStyle");
         Assert.Contains(
-            toggle.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "点击显示/隐藏高级选项");
-        Assert.DoesNotContain(
-            toggle.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") is "已开启" or "已关闭");
+            style.Elements(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "AutomationProperties.Name"
+                && ((string?)element.Attribute("Value"))?.Contains("AdvancedModeTextConverter", StringComparison.Ordinal) == true
+                && ((string?)element.Attribute("Value"))?.Contains("Mode=OneWay", StringComparison.Ordinal) == true);
+        Assert.Contains(
+            style.Elements(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "HorizontalContentAlignment"
+                && (string?)element.Attribute("Value") == "Center");
+
+        XElement template = Assert.Single(style.Descendants(Presentation + "ControlTemplate"));
+        XElement checkedTrigger = Assert.Single(
+            template.Descendants(Presentation + "Trigger"),
+            element => (string?)element.Attribute("Property") == "IsChecked"
+                && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(checkedTrigger.Descendants(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "Background"
+                && (string?)element.Attribute("Value") == "{DynamicResource AccentBlue}");
+        Assert.Contains(checkedTrigger.Descendants(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "Foreground"
+                && (string?)element.Attribute("Value") == "White");
+        Assert.Contains(template.Descendants(Presentation + "MultiTrigger").Descendants(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "Background"
+                && (string?)element.Attribute("Value") == "{DynamicResource AccentBlueDark}");
         Assert.DoesNotContain(
             document.Descendants(Presentation + "CheckBox"),
             element => (string?)element.Attribute(Xaml + "Name") == "ShowAdvancedSettingsCheckBox");
@@ -57,6 +84,19 @@ public sealed class SettingsAdvancedVisibilityTests
             XElement labelElement = FindLabel(document, label);
             Assert.True(IsControlledByAdvancedToggle(labelElement), $"{label} 未接入高级设置开关");
         }
+    }
+
+    [Fact]
+    public void AboutPage_ShowsOneWayCommitSummaryAndFullCommitToolTip()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement commit = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => ((string?)element.Attribute("Text"))?.Contains("AppCommitText", StringComparison.Ordinal) == true);
+
+        Assert.Contains("Mode=OneWay", (string?)commit.Attribute("Text") ?? string.Empty);
+        Assert.Contains("AppCommitToolTip", (string?)commit.Attribute("ToolTip") ?? string.Empty);
+        Assert.Contains("Mode=OneWay", (string?)commit.Attribute("ToolTip") ?? string.Empty);
     }
 
     [Fact]

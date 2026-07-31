@@ -15,6 +15,7 @@
         <local:IntSliderValueConverter x:Key="IntSliderValueConverter"/>
         <local:VideoQualityLabelConverter x:Key="VideoQualityLabelConverter"/>
         <local:AnyTrueConverter x:Key="AnyTrueConverter"/>
+        <local:AdvancedModeTextConverter x:Key="AdvancedModeTextConverter"/>
         <!-- 【必需】1. GroupTitle: 用于每个页签顶部的巨大标题 -->
         <Style x:Key="GroupTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
@@ -465,7 +466,9 @@
             <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="AutomationProperties.Name"
+                    Value="{Binding IsChecked, RelativeSource={RelativeSource Self}, Mode=OneWay, Converter={StaticResource AdvancedModeTextConverter}}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
@@ -480,14 +483,23 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource BorderLight}"/>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PanelBackground}"/>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentBlue}"/>
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                <Setter Property="Foreground" Value="White"/>
                             </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentBlueDark}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlueDark}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </MultiTrigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                             </Trigger>
@@ -828,22 +840,11 @@
                                               Margin="0,8,0,0"
                                               Style="{StaticResource AdvancedModeButtonStyle}"
                                               IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              Unchecked="AdvancedModeButton_Unchecked"
-                                              AutomationProperties.Name="点击显示/隐藏高级选项">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Path Data="{StaticResource FluentSettingsIcon}"
-                                              Width="16" Height="16" Stretch="Uniform"
-                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}, Mode=OneWay}"
-                                              Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="点击显示/隐藏高级选项"
-                                                   VerticalAlignment="Center"
-                                                   FontWeight="SemiBold"/>
-                                    </Grid>
+                                              Unchecked="AdvancedModeButton_Unchecked">
+                                    <TextBlock Text="{Binding IsChecked, ElementName=AdvancedModeButton, Mode=OneWay, Converter={StaticResource AdvancedModeTextConverter}}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold"/>
                                 </ToggleButton>
                             </Grid>
                         </Border>
@@ -3140,7 +3141,7 @@
                                                 Background="{DynamicResource ControlBackground}"
                                                 BorderBrush="{DynamicResource BorderLight}"
                                                 BorderThickness="1">
-                                            <Image Source="{Binding AppIconImage}"
+                                            <Image Source="{Binding AppIconImage, Mode=OneWay}"
                                                    Width="72"
                                                    Height="72"
                                                    Stretch="Uniform"
@@ -3151,12 +3152,18 @@
                                                        FontSize="18"
                                                        FontWeight="SemiBold"
                                                        Foreground="{DynamicResource TextPrimary}"/>
-                                            <TextBlock Text="{Binding AppVersion, StringFormat=版本 {0}}"
+                                            <TextBlock Text="{Binding AppVersion, Mode=OneWay, StringFormat=版本 {0}}"
                                                        Margin="0,5,0,0"
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TextSecondary}"/>
-                                            <TextBlock Text="{Binding AppBuildDate}"
+                                            <TextBlock Text="{Binding AppBuildDate, Mode=OneWay}"
                                                        Margin="0,6,0,0"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding AppCommitText, Mode=OneWay}"
+                                                       ToolTip="{Binding AppCommitToolTip, Mode=OneWay}"
+                                                       Margin="0,4,0,0"
                                                        FontSize="12"
                                                        Foreground="{DynamicResource TextSecondary}"
                                                        TextWrapping="Wrap"/>
