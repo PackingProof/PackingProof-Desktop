@@ -62,7 +62,9 @@ public sealed class LauncherSelfUpdateTests
             backupDirectory);
 
         Assert.Equal(newLauncher, File.ReadAllBytes(launcherPath));
-        string backup = Assert.Single(Directory.GetFiles(backupDirectory, "launcher-*.exe"));
+        string backup = Assert.Single(Directory.GetFiles(
+            Path.Combine(backupDirectory, "launcher"),
+            "launcher-*.exe"));
         Assert.Equal(oldLauncher, File.ReadAllBytes(backup));
     }
 
@@ -88,6 +90,106 @@ public sealed class LauncherSelfUpdateTests
             Path.Combine(fixture.Root, "backups")));
 
         Assert.Equal(oldLauncher, File.ReadAllBytes(launcherPath));
+    }
+
+    [Fact]
+    public void SuccessfulCheckCache_UsesAppVersionAndLauncherFileIdentity()
+    {
+        using var fixture = new Fixture();
+        string launcherPath = Path.Combine(fixture.Root, LauncherUpdateService.LauncherFileName);
+        string statePath = Path.Combine(fixture.Root, LauncherUpdateService.CheckStateFileName);
+        File.WriteAllText(launcherPath, "launcher", Encoding.UTF8);
+
+        LauncherUpdateService.SaveSuccessfulCheck(
+            statePath,
+            "1.2.3",
+            launcherPath,
+            new string('a', 64),
+            "1.2.3");
+
+        Assert.True(LauncherUpdateService.ShouldSkipSuccessfulCheck(
+            statePath,
+            "1.2.3",
+            launcherPath));
+        Assert.False(LauncherUpdateService.ShouldSkipSuccessfulCheck(
+            statePath,
+            "1.2.4",
+            launcherPath));
+
+        File.AppendAllText(launcherPath, "-changed", Encoding.UTF8);
+        Assert.False(LauncherUpdateService.ShouldSkipSuccessfulCheck(
+            statePath,
+            "1.2.3",
+            launcherPath));
+    }
+
+    [Fact]
+    public void PendingDescriptor_RoundTripsVerifiedPackageWithoutNetworkState()
+    {
+        using var fixture = new Fixture();
+        byte[] launcher = Encoding.UTF8.GetBytes("pending-launcher");
+        string packagePath = fixture.CreatePackage(launcher);
+        LauncherPackageInfo package = fixture.Describe(packagePath, launcher);
+        string descriptorPath = Path.Combine(
+            fixture.Root,
+            LauncherUpdateService.PendingDescriptorFileName);
+
+        LauncherUpdateService.SavePendingDescriptor(descriptorPath, package);
+
+        Assert.Equal(package, LauncherUpdateService.LoadPendingDescriptor(descriptorPath));
+    }
+
+    [Fact]
+    public void BackupRetention_DeletesOnlyOldGeneratedLauncherBackups()
+    {
+        using var fixture = new Fixture();
+        string backupDirectory = Path.Combine(fixture.Root, "launcher-backups");
+        Directory.CreateDirectory(backupDirectory);
+        string unrelated = Path.Combine(backupDirectory, "database-backup.exe");
+        File.WriteAllText(unrelated, "keep", Encoding.UTF8);
+        var generated = new List<string>();
+        for (int index = 0; index < 5; index++)
+        {
+            string path = Path.Combine(
+                backupDirectory,
+                $"launcher-20260731-00000{index}-{Guid.NewGuid():N}.exe");
+            File.WriteAllText(path, index.ToString(), Encoding.UTF8);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index));
+            generated.Add(path);
+        }
+
+        LauncherUpdateService.PruneRetainedBackups(backupDirectory);
+
+        Assert.Equal(
+            generated.Skip(2).OrderBy(path => path),
+            Directory.GetFiles(backupDirectory, "launcher-*.exe").OrderBy(path => path));
+        Assert.True(File.Exists(unrelated));
+    }
+
+    [Fact]
+    public void PendingCleanup_RejectsRootAndOutsideDirectories()
+    {
+        using var fixture = new Fixture();
+        string pendingRoot = Directory.CreateDirectory(
+            Path.Combine(fixture.Root, "pending")).FullName;
+        string child = Directory.CreateDirectory(
+            Path.Combine(pendingRoot, "1.2.3")).FullName;
+        string outside = Directory.CreateDirectory(
+            Path.Combine(fixture.Root, "recordings")).FullName;
+        File.WriteAllText(Path.Combine(child, "temporary.txt"), "delete", Encoding.UTF8);
+        File.WriteAllText(Path.Combine(outside, "recording.mp4"), "keep", Encoding.UTF8);
+
+        Assert.False(LauncherUpdateService.TryDeleteDirectoryWithinRoot(
+            pendingRoot,
+            pendingRoot));
+        Assert.False(LauncherUpdateService.TryDeleteDirectoryWithinRoot(
+            outside,
+            pendingRoot));
+        Assert.True(LauncherUpdateService.TryDeleteDirectoryWithinRoot(
+            child,
+            pendingRoot));
+        Assert.True(Directory.Exists(pendingRoot));
+        Assert.True(File.Exists(Path.Combine(outside, "recording.mp4")));
     }
 
     private static string BuildDescriptor(int protocolVersion, string packageHash, string executableHash)

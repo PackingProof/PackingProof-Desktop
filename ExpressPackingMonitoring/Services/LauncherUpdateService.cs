@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
@@ -21,11 +22,28 @@ internal sealed record LauncherPackageInfo(
     long ExecutableSize,
     string ExecutableSha256);
 
+internal sealed record LauncherUpdateCheckState(
+    string AppVersion,
+    long LauncherLength,
+    long LauncherLastWriteUtcTicks,
+    string LauncherSha256,
+    string PackageVersion);
+
+internal enum LauncherPackageApplyResult
+{
+    Applied,
+    Deferred
+}
+
 internal sealed class LauncherUpdateService
 {
     internal const int SupportedProtocolVersion = 1;
     internal const string LauncherFileName = "ExpressPackingMonitoring.exe";
     internal const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
+    internal const string PendingDescriptorFileName = "launcher-package.json";
+    internal const string CheckStateFileName = "launcher-check-state.json";
+    internal const int MaxRetainedBackups = 3;
+    internal static readonly TimeSpan LauncherExitWaitTimeout = TimeSpan.FromSeconds(5);
 
     private static readonly HttpClient HttpClient = new()
     {
@@ -48,65 +66,81 @@ internal sealed class LauncherUpdateService
 
         try
         {
+            string updatesDirectory = Path.Combine(AppPaths.CacheDir, "updates");
+            string pendingRoot = Path.Combine(updatesDirectory, "launcher-pending");
+            string checkStatePath = Path.Combine(updatesDirectory, CheckStateFileName);
+            string appVersion = GetCurrentAppVersion();
+            if (await TryApplyPendingPackageAsync(
+                    pendingRoot,
+                    checkStatePath,
+                    appVersion,
+                    launcherPath,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            if (ShouldSkipSuccessfulCheck(
+                    checkStatePath,
+                    appVersion,
+                    launcherPath))
+            {
+                RuntimeLog.Info("LauncherUpdate", "Skip repeated successful launcher check");
+                return;
+            }
+
             LauncherPackageInfo? package = await FetchPackageInfoAsync(cancellationToken);
             if (package == null)
             {
                 RuntimeLog.Info("LauncherUpdate", "Update manifest has no compatible launcher package");
+                SaveSuccessfulCheck(
+                    checkStatePath,
+                    appVersion,
+                    launcherPath,
+                    "",
+                    "");
                 return;
             }
 
             if (File.Exists(launcherPath) &&
-                string.Equals(
-                    ComputeSha256(launcherPath),
-                    package.ExecutableSha256,
-                    StringComparison.OrdinalIgnoreCase))
+                string.Equals(ComputeSha256(launcherPath), package.ExecutableSha256, StringComparison.OrdinalIgnoreCase))
             {
                 RuntimeLog.Info("LauncherUpdate", $"Launcher is current version={package.Version}");
+                SaveSuccessfulCheck(
+                    checkStatePath,
+                    appVersion,
+                    launcherPath,
+                    package.ExecutableSha256,
+                    package.Version);
                 return;
             }
 
             string pendingDirectory = Path.Combine(
-                AppPaths.CacheDir,
-                "updates",
-                "launcher-pending",
+                pendingRoot,
                 NormalizePathSegment(package.Version));
             Directory.CreateDirectory(pendingDirectory);
             string packagePath = Path.Combine(pendingDirectory, "launcher.zip");
             await DownloadAndVerifyAsync(package, packagePath, cancellationToken);
-
-            if (!await WaitForLauncherExitAsync(launcherPath, cancellationToken))
-            {
-                RuntimeLog.Warn("LauncherUpdate", "Launcher is still running; keep pending package for retry");
+            SavePendingDescriptor(
+                Path.Combine(pendingDirectory, PendingDescriptorFileName),
+                package);
+            LauncherPackageApplyResult result = await TryApplyPackageAsync(
+                package,
+                packagePath,
+                launcherPath,
+                AppPaths.BackupsDir,
+                cancellationToken);
+            if (result == LauncherPackageApplyResult.Deferred)
                 return;
-            }
 
-            using var mutex = new Mutex(false, UpdateMutexName);
-            bool lockTaken;
-            try
-            {
-                lockTaken = mutex.WaitOne(TimeSpan.Zero);
-            }
-            catch (AbandonedMutexException)
-            {
-                lockTaken = true;
-            }
-
-            if (!lockTaken)
-            {
-                RuntimeLog.Warn("LauncherUpdate", "Launcher update mutex is busy; keep pending package for retry");
-                return;
-            }
-
-            try
-            {
-                ApplyDownloadedPackage(package, packagePath, launcherPath, AppPaths.BackupsDir);
-                TryDeleteDirectory(pendingDirectory);
-                RuntimeLog.Info("LauncherUpdate", $"Launcher updated silently version={package.Version}");
-            }
-            finally
-            {
-                mutex.ReleaseMutex();
-            }
+            TryDeleteDirectoryWithinRoot(pendingDirectory, pendingRoot);
+            SaveSuccessfulCheck(
+                checkStatePath,
+                appVersion,
+                launcherPath,
+                package.ExecutableSha256,
+                package.Version);
+            RuntimeLog.Info("LauncherUpdate", $"Launcher updated silently version={package.Version}");
         }
         catch (OperationCanceledException)
         {
@@ -114,6 +148,150 @@ internal sealed class LauncherUpdateService
         catch (Exception ex)
         {
             RuntimeLog.Warn("LauncherUpdate", $"Launcher update deferred: {ex}");
+        }
+    }
+
+    private static async Task<bool> TryApplyPendingPackageAsync(
+        string pendingRoot,
+        string checkStatePath,
+        string appVersion,
+        string launcherPath,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(pendingRoot))
+            return false;
+
+        foreach (string descriptorPath in Directory
+                     .EnumerateDirectories(
+                         pendingRoot,
+                         "*",
+                         SearchOption.TopDirectoryOnly)
+                     .Select(directory => Path.Combine(
+                         directory,
+                         PendingDescriptorFileName))
+                     .Where(File.Exists)
+                     .OrderByDescending(File.GetLastWriteTimeUtc))
+        {
+            string pendingDirectory = Path.GetDirectoryName(descriptorPath) ?? "";
+            string packagePath = Path.Combine(pendingDirectory, "launcher.zip");
+            LauncherPackageInfo package;
+            try
+            {
+                package = LoadPendingDescriptor(descriptorPath);
+                ValidateFile(packagePath, package.Size, package.Sha256, "已缓存启动器更新包");
+            }
+            catch (Exception ex) when (ex is InvalidDataException
+                                       or JsonException
+                                       or FileNotFoundException)
+            {
+                RuntimeLog.Warn(
+                    "LauncherUpdate",
+                    $"Discard invalid pending launcher package: {ex.Message}");
+                TryDeleteDirectoryWithinRoot(pendingDirectory, pendingRoot);
+                continue;
+            }
+
+            try
+            {
+                if (File.Exists(launcherPath)
+                    && string.Equals(
+                        ComputeSha256(launcherPath),
+                        package.ExecutableSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    TryDeleteDirectoryWithinRoot(pendingDirectory, pendingRoot);
+                    SaveSuccessfulCheck(
+                        checkStatePath,
+                        appVersion,
+                        launcherPath,
+                        package.ExecutableSha256,
+                        package.Version);
+                    return true;
+                }
+
+                LauncherPackageApplyResult result = await TryApplyPackageAsync(
+                    package,
+                    packagePath,
+                    launcherPath,
+                    AppPaths.BackupsDir,
+                    cancellationToken);
+                if (result == LauncherPackageApplyResult.Applied)
+                {
+                    TryDeleteDirectoryWithinRoot(pendingDirectory, pendingRoot);
+                    SaveSuccessfulCheck(
+                        checkStatePath,
+                        appVersion,
+                        launcherPath,
+                        package.ExecutableSha256,
+                        package.Version);
+                    RuntimeLog.Info(
+                        "LauncherUpdate",
+                        $"Applied verified pending launcher package version={package.Version}");
+                }
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn(
+                    "LauncherUpdate",
+                    $"Pending launcher update deferred: {ex}");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<LauncherPackageApplyResult> TryApplyPackageAsync(
+        LauncherPackageInfo package,
+        string packagePath,
+        string launcherPath,
+        string backupDirectory,
+        CancellationToken cancellationToken)
+    {
+        if (!await WaitForLauncherExitAsync(launcherPath, cancellationToken))
+        {
+            RuntimeLog.Warn(
+                "LauncherUpdate",
+                "Launcher is still running; keep pending package for retry");
+            return LauncherPackageApplyResult.Deferred;
+        }
+
+        using var mutex = new Mutex(false, UpdateMutexName);
+        bool lockTaken;
+        try
+        {
+            lockTaken = mutex.WaitOne(TimeSpan.Zero);
+        }
+        catch (AbandonedMutexException)
+        {
+            lockTaken = true;
+        }
+
+        if (!lockTaken)
+        {
+            RuntimeLog.Warn(
+                "LauncherUpdate",
+                "Launcher update mutex is busy; keep pending package for retry");
+            return LauncherPackageApplyResult.Deferred;
+        }
+
+        try
+        {
+            ApplyDownloadedPackage(
+                package,
+                packagePath,
+                launcherPath,
+                backupDirectory);
+            return LauncherPackageApplyResult.Applied;
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
         }
     }
 
@@ -222,12 +400,14 @@ internal sealed class LauncherUpdateService
                 throw;
             }
 
-            Directory.CreateDirectory(backupDirectory);
+            string launcherBackupDirectory = Path.Combine(backupDirectory, "launcher");
+            Directory.CreateDirectory(launcherBackupDirectory);
             string retainedBackupPath = Path.Combine(
-                backupDirectory,
+                launcherBackupDirectory,
                 $"launcher-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.exe");
             File.Copy(adjacentBackupPath, retainedBackupPath, overwrite: false);
             File.Delete(adjacentBackupPath);
+            PruneRetainedBackups(launcherBackupDirectory);
         }
         finally
         {
@@ -327,7 +507,7 @@ internal sealed class LauncherUpdateService
         string launcherPath,
         CancellationToken cancellationToken)
     {
-        DateTime deadline = DateTime.UtcNow.AddMinutes(2);
+        DateTime deadline = DateTime.UtcNow.Add(LauncherExitWaitTimeout);
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -381,6 +561,119 @@ internal sealed class LauncherUpdateService
         return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
+    internal static bool ShouldSkipSuccessfulCheck(
+        string statePath,
+        string appVersion,
+        string launcherPath)
+    {
+        try
+        {
+            if (!File.Exists(statePath) || !File.Exists(launcherPath))
+                return false;
+            LauncherUpdateCheckState? state = JsonSerializer.Deserialize<LauncherUpdateCheckState>(
+                File.ReadAllText(statePath));
+            var launcher = new FileInfo(launcherPath);
+            return state != null
+                && string.Equals(state.AppVersion, appVersion, StringComparison.Ordinal)
+                && state.LauncherLength == launcher.Length
+                && state.LauncherLastWriteUtcTicks == launcher.LastWriteTimeUtc.Ticks;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static void SaveSuccessfulCheck(
+        string statePath,
+        string appVersion,
+        string launcherPath,
+        string launcherSha256,
+        string packageVersion)
+    {
+        var launcher = new FileInfo(launcherPath);
+        if (!launcher.Exists)
+            return;
+        string directory = Path.GetDirectoryName(Path.GetFullPath(statePath))
+            ?? throw new InvalidOperationException("启动器检查缓存目录无效");
+        Directory.CreateDirectory(directory);
+        string temporaryPath = statePath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            var state = new LauncherUpdateCheckState(
+                appVersion,
+                launcher.Length,
+                launcher.LastWriteTimeUtc.Ticks,
+                launcherSha256 ?? "",
+                packageVersion ?? "");
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(state));
+            File.Move(temporaryPath, statePath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    internal static void SavePendingDescriptor(
+        string descriptorPath,
+        LauncherPackageInfo package)
+    {
+        string directory = Path.GetDirectoryName(Path.GetFullPath(descriptorPath))
+            ?? throw new InvalidOperationException("启动器待处理目录无效");
+        Directory.CreateDirectory(directory);
+        string temporaryPath = descriptorPath + $".{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(package));
+            File.Move(temporaryPath, descriptorPath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    internal static LauncherPackageInfo LoadPendingDescriptor(string descriptorPath)
+    {
+        LauncherPackageInfo? package = JsonSerializer.Deserialize<LauncherPackageInfo>(
+            File.ReadAllText(descriptorPath));
+        return package != null && IsValid(package)
+            ? package
+            : throw new InvalidDataException("启动器待处理描述无效");
+    }
+
+    internal static void PruneRetainedBackups(
+        string launcherBackupDirectory,
+        int keepCount = MaxRetainedBackups)
+    {
+        string normalizedDirectory = Path.GetFullPath(launcherBackupDirectory);
+        if (!Directory.Exists(normalizedDirectory))
+            return;
+        keepCount = Math.Max(1, keepCount);
+        FileInfo[] backups = new DirectoryInfo(normalizedDirectory)
+            .EnumerateFiles("launcher-*.exe", SearchOption.TopDirectoryOnly)
+            .Where(file => file.Name.StartsWith("launcher-", StringComparison.Ordinal)
+                && file.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .ThenByDescending(file => file.Name, StringComparer.Ordinal)
+            .ToArray();
+        foreach (FileInfo backup in backups.Skip(keepCount))
+        {
+            string fullPath = Path.GetFullPath(backup.FullName);
+            if (!IsPathInside(fullPath, normalizedDirectory))
+                continue;
+            TryDeleteFile(fullPath);
+        }
+    }
+
+    private static string GetCurrentAppVersion()
+        => Assembly.GetExecutingAssembly()
+               .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+               ?.InformationalVersion
+           ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
+           ?? "unknown";
+
     private static bool IsValid(LauncherPackageInfo package)
         => package.ProtocolVersion == SupportedProtocolVersion
             && !string.IsNullOrWhiteSpace(package.Version)
@@ -431,15 +724,31 @@ internal sealed class LauncherUpdateService
         }
     }
 
-    private static void TryDeleteDirectory(string path)
+    internal static bool TryDeleteDirectoryWithinRoot(string path, string allowedRoot)
     {
         try
         {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
+            string normalizedPath = Path.GetFullPath(path);
+            string normalizedRoot = Path.GetFullPath(allowedRoot);
+            if (!IsPathInside(normalizedPath, normalizedRoot))
+                return false;
+            if (Directory.Exists(normalizedPath))
+                Directory.Delete(normalizedPath, recursive: true);
+            return true;
         }
         catch
         {
+            return false;
         }
+    }
+
+    private static bool IsPathInside(string path, string rootPath)
+    {
+        string root = Path.GetFullPath(rootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        string candidate = Path.GetFullPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 }
