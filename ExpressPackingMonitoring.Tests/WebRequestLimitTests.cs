@@ -156,7 +156,11 @@ public sealed class WebRequestLimitTests
         Assert.Contains("localStorage.getItem(compatStorageKey)===null", html);
         Assert.Contains("window.matchMedia('(max-width:900px)').matches", html);
         Assert.Contains("localStorage.setItem(compatStorageKey,'0')", html);
-        Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:50%", html);
+        Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:min(70vh,calc(100vh - 190px))", html);
+        Assert.Contains("max-height:calc(100vh - 32px);overflow:auto", html);
+        Assert.Contains("function paginationWindowSize(){return window.matchMedia('(max-width:560px)').matches?3:window.matchMedia('(max-width:900px)').matches?5:9}", html);
+        Assert.Contains("refreshResponsivePagination()", html);
+        Assert.Contains(".page-btn{flex:0 0 auto}", html);
     }
 
     [Fact]

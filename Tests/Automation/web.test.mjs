@@ -22,6 +22,13 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.keyboard.press('Escape');
     assert.equal(await appDownloadButton.getAttribute('aria-expanded'), 'false');
 
+    const floatingPosition = await page.locator('#floatingTools').evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return { centerY: rect.top + rect.height / 2, viewportHeight: window.innerHeight };
+    });
+    assert.ok(floatingPosition.centerY > floatingPosition.viewportHeight * 0.6);
+    assert.ok(floatingPosition.centerY < floatingPosition.viewportHeight - 150);
+
     const mobileConnectButton = page.getByRole('button', { name: '手机打开' });
     await assert.doesNotReject(() => mobileConnectButton.waitFor());
     await mobileConnectButton.click();
@@ -53,6 +60,11 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       oldestNoteDisplay: 'none',
       retentionNoteDisplay: 'none'
     });
+    await page.evaluate(() => {
+      document.getElementById('pagination').innerHTML = '';
+      renderPagination(10, 20);
+    });
+    assert.equal(await page.locator('#pagination .page-btn').count(), 7);
     await page.setViewportSize({ width: 1280, height: 900 });
 
     const mobilePage = await context.newPage();
@@ -65,6 +77,19 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.equal(await mobilePage.getByRole('link', { name: '下载手机 App' }).isVisible(), true);
     assert.equal(await mobilePage.locator('#desktopAppDownloadQr').isVisible(), false);
     assert.equal(mobileDownloadInfoRequests, 0);
+    await mobilePage.evaluate(() => {
+      document.getElementById('pagination').innerHTML = '';
+      renderPagination(10, 20);
+    });
+    const mobilePageButtons = mobilePage.locator('#pagination .page-btn');
+    assert.equal(await mobilePageButtons.count(), 5);
+    assert.equal(await mobilePageButtons.first().innerText(), '上一页');
+    assert.equal(await mobilePageButtons.last().innerText(), '下一页');
+    const paginationBounds = await mobilePage.locator('#pagination').evaluate(element => ({
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth
+    }));
+    assert.ok(paginationBounds.scrollWidth <= paginationBounds.clientWidth);
     await mobilePage.close();
 
     const search = page.getByPlaceholder('输入订单号关键词搜索');
