@@ -15,7 +15,7 @@ public sealed class PatchDistributionRoutingTests
 
         Assert.Contains("PackingProof_AppPatch_v*.zip", launcher);
         Assert.Contains("ExpressPackingMonitoring_AppPatch_v*.zip", launcher);
-        Assert.Contains("PackingProof_AppPatch_v{descriptor.LatestVersion}.zip", launcher);
+        Assert.Contains("ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip", launcher);
         Assert.DoesNotContain("PackingProof_ManualUpdate_", launcher);
     }
 
@@ -59,6 +59,12 @@ public sealed class PatchDistributionRoutingTests
         Assert.True(patchHashIndex >= 0);
         Assert.True(manifestWriteIndex > patchHashIndex);
         Assert.True(manualPackageIndex > manifestWriteIndex);
+        Assert.Contains(
+            "$appPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
+            publisher);
+        Assert.Contains(
+            "$launcherPackageName = \"PackingProof_LauncherPatch_$releaseTag.zip\"",
+            publisher);
         Assert.Contains(
             "Copy-Item -LiteralPath $PatchZipPath -Destination",
             publisher);

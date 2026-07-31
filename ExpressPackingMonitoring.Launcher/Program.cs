@@ -1263,7 +1263,7 @@ internal static class Program
         {
         }
 
-        return $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip";
+        return $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
     }
 
     private static string BuildDefaultGithubPatchDownloadUrl(UpdateDescriptor descriptor, string patchZipName)

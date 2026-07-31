@@ -69,7 +69,7 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
             Encoding.UTF8);
 
-        Assert.Contains("ExpressPackingMonitoring_Launcher_$releaseTag.zip", publishScript);
+        Assert.Contains("PackingProof_LauncherPatch_$releaseTag.zip", publishScript);
         Assert.Contains("$updateManifest[\"launcher_package\"]", publishScript);
         Assert.Contains("$launcherPackageHash", publishScript);
         Assert.Contains("$launcherExecutableHash", publishScript);
