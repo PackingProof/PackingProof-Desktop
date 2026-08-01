@@ -1,0 +1,142 @@
+<Window x:Class="ExpressPackingMonitoring.UI.VideoImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="导入录像"
+        SizeToContent="Height"
+        Width="520"
+        MaxHeight="620"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="Transparent"
+        Foreground="{DynamicResource TextPrimary}"
+        KeyDown="Window_KeyDown">
+    <Border Background="{DynamicResource PanelBackground}"
+            BorderBrush="{DynamicResource BorderDefault}"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="24">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Width="38"
+                        Height="38"
+                        CornerRadius="12"
+                        Background="{DynamicResource ControlBackground}">
+                    <Path Data="{StaticResource FluentFolderIcon}"
+                          Width="20"
+                          Height="20"
+                          Stretch="Uniform"
+                          Fill="{DynamicResource AccentBlue}"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock x:Name="DialogTitleText"
+                               Text="导入录像"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimary}"/>
+                    <TextBlock Text="选择视频类型后，再选择存放视频的文件夹"
+                               Margin="0,3,0,0"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextSecondary}"/>
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Border x:Name="ImportInstructions"
+                        Padding="14"
+                        CornerRadius="10"
+                        Background="{DynamicResource ControlBackground}"
+                        BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="导入前请确认"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimary}"/>
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="仅支持 MP4。请先把视频放入程序的录像文件夹；导入后不要自行移动或删除，程序会负责回放、备份和空间管理"
+                                   TextWrapping="Wrap"
+                                   LineHeight="21"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="以后有新视频时再次导入即可，已经导入的视频会自动跳过"
+                                   TextWrapping="Wrap"
+                                   LineHeight="21"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ImportProgressPanel"
+                        Padding="14"
+                        CornerRadius="10"
+                        Background="{DynamicResource ControlBackground}"
+                        BorderBrush="{DynamicResource BorderDefault}"
+                        BorderThickness="1"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock x:Name="ImportProgressSummary"
+                                   Text="正在查找 MP4 视频..."
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimary}"/>
+                        <ProgressBar x:Name="ImportProgressBar"
+                                     Height="6"
+                                     Margin="0,12,0,0"
+                                     Minimum="0"
+                                     Maximum="100"/>
+                        <TextBlock x:Name="ImportCurrentFile"
+                                   Margin="0,9,0,0"
+                                   Text="正在准备..."
+                                   FontSize="12"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Grid Grid.Row="2" Margin="0,22,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="ImportShippingButton"
+                        Grid.Column="0"
+                        MinWidth="130"
+                        Content="导入发货"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="ImportShippingButton_Click"
+                        AutomationProperties.Name="导入发货视频"/>
+                <Button x:Name="ImportReturnButton"
+                        Grid.Column="2"
+                        MinWidth="130"
+                        Content="导入退货"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="ImportReturnButton_Click"
+                        AutomationProperties.Name="导入退货视频"/>
+                <Button x:Name="CancelButton"
+                        Grid.Column="4"
+                        MinWidth="92"
+                        Content="取消"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Click="CancelButton_Click"
+                        AutomationProperties.Name="取消导入录像"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

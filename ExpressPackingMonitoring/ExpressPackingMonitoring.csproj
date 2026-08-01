@@ -163,6 +163,7 @@
     <Compile Include="UI\MobileAppUpdatePromptWindow.xaml.cs" />
     <Compile Include="UI\MobileConnectionWindow.xaml.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
+    <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsContext.cs" />
     <Compile Include="UI\StatisticsWindow.xaml.cs" />

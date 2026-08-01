@@ -66,18 +66,38 @@ public sealed class VideoFolderImportServiceTests
     }
 
     [Fact]
-    public void PlaybackWindow_ShowsTwoDirectImportActionsWithoutStartButton()
+    public void PlaybackWindow_ShowsOneImportEntryAndDialogOwnsModeActions()
     {
         string xamlPath = FindRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",
             "PlaybackWindow.xaml");
         string xaml = File.ReadAllText(xamlPath);
+        string dialogXamlPath = FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "VideoImportDialog.xaml");
+        string dialogXaml = File.ReadAllText(dialogXamlPath);
+        string playbackCode = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
 
-        Assert.Contains("Content=\"导入发货\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Content=\"导入退货\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("仅支持 MP4", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BtnImportVideos\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"导入录像\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("导入发货", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("导入退货", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoImportProgressPanel", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoImportStatusText", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"导入发货\"", dialogXaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"导入退货\"", dialogXaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"取消\"", dialogXaml, StringComparison.Ordinal);
+        Assert.Contains("仅支持 MP4", dialogXaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Row=\"2\"", dialogXaml, StringComparison.Ordinal);
+        Assert.Contains("AppDialog.ShowMessage(", playbackCode, StringComparison.Ordinal);
+        Assert.Contains("result.Cancelled ? \"导入已停止\" : \"导入完成\"", playbackCode, StringComparison.Ordinal);
         Assert.DoesNotContain("开始导入", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("开始导入", dialogXaml, StringComparison.Ordinal);
     }
 
     [Fact]

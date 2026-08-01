@@ -15,7 +15,6 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
-using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -79,7 +78,6 @@ namespace ExpressPackingMonitoring.UI
         private readonly Action<string>? _saveImportFolder;
         private readonly Action? _videosImported;
         private string _lastImportFolder;
-        private CancellationTokenSource? _videoImportCts;
         private readonly DispatcherTimer _timer;
         private readonly DispatcherTimer _searchTimer;
         private readonly string[] _videoExtensions = [".mp4", ".mkv"];
@@ -133,123 +131,50 @@ namespace ExpressPackingMonitoring.UI
             TimelineSlider.IsEnabled = false;
             TimeLabel.Text = "正在加载列表...";
             Loaded += PlaybackWindow_Loaded;
-            VideoImportPanel.Visibility = _videoImportService == null
+            BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
             UpdateLocateButtonState();
         }
 
-        private void BtnImportShipping_Click(object sender, RoutedEventArgs e) =>
-            BeginVideoFolderImport("发货");
-
-        private void BtnImportReturn_Click(object sender, RoutedEventArgs e) =>
-            BeginVideoFolderImport("退货");
-
-        private async void BeginVideoFolderImport(string mode)
+        private void BtnImportVideos_Click(object sender, RoutedEventArgs e)
         {
-            if (_videoImportService == null || _videoImportCts != null)
+            if (_videoImportService == null)
                 return;
 
             string initialDirectory = _videoImportService.IsFolderManaged(_lastImportFolder)
                 ? _lastImportFolder
                 : _videoImportService.ManagedRoots.FirstOrDefault(Directory.Exists) ?? _folderPath;
-            var dialog = new OpenFolderDialog
+            var dialog = new VideoImportDialog(
+                _videoImportService,
+                initialDirectory,
+                _videoImportService.ManagedRoots.FirstOrDefault(Directory.Exists) ?? _folderPath)
             {
-                Title = $"选择要导入的{mode}视频文件夹",
-                InitialDirectory = initialDirectory
+                Owner = this
             };
-            if (dialog.ShowDialog(this) != true)
+            if (dialog.ShowDialog() != true || dialog.ImportResult is not VideoImportResult result)
                 return;
 
-            string selectedFolder = dialog.FolderName;
-            if (!_videoImportService.IsFolderManaged(selectedFolder))
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedFolder))
             {
-                string managedRoot = _videoImportService.ManagedRoots.FirstOrDefault(Directory.Exists) ?? _folderPath;
-                bool openFolder = AppDialog.Confirm(
-                    this,
-                    "请先把视频放到录像文件夹，再回来导入\n\n导入后请不要自行移动或删除视频，程序会负责回放、备份和空间管理",
-                    "只能导入录像文件夹内的视频",
-                    "打开录像文件夹",
-                    "返回",
-                    AppDialogSeverity.Information,
-                    isDangerous: false);
-                if (openFolder)
-                    OpenFolder(managedRoot);
-                return;
+                _lastImportFolder = dialog.SelectedFolder;
+                _saveImportFolder?.Invoke(dialog.SelectedFolder);
             }
 
-            _lastImportFolder = selectedFolder;
-            _saveImportFolder?.Invoke(selectedFolder);
-            _videoImportCts = new CancellationTokenSource();
-            SetVideoImportBusy(true);
-            var progress = new Progress<VideoImportProgress>(value =>
+            if (result.Imported > 0)
             {
-                VideoImportProgressBar.Value = value.Total == 0
-                    ? 0
-                    : value.Processed * 100d / value.Total;
-                VideoImportStatusText.Text =
-                    $"{value.Processed}/{value.Total} · 已导入 {value.Imported} · 已跳过 {value.Skipped} · {value.CurrentFile}";
-            });
+                _videosImported?.Invoke();
+                RequestVideoLoad(1);
+            }
 
-            try
-            {
-                VideoImportResult result = await _videoImportService.ImportAsync(
-                    selectedFolder,
-                    mode,
-                    progress,
-                    _videoImportCts.Token);
-                if (result.Imported > 0)
-                {
-                    _videosImported?.Invoke();
-                    RequestVideoLoad(1);
-                }
-                string summary = result.Cancelled
-                    ? $"已停止：导入 {result.Imported} 个，跳过 {result.Skipped} 个，无法读取 {result.Failed} 个"
-                    : $"已导入 {result.Imported} 个视频，跳过 {result.Skipped} 个，无法读取 {result.Failed} 个";
-                VideoImportStatusText.Text = summary;
-            }
-            catch (Exception ex)
-            {
-                VideoImportStatusText.Text = "导入未完成";
-                AppDialog.ShowMessage(this, ex.Message, "导入视频失败", AppDialogSeverity.Warning);
-            }
-            finally
-            {
-                _videoImportCts.Dispose();
-                _videoImportCts = null;
-                SetVideoImportBusy(false, keepStatus: true);
-            }
-        }
-
-        private void BtnCancelVideoImport_Click(object sender, RoutedEventArgs e) =>
-            _videoImportCts?.Cancel();
-
-        private void SetVideoImportBusy(bool busy, bool keepStatus = false)
-        {
-            BtnImportShipping.IsEnabled = !busy;
-            BtnImportReturn.IsEnabled = !busy;
-            VideoImportProgressPanel.Visibility = busy || keepStatus
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            BtnCancelVideoImport.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-            if (busy)
-            {
-                VideoImportProgressBar.Value = 0;
-                VideoImportStatusText.Text = "正在查找 MP4 视频...";
-            }
-        }
-
-        private static void OpenFolder(string folderPath)
-        {
-            try
-            {
-                Directory.CreateDirectory(folderPath);
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folderPath}\"") { UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                AppDialog.ShowMessage(null, $"无法打开录像文件夹：{ex.Message}", "打开失败", AppDialogSeverity.Warning);
-            }
+            string summary = result.Cancelled
+                ? $"已停止导入\n\n成功 {result.Imported} 个，跳过 {result.Skipped} 个，无法读取 {result.Failed} 个"
+                : $"导入完成\n\n成功 {result.Imported} 个，跳过 {result.Skipped} 个，无法读取 {result.Failed} 个";
+            AppDialog.ShowMessage(
+                this,
+                summary,
+                result.Cancelled ? "导入已停止" : "导入完成",
+                result.Failed > 0 ? AppDialogSeverity.Warning : AppDialogSeverity.Information);
         }
 
         private void PlaybackWindow_Loaded(object sender, RoutedEventArgs e)
@@ -583,7 +508,6 @@ namespace ExpressPackingMonitoring.UI
         private void Window_Closing(object sender, CancelEventArgs e)
         {
             _isClosing = true;
-            _videoImportCts?.Cancel();
             _pendingVideoLoad = null;
             _videoLoadRequestVersion++;
 

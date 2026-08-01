@@ -834,6 +834,13 @@
   <data name="仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理" xml:space="preserve"><value>MP4 only. Place videos in the recording folder first; after import, let the app manage them without moving or deleting them manually</value></data>
   <data name="导入发货" xml:space="preserve"><value>Import shipping</value></data>
   <data name="导入退货" xml:space="preserve"><value>Import returns</value></data>
+  <data name="导入录像" xml:space="preserve"><value>Import recordings</value></data>
+  <data name="选择视频类型后，再选择存放视频的文件夹" xml:space="preserve"><value>Choose the video type, then select the folder containing the videos</value></data>
+  <data name="导入前请确认" xml:space="preserve"><value>Before importing</value></data>
+  <data name="仅支持 MP4。请先把视频放入程序的录像文件夹；导入后不要自行移动或删除，程序会负责回放、备份和空间管理" xml:space="preserve"><value>MP4 only. Place videos in the app's recording folder first. After importing, do not move or delete them manually; the app will manage playback, backup, and storage space</value></data>
+  <data name="以后有新视频时再次导入即可，已经导入的视频会自动跳过" xml:space="preserve"><value>Import again when you add new videos. Videos already imported will be skipped automatically</value></data>
+  <data name="正在查找 MP4 视频..." xml:space="preserve"><value>Looking for MP4 videos...</value></data>
+  <data name="正在准备..." xml:space="preserve"><value>Preparing...</value></data>
   <data name="画面旋转 180°" xml:space="preserve"><value>Rotate image 180°</value></data>
   <data name="摄像头倒装时开启，预览、识别和录像会同步旋转" xml:space="preserve"><value>Turn this on when the camera is mounted upside down; preview, recognition, and recording rotate together</value></data>
 </root>
