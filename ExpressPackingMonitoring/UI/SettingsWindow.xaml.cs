@@ -160,6 +160,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
         private bool _isSyncingScannerModes;
+        private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -262,22 +263,58 @@ namespace ExpressPackingMonitoring.UI
 
         private void DirectAacRecordingCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            if (!IsLoaded)
+            if (!IsLoaded || _isApplyingDirectAacRecordingChoice || sender is not CheckBox checkBox)
                 return;
 
-            bool confirmed = AppDialog.Confirm(
+            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
+        }
+
+        private void DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not CheckBox { IsChecked: false } checkBox)
+                return;
+
+            e.Handled = true;
+            checkBox.Focus();
+            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
+        }
+
+        private void DirectAacRecordingCheckBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Space || sender is not CheckBox { IsChecked: false } checkBox)
+                return;
+
+            e.Handled = true;
+            ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk());
+        }
+
+        private bool ConfirmDirectAacRecordingRisk()
+        {
+            return AppDialog.Confirm(
                 this,
-                AppLanguage.Get("此模式对麦克风、驱动和 FFmpeg 的兼容性要求较高，部分环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式"),
+                AppLanguage.Get("实时封装时如果麦克风断开或音频设备异常被占用，可能导致 FFmpeg 录制中断，从而造成视频异常或录制失败"),
                 AppLanguage.Get("开启音频直接写入 MKV？"),
                 confirmText: AppLanguage.Get("了解风险并开启"),
                 cancelText: AppLanguage.Get("保持关闭"),
                 severity: AppDialogSeverity.Warning);
-            if (confirmed)
-                return;
+        }
 
-            Config.EnableDirectAacRecording = false;
-            if (sender is CheckBox checkBox)
-                checkBox.IsChecked = false;
+        private void ApplyDirectAacRecordingChoice(CheckBox checkBox, bool enabled)
+        {
+            _isApplyingDirectAacRecordingChoice = true;
+            try
+            {
+                Config.EnableDirectAacRecording = enabled;
+                checkBox.SetCurrentValue(
+                    System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                    enabled);
+                checkBox.GetBindingExpression(
+                    System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty)?.UpdateSource();
+            }
+            finally
+            {
+                _isApplyingDirectAacRecordingChoice = false;
+            }
         }
 
         private void AdvancedModeButton_Unchecked(object sender, RoutedEventArgs e)

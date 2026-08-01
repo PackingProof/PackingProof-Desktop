@@ -554,7 +554,7 @@
   <data name="音频直接写入 MKV" xml:space="preserve"><value>Write audio directly to MKV</value></data>
   <data name="将声音直接编码到临时录像文件，减少临时文件和后处理" xml:space="preserve"><value>Encode audio directly into the temporary recording to reduce temporary files and post-processing</value></data>
   <data name="开启音频直接写入 MKV？" xml:space="preserve"><value>Write audio directly to MKV?</value></data>
-  <data name="此模式对麦克风、驱动和 FFmpeg 的兼容性要求较高，部分环境可能出现录像无法开始、声音缺失或不同步。建议先录制并回放一段测试录像；关闭后会恢复更稳妥的 WAV 临时录音方式" xml:space="preserve"><value>This mode has stricter compatibility requirements for microphones, drivers, and FFmpeg. Some environments may fail to start recording, lose audio, or drift out of sync. Record and play back a test clip first. Turning it off restores the more reliable temporary WAV path</value></data>
+  <data name="实时封装时如果麦克风断开或音频设备异常被占用，可能导致 FFmpeg 录制中断，从而造成视频异常或录制失败" xml:space="preserve"><value>If the microphone disconnects or an audio device is unexpectedly occupied during real-time muxing, FFmpeg recording may stop and the video may be corrupted or fail to record</value></data>
   <data name="了解风险并开启" xml:space="preserve"><value>Accept risk and enable</value></data>
   <data name="保持关闭" xml:space="preserve"><value>Keep off</value></data>
   <data name="实时 AAC 音频管道初始化失败，已取消开录" xml:space="preserve"><value>Could not initialize the real-time AAC audio pipe. Recording was not started</value></data>

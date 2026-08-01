@@ -2969,6 +2969,8 @@
                                                   Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableDirectAacRecording, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Checked="DirectAacRecordingCheckBox_Checked"
+                                                  PreviewMouseLeftButtonDown="DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown"
+                                                  PreviewKeyDown="DirectAacRecordingCheckBox_PreviewKeyDown"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"

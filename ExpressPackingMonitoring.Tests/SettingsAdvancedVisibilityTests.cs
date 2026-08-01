@@ -65,6 +65,12 @@ public sealed class SettingsAdvancedVisibilityTests
             element => (string?)element.Attribute(Xaml + "Name") == "DirectAacRecordingCheckBox");
         Assert.Contains("Config.EnableDirectAacRecording", (string?)directAacToggle.Attribute("IsChecked") ?? string.Empty);
         Assert.Equal("DirectAacRecordingCheckBox_Checked", (string?)directAacToggle.Attribute("Checked"));
+        Assert.Equal(
+            "DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown",
+            (string?)directAacToggle.Attribute("PreviewMouseLeftButtonDown"));
+        Assert.Equal(
+            "DirectAacRecordingCheckBox_PreviewKeyDown",
+            (string?)directAacToggle.Attribute("PreviewKeyDown"));
 
         string[] hiddenLabels =
         [
@@ -139,6 +145,21 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.DoesNotContain("实验", row.ToString(SaveOptions.DisableFormatting));
     }
 
+    [Fact]
+    public void DirectMkvAudio_ConfirmsBeforeVisualToggleAndRollsBackBothStates()
+    {
+        string code = LoadSettingsCode();
+
+        Assert.Contains("ApplyDirectAacRecordingChoice(checkBox, ConfirmDirectAacRecordingRisk())", code);
+        Assert.Contains("Config.EnableDirectAacRecording = enabled", code);
+        Assert.Contains("checkBox.SetCurrentValue(", code);
+        Assert.Contains("ToggleButton.IsCheckedProperty", code);
+        Assert.Contains("?.UpdateSource()", code);
+        Assert.Contains(
+            "实时封装时如果麦克风断开或音频设备异常被占用，可能导致 FFmpeg 录制中断，从而造成视频异常或录制失败",
+            code);
+    }
+
     [Theory]
     [InlineData("分辨率")]
     [InlineData("放大倍数")]
@@ -194,5 +215,26 @@ public sealed class SettingsAdvancedVisibilityTests
         }
 
         throw new FileNotFoundException("找不到 SettingsWindow.xaml");
+    }
+
+    private static string LoadSettingsCode()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine(
+                directory.FullName,
+                "ExpressPackingMonitoring",
+                "UI",
+                "SettingsWindow.xaml.cs");
+            if (File.Exists(candidate))
+            {
+                return File.ReadAllText(candidate);
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("找不到 SettingsWindow.xaml.cs");
     }
 }
