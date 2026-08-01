@@ -74,6 +74,14 @@ Use C# with nullable references and implicit usings enabled. Follow the existing
 
 Before every release, run `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`; packaging remains blocked unless the automated checks pass. The real-device scenarios in `RELEASE_CHECKLIST.md` are recommended but non-blocking, and any unverified scenarios must be reported with the release. Do not pass `-ConfirmManualCoreChecks` unless those real-device checks were actually performed.
 
+## Cross-Device Backup Compatibility
+
+- Treat every change to device enrollment, backup authentication, upload, or verified-receipt behavior as a two-sided protocol change. Hosts and clients must exchange explicit protocol, enrollment, authentication, application-version, and build capabilities instead of inferring compatibility from a display version alone.
+- Reject an incompatible client before showing the host approval prompt or issuing, rotating, or persisting a device token. Return a structured upgrade response that identifies which side must update, the minimum compatible version, and a trusted download location.
+- An incompatible host must be rejected before a phone or RecordingWorkstation requests a token. Compatibility failure may block connection and backup, but must never delete or reset local recordings, databases, upload queues, stable device IDs, or the last-host hint.
+- Keep concrete minimum versions and protocol numbers in the centralized compatibility policy code, not in this document. Update desktop and mobile regression tests together whenever that policy or the wire contract changes.
+- Release a compatible client package before publishing a host version that raises the client minimum. Verify both upgrade directions and a newer-but-compatible peer before release.
+
 ## Commit & Pull Request Guidelines
 
 Recent history uses conventional prefixes with Chinese subjects, for example `fix: 优化 Web 搜索和转码确认` and `docs: 优化 README 表述`. Keep commits scoped and include a short body explaining what changed and why. Do not include secrets, local paths, account IDs, signing files, or machine-specific details.
