@@ -2199,11 +2199,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void OpenPlaybackWindow()
         {
-            if (IsRecordingWorkstation)
-            {
-                OpenBoundHost();
-                return;
-            }
             if (ActivateExistingWindow(_playbackWindow))
                 return;
 

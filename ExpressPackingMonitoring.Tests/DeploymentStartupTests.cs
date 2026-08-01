@@ -1468,6 +1468,34 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void RecordingWorkstationPlaybackUsesLocalDatabaseAndCacheLocation()
+    {
+        string mainSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+        string recordingSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Recording.cs");
+        int methodStart = mainSource.IndexOf(
+            "private void OpenPlaybackWindow()",
+            StringComparison.Ordinal);
+        int methodEnd = mainSource.IndexOf(
+            "private static bool ActivateExistingWindow",
+            methodStart,
+            StringComparison.Ordinal);
+        string playbackMethod = mainSource[methodStart..methodEnd];
+
+        Assert.Contains("new PlaybackWindow(folderPath, _db", playbackMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("OpenBoundHost();", playbackMethod, StringComparison.Ordinal);
+        Assert.Contains(
+            "RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)",
+            recordingSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryOrderIntegrationEntryUsesUnifiedPluginCopy()
     {
         string mainWindow = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");
