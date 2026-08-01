@@ -75,7 +75,20 @@ namespace ExpressPackingMonitoring.Services
 
     public sealed class WebServer : IDisposable
     {
-        private sealed record DeviceVideoTicket(string DeviceId, long RecordId, DateTimeOffset ExpiresAt);
+        private sealed record DeviceVideoTicket(
+            string DeviceId,
+            string DeviceKind,
+            long RecordId,
+            DateTimeOffset ExpiresAt);
+        private sealed record DeviceClipTaskGrant(
+            string DeviceId,
+            long RecordId,
+            DateTimeOffset ExpiresAt);
+        private sealed record DeviceClipAssetTicket(
+            string DeviceId,
+            string FileName,
+            string AssetKind,
+            DateTimeOffset ExpiresAt);
         private sealed class PendingOrderLookup
         {
             public string RequestId { get; init; } = "";
@@ -116,6 +129,8 @@ namespace ExpressPackingMonitoring.Services
         private Timer _mobileAppUpdateRefreshTimer;
         private readonly ConcurrentDictionary<string, byte> _notifiedMobileAppUpdates = new();
         private readonly ConcurrentDictionary<string, DeviceVideoTicket> _deviceVideoTickets = new();
+        private readonly ConcurrentDictionary<string, DeviceClipTaskGrant> _deviceClipTasks = new();
+        private readonly ConcurrentDictionary<string, DeviceClipAssetTicket> _deviceClipAssetTickets = new();
         private readonly string _mobileBackupComputerId;
         private readonly string _mobileBackupComputerName;
         private readonly string _nodeId;
@@ -145,6 +160,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<HttpListenerContext, byte[]> _authenticatedRequestBodies = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKeys = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceIds = new();
+        private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKinds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, long> _backupEnrollmentAttempts = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, Lazy<BackupDeviceEnrollmentOperation>> _pendingBackupEnrollments = new(StringComparer.OrdinalIgnoreCase);
@@ -612,8 +628,8 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 bool isDeviceEnrollment = path == "/api/mobile-backup/enroll" && method == "POST";
-                bool hasDeviceVideoTicket = method == "GET" && HasValidDeviceVideoTicket(ctx, path);
-                if (!isDeviceEnrollment && !hasDeviceVideoTicket && IsMobileBackupPath(path)
+                bool hasDeviceAssetTicket = method == "GET" && HasValidDeviceAssetTicket(ctx, path);
+                if (!isDeviceEnrollment && !hasDeviceAssetTicket && IsMobileBackupPath(path)
                     && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey, out bool obsoleteProtocol))
                 {
                     SendJson(ctx, obsoleteProtocol ? 426 : missingBackupKey ? 401 : 403, new
@@ -688,6 +704,18 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/mobile-backup/videos/status" when method == "GET":
                         HandleDeviceScopedVideoStatuses(ctx);
                         break;
+                    case var p when method == "GET" && p.StartsWith("/api/mobile-backup/clip-tasks/") && !p.EndsWith("/cancel"):
+                        HandleGetDeviceClipTask(ctx, path);
+                        break;
+                    case var p when method == "POST" && p.StartsWith("/api/mobile-backup/clip-tasks/") && p.EndsWith("/cancel"):
+                        HandleCancelDeviceClipTask(ctx, path);
+                        break;
+                    case var p when method == "GET" && p.StartsWith("/api/mobile-backup/clips/"):
+                        HandleServeDeviceClip(ctx, path);
+                        break;
+                    case var p when method == "GET" && p.StartsWith("/api/mobile-backup/clip-previews/"):
+                        HandleServeDeviceClipPreview(ctx, path);
+                        break;
                     case "/api/connections/heartbeat" when method == "POST":
                         HandleConnectionHeartbeat(ctx);
                         break;
@@ -734,6 +762,10 @@ namespace ExpressPackingMonitoring.Services
                             HandleDeviceScopedVideo(ctx, scopedDownloadId, "download");
                         else if (method == "GET" && TryParseDeviceScopedVideoPath(path, "/thumbnail", out long scopedThumbnailId))
                             HandleDeviceScopedVideo(ctx, scopedThumbnailId, "thumbnail");
+                        else if (method == "POST" && TryParseDeviceScopedVideoPath(path, "/clip/timeline", out long scopedTimelineId))
+                            HandleDeviceClipTimeline(ctx, scopedTimelineId);
+                        else if (method == "POST" && TryParseDeviceScopedVideoPath(path, "/clip", out long scopedClipId))
+                            HandleStartDeviceClip(ctx, scopedClipId);
                         else if (method == "HEAD" && path.StartsWith("/api/videos/") && path.EndsWith("/play"))
                         {
                             // HEAD 请求只返回 headers，不启动转码/传输
@@ -773,6 +805,7 @@ namespace ExpressPackingMonitoring.Services
                 _authenticatedRequestBodies.TryRemove(ctx, out _);
                 _authenticatedDeviceKeys.TryRemove(ctx, out _);
                 _authenticatedDeviceIds.TryRemove(ctx, out _);
+                _authenticatedDeviceKinds.TryRemove(ctx, out _);
             }
         }
 
@@ -890,19 +923,28 @@ namespace ExpressPackingMonitoring.Services
         private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
         {
             string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
-            if (!_backupPairingTokens.TryGetDeviceCredential(deviceId, out string credential))
+            if (!_backupPairingTokens.TryGetDeviceCredential(
+                    deviceId,
+                    out string credential,
+                    out string deviceKind))
             {
                 missingKey = string.IsNullOrWhiteSpace(
                     ctx.Request.Headers[BackupRequestAuthentication.SignatureHeader]);
                 return false;
             }
-            return TryAuthorizeSignedRequest(ctx, deviceId, credential, out missingKey);
+            return TryAuthorizeSignedRequest(
+                ctx,
+                deviceId,
+                credential,
+                deviceKind,
+                out missingKey);
         }
 
         private bool TryAuthorizeSignedRequest(
             HttpListenerContext ctx,
             string deviceId,
             string credential,
+            string deviceKind,
             out bool missingKey)
         {
             string timestampText = ctx.Request.Headers[BackupRequestAuthentication.TimestampHeader]?.Trim() ?? "";
@@ -954,6 +996,7 @@ namespace ExpressPackingMonitoring.Services
             _authenticatedRequestBodies[ctx] = body;
             _authenticatedDeviceKeys[ctx] = credential;
             _authenticatedDeviceIds[ctx] = deviceId;
+            _authenticatedDeviceKinds[ctx] = NormalizeDeviceKind(deviceKind);
             RegisterAuthorizedBackupClient(ctx, deviceId);
             return true;
         }
@@ -962,10 +1005,6 @@ namespace ExpressPackingMonitoring.Services
         {
             IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
             string deviceName = ctx.Request.Headers["X-EPM-Device-Name"];
-            string deviceKind = string.Equals(
-                ctx.Request.Headers["X-EPM-Device-Kind"], "pc", StringComparison.OrdinalIgnoreCase)
-                    ? "pc"
-                    : "mobile";
             try { deviceName = Uri.UnescapeDataString(deviceName ?? ""); } catch { }
             _mobileOrderReceivers.Register(
                 remoteAddress,
@@ -974,6 +1013,11 @@ namespace ExpressPackingMonitoring.Services
                 MobileOrderReceiverRegistry.OrderReceiverPort,
                 [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver]);
         }
+
+        private static string NormalizeDeviceKind(string deviceKind) =>
+            string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? "pc"
+                : "mobile";
 
         private static bool IsMobileBackupUploadPath(string path, string suffix, out string uploadId)
         {
@@ -1185,7 +1229,9 @@ namespace ExpressPackingMonitoring.Services
                     videoLibrary = true,
                     cursorVideoLibrary = true,
                     rangePlayback = true,
-                    multipleSessionsPerFile = true
+                    multipleSessionsPerFile = true,
+                    libraryScope = "host",
+                    deviceVideoClipping = true
                 },
                 retryPolicy = new
                 {
@@ -1501,7 +1547,8 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleDeviceScopedVideos(HttpListenerContext ctx)
         {
-            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            if (!TryGetAuthenticatedDevicePrincipal(ctx, out string deviceId, out string deviceKind)) return;
+            bool hostLibrary = IsMobileDevice(deviceKind);
             var qs = ctx.Request.QueryString;
             int page = int.TryParse(qs["page"], out int parsedPage) ? Math.Max(1, parsedPage) : 1;
             int pageSize = int.TryParse(qs["size"], out int parsedSize) ? Math.Clamp(parsedSize, 1, 100) : 50;
@@ -1512,11 +1559,19 @@ namespace ExpressPackingMonitoring.Services
                 string.IsNullOrWhiteSpace(keyword) ? null : keyword,
                 page,
                 pageSize,
+                sourceType: hostLibrary ? "" : "external",
+                deviceId: hostLibrary ? "" : deviceId);
+            int deviceTotal = _db.QueryVideosPaged(
+                null,
+                null,
+                null,
+                1,
+                1,
                 sourceType: "external",
-                deviceId: deviceId);
+                deviceId: deviceId).Total;
             var data = result.Records.Select(record =>
             {
-                string ticket = CreateDeviceVideoTicket(deviceId, record.Id);
+                string ticket = CreateDeviceVideoTicket(deviceId, deviceKind, record.Id);
                 return new
                 {
                     record.Id,
@@ -1524,8 +1579,8 @@ namespace ExpressPackingMonitoring.Services
                     trackingNumber = record.TrackingNumber ?? "",
                     record.Mode,
                     record.FileName,
-                    sourceType = "external",
-                    sourceDeviceId = deviceId,
+                    sourceType = record.SourceType ?? "pc",
+                    sourceDeviceId = record.SourceDeviceId ?? "",
                     sourceDeviceName = record.SourceDeviceName ?? "",
                     sourceDeviceKind = record.SourceDeviceKind ?? "",
                     sourceSessionId = record.SourceSessionId ?? "",
@@ -1540,12 +1595,13 @@ namespace ExpressPackingMonitoring.Services
                     remote = true
                 };
             });
-            SendJson(ctx, 200, new { total = result.Total, deviceTotal = result.Total, page, pageSize, data });
+            SendJson(ctx, 200, new { total = result.Total, deviceTotal, page, pageSize, data });
         }
 
         private void HandleDeviceScopedVideoStatuses(HttpListenerContext ctx)
         {
-            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            if (!TryGetAuthenticatedDevicePrincipal(ctx, out string deviceId, out string deviceKind)) return;
+            bool hostLibrary = IsMobileDevice(deviceKind);
             long[] ids = (ctx.Request.QueryString["ids"] ?? "")
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(value => long.TryParse(value, out long id) ? id : 0)
@@ -1556,14 +1612,12 @@ namespace ExpressPackingMonitoring.Services
             var data = ids.Select(id =>
             {
                 VideoRecord record = _db.GetVideoById(id);
-                bool owned = record != null
-                    && string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(record.SourceDeviceId, deviceId, StringComparison.OrdinalIgnoreCase);
-                bool exists = owned && !record!.IsDeleted && File.Exists(record.FilePath);
-                string status = !owned || (!record!.IsDeleted && !exists)
+                bool authorized = CanAccessDeviceVideo(record, deviceId, hostLibrary, includeDeleted: true);
+                bool exists = authorized && !record!.IsDeleted && File.Exists(record.FilePath);
+                string status = !authorized || (!record!.IsDeleted && !exists)
                     ? "missing"
                     : record.IsDeleted ? "deleted" : "available";
-                string reason = !owned ? "记录不存在"
+                string reason = !authorized ? "记录不存在"
                     : record!.IsDeleted ? (string.IsNullOrWhiteSpace(record.DeleteReason) ? "已清理" : record.DeleteReason)
                     : exists ? "" : "文件缺失";
                 return new { id, status, exists, reason };
@@ -1574,14 +1628,13 @@ namespace ExpressPackingMonitoring.Services
         private void HandleDeviceScopedVideo(HttpListenerContext ctx, long recordId, string operation)
         {
             string deviceId;
-            if (!TryGetDeviceVideoTicket(ctx, recordId, out deviceId)
-                && !TryGetAuthenticatedDeviceId(ctx, out deviceId)) return;
+            string deviceKind;
+            if (!TryGetDeviceVideoTicket(ctx, recordId, out deviceId, out deviceKind)
+                && !TryGetAuthenticatedDevicePrincipal(ctx, out deviceId, out deviceKind)) return;
             VideoRecord record = _db.GetVideoById(recordId);
-            if (record == null
-                || !string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(record.SourceDeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+            if (!CanAccessDeviceVideo(record, deviceId, IsMobileDevice(deviceKind)))
             {
-                SendJson(ctx, 404, new { errorCode = "video_not_found", error = "未找到本设备录像" });
+                SendJson(ctx, 404, new { errorCode = "video_not_found", error = "未找到可访问的录像" });
                 return;
             }
             string syntheticPath = $"/api/videos/{recordId}/{operation}";
@@ -1590,11 +1643,217 @@ namespace ExpressPackingMonitoring.Services
             else HandleVideoThumbnail(ctx, syntheticPath);
         }
 
-        private string CreateDeviceVideoTicket(string deviceId, long recordId)
+        private void HandleDeviceClipTimeline(HttpListenerContext ctx, long recordId)
+        {
+            if (!TryGetMobileLibraryPrincipal(ctx, recordId, out string deviceId)) return;
+            try
+            {
+                ClipRangeRequest request = ReadJsonBody<ClipRangeRequest>(ctx);
+                ClipTimelineResult result = request.FrameIndex >= 0
+                    ? _clipService.CreateTimelinePreviewFrame(recordId, request.FrameCount, request.FrameIndex)
+                    : _clipService.CreateTimelinePreviews(recordId, request.FrameCount);
+                foreach (ClipTimelineFrame frame in result.Frames)
+                {
+                    string fileName = Path.GetFileName(frame.Url);
+                    string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "preview");
+                    frame.Url = $"/api/mobile-backup/clip-previews/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
+                }
+                SendJson(ctx, 200, result);
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleDeviceClipTimeline 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleStartDeviceClip(HttpListenerContext ctx, long recordId)
+        {
+            if (!TryGetMobileLibraryPrincipal(ctx, recordId, out string deviceId)) return;
+            try
+            {
+                ClipRangeRequest request = ReadJsonBody<ClipRangeRequest>(ctx);
+                string taskId = _clipService.StartClip(recordId, request.StartSeconds, request.EndSeconds);
+                _deviceClipTasks[taskId] = new DeviceClipTaskGrant(
+                    deviceId,
+                    recordId,
+                    DateTimeOffset.UtcNow.AddHours(2));
+                CleanupDeviceClipGrants();
+                SendJson(ctx, 200, new { success = true, taskId });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleStartDeviceClip 异常: {ex.Message}");
+                SendJson(ctx, 400, new { success = false, error = ex.Message });
+            }
+        }
+
+        private void HandleGetDeviceClipTask(HttpListenerContext ctx, string path)
+        {
+            string taskId = Path.GetFileName(path);
+            if (!TryAuthorizeDeviceClipTask(ctx, taskId, out string deviceId)) return;
+            ClipTaskSnapshot task = _clipService.GetTask(taskId);
+            if (task == null)
+            {
+                _deviceClipTasks.TryRemove(taskId, out _);
+                SendJson(ctx, 404, new { success = false, errorCode = "clip_task_not_found", status = "not_found", message = "剪辑任务不存在", downloadUrl = "" });
+                return;
+            }
+            if (!string.IsNullOrWhiteSpace(task.DownloadUrl))
+            {
+                string fileName = Path.GetFileName(task.DownloadUrl);
+                string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "clip");
+                task.DownloadUrl = $"/api/mobile-backup/clips/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
+                task.PlayUrl = task.DownloadUrl + "&inline=1";
+            }
+            SendJson(ctx, 200, task);
+        }
+
+        private void HandleCancelDeviceClipTask(HttpListenerContext ctx, string path)
+        {
+            string taskId = path.Replace("/api/mobile-backup/clip-tasks/", "")
+                .Replace("/cancel", "")
+                .Trim('/');
+            if (!TryAuthorizeDeviceClipTask(ctx, taskId, out _)) return;
+            ClipTaskSnapshot task = _clipService.CancelTask(taskId);
+            _deviceClipTasks.TryRemove(taskId, out _);
+            if (task == null)
+            {
+                SendJson(ctx, 404, new { success = false, errorCode = "clip_task_not_found", status = "not_found", message = "剪辑任务不存在", downloadUrl = "" });
+                return;
+            }
+            SendJson(ctx, 200, task);
+        }
+
+        private void HandleServeDeviceClipPreview(HttpListenerContext ctx, string path)
+        {
+            string fileName = Path.GetFileName(path);
+            if (!TryGetDeviceClipAssetTicket(ctx, fileName, "preview", out _))
+            {
+                SendJson(ctx, 403, new { errorCode = "clip_ticket_invalid", error = "剪辑预览已过期，请重新打开剪辑" });
+                return;
+            }
+            string filePath = _clipService.ResolvePreviewPath(fileName);
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                SendJson(ctx, 404, new { errorCode = "clip_preview_not_found", error = "预览图不存在" });
+                return;
+            }
+            ServeFileWithRange(ctx, filePath, inline: true);
+        }
+
+        private void HandleServeDeviceClip(HttpListenerContext ctx, string path)
+        {
+            string fileName = Path.GetFileName(path);
+            if (!TryGetDeviceClipAssetTicket(ctx, fileName, "clip", out _))
+            {
+                SendJson(ctx, 403, new { errorCode = "clip_ticket_invalid", error = "剪辑文件链接已过期，请重新生成" });
+                return;
+            }
+            string filePath = _clipService.ResolveClipPath(fileName);
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                SendJson(ctx, 404, new { errorCode = "clip_file_not_found", error = "剪辑文件不存在" });
+                return;
+            }
+            ServeFileWithRange(ctx, filePath, inline: ShouldServeClipInline(ctx.Request.QueryString["inline"]));
+        }
+
+        private bool TryGetMobileLibraryPrincipal(
+            HttpListenerContext ctx,
+            long recordId,
+            out string deviceId)
+        {
+            deviceId = "";
+            if (!TryGetAuthenticatedDevicePrincipal(ctx, out string authenticatedDeviceId, out string deviceKind))
+                return false;
+            if (!IsMobileDevice(deviceKind))
+            {
+                SendJson(ctx, 403, new { errorCode = "device_library_forbidden", error = "录制工位只能访问本设备录像" });
+                return false;
+            }
+            if (!CanAccessDeviceVideo(_db.GetVideoById(recordId), authenticatedDeviceId, hostLibrary: true))
+            {
+                SendJson(ctx, 404, new { errorCode = "video_not_found", error = "未找到可访问的录像" });
+                return false;
+            }
+            deviceId = authenticatedDeviceId;
+            return true;
+        }
+
+        private bool TryAuthorizeDeviceClipTask(
+            HttpListenerContext ctx,
+            string taskId,
+            out string deviceId)
+        {
+            deviceId = "";
+            if (!TryGetAuthenticatedDevicePrincipal(ctx, out string authenticatedDeviceId, out string deviceKind))
+                return false;
+            _deviceClipTasks.TryGetValue(taskId, out DeviceClipTaskGrant grant);
+            if (!IsMobileDevice(deviceKind)
+                || grant == null
+                || grant.ExpiresAt <= DateTimeOffset.UtcNow
+                || !string.Equals(grant.DeviceId, authenticatedDeviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (grant != null && grant.ExpiresAt <= DateTimeOffset.UtcNow)
+                    _deviceClipTasks.TryRemove(taskId, out _);
+                SendJson(ctx, 404, new { errorCode = "clip_task_not_found", error = "剪辑任务不存在" });
+                return false;
+            }
+            deviceId = authenticatedDeviceId;
+            return true;
+        }
+
+        private string CreateDeviceClipAssetTicket(string deviceId, string fileName, string assetKind)
+        {
+            string value = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+            _deviceClipAssetTickets[value] = new DeviceClipAssetTicket(
+                deviceId,
+                fileName,
+                assetKind,
+                DateTimeOffset.UtcNow.AddMinutes(10));
+            CleanupDeviceClipGrants();
+            return value;
+        }
+
+        private bool TryGetDeviceClipAssetTicket(
+            HttpListenerContext ctx,
+            string fileName,
+            string assetKind,
+            out string deviceId)
+        {
+            deviceId = "";
+            string value = ctx.Request.QueryString["ticket"] ?? "";
+            if (value.Length != 48
+                || !_deviceClipAssetTickets.TryGetValue(value, out DeviceClipAssetTicket ticket)
+                || ticket.ExpiresAt <= DateTimeOffset.UtcNow
+                || !string.Equals(ticket.FileName, fileName, StringComparison.Ordinal)
+                || !string.Equals(ticket.AssetKind, assetKind, StringComparison.Ordinal))
+            {
+                if (value.Length > 0) _deviceClipAssetTickets.TryRemove(value, out _);
+                return false;
+            }
+            deviceId = ticket.DeviceId;
+            return true;
+        }
+
+        private void CleanupDeviceClipGrants()
+        {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (_deviceClipTasks.Count > 256)
+                foreach ((string key, DeviceClipTaskGrant value) in _deviceClipTasks)
+                    if (value.ExpiresAt <= now) _deviceClipTasks.TryRemove(key, out _);
+            if (_deviceClipAssetTickets.Count > 2048)
+                foreach ((string key, DeviceClipAssetTicket value) in _deviceClipAssetTickets)
+                    if (value.ExpiresAt <= now) _deviceClipAssetTickets.TryRemove(key, out _);
+        }
+
+        private string CreateDeviceVideoTicket(string deviceId, string deviceKind, long recordId)
         {
             string value = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
             _deviceVideoTickets[value] = new DeviceVideoTicket(
                 deviceId,
+                NormalizeDeviceKind(deviceKind),
                 recordId,
                 DateTimeOffset.UtcNow.AddMinutes(10));
             if (_deviceVideoTickets.Count > 2048)
@@ -1606,17 +1865,27 @@ namespace ExpressPackingMonitoring.Services
             return value;
         }
 
-        private bool HasValidDeviceVideoTicket(HttpListenerContext ctx, string path)
+        private bool HasValidDeviceAssetTicket(HttpListenerContext ctx, string path)
         {
             bool ticketPath = TryParseDeviceScopedVideoPath(path, "/play", out long recordId)
                 || TryParseDeviceScopedVideoPath(path, "/download", out recordId)
                 || TryParseDeviceScopedVideoPath(path, "/thumbnail", out recordId);
-            return ticketPath && TryGetDeviceVideoTicket(ctx, recordId, out _);
+            if (ticketPath && TryGetDeviceVideoTicket(ctx, recordId, out _, out _)) return true;
+            if (path.StartsWith("/api/mobile-backup/clip-previews/", StringComparison.OrdinalIgnoreCase))
+                return TryGetDeviceClipAssetTicket(ctx, Path.GetFileName(path), "preview", out _);
+            if (path.StartsWith("/api/mobile-backup/clips/", StringComparison.OrdinalIgnoreCase))
+                return TryGetDeviceClipAssetTicket(ctx, Path.GetFileName(path), "clip", out _);
+            return false;
         }
 
-        private bool TryGetDeviceVideoTicket(HttpListenerContext ctx, long recordId, out string deviceId)
+        private bool TryGetDeviceVideoTicket(
+            HttpListenerContext ctx,
+            long recordId,
+            out string deviceId,
+            out string deviceKind)
         {
             deviceId = "";
+            deviceKind = "";
             string value = ctx.Request.QueryString["ticket"] ?? "";
             if (value.Length != 48
                 || !_deviceVideoTickets.TryGetValue(value, out DeviceVideoTicket ticket)
@@ -1627,7 +1896,39 @@ namespace ExpressPackingMonitoring.Services
                 return false;
             }
             deviceId = ticket.DeviceId;
+            deviceKind = ticket.DeviceKind;
             return true;
+        }
+
+        private bool TryGetAuthenticatedDevicePrincipal(
+            HttpListenerContext ctx,
+            out string deviceId,
+            out string deviceKind)
+        {
+            if (_authenticatedDeviceIds.TryGetValue(ctx, out deviceId!)
+                && deviceId.Length > 0
+                && _authenticatedDeviceKinds.TryGetValue(ctx, out deviceKind!)
+                && deviceKind.Length > 0)
+                return true;
+            deviceId = "";
+            deviceKind = "";
+            SendJson(ctx, 403, new { errorCode = "device_identity_required", error = "设备身份验证失败，请重新连接" });
+            return false;
+        }
+
+        private static bool IsMobileDevice(string deviceKind) =>
+            string.Equals(deviceKind, "mobile", StringComparison.OrdinalIgnoreCase);
+
+        private static bool CanAccessDeviceVideo(
+            VideoRecord record,
+            string deviceId,
+            bool hostLibrary,
+            bool includeDeleted = false)
+        {
+            if (record == null || (!includeDeleted && record.IsDeleted)) return false;
+            return hostLibrary
+                || (string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(record.SourceDeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
         }
 
         private bool TryGetAuthenticatedDeviceId(HttpListenerContext ctx, out string deviceId)

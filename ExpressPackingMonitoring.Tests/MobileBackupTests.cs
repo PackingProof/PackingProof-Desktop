@@ -745,6 +745,18 @@ public sealed class MobileBackupTests
         try
         {
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            string pcVideoPath = Path.Combine(directory, "pc-recording.mp4");
+            await File.WriteAllBytesAsync(
+                pcVideoPath,
+                TestMediaAssets.TinyValidMp4,
+                TestContext.Current.CancellationToken);
+            long pcVideoId = database.InsertVideoRecord(
+                "PC-ORDER",
+                "发货",
+                "h264",
+                "test",
+                pcVideoPath,
+                DateTime.Now.AddMinutes(-2));
             using var server = new WebServer(
                 database,
                 port,
@@ -787,9 +799,11 @@ public sealed class MobileBackupTests
             Assert.Equal(2, capabilityJson.RootElement.GetProperty("version").GetInt32());
             Assert.Equal(3, capabilityJson.RootElement.GetProperty("authVersion").GetInt32());
             Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("videoLibrary").GetBoolean());
+            Assert.Equal("host", capabilityJson.RootElement.GetProperty("features").GetProperty("libraryScope").GetString());
+            Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("deviceVideoClipping").GetBoolean());
             Assert.Equal(4 * 1024 * 1024, capabilityJson.RootElement.GetProperty("maxChunkBytes").GetInt32());
 
-            byte[] file = Encoding.UTF8.GetBytes("http upload payload");
+            byte[] file = TestMediaAssets.TinyValidMp4;
             string sha = Sha256(file);
             byte[] createBody = JsonSerializer.SerializeToUtf8Bytes(CreateRequest(sha, file.Length));
             using HttpResponseMessage create = await SendSignedAsync(
@@ -824,11 +838,24 @@ public sealed class MobileBackupTests
             using HttpResponseMessage videos = await SendSignedAsync(
                 client, HttpMethod.Get, "/api/mobile-backup/videos?size=50", deviceId, deviceToken, [], cancellationToken);
             using JsonDocument videoJson = JsonDocument.Parse(await videos.Content.ReadAsStringAsync(cancellationToken));
-            JsonElement video = videoJson.RootElement.GetProperty("data")[0];
+            Assert.Equal(2, videoJson.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(1, videoJson.RootElement.GetProperty("deviceTotal").GetInt32());
+            JsonElement video = videoJson.RootElement.GetProperty("data")
+                .EnumerateArray()
+                .Single(item => item.GetProperty("sourceDeviceId").GetString() == deviceId);
             long videoId = video.GetProperty("id").GetInt64();
             Assert.Equal(deviceId, video.GetProperty("sourceDeviceId").GetString());
             Assert.Equal("http-session", video.GetProperty("sourceSessionId").GetString());
             Assert.Equal(sha, video.GetProperty("contentSha256").GetString());
+            JsonElement pcVideo = videoJson.RootElement.GetProperty("data")
+                .EnumerateArray()
+                .Single(item => item.GetProperty("id").GetInt64() == pcVideoId);
+            Assert.Equal("pc", pcVideo.GetProperty("sourceType").GetString());
+            Assert.Equal("", pcVideo.GetProperty("sourceDeviceId").GetString());
+            using HttpResponseMessage pcVideoPlayback = await client.GetAsync(
+                pcVideo.GetProperty("playUrl").GetString(),
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, pcVideoPlayback.StatusCode);
             string playUrl = video.GetProperty("playUrl").GetString()!;
             Assert.Contains("/api/mobile-backup/videos/", playUrl, StringComparison.Ordinal);
             Assert.Contains("?ticket=", playUrl, StringComparison.Ordinal);
@@ -851,7 +878,8 @@ public sealed class MobileBackupTests
                 client, HttpMethod.Get, "/api/mobile-backup/videos?size=50", otherDeviceId, otherToken, [], cancellationToken);
             using JsonDocument otherVideosJson = JsonDocument.Parse(
                 await otherVideos.Content.ReadAsStringAsync(cancellationToken));
-            Assert.Equal(0, otherVideosJson.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(2, otherVideosJson.RootElement.GetProperty("total").GetInt32());
+            Assert.Equal(0, otherVideosJson.RootElement.GetProperty("deviceTotal").GetInt32());
             using HttpResponseMessage crossDevicePlay = await SendSignedAsync(
                 client,
                 HttpMethod.Get,
@@ -860,7 +888,120 @@ public sealed class MobileBackupTests
                 otherToken,
                 [],
                 cancellationToken);
-            Assert.Equal(HttpStatusCode.NotFound, crossDevicePlay.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, crossDevicePlay.StatusCode);
+
+            const string workstationId = "pc-workstation-device";
+            using HttpResponseMessage workstationEnrollment = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment(workstationId, "录制工位", "pc"),
+                cancellationToken);
+            using JsonDocument workstationEnrollmentJson = JsonDocument.Parse(
+                await workstationEnrollment.Content.ReadAsStringAsync(cancellationToken));
+            string workstationToken = workstationEnrollmentJson.RootElement.GetProperty("deviceToken").GetString()!;
+            using HttpResponseMessage workstationVideos = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                "/api/mobile-backup/videos?size=50",
+                workstationId,
+                workstationToken,
+                [],
+                cancellationToken);
+            using JsonDocument workstationVideosJson = JsonDocument.Parse(
+                await workstationVideos.Content.ReadAsStringAsync(cancellationToken));
+            Assert.Equal(0, workstationVideosJson.RootElement.GetProperty("total").GetInt32());
+            using HttpResponseMessage workstationCrossDevicePlay = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/videos/{videoId}/play",
+                workstationId,
+                workstationToken,
+                [],
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.NotFound, workstationCrossDevicePlay.StatusCode);
+
+            using HttpResponseMessage mobileStatus = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/videos/status?ids={videoId},{pcVideoId}",
+                otherDeviceId,
+                otherToken,
+                [],
+                cancellationToken);
+            using JsonDocument mobileStatusJson = JsonDocument.Parse(
+                await mobileStatus.Content.ReadAsStringAsync(cancellationToken));
+            Assert.All(
+                mobileStatusJson.RootElement.GetProperty("data").EnumerateArray(),
+                item => Assert.Equal("available", item.GetProperty("status").GetString()));
+            using HttpResponseMessage workstationStatus = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/videos/status?ids={videoId}",
+                workstationId,
+                workstationToken,
+                [],
+                cancellationToken);
+            using JsonDocument workstationStatusJson = JsonDocument.Parse(
+                await workstationStatus.Content.ReadAsStringAsync(cancellationToken));
+            Assert.Equal(
+                "missing",
+                workstationStatusJson.RootElement.GetProperty("data")[0].GetProperty("status").GetString());
+            using HttpResponseMessage crossDeviceAttestation = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/records/{videoId}/attestation",
+                otherDeviceId,
+                otherToken,
+                [],
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.NotFound, crossDeviceAttestation.StatusCode);
+
+            byte[] clipBody = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                startSeconds = 0,
+                endSeconds = 1.0
+            });
+            using HttpResponseMessage clipStart = await SendSignedAsync(
+                client,
+                HttpMethod.Post,
+                $"/api/mobile-backup/videos/{videoId}/clip",
+                deviceId,
+                deviceToken,
+                clipBody,
+                cancellationToken);
+            string clipStartResponse = await clipStart.Content.ReadAsStringAsync(cancellationToken);
+            Assert.True(
+                clipStart.StatusCode == HttpStatusCode.OK,
+                $"Expected clip task to start, response was {(int)clipStart.StatusCode}: {clipStartResponse}");
+            using JsonDocument clipStartJson = JsonDocument.Parse(
+                clipStartResponse);
+            string clipTaskId = clipStartJson.RootElement.GetProperty("taskId").GetString()!;
+            using HttpResponseMessage ownClipTask = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/clip-tasks/{clipTaskId}",
+                deviceId,
+                deviceToken,
+                [],
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, ownClipTask.StatusCode);
+            using HttpResponseMessage otherClipTask = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/clip-tasks/{clipTaskId}",
+                otherDeviceId,
+                otherToken,
+                [],
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.NotFound, otherClipTask.StatusCode);
+            using HttpResponseMessage workstationClip = await SendSignedAsync(
+                client,
+                HttpMethod.Post,
+                $"/api/mobile-backup/videos/{videoId}/clip",
+                workstationId,
+                workstationToken,
+                clipBody,
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, workstationClip.StatusCode);
 
             using var obsoleteRequest = new HttpRequestMessage(HttpMethod.Get, "/api/mobile-backup/capabilities");
             obsoleteRequest.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "2");
