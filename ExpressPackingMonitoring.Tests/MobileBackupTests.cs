@@ -778,6 +778,7 @@ public sealed class MobileBackupTests
             using JsonDocument enrollmentJson = JsonDocument.Parse(
                 await enrollment.Content.ReadAsStringAsync(cancellationToken));
             string deviceToken = enrollmentJson.RootElement.GetProperty("deviceToken").GetString()!;
+            Assert.Equal("测试手机", enrollmentJson.RootElement.GetProperty("deviceName").GetString());
 
             using HttpResponseMessage capabilities = await SendSignedAsync(
                 client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, deviceToken, [], cancellationToken);

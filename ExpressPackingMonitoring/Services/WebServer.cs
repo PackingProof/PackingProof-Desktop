@@ -1105,6 +1105,11 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
             BackupDeviceEnrollment enrollment = operation.Enrollment;
+            MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
+                ctx.Request.RemoteEndPoint?.Address,
+                enrollment.DeviceId,
+                request.DeviceName);
+            string assignedDeviceName = registeredDevice?.NodeName ?? request.DeviceName;
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -1114,6 +1119,7 @@ namespace ExpressPackingMonitoring.Services
                 computerName = _nodeName,
                 deviceId = enrollment.DeviceId,
                 deviceToken = enrollment.DeviceCredential,
+                deviceName = assignedDeviceName,
                 issuedAt = enrollment.IssuedAt,
                 hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion
             });
@@ -1210,18 +1216,22 @@ namespace ExpressPackingMonitoring.Services
                         heartbeat.NicknameCustomized);
                     heartbeat.DisplayName = assignedDisplayName;
                 }
-                _connectedClients.Heartbeat(heartbeat, remoteAddress);
                 if (heartbeat.Connected != false
                     && string.Equals(heartbeat.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
                     && IPAddress.TryParse(remoteAddress, out IPAddress mobileAddress))
                 {
-                    _mobileOrderReceivers.Register(
+                    MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
                         mobileAddress,
                         heartbeat.NodeId,
                         heartbeat.DisplayName,
                         heartbeat.OrderReceiverPort,
                         heartbeat.Capabilities);
+                    assignedDisplayName = registeredDevice?.NodeName
+                        ?? heartbeat.DisplayName?.Trim()
+                        ?? "";
+                    heartbeat.DisplayName = assignedDisplayName;
                 }
+                _connectedClients.Heartbeat(heartbeat, remoteAddress);
                 _mobileAppUpdatePolicy.RefreshInBackground();
                 NotifyMobileAppUpdateIfNeeded(heartbeat);
                 MobileAppUpdatePolicy updatePolicy = MobileAppUpdatePolicyProvider.MinimumPolicy;

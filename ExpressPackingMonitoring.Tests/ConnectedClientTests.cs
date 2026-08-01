@@ -171,6 +171,17 @@ public sealed class ConnectedClientTests
             ConnectedClientInfo registered = Assert.Single(server.GetConnectedClients());
             Assert.Equal("browser-client-001", registered.ClientId);
 
+            var mobileHeartbeat = Heartbeat("mobile-client-001", "mobile-app", "设备 A1B2C3");
+            using HttpResponseMessage mobileResponse = await client.PostAsJsonAsync(
+                "/api/connections/heartbeat",
+                mobileHeartbeat,
+                token);
+            using JsonDocument mobilePayload = JsonDocument.Parse(
+                await mobileResponse.Content.ReadAsStringAsync(token));
+            Assert.Equal(
+                "设备 A1B2C3",
+                mobilePayload.RootElement.GetProperty("assignedDisplayName").GetString());
+
             using HttpResponseMessage invalid = await client.PostAsJsonAsync(
                 "/api/connections/heartbeat",
                 Heartbeat("browser-client-002", "invalid", "非法设备"),
