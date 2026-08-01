@@ -843,4 +843,8 @@
   <data name="正在准备..." xml:space="preserve"><value>Preparing...</value></data>
   <data name="画面旋转 180°" xml:space="preserve"><value>Rotate image 180°</value></data>
   <data name="摄像头倒装时开启，预览、识别和录像会同步旋转" xml:space="preserve"><value>Turn this on when the camera is mounted upside down; preview, recognition, and recording rotate together</value></data>
+  <data name="允许设备连接？" xml:space="preserve"><value>Allow device connection?</value></data>
+  <data name="60 秒内未处理，本次申请将自动取消" xml:space="preserve"><value>This request will be canceled automatically if not handled within 60 seconds</value></data>
+  <data name="允许连接" xml:space="preserve"><value>Allow connection</value></data>
+  <data name="拒绝" xml:space="preserve"><value>Deny</value></data>
 </root>

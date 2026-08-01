@@ -843,4 +843,8 @@
   <data name="正在准备..." xml:space="preserve"><value>正在准备...</value></data>
   <data name="画面旋转 180°" xml:space="preserve"><value>画面旋转 180°</value></data>
   <data name="摄像头倒装时开启，预览、识别和录像会同步旋转" xml:space="preserve"><value>摄像头倒装时开启，预览、识别和录像会同步旋转</value></data>
+  <data name="允许设备连接？" xml:space="preserve"><value>允许设备连接？</value></data>
+  <data name="60 秒内未处理，本次申请将自动取消" xml:space="preserve"><value>60 秒内未处理，本次申请将自动取消</value></data>
+  <data name="允许连接" xml:space="preserve"><value>允许连接</value></data>
+  <data name="拒绝" xml:space="preserve"><value>拒绝</value></data>
 </root>
