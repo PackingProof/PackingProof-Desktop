@@ -109,4 +109,28 @@ public sealed class MobileAppUpdatePolicyTests
         Assert.True(MobileAppUpdatePolicyProvider.IsUpdateAvailable(0, latest));
         Assert.False(MobileAppUpdatePolicyProvider.IsUpdateAvailable(11006, null!));
     }
+
+    [Theory]
+    [InlineData("", null, true)]
+    [InlineData("0.5.10", 0, true)]
+    [InlineData("unknown", 11010, true)]
+    [InlineData("0.5.9", 11009, false)]
+    [InlineData("0.5.10", 11010, false)]
+    public void DesktopPromptsOnlyWhenConnectedMobileVersionIsUnknown(
+        string version,
+        int? buildNumber,
+        bool expected)
+    {
+        var heartbeat = new ConnectedClientHeartbeat
+        {
+            ClientId = "mobile-client-1",
+            ClientType = "mobile-app",
+            DisplayName = "手机1",
+            Connected = true,
+            AppVersion = version,
+            AppBuildNumber = buildNumber
+        };
+
+        Assert.Equal(expected, WebServer.ShouldNotifyUnknownMobileVersion(heartbeat));
+    }
 }

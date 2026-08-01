@@ -1271,20 +1271,20 @@ namespace ExpressPackingMonitoring.Services
 
         private void NotifyMobileAppUpdateIfNeeded(ConnectedClientHeartbeat heartbeat)
         {
-            if (!string.Equals(heartbeat.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
-                || heartbeat.Connected == false)
+            if (!ShouldNotifyUnknownMobileVersion(heartbeat))
                 return;
 
-            MobileAppReleaseInfo latest = _mobileAppUpdatePolicy.LatestRelease;
-            if (!MobileAppUpdatePolicyProvider.IsUpdateAvailable(
-                    heartbeat.AppBuildNumber.GetValueOrDefault(),
-                    latest))
-                return;
+            MobileAppReleaseInfo latest = _mobileAppUpdatePolicy.LatestRelease
+                ?? new MobileAppReleaseInfo(
+                    "",
+                    MobileAppUpdatePolicyProvider.MinimumPolicy.MinimumVersion,
+                    MobileAppUpdatePolicyProvider.MinimumPolicy.MinimumBuildNumber,
+                    MobileAppUpdatePolicyProvider.ReleasesUrl);
 
             string nodeId = string.IsNullOrWhiteSpace(heartbeat.NodeId)
                 ? heartbeat.ClientId.Trim()
                 : heartbeat.NodeId.Trim();
-            string notificationKey = $"{nodeId}:{latest.BuildNumber}";
+            string notificationKey = $"{nodeId}:unknown-version";
             if (!_notifiedMobileAppUpdates.TryAdd(notificationKey, 0))
                 return;
 
@@ -1294,6 +1294,17 @@ namespace ExpressPackingMonitoring.Services
                 heartbeat.AppBuildNumber.GetValueOrDefault(),
                 latest);
             try { MobileAppUpdateAvailable?.Invoke(update); } catch { }
+        }
+
+        internal static bool ShouldNotifyUnknownMobileVersion(ConnectedClientHeartbeat heartbeat)
+        {
+            if (!string.Equals(heartbeat?.ClientType, "mobile-app", StringComparison.OrdinalIgnoreCase)
+                || heartbeat.Connected == false)
+                return false;
+
+            return string.IsNullOrWhiteSpace(heartbeat.AppVersion)
+                || heartbeat.AppBuildNumber.GetValueOrDefault() <= 0
+                || !Version.TryParse(heartbeat.AppVersion.Trim(), out _);
         }
 
         private void HandleCreateMobileBackupUpload(HttpListenerContext ctx)

@@ -8,32 +8,15 @@ internal static class MobileAppUpdatePrompt
 {
     private static MobileAppUpdatePromptWindow? _visiblePrompt;
 
-    internal static void ShowLatest(Window owner, MobileAppReleaseInfo release)
-    {
-        ShowNonModal(
-            owner,
-            $"手机版最新版本为 {release.Version}（内部版本 {release.BuildNumber}）\n\n"
-            + "可前往手机版仓库下载更新",
-            release.DownloadUrl);
-    }
-
     internal static void Show(Window owner, MobileAppUpdateAvailableInfo update)
     {
         string deviceName = string.IsNullOrWhiteSpace(update.DeviceName)
             ? "已连接手机"
             : update.DeviceName;
-        string currentVersion = string.IsNullOrWhiteSpace(update.CurrentVersion)
-            ? update.CurrentBuildNumber > 0
-                ? $"内部版本 {update.CurrentBuildNumber}"
-                : "版本未知（可能是旧版）"
-            : $"{update.CurrentVersion}（内部版本 {update.CurrentBuildNumber}）";
-        string latestVersion =
-            $"{update.LatestRelease.Version}（内部版本 {update.LatestRelease.BuildNumber}）";
         ShowNonModal(
             owner,
-            $"检测到 {deviceName} 正在使用 {currentVersion}\n\n"
-            + $"手机版最新版本为 {latestVersion}\n"
-            + "建议前往下载更新；暂不更新时仍可继续使用当前可用功能",
+            $"无法确认 {deviceName} 的手机 App 版本\n\n"
+            + "请在手机 App 的“设置 - 关于”中检查更新；暂不处理不会影响电脑录像",
             update.LatestRelease.DownloadUrl);
     }
 
