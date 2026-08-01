@@ -7,7 +7,7 @@ param(
     [string]$OutputDir,
     [string]$IsccPath = "",
     [ValidateSet("lzma2/normal", "lzma2/max", "lzma2/ultra64")]
-    [string]$InstallerCompression = "lzma2/max"
+    [string]$InstallerCompression = "lzma2/ultra64"
 )
 
 $ErrorActionPreference = "Stop"

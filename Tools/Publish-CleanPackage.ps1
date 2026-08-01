@@ -13,7 +13,7 @@ param(
     [ValidateRange(1, 9)]
     [int]$SevenZipCompressionLevel = 5,
     [ValidateSet("lzma2/normal", "lzma2/max", "lzma2/ultra64")]
-    [string]$InstallerCompression = "lzma2/max",
+    [string]$InstallerCompression = "lzma2/ultra64",
     [string]$PatchBaselineVersion = "0.0.18",
     [switch]$SkipTtsCacheGeneration,
     [switch]$ConfirmManualCoreChecks,

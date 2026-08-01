@@ -190,7 +190,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.DoesNotContain("WizardSilent", innoScript);
 
         Assert.Contains("INNO_SETUP_ISCC", buildScript);
-        Assert.Contains("InstallerCompression = \"lzma2/max\"", buildScript);
+        Assert.Contains("InstallerCompression = \"lzma2/ultra64\"", buildScript);
+        Assert.Contains("InstallerCompression = \"lzma2/ultra64\"", publishScript);
         Assert.Contains("winget install --id JRSoftware.InnoSetup", buildScript);
         Assert.Contains("WINDOWS_SIGN_CERT_THUMBPRINT", buildScript);
         Assert.Contains("Get-AuthenticodeSignature", buildScript);

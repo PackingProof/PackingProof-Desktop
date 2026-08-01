@@ -11,7 +11,7 @@
   #error OutputDir is required
 #endif
 #ifndef InstallerCompression
-  #define InstallerCompression "lzma2/max"
+  #define InstallerCompression "lzma2/ultra64"
 #endif
 
 #define MyAppName "快递打包监控"
