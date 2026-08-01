@@ -11,7 +11,9 @@ param(
     [string]$LauncherBaselinePackagePath = "",
     [string]$SevenZipPath = "",
     [ValidateRange(1, 9)]
-    [int]$SevenZipCompressionLevel = 5,
+    [int]$SevenZipCompressionLevel = 9,
+    [ValidateSet("Optimal", "SmallestSize")]
+    [string]$ZipCompressionLevel = "SmallestSize",
     [ValidateSet("lzma2/normal", "lzma2/max", "lzma2/ultra64")]
     [string]$InstallerCompression = "lzma2/ultra64",
     [string]$PatchBaselineVersion = "0.0.18",
@@ -259,10 +261,14 @@ function Copy-PackageTtsCache {
 function Compress-PackageWithRetry {
     param(
         [string]$SourceDir,
-        [string]$DestinationZip
+        [string]$DestinationZip,
+        [ValidateSet("Optimal", "SmallestSize")]
+        [string]$CompressionLevel
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $compression = [System.IO.Compression.CompressionLevel]::$CompressionLevel
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $lastError = $null
     for ($attempt = 1; $attempt -le 5; $attempt++) {
         try {
@@ -273,9 +279,12 @@ function Compress-PackageWithRetry {
             [System.IO.Compression.ZipFile]::CreateFromDirectory(
                 $SourceDir,
                 $DestinationZip,
-                [System.IO.Compression.CompressionLevel]::Optimal,
+                $compression,
                 $false,
                 [System.Text.Encoding]::UTF8)
+            $stopwatch.Stop()
+            $archiveSizeMiB = [Math]::Round((Get-Item -LiteralPath $DestinationZip).Length / 1MB, 2)
+            Write-Host "ZIP created: $DestinationZip ($archiveSizeMiB MiB, $([Math]::Round($stopwatch.Elapsed.TotalSeconds, 2)) s, $CompressionLevel)"
             return
         }
         catch {
@@ -331,6 +340,27 @@ function Compress-Package7zWithRetry {
         [int]$CompressionLevel
     )
 
+    $compressionArguments = @(
+        "a"
+        "-t7z"
+        "-mx=$CompressionLevel"
+        "-m0=lzma2"
+    )
+    if ($CompressionLevel -ge 9) {
+        $compressionArguments += "-md=128m"
+        $compressionArguments += "-mfb=273"
+    }
+    $compressionArguments += @(
+        "-ms=on"
+        "-mmt=on"
+        "-bso0"
+        "-bsp0"
+        "--"
+        $DestinationArchive
+        ".\*"
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $lastError = $null
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         try {
@@ -340,17 +370,7 @@ function Compress-Package7zWithRetry {
 
             Push-Location $SourceDir
             try {
-                & $SevenZipExecutable a `
-                    -t7z `
-                    "-mx=$CompressionLevel" `
-                    -m0=lzma2 `
-                    -ms=on `
-                    -mmt=on `
-                    -bso0 `
-                    -bsp0 `
-                    -- `
-                    $DestinationArchive `
-                    ".\*"
+                & $SevenZipExecutable @compressionArguments
                 if ($LASTEXITCODE -ne 0) {
                     throw "7-Zip creation failed with exit code $LASTEXITCODE"
                 }
@@ -363,6 +383,9 @@ function Compress-Package7zWithRetry {
             if ($LASTEXITCODE -ne 0) {
                 throw "7-Zip integrity test failed with exit code $LASTEXITCODE"
             }
+            $stopwatch.Stop()
+            $archiveSizeMiB = [Math]::Round((Get-Item -LiteralPath $DestinationArchive).Length / 1MB, 2)
+            Write-Host "7z created: $DestinationArchive ($archiveSizeMiB MiB, $([Math]::Round($stopwatch.Elapsed.TotalSeconds, 2)) s, level $CompressionLevel)"
             return
         }
         catch {
@@ -637,7 +660,10 @@ function New-AppPatchPackage {
     ) -join [Environment]::NewLine
     Set-Content -LiteralPath (Join-Path $patchWorkDir $appPatchNoticeName) -Value $appPatchNotice -Encoding UTF8
 
-    Compress-PackageWithRetry -SourceDir $patchWorkDir -DestinationZip $PatchZipPath
+    Compress-PackageWithRetry `
+        -SourceDir $patchWorkDir `
+        -DestinationZip $PatchZipPath `
+        -CompressionLevel $ZipCompressionLevel
     Remove-Item -LiteralPath $patchWorkDir -Recurse -Force
 }
 
@@ -1024,7 +1050,10 @@ $zipParent = Split-Path -Parent $zipFullPath
 if (-not [string]::IsNullOrWhiteSpace($zipParent)) {
     New-Item -ItemType Directory -Force -Path $zipParent | Out-Null
 }
-Compress-PackageWithRetry -SourceDir $outputFullPath -DestinationZip $zipFullPath
+Compress-PackageWithRetry `
+    -SourceDir $outputFullPath `
+    -DestinationZip $zipFullPath `
+    -CompressionLevel $ZipCompressionLevel
 $sevenZipExecutable = Resolve-SevenZipExecutable
 Compress-Package7zWithRetry `
     -SourceDir $outputFullPath `
