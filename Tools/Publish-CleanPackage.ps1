@@ -142,6 +142,24 @@ function ConvertTo-SafePathName {
     return $safeName
 }
 
+function Test-IsStrictDescendantPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar)
+    if ([string]::Equals($fullPath, $fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    $rootPrefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+    return $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 $packageVersion = Get-PackageVersion
 $packageName = ConvertTo-SafePathName "PackingProof+$packageVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
@@ -159,10 +177,10 @@ $zipFullPath = if ([string]::IsNullOrWhiteSpace($ZipPath)) {
 $sevenZipFullPath = [System.IO.Path]::ChangeExtension($zipFullPath, ".7z")
 $packageArtifactRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $zipFullPath))
 $repoFullPath = [System.IO.Path]::GetFullPath($repoRoot)
-if (-not $outputFullPath.StartsWith($repoFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not (Test-IsStrictDescendantPath -Path $outputFullPath -Root $repoFullPath)) {
     throw "OutputDir must be inside the repository: $outputFullPath"
 }
-if (-not $zipFullPath.StartsWith($repoFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+if (-not (Test-IsStrictDescendantPath -Path $zipFullPath -Root $repoFullPath)) {
     throw "ZipPath must be inside the repository: $zipFullPath"
 }
 if ([string]::Equals($packageArtifactRoot, $outputFullPath, [System.StringComparison]::OrdinalIgnoreCase) -or

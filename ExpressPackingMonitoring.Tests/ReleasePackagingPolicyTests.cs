@@ -28,6 +28,41 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_RequiresDestructiveOutputsToBeStrictRepositoryDescendants()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("function Test-IsStrictDescendantPath", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "[string]::Equals($fullPath, $fullRoot",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$fullRoot + [System.IO.Path]::DirectorySeparatorChar",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Test-IsStrictDescendantPath -Path $outputFullPath -Root $repoFullPath",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Test-IsStrictDescendantPath -Path $zipFullPath -Root $repoFullPath",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "$outputFullPath.StartsWith($repoFullPath",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "$zipFullPath.StartsWith($repoFullPath",
+            publishScript,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Packaging_EmbedsSafeManualInstallersInPatchPackages()
     {
         string repositoryRoot = FindRepositoryRoot();
