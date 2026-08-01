@@ -2839,20 +2839,9 @@ namespace ExpressPackingMonitoring.ViewModels
             });
         }
 
-        private bool ApproveBackupDeviceEnrollment(BackupDeviceEnrollmentRequest request)
-        {
-            string kind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                ? "录制电脑"
-                : "手机";
-            string name = string.IsNullOrWhiteSpace(request.DeviceName) ? kind : request.DeviceName;
-            return AppDialog.Confirm(
-                Application.Current?.MainWindow,
-                $"{name}（{request.RemoteAddress}）申请连接这台保存主机。允许后，该设备只能上传、查看和确认自己录制的录像",
-                "允许设备连接？",
-                confirmText: "允许连接",
-                cancelText: "拒绝",
-                severity: AppDialogSeverity.Information);
-        }
+        private BackupDeviceEnrollmentApprovalDecision ApproveBackupDeviceEnrollment(
+            BackupDeviceEnrollmentRequest request) =>
+            BackupDeviceEnrollmentApprovalPrompt.Show(Application.Current?.MainWindow, request);
 
         private void ShowMobileAppUpdate(MobileAppUpdateAvailableInfo update)
         {

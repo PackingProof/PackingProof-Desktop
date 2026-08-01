@@ -86,7 +86,7 @@ public sealed class MobileBackupTests
                 backupDeviceEnrollmentApprover: _ =>
                 {
                     approvalCount++;
-                    return true;
+                    return BackupDeviceEnrollmentApprovalDecision.Approved;
                 });
             server.Start();
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
@@ -111,7 +111,7 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public async Task DeviceEnrollmentRequiresExplicitHostApproval()
+    public async Task DeviceEnrollmentWithoutApprovalUiReturnsUnavailable()
     {
         string directory = CreateTempDirectory();
         int port = GetFreeTcpPort();
@@ -132,6 +132,42 @@ public sealed class MobileBackupTests
                 "/api/mobile-backup/enroll",
                 CreateCompatibleEnrollment("approval-required-device", "测试手机"),
                 TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            using JsonDocument body = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("enrollment_approval_unavailable", body.RootElement.GetProperty("errorCode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task DeviceEnrollmentReturnsDeniedOnlyForExplicitRejection()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ => BackupDeviceEnrollmentApprovalDecision.Denied);
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment("explicitly-denied-device", "测试手机"),
+                TestContext.Current.CancellationToken);
+
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using JsonDocument body = JsonDocument.Parse(
                 await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -139,6 +175,106 @@ public sealed class MobileBackupTests
         }
         finally
         {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task ApprovalExceptionReturnsUnavailableInsteadOfDenied()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ => throw new InvalidOperationException("prompt failed"));
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment("approval-error-device", "测试手机"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            using JsonDocument body = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("enrollment_approval_unavailable", body.RootElement.GetProperty("errorCode").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentEnrollmentRequestsShareOneApprovalAndCredential()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        int approvalCount = 0;
+        using var approvalEntered = new ManualResetEventSlim();
+        using var releaseApproval = new ManualResetEventSlim();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                {
+                    Interlocked.Increment(ref approvalCount);
+                    approvalEntered.Set();
+                    releaseApproval.Wait(TestContext.Current.CancellationToken);
+                    return BackupDeviceEnrollmentApprovalDecision.Approved;
+                });
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            var request = CreateCompatibleEnrollment("duplicate-request-device", "测试手机");
+
+            Task<HttpResponseMessage> first = client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                request,
+                TestContext.Current.CancellationToken);
+            Assert.True(approvalEntered.Wait(
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken));
+            await Task.Delay(800, TestContext.Current.CancellationToken);
+            Task<HttpResponseMessage> second = client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                request,
+                TestContext.Current.CancellationToken);
+            releaseApproval.Set();
+
+            using HttpResponseMessage firstResponse = await first;
+            using HttpResponseMessage secondResponse = await second;
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+            Assert.Equal(1, approvalCount);
+            using JsonDocument firstBody = JsonDocument.Parse(
+                await firstResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            using JsonDocument secondBody = JsonDocument.Parse(
+                await secondResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                firstBody.RootElement.GetProperty("deviceToken").GetString(),
+                secondBody.RootElement.GetProperty("deviceToken").GetString());
+        }
+        finally
+        {
+            releaseApproval.Set();
             DeleteTempDirectory(directory);
         }
     }
@@ -619,7 +755,7 @@ public sealed class MobileBackupTests
                 mobileBackupComputerName: "打包电脑",
                 mobileBackupStateDirectory: Path.Combine(directory, "state"),
                 mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
-                backupDeviceEnrollmentApprover: _ => true);
+                backupDeviceEnrollmentApprover: _ => BackupDeviceEnrollmentApprovalDecision.Approved);
             server.Start();
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;

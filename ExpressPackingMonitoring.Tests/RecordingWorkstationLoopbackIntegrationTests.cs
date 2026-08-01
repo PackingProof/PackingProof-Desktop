@@ -62,7 +62,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
                 nodeId: hostConfig.NodeId,
                 nodeName: hostConfig.NodeName,
                 deploymentPreset: hostConfig.DeploymentPreset,
-                backupDeviceEnrollmentApprover: _ => true);
+                backupDeviceEnrollmentApprover: _ => BackupDeviceEnrollmentApprovalDecision.Approved);
             hostServer.Start(allowAccessSetup: false);
 
             int workstationPort = GetFreeTcpPort();

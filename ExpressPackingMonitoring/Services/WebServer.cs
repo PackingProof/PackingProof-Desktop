@@ -60,6 +60,13 @@ namespace ExpressPackingMonitoring.Services
         public int AuthVersion { get; set; }
     }
 
+    public enum BackupDeviceEnrollmentApprovalDecision
+    {
+        Approved,
+        Denied,
+        Unavailable
+    }
+
     public sealed class OrderLookupResult
     {
         public bool Responded { get; set; }
@@ -115,7 +122,11 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _nodeName;
         private readonly string _deploymentPreset;
         private readonly bool _orderReceiverOnly;
-        private readonly Func<BackupDeviceEnrollmentRequest, bool> _backupDeviceEnrollmentApprover;
+        private sealed record BackupDeviceEnrollmentOperation(
+            BackupDeviceEnrollmentApprovalDecision Decision,
+            BackupDeviceEnrollment Enrollment = null);
+
+        private readonly Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> _backupDeviceEnrollmentApprover;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _requestSlots = new(32, 32);
         private readonly SemaphoreSlim _transcodeSlot = new(1, 1);
@@ -136,6 +147,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceIds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, long> _backupEnrollmentAttempts = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, Lazy<BackupDeviceEnrollmentOperation>> _pendingBackupEnrollments = new(StringComparer.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _orderLookupSignal = new(0);
         private int _activeOrderLookupPolls;
         private long _lastOrderLookupPollUtcTicks;
@@ -190,7 +202,7 @@ namespace ExpressPackingMonitoring.Services
             string deploymentPreset = null,
             bool orderReceiverOnly = false,
             bool nodeNameCustomized = false,
-            Func<BackupDeviceEnrollmentRequest, bool> backupDeviceEnrollmentApprover = null)
+            Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -1059,15 +1071,40 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
             _backupEnrollmentAttempts[rateLimitKey] = now;
-            bool approved = false;
-            try { approved = _backupDeviceEnrollmentApprover?.Invoke(request) == true; }
-            catch { }
-            if (!approved)
+            string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}";
+            Lazy<BackupDeviceEnrollmentOperation> pending = _pendingBackupEnrollments.GetOrAdd(
+                pendingKey,
+                _ => new Lazy<BackupDeviceEnrollmentOperation>(
+                    () => ProcessBackupDeviceEnrollment(request),
+                    LazyThreadSafetyMode.ExecutionAndPublication));
+            BackupDeviceEnrollmentOperation operation;
+            try
             {
-                SendJson(ctx, 403, new { errorCode = "enrollment_denied", error = "保存主机未允许本设备连接" });
+                operation = pending.Value;
+            }
+            finally
+            {
+                _pendingBackupEnrollments.TryRemove(
+                    new KeyValuePair<string, Lazy<BackupDeviceEnrollmentOperation>>(pendingKey, pending));
+            }
+            if (operation.Decision == BackupDeviceEnrollmentApprovalDecision.Denied)
+            {
+                RuntimeLog.Info("BackupEnrollment", $"Connection denied deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={remoteAddress}");
+                SendJson(ctx, 403, new { errorCode = "enrollment_denied", error = "保存主机已拒绝本次连接" });
                 return;
             }
-            BackupDeviceEnrollment enrollment = _backupPairingTokens.Enroll(deviceId, deviceKind);
+            if (operation.Decision != BackupDeviceEnrollmentApprovalDecision.Approved
+                || operation.Enrollment == null)
+            {
+                RuntimeLog.Warn("BackupEnrollment", $"Approval unavailable deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={remoteAddress}");
+                SendJson(ctx, 503, new
+                {
+                    errorCode = "enrollment_approval_unavailable",
+                    error = "电脑端暂时无法显示连接确认窗口，请打开保存主机界面后重试"
+                });
+                return;
+            }
+            BackupDeviceEnrollment enrollment = operation.Enrollment;
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -1081,6 +1118,42 @@ namespace ExpressPackingMonitoring.Services
                 hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion
             });
         }
+
+        private BackupDeviceEnrollmentOperation ProcessBackupDeviceEnrollment(
+            BackupDeviceEnrollmentRequest request)
+        {
+            string deviceKind = request.DeviceKind;
+            string deviceId = request.DeviceId;
+            RuntimeLog.Info(
+                "BackupEnrollment",
+                $"Connection requested deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={request.RemoteAddress}");
+            if (_backupDeviceEnrollmentApprover == null)
+                return new BackupDeviceEnrollmentOperation(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+
+            try
+            {
+                BackupDeviceEnrollmentApprovalDecision decision = _backupDeviceEnrollmentApprover(request);
+                if (decision != BackupDeviceEnrollmentApprovalDecision.Approved)
+                    return new BackupDeviceEnrollmentOperation(decision);
+
+                BackupDeviceEnrollment enrollment = _backupPairingTokens.Enroll(deviceId, deviceKind);
+                RuntimeLog.Info(
+                    "BackupEnrollment",
+                    $"Connection approved deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={request.RemoteAddress}");
+                return new BackupDeviceEnrollmentOperation(decision, enrollment);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error(
+                    "BackupEnrollment",
+                    $"Approval failed deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={request.RemoteAddress}",
+                    ex);
+                return new BackupDeviceEnrollmentOperation(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+            }
+        }
+
+        private static string SafeDeviceId(string deviceId) =>
+            deviceId.Length <= 8 ? deviceId : $"...{deviceId[^8..]}";
 
         private void HandleMobileBackupCapabilities(HttpListenerContext ctx)
         {
