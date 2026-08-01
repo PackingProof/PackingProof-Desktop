@@ -18,6 +18,17 @@ public sealed class MobileBackupTests
     private const string AccessKey = "0123456789abcdef0123456789abcdef";
 
     [Fact]
+    public void UploadSynchronizationUsesBoundedLockStripes()
+    {
+        int[] indexes = Enumerable.Range(0, 10000)
+            .Select(index => MobileBackupService.GetUploadLockStripeIndex($"upload-{index}"))
+            .ToArray();
+
+        Assert.All(indexes, index => Assert.InRange(index, 0, MobileBackupService.UploadLockStripeCount - 1));
+        Assert.True(indexes.Distinct().Count() <= MobileBackupService.UploadLockStripeCount);
+    }
+
+    [Fact]
     public void DeviceEnrollmentRotatesTokenAndPersistsEncryptedCredential()
     {
         string directory = CreateTempDirectory();

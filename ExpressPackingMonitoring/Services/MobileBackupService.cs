@@ -22,7 +22,10 @@ internal sealed class MobileBackupService
     private readonly string _stateDirectory;
     private readonly Func<string> _recordingRootResolver;
     private readonly Func<string, OrderInfo?> _orderInfoResolver;
-    private readonly ConcurrentDictionary<string, object> _uploadLocks = new(StringComparer.OrdinalIgnoreCase);
+    internal const int UploadLockStripeCount = 256;
+    private readonly object[] _uploadLocks = Enumerable.Range(0, UploadLockStripeCount)
+        .Select(_ => new object())
+        .ToArray();
     private readonly object _activeUploadsLock = new();
     private readonly HashSet<string> _activeUploads = new(StringComparer.OrdinalIgnoreCase);
     private TaskCompletionSource<bool> _uploadsIdle =
@@ -332,7 +335,14 @@ internal sealed class MobileBackupService
         }
     }
 
-    private object GetUploadLock(string uploadId) => _uploadLocks.GetOrAdd(uploadId, _ => new object());
+    private object GetUploadLock(string uploadId) => _uploadLocks[GetUploadLockStripeIndex(uploadId)];
+
+    internal static int GetUploadLockStripeIndex(string uploadId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+        uint hash = unchecked((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(uploadId));
+        return (int)(hash % UploadLockStripeCount);
+    }
 
     private string StatePath(string uploadId) => Path.Combine(_stateDirectory, $"{uploadId}.json");
 
