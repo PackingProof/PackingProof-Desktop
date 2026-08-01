@@ -222,8 +222,14 @@
 
       <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlc.dll" />
       <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlccore.dll" />
-      <LibVlcX64Plugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*" />
-      <LibVlcX64Lua Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\lua\**\*" />
+      <LibVlcX64Plugin
+        Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*"
+        Exclude="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access_output\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\mux\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\services_discovery\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\stream_out\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\visualization\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\lua\**\*" />
+      <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libfilesystem_plugin.dll" />
+      <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libidummy_plugin.dll" />
+      <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libattachment_plugin.dll" />
+      <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libimem_plugin.dll" />
+      <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libaccess_concat_plugin.dll" />
       <LibVlcX64Hrtf Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\hrtfs\**\*" />
 
       <ResolvedFileToPublish Include="@(LibVlcX64Dll)">
@@ -236,8 +242,8 @@
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="@(LibVlcX64Lua)">
-        <RelativePath>libvlc\win-x64\lua\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+      <ResolvedFileToPublish Include="@(LibVlcX64AccessPlugin)">
+        <RelativePath>libvlc\win-x64\plugins\access\%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
