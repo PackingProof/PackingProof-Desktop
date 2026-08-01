@@ -93,6 +93,33 @@ public sealed class AppDialogTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BackupEnrollmentPrompt_ResolvesItsOwnerOnTheUiThread()
+    {
+        string prompt = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "BackupDeviceEnrollmentApprovalPrompt.cs");
+        string mainViewModel = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+
+        Assert.Contains(
+            "application.Dispatcher.Invoke(() => ShowCore(requestedOwner, request))",
+            prompt,
+            StringComparison.Ordinal);
+        Assert.Contains("Application.Current?.Windows", prompt, StringComparison.Ordinal);
+        Assert.Contains(
+            "BackupDeviceEnrollmentApprovalPrompt.Show(null, request)",
+            mainViewModel,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "BackupDeviceEnrollmentApprovalPrompt.Show(Application.Current?.MainWindow, request)",
+            mainViewModel,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadRepositoryFile(params string[] parts)
         => File.ReadAllText(FindRepositoryPath(parts));
 

@@ -2841,7 +2841,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private BackupDeviceEnrollmentApprovalDecision ApproveBackupDeviceEnrollment(
             BackupDeviceEnrollmentRequest request) =>
-            BackupDeviceEnrollmentApprovalPrompt.Show(Application.Current?.MainWindow, request);
+            BackupDeviceEnrollmentApprovalPrompt.Show(null, request);
 
         private void ShowMobileAppUpdate(MobileAppUpdateAvailableInfo update)
         {
