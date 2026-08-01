@@ -1084,7 +1084,7 @@ public sealed class MobileBackupTests
                 client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, rotatedToken, [], cancellationToken);
             Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
             HttpStatusCode finalEnrollmentStatus = HttpStatusCode.OK;
-            for (int retry = 0; retry < 8 && finalEnrollmentStatus == HttpStatusCode.OK; retry++)
+            for (int retry = 0; retry < 24 && finalEnrollmentStatus == HttpStatusCode.OK; retry++)
             {
                 using HttpResponseMessage allowedRetry = await client.PostAsJsonAsync(
                     "/api/mobile-backup/enroll",

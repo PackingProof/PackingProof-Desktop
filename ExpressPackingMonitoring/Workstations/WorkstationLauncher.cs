@@ -630,7 +630,7 @@ public static class WorkstationNetwork
                     NetworkJsonOptions,
                     token);
                 if (string.Equals(busy?.ErrorCode, "enrollment_approval_busy", StringComparison.OrdinalIgnoreCase)
-                    && attempt < 9)
+                    && attempt < 24)
                 {
                     await retryDelay(TimeSpan.FromSeconds(3), token);
                     continue;

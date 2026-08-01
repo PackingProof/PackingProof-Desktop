@@ -120,7 +120,7 @@ internal sealed class LanRequestRateLimiter
     private static (int RequestsPerMinute, int Concurrent) GetLimits(LanRequestCategory category) =>
         category switch
         {
-            LanRequestCategory.Enrollment => (8, 2),
+            LanRequestCategory.Enrollment => (24, 2),
             LanRequestCategory.Heartbeat => (180, 4),
             LanRequestCategory.BackupTransfer => (900, 6),
             LanRequestCategory.MediaStream => (120, 4),

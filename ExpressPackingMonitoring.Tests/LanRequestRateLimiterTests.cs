@@ -47,7 +47,7 @@ public sealed class LanRequestRateLimiterTests
     {
         var limiter = new LanRequestRateLimiter();
         DateTimeOffset start = new(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
-        for (int index = 0; index < 8; index++)
+        for (int index = 0; index < 24; index++)
         {
             Assert.True(limiter.TryEnter(
                 "192.168.1.20",
@@ -63,8 +63,8 @@ public sealed class LanRequestRateLimiterTests
             LanRequestCategory.Enrollment,
             out _,
             out int retryAfterSeconds,
-            start.AddSeconds(10)));
-        Assert.InRange(retryAfterSeconds, 49, 50);
+            start.AddSeconds(25)));
+        Assert.InRange(retryAfterSeconds, 34, 35);
 
         Assert.True(limiter.TryEnter(
             "192.168.1.20",
