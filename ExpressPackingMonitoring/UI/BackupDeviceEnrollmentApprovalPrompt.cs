@@ -24,12 +24,21 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
 
         var completion = new TaskCompletionSource<BackupDeviceEnrollmentApprovalDecision>(
             TaskCreationOptions.RunContinuationsAsynchronously);
+        BackupDeviceEnrollmentApprovalWindow? shownPrompt = null;
         try
         {
-            _ = application.Dispatcher.InvokeAsync(() => ShowCore(requestedOwner, request, completion));
-            return completion.Task.Wait(ApprovalTimeout)
-                ? completion.Task.GetAwaiter().GetResult()
-                : BackupDeviceEnrollmentApprovalDecision.Unavailable;
+            _ = application.Dispatcher.InvokeAsync(() =>
+                shownPrompt = ShowCore(requestedOwner, request, completion));
+            if (completion.Task.Wait(ApprovalTimeout))
+                return completion.Task.GetAwaiter().GetResult();
+
+            completion.TrySetResult(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+            _ = application.Dispatcher.InvokeAsync(() =>
+            {
+                if (shownPrompt?.IsVisible == true)
+                    shownPrompt.Close();
+            });
+            return BackupDeviceEnrollmentApprovalDecision.Unavailable;
         }
         catch (Exception ex)
         {
@@ -38,11 +47,14 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
         }
     }
 
-    private static void ShowCore(
+    private static BackupDeviceEnrollmentApprovalWindow? ShowCore(
         Window? requestedOwner,
         BackupDeviceEnrollmentRequest request,
         TaskCompletionSource<BackupDeviceEnrollmentApprovalDecision> completion)
     {
+        if (completion.Task.IsCompleted)
+            return null;
+
         Window? owner = requestedOwner is { IsLoaded: true }
             ? requestedOwner
             : Application.Current?.Windows.OfType<Window>()
@@ -50,7 +62,7 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
         if (owner == null)
         {
             completion.TrySetResult(BackupDeviceEnrollmentApprovalDecision.Unavailable);
-            return;
+            return null;
         }
 
         if (!owner.IsVisible)
@@ -64,5 +76,6 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
         prompt.Completed += decision => completion.TrySetResult(decision);
         prompt.Show();
         prompt.Activate();
+        return prompt;
     }
 }

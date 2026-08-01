@@ -111,6 +111,9 @@ public sealed class AppDialogTests
             "BackupDeviceEnrollmentApprovalWindow.xaml");
 
         Assert.Contains("application.Dispatcher.InvokeAsync", prompt, StringComparison.Ordinal);
+        Assert.Contains("completion.TrySetResult(BackupDeviceEnrollmentApprovalDecision.Unavailable)", prompt, StringComparison.Ordinal);
+        Assert.Contains("shownPrompt.Close()", prompt, StringComparison.Ordinal);
+        Assert.Contains("completion.Task.IsCompleted", prompt, StringComparison.Ordinal);
         Assert.Contains("Application.Current?.Windows", prompt, StringComparison.Ordinal);
         Assert.Contains("prompt.Show();", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("ShowDialog", prompt, StringComparison.Ordinal);
