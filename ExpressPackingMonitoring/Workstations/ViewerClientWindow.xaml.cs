@@ -230,6 +230,20 @@ public partial class ViewerClientWindow : Window
                 _ => $"找到 {compatibleHosts.Count} 台主机，请选择要连接的主机"
             };
             ApplyConnectionViewState(ConnectionViewState.Ready, message);
+            if (_bindingOnly)
+            {
+                PackingProofNodeInfo? preferred = compatibleHosts.FirstOrDefault(host =>
+                    !string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)
+                    && string.Equals(host.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase));
+                PackingProofNodeInfo? automatic = preferred ?? (compatibleHosts.Count == 1 ? compatibleHosts[0] : null);
+                bool differentHostWithPending = automatic != null
+                    && !string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)
+                    && !string.Equals(automatic.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
+                    && Owner?.DataContext is MainViewModel viewModel
+                    && viewModel.PendingRecordingTransferCount > 0;
+                if (automatic != null && !differentHostWithPending)
+                    await BindHostAsync(automatic);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -270,29 +284,25 @@ public partial class ViewerClientWindow : Window
             return;
         }
 
-        string resolvedAccessKey = accessKey?.Trim() ?? "";
-        if (_bindingOnly && resolvedAccessKey.Length < 16)
+        _isConnecting = true;
+        string backupCredential = "";
+        if (_bindingOnly)
         {
             ApplyConnectionViewState(
-                ConnectionViewState.Ready,
-                $"已选择“{node.NodeName}”，请粘贴保存主机提供的完整连接链接");
-            OpenManualConnectionWindow("请粘贴保存主机提供的完整连接链接");
-            return;
-        }
-
-        _isConnecting = true;
-        string backupCredential = resolvedAccessKey;
-        if (_bindingOnly && resolvedAccessKey.StartsWith("pair:", StringComparison.Ordinal))
-        {
+                ConnectionViewState.Connecting,
+                $"已找到“{node.NodeName}”，等待保存主机允许连接");
             try
             {
-                backupCredential = await WorkstationNetwork.ClaimTemporaryPairingAsync(
+                BackupDeviceEnrollmentResult enrollment = await WorkstationNetwork.EnrollBackupDeviceAsync(
                     node.Address,
-                    resolvedAccessKey,
                     _config.NodeId,
                     string.IsNullOrWhiteSpace(_config.NodeName)
                         ? Environment.MachineName
-                        : _config.NodeName);
+                        : _config.NodeName,
+                    "pc");
+                if (!string.Equals(enrollment.ComputerId, node.NodeId, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("保存主机身份在连接过程中发生变化，请重新搜索");
+                backupCredential = enrollment.DeviceToken;
             }
             catch (Exception ex)
             {
@@ -300,12 +310,6 @@ public partial class ViewerClientWindow : Window
                 ShowConnectionError(ex.Message);
                 return;
             }
-        }
-        else if (_bindingOnly)
-        {
-            backupCredential = BackupRequestAuthentication.DeriveDeviceCredential(
-                resolvedAccessKey,
-                _config.NodeId);
         }
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
@@ -327,6 +331,8 @@ public partial class ViewerClientWindow : Window
                         config.LastKnownHostAccessKey = backupCredential;
                         config.LastKnownHostBackupAuthVersion =
                             BackupRequestAuthentication.CurrentVersion;
+                        config.BackupConnectionSchemaVersion =
+                            AppConfig.CurrentBackupConnectionSchemaVersion;
                     }
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
@@ -343,6 +349,7 @@ public partial class ViewerClientWindow : Window
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
         _config.LastKnownHostAccessKey = saved.LastKnownHostAccessKey;
         _config.LastKnownHostBackupAuthVersion = saved.LastKnownHostBackupAuthVersion;
+        _config.BackupConnectionSchemaVersion = saved.BackupConnectionSchemaVersion;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
         _config.DeploymentSetupVersion = saved.DeploymentSetupVersion;
         _config.RecordingSetupVersion = saved.RecordingSetupVersion;
@@ -578,13 +585,22 @@ public partial class ViewerClientWindow : Window
             return;
         }
 
-        string accessKey = string.Equals(
-            node.NodeId,
-            _config.LastKnownHostNodeId,
-            StringComparison.OrdinalIgnoreCase)
-                ? _config.LastKnownHostAccessKey
-                : "";
-        await BindHostAsync(node, accessKey);
+        if (_bindingOnly
+            && !string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)
+            && !string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)
+            && Owner?.DataContext is MainViewModel viewModel
+            && viewModel.PendingRecordingTransferCount > 0
+            && !AppDialog.Confirm(
+                this,
+                $"本机还有 {viewModel.PendingRecordingTransferCount} 个录像等待原保存主机。继续后，这些录像将改为上传到“{node.NodeName}”",
+                "更换保存主机",
+                confirmText: "继续连接",
+                cancelText: "保留原主机",
+                severity: AppDialogSeverity.Warning))
+        {
+            return;
+        }
+        await BindHostAsync(node);
     }
 
     private void OpenManualConnection_Click(object sender, RoutedEventArgs e)
@@ -606,20 +622,20 @@ public partial class ViewerClientWindow : Window
         ScanPhonePairingButton.IsEnabled = false;
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
-            "请将手机上两分钟内有效的连接二维码对准电脑摄像头");
+            "请将保存主机的连接二维码对准电脑摄像头");
         try
         {
             string input = await viewModel.ScanHostPairingQrAsync(_qrScanCancellation.Token);
-            WorkstationNetwork.ParseHostConnectionInput(input, out string address, out string accessKey);
-            if (string.IsNullOrWhiteSpace(address) || !accessKey.StartsWith("pair:", StringComparison.Ordinal))
-                throw new InvalidOperationException("这不是手机生成的录制电脑临时连接码");
+            WorkstationNetwork.ParseHostConnectionInput(input, out string address, out _);
+            if (string.IsNullOrWhiteSpace(address))
+                throw new InvalidOperationException("这不是有效的保存主机二维码");
 
             PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(
                 address,
                 _qrScanCancellation.Token);
             if (node == null)
                 throw new InvalidOperationException("无法连接二维码中的保存主机，请检查两台设备是否在同一网络");
-            await BindHostAsync(node, accessKey);
+            await BindHostAsync(node);
         }
         catch (OperationCanceledException)
         {

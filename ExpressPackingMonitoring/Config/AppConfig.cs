@@ -92,6 +92,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentMobileConnectionSetupVersion = 1;
         public const int CurrentDeploymentSetupVersion = 1;
         public const int CurrentRecordingSetupVersion = 2;
+        public const int CurrentBackupConnectionSchemaVersion = 1;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -113,6 +114,7 @@ namespace ExpressPackingMonitoring.Config
         public string LastKnownHostAddress { get; set; } = "";
         public string LastKnownHostAccessKey { get; set; } = "";
         public int LastKnownHostBackupAuthVersion { get; set; }
+        public int BackupConnectionSchemaVersion { get; set; }
         public string RecordingCachePolicy { get; set; } = "KeepWithinSize";
         public int RecordingCacheKeepDays { get; set; } = 3;
         public int RecordingCacheMaxGB { get; set; } = 100;
@@ -391,6 +393,17 @@ namespace ExpressPackingMonitoring.Config
             if (!string.Equals(config.LastKnownHostAccessKey, normalizedHostAccessKey, StringComparison.Ordinal))
             {
                 config.LastKnownHostAccessKey = normalizedHostAccessKey;
+                changed = true;
+            }
+            if (normalizedPreset == DeploymentPresets.RecordingWorkstation
+                && config.BackupConnectionSchemaVersion < CurrentBackupConnectionSchemaVersion)
+            {
+                // v3 设备令牌与旧 Web 密钥派生凭据不兼容。保留主机 NodeId 作为
+                // 自动重连提示，但清除旧地址和凭据，绝不触碰录像或上传队列。
+                config.LastKnownHostAddress = "";
+                config.LastKnownHostAccessKey = "";
+                config.LastKnownHostBackupAuthVersion = 0;
+                config.BackupConnectionSchemaVersion = CurrentBackupConnectionSchemaVersion;
                 changed = true;
             }
             string normalizedCachePolicy =

@@ -445,8 +445,8 @@
                                     Height="40"
                                     Margin="10,0,0,0"
                                     Style="{StaticResource ViewerActionButtonStyle}"
-                                    ToolTip="使用本机录像摄像头扫描手机上的临时连接码"
-                                    AutomationProperties.Name="扫描手机临时连接码"
+                                    ToolTip="使用本机录像摄像头扫描保存主机连接二维码"
+                                    AutomationProperties.Name="扫描保存主机二维码"
                                     Visibility="Collapsed"
                                     Click="ScanPhonePairing_Click">
                                 <StackPanel Orientation="Horizontal">

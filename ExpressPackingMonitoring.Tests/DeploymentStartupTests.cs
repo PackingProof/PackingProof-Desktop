@@ -153,7 +153,7 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void RecordingWorkstationCanScanPhoneTemporaryPairingCodeWithoutOwningCamera()
+    public void RecordingWorkstationCanScanHostQrWithoutOwningCamera()
     {
         string xaml = ReadRepositoryFile(
             "ExpressPackingMonitoring",
@@ -165,7 +165,7 @@ public sealed class DeploymentStartupTests
             "ViewerClientWindow.xaml.cs");
 
         Assert.Contains("x:Name=\"ScanPhonePairingButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("AutomationProperties.Name=\"扫描手机临时连接码\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"扫描保存主机二维码\"", xaml, StringComparison.Ordinal);
         Assert.Contains("StaticResource FluentCameraIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("Owner?.DataContext is not MainViewModel", source, StringComparison.Ordinal);
         Assert.Contains("viewModel.ScanHostPairingQrAsync", source, StringComparison.Ordinal);
@@ -173,7 +173,7 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void TemporaryPairingLinkPreservesAddressAndCaseSensitiveSecret()
+    public void LegacyTemporaryPairingLinkOnlyProvidesHostAddress()
     {
         const string link =
             "http://192.168.1.8:5280/?pairToken=aBcD0123456789ef&pairSecret=AbCd0123456789abcdef0123456789abcdef";
@@ -181,9 +181,59 @@ public sealed class DeploymentStartupTests
         WorkstationNetwork.ParseHostConnectionInput(link, out string address, out string accessKey);
 
         Assert.Equal("192.168.1.8:5280", address);
-        Assert.Equal(
-            "pair:aBcD0123456789ef:AbCd0123456789abcdef0123456789abcdef",
-            accessKey);
+        Assert.Empty(accessKey);
+    }
+
+    [Fact]
+    public void RecordingWorkstationMigrationClearsOnlyLegacyConnectionCredential()
+    {
+        string nodeId = Guid.NewGuid().ToString("D");
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            NodeId = Guid.NewGuid().ToString("D"),
+            NodeName = "电脑2",
+            LastKnownHostNodeId = nodeId,
+            LastKnownHostNodeName = "原保存主机",
+            LastKnownHostAddress = "http://192.168.1.20:5280",
+            LastKnownHostAccessKey = "legacy-web-derived-key",
+            LastKnownHostBackupAuthVersion = 2,
+            BackupConnectionSchemaVersion = 0,
+            RecordingCacheMaxGB = 88,
+            RecordingWorkstationActivatedAtUtc = DateTime.UtcNow.AddDays(-2)
+        };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        Assert.Equal(nodeId, config.LastKnownHostNodeId);
+        Assert.Equal("原保存主机", config.LastKnownHostNodeName);
+        Assert.Empty(config.LastKnownHostAddress);
+        Assert.Empty(config.LastKnownHostAccessKey);
+        Assert.Equal(0, config.LastKnownHostBackupAuthVersion);
+        Assert.Equal(AppConfig.CurrentBackupConnectionSchemaVersion, config.BackupConnectionSchemaVersion);
+        Assert.Equal(88, config.RecordingCacheMaxGB);
+        Assert.NotNull(config.RecordingWorkstationActivatedAtUtc);
+    }
+
+    [Fact]
+    public void CurrentRecordingWorkstationTokenIsNotClearedAgain()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            NodeId = Guid.NewGuid().ToString("D"),
+            LastKnownHostNodeId = Guid.NewGuid().ToString("D"),
+            LastKnownHostAddress = "http://192.168.1.20:5280",
+            LastKnownHostAccessKey = new string('a', 64),
+            LastKnownHostBackupAuthVersion = BackupRequestAuthentication.CurrentVersion,
+            BackupConnectionSchemaVersion = AppConfig.CurrentBackupConnectionSchemaVersion
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+        Assert.Equal("http://192.168.1.20:5280", config.LastKnownHostAddress);
+        Assert.Equal(new string('a', 64), config.LastKnownHostAccessKey);
+        Assert.Equal(BackupRequestAuthentication.CurrentVersion, config.LastKnownHostBackupAuthVersion);
     }
 
     [Fact]
@@ -865,8 +915,12 @@ public sealed class DeploymentStartupTests
             source,
             StringComparison.Ordinal);
         Assert.Contains("AppDialog.Confirm(", source, StringComparison.Ordinal);
-        Assert.Contains("resolvedAccessKey.Length < 16", source, StringComparison.Ordinal);
-        Assert.Contains("accessKey.Length < 16", source, StringComparison.Ordinal);
+        Assert.Contains("EnrollBackupDeviceAsync", source, StringComparison.Ordinal);
+        Assert.Contains("DeviceToken", source, StringComparison.Ordinal);
+        Assert.Contains("automatic != null", source, StringComparison.Ordinal);
+        Assert.Contains("preferred ?? (compatibleHosts.Count == 1", source, StringComparison.Ordinal);
+        Assert.Contains("等待保存主机允许连接", source, StringComparison.Ordinal);
+        Assert.Contains("PendingRecordingTransferCount > 0", source, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(searchCancellation, _searchCancellation)", source, StringComparison.Ordinal);
         Assert.Contains("_isChoosingHost = true;", source, StringComparison.Ordinal);
         Assert.Contains("if (!_isChoosingHost)", source, StringComparison.Ordinal);

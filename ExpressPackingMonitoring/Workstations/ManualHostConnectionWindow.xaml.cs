@@ -10,7 +10,7 @@ public partial class ManualHostConnectionWindow : Window
     {
         InitializeComponent();
         ConnectionHintText.Text = requiresCompleteLink
-            ? "请在保存主机的“手机/电脑连接”中复制完整链接，再粘贴到这里"
+            ? "输入保存主机地址，或粘贴连接链接；设备令牌会自动领取"
             : "输入主机地址，或粘贴完整连接链接";
         Loaded += (_, _) => ConnectionInputTextBox.Focus();
     }
