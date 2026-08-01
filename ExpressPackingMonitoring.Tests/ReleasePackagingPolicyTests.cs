@@ -236,8 +236,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("SEVEN_ZIP_EXE", publishScript);
         Assert.Contains("winget install --id 7zip.7zip", publishScript);
         Assert.Contains("-t7z", publishScript);
-        Assert.Contains("SevenZipCompressionLevel = 9", publishScript);
-        Assert.Contains("ZipCompressionLevel = \"SmallestSize\"", publishScript);
+        Assert.Contains("SevenZipCompressionLevel = 5", publishScript);
+        Assert.Contains("ZipCompressionLevel = \"Optimal\"", publishScript);
+        Assert.Contains("if ($CompressionLevel -ge 9)", publishScript);
         Assert.Contains("\"-mx=$CompressionLevel\"", publishScript);
         Assert.Contains("\"-md=128m\"", publishScript);
         Assert.Contains("\"-mfb=273\"", publishScript);

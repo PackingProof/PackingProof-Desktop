@@ -11,9 +11,9 @@ param(
     [string]$LauncherBaselinePackagePath = "",
     [string]$SevenZipPath = "",
     [ValidateRange(1, 9)]
-    [int]$SevenZipCompressionLevel = 9,
+    [int]$SevenZipCompressionLevel = 5,
     [ValidateSet("Optimal", "SmallestSize")]
-    [string]$ZipCompressionLevel = "SmallestSize",
+    [string]$ZipCompressionLevel = "Optimal",
     [ValidateSet("lzma2/normal", "lzma2/max", "lzma2/ultra64")]
     [string]$InstallerCompression = "lzma2/ultra64",
     [string]$PatchBaselineVersion = "0.0.18",
