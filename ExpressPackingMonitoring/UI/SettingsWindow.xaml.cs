@@ -634,6 +634,7 @@ namespace ExpressPackingMonitoring.UI
                     Config.AudioDeviceName = settings.AudioDeviceName ?? "";
                     Config.AudioDeviceMoniker = settings.AudioDeviceMoniker ?? "";
                     Config.AudioSyncOffsetMs = settings.AudioSyncOffsetMs;
+                    Config.CameraRotate180 = settings.Rotate180;
 
                     // 切换麦克风 UI 选中项
                     if (MicComboBox.ItemsSource is List<MicInfo> mics)
@@ -1204,7 +1205,8 @@ namespace ExpressPackingMonitoring.UI
                         Fps = Config.Fps,
                         AudioDeviceName = Config.AudioDeviceName,
                         AudioDeviceMoniker = Config.AudioDeviceMoniker,
-                        AudioSyncOffsetMs = Config.AudioSyncOffsetMs
+                        AudioSyncOffsetMs = Config.AudioSyncOffsetMs,
+                        Rotate180 = Config.CameraRotate180
                     };
                 }
             }

@@ -828,4 +828,7 @@
   <data name="接收到的订单" xml:space="preserve"><value>接收到的订单</value></data>
   <data name="使用本机录像摄像头扫描手机上的临时连接码" xml:space="preserve"><value>使用本机录像摄像头扫描手机上的临时连接码</value></data>
   <data name="摄像头扫码" xml:space="preserve"><value>摄像头扫码</value></data>
+  <data name="旋转 180°" xml:space="preserve"><value>旋转 180°</value></data>
+  <data name="摄像头画面方向" xml:space="preserve"><value>摄像头画面方向</value></data>
+  <data name="摄像头倒装时，将预览和录像旋转 180°" xml:space="preserve"><value>摄像头倒装时，将预览和录像旋转 180°</value></data>
 </root>

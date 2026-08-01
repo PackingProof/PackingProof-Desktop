@@ -205,6 +205,22 @@
                             <Grid>
                                 <Image x:Name="CameraPreviewImage"
                                        Stretch="Uniform"/>
+                                <Button x:Name="RotateCameraButton"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,14,0"
+                                        Padding="12,8"
+                                        Click="RotateCameraButton_Click"
+                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        AutomationProperties.Name="旋转摄像头画面 180 度">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource FluentArrowSyncIcon}"
+                                              Width="15" Height="15" Stretch="Uniform"
+                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              Margin="0,0,6,0"/>
+                                        <TextBlock x:Name="RotateCameraButtonText" Text="旋转 180°"/>
+                                    </StackPanel>
+                                </Button>
                                 <TextBlock x:Name="CameraStatusText"
                                            Text="正在准备摄像头预览..."
                                            Foreground="#DDFFFFFF"

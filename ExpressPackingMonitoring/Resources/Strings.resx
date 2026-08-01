@@ -828,4 +828,7 @@
   <data name="接收到的订单" xml:space="preserve"><value>Received orders</value></data>
   <data name="使用本机录像摄像头扫描手机上的临时连接码" xml:space="preserve"><value>Scan the temporary connection code on the phone with this computer's recording camera</value></data>
   <data name="摄像头扫码" xml:space="preserve"><value>Scan with camera</value></data>
+  <data name="旋转 180°" xml:space="preserve"><value>Rotate 180°</value></data>
+  <data name="摄像头画面方向" xml:space="preserve"><value>Camera orientation</value></data>
+  <data name="摄像头倒装时，将预览和录像旋转 180°" xml:space="preserve"><value>Rotate the preview and recording 180° when the camera is mounted upside down</value></data>
 </root>

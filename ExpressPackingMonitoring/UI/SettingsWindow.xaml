@@ -1043,6 +1043,27 @@
                                                   SelectionChanged="CameraComboBox_SelectionChanged"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="摄像头画面方向" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="摄像头倒装时，将预览和录像旋转 180°"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="CameraRotate180CheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.CameraRotate180, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="摄像头画面旋转 180 度"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, TargetNullValue=False}"
                                           Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">

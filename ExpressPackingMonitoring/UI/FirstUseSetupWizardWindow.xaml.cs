@@ -162,6 +162,7 @@ public partial class FirstUseSetupWizardWindow : Window
         finally
         {
             _isLoadingDevices = false;
+            LoadSelectedCameraRotation();
         }
     }
 
@@ -388,11 +389,57 @@ public partial class FirstUseSetupWizardWindow : Window
     private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoadingDevices) return;
+        LoadSelectedCameraRotation();
         _evaluatedCameraMoniker = "";
         if (_stepIndex == 1)
         {
             StartCameraPreviewFromSelection(enableRecognition: false);
         }
+    }
+
+    private void RotateCameraButton_Click(object sender, RoutedEventArgs e)
+    {
+        _config.CameraRotate180 = !_config.CameraRotate180;
+        SaveSelectedCameraRotation();
+        UpdateRotateCameraButtonText();
+    }
+
+    private void LoadSelectedCameraRotation()
+    {
+        _config.CameraRotate180 = CameraComboBox.SelectedItem is CameraInfo camera
+            && !string.IsNullOrWhiteSpace(camera.Moniker)
+            && _config.CameraConfigs.TryGetValue(camera.Moniker, out CameraSettings settings)
+            && settings.Rotate180;
+        UpdateRotateCameraButtonText();
+    }
+
+    private void SaveSelectedCameraRotation()
+    {
+        if (CameraComboBox.SelectedItem is not CameraInfo camera
+            || string.IsNullOrWhiteSpace(camera.Moniker))
+            return;
+
+        if (!_config.CameraConfigs.TryGetValue(camera.Moniker, out CameraSettings settings))
+        {
+            settings = new CameraSettings
+            {
+                FrameWidth = _config.FrameWidth,
+                FrameHeight = _config.FrameHeight,
+                Fps = _config.Fps,
+                AudioDeviceName = _config.AudioDeviceName,
+                AudioDeviceMoniker = _config.AudioDeviceMoniker,
+                AudioSyncOffsetMs = _config.AudioSyncOffsetMs
+            };
+            _config.CameraConfigs[camera.Moniker] = settings;
+        }
+
+        settings.Rotate180 = _config.CameraRotate180;
+    }
+
+    private void UpdateRotateCameraButtonText()
+    {
+        if (RotateCameraButtonText != null)
+            RotateCameraButtonText.Text = _config.CameraRotate180 ? "已旋转 180°" : "旋转 180°";
     }
 
     private void CameraRecognitionChoice_Changed(
@@ -712,6 +759,8 @@ public partial class FirstUseSetupWizardWindow : Window
         try
         {
             using var bitmap = (Bitmap)eventArgs.Frame.Clone();
+            if (_config.CameraRotate180)
+                bitmap.RotateFlip(RotateFlipType.Rotate180FlipNone);
             bool recognitionPreview = _isRecognitionPreview;
             if (recognitionPreview)
             {
@@ -1064,7 +1113,8 @@ public partial class FirstUseSetupWizardWindow : Window
                 Fps = _config.Fps,
                 AudioDeviceName = _config.AudioDeviceName,
                 AudioDeviceMoniker = _config.AudioDeviceMoniker,
-                AudioSyncOffsetMs = _config.AudioSyncOffsetMs
+                AudioSyncOffsetMs = _config.AudioSyncOffsetMs,
+                Rotate180 = _config.CameraRotate180
             };
         }
     }

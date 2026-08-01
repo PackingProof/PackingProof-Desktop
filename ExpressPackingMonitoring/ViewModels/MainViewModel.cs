@@ -1881,7 +1881,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.CameraMonikerString != nextConfig.CameraMonikerString
                         || Config.FrameWidth != nextConfig.FrameWidth
                         || Config.FrameHeight != nextConfig.FrameHeight
-                        || Config.Fps != nextConfig.Fps;
+                        || Config.Fps != nextConfig.Fps
+                        || Config.CameraRotate180 != nextConfig.CameraRotate180;
                     bool themeChanged = Config.Theme != nextConfig.Theme;
                     bool globalKeyChanged = Config.EnableGlobalKeyboard != nextConfig.EnableGlobalKeyboard;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition;
@@ -3654,8 +3655,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.FrameWidth = settings.FrameWidth;
                     Config.FrameHeight = settings.FrameHeight;
                     Config.Fps = settings.Fps;
-                    Config.AudioDeviceName = settings.AudioDeviceName ?? "";
-                    Config.AudioSyncOffsetMs = settings.AudioSyncOffsetMs;
+                        Config.AudioDeviceName = settings.AudioDeviceName ?? "";
+                        Config.AudioSyncOffsetMs = settings.AudioSyncOffsetMs;
+                        Config.CameraRotate180 = settings.Rotate180;
                 }
 
                 // 设置错误处理器（摄像头拔掉时 AForge 会触发此事件）
@@ -3771,6 +3773,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 Mat newMat = BitmapToMat(eventArgs.Frame);
+                CameraFrameOrientation.Apply(newMat, Config.CameraRotate180);
                 lock (_frameLock)
                 {
                     _latestFrame?.Dispose();

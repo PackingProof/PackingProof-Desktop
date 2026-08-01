@@ -69,6 +69,7 @@ namespace ExpressPackingMonitoring.Config
         public string AudioDeviceName { get; set; } = "";
         public string AudioDeviceMoniker { get; set; } = "";
         public int AudioSyncOffsetMs { get; set; } = 0;
+        public bool Rotate180 { get; set; }
     }
 
     public sealed class RecordingBenchmarkCacheEntry
@@ -135,6 +136,7 @@ namespace ExpressPackingMonitoring.Config
 
         public string CameraMonikerString { get; set; } = "";
         public int CameraIndex { get; set; } = 0; // 保留作为回退
+        public bool CameraRotate180 { get; set; }
 
         // 存储不同摄像头的配置：Key 为 MonikerString
         public Dictionary<string, CameraSettings> CameraConfigs { get; set; } = new();
