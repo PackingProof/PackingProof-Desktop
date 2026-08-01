@@ -13,6 +13,57 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class RecordingTransferTests
 {
     [Fact]
+    public async Task Dispose_DefersOwnedResourcesUntilActiveTransferExits()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "video.mp4");
+            await File.WriteAllBytesAsync(videoPath, new byte[4096], TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord("DISPOSE-RACE", "发货", "", "", videoPath, DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(recordId, DateTime.Now, 30, 4096, "手动");
+
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            var resolverStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseResolver = new TaskCompletionSource<PackingProofNodeInfo?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var store = new RecordingTransferQueueStore(databasePath);
+            var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                nodeInfoResolver: (_, _) =>
+                {
+                    resolverStarted.TrySetResult();
+                    return releaseResolver.Task;
+                })
+            {
+                ShutdownWaitTimeout = TimeSpan.FromMilliseconds(50)
+            };
+            service.EnqueueCompletedRecordings();
+
+            Task<int> processing = service.ProcessReadyOnceAsync(TestContext.Current.CancellationToken);
+            await resolverStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            service.Dispose();
+
+            Assert.False(service.ResourcesDisposedForTesting);
+            Assert.Equal(1, store.GetSummary().PendingCount);
+
+            releaseResolver.TrySetResult(null);
+            Assert.Equal(
+                1,
+                await processing.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+            Assert.True(SpinWait.SpinUntil(() => service.ResourcesDisposedForTesting, TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void QueueStore_RecoversUploadingTaskAfterRestart()
     {
         string directory = CreateTempDirectory();

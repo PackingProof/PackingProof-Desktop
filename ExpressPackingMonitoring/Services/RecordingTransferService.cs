@@ -33,9 +33,16 @@ internal sealed class RecordingTransferService : IDisposable
     private readonly bool _ownsHttpClient;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
+    private readonly ManualResetEventSlim _operationsIdle = new(initialState: true);
+    private readonly object _lifecycleLock = new();
     private Task? _worker;
     private int _processing;
+    private int _activeOperations;
+    private int _resourcesDisposed;
     private bool _disposed;
+
+    internal TimeSpan ShutdownWaitTimeout { get; set; } = TimeSpan.FromSeconds(2);
+    internal bool ResourcesDisposedForTesting => Volatile.Read(ref _resourcesDisposed) != 0;
 
     internal event Action<RecordingTransferProgress>? ProgressChanged;
 
@@ -116,6 +123,16 @@ internal sealed class RecordingTransferService : IDisposable
 
         try
         {
+            BeginOperation();
+        }
+        catch
+        {
+            Interlocked.Exchange(ref _processing, 0);
+            throw;
+        }
+
+        try
+        {
             int processed = 0;
             foreach (RecordingTransferTask task in _store.GetReady(DateTime.UtcNow))
             {
@@ -127,6 +144,7 @@ internal sealed class RecordingTransferService : IDisposable
         }
         finally
         {
+            EndOperation();
             Interlocked.Exchange(ref _processing, 0);
         }
     }
@@ -590,15 +608,86 @@ internal sealed class RecordingTransferService : IDisposable
             _wakeSignal.Release();
     }
 
+    private void BeginOperation()
+    {
+        lock (_lifecycleLock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _activeOperations++;
+            _operationsIdle.Reset();
+        }
+    }
+
+    private void EndOperation()
+    {
+        lock (_lifecycleLock)
+        {
+            _activeOperations--;
+            if (_activeOperations == 0)
+                _operationsIdle.Set();
+        }
+    }
+
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_lifecycleLock)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
         _cts.Cancel();
         Signal();
-        try { _worker?.Wait(TimeSpan.FromSeconds(2)); } catch { }
+
+        var shutdownTimer = System.Diagnostics.Stopwatch.StartNew();
+        bool workerStopped = WaitForWorker(ShutdownWaitTimeout);
+        TimeSpan operationsWait = ShutdownWaitTimeout - shutdownTimer.Elapsed;
+        bool operationsStopped = _operationsIdle.Wait(
+            operationsWait > TimeSpan.Zero ? operationsWait : TimeSpan.Zero);
+        if (workerStopped && operationsStopped)
+        {
+            DisposeResources();
+            return;
+        }
+
+        RuntimeLog.Warn(
+            "RecordingTransfer",
+            "Transfer shutdown is still completing; resources will be released after active work exits");
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                WaitForWorker(Timeout.InfiniteTimeSpan);
+                _operationsIdle.Wait();
+            }
+            finally
+            {
+                DisposeResources();
+            }
+        });
+    }
+
+    private bool WaitForWorker(TimeSpan timeout)
+    {
+        Task? worker = _worker;
+        if (worker == null)
+            return true;
+        try
+        {
+            return worker.Wait(timeout);
+        }
+        catch
+        {
+            return worker.IsCompleted;
+        }
+    }
+
+    private void DisposeResources()
+    {
+        if (Interlocked.Exchange(ref _resourcesDisposed, 1) != 0)
+            return;
         _cts.Dispose();
         _wakeSignal.Dispose();
+        _operationsIdle.Dispose();
         if (_ownsHttpClient)
             _httpClient.Dispose();
         _store.Dispose();
