@@ -357,10 +357,14 @@ public sealed class NoCameraWorkstationTests
             Assert.NotNull(host.Database);
             Assert.StartsWith($"http://127.0.0.1:{port}", host.LocalPlaybackUrl, StringComparison.Ordinal);
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
-            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/mobile-backup/capabilities");
-            request.Headers.Add("X-EPM-Access-Key", AccessKey);
-            using HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+            using HttpResponseMessage response = await client.GetAsync(
+                "/api/node-info",
+                TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(
+                "mobile-backup",
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken),
+                StringComparison.Ordinal);
 
             WorkstationNetwork.TestOrderSendResult order =
                 await WorkstationNetwork.SendTestOrderAsync(
