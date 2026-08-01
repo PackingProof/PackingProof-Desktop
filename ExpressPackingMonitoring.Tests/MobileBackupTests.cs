@@ -648,7 +648,15 @@ public sealed class MobileBackupTests
             Assert.Equal(deviceId, video.GetProperty("sourceDeviceId").GetString());
             Assert.Equal("http-session", video.GetProperty("sourceSessionId").GetString());
             Assert.Equal(sha, video.GetProperty("contentSha256").GetString());
-            Assert.Contains("/api/mobile-backup/videos/", video.GetProperty("playUrl").GetString(), StringComparison.Ordinal);
+            string playUrl = video.GetProperty("playUrl").GetString()!;
+            Assert.Contains("/api/mobile-backup/videos/", playUrl, StringComparison.Ordinal);
+            Assert.Contains("?ticket=", playUrl, StringComparison.Ordinal);
+            using HttpResponseMessage ticketPlayback = await client.GetAsync(playUrl, cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, ticketPlayback.StatusCode);
+            using HttpResponseMessage noTicketPlayback = await client.GetAsync(
+                $"/api/mobile-backup/videos/{videoId}/play",
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, noTicketPlayback.StatusCode);
 
             const string otherDeviceId = "phone-other-device";
             using HttpResponseMessage otherEnrollment = await client.PostAsJsonAsync(

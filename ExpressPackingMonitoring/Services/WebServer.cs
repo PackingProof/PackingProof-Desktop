@@ -63,6 +63,7 @@ namespace ExpressPackingMonitoring.Services
 
     public sealed class WebServer : IDisposable
     {
+        private sealed record DeviceVideoTicket(string DeviceId, long RecordId, DateTimeOffset ExpiresAt);
         private sealed class PendingOrderLookup
         {
             public string RequestId { get; init; } = "";
@@ -102,6 +103,7 @@ namespace ExpressPackingMonitoring.Services
             MobileAppUpdatePolicyProvider.Shared;
         private Timer _mobileAppUpdateRefreshTimer;
         private readonly ConcurrentDictionary<string, byte> _notifiedMobileAppUpdates = new();
+        private readonly ConcurrentDictionary<string, DeviceVideoTicket> _deviceVideoTickets = new();
         private readonly string _mobileBackupComputerId;
         private readonly string _mobileBackupComputerName;
         private readonly string _nodeId;
@@ -593,7 +595,8 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 bool isDeviceEnrollment = path == "/api/mobile-backup/enroll" && method == "POST";
-                if (!isDeviceEnrollment && IsMobileBackupPath(path)
+                bool hasDeviceVideoTicket = method == "GET" && HasValidDeviceVideoTicket(ctx, path);
+                if (!isDeviceEnrollment && !hasDeviceVideoTicket && IsMobileBackupPath(path)
                     && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey, out bool obsoleteProtocol))
                 {
                     SendJson(ctx, obsoleteProtocol ? 426 : missingBackupKey ? 401 : 403, new
@@ -1389,27 +1392,31 @@ namespace ExpressPackingMonitoring.Services
                 pageSize,
                 sourceType: "external",
                 deviceId: deviceId);
-            var data = result.Records.Select(record => new
+            var data = result.Records.Select(record =>
             {
-                record.Id,
-                record.OrderId,
-                trackingNumber = record.TrackingNumber ?? "",
-                record.Mode,
-                record.FileName,
-                sourceType = "external",
-                sourceDeviceId = deviceId,
-                sourceDeviceName = record.SourceDeviceName ?? "",
-                sourceDeviceKind = record.SourceDeviceKind ?? "",
-                sourceSessionId = record.SourceSessionId ?? "",
-                contentSha256 = record.ContentSha256 ?? "",
-                sizeMB = Math.Round(record.FileSizeBytes / 1048576.0, 1),
-                startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
-                durationSec = Math.Round(record.DurationSeconds, 0),
-                duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
-                exists = File.Exists(record.FilePath),
-                playUrl = $"/api/mobile-backup/videos/{record.Id}/play",
-                thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail",
-                remote = true
+                string ticket = CreateDeviceVideoTicket(deviceId, record.Id);
+                return new
+                {
+                    record.Id,
+                    record.OrderId,
+                    trackingNumber = record.TrackingNumber ?? "",
+                    record.Mode,
+                    record.FileName,
+                    sourceType = "external",
+                    sourceDeviceId = deviceId,
+                    sourceDeviceName = record.SourceDeviceName ?? "",
+                    sourceDeviceKind = record.SourceDeviceKind ?? "",
+                    sourceSessionId = record.SourceSessionId ?? "",
+                    contentSha256 = record.ContentSha256 ?? "",
+                    sizeMB = Math.Round(record.FileSizeBytes / 1048576.0, 1),
+                    startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                    durationSec = Math.Round(record.DurationSeconds, 0),
+                    duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
+                    exists = File.Exists(record.FilePath),
+                    playUrl = $"/api/mobile-backup/videos/{record.Id}/play?ticket={ticket}",
+                    thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail?ticket={ticket}",
+                    remote = true
+                };
             });
             SendJson(ctx, 200, new { total = result.Total, deviceTotal = result.Total, page, pageSize, data });
         }
@@ -1444,7 +1451,9 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleDeviceScopedVideo(HttpListenerContext ctx, long recordId, string operation)
         {
-            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            string deviceId;
+            if (!TryGetDeviceVideoTicket(ctx, recordId, out deviceId)
+                && !TryGetAuthenticatedDeviceId(ctx, out deviceId)) return;
             VideoRecord record = _db.GetVideoById(recordId);
             if (record == null
                 || !string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
@@ -1457,6 +1466,46 @@ namespace ExpressPackingMonitoring.Services
             if (operation == "play") HandlePlay(ctx, syntheticPath);
             else if (operation == "download") HandleDownload(ctx, syntheticPath);
             else HandleVideoThumbnail(ctx, syntheticPath);
+        }
+
+        private string CreateDeviceVideoTicket(string deviceId, long recordId)
+        {
+            string value = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
+            _deviceVideoTickets[value] = new DeviceVideoTicket(
+                deviceId,
+                recordId,
+                DateTimeOffset.UtcNow.AddMinutes(10));
+            if (_deviceVideoTickets.Count > 2048)
+            {
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                foreach (var item in _deviceVideoTickets)
+                    if (item.Value.ExpiresAt <= now) _deviceVideoTickets.TryRemove(item.Key, out _);
+            }
+            return value;
+        }
+
+        private bool HasValidDeviceVideoTicket(HttpListenerContext ctx, string path)
+        {
+            bool ticketPath = TryParseDeviceScopedVideoPath(path, "/play", out long recordId)
+                || TryParseDeviceScopedVideoPath(path, "/download", out recordId)
+                || TryParseDeviceScopedVideoPath(path, "/thumbnail", out recordId);
+            return ticketPath && TryGetDeviceVideoTicket(ctx, recordId, out _);
+        }
+
+        private bool TryGetDeviceVideoTicket(HttpListenerContext ctx, long recordId, out string deviceId)
+        {
+            deviceId = "";
+            string value = ctx.Request.QueryString["ticket"] ?? "";
+            if (value.Length != 48
+                || !_deviceVideoTickets.TryGetValue(value, out DeviceVideoTicket ticket)
+                || ticket.RecordId != recordId
+                || ticket.ExpiresAt <= DateTimeOffset.UtcNow)
+            {
+                if (value.Length > 0) _deviceVideoTickets.TryRemove(value, out _);
+                return false;
+            }
+            deviceId = ticket.DeviceId;
+            return true;
         }
 
         private bool TryGetAuthenticatedDeviceId(HttpListenerContext ctx, out string deviceId)
