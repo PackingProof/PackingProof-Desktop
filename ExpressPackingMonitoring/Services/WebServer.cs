@@ -144,6 +144,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> _backupDeviceEnrollmentApprover;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _requestSlots = new(32, 32);
+        private readonly LanRequestRateLimiter _requestRateLimiter = new();
         private readonly SemaphoreSlim _transcodeSlot = new(1, 1);
         private readonly FfmpegWorkLimiter _ffmpegWorkLimiter = new();
         private readonly ShortLivedSnapshotCache<byte[]> _storageOverviewCache = new(TimeSpan.FromSeconds(10));
@@ -162,7 +163,6 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceIds = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKinds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
-        private readonly ConcurrentDictionary<string, long> _backupEnrollmentAttempts = new(StringComparer.OrdinalIgnoreCase);
         private readonly object _backupEnrollmentApprovalLock = new();
         private string _activeBackupEnrollmentKey;
         private Lazy<BackupDeviceEnrollmentOperation> _activeBackupEnrollment;
@@ -555,7 +555,16 @@ namespace ExpressPackingMonitoring.Services
                     var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
                     try
                     {
-                        await _requestSlots.WaitAsync(token).ConfigureAwait(false);
+                        if (!_requestSlots.Wait(0))
+                        {
+                            ctx.Response.Headers["Retry-After"] = "1";
+                            SendJson(ctx, 503, new
+                            {
+                                errorCode = "server_busy",
+                                error = "保存主机当前请求较多，请稍后重试"
+                            });
+                            continue;
+                        }
                     }
                     catch
                     {
@@ -587,11 +596,29 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleRequest(HttpListenerContext ctx)
         {
+            IDisposable requestLease = null;
             try
             {
                 string path = ctx.Request.Url?.AbsolutePath?.TrimEnd('/') ?? "";
                 string method = ctx.Request.HttpMethod;
                 Log($">>> {method} {path} from {ctx.Request.RemoteEndPoint}");
+
+                LanRequestCategory requestCategory = ClassifyRequest(method, path);
+                if (!_requestRateLimiter.TryEnter(
+                        ctx.Request.RemoteEndPoint?.Address?.ToString(),
+                        requestCategory,
+                        out requestLease,
+                        out int retryAfterSeconds))
+                {
+                    ctx.Response.Headers["Retry-After"] = retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
+                    SendJson(ctx, 429, new
+                    {
+                        errorCode = "request_rate_limited",
+                        error = "请求较多，请稍后重试",
+                        retryAfterSeconds
+                    });
+                    return;
+                }
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
@@ -804,6 +831,7 @@ namespace ExpressPackingMonitoring.Services
             }
             finally
             {
+                requestLease?.Dispose();
                 _authenticatedRequestBodies.TryRemove(ctx, out _);
                 _authenticatedDeviceKeys.TryRemove(ctx, out _);
                 _authenticatedDeviceIds.TryRemove(ctx, out _);
@@ -920,6 +948,38 @@ namespace ExpressPackingMonitoring.Services
                 return false;
             }
             return TryAuthorizeSignedBackupRequest(ctx, out missingKey);
+        }
+
+        internal static LanRequestCategory ClassifyRequest(string method, string path)
+        {
+            if (string.Equals(path, "/api/mobile-backup/enroll", StringComparison.OrdinalIgnoreCase))
+                return LanRequestCategory.Enrollment;
+            if (string.Equals(path, "/api/connections/heartbeat", StringComparison.OrdinalIgnoreCase))
+                return LanRequestCategory.Heartbeat;
+            if (IsMobileBackupPath(path)
+                && (string.Equals(method, "PUT", StringComparison.OrdinalIgnoreCase)
+                    || path.Contains("/uploads", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/complete", StringComparison.OrdinalIgnoreCase)))
+            {
+                return LanRequestCategory.BackupTransfer;
+            }
+            if (path.Contains("/clip", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                return LanRequestCategory.ClipWork;
+            }
+            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
+                && (path.EndsWith("/play", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/download", StringComparison.OrdinalIgnoreCase)
+                    || path.EndsWith("/thumbnail", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWith("/api/clips/", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWith("/api/mobile-backup/clips/", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWith("/api/clip-previews/", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWith("/api/mobile-backup/clip-previews/", StringComparison.OrdinalIgnoreCase)))
+            {
+                return LanRequestCategory.MediaStream;
+            }
+            return LanRequestCategory.General;
         }
 
         private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
@@ -1108,15 +1168,6 @@ namespace ExpressPackingMonitoring.Services
                 });
                 return;
             }
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            string rateLimitKey = $"{remoteAddress}:{deviceId.ToLowerInvariant()}";
-            if (_backupEnrollmentAttempts.TryGetValue(rateLimitKey, out long previous)
-                && now - previous < 750)
-            {
-                SendJson(ctx, 429, new { errorCode = "enrollment_rate_limited", error = "连接请求过于频繁，请稍后重试" });
-                return;
-            }
-            _backupEnrollmentAttempts[rateLimitKey] = now;
             string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}";
             Lazy<BackupDeviceEnrollmentOperation> pending;
             lock (_backupEnrollmentApprovalLock)

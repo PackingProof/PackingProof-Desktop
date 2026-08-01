@@ -1083,11 +1083,16 @@ public sealed class MobileBackupTests
             using HttpResponseMessage newTokenResponse = await SendSignedAsync(
                 client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, rotatedToken, [], cancellationToken);
             Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
-            using HttpResponseMessage rateLimited = await client.PostAsJsonAsync(
-                "/api/mobile-backup/enroll",
-                CreateCompatibleEnrollment(deviceId, "测试手机"),
-                cancellationToken);
-            Assert.Equal((HttpStatusCode)429, rateLimited.StatusCode);
+            HttpStatusCode finalEnrollmentStatus = HttpStatusCode.OK;
+            for (int retry = 0; retry < 8 && finalEnrollmentStatus == HttpStatusCode.OK; retry++)
+            {
+                using HttpResponseMessage allowedRetry = await client.PostAsJsonAsync(
+                    "/api/mobile-backup/enroll",
+                    CreateCompatibleEnrollment(deviceId, "测试手机"),
+                    cancellationToken);
+                finalEnrollmentStatus = allowedRetry.StatusCode;
+            }
+            Assert.Equal((HttpStatusCode)429, finalEnrollmentStatus);
         }
         finally
         {

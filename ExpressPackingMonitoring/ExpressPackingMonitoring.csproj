@@ -122,6 +122,7 @@
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ConnectedClientRegistry.cs" />
     <Compile Include="Services\FfmpegWorkLimiter.cs" />
+    <Compile Include="Services\LanRequestRateLimiter.cs" />
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />
