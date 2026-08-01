@@ -3671,14 +3671,16 @@ namespace ExpressPackingMonitoring.Services
             string rangeHeader = ctx.Request.Headers["Range"];
             long start = 0, end = fileLength - 1;
 
-            if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
+            if (!string.IsNullOrWhiteSpace(rangeHeader))
             {
-                string rangeValue = rangeHeader.Substring(6);
-                var parts = rangeValue.Split('-');
-                if (long.TryParse(parts[0], out long rs)) start = rs;
-                if (parts.Length > 1 && long.TryParse(parts[1], out long re)) end = re;
-                if (start < 0) start = 0;
-                if (end >= fileLength) end = fileLength - 1;
+                if (!TryResolveByteRange(rangeHeader, fileLength, out start, out end))
+                {
+                    ctx.Response.StatusCode = 416;
+                    ctx.Response.Headers.Add("Content-Range", $"bytes */{fileLength}");
+                    ctx.Response.ContentLength64 = 0;
+                    ctx.Response.OutputStream.Close();
+                    return;
+                }
 
                 ctx.Response.StatusCode = 206;
                 ctx.Response.Headers.Add("Content-Range", $"bytes {start}-{end}/{fileLength}");
@@ -3705,6 +3707,55 @@ namespace ExpressPackingMonitoring.Services
                 remaining -= read;
             }
             ctx.Response.OutputStream.Close();
+        }
+
+        internal static bool TryResolveByteRange(
+            string rangeHeader,
+            long fileLength,
+            out long start,
+            out long end)
+        {
+            start = 0;
+            end = fileLength - 1;
+            if (fileLength <= 0
+                || string.IsNullOrWhiteSpace(rangeHeader)
+                || !rangeHeader.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string rangeValue = rangeHeader[6..].Trim();
+            if (rangeValue.Length == 0 || rangeValue.Contains(','))
+                return false;
+
+            string[] parts = rangeValue.Split('-', 2);
+            if (parts.Length != 2)
+                return false;
+
+            if (parts[0].Length == 0)
+            {
+                if (!long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out long suffixLength)
+                    || suffixLength <= 0)
+                    return false;
+                start = Math.Max(0, fileLength - suffixLength);
+                end = fileLength - 1;
+                return true;
+            }
+
+            if (!long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out start)
+                || start < 0
+                || start >= fileLength)
+                return false;
+
+            if (parts[1].Length == 0)
+            {
+                end = fileLength - 1;
+                return true;
+            }
+
+            if (!long.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out end)
+                || end < start)
+                return false;
+            end = Math.Min(end, fileLength - 1);
+            return true;
         }
 
         // ───── 根据 URL 中的 ID 查找记录 ─────

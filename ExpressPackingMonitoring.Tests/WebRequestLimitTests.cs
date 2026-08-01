@@ -24,6 +24,34 @@ public sealed class WebRequestLimitTests
         Assert.Equal(expected, WebServer.ShouldServeClipInline(value));
     }
 
+    [Theory]
+    [InlineData("bytes=0-99", 1000, 0, 99)]
+    [InlineData("bytes=900-", 1000, 900, 999)]
+    [InlineData("bytes=-100", 1000, 900, 999)]
+    [InlineData("bytes=0-9999", 1000, 0, 999)]
+    public void TryResolveByteRange_AcceptsSingleValidRange(
+        string header,
+        long fileLength,
+        long expectedStart,
+        long expectedEnd)
+    {
+        Assert.True(WebServer.TryResolveByteRange(header, fileLength, out long start, out long end));
+        Assert.Equal(expectedStart, start);
+        Assert.Equal(expectedEnd, end);
+    }
+
+    [Theory]
+    [InlineData("bytes=1000-", 1000)]
+    [InlineData("bytes=20-10", 1000)]
+    [InlineData("bytes=0-1,3-4", 1000)]
+    [InlineData("items=0-10", 1000)]
+    [InlineData("bytes=-0", 1000)]
+    [InlineData("bytes=0-0", 0)]
+    public void TryResolveByteRange_RejectsMalformedOrUnsatisfiedRange(string header, long fileLength)
+    {
+        Assert.False(WebServer.TryResolveByteRange(header, fileLength, out _, out _));
+    }
+
     [Fact]
     public void ValidateOrderInfoItems_AcceptsBoundarySizedBatch()
     {
