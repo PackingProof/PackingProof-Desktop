@@ -8,6 +8,37 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class DefaultConfigurationTests
 {
     [Fact]
+    public void NewConfigurationProtectsVideoWebByDefault()
+    {
+        var config = new AppConfig();
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.True(config.RequireWebAccessKey);
+        Assert.Equal(AppConfig.CurrentWebProtectionSetupVersion, config.WebProtectionSetupVersion);
+        Assert.Equal(32, config.WebAccessKey.Length);
+    }
+
+    [Fact]
+    public void ExistingConfigurationEnablesProtectionOnceAndPreservesLaterUserChoice()
+    {
+        var config = new AppConfig
+        {
+            RequireWebAccessKey = false,
+            WebProtectionSetupVersion = 0
+        };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        Assert.True(config.RequireWebAccessKey);
+        Assert.Equal(AppConfig.CurrentWebProtectionSetupVersion, config.WebProtectionSetupVersion);
+
+        config.RequireWebAccessKey = false;
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.False(config.RequireWebAccessKey);
+        Assert.Equal(AppConfig.CurrentWebProtectionSetupVersion, config.WebProtectionSetupVersion);
+    }
+    [Fact]
     public void AppConfig_EnablesAutoStartForNewConfiguration()
     {
         Assert.True(new AppConfig().AutoStartOnBoot);

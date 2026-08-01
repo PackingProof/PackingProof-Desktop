@@ -94,6 +94,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentDeploymentSetupVersion = 1;
         public const int CurrentRecordingSetupVersion = 2;
         public const int CurrentBackupConnectionSchemaVersion = 1;
+        public const int CurrentWebProtectionSetupVersion = 1;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -124,6 +125,7 @@ namespace ExpressPackingMonitoring.Config
         public string LastUserscriptTargetSignature { get; set; } = "";
         public int DeploymentSetupVersion { get; set; } = 0;
         public int RecordingSetupVersion { get; set; } = 0;
+        public int WebProtectionSetupVersion { get; set; }
 
         // 录像方式："CameraMonitor"=使用电脑摄像头录像，"PrintStation"=不使用电脑摄像头（兼容旧配置），空值表示首次启动需要选择。
         public string WorkstationRole { get; set; } = "";
@@ -205,7 +207,7 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableWebServer { get; set; } = true;
         public int WebServerPort { get; set; } = 5280;
         public int TranscodeCacheMaxMB { get; set; } = 1024;  // 转码缓存上限(MB)，超出后按时间清理最旧的
-        public bool RequireWebAccessKey { get; set; } = false;
+        public bool RequireWebAccessKey { get; set; } = true;
         public string WebAccessKey { get; set; } = "";
         public string MobileBackupComputerId { get; set; } = "";
 
@@ -295,6 +297,13 @@ namespace ExpressPackingMonitoring.Config
             if (string.IsNullOrWhiteSpace(config.WebAccessKey) || config.WebAccessKey.Trim().Length < 16)
             {
                 config.WebAccessKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+                changed = true;
+            }
+
+            if (config.WebProtectionSetupVersion < CurrentWebProtectionSetupVersion)
+            {
+                config.RequireWebAccessKey = true;
+                config.WebProtectionSetupVersion = CurrentWebProtectionSetupVersion;
                 changed = true;
             }
             else if (!string.Equals(config.WebAccessKey, config.WebAccessKey.Trim(), StringComparison.Ordinal))
@@ -701,6 +710,8 @@ namespace ExpressPackingMonitoring.Config
         {
             config.CameraBarcodeSetupVersion = CurrentCameraBarcodeSetupVersion;
             config.RecordingSetupVersion = CurrentRecordingSetupVersion;
+            config.RequireWebAccessKey = true;
+            config.WebProtectionSetupVersion = CurrentWebProtectionSetupVersion;
             MarkDeploymentSetupCompleted(config);
         }
 
