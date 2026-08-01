@@ -1553,6 +1553,15 @@ public sealed class DeploymentStartupTests
             script,
             StringComparison.Ordinal);
         Assert.Contains(
+            "Get-AppConfigVersion \"CurrentWebProtectionSetupVersion\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "WebProtectionSetupVersion = $webProtectionSetupVersion",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("RequireWebAccessKey = $true", script, StringComparison.Ordinal);
+        Assert.Contains(
             "FirstUseWizardCompleted = $true",
             script,
             StringComparison.Ordinal);

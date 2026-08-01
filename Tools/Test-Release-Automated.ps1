@@ -90,6 +90,8 @@ try {
     $recordingSetupVersion = Get-AppConfigVersion "CurrentRecordingSetupVersion"
     $cameraBarcodeSetupVersion = Get-AppConfigVersion "CurrentCameraBarcodeSetupVersion"
     $mobileConnectionSetupVersion = Get-AppConfigVersion "CurrentMobileConnectionSetupVersion"
+    $webProtectionSetupVersion = Get-AppConfigVersion "CurrentWebProtectionSetupVersion"
+    $webAccessKey = "0123456789abcdef0123456789abcdef"
     $wpfProcess = $null
     try {
         $noCameraPort = Get-FreeTcpPort
@@ -101,6 +103,9 @@ try {
             RecordingSetupVersion = $recordingSetupVersion
             CameraBarcodeSetupVersion = $cameraBarcodeSetupVersion
             MobileConnectionSetupVersion = $mobileConnectionSetupVersion
+            WebProtectionSetupVersion = $webProtectionSetupVersion
+            RequireWebAccessKey = $true
+            WebAccessKey = $webAccessKey
             WebServerPort = $noCameraPort
             StorageLocations = @(@{
                 Path = $noCameraStorage
@@ -126,7 +131,7 @@ try {
         if ($wpfProcess.MainWindowTitle -ne "PackingProof 录像文件备份主机") {
             throw "Unexpected WPF window title: $($wpfProcess.MainWindowTitle)"
         }
-        Wait-ForWebServer -Url "http://127.0.0.1:$noCameraPort/"
+        Wait-ForWebServer -Url "http://127.0.0.1:$noCameraPort/?key=$webAccessKey"
         $wpfProcess.CloseMainWindow() | Out-Null
         if (-not $wpfProcess.WaitForExit(5000)) { throw "The isolated WPF process did not shut down cleanly." }
 
