@@ -151,12 +151,17 @@ namespace ExpressPackingMonitoring.Services
         private readonly Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> _backupDeviceEnrollmentApprover;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _requestSlots = new(32, 32);
+        private readonly ManualResetEventSlim _requestsIdle = new(initialState: true);
         private readonly LanRequestRateLimiter _requestRateLimiter = new();
         private readonly SemaphoreSlim _transcodeSlot = new(1, 1);
         private readonly FfmpegWorkLimiter _ffmpegWorkLimiter = new();
         private readonly ShortLivedSnapshotCache<byte[]> _storageOverviewCache = new(TimeSpan.FromSeconds(10));
         private Task _listenTask;
+        private int _activeRequests;
+        private int _serverResourcesDisposed;
         private bool _disposed;
+        internal TimeSpan ShutdownWaitTimeout { get; set; } = TimeSpan.FromSeconds(2);
+        internal bool ServerResourcesDisposedForTesting => Volatile.Read(ref _serverResourcesDisposed) != 0;
         private static readonly string _logPath = AppPaths.WebDebugLogPath;
         private static readonly string _transCacheDir = AppPaths.TranscodeCacheDir;
         private long _transCacheMaxBytes = 1024L * 1024 * 1024; // 默认 1GB，可config覆盖
@@ -299,7 +304,27 @@ namespace ExpressPackingMonitoring.Services
                 : "+";
             var listener = new HttpListener();
             listener.Prefixes.Add($"http://{host}:{port}/");
+            ConfigureListenerTimeouts(listener);
             return listener;
+        }
+
+        internal static readonly TimeSpan RequestHeaderWaitTimeout = TimeSpan.FromSeconds(20);
+        internal static readonly TimeSpan RequestEntityBodyTimeout = TimeSpan.FromMinutes(2);
+        internal static readonly TimeSpan IdleConnectionTimeout = TimeSpan.FromMinutes(2);
+
+        private static void ConfigureListenerTimeouts(HttpListener listener)
+        {
+            try
+            {
+                listener.TimeoutManager.HeaderWait = RequestHeaderWaitTimeout;
+                listener.TimeoutManager.EntityBody = RequestEntityBodyTimeout;
+                listener.TimeoutManager.IdleConnection = IdleConnectionTimeout;
+                listener.TimeoutManager.DrainEntityBody = TimeSpan.FromSeconds(10);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("WebServer", $"Unable to configure HTTP request timeouts: {ex.Message}");
+            }
         }
 
         public void Start(bool allowAccessSetup = false)
@@ -581,15 +606,21 @@ namespace ExpressPackingMonitoring.Services
 
                     try
                     {
+                        BeginActiveRequest();
                         _ = Task.Run(() =>
                         {
                             try { HandleRequest(ctx); }
-                            finally { _requestSlots.Release(); }
+                            finally
+                            {
+                                _requestSlots.Release();
+                                EndActiveRequest();
+                            }
                         });
                     }
                     catch
                     {
                         _requestSlots.Release();
+                        EndActiveRequest();
                         try { ctx.Response.Abort(); } catch { }
                         throw;
                     }
@@ -1291,6 +1322,18 @@ namespace ExpressPackingMonitoring.Services
                     ex);
                 return new BackupDeviceEnrollmentOperation(BackupDeviceEnrollmentApprovalDecision.Unavailable);
             }
+        }
+
+        private void BeginActiveRequest()
+        {
+            if (Interlocked.Increment(ref _activeRequests) == 1)
+                _requestsIdle.Reset();
+        }
+
+        private void EndActiveRequest()
+        {
+            if (Interlocked.Decrement(ref _activeRequests) == 0)
+                _requestsIdle.Set();
         }
 
         private static string SafeDeviceId(string deviceId) =>
@@ -3897,10 +3940,61 @@ namespace ExpressPackingMonitoring.Services
             foreach (var pending in _pendingOrderLookups.Values)
                 pending.Completion.TrySetResult(new OrderLookupResult { Responded = false });
             _pendingOrderLookups.Clear();
-            try { _clipService.Dispose(); } catch { }
-            try { _connectedClients.Dispose(); } catch { }
             try { _listener.Stop(); } catch { }
             try { _listener.Close(); } catch { }
+
+            var shutdownTimer = System.Diagnostics.Stopwatch.StartNew();
+            bool listenerStopped = WaitForListenLoop(ShutdownWaitTimeout);
+            TimeSpan requestsWait = ShutdownWaitTimeout - shutdownTimer.Elapsed;
+            bool requestsStopped = _requestsIdle.Wait(
+                requestsWait > TimeSpan.Zero ? requestsWait : TimeSpan.Zero);
+            if (listenerStopped && requestsStopped)
+            {
+                DisposeServerResources();
+                return;
+            }
+
+            RuntimeLog.Warn(
+                "WebServer",
+                "Web server shutdown is still completing; resources will be released after active requests exit");
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    WaitForListenLoop(Timeout.InfiniteTimeSpan);
+                    _requestsIdle.Wait();
+                }
+                finally
+                {
+                    DisposeServerResources();
+                }
+            });
+        }
+
+        private bool WaitForListenLoop(TimeSpan timeout)
+        {
+            Task listenTask = _listenTask;
+            if (listenTask == null)
+                return true;
+            try
+            {
+                return listenTask.Wait(timeout);
+            }
+            catch
+            {
+                return listenTask.IsCompleted;
+            }
+        }
+
+        private void DisposeServerResources()
+        {
+            if (Interlocked.Exchange(ref _serverResourcesDisposed, 1) != 0)
+                return;
+            try { _clipService.Dispose(); } catch { }
+            try { _connectedClients.Dispose(); } catch { }
+            _requestSlots.Dispose();
+            _transcodeSlot.Dispose();
+            _requestsIdle.Dispose();
             _cts.Dispose();
         }
 

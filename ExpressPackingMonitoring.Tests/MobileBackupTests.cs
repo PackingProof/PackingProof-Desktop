@@ -122,6 +122,68 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public async Task WebServerDispose_DefersSharedResourcesUntilActiveRequestExits()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        using var approvalEntered = new ManualResetEventSlim();
+        using var releaseApproval = new ManualResetEventSlim();
+        WebServer? server = null;
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                {
+                    approvalEntered.Set();
+                    releaseApproval.Wait(TestContext.Current.CancellationToken);
+                    return BackupDeviceEnrollmentApprovalDecision.Approved;
+                })
+            {
+                ShutdownWaitTimeout = TimeSpan.FromMilliseconds(50)
+            };
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            Task<HttpResponseMessage> request = client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment("shutdown-race-device", "测试手机"),
+                TestContext.Current.CancellationToken);
+            Assert.True(approvalEntered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+
+            server.Dispose();
+            Assert.False(server.ServerResourcesDisposedForTesting);
+
+            releaseApproval.Set();
+            try
+            {
+                using HttpResponseMessage _ = await request.WaitAsync(
+                    TimeSpan.FromSeconds(2),
+                    TestContext.Current.CancellationToken);
+            }
+            catch (HttpRequestException)
+            {
+                // Closing the listener may terminate the client response while the server request exits safely.
+            }
+            Assert.True(SpinWait.SpinUntil(
+                () => server.ServerResourcesDisposedForTesting,
+                TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            releaseApproval.Set();
+            server?.Dispose();
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task DeviceEnrollmentWithoutApprovalUiReturnsUnavailable()
     {
         string directory = CreateTempDirectory();

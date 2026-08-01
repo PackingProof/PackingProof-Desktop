@@ -5,6 +5,14 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class WebRequestLimitTests
 {
+    [Fact]
+    public void ListenerTimeouts_BoundSlowHeadersBodiesAndIdleConnections()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(20), WebServer.RequestHeaderWaitTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), WebServer.RequestEntityBodyTimeout);
+        Assert.Equal(TimeSpan.FromMinutes(2), WebServer.IdleConnectionTimeout);
+    }
+
     [Theory]
     [InlineData("secret-key", "secret-key", true)]
     [InlineData("secret-key", "SECRET-KEY", false)]
