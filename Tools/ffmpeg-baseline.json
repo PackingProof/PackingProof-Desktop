@@ -3,6 +3,20 @@
   "version": "8.1.2",
   "runtime": "win-x64",
   "provider": "Gyan FFmpeg Essentials",
+  "app_patch_compatible_executables": [
+    {
+      "version": "7.1.1",
+      "variant": "full_build",
+      "size": 148234240,
+      "sha256": "b1383f5d07470d503edecdaee4bddc5891e986e916a698299b357f79cfe445fd"
+    },
+    {
+      "version": "8.1.2",
+      "variant": "essentials_build",
+      "size": 101897728,
+      "sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e"
+    }
+  ],
   "package": {
     "file": "ffmpeg-8.1.2-essentials_build.7z",
     "size": 33876939,

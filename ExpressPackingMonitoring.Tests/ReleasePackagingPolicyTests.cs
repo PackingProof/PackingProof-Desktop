@@ -160,6 +160,34 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_OnlyBuildsSlimPatchForCompatibleRuntimeBaseline()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string compatibilityScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "AppPatchRuntimeCompatibility.Common.ps1"),
+            Encoding.UTF8);
+        string manifest = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "ffmpeg-baseline.json"),
+            Encoding.UTF8);
+
+        Assert.Contains("Test-AppPatchRuntimeCompatibility", publishScript);
+        Assert.Contains("-ExcludeCompatibleRuntimes", publishScript);
+        Assert.Contains("Test-IsAppPatchManagedRuntimePath", publishScript);
+        Assert.Contains("Test-ZipContainsEntryPrefix", publishScript);
+        Assert.Contains("patch_supported", publishScript);
+        Assert.Contains("$updateManifest[\"patch_package\"] = $null", publishScript);
+        Assert.Contains("Remove-Item -LiteralPath $appPatchZipPath -Force", publishScript);
+        Assert.Contains("$patchReason", publishScript);
+        Assert.Contains("app_patch_compatible_executables", manifest);
+        Assert.Contains("b1383f5d07470d503edecdaee4bddc5891e986e916a698299b357f79cfe445fd", manifest);
+        Assert.Contains("AppPatch 基线中的 FFmpeg 版本或哈希不在兼容白名单中", compatibilityScript);
+        Assert.Contains("AppPatch 基线缺少 LibVLC 必需文件", compatibilityScript);
+    }
+
+    [Fact]
     public void Packaging_IgnoresLauncherComponentTagsWhenResolvingAppVersion()
     {
         string repositoryRoot = FindRepositoryRoot();

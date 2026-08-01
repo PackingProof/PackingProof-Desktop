@@ -160,6 +160,16 @@ public sealed class FFmpegBaselineScriptTests
                 version = "test",
                 runtime = "win-x64",
                 provider = "test",
+                app_patch_compatible_executables = new[]
+                {
+                    new
+                    {
+                        version = "test",
+                        variant = "test",
+                        size = ExecutableBytes.Length,
+                        sha256 = Convert.ToHexString(SHA256.HashData(ExecutableBytes)).ToLowerInvariant()
+                    }
+                },
                 package = new
                 {
                     file = Path.GetFileName(PackagePath),

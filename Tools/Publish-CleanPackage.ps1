@@ -27,6 +27,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "FFmpegBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "AppPatchRuntimeCompatibility.Common.ps1")
 $appProject = Join-Path $repoRoot "ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
 $releaseValidationScript = Join-Path $repoRoot "Tools\Test-Release.ps1"
 $installerBuildScript = Join-Path $repoRoot "Tools\Build-Installer.ps1"
@@ -587,7 +588,8 @@ function New-AppPatchPackage {
         [string]$BaselineVersion,
         [string]$LatestVersion,
         [string]$InstallerCmdPath,
-        [string]$InstallerScriptPath
+        [string]$InstallerScriptPath,
+        [switch]$ExcludeCompatibleRuntimes
     )
 
     if (-not (Test-Path $BaselineDir)) {
@@ -613,6 +615,9 @@ function New-AppPatchPackage {
     Get-ChildItem -LiteralPath $CurrentAppDir -File -Recurse | ForEach-Object {
         $relativePath = Get-RelativePath -BaseDir $CurrentAppDir -Path $_.FullName
         if ($relativePath.StartsWith("tts_cache\", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+        if ($ExcludeCompatibleRuntimes -and (Test-IsAppPatchManagedRuntimePath -RelativePath $relativePath)) {
             return
         }
         $baselineFile = Join-Path $BaselineDir $relativePath
@@ -667,6 +672,31 @@ function New-AppPatchPackage {
         -DestinationZip $PatchZipPath `
         -CompressionLevel $ZipCompressionLevel
     Remove-Item -LiteralPath $patchWorkDir -Recurse -Force
+}
+
+function Test-ZipContainsEntryPrefix {
+    param(
+        [string]$ZipFile,
+        [string]$EntryPrefix
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $normalizedPrefix = $EntryPrefix.Replace('\', '/')
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipFile)
+    try {
+        foreach ($entry in $zip.Entries) {
+            if ($entry.FullName.Replace('\', '/').StartsWith(
+                    $normalizedPrefix,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $true
+            }
+        }
+
+        return $false
+    }
+    finally {
+        $zip.Dispose()
+    }
 }
 
 function Resolve-LauncherBaselineExecutable {
@@ -968,47 +998,64 @@ elseif ([string]::IsNullOrWhiteSpace($BaselineAppDir) -or -not (Test-Path $Basel
     $patchReason = ConvertFrom-Utf8Base64 "5pyq55Sf5oiQ5aKe6YeP5YyF77ya5pyq5Lyg5YWlIEJhc2VsaW5lQXBwRGlyIOaIlui3r+W+hOS4jeWtmOWcqOOAgg=="
 }
 else {
-    New-AppPatchPackage `
+    $baselineAppFullPath = [System.IO.Path]::GetFullPath($BaselineAppDir)
+    $runtimeCompatibility = Test-AppPatchRuntimeCompatibility `
         -CurrentAppDir $appPublishDir `
-        -BaselineDir ([System.IO.Path]::GetFullPath($BaselineAppDir)) `
-        -PatchZipPath $appPatchZipPath `
-        -BaselineVersion $normalizedPatchBaselineVersion `
-        -LatestVersion $normalizedVersion `
-        -InstallerCmdPath $appPatchCmdSource `
-        -InstallerScriptPath $appPatchScriptSource
+        -BaselineAppDir $baselineAppFullPath `
+        -FFmpegBaseline $ffmpegBaseline
+    if (-not $runtimeCompatibility.Compatible) {
+        $patchReason = "未生成增量包：$($runtimeCompatibility.Reason)"
+    }
+    else {
+        New-AppPatchPackage `
+            -CurrentAppDir $appPublishDir `
+            -BaselineDir $baselineAppFullPath `
+            -PatchZipPath $appPatchZipPath `
+            -BaselineVersion $normalizedPatchBaselineVersion `
+            -LatestVersion $normalizedVersion `
+            -InstallerCmdPath $appPatchCmdSource `
+            -InstallerScriptPath $appPatchScriptSource `
+            -ExcludeCompatibleRuntimes
 
-    if (-not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "patch_manifest.json")) {
-        throw "AppPatch package validation failed: missing patch_manifest.json"
-    }
-    foreach ($appPatchEntry in @(
-        $appPatchInstallerCmdName,
-        $appPatchInstallerScriptName,
-        $appPatchNoticeName)) {
-        if (-not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName $appPatchEntry)) {
-            throw "AppPatch package validation failed: missing $appPatchEntry"
+        if (-not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "patch_manifest.json")) {
+            throw "AppPatch package validation failed: missing patch_manifest.json"
         }
-    }
-    foreach ($runtimeFile in $requiredAppRuntimeFiles) {
-        $baselineRuntimeFile = Join-Path ([System.IO.Path]::GetFullPath($BaselineAppDir)) $runtimeFile
-        $currentRuntimeFile = Join-Path $appPublishDir $runtimeFile
-        $runtimeChanged = -not (Test-Path $baselineRuntimeFile)
-        if (-not $runtimeChanged) {
-            $baselineRuntimeHash = (Get-FileHash -LiteralPath $baselineRuntimeFile -Algorithm SHA256).Hash
-            $currentRuntimeHash = (Get-FileHash -LiteralPath $currentRuntimeFile -Algorithm SHA256).Hash
-            $runtimeChanged = -not [string]::Equals($baselineRuntimeHash, $currentRuntimeHash, [System.StringComparison]::OrdinalIgnoreCase)
+        foreach ($appPatchEntry in @(
+            $appPatchInstallerCmdName,
+            $appPatchInstallerScriptName,
+            $appPatchNoticeName)) {
+            if (-not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName $appPatchEntry)) {
+                throw "AppPatch package validation failed: missing $appPatchEntry"
+            }
         }
-        if ($runtimeChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/$runtimeFile")) {
-            throw "AppPatch package validation failed: missing changed camera barcode runtime dependency files/$runtimeFile"
+        foreach ($runtimeFile in $requiredAppRuntimeFiles) {
+            $baselineRuntimeFile = Join-Path $baselineAppFullPath $runtimeFile
+            $currentRuntimeFile = Join-Path $appPublishDir $runtimeFile
+            $runtimeChanged = -not (Test-Path $baselineRuntimeFile)
+            if (-not $runtimeChanged) {
+                $baselineRuntimeHash = (Get-FileHash -LiteralPath $baselineRuntimeFile -Algorithm SHA256).Hash
+                $currentRuntimeHash = (Get-FileHash -LiteralPath $currentRuntimeFile -Algorithm SHA256).Hash
+                $runtimeChanged = -not [string]::Equals($baselineRuntimeHash, $currentRuntimeHash, [System.StringComparison]::OrdinalIgnoreCase)
+            }
+            if ($runtimeChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/$runtimeFile")) {
+                throw "AppPatch package validation failed: missing changed camera barcode runtime dependency files/$runtimeFile"
+            }
         }
-    }
-    if ($launcherChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/ExpressPackingMonitoring.dll")) {
-        throw "AppPatch bridge validation failed: launcher changed but updated app assembly is missing"
-    }
+        if (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName 'files/tools/ffmpeg.exe') {
+            throw 'AppPatch package validation failed: compatible FFmpeg was included'
+        }
+        if (Test-ZipContainsEntryPrefix -ZipFile $appPatchZipPath -EntryPrefix 'files/libvlc/') {
+            throw 'AppPatch package validation failed: compatible LibVLC was included'
+        }
+        if ($launcherChanged -and -not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "files/ExpressPackingMonitoring.dll")) {
+            throw "AppPatch bridge validation failed: launcher changed but updated app assembly is missing"
+        }
 
-    $appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $appPatchSize = (Get-Item -LiteralPath $appPatchZipPath).Length
-    $patchSupported = $true
-    $patchReason = (ConvertFrom-Utf8Base64 "5bey55Sf5oiQ5Zu65a6a5Z+657q/5aKe6YeP5YyF77ya") + $appPatchZipName
+        $appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $appPatchSize = (Get-Item -LiteralPath $appPatchZipPath).Length
+        $patchSupported = $true
+        $patchReason = "已生成兼容基线精简增量包：$appPatchZipName；$($runtimeCompatibility.Reason)"
+    }
 }
 
 if ($launcherPublishedWithRelease -and -not $patchSupported) {

@@ -24,8 +24,17 @@ function Read-FFmpegBaselineManifest {
         [long]$baseline.package.executable_size -le 0 -or
         [string]$baseline.package.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
         [string]$baseline.package.executable_sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
-        @($baseline.package.urls).Count -lt 1) {
+        @($baseline.package.urls).Count -lt 1 -or
+        @($baseline.app_patch_compatible_executables).Count -lt 1) {
         throw "FFmpeg baseline manifest is incomplete or unsupported: $ManifestPath"
+    }
+
+    foreach ($compatibleExecutable in @($baseline.app_patch_compatible_executables)) {
+        if ([string]::IsNullOrWhiteSpace([string]$compatibleExecutable.version) -or
+            [long]$compatibleExecutable.size -le 0 -or
+            [string]$compatibleExecutable.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "FFmpeg AppPatch compatibility entry is invalid: $ManifestPath"
+        }
     }
 
     $packageFile = [string]$baseline.package.file
