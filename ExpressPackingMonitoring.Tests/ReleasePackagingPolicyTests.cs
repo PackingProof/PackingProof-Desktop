@@ -75,15 +75,18 @@ public sealed class ReleasePackagingPolicyTests
         string installerCmd = File.ReadAllText(
             Path.Combine(repositoryRoot, "Tools", "Install-AppPatch.cmd"),
             Encoding.UTF8);
+        string launcherBaselineScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-LauncherBaseline.ps1"),
+            Encoding.UTF8);
 
         Assert.DoesNotContain("New-ManualUpdatePackage", publishScript);
         Assert.Contains("双击更新主程序.cmd", publishScript);
         Assert.Contains("apply_app_patch.ps1", publishScript);
         Assert.Contains("主程序更新说明.txt", publishScript);
-        Assert.Contains("双击更新启动器.cmd", publishScript);
-        Assert.Contains("apply_launcher_patch.ps1", publishScript);
-        Assert.Contains("launcher_patch_manifest.json", publishScript);
-        Assert.Contains("启动器更新说明.txt", publishScript);
+        Assert.Contains("双击更新启动器.cmd", launcherBaselineScript);
+        Assert.Contains("apply_launcher_patch.ps1", launcherBaselineScript);
+        Assert.Contains("launcher_patch_manifest.json", launcherBaselineScript);
+        Assert.Contains("启动器更新说明.txt", launcherBaselineScript);
         Assert.Contains("Get-FileSha256", appInstallerScript);
         Assert.Contains("System.Security.Cryptography.SHA256", appInstallerScript);
         Assert.Contains("AppRootDirectory", appInstallerScript);
@@ -94,14 +97,30 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Packaging_EmitsVerifiedLauncherBridgeAndKeepsSafetyGate()
+    public void Packaging_ReusesLockedLauncherBaselineAndKeepsBridgeSafetyGate()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publishScript = File.ReadAllText(
             Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
             Encoding.UTF8);
+        string baselineScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-LauncherBaseline.ps1"),
+            Encoding.UTF8);
+        string commonScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "LauncherBaseline.Common.ps1"),
+            Encoding.UTF8);
 
-        Assert.Contains("PackingProof_LauncherPatch_$releaseTag.zip", publishScript);
+        Assert.Contains("Read-LauncherBaselineManifest", publishScript);
+        Assert.Contains("Resolve-LauncherBaselineExecutable", publishScript);
+        Assert.Contains("Launcher logical inputs changed", publishScript);
+        Assert.Contains("git -C $repoRoot diff --quiet", publishScript);
+        Assert.DoesNotContain("$launcherProject", publishScript);
+        Assert.Contains("dotnet publish $launcherProject", baselineScript);
+        Assert.Contains("launcher-v$normalizedVersion", baselineScript);
+        Assert.Contains("ExpressPackingMonitoring\\app.ico", commonScript);
+        Assert.Contains("update_check_url=", commonScript);
+        Assert.Contains("Replace(\"`r`n\", \"`n\")", commonScript);
+        Assert.Contains("Assert-LauncherPackage", commonScript);
         Assert.Contains("$updateManifest[\"launcher_package\"]", publishScript);
         Assert.Contains("$launcherPackageHash", publishScript);
         Assert.Contains("$launcherExecutableHash", publishScript);
@@ -109,10 +128,22 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains(
             "AppPatch bridge validation failed: launcher changed but updated app assembly is missing",
             publishScript);
-        Assert.Contains("elseif ($launcherPatchBlocked)", publishScript);
-        Assert.DoesNotContain(
-            "$launcherPatchBlocked = $true\r\n    }\r\n    elseif ([string]::IsNullOrWhiteSpace($launcherCheckInfo))",
-            publishScript);
+        Assert.Contains("A new launcher baseline requires a compatible AppPatch bridge", publishScript);
+        Assert.Contains("本版本不要重复上传 LauncherPatch", publishScript);
+        Assert.DoesNotContain("Compress-PackageWithRetry -SourceDir $launcherPackageWorkDir", publishScript);
+    }
+
+    [Fact]
+    public void Packaging_IgnoresLauncherComponentTagsWhenResolvingAppVersion()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("^v\\d+\\.\\d+\\.\\d+", publishScript);
+        Assert.Contains("git -C $repoRoot describe --tags --match \"v[0-9]*\"", publishScript);
+        Assert.DoesNotContain("git -C $repoRoot describe --tags --always", publishScript);
     }
 
     [Fact]

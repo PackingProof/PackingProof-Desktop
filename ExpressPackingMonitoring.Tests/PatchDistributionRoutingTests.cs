@@ -60,7 +60,7 @@ public sealed class PatchDistributionRoutingTests
             "$appPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
             publisher);
         Assert.Contains(
-            "$launcherPackageName = \"PackingProof_LauncherPatch_$releaseTag.zip\"",
+            "$launcherPackageName = [string]$launcherBaseline.package.file",
             publisher);
         Assert.Contains("$appPatchInstallerCmdName = \"双击更新主程序.cmd\"", publisher);
         Assert.Contains("$appPatchInstallerScriptName = \"apply_app_patch.ps1\"", publisher);

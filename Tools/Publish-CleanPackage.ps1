@@ -7,6 +7,8 @@ param(
     [string]$BaselineAppDir = "",
     [string]$BaselineLauncherPath = "",
     [string]$BaselineLauncherManifestPath = "",
+    [string]$LauncherBaselineManifestPath = "",
+    [string]$LauncherBaselinePackagePath = "",
     [string]$SevenZipPath = "",
     [ValidateRange(1, 9)]
     [int]$SevenZipCompressionLevel = 5,
@@ -21,8 +23,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 $appProject = Join-Path $repoRoot "ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
-$launcherProject = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj"
 $releaseValidationScript = Join-Path $repoRoot "Tools\Test-Release.ps1"
 $installerBuildScript = Join-Path $repoRoot "Tools\Build-Installer.ps1"
 $ttsCacheBuilderProject = Join-Path $repoRoot "Tools\ExpressPackingMonitoring.TtsCacheBuilder\ExpressPackingMonitoring.TtsCacheBuilder.csproj"
@@ -108,13 +110,15 @@ function Get-PackageVersion {
 
     $tagsAtHead = @(& git -C $repoRoot tag --points-at HEAD)
     if ($LASTEXITCODE -eq 0) {
-        $tag = $tagsAtHead | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1
+        $tag = $tagsAtHead |
+            Where-Object { $_ -match '^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$' } |
+            Select-Object -First 1
         if (-not [string]::IsNullOrWhiteSpace($tag)) {
             return $tag.Trim()
         }
     }
 
-    $description = (& git -C $repoRoot describe --tags --always --dirty 2>$null)
+    $description = (& git -C $repoRoot describe --tags --match "v[0-9]*" --always --dirty 2>$null)
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($description)) {
         return $description.Trim()
     }
@@ -550,49 +554,6 @@ function Copy-FilePreservingRelativePath {
     Copy-Item -LiteralPath $SourceFile -Destination $target -Force
 }
 
-function Get-LauncherSourceFingerprint {
-    param([string[]]$RelativePaths)
-
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        foreach ($relativePath in $RelativePaths) {
-            $normalizedPath = $relativePath.Replace('\', '/')
-            $pathBytes = [System.Text.Encoding]::UTF8.GetBytes($normalizedPath)
-            $sha.TransformBlock($pathBytes, 0, $pathBytes.Length, $null, 0) | Out-Null
-            $separator = [byte[]](0)
-            $sha.TransformBlock($separator, 0, $separator.Length, $null, 0) | Out-Null
-
-            $fullPath = Join-Path $repoRoot $relativePath
-            if (-not (Test-Path $fullPath)) {
-                throw "Launcher fingerprint file missing: $relativePath"
-            }
-
-            $content = [System.IO.File]::ReadAllBytes($fullPath)
-            $sha.TransformBlock($content, 0, $content.Length, $null, 0) | Out-Null
-            $sha.TransformBlock($separator, 0, $separator.Length, $null, 0) | Out-Null
-        }
-
-        $emptyBytes = New-Object byte[] 0
-        $sha.TransformFinalBlock($emptyBytes, 0, 0) | Out-Null
-        return [System.BitConverter]::ToString($sha.Hash).Replace("-", "").ToLowerInvariant()
-    }
-    finally {
-        $sha.Dispose()
-    }
-}
-
-function Read-LauncherFingerprintFromManifest {
-    param([string]$ManifestPath)
-
-    try {
-        $manifest = Get-Content -Raw -Encoding UTF8 $ManifestPath | ConvertFrom-Json
-        return [string]$manifest.launcher_source_fingerprint
-    }
-    catch {
-        return ""
-    }
-}
-
 function New-AppPatchPackage {
     param(
         [string]$CurrentAppDir,
@@ -680,13 +641,129 @@ function New-AppPatchPackage {
     Remove-Item -LiteralPath $patchWorkDir -Recurse -Force
 }
 
+function Resolve-LauncherBaselineExecutable {
+    param(
+        [Parameter(Mandatory = $true)]$Baseline,
+        [Parameter(Mandatory = $true)][string]$DestinationPath,
+        [Parameter(Mandatory = $true)][string]$PackageUrl
+    )
+
+    $baselineVersion = [string]$Baseline.version
+    $cacheDirectory = Join-Path $repoRoot "package\launcher-baselines\v$baselineVersion"
+    $cachedLauncherPath = Join-Path $cacheDirectory "ExpressPackingMonitoring.exe"
+    $cachedPackagePath = Join-Path $cacheDirectory ([string]$Baseline.package.file)
+    $legacyPackageRoot = Join-Path $repoRoot "package\PackingProof+v$baselineVersion"
+    $launcherCandidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($BaselineLauncherPath)) {
+        $launcherCandidates += [System.IO.Path]::GetFullPath($BaselineLauncherPath)
+    }
+    $launcherCandidates += @(
+        $cachedLauncherPath,
+        (Join-Path $legacyPackageRoot "PackingProof+v$baselineVersion\ExpressPackingMonitoring.exe")
+    )
+
+    foreach ($candidate in $launcherCandidates | Select-Object -Unique) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+            continue
+        }
+        Assert-LauncherFile `
+            -Path $candidate `
+            -ExpectedSize ([long]$Baseline.package.executable_size) `
+            -ExpectedSha256 ([string]$Baseline.package.executable_sha256) `
+            -Description "Launcher baseline executable"
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DestinationPath) | Out-Null
+        Copy-Item -LiteralPath $candidate -Destination $DestinationPath -Force
+        Write-Host "Launcher baseline reused from executable: $candidate"
+        return
+    }
+
+    $packageCandidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($LauncherBaselinePackagePath)) {
+        $packageCandidates += [System.IO.Path]::GetFullPath($LauncherBaselinePackagePath)
+    }
+    $packageCandidates += @(
+        $cachedPackagePath,
+        (Join-Path $legacyPackageRoot ([string]$Baseline.package.file))
+    )
+    $resolvedPackagePath = $packageCandidates |
+        Select-Object -Unique |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+
+    if ([string]::IsNullOrWhiteSpace($resolvedPackagePath)) {
+        if (-not [System.Uri]::IsWellFormedUriString($PackageUrl, [System.UriKind]::Absolute) -or
+            -not $PackageUrl.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Launcher baseline package is unavailable locally and its HTTPS URL is invalid: $PackageUrl"
+        }
+
+        New-Item -ItemType Directory -Force -Path $cacheDirectory | Out-Null
+        $temporaryPackagePath = Join-Path $cacheDirectory (".launcher-download-" + [Guid]::NewGuid().ToString("N") + ".tmp")
+        try {
+            Write-Host "Downloading locked launcher baseline: $PackageUrl"
+            Invoke-WebRequest `
+                -Uri $PackageUrl `
+                -OutFile $temporaryPackagePath `
+                -Headers @{ "User-Agent" = "PackingProof-ReleaseBuilder" } `
+                -MaximumRedirection 5 `
+                -TimeoutSec 60
+            Assert-LauncherPackage -PackagePath $temporaryPackagePath -Baseline $Baseline
+            Move-Item -LiteralPath $temporaryPackagePath -Destination $cachedPackagePath -Force
+            $resolvedPackagePath = $cachedPackagePath
+        }
+        finally {
+            if (Test-Path -LiteralPath $temporaryPackagePath -PathType Leaf) {
+                Remove-Item -LiteralPath $temporaryPackagePath -Force
+            }
+        }
+    }
+
+    Assert-LauncherPackage -PackagePath $resolvedPackagePath -Baseline $Baseline
+    Expand-LauncherBaselinePackage `
+        -PackagePath $resolvedPackagePath `
+        -DestinationPath $cachedLauncherPath `
+        -Baseline $Baseline
+    Copy-Item -LiteralPath $cachedLauncherPath -Destination $DestinationPath -Force
+    Write-Host "Launcher baseline reused from package: $resolvedPackagePath"
+}
+
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBaseOutput = Join-Path $repoRoot "ExpressPackingMonitoring\bin_publish_tmp\clean-package-app\"
 $appBaseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring\obj_publish_tmp\clean-package-app\"
-$launcherBaseOutput = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\bin_publish_tmp\clean-package-launcher\"
-$launcherBaseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\obj_publish_tmp\clean-package-launcher\"
 $gitCommitId = Get-GitCommitId
 $packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest"
+$launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
+    [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
+} elseif (-not [string]::IsNullOrWhiteSpace($BaselineLauncherManifestPath)) {
+    Write-Warning "BaselineLauncherManifestPath is deprecated; use LauncherBaselineManifestPath."
+    [System.IO.Path]::GetFullPath($BaselineLauncherManifestPath)
+} else {
+    Join-Path $PSScriptRoot "launcher-baseline.json"
+}
+$launcherBaseline = Read-LauncherBaselineManifest -ManifestPath $launcherManifestFullPath
+$launcherSourceFingerprint = Get-LauncherLogicalFingerprint `
+    -RepositoryRoot $repoRoot `
+    -Runtime $Runtime `
+    -UpdateCheckUrl $packageUpdateCheckUrl
+if (-not [string]::Equals(
+        $launcherSourceFingerprint,
+        [string]$launcherBaseline.source_fingerprint,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Launcher logical inputs changed. Run Tools\Publish-LauncherBaseline.ps1 before packaging."
+}
+if (-not [string]::Equals([string]$launcherBaseline.runtime, $Runtime, [System.StringComparison]::OrdinalIgnoreCase) -or
+    -not [string]::Equals([string]$launcherBaseline.update_check_url, $packageUpdateCheckUrl, [System.StringComparison]::Ordinal)) {
+    throw "Launcher baseline runtime or embedded update URL does not match the current release configuration."
+}
+$launcherTag = [string]$launcherBaseline.tag
+& git -C $repoRoot rev-parse --verify --quiet "$launcherTag^{commit}" 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Launcher component tag is missing: $launcherTag"
+}
+$launcherFingerprintFiles = @(Get-LauncherFingerprintFiles)
+& git -C $repoRoot diff --quiet "$launcherTag^{commit}" HEAD -- @launcherFingerprintFiles
+if ($LASTEXITCODE -ne 0) {
+    throw "Launcher tracked files changed after $launcherTag. Establish a new launcher baseline."
+}
 
 New-DefaultTtsCache
 
@@ -703,27 +780,20 @@ Invoke-DotNetPublish -Arguments @(
     "-p:PublishDir=$appPublishDir\"
 )
 
-Invoke-DotNetPublish -Arguments @(
-    $launcherProject,
-    "-c", $Configuration,
-    "-r", $Runtime,
-    "--self-contained", "true",
-    "-p:BaseOutputPath=$launcherBaseOutput",
-    "-p:BaseIntermediateOutputPath=$launcherBaseIntermediate",
-    "-p:LauncherDefaultUpdateCheckUrl=$packageUpdateCheckUrl",
-    "-p:PublishDir=$outputFullPath\"
-)
-
 $launcherExe = Join-Path $outputFullPath "ExpressPackingMonitoring.exe"
-if (-not (Test-Path $launcherExe)) {
-    $nativeLauncher = Get-ChildItem -LiteralPath $launcherBaseOutput -Recurse -Filter "ExpressPackingMonitoring.exe" |
-        Where-Object { $_.FullName -like "*\native\*" } |
-        Select-Object -First 1
-    if ($null -eq $nativeLauncher) {
-        throw "Launcher publish did not produce ExpressPackingMonitoring.exe"
-    }
-    Copy-Item -LiteralPath $nativeLauncher.FullName -Destination $launcherExe -Force
-}
+$baselineReleaseTag = [string]$launcherBaseline.release_tag
+$baselinePackageName = [string]$launcherBaseline.package.file
+$baselineLauncherPackageUrlTemplate = Get-ConfiguredValue `
+    -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" `
+    -DefaultValue "$(Get-ReleaseUrlBase)/download/{tag}/{file}"
+$baselineLauncherPackageUrl = Expand-ReleaseTemplate `
+    -Template $baselineLauncherPackageUrlTemplate `
+    -ReleaseTag $baselineReleaseTag `
+    -FileName $baselinePackageName
+Resolve-LauncherBaselineExecutable `
+    -Baseline $launcherBaseline `
+    -DestinationPath $launcherExe `
+    -PackageUrl $baselineLauncherPackageUrl
 
 Get-ChildItem -LiteralPath $outputFullPath -File -ErrorAction SilentlyContinue |
     Where-Object { $_.Extension -in ".pdb", ".dbg" } |
@@ -765,7 +835,7 @@ $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull
 $appPatchZipName = "ExpressPackingMonitoring_AppPatch_$releaseTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
 $legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$releaseTag.zip"
-$launcherPackageName = "PackingProof_LauncherPatch_$releaseTag.zip"
+$launcherPackageName = [string]$launcherBaseline.package.file
 $launcherPackagePath = Join-Path $packageRoot $launcherPackageName
 $updateJsonName = "update_$releaseTag.json"
 $updateJsonPath = Join-Path $packageRoot $updateJsonName
@@ -781,7 +851,7 @@ $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -Defaul
 $launcherPackageUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
-$launcherPackagePlaceholderUrl = Expand-ReleaseTemplate -Template $launcherPackageUrlTemplate -ReleaseTag $releaseTag -FileName $launcherPackageName
+$launcherPackagePlaceholderUrl = Expand-ReleaseTemplate -Template $launcherPackageUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
 if ([string]::IsNullOrWhiteSpace($fullDownloadPageTemplate)) {
     $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
@@ -798,62 +868,26 @@ if (Test-Path $appPatchZipPath) {
 if (Test-Path $legacyManualUpdateZipPath) {
     Remove-Item -LiteralPath $legacyManualUpdateZipPath -Force
 }
-if (Test-Path $launcherPackagePath) {
-    Remove-Item -LiteralPath $launcherPackagePath -Force
-}
-$launcherExecutableHash = (Get-FileHash -LiteralPath $launcherExe -Algorithm SHA256).Hash.ToLowerInvariant()
-$launcherExecutableSize = (Get-Item -LiteralPath $launcherExe).Length
-foreach ($requiredFile in @($launcherPatchCmdSource, $launcherPatchScriptSource)) {
-    if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
-        throw "LauncherPatch manual installer source file not found: $requiredFile"
+$launcherExecutableHash = ([string]$launcherBaseline.package.executable_sha256).ToLowerInvariant()
+$launcherExecutableSize = [long]$launcherBaseline.package.executable_size
+$launcherPackageHash = ([string]$launcherBaseline.package.sha256).ToLowerInvariant()
+$launcherPackageSize = [long]$launcherBaseline.package.size
+Assert-LauncherFile `
+    -Path $launcherExe `
+    -ExpectedSize $launcherExecutableSize `
+    -ExpectedSha256 $launcherExecutableHash `
+    -Description "Packaged launcher executable"
+$launcherPublishedWithRelease = [string]::Equals(
+    [string]$launcherBaseline.release_tag,
+    $releaseTag,
+    [System.StringComparison]::OrdinalIgnoreCase)
+if ($launcherPublishedWithRelease) {
+    $cachedBaselinePackage = Join-Path $repoRoot "package\launcher-baselines\$releaseTag\$launcherPackageName"
+    Assert-LauncherPackage -PackagePath $cachedBaselinePackage -Baseline $launcherBaseline
+    if (-not [string]::Equals($cachedBaselinePackage, $launcherPackagePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Copy-Item -LiteralPath $cachedBaselinePackage -Destination $launcherPackagePath -Force
     }
-}
-$launcherPackageWorkDir = Join-Path $packageRoot ("_launcher_patch_work_" + $releaseTag)
-if (Test-Path -LiteralPath $launcherPackageWorkDir) {
-    Remove-Item -LiteralPath $launcherPackageWorkDir -Recurse -Force
-}
-New-Item -ItemType Directory -Force -Path $launcherPackageWorkDir | Out-Null
-try {
-    Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $launcherPackageWorkDir "ExpressPackingMonitoring.exe") -Force
-    Copy-Item -LiteralPath $launcherPatchCmdSource -Destination (Join-Path $launcherPackageWorkDir $launcherPatchInstallerCmdName) -Force
-    Copy-Item -LiteralPath $launcherPatchScriptSource -Destination (Join-Path $launcherPackageWorkDir $launcherPatchInstallerScriptName) -Force
-    [ordered]@{
-        type = "launcher_patch"
-        version = $normalizedVersion
-        file = "ExpressPackingMonitoring.exe"
-        size = $launcherExecutableSize
-        sha256 = $launcherExecutableHash
-    } |
-        ConvertTo-Json -Depth 4 |
-        Set-Content -LiteralPath (Join-Path $launcherPackageWorkDir $launcherPatchManifestName) -Encoding UTF8
-    $launcherPatchNotice = @(
-        "PackingProof 启动器更新"
-        ""
-        "正常情况下无需手动下载，主程序会自动校验并更新启动器。"
-        "如需手动更新，请完整解压本 ZIP，再双击《$launcherPatchInstallerCmdName》。"
-        ""
-        "此脚本只替换软件根目录启动器，不会修改主程序、录像、配置或数据库。"
-        "不要直接在压缩软件中运行，也不要单独移动包内文件。"
-    ) -join [Environment]::NewLine
-    Set-Content -LiteralPath (Join-Path $launcherPackageWorkDir $launcherPatchNoticeName) -Value $launcherPatchNotice -Encoding UTF8
-    Compress-PackageWithRetry -SourceDir $launcherPackageWorkDir -DestinationZip $launcherPackagePath
-}
-finally {
-    if (Test-Path -LiteralPath $launcherPackageWorkDir) {
-        Remove-Item -LiteralPath $launcherPackageWorkDir -Recurse -Force
-    }
-}
-$launcherPackageHash = (Get-FileHash -LiteralPath $launcherPackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
-$launcherPackageSize = (Get-Item -LiteralPath $launcherPackagePath).Length
-foreach ($launcherEntry in @(
-    "ExpressPackingMonitoring.exe",
-    $launcherPatchInstallerCmdName,
-    $launcherPatchInstallerScriptName,
-    $launcherPatchManifestName,
-    $launcherPatchNoticeName)) {
-    if (-not (Test-ZipContainsEntry -ZipFile $launcherPackagePath -EntryName $launcherEntry)) {
-        throw "LauncherPatch package validation failed: missing $launcherEntry"
-    }
+    Assert-LauncherPackage -PackagePath $launcherPackagePath -Baseline $launcherBaseline
 }
 if (-not (Test-Path -LiteralPath $installerBuildScript -PathType Leaf)) {
     throw "Installer build script not found: $installerBuildScript"
@@ -874,65 +908,27 @@ $patchSupported = $false
 $patchReason = ""
 $appPatchHash = ""
 $appPatchSize = 0
-$launcherChanged = $false
-$launcherPatchBlocked = $false
-$launcherCheckInfo = ""
-$launcherProtocolVersion = "1"
-$launcherFingerprintFiles = @(
-    "ExpressPackingMonitoring.Launcher\Program.cs",
-    "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj"
-)
-$launcherSourceFingerprint = Get-LauncherSourceFingerprint -RelativePaths $launcherFingerprintFiles
-$launcherManifest = [ordered]@{}
-$launcherManifest["version"] = $normalizedVersion
-$launcherManifest["launcher_update_protocol_version"] = $launcherProtocolVersion
-$launcherManifest["launcher_source_fingerprint"] = $launcherSourceFingerprint
-$launcherManifest["fingerprint_files"] = @($launcherFingerprintFiles | ForEach-Object { $_.Replace('\', '/') })
+$launcherChanged = $launcherPublishedWithRelease
+$launcherCheckInfo = if ($launcherPublishedWithRelease) {
+    "Launcher baseline $($launcherBaseline.tag) is published with this release."
+} else {
+    "Launcher baseline $($launcherBaseline.tag) is reused without rebuilding."
+}
+$launcherManifest = [ordered]@{
+    app_release_version = $normalizedVersion
+    launcher_baseline = $launcherBaseline
+    launcher_package_url = $launcherPackagePlaceholderUrl
+    published_with_release = $launcherPublishedWithRelease
+}
 $launcherManifest |
-    ConvertTo-Json -Depth 5 |
+    ConvertTo-Json -Depth 8 |
     Set-Content -LiteralPath $launcherManifestPath -Encoding UTF8
-
-if ([string]::IsNullOrWhiteSpace($BaselineLauncherManifestPath)) {
-    $launcherCheckInfo = ConvertFrom-Utf8Base64 "5pyq5qCh6aqM5ZCv5Yqo5Zmo5rqQ56CB5oyH57q577yM6K+356Gu6K6k5pys54mI5pys5pyq5L+u5pS55ZCv5Yqo5Zmo44CC"
-}
-elseif (-not (Test-Path $BaselineLauncherManifestPath)) {
-    $launcherCheckInfo = ConvertFrom-Utf8Base64 "QmFzZWxpbmVMYXVuY2hlck1hbmlmZXN0UGF0aCDot6/lvoTkuI3lrZjlnKjvvIzlt7LnpoHnlKjlop7ph4/mm7TmlrDjgII="
-    $patchReason = ConvertFrom-Utf8Base64 "5pyq55Sf5oiQ5aKe6YeP5YyF77yaQmFzZWxpbmVMYXVuY2hlck1hbmlmZXN0UGF0aCDot6/lvoTkuI3lrZjlnKjjgII="
-    $launcherPatchBlocked = $true
-}
-else {
-    $baselineLauncherFingerprint = Read-LauncherFingerprintFromManifest -ManifestPath $BaselineLauncherManifestPath
-    $launcherChanged = [string]::IsNullOrWhiteSpace($baselineLauncherFingerprint) -or
-        -not [string]::Equals($launcherSourceFingerprint, $baselineLauncherFingerprint, [System.StringComparison]::OrdinalIgnoreCase)
-    if ($launcherChanged) {
-        $baselineTag = "v$normalizedPatchBaselineVersion"
-        & git -C $repoRoot rev-parse --verify --quiet "$baselineTag^{commit}" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            & git -C $repoRoot diff --quiet $baselineTag -- @launcherFingerprintFiles
-            if ($LASTEXITCODE -eq 0) {
-                $launcherChanged = $false
-                $launcherCheckInfo = "Launcher manifest byte fingerprint differs, but tracked launcher sources match $baselineTag."
-            }
-        }
-    }
-    if ($launcherChanged) {
-        $launcherCheckInfo = "Launcher sources changed; app bridge protocol v$launcherProtocolVersion will deliver the verified launcher package."
-    }
-    elseif ([string]::IsNullOrWhiteSpace($launcherCheckInfo)) {
-        $launcherCheckInfo = ConvertFrom-Utf8Base64 "5ZCv5Yqo5Zmo5rqQ56CB5oyH57q55bey6YCa6L+H77yM5ZCv5Yqo5Zmo5pyq5Y+Y5YyW44CC"
-    }
-}
-if (-not [string]::IsNullOrWhiteSpace($BaselineLauncherPath)) {
-    $launcherCheckInfo += [Environment]::NewLine + (ConvertFrom-Utf8Base64 "QmFzZWxpbmVMYXVuY2hlclBhdGgg5bey5bqf5byD77yM6K+35pS555SoIEJhc2VsaW5lTGF1bmNoZXJNYW5pZmVzdFBhdGjjgII=")
-}
 
 if ($DisablePatch) {
     $patchReason = ConvertFrom-Utf8Base64 "5pyq55Sf5oiQ5aKe6YeP5YyF77ya5bey5Lyg5YWlIERpc2FibGVQYXRjaOOAgg=="
 }
 elseif ([string]::IsNullOrWhiteSpace($BaselineAppDir) -or -not (Test-Path $BaselineAppDir)) {
     $patchReason = ConvertFrom-Utf8Base64 "5pyq55Sf5oiQ5aKe6YeP5YyF77ya5pyq5Lyg5YWlIEJhc2VsaW5lQXBwRGlyIOaIlui3r+W+hOS4jeWtmOWcqOOAgg=="
-}
-elseif ($launcherPatchBlocked) {
 }
 else {
     New-AppPatchPackage `
@@ -978,6 +974,10 @@ else {
     $patchReason = (ConvertFrom-Utf8Base64 "5bey55Sf5oiQ5Zu65a6a5Z+657q/5aKe6YeP5YyF77ya") + $appPatchZipName
 }
 
+if ($launcherPublishedWithRelease -and -not $patchSupported) {
+    throw "A new launcher baseline requires a compatible AppPatch bridge in the same release."
+}
+
 $updateManifest = [ordered]@{}
 $updateManifest["latest_version"] = $normalizedVersion
 $updateManifest["title"] = ConvertFrom-Utf8Base64 "6K+35aGr5YaZ5pu05paw5qCH6aKY"
@@ -985,8 +985,8 @@ $updateManifest["release_page"] = $releasePage
 $updateManifest["patch_baseline_version"] = $normalizedPatchBaselineVersion
 $updateManifest["patch_supported"] = $patchSupported
 $launcherPackageInfo = [ordered]@{}
-$launcherPackageInfo["protocol_version"] = [int]$launcherProtocolVersion
-$launcherPackageInfo["version"] = $normalizedVersion
+$launcherPackageInfo["protocol_version"] = [int]$launcherBaseline.protocol_version
+$launcherPackageInfo["version"] = [string]$launcherBaseline.version
 $launcherPackageInfo["url"] = $launcherPackagePlaceholderUrl
 $launcherPackageInfo["size"] = $launcherPackageSize
 $launcherPackageInfo["sha256"] = $launcherPackageHash
@@ -1003,7 +1003,7 @@ if ($patchSupported) {
     $updateManifest["notes"] = @(
         (ConvertFrom-Utf8Base64 "6K+35aGr5YaZ5pu05paw5YaF5a65")
         "启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本"
-        "LauncherPatch 由主程序自动更新；手动更新时完整解压后双击包内启动器更新脚本"
+        "主程序会按锁定基线检查启动器；仅启动器真实变化时下载独立 LauncherPatch"
         "首次安装建议从完整下载页获取《$setupFileName》；完整 7z 是小体积免安装包，ZIP 用于系统原生解压和故障恢复"
     )
 }
@@ -1073,8 +1073,14 @@ $releaseInfoLines += "2. 完整包 7z（小体积免安装）：" + (Split-Path 
 $releaseInfoLines += "3. 完整包 ZIP（系统原生解压/故障恢复）：" + (Split-Path -Leaf $zipFullPath)
 if ($patchSupported) {
     $releaseInfoLines += "4. AppPatch（自动更新；包内也可双击手动更新）：" + $patchReleaseInfo
-    $releaseInfoLines += "5. LauncherPatch（自动更新；包内也可双击手动更新）：" + $launcherPackageName
-    $releaseInfoLines += "6. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    if ($launcherPublishedWithRelease) {
+        $releaseInfoLines += "5. LauncherPatch（本版本建立新启动器基线）：" + $launcherPackageName
+        $releaseInfoLines += "6. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    }
+    else {
+        $releaseInfoLines += "5. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+        $releaseInfoLines += "启动器沿用 $($launcherBaseline.tag)，本版本不要重复上传 LauncherPatch"
+    }
 }
 else {
     $releaseInfoLines += "4. 本版本不提供增量包：" + $patchReason
@@ -1084,8 +1090,14 @@ $releaseInfoLines += ""
 $releaseInfoLines += "Gitee 手工上传："
 if ($patchSupported) {
     $releaseInfoLines += "1. AppPatch（自动/手动主程序更新）：" + $patchReleaseInfo
-    $releaseInfoLines += "2. LauncherPatch（自动/手动启动器更新）：" + $launcherPackageName
-    $releaseInfoLines += "3. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    if ($launcherPublishedWithRelease) {
+        $releaseInfoLines += "2. LauncherPatch（本版本建立新启动器基线）：" + $launcherPackageName
+        $releaseInfoLines += "3. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    }
+    else {
+        $releaseInfoLines += "2. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+        $releaseInfoLines += "启动器沿用 $($launcherBaseline.tag)，本版本不要重复上传 LauncherPatch"
+    }
 }
 else {
     $releaseInfoLines += "1. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName

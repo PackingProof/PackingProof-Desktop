@@ -68,13 +68,16 @@
 - 连续两个版本覆盖安装后，卸载项保持唯一，配置、数据库和录像不变，`AppRootDirectory` 刷新到新安装目录，AppPatch 仍可写入
 - 分别验证默认卸载、仅删本机数据、仅删数据库登记录像和两者都删；录像测试必须使用隔离目录，未登记或确认后变化的文件必须保留
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
-- 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器清单、标签和程序版本号一致
+- 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - AppPatch 包含 `patch_manifest.json`、`files/`、`双击更新主程序.cmd`、`apply_app_patch.ps1` 和主程序更新说明，不再生成或嵌套 ManualUpdate 包
-- LauncherPatch 只包含根启动器、`launcher_patch_manifest.json`、`双击更新启动器.cmd`、`apply_launcher_patch.ps1` 和启动器更新说明；自动更新只提取并校验根启动器
+- 使用 Git 比较当前启动器逻辑输入与 `Tools/launcher-baseline.json` 对应的 `launcher-vX.Y.Z` 组件标签；组件标签只推送普通 Git 标签，不创建独立 Release
+- 启动器未变化时不执行 Native AOT 重编译、不生成或上传本版本 LauncherPatch；完整包根启动器必须与锁定基线 EXE 的大小和 SHA256 完全一致
+- 启动器变化时先运行 `Tools/Publish-LauncherBaseline.ps1` 建立不可变基线；LauncherPatch 只包含根启动器、`launcher_patch_manifest.json`、`双击更新启动器.cmd`、`apply_launcher_patch.ps1` 和启动器更新说明
+- 本地基线文件缺失时允许从正式 App Release 下载，但必须验证 LauncherPatch 与包内 EXE 的大小、SHA256 和固定条目；任何不一致均阻止发布
 - 分别使用两个双击脚本从旧版本升级一次，确认文件校验成功、主程序更新失败可回滚、启动器只替换根入口，配置、数据库、录像和 `app/` 中非目标文件均保留
 - `update_vX.Y.Z.json` 的更新内容与最终发布说明一致，合并发布时包含尚未正式发布版本的有效改动
-- GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch 和 LauncherPatch，默认不上传启动器清单和发布信息文件；未签名时发布说明明确提示 SmartScreen
-- Gitee 上传更新 JSON、可用的 AppPatch 和 LauncherPatch，不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件；完整包默认使用外部完整下载页，仅打开新建 Release 页面，由用户手动填写并上传
+- GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen
+- Gitee 上传更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页，仅打开新建 Release 页面，由用户手动填写并上传
 - 使用发布包执行一次 AppPatch 自动升级和 LauncherPatch 自动升级，确认配置、数据库和录像保留，启动器可以正常进入应用
 
 完成以上实机检查后，打包时可传入 `-ConfirmManualCoreChecks` 记录确认状态。未传入时打包脚本会给出警告并继续，发布结果需说明尚未验证的实机场景。

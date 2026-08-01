@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "version": "0.0.32",
+  "tag": "launcher-v0.0.32",
+  "release_tag": "v0.0.32",
+  "runtime": "win-x64",
+  "update_check_url": "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest",
+  "source_fingerprint": "710a094a3eb5934d6a09f5fc91044172697c7ff3dd5b873a7415cc42dbc66da6",
+  "fingerprint_files": [
+    "ExpressPackingMonitoring.Launcher/Program.cs",
+    "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
+    "ExpressPackingMonitoring/app.ico"
+  ],
+  "package": {
+    "file": "PackingProof_LauncherPatch_v0.0.32.zip",
+    "size": 3073631,
+    "sha256": "a2bac56c3c4e12b38c1a901a2fd921aac16ecfc22111162bbf7b9ee4be800fa2",
+    "executable_size": 6293504,
+    "executable_sha256": "aa82f1385f92a90864a3d8c48c26990c5f9ea8cd12fd1fe82bd025cc17a3bb78"
+  }
+}

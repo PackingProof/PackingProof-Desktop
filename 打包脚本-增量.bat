@@ -15,7 +15,6 @@ if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
     set "BASELINE_FULL_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%"
     set "BASELINE_APP_DIR=package\ExpressPackingMonitoring+%BASELINE_TAG%\ExpressPackingMonitoring+%BASELINE_TAG%\app"
 )
-set "BASELINE_LAUNCHER_MANIFEST=%BASELINE_PACKAGE_DIR%\launcher_manifest_%BASELINE_TAG%.json"
 
 set "VERSION_ARG="
 if not "%~1"=="" set "VERSION_ARG=-Version %~1"
@@ -32,20 +31,9 @@ if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
     exit /b 1
 )
 
-set "LAUNCHER_MANIFEST_ARG="
-if exist "%BASELINE_LAUNCHER_MANIFEST%" (
-    set "LAUNCHER_MANIFEST_ARG=-BaselineLauncherManifestPath ""%BASELINE_LAUNCHER_MANIFEST%"""
-) else (
-    echo [WARN] Baseline launcher manifest not found:
-    echo        %BASELINE_LAUNCHER_MANIFEST%
-    echo.
-    echo Patch can still be generated, but launcher source fingerprint will not be checked.
-    echo To enable launcher fingerprint check, keep launcher_manifest_%BASELINE_TAG%.json under %BASELINE_PACKAGE_DIR%\.
-    echo.
-)
-
 echo Baseline version: %BASELINE_VERSION%
 echo Baseline app:     %BASELINE_APP_DIR%
+echo Launcher baseline: Tools\launcher-baseline.json
 echo.
 
 echo [WARN] Review RELEASE_CHECKLIST.md before publishing.
@@ -54,8 +42,7 @@ echo [WARN] Unconfirmed real-device checks no longer block packaging.
 pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" ^
   %VERSION_ARG% ^
   -PatchBaselineVersion %BASELINE_VERSION% ^
-  -BaselineAppDir "%BASELINE_APP_DIR%" ^
-  %LAUNCHER_MANIFEST_ARG%
+  -BaselineAppDir "%BASELINE_APP_DIR%"
 
 set "EXIT_CODE=%ERRORLEVEL%"
 echo.
