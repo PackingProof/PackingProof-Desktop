@@ -834,4 +834,6 @@
   <data name="仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理" xml:space="preserve"><value>仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理</value></data>
   <data name="导入发货" xml:space="preserve"><value>导入发货</value></data>
   <data name="导入退货" xml:space="preserve"><value>导入退货</value></data>
+  <data name="画面旋转 180°" xml:space="preserve"><value>画面旋转 180°</value></data>
+  <data name="摄像头倒装时开启，预览、识别和录像会同步旋转" xml:space="preserve"><value>摄像头倒装时开启，预览、识别和录像会同步旋转</value></data>
 </root>

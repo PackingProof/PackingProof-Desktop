@@ -1051,8 +1051,8 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="摄像头画面方向" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="摄像头倒装时，将预览和录像旋转 180°"
+                                            <TextBlock Text="画面旋转 180°" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="摄像头倒装时开启，预览、识别和录像会同步旋转"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="CameraRotate180CheckBox"
@@ -1061,7 +1061,7 @@
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"
-                                                  AutomationProperties.Name="摄像头画面旋转 180 度"/>
+                                                  AutomationProperties.Name="画面旋转 180 度"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowLastStyle}"

@@ -32,6 +32,19 @@ public sealed class CameraFrameOrientationTests
         Assert.Equal(1, frame.At<byte>(1, 1));
     }
 
+    [Fact]
+    public void Settings_ShowsRotationActionDirectlyInMainLabel()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml"));
+
+        Assert.Contains("Text=\"画面旋转 180°\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("摄像头倒装时开启，预览、识别和录像会同步旋转", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"摄像头画面方向\"", xaml, StringComparison.Ordinal);
+    }
+
     private static Mat CreateTestFrame()
     {
         var frame = new Mat(2, 2, MatType.CV_8UC1);
@@ -40,5 +53,17 @@ public sealed class CameraFrameOrientationTests
         frame.Set(1, 0, (byte)3);
         frame.Set(1, 1, (byte)4);
         return frame;
+    }
+
+    private static string FindRepositoryFile(params string[] relativeParts)
+    {
+        DirectoryInfo? current = new(AppContext.BaseDirectory);
+        while (current != null)
+        {
+            string candidate = Path.Combine([current.FullName, .. relativeParts]);
+            if (File.Exists(candidate)) return candidate;
+            current = current.Parent;
+        }
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, relativeParts));
     }
 }
