@@ -617,7 +617,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 _isEncoderDetectRunning = true;
                 try
                 {
-                    if (Config.IsEncoderDetected && Config.EncoderOptionsCache != null && Config.ValidatedEncodersCache != null)
+                    if (Config.IsEncoderDetected
+                        && Config.EncoderDetectionCacheVersion == CurrentEncoderDetectionCacheVersion
+                        && Config.EncoderOptionsCache != null
+                        && Config.ValidatedEncodersCache != null)
                     {
                         CachedEncoderOptions = Config.EncoderOptionsCache;
                         ValidatedEncoders = new HashSet<string>(Config.ValidatedEncodersCache);
@@ -632,7 +635,15 @@ namespace ExpressPackingMonitoring.ViewModels
                         Config.EncoderOptionsCache = detection.Options;
                         Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
                         Config.IsEncoderDetected = detection.Succeeded;
-                        SaveConfig();
+                        Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+                    }
+
+                    bool av1FallbackApplied = EncodingHelper.ApplyUnsupportedAv1Fallback(Config, ValidatedEncoders);
+                    SaveConfig();
+                    if (av1FallbackApplied)
+                    {
+                        Application.Current?.Dispatcher.BeginInvoke(() =>
+                            ShowToast("当前电脑无法实时使用 AV1，已改用 H.265"));
                     }
                 }
                 catch (Exception ex)

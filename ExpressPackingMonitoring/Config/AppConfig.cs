@@ -240,6 +240,7 @@ namespace ExpressPackingMonitoring.Config
         public List<string> ValidatedEncodersCache { get; set; } = new();
         public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
+        public int EncoderDetectionCacheVersion { get; set; } = 0;
 
         public static bool NormalizeAfterLoad(AppConfig config)
         {

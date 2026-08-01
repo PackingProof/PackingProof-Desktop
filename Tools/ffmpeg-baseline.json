@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "version": "8.1.2",
+  "runtime": "win-x64",
+  "provider": "Gyan FFmpeg Essentials",
+  "package": {
+    "file": "ffmpeg-8.1.2-essentials_build.7z",
+    "size": 33876939,
+    "sha256": "e25b682664025d49034c981afb4bae36238a40f29a3cc1c713ad9a8b5b3528f6",
+    "entry": "ffmpeg-8.1.2-essentials_build\\bin\\ffmpeg.exe",
+    "executable_size": 101897728,
+    "executable_sha256": "1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e",
+    "urls": [
+      "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.7z",
+      "https://github.com/GyanD/codexffmpeg/releases/download/8.1.2/ffmpeg-8.1.2-essentials_build.7z"
+    ]
+  }
+}

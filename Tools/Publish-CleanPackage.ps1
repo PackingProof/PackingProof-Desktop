@@ -26,6 +26,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "FFmpegBaseline.Common.ps1")
 $appProject = Join-Path $repoRoot "ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
 $releaseValidationScript = Join-Path $repoRoot "Tools\Test-Release.ps1"
 $installerBuildScript = Join-Path $repoRoot "Tools\Build-Installer.ps1"
@@ -41,6 +42,7 @@ $launcherPatchInstallerCmdName = "双击更新启动器.cmd"
 $launcherPatchInstallerScriptName = "apply_launcher_patch.ps1"
 $launcherPatchManifestName = "launcher_patch_manifest.json"
 $launcherPatchNoticeName = "启动器更新说明.txt"
+$ffmpegBaselineManifestPath = Join-Path $PSScriptRoot "ffmpeg-baseline.json"
 
 function Invoke-CoreRegressionTests {
     if (-not (Test-Path $releaseValidationScript)) {
@@ -806,6 +808,15 @@ Invoke-DotNetPublish -Arguments @(
     "-p:PublishDir=$appPublishDir\"
 )
 
+$ffmpegBaseline = Read-FFmpegBaselineManifest -ManifestPath $ffmpegBaselineManifestPath
+$ffmpegCacheDirectory = Join-Path $repoRoot "package\dependency-cache\ffmpeg\$($ffmpegBaseline.version)"
+$sevenZipExecutable = Resolve-SevenZipExecutable
+Resolve-FFmpegBaselineExecutable `
+    -Baseline $ffmpegBaseline `
+    -CacheDirectory $ffmpegCacheDirectory `
+    -DestinationPath (Join-Path $appPublishDir "tools\ffmpeg.exe") `
+    -SevenZipExecutable $sevenZipExecutable
+
 $launcherExe = Join-Path $outputFullPath "ExpressPackingMonitoring.exe"
 $baselineReleaseTag = [string]$launcherBaseline.release_tag
 $baselinePackageName = [string]$launcherBaseline.package.file
@@ -1054,7 +1065,6 @@ Compress-PackageWithRetry `
     -SourceDir $outputFullPath `
     -DestinationZip $zipFullPath `
     -CompressionLevel $ZipCompressionLevel
-$sevenZipExecutable = Resolve-SevenZipExecutable
 Compress-Package7zWithRetry `
     -SourceDir $outputFullPath `
     -DestinationArchive $sevenZipFullPath `

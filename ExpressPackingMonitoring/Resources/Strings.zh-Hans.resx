@@ -847,4 +847,5 @@
   <data name="60 秒内未处理，本次申请将自动取消" xml:space="preserve"><value>60 秒内未处理，本次申请将自动取消</value></data>
   <data name="允许连接" xml:space="preserve"><value>允许连接</value></data>
   <data name="拒绝" xml:space="preserve"><value>拒绝</value></data>
+  <data name="当前电脑无法实时使用 AV1，已改用 H.265" xml:space="preserve"><value>当前电脑无法实时使用 AV1，已改用 H.265</value></data>
 </root>

@@ -90,12 +90,7 @@ namespace ExpressPackingMonitoring.Helpers
         public static string ResolveFallbackEncoder(string gpu, string codec, HashSet<string> validated)
         {
             validated ??= new HashSet<string>();
-            string cpuEncoder = codec switch
-            {
-                "h265" => "libx265",
-                "av1" => "libsvtav1",
-                _ => "libx264"
-            };
+            string cpuEncoder = GetCpuFallbackEncoder(codec);
 
             gpu = NormalizeGpuSetting(gpu ?? "auto");
             if (gpu != "auto")
@@ -118,7 +113,36 @@ namespace ExpressPackingMonitoring.Helpers
             if (validated.Contains(cpuEncoder))
                 return cpuEncoder;
 
+            if (codec == "av1" && validated.Count == 0)
+                return "libx265";
+
             return "libx264";
+        }
+
+        public static string GetCpuFallbackEncoder(string codec)
+        {
+            return codec switch
+            {
+                "h265" or "av1" => "libx265",
+                _ => "libx264"
+            };
+        }
+
+        public static bool ApplyUnsupportedAv1Fallback(AppConfig config, ISet<string> validated)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            validated ??= new HashSet<string>();
+            if (!string.Equals(config.VideoCodec?.Trim(), "av1", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            bool hasHardwareAv1 = new[] { "av1_nvenc", "av1_amf", "av1_qsv" }
+                .Any(validated.Contains);
+            if (hasHardwareAv1)
+                return false;
+
+            config.VideoCodec = "h265";
+            config.GpuEncoder = "auto";
+            return true;
         }
 
         public static void ApplyEncoderSelectionToConfig(AppConfig config, string encoder)

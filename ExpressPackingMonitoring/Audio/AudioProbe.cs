@@ -457,23 +457,9 @@ namespace ExpressPackingMonitoring.Audio
         {
             string codec = config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
             if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
-            string cpuEncoder = codec switch { "h265" => "libx265", "av1" => "libsvtav1", _ => "libx264" };
             var validated = new HashSet<string>(config.ValidatedEncodersCache ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
             string gpu = EncodingHelper.NormalizeGpuSetting(config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto");
-
-            if (gpu != "auto")
-            {
-                string requested = EncodingHelper.ResolveRequestedEncoder(gpu, codec);
-                return requested == cpuEncoder || validated.Contains(requested) ? requested : cpuEncoder;
-            }
-
-            foreach (var candidateGpu in new[] { "nvidia", "amd", "intel" })
-            {
-                string candidate = EncodingHelper.ResolveRequestedEncoder(candidateGpu, codec);
-                if (validated.Contains(candidate))
-                    return candidate;
-            }
-            return cpuEncoder;
+            return EncodingHelper.ResolveFallbackEncoder(gpu, codec, validated);
         }
 
         private static (bool Exited, int ExitCode, string Stderr) WriteSyntheticMkv(string ffmpegPath, string mkvPath, int seconds, ProbeVideoOptions video)

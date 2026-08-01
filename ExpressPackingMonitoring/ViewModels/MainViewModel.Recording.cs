@@ -816,12 +816,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string GetCpuEncoder()
         {
-            return (Config.VideoCodec?.ToLowerInvariant() ?? "h264") switch
-            {
-                "h265" => "libx265",
-                "av1" => "libsvtav1",
-                _ => "libx264"
-            };
+            return EncodingHelper.GetCpuFallbackEncoder(Config.VideoCodec?.ToLowerInvariant() ?? "h264");
         }
 
         private void EnqueueLatestFrameForRecording()
@@ -2888,25 +2883,10 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             string codec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
             if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
-            string cpuEncoder = codec switch { "h265" => "libx265", "av1" => "libsvtav1", _ => "libx264" };
-
-            string gpu = EncodingHelper.NormalizeGpuSetting(Config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto");
-
-            if (gpu != "auto")
-            {
-                string encoder = EncodingHelper.ResolveRequestedEncoder(gpu, codec);
-                if (encoder == cpuEncoder || (ValidatedEncoders != null && ValidatedEncoders.Contains(encoder)))
-                    return encoder;
-                return cpuEncoder;
-            }
-
-            foreach (var g in new[] { "nvidia", "amd", "intel" })
-            {
-                string encoder = EncodingHelper.ResolveRequestedEncoder(g, codec);
-                if (ValidatedEncoders != null && ValidatedEncoders.Contains(encoder))
-                    return encoder;
-            }
-            return cpuEncoder;
+            return EncodingHelper.ResolveFallbackEncoder(
+                Config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto",
+                codec,
+                ValidatedEncoders ?? new HashSet<string>());
         }
     }
 }

@@ -134,6 +134,32 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_UsesPinnedVerifiedFfmpegEssentialsDependency()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string commonScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "FFmpegBaseline.Common.ps1"),
+            Encoding.UTF8);
+        string manifest = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "ffmpeg-baseline.json"),
+            Encoding.UTF8);
+
+        Assert.Contains("Read-FFmpegBaselineManifest", publishScript);
+        Assert.Contains("Resolve-FFmpegBaselineExecutable", publishScript);
+        Assert.Contains("tools\\ffmpeg.exe", publishScript);
+        Assert.Contains("Assert-FFmpegPackage", commonScript);
+        Assert.Contains("Assert-FFmpegExecutable", commonScript);
+        Assert.Contains("unsafe path", commonScript);
+        Assert.Contains("trying next source", commonScript);
+        Assert.Contains("ffmpeg-8.1.2-essentials_build.7z", manifest);
+        Assert.Contains("GyanD/codexffmpeg/releases/download/8.1.2", manifest);
+        Assert.Contains("1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e", manifest);
+    }
+
+    [Fact]
     public void Packaging_IgnoresLauncherComponentTagsWhenResolvingAppVersion()
     {
         string repositoryRoot = FindRepositoryRoot();

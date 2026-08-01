@@ -22,6 +22,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
     public partial class MainViewModel
     {
+        internal const int CurrentEncoderDetectionCacheVersion = 2;
+
         private static string QueryFFmpegEncoders(string ffmpegPath)
         {
             try
@@ -95,9 +97,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.EncoderOptionsCache = detection.Options;
                     Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
                     Config.IsEncoderDetected = detection.Succeeded;
+                    Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
                     detectionConfig.EncoderOptionsCache = detection.Options;
                     detectionConfig.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
                     detectionConfig.IsEncoderDetected = detection.Succeeded;
+                    detectionConfig.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
                     if (!detection.Succeeded)
                     {
                         SaveConfig();
@@ -251,7 +255,7 @@ namespace ExpressPackingMonitoring.ViewModels
             string output = QueryFFmpegEncoders(ffmpegPath);
             log.AppendLine($"ffmpeg -encoders 输出长度: {output.Length}");
 
-            foreach (string encoder in new[] { "libx264", "libx265", "libsvtav1" })
+            foreach (string encoder in new[] { "libx264", "libx265" })
             {
                 bool inList = output.Contains(encoder, StringComparison.Ordinal);
                 log.AppendLine($"\n=== CPU {encoder} ===");
