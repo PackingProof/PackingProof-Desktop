@@ -681,6 +681,82 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        public bool HasActiveVideoAtPath(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return false;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT 1
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0 AND FilePath = @filePath COLLATE NOCASE
+                    LIMIT 1;";
+                cmd.Parameters.AddWithValue("@filePath", filePath);
+                return cmd.ExecuteScalar() != null;
+            }
+        }
+
+        public bool TryInsertImportedVideoRecord(
+            string orderId,
+            string mode,
+            string filePath,
+            long fileSizeBytes,
+            DateTime startTime,
+            double durationSeconds,
+            string contentSha256,
+            string sourceDeviceId = "",
+            string sourceDeviceName = "")
+        {
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                using var duplicate = _connection.CreateCommand();
+                duplicate.Transaction = transaction;
+                duplicate.CommandText = @"
+                    SELECT 1
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND (FilePath = @filePath COLLATE NOCASE
+                           OR (@sha256 <> '' AND ContentSha256 = @sha256 COLLATE NOCASE))
+                    LIMIT 1;";
+                duplicate.Parameters.AddWithValue("@filePath", filePath ?? "");
+                duplicate.Parameters.AddWithValue("@sha256", contentSha256 ?? "");
+                if (duplicate.ExecuteScalar() != null)
+                {
+                    transaction.Rollback();
+                    return false;
+                }
+
+                using var insert = _connection.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = @"
+                    INSERT INTO VideoRecords (
+                        OrderId, Mode, TrackingNumber, SourceType, SourceDeviceId, SourceDeviceName,
+                        ContentSha256, FilePath, FileSizeBytes, StartTime, EndTime, DurationSeconds,
+                        StopReason, StorageState)
+                    VALUES (
+                        @orderId, @mode, @trackingNumber, 'pc', @sourceDeviceId, @sourceDeviceName,
+                        @sha256, @filePath, @fileSize, @startTime, @endTime, @duration,
+                        '导入', 'Local');";
+                insert.Parameters.AddWithValue("@orderId", orderId ?? "");
+                insert.Parameters.AddWithValue("@mode", mode ?? "发货");
+                insert.Parameters.AddWithValue("@trackingNumber", orderId ?? "");
+                insert.Parameters.AddWithValue("@sourceDeviceId", sourceDeviceId?.Trim() ?? "");
+                insert.Parameters.AddWithValue("@sourceDeviceName", sourceDeviceName?.Trim() ?? "");
+                insert.Parameters.AddWithValue("@sha256", contentSha256 ?? "");
+                insert.Parameters.AddWithValue("@filePath", filePath ?? "");
+                insert.Parameters.AddWithValue("@fileSize", Math.Max(0, fileSizeBytes));
+                insert.Parameters.AddWithValue("@startTime", startTime.ToString("yyyy-MM-dd HH:mm:ss"));
+                insert.Parameters.AddWithValue("@endTime", startTime.AddSeconds(Math.Max(0, durationSeconds)).ToString("yyyy-MM-dd HH:mm:ss"));
+                insert.Parameters.AddWithValue("@duration", Math.Max(0, durationSeconds));
+                insert.ExecuteNonQuery();
+                UpsertLocalVideoFileCore(filePath, fileSizeBytes, transaction);
+                transaction.Commit();
+                return true;
+            }
+        }
+
         public void UpdateVideoFileSize(long recordId, long fileSizeBytes)
         {
             lock (_lock)
@@ -1360,7 +1436,7 @@ namespace ExpressPackingMonitoring.Data
                       AND EndTime IS NOT NULL
                       AND FilePath <> ''
                       AND lower(FilePath) LIKE '%.mp4'
-                      AND (@recordedAfter = '' OR StartTime >= @recordedAfter)
+                      AND (@recordedAfter = '' OR StartTime >= @recordedAfter OR StopReason = '导入')
                     ORDER BY StartTime ASC, Id ASC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@limit", limit);

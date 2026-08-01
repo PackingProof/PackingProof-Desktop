@@ -2217,7 +2217,24 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try
             {
-                var playbackWindow = new PlaybackWindow(folderPath, _db, Config.ShowDeletedVideos);
+                VideoFolderImportService importService = CreateVideoImportService(folderPath);
+                var playbackWindow = new PlaybackWindow(
+                    folderPath,
+                    _db,
+                    Config.ShowDeletedVideos,
+                    importService,
+                    Config.LastVideoImportFolder,
+                    saveImportFolder: path =>
+                    {
+                        Config.LastVideoImportFolder = path;
+                        SaveConfig();
+                    },
+                    videosImported: () =>
+                    {
+                        _recordingTransferService?.EnqueueCompletedRecordings();
+                        RefreshRecordingTransferSummary();
+                        RunRecordingCacheCleanup();
+                    });
                 _playbackWindow = playbackWindow;
                 playbackWindow.Closed += (_, _) =>
                 {
@@ -2833,6 +2850,27 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 ShowMobileAppUpdate(update);
             });
+        }
+
+        private VideoFolderImportService CreateVideoImportService(string activeFolderPath)
+        {
+            string preset = DeploymentPresets.Normalize(Config.DeploymentPreset);
+            if (preset is not (DeploymentPresets.RecordingHost or DeploymentPresets.RecordingWorkstation)
+                || _db == null)
+                return null;
+
+            IEnumerable<string> managedRoots = preset == DeploymentPresets.RecordingWorkstation
+                ? [activeFolderPath]
+                : Config.StorageLocations.Select(location =>
+                {
+                    try { return StorageLocationResolver.Resolve(location); }
+                    catch { return ""; }
+                });
+            return new VideoFolderImportService(
+                _db,
+                managedRoots,
+                Config.NodeId,
+                Config.NodeName);
         }
 
         private BackupDeviceEnrollmentApprovalDecision ApproveBackupDeviceEnrollment(

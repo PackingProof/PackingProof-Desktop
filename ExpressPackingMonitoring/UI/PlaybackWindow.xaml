@@ -86,6 +86,61 @@
                             </Button.Template>
                         </Button>
                     </Grid>
+                    <Border x:Name="VideoImportPanel"
+                            Margin="0,14,0,0"
+                            Padding="10"
+                            CornerRadius="8"
+                            Background="{DynamicResource ControlBackground}"
+                            BorderBrush="{DynamicResource BorderDefault}"
+                            BorderThickness="1"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理"
+                                       FontSize="11"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,0,0,8"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="BtnImportShipping"
+                                        Grid.Column="0"
+                                        Content="导入发货"
+                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        Click="BtnImportShipping_Click"
+                                        AutomationProperties.Name="导入发货视频文件夹"/>
+                                <Button x:Name="BtnImportReturn"
+                                        Grid.Column="2"
+                                        Content="导入退货"
+                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        Click="BtnImportReturn_Click"
+                                        AutomationProperties.Name="导入退货视频文件夹"/>
+                            </Grid>
+                            <StackPanel x:Name="VideoImportProgressPanel"
+                                        Margin="0,10,0,0"
+                                        Visibility="Collapsed">
+                                <ProgressBar x:Name="VideoImportProgressBar"
+                                             Height="5"
+                                             Minimum="0"
+                                             Maximum="100"/>
+                                <Grid Margin="0,6,0,0">
+                                    <TextBlock x:Name="VideoImportStatusText"
+                                               Margin="0,0,58,0"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                    <Button x:Name="BtnCancelVideoImport"
+                                            Content="取消"
+                                            HorizontalAlignment="Right"
+                                            Style="{StaticResource SecondarySmallButtonStyle}"
+                                            Click="BtnCancelVideoImport_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">

@@ -1487,7 +1487,9 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         string playbackMethod = mainSource[methodStart..methodEnd];
 
-        Assert.Contains("new PlaybackWindow(folderPath, _db", playbackMethod, StringComparison.Ordinal);
+        Assert.Contains("new PlaybackWindow(", playbackMethod, StringComparison.Ordinal);
+        Assert.Contains("folderPath,", playbackMethod, StringComparison.Ordinal);
+        Assert.Contains("_db,", playbackMethod, StringComparison.Ordinal);
         Assert.DoesNotContain("OpenBoundHost();", playbackMethod, StringComparison.Ordinal);
         Assert.Contains(
             "RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)",

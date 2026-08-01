@@ -120,6 +120,7 @@ namespace ExpressPackingMonitoring.Config
         public int RecordingCacheKeepDays { get; set; } = 3;
         public int RecordingCacheMaxGB { get; set; } = 100;
         public DateTime? RecordingWorkstationActivatedAtUtc { get; set; }
+        public string LastVideoImportFolder { get; set; } = "";
         public string LastUserscriptTargetSignature { get; set; } = "";
         public int DeploymentSetupVersion { get; set; } = 0;
         public int RecordingSetupVersion { get; set; } = 0;

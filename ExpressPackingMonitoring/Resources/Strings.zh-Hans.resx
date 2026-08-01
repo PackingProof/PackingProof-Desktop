@@ -831,4 +831,7 @@
   <data name="旋转 180°" xml:space="preserve"><value>旋转 180°</value></data>
   <data name="摄像头画面方向" xml:space="preserve"><value>摄像头画面方向</value></data>
   <data name="摄像头倒装时，将预览和录像旋转 180°" xml:space="preserve"><value>摄像头倒装时，将预览和录像旋转 180°</value></data>
+  <data name="仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理" xml:space="preserve"><value>仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理</value></data>
+  <data name="导入发货" xml:space="preserve"><value>导入发货</value></data>
+  <data name="导入退货" xml:space="preserve"><value>导入退货</value></data>
 </root>

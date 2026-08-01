@@ -831,4 +831,7 @@
   <data name="旋转 180°" xml:space="preserve"><value>Rotate 180°</value></data>
   <data name="摄像头画面方向" xml:space="preserve"><value>Camera orientation</value></data>
   <data name="摄像头倒装时，将预览和录像旋转 180°" xml:space="preserve"><value>Rotate the preview and recording 180° when the camera is mounted upside down</value></data>
+  <data name="仅支持 MP4。请先放入录像文件夹；导入后不要自行移动或删除，由程序统一管理" xml:space="preserve"><value>MP4 only. Place videos in the recording folder first; after import, let the app manage them without moving or deleting them manually</value></data>
+  <data name="导入发货" xml:space="preserve"><value>Import shipping</value></data>
+  <data name="导入退货" xml:space="preserve"><value>Import returns</value></data>
 </root>
