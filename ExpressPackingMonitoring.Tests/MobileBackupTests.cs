@@ -18,28 +18,26 @@ public sealed class MobileBackupTests
     private const string AccessKey = "0123456789abcdef0123456789abcdef";
 
     [Fact]
-    public void PairingTokenCanBeClaimedOnlyOnceAndPersistsEncryptedDeviceCredential()
+    public void DeviceEnrollmentRotatesTokenAndPersistsEncryptedCredential()
     {
         string directory = CreateTempDirectory();
         try
         {
             var service = new BackupPairingTokenService(directory, AccessKey);
-            BackupPairingToken token = service.CreateToken();
-
-            Assert.True(service.TryGetTokenCredential(token.TokenId, out string pendingCredential));
-            Assert.Equal(token.Secret, pendingCredential);
-            Assert.True(service.TryClaim(token.TokenId, "pc-node-1", "pc", out string credential));
-            Assert.Equal(token.Secret, credential);
-            Assert.False(service.TryClaim(token.TokenId, "pc-node-2", "pc", out _));
+            BackupDeviceEnrollment first = service.Enroll("pc-node-1", "pc");
+            BackupDeviceEnrollment rotated = service.Enroll("pc-node-1", "pc");
+            Assert.NotEqual(first.DeviceCredential, rotated.DeviceCredential);
+            Assert.True(service.TryGetDeviceCredential("pc-node-1", out string credential));
+            Assert.Equal(rotated.DeviceCredential, credential);
 
             string storedJson = File.ReadAllText(
                 Path.Combine(directory, "backup-device-credentials.json"),
                 Encoding.UTF8);
-            Assert.DoesNotContain(token.Secret, storedJson, StringComparison.Ordinal);
+            Assert.DoesNotContain(rotated.DeviceCredential, storedJson, StringComparison.Ordinal);
 
             var restarted = new BackupPairingTokenService(directory, AccessKey);
             Assert.True(restarted.TryGetDeviceCredential("pc-node-1", out string restored));
-            Assert.Equal(token.Secret, restored);
+            Assert.Equal(rotated.DeviceCredential, restored);
             Assert.True(restarted.TryGetDeviceCredential("pc-node-1", out _, out string deviceKind));
             Assert.Equal("pc", deviceKind);
         }
@@ -50,16 +48,50 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public void ExpiredPairingTokenCannotAuthenticateOrBeClaimed()
+    public void DeviceCredentialEncryptionRootDoesNotDependOnWebAccessKey()
     {
         string directory = CreateTempDirectory();
         try
         {
             var service = new BackupPairingTokenService(directory, AccessKey);
-            BackupPairingToken token = service.CreateToken(TimeSpan.FromMilliseconds(-1));
+            BackupDeviceEnrollment enrolled = service.Enroll("pc-node-1", "pc");
+            var restarted = new BackupPairingTokenService(directory, "different-web-key");
+            Assert.True(restarted.TryGetDeviceCredential("pc-node-1", out string restored));
+            Assert.Equal(enrolled.DeviceCredential, restored);
+            Assert.True(File.Exists(Path.Combine(directory, "backup-device-root.key")));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
 
-            Assert.False(service.TryGetTokenCredential(token.TokenId, out _));
-            Assert.False(service.TryClaim(token.TokenId, "pc-node-1", "pc", out _));
+    [Fact]
+    public async Task DeviceEnrollmentRequiresExplicitHostApproval()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost);
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId = "approval-required-device", deviceName = "测试手机", deviceKind = "mobile" },
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            using JsonDocument body = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("enrollment_denied", body.RootElement.GetProperty("errorCode").GetString());
         }
         finally
         {
@@ -526,7 +558,7 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public async Task BackupApiRequiresHeaderKeyAndReturnsVerificationConfirmation()
+    public async Task BackupApiRequiresDeviceTokenAndReturnsVerificationConfirmation()
     {
         string directory = CreateTempDirectory();
         int port = GetFreeTcpPort();
@@ -542,7 +574,8 @@ public sealed class MobileBackupTests
                 mobileBackupComputerId: "computer-1",
                 mobileBackupComputerName: "打包电脑",
                 mobileBackupStateDirectory: Path.Combine(directory, "state"),
-                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"));
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                backupDeviceEnrollmentApprover: _ => true);
             server.Start();
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;
@@ -554,19 +587,32 @@ public sealed class MobileBackupTests
             using HttpResponseMessage wrong = await client.SendAsync(wrongRequest, cancellationToken);
             Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, queryOnly.StatusCode);
-            Assert.Equal(HttpStatusCode.Forbidden, wrong.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
 
-            client.DefaultRequestHeaders.Add("X-EPM-Access-Key", AccessKey);
-            using HttpResponseMessage capabilities = await client.GetAsync("/api/mobile-backup/capabilities", cancellationToken);
+            const string deviceId = "phone-http-device";
+            using HttpResponseMessage enrollment = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, enrollment.StatusCode);
+            using JsonDocument enrollmentJson = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(cancellationToken));
+            string deviceToken = enrollmentJson.RootElement.GetProperty("deviceToken").GetString()!;
+
+            using HttpResponseMessage capabilities = await SendSignedAsync(
+                client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, deviceToken, [], cancellationToken);
             using JsonDocument capabilityJson = JsonDocument.Parse(await capabilities.Content.ReadAsStringAsync(cancellationToken));
-            Assert.Equal("mobile-backup-v1", capabilityJson.RootElement.GetProperty("protocol").GetString());
-            Assert.Equal(1, capabilityJson.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal("mobile-backup-v2", capabilityJson.RootElement.GetProperty("protocol").GetString());
+            Assert.Equal(2, capabilityJson.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(3, capabilityJson.RootElement.GetProperty("authVersion").GetInt32());
             Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("videoLibrary").GetBoolean());
             Assert.Equal(4 * 1024 * 1024, capabilityJson.RootElement.GetProperty("maxChunkBytes").GetInt32());
 
             byte[] file = Encoding.UTF8.GetBytes("http upload payload");
             string sha = Sha256(file);
-            using HttpResponseMessage create = await client.PostAsJsonAsync("/api/mobile-backup/uploads", CreateRequest(sha, file.Length), cancellationToken);
+            byte[] createBody = JsonSerializer.SerializeToUtf8Bytes(CreateRequest(sha, file.Length));
+            using HttpResponseMessage create = await SendSignedAsync(
+                client, HttpMethod.Post, "/api/mobile-backup/uploads", deviceId, deviceToken, createBody, cancellationToken);
             Assert.Equal(HttpStatusCode.OK, create.StatusCode);
             using var chunk = new HttpRequestMessage(HttpMethod.Put, $"/api/mobile-backup/uploads/{sha}/chunks")
             {
@@ -574,12 +620,19 @@ public sealed class MobileBackupTests
             };
             chunk.Content.Headers.TryAddWithoutValidation("Content-Range", $"bytes 0-{file.Length - 1}/{file.Length}");
             chunk.Headers.Add("X-Chunk-SHA256", sha);
+            AddSignedHeaders(chunk, deviceId, deviceToken, file);
             using HttpResponseMessage chunkResponse = await client.SendAsync(chunk, cancellationToken);
             Assert.Equal(HttpStatusCode.OK, chunkResponse.StatusCode);
 
-            using HttpResponseMessage complete = await client.PostAsJsonAsync(
+            byte[] completeBodyBytes = JsonSerializer.SerializeToUtf8Bytes(
+                CompleteRequest(sha, "http-session", "", "spoofed-device", "测试手机"));
+            using HttpResponseMessage complete = await SendSignedAsync(
+                client,
+                HttpMethod.Post,
                 $"/api/mobile-backup/uploads/{sha}/complete",
-                CompleteRequest(sha, "http-session", "", "phone-http", "测试手机"),
+                deviceId,
+                deviceToken,
+                completeBodyBytes,
                 cancellationToken);
             string completeBody = await complete.Content.ReadAsStringAsync(cancellationToken);
             Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
@@ -587,13 +640,64 @@ public sealed class MobileBackupTests
             Assert.Equal("电脑校验完成，备份成功", completeJson.RootElement.GetProperty("message").GetString());
             Assert.Equal("verified", completeJson.RootElement.GetProperty("status").GetString());
 
-            using HttpResponseMessage videos = await client.GetAsync("/api/videos?size=50", cancellationToken);
+            using HttpResponseMessage videos = await SendSignedAsync(
+                client, HttpMethod.Get, "/api/mobile-backup/videos?size=50", deviceId, deviceToken, [], cancellationToken);
             using JsonDocument videoJson = JsonDocument.Parse(await videos.Content.ReadAsStringAsync(cancellationToken));
             JsonElement video = videoJson.RootElement.GetProperty("data")[0];
-            Assert.Equal("phone-http", video.GetProperty("sourceDeviceId").GetString());
+            long videoId = video.GetProperty("id").GetInt64();
+            Assert.Equal(deviceId, video.GetProperty("sourceDeviceId").GetString());
             Assert.Equal("http-session", video.GetProperty("sourceSessionId").GetString());
             Assert.Equal(sha, video.GetProperty("contentSha256").GetString());
-            Assert.Contains("/play?compat=0", video.GetProperty("playUrl").GetString(), StringComparison.Ordinal);
+            Assert.Contains("/api/mobile-backup/videos/", video.GetProperty("playUrl").GetString(), StringComparison.Ordinal);
+
+            const string otherDeviceId = "phone-other-device";
+            using HttpResponseMessage otherEnrollment = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId = otherDeviceId, deviceName = "另一台手机", deviceKind = "mobile" },
+                cancellationToken);
+            using JsonDocument otherEnrollmentJson = JsonDocument.Parse(
+                await otherEnrollment.Content.ReadAsStringAsync(cancellationToken));
+            string otherToken = otherEnrollmentJson.RootElement.GetProperty("deviceToken").GetString()!;
+            using HttpResponseMessage otherVideos = await SendSignedAsync(
+                client, HttpMethod.Get, "/api/mobile-backup/videos?size=50", otherDeviceId, otherToken, [], cancellationToken);
+            using JsonDocument otherVideosJson = JsonDocument.Parse(
+                await otherVideos.Content.ReadAsStringAsync(cancellationToken));
+            Assert.Equal(0, otherVideosJson.RootElement.GetProperty("total").GetInt32());
+            using HttpResponseMessage crossDevicePlay = await SendSignedAsync(
+                client,
+                HttpMethod.Get,
+                $"/api/mobile-backup/videos/{videoId}/play",
+                otherDeviceId,
+                otherToken,
+                [],
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.NotFound, crossDevicePlay.StatusCode);
+
+            using var obsoleteRequest = new HttpRequestMessage(HttpMethod.Get, "/api/mobile-backup/capabilities");
+            obsoleteRequest.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "2");
+            using HttpResponseMessage obsolete = await client.SendAsync(obsoleteRequest, cancellationToken);
+            Assert.Equal((HttpStatusCode)426, obsolete.StatusCode);
+
+            await Task.Delay(800, cancellationToken);
+            using HttpResponseMessage rotatedEnrollment = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                cancellationToken);
+            using JsonDocument rotatedJson = JsonDocument.Parse(
+                await rotatedEnrollment.Content.ReadAsStringAsync(cancellationToken));
+            string rotatedToken = rotatedJson.RootElement.GetProperty("deviceToken").GetString()!;
+            Assert.NotEqual(deviceToken, rotatedToken);
+            using HttpResponseMessage oldTokenResponse = await SendSignedAsync(
+                client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, deviceToken, [], cancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, oldTokenResponse.StatusCode);
+            using HttpResponseMessage newTokenResponse = await SendSignedAsync(
+                client, HttpMethod.Get, "/api/mobile-backup/capabilities", deviceId, rotatedToken, [], cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
+            using HttpResponseMessage rateLimited = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                cancellationToken);
+            Assert.Equal((HttpStatusCode)429, rateLimited.StatusCode);
         }
         finally
         {
@@ -787,6 +891,53 @@ public sealed class MobileBackupTests
         };
 
     private static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+    private static async Task<HttpResponseMessage> SendSignedAsync(
+        HttpClient client,
+        HttpMethod method,
+        string path,
+        string deviceId,
+        string credential,
+        byte[] content,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(method, path);
+        if (method != HttpMethod.Get)
+        {
+            request.Content = new ByteArrayContent(content);
+            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+        }
+        AddSignedHeaders(request, deviceId, credential, content);
+        return await client.SendAsync(request, cancellationToken);
+    }
+
+    private static void AddSignedHeaders(
+        HttpRequestMessage request,
+        string deviceId,
+        string credential,
+        byte[] content)
+    {
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        string contentHash = BackupRequestAuthentication.ComputeContentHash(content);
+        string path = request.RequestUri?.OriginalString ?? "/";
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", deviceId);
+        request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "mobile");
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "3");
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.TimestampHeader, timestamp.ToString());
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);
+        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.ContentHashHeader, contentHash);
+        request.Headers.TryAddWithoutValidation(
+            BackupRequestAuthentication.SignatureHeader,
+            BackupRequestAuthentication.CreateRequestSignature(
+                credential,
+                request.Method.Method,
+                path,
+                timestamp,
+                nonce,
+                contentHash,
+                deviceId));
+    }
 
     private static string CreateTempDirectory()
     {

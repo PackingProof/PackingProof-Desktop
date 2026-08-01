@@ -47,6 +47,14 @@ namespace ExpressPackingMonitoring.Services
         string DownloadUrl,
         string QrCode);
 
+    public sealed class BackupDeviceEnrollmentRequest
+    {
+        public string DeviceId { get; set; } = "";
+        public string DeviceName { get; set; } = "";
+        public string DeviceKind { get; set; } = "mobile";
+        public string RemoteAddress { get; set; } = "";
+    }
+
     public sealed class OrderLookupResult
     {
         public bool Responded { get; set; }
@@ -100,6 +108,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _nodeName;
         private readonly string _deploymentPreset;
         private readonly bool _orderReceiverOnly;
+        private readonly Func<BackupDeviceEnrollmentRequest, bool> _backupDeviceEnrollmentApprover;
         private readonly CancellationTokenSource _cts = new();
         private readonly SemaphoreSlim _requestSlots = new(32, 32);
         private readonly SemaphoreSlim _transcodeSlot = new(1, 1);
@@ -117,7 +126,9 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<string, PendingOrderLookup> _pendingOrderLookups = new();
         private readonly ConcurrentDictionary<HttpListenerContext, byte[]> _authenticatedRequestBodies = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKeys = new();
+        private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceIds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
+        private readonly ConcurrentDictionary<string, long> _backupEnrollmentAttempts = new(StringComparer.OrdinalIgnoreCase);
         private readonly SemaphoreSlim _orderLookupSignal = new(0);
         private int _activeOrderLookupPolls;
         private long _lastOrderLookupPollUtcTicks;
@@ -171,7 +182,8 @@ namespace ExpressPackingMonitoring.Services
             string nodeName = null,
             string deploymentPreset = null,
             bool orderReceiverOnly = false,
-            bool nodeNameCustomized = false)
+            bool nodeNameCustomized = false,
+            Func<BackupDeviceEnrollmentRequest, bool> backupDeviceEnrollmentApprover = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -196,6 +208,7 @@ namespace ExpressPackingMonitoring.Services
                 ? DeploymentPresets.Normalize(deploymentPreset)
                 : DeploymentPresets.RecordingHost;
             _orderReceiverOnly = orderReceiverOnly;
+            _backupDeviceEnrollmentApprover = backupDeviceEnrollmentApprover;
             _clipService = new VideoClipService(
                 _db,
                 WriteLog,
@@ -579,37 +592,16 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                string pairingTokenId = "";
-                bool isPairingClaim = method == "POST"
-                    && TryParseBackupPairingClaimPath(path, out pairingTokenId);
-                if (isPairingClaim)
+                bool isDeviceEnrollment = path == "/api/mobile-backup/enroll" && method == "POST";
+                if (!isDeviceEnrollment && IsMobileBackupPath(path)
+                    && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey, out bool obsoleteProtocol))
                 {
-                    string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
-                    bool authorized = _backupPairingTokens.TryGetTokenCredential(
-                            pairingTokenId,
-                            out string tokenCredential)
-                        && TryAuthorizeSignedRequest(
-                            ctx,
-                            deviceId,
-                            tokenCredential,
-                            out _)
-                        && _backupPairingTokens.TryClaim(
-                            pairingTokenId,
-                            deviceId,
-                            "pc",
-                            out _);
-                    if (!authorized)
+                    SendJson(ctx, obsoleteProtocol ? 426 : missingBackupKey ? 401 : 403, new
                     {
-                        SendJson(ctx, 403, new { errorCode = "pairing_token_invalid", error = "临时连接码已失效，请在手机上重新生成" });
-                        return;
-                    }
-                }
-                else if (IsMobileBackupPath(path) && !TryAuthorizeMobileBackupRequest(ctx, out bool missingBackupKey))
-                {
-                    SendJson(ctx, missingBackupKey ? 401 : 403, new
-                    {
-                        errorCode = missingBackupKey ? "pairing_required" : "access_key_invalid",
-                        error = missingBackupKey ? "需要重新配对" : "访问密钥无效，请重新配对"
+                        errorCode = obsoleteProtocol ? "backup_protocol_upgrade_required"
+                            : missingBackupKey ? "enrollment_required" : "device_token_invalid",
+                        error = obsoleteProtocol ? "备份协议已升级，请更新客户端后重新连接"
+                            : missingBackupKey ? "需要重新连接保存主机" : "设备令牌无效，请重新连接"
                     });
                     return;
                 }
@@ -664,11 +656,17 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/mobile-backup/capabilities" when method == "GET":
                         HandleMobileBackupCapabilities(ctx);
                         break;
+                    case "/api/mobile-backup/enroll" when method == "POST":
+                        HandleBackupDeviceEnrollment(ctx);
+                        break;
                     case "/api/mobile-backup/uploads" when method == "POST":
                         HandleCreateMobileBackupUpload(ctx);
                         break;
-                    case "/api/mobile-backup/pairing-tokens" when method == "POST":
-                        HandleCreateBackupPairingToken(ctx);
+                    case "/api/mobile-backup/videos" when method == "GET":
+                        HandleDeviceScopedVideos(ctx);
+                        break;
+                    case "/api/mobile-backup/videos/status" when method == "GET":
+                        HandleDeviceScopedVideoStatuses(ctx);
                         break;
                     case "/api/connections/heartbeat" when method == "POST":
                         HandleConnectionHeartbeat(ctx);
@@ -710,8 +708,12 @@ namespace ExpressPackingMonitoring.Services
                             HandleCompleteMobileBackupUpload(ctx, completeUploadId);
                         else if (method == "GET" && TryParseMobileBackupAttestationPath(path, out long remoteRecordId))
                             HandleMobileBackupAttestation(ctx, remoteRecordId);
-                        else if (isPairingClaim)
-                            SendJson(ctx, 200, new { ok = true, authVersion = BackupRequestAuthentication.CurrentVersion });
+                        else if (method == "GET" && TryParseDeviceScopedVideoPath(path, "/play", out long scopedPlayId))
+                            HandleDeviceScopedVideo(ctx, scopedPlayId, "play");
+                        else if (method == "GET" && TryParseDeviceScopedVideoPath(path, "/download", out long scopedDownloadId))
+                            HandleDeviceScopedVideo(ctx, scopedDownloadId, "download");
+                        else if (method == "GET" && TryParseDeviceScopedVideoPath(path, "/thumbnail", out long scopedThumbnailId))
+                            HandleDeviceScopedVideo(ctx, scopedThumbnailId, "thumbnail");
                         else if (method == "HEAD" && path.StartsWith("/api/videos/") && path.EndsWith("/play"))
                         {
                             // HEAD 请求只返回 headers，不启动转码/传输
@@ -750,6 +752,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 _authenticatedRequestBodies.TryRemove(ctx, out _);
                 _authenticatedDeviceKeys.TryRemove(ctx, out _);
+                _authenticatedDeviceIds.TryRemove(ctx, out _);
             }
         }
 
@@ -843,76 +846,31 @@ namespace ExpressPackingMonitoring.Services
             || (path == "/kuaidizs-install-guide" && method == "GET")
             || (path == "/kuaidizs-order-push.user.js" && method == "GET");
 
-        private bool TryAuthorizeMobileBackupRequest(HttpListenerContext ctx, out bool missingKey)
+        private bool TryAuthorizeMobileBackupRequest(
+            HttpListenerContext ctx,
+            out bool missingKey,
+            out bool obsoleteProtocol)
         {
-            if (string.Equals(
-                    ctx.Request.Headers[BackupRequestAuthentication.VersionHeader],
-                    BackupRequestAuthentication.CurrentVersion.ToString(),
-                    StringComparison.Ordinal))
+            string version = ctx.Request.Headers[BackupRequestAuthentication.VersionHeader]?.Trim() ?? "";
+            obsoleteProtocol = version.Length > 0
+                && !string.Equals(version, BackupRequestAuthentication.CurrentVersion.ToString(), StringComparison.Ordinal);
+            if (obsoleteProtocol)
             {
-                return TryAuthorizeSignedBackupRequest(ctx, out missingKey);
+                missingKey = false;
+                return false;
             }
-
-            string headerKey = ctx.Request.Headers["X-EPM-Access-Key"];
-            missingKey = string.IsNullOrWhiteSpace(headerKey);
-            bool authorized = !missingKey && AccessKeysEqual(headerKey, _accessKey);
-            if (authorized)
-            {
-                IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
-                string deviceId = ctx.Request.Headers["X-EPM-Device-Id"];
-                string deviceName = ctx.Request.Headers["X-EPM-Device-Name"];
-                string deviceKind = string.Equals(
-                    ctx.Request.Headers["X-EPM-Device-Kind"],
-                    "pc",
-                    StringComparison.OrdinalIgnoreCase)
-                        ? "pc"
-                        : "mobile";
-                try { deviceName = Uri.UnescapeDataString(deviceName ?? ""); } catch { }
-                _mobileOrderReceivers.Register(
-                    remoteAddress,
-                    deviceId,
-                    deviceName,
-                    MobileOrderReceiverRegistry.OrderReceiverPort,
-                    [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver]);
-
-                if (!string.IsNullOrWhiteSpace(deviceId) && !string.IsNullOrWhiteSpace(deviceName))
-                {
-                    try
-                    {
-                        _connectedClients.Heartbeat(
-                            new ConnectedClientHeartbeat
-                            {
-                                ClientId = deviceId,
-                                ClientType = deviceKind == "pc"
-                                    ? "recording-workstation"
-                                    : "mobile-app",
-                                DisplayName = deviceName,
-                                NodeId = deviceId,
-                                DeviceType = deviceKind,
-                                OrderReceiverPort = MobileOrderReceiverRegistry.OrderReceiverPort,
-                                Capabilities =
-                                [
-                                    PackingProofCapabilities.Recording,
-                                    PackingProofCapabilities.OrderReceiver
-                                ]
-                            },
-                            remoteAddress?.ToString() ?? "unknown");
-                    }
-                    catch (ConnectedClientValidationException)
-                    {
-                        // 设备身份头无效时仍允许已通过密钥验证的旧版备份请求。
-                    }
-                }
-            }
-            return authorized;
+            return TryAuthorizeSignedBackupRequest(ctx, out missingKey);
         }
 
         private bool TryAuthorizeSignedBackupRequest(HttpListenerContext ctx, out bool missingKey)
         {
             string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
-            string credential = _backupPairingTokens.TryGetDeviceCredential(deviceId, out string pairedCredential)
-                ? pairedCredential
-                : BackupRequestAuthentication.DeriveDeviceCredential(_accessKey, deviceId);
+            if (!_backupPairingTokens.TryGetDeviceCredential(deviceId, out string credential))
+            {
+                missingKey = string.IsNullOrWhiteSpace(
+                    ctx.Request.Headers[BackupRequestAuthentication.SignatureHeader]);
+                return false;
+            }
             return TryAuthorizeSignedRequest(ctx, deviceId, credential, out missingKey);
         }
 
@@ -970,6 +928,7 @@ namespace ExpressPackingMonitoring.Services
 
             _authenticatedRequestBodies[ctx] = body;
             _authenticatedDeviceKeys[ctx] = credential;
+            _authenticatedDeviceIds[ctx] = deviceId;
             RegisterAuthorizedBackupClient(ctx, deviceId);
             return true;
         }
@@ -1020,42 +979,75 @@ namespace ExpressPackingMonitoring.Services
             return long.TryParse(value, out recordId) && recordId > 0;
         }
 
-        private static bool TryParseBackupPairingClaimPath(string path, out string tokenId)
+        private static bool TryParseDeviceScopedVideoPath(string path, string suffix, out long recordId)
         {
-            tokenId = "";
-            const string prefix = "/api/mobile-backup/pairing-tokens/";
-            const string suffix = "/claim";
+            recordId = 0;
+            const string prefix = "/api/mobile-backup/videos/";
             if (path == null || !path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                 || !path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
                 return false;
-            tokenId = path[prefix.Length..^suffix.Length].Trim('/');
-            return tokenId.Length is >= 16 and <= 64 && tokenId.All(Uri.IsHexDigit);
+            string value = path[prefix.Length..^suffix.Length].Trim('/');
+            return long.TryParse(value, out recordId) && recordId > 0;
         }
 
-        private void HandleCreateBackupPairingToken(HttpListenerContext ctx)
+        private void HandleBackupDeviceEnrollment(HttpListenerContext ctx)
         {
-            string deviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
-            bool registeredAsNonMobile = _backupPairingTokens.TryGetDeviceCredential(
-                    deviceId,
-                    out _,
-                    out string registeredKind)
-                && !string.Equals(registeredKind, "mobile", StringComparison.OrdinalIgnoreCase);
-            if (registeredAsNonMobile || !string.Equals(
-                    ctx.Request.Headers["X-EPM-Device-Kind"],
-                    "mobile",
-                    StringComparison.OrdinalIgnoreCase))
+            if (!PackingProofCapabilities.ForPreset(_deploymentPreset).Contains(
+                    PackingProofCapabilities.MobileBackup,
+                    StringComparer.OrdinalIgnoreCase))
             {
-                SendJson(ctx, 403, new { errorCode = "mobile_device_required", error = "请使用已连接的手机生成临时连接码" });
+                SendJson(ctx, 409, new { errorCode = "not_backup_host", error = "这台电脑当前不是录像文件备份主机" });
                 return;
             }
-            BackupPairingToken token = _backupPairingTokens.CreateToken();
-            string authority = ctx.Request.Url?.Authority ?? $"127.0.0.1:{Port}";
-            string link = $"http://{authority}/?pairToken={token.TokenId}&pairSecret={token.Secret}&nodeId={Uri.EscapeDataString(_nodeId)}";
+            string remoteAddress = ctx.Request.RemoteEndPoint?.Address?.ToString() ?? "unknown";
+            BackupDeviceEnrollmentRequest request;
+            try { request = ReadJsonBody<BackupDeviceEnrollmentRequest>(ctx); }
+            catch
+            {
+                SendJson(ctx, 400, new { errorCode = "invalid_enrollment", error = "设备连接信息无效" });
+                return;
+            }
+            string deviceId = request.DeviceId?.Trim() ?? "";
+            string deviceKind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? "pc"
+                : "mobile";
+            request.DeviceId = deviceId;
+            request.DeviceKind = deviceKind;
+            request.DeviceName = (request.DeviceName ?? "").Trim();
+            request.RemoteAddress = remoteAddress;
+            if (deviceId.Length is < 8 or > 128)
+            {
+                SendJson(ctx, 400, new { errorCode = "invalid_device_id", error = "设备身份无效" });
+                return;
+            }
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string rateLimitKey = $"{remoteAddress}:{deviceId.ToLowerInvariant()}";
+            if (_backupEnrollmentAttempts.TryGetValue(rateLimitKey, out long previous)
+                && now - previous < 750)
+            {
+                SendJson(ctx, 429, new { errorCode = "enrollment_rate_limited", error = "连接请求过于频繁，请稍后重试" });
+                return;
+            }
+            _backupEnrollmentAttempts[rateLimitKey] = now;
+            bool approved = false;
+            try { approved = _backupDeviceEnrollmentApprover?.Invoke(request) == true; }
+            catch { }
+            if (!approved)
+            {
+                SendJson(ctx, 403, new { errorCode = "enrollment_denied", error = "保存主机未允许本设备连接" });
+                return;
+            }
+            BackupDeviceEnrollment enrollment = _backupPairingTokens.Enroll(deviceId, deviceKind);
             SendJson(ctx, 200, new
             {
-                pairingLink = link,
-                expiresAt = token.ExpiresAt,
-                expiresInSeconds = Math.Max(1, (int)(token.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds)
+                protocol = MobileBackupService.ProtocolVersion,
+                version = 2,
+                authVersion = BackupRequestAuthentication.CurrentVersion,
+                computerId = _nodeId,
+                computerName = _nodeName,
+                deviceId = enrollment.DeviceId,
+                deviceToken = enrollment.DeviceCredential,
+                issuedAt = enrollment.IssuedAt
             });
         }
 
@@ -1071,7 +1063,8 @@ namespace ExpressPackingMonitoring.Services
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
-                version = 1,
+                version = 2,
+                authVersion = BackupRequestAuthentication.CurrentVersion,
                 computerId = _mobileBackupComputerId,
                 computerName = _mobileBackupComputerName,
                 deviceName = registeredDevice?.NodeName ?? deviceName,
@@ -1098,6 +1091,11 @@ namespace ExpressPackingMonitoring.Services
             try
             {
                 ConnectedClientHeartbeat heartbeat = ReadJsonBody<ConnectedClientHeartbeat>(ctx);
+                if (_authenticatedDeviceIds.TryGetValue(ctx, out string authenticatedDeviceId))
+                {
+                    heartbeat.ClientId = authenticatedDeviceId;
+                    heartbeat.NodeId = authenticatedDeviceId;
+                }
                 string remoteAddress = ctx.Request.RemoteEndPoint?.Address.ToString() ?? "unknown";
                 string assignedDisplayName = "";
                 if (string.Equals(heartbeat.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase))
@@ -1226,6 +1224,12 @@ namespace ExpressPackingMonitoring.Services
             try
             {
                 MobileBackupCompleteRequest request = ReadJsonBody<MobileBackupCompleteRequest>(ctx);
+                if (!_authenticatedDeviceIds.TryGetValue(ctx, out string authenticatedDeviceId))
+                {
+                    SendJson(ctx, 403, new { errorCode = "device_identity_required", error = "设备身份验证失败，请重新连接" });
+                    return;
+                }
+                request.SourceDeviceId = authenticatedDeviceId;
                 _mobileOrderReceivers.Register(
                     ctx.Request.RemoteEndPoint?.Address,
                     request.SourceDeviceId,
@@ -1368,6 +1372,100 @@ namespace ExpressPackingMonitoring.Services
                     SendJson(ctx, 500, new { errorCode = "mobile_backup_failed", error = exception.Message });
                     break;
             }
+        }
+
+        private void HandleDeviceScopedVideos(HttpListenerContext ctx)
+        {
+            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            var qs = ctx.Request.QueryString;
+            int page = int.TryParse(qs["page"], out int parsedPage) ? Math.Max(1, parsedPage) : 1;
+            int pageSize = int.TryParse(qs["size"], out int parsedSize) ? Math.Clamp(parsedSize, 1, 100) : 50;
+            string keyword = qs["keyword"] ?? "";
+            var result = _db.QueryVideosPaged(
+                null,
+                null,
+                string.IsNullOrWhiteSpace(keyword) ? null : keyword,
+                page,
+                pageSize,
+                sourceType: "external",
+                deviceId: deviceId);
+            var data = result.Records.Select(record => new
+            {
+                record.Id,
+                record.OrderId,
+                trackingNumber = record.TrackingNumber ?? "",
+                record.Mode,
+                record.FileName,
+                sourceType = "external",
+                sourceDeviceId = deviceId,
+                sourceDeviceName = record.SourceDeviceName ?? "",
+                sourceDeviceKind = record.SourceDeviceKind ?? "",
+                sourceSessionId = record.SourceSessionId ?? "",
+                contentSha256 = record.ContentSha256 ?? "",
+                sizeMB = Math.Round(record.FileSizeBytes / 1048576.0, 1),
+                startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                durationSec = Math.Round(record.DurationSeconds, 0),
+                duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
+                exists = File.Exists(record.FilePath),
+                playUrl = $"/api/mobile-backup/videos/{record.Id}/play",
+                thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail",
+                remote = true
+            });
+            SendJson(ctx, 200, new { total = result.Total, deviceTotal = result.Total, page, pageSize, data });
+        }
+
+        private void HandleDeviceScopedVideoStatuses(HttpListenerContext ctx)
+        {
+            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            long[] ids = (ctx.Request.QueryString["ids"] ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => long.TryParse(value, out long id) ? id : 0)
+                .Where(id => id > 0)
+                .Distinct()
+                .Take(100)
+                .ToArray();
+            var data = ids.Select(id =>
+            {
+                VideoRecord record = _db.GetVideoById(id);
+                bool owned = record != null
+                    && string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(record.SourceDeviceId, deviceId, StringComparison.OrdinalIgnoreCase);
+                bool exists = owned && !record!.IsDeleted && File.Exists(record.FilePath);
+                string status = !owned || (!record!.IsDeleted && !exists)
+                    ? "missing"
+                    : record.IsDeleted ? "deleted" : "available";
+                string reason = !owned ? "记录不存在"
+                    : record!.IsDeleted ? (string.IsNullOrWhiteSpace(record.DeleteReason) ? "已清理" : record.DeleteReason)
+                    : exists ? "" : "文件缺失";
+                return new { id, status, exists, reason };
+            });
+            SendJson(ctx, 200, new { data });
+        }
+
+        private void HandleDeviceScopedVideo(HttpListenerContext ctx, long recordId, string operation)
+        {
+            if (!TryGetAuthenticatedDeviceId(ctx, out string deviceId)) return;
+            VideoRecord record = _db.GetVideoById(recordId);
+            if (record == null
+                || !string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(record.SourceDeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                SendJson(ctx, 404, new { errorCode = "video_not_found", error = "未找到本设备录像" });
+                return;
+            }
+            string syntheticPath = $"/api/videos/{recordId}/{operation}";
+            if (operation == "play") HandlePlay(ctx, syntheticPath);
+            else if (operation == "download") HandleDownload(ctx, syntheticPath);
+            else HandleVideoThumbnail(ctx, syntheticPath);
+        }
+
+        private bool TryGetAuthenticatedDeviceId(HttpListenerContext ctx, out string deviceId)
+        {
+            if (_authenticatedDeviceIds.TryGetValue(ctx, out deviceId!) && deviceId.Length > 0)
+                return true;
+            deviceId = "";
+            SendJson(ctx, 403, new { errorCode = "device_identity_required", error = "设备身份验证失败，请重新连接" });
+            return false;
         }
 
         internal static bool TryParseContentRange(string value, out long start, out long end, out long total)

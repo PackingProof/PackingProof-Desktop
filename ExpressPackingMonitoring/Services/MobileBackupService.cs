@@ -8,7 +8,7 @@ namespace ExpressPackingMonitoring.Services;
 
 internal sealed class MobileBackupService
 {
-    internal const string ProtocolVersion = "mobile-backup-v1";
+    internal const string ProtocolVersion = "mobile-backup-v2";
     internal const int ChunkSizeBytes = 4 * 1024 * 1024;
     internal static readonly TimeSpan UploadRetention = TimeSpan.FromDays(3);
 
@@ -519,7 +519,7 @@ internal sealed class MobileBackupService
     private static void ValidateMimeType(string mimeType)
     {
         if (!string.Equals(mimeType?.Trim(), "video/mp4", StringComparison.OrdinalIgnoreCase))
-            throw new MobileBackupValidationException("unsupported_format", "mobile-backup-v1 仅支持 video/mp4");
+            throw new MobileBackupValidationException("unsupported_format", "mobile-backup-v2 仅支持 video/mp4");
     }
 
     private static void ValidateCompleteRequest(MobileBackupCompleteRequest request)

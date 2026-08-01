@@ -92,6 +92,7 @@ public partial class PrintWorkstationWindow : Window
         _host = new NoCameraWorkstationHost(config);
         _host.MobileAppUpdateAvailable += OnMobileAppUpdateAvailable;
         _host.MobileBackupStatusChanged += OnMobileBackupStatusChanged;
+        _host.BackupDeviceEnrollmentRequested += ApproveBackupDeviceEnrollment;
         _closeBehaviorController = new WindowCloseBehaviorController(
             this,
             RequestExitFromTray,
@@ -114,6 +115,7 @@ public partial class PrintWorkstationWindow : Window
             ToastState.IsToastVisible = false;
             _lifetimeCts.Cancel();
             _host.MobileBackupStatusChanged -= OnMobileBackupStatusChanged;
+            _host.BackupDeviceEnrollmentRequested -= ApproveBackupDeviceEnrollment;
             _host.Dispose();
             _lifetimeCts.Dispose();
         };
@@ -470,6 +472,21 @@ public partial class PrintWorkstationWindow : Window
             if (IsLoaded)
                 RefreshDeviceSummary();
         });
+    }
+
+    private bool ApproveBackupDeviceEnrollment(BackupDeviceEnrollmentRequest request)
+    {
+        string kind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+            ? "录制电脑"
+            : "手机";
+        string name = string.IsNullOrWhiteSpace(request.DeviceName) ? kind : request.DeviceName;
+        return AppDialog.Confirm(
+            this,
+            $"{name}（{request.RemoteAddress}）申请连接这台保存主机。允许后，该设备只能上传、查看和确认自己录制的录像",
+            "允许设备连接？",
+            confirmText: "允许连接",
+            cancelText: "拒绝",
+            severity: AppDialogSeverity.Information);
     }
 
     private void OnMobileAppUpdateAvailable(MobileAppUpdateAvailableInfo update)

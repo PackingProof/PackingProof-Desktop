@@ -132,6 +132,7 @@ public sealed class RecordingTransferTests
             config.LastKnownHostNodeId = targetNodeId;
             config.LastKnownHostAddress = "http://127.0.0.1:5280";
             config.LastKnownHostAccessKey = "0123456789abcdef0123456789abcdef";
+            config.LastKnownHostBackupAuthVersion = BackupRequestAuthentication.CurrentVersion;
 
             Assert.Equal(1, service.EnqueueCompletedRecordings());
             RecordingTransferTask queued = Assert.Single(store.GetReady(DateTime.UtcNow));
@@ -164,7 +165,7 @@ public sealed class RecordingTransferTests
 
             string targetNodeId = Guid.NewGuid().ToString("D");
             var config = CreateConfig(directory, targetNodeId);
-            var handler = new BackupProtocolHandler(verified: true);
+            var handler = new BackupProtocolHandler(verified: true, targetNodeId, config.NodeId);
             using var client = new HttpClient(handler);
             var store = new RecordingTransferQueueStore(databasePath);
             using (var service = new RecordingTransferService(
@@ -184,7 +185,7 @@ public sealed class RecordingTransferTests
             RecordingTransferTask uploaded = Assert.Single(reopened.GetUploadedWithLocalCache());
             Assert.Equal(42, uploaded.RemoteVideoRecordId);
             Assert.True(File.Exists(videoPath));
-            Assert.True(handler.SawAccessKey);
+            Assert.True(handler.SawSignedAuthentication);
             Assert.True(handler.SawPcSource);
             Assert.Equal("退货", handler.ReceivedMode);
             Assert.Equal(new FileInfo(videoPath).Length, handler.ReceivedBytes);
@@ -432,6 +433,8 @@ public sealed class RecordingTransferTests
             LastKnownHostNodeId = targetNodeId,
             LastKnownHostAddress = "http://127.0.0.1:5280",
             LastKnownHostAccessKey = "0123456789abcdef0123456789abcdef",
+            LastKnownHostBackupAuthVersion = BackupRequestAuthentication.CurrentVersion,
+            BackupConnectionSchemaVersion = AppConfig.CurrentBackupConnectionSchemaVersion,
             RecordingWorkstationActivatedAtUtc = DateTime.UtcNow.AddDays(-1),
             EnableWebServer = false,
             StorageLocations = [new StorageLocation { Path = directory }]
@@ -466,11 +469,14 @@ public sealed class RecordingTransferTests
             Directory.Delete(path, recursive: true);
     }
 
-    private sealed class BackupProtocolHandler(bool verified) : HttpMessageHandler
+    private sealed class BackupProtocolHandler(
+        bool verified,
+        string hostNodeId = "",
+        string sourceDeviceId = "") : HttpMessageHandler
     {
         private string _sha256 = "";
         public long ReceivedBytes { get; private set; }
-        public bool SawAccessKey { get; private set; }
+        public bool SawSignedAuthentication { get; private set; }
         public bool SawPcSource { get; private set; }
         public string ReceivedMode { get; private set; } = "";
 
@@ -478,8 +484,9 @@ public sealed class RecordingTransferTests
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
-            SawAccessKey |= request.Headers.TryGetValues("X-EPM-Access-Key", out var keys)
-                            && keys.Single() == "0123456789abcdef0123456789abcdef";
+            SawSignedAuthentication |= request.Headers.TryGetValues(
+                BackupRequestAuthentication.VersionHeader,
+                out var versions) && versions.Single() == BackupRequestAuthentication.CurrentVersion.ToString();
             string path = request.RequestUri!.AbsolutePath;
             if (request.Method == HttpMethod.Post && path.EndsWith("/uploads"))
             {
@@ -508,11 +515,32 @@ public sealed class RecordingTransferTests
                     await request.Content!.ReadAsStringAsync(cancellationToken));
                 SawPcSource = document.RootElement.GetProperty("sourceDeviceKind").GetString() == "pc";
                 ReceivedMode = document.RootElement.GetProperty("mode").GetString() ?? "";
+                string sessionId = document.RootElement.GetProperty("sessionId").GetString() ?? "";
+                long verifiedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                long recordId = verified ? 42 : 0;
+                string receipt = verified
+                    ? BackupRequestAuthentication.CreateReceiptSignature(
+                        "0123456789abcdef0123456789abcdef",
+                        hostNodeId,
+                        sourceDeviceId,
+                        sessionId,
+                        _sha256,
+                        ReceivedBytes,
+                        recordId,
+                        verifiedAt)
+                    : "";
                 return Json(new
                 {
                     status = verified ? "verified" : "processing",
                     fileSha256 = _sha256,
-                    recordId = verified ? 42 : 0
+                    recordId,
+                    authVersion = verified ? BackupRequestAuthentication.CurrentVersion : 0,
+                    hostNodeId,
+                    sourceDeviceId,
+                    sourceSessionId = sessionId,
+                    fileSizeBytes = ReceivedBytes,
+                    verifiedAtUnixSeconds = verifiedAt,
+                    receiptSignature = receipt
                 });
             }
 

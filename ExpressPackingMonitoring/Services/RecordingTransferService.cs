@@ -393,12 +393,7 @@ internal sealed class RecordingTransferService : IDisposable
                 : config.NodeName));
 
         if (config.LastKnownHostBackupAuthVersion < BackupRequestAuthentication.CurrentVersion)
-        {
-            request.Headers.TryAddWithoutValidation(
-                "X-EPM-Access-Key",
-                config.LastKnownHostAccessKey);
-            return;
-        }
+            throw new InvalidOperationException("保存主机连接协议已升级，请重新连接保存主机");
 
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();

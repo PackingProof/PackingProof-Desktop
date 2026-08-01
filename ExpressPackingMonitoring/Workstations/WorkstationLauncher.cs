@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
@@ -316,24 +317,6 @@ public static class WorkstationNetwork
                     break;
                 }
             }
-            if (accessKey.Length == 0)
-            {
-                Dictionary<string, string> query = uri.Query.TrimStart('?')
-                    .Split('&', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(item => item.Split('=', 2))
-                    .Where(pair => pair.Length == 2)
-                    .ToDictionary(
-                        pair => Uri.UnescapeDataString(pair[0]),
-                        pair => Uri.UnescapeDataString(pair[1]),
-                        StringComparer.OrdinalIgnoreCase);
-                if (query.TryGetValue("pairToken", out string? tokenId)
-                    && query.TryGetValue("pairSecret", out string? tokenSecret)
-                    && tokenId.Length >= 16
-                    && tokenSecret.Length >= 32)
-                {
-                    accessKey = $"pair:{tokenId.Trim()}:{tokenSecret.Trim()}";
-                }
-            }
             return;
         }
         address = NormalizeAddress(input);
@@ -605,48 +588,54 @@ public static class WorkstationNetwork
         }
     }
 
-    internal static async Task<string> ClaimTemporaryPairingAsync(
+    internal static async Task<BackupDeviceEnrollmentResult> EnrollBackupDeviceAsync(
         string address,
-        string encodedCredential,
         string deviceId,
         string deviceName,
-        CancellationToken cancellationToken = default)
+        string deviceKind,
+        CancellationToken token = default)
     {
-        string[] parts = (encodedCredential ?? "").Split(':', 3);
-        if (parts.Length != 3 || parts[0] != "pair")
-            return encodedCredential?.Trim() ?? "";
-        string tokenId = parts[1].Trim();
-        string tokenSecret = parts[2].Trim();
-        string path = $"/api/mobile-backup/pairing-tokens/{Uri.EscapeDataString(tokenId)}/claim";
-        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        string nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
-        string contentHash = BackupRequestAuthentication.ComputeContentHash([]);
+        address = NormalizeAddress(address);
+        if (address.Length == 0 || string.IsNullOrWhiteSpace(deviceId))
+            throw new InvalidOperationException("保存主机地址或本机身份无效");
+        using var client = CreateLanHttpClient(TimeSpan.FromSeconds(90));
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            $"{ToUrl(address).TrimEnd('/')}{path}");
-        request.Content = new ByteArrayContent([]);
-        request.Headers.TryAddWithoutValidation("X-EPM-Device-Id", deviceId);
-        request.Headers.TryAddWithoutValidation("X-EPM-Device-Kind", "pc");
-        request.Headers.TryAddWithoutValidation("X-EPM-Device-Name", Uri.EscapeDataString(deviceName));
-        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.VersionHeader, "2");
-        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.TimestampHeader, timestamp.ToString());
-        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.NonceHeader, nonce);
-        request.Headers.TryAddWithoutValidation(BackupRequestAuthentication.ContentHashHeader, contentHash);
-        request.Headers.TryAddWithoutValidation(
-            BackupRequestAuthentication.SignatureHeader,
-            BackupRequestAuthentication.CreateRequestSignature(
-                tokenSecret,
-                "POST",
-                path,
-                timestamp,
-                nonce,
-                contentHash,
-                deviceId));
-        using var client = CreateLanHttpClient(TimeSpan.FromSeconds(8));
-        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+            $"{ToUrl(address)}/api/mobile-backup/enroll")
+        {
+            Content = JsonContent.Create(new
+            {
+                deviceId = deviceId.Trim(),
+                deviceName = deviceName?.Trim() ?? "",
+                deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                    ? "pc"
+                    : "mobile"
+            })
+        };
+        using HttpResponseMessage response = await client.SendAsync(request, token);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            throw new InvalidOperationException("保存主机版本过旧，请先更新电脑端");
+        if ((int)response.StatusCode == 429)
+            throw new InvalidOperationException("连接请求过于频繁，请稍后重试");
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+            throw new InvalidOperationException("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”");
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new InvalidOperationException("这台电脑当前不是录像文件备份主机");
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException("手机临时连接码已失效，请在手机上重新生成");
-        return tokenSecret;
+            throw new InvalidOperationException($"保存主机拒绝连接（{(int)response.StatusCode}）");
+        BackupDeviceEnrollmentResult? result = await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
+            NetworkJsonOptions,
+            token);
+        if (result == null
+            || result.Protocol != "mobile-backup-v2"
+            || result.Version != 2
+            || result.AuthVersion != BackupRequestAuthentication.CurrentVersion
+            || result.DeviceToken.Length < 32
+            || !string.Equals(result.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("保存主机返回的设备令牌无效");
+        }
+        return result;
     }
 
     public static async Task<TestOrderBroadcastResult> SendTestOrderToRecordingDevicesAsync(
@@ -1189,3 +1178,14 @@ public static class WorkstationNetwork
 public readonly record struct RecordingWorkstationHeartbeatResult(
     bool Online,
     string AssignedDisplayName);
+
+internal sealed class BackupDeviceEnrollmentResult
+{
+    public string Protocol { get; set; } = "";
+    public int Version { get; set; }
+    public int AuthVersion { get; set; }
+    public string ComputerId { get; set; } = "";
+    public string ComputerName { get; set; } = "";
+    public string DeviceId { get; set; } = "";
+    public string DeviceToken { get; set; } = "";
+}

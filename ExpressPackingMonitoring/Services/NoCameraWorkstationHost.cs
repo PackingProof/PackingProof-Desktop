@@ -36,6 +36,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         _database ?? throw new InvalidOperationException("录像数据库尚未打开");
     public event Action<MobileAppUpdateAvailableInfo>? MobileAppUpdateAvailable;
     public event Action? MobileBackupStatusChanged;
+    public event Func<BackupDeviceEnrollmentRequest, bool>? BackupDeviceEnrollmentRequested;
     public event Action<bool>? MobileBackupActivityChanged;
 
     public Task WaitForMobileBackupsAsync(CancellationToken cancellationToken = default) =>
@@ -181,7 +182,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             mobileBackupRecordingRootResolver: () => StorageLocationResolver.Resolve(_config, allowDefaultFallback: false),
             nodeId: _config.NodeId,
             nodeName: _config.NodeName,
-            deploymentPreset: DeploymentPresets.MobileBackupHost)
+            deploymentPreset: DeploymentPresets.MobileBackupHost,
+            backupDeviceEnrollmentApprover: request =>
+                BackupDeviceEnrollmentRequested?.Invoke(request) == true)
         {
             EnableOrderInfoLog = _config.EnableOrderInfoLog
         };

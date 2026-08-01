@@ -6,22 +6,13 @@ namespace ExpressPackingMonitoring.Services;
 
 internal static class BackupRequestAuthentication
 {
-    internal const int CurrentVersion = 2;
+    internal const int CurrentVersion = 3;
     internal const string VersionHeader = "X-EPM-Auth-Version";
     internal const string TimestampHeader = "X-EPM-Timestamp";
     internal const string NonceHeader = "X-EPM-Nonce";
     internal const string ContentHashHeader = "X-EPM-Content-SHA256";
     internal const string SignatureHeader = "X-EPM-Signature";
     internal static readonly TimeSpan AllowedClockSkew = TimeSpan.FromMinutes(5);
-
-    internal static string DeriveDeviceCredential(string pairingKey, string deviceId)
-    {
-        byte[] master = DecodeSecret(pairingKey);
-        byte[] derived = HMACSHA256.HashData(
-            master,
-            Encoding.UTF8.GetBytes($"packingproof-backup-device-v2\n{NormalizeDeviceId(deviceId)}"));
-        return Convert.ToHexString(derived).ToLowerInvariant();
-    }
 
     internal static string ComputeContentHash(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
@@ -56,7 +47,7 @@ internal static class BackupRequestAuthentication
         long verifiedAtUnixSeconds)
     {
         string canonical = string.Join('\n',
-            "packingproof-verified-receipt-v2",
+            "packingproof-verified-receipt-v3",
             NormalizeDeviceId(hostNodeId),
             NormalizeDeviceId(sourceDeviceId),
             sourceSessionId.Trim(),
