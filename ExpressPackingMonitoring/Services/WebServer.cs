@@ -131,6 +131,13 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<string, DeviceVideoTicket> _deviceVideoTickets = new();
         private readonly ConcurrentDictionary<string, DeviceClipTaskGrant> _deviceClipTasks = new();
         private readonly ConcurrentDictionary<string, DeviceClipAssetTicket> _deviceClipAssetTickets = new();
+        private readonly object _deviceGrantCleanupLock = new();
+        private const int DeviceVideoTicketLimit = 2048;
+        private const int DeviceVideoTicketLowWater = 1536;
+        private const int DeviceClipTaskLimit = 256;
+        private const int DeviceClipTaskLowWater = 192;
+        private const int DeviceClipAssetTicketLimit = 2048;
+        private const int DeviceClipAssetTicketLowWater = 1536;
         private readonly string _mobileBackupComputerId;
         private readonly string _mobileBackupComputerName;
         private readonly string _nodeId;
@@ -1758,11 +1765,12 @@ namespace ExpressPackingMonitoring.Services
             {
                 ClipRangeRequest request = ReadJsonBody<ClipRangeRequest>(ctx);
                 string taskId = _clipService.StartClip(recordId, request.StartSeconds, request.EndSeconds);
-                _deviceClipTasks[taskId] = new DeviceClipTaskGrant(
-                    deviceId,
-                    recordId,
-                    DateTimeOffset.UtcNow.AddHours(2));
-                CleanupDeviceClipGrants();
+                RegisterDeviceClipTaskGrant(
+                    taskId,
+                    new DeviceClipTaskGrant(
+                        deviceId,
+                        recordId,
+                        DateTimeOffset.UtcNow.AddHours(2)));
                 SendJson(ctx, 200, new { success = true, taskId });
             }
             catch (Exception ex)
@@ -1891,12 +1899,19 @@ namespace ExpressPackingMonitoring.Services
         private string CreateDeviceClipAssetTicket(string deviceId, string fileName, string assetKind)
         {
             string value = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
-            _deviceClipAssetTickets[value] = new DeviceClipAssetTicket(
-                deviceId,
-                fileName,
-                assetKind,
-                DateTimeOffset.UtcNow.AddMinutes(10));
-            CleanupDeviceClipGrants();
+            lock (_deviceGrantCleanupLock)
+            {
+                _deviceClipAssetTickets[value] = new DeviceClipAssetTicket(
+                    deviceId,
+                    fileName,
+                    assetKind,
+                    DateTimeOffset.UtcNow.AddMinutes(10));
+                TrimExpiredAndOverflow(
+                    _deviceClipAssetTickets,
+                    DeviceClipAssetTicketLimit,
+                    DeviceClipAssetTicketLowWater,
+                    ticket => ticket.ExpiresAt);
+            }
             return value;
         }
 
@@ -1921,32 +1936,71 @@ namespace ExpressPackingMonitoring.Services
             return true;
         }
 
-        private void CleanupDeviceClipGrants()
+        private void RegisterDeviceClipTaskGrant(string taskId, DeviceClipTaskGrant grant)
         {
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            if (_deviceClipTasks.Count > 256)
-                foreach ((string key, DeviceClipTaskGrant value) in _deviceClipTasks)
-                    if (value.ExpiresAt <= now) _deviceClipTasks.TryRemove(key, out _);
-            if (_deviceClipAssetTickets.Count > 2048)
-                foreach ((string key, DeviceClipAssetTicket value) in _deviceClipAssetTickets)
-                    if (value.ExpiresAt <= now) _deviceClipAssetTickets.TryRemove(key, out _);
+            lock (_deviceGrantCleanupLock)
+            {
+                _deviceClipTasks[taskId] = grant;
+                TrimExpiredAndOverflow(
+                    _deviceClipTasks,
+                    DeviceClipTaskLimit,
+                    DeviceClipTaskLowWater,
+                    ticket => ticket.ExpiresAt);
+            }
         }
 
         private string CreateDeviceVideoTicket(string deviceId, string deviceKind, long recordId)
         {
             string value = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
-            _deviceVideoTickets[value] = new DeviceVideoTicket(
-                deviceId,
-                NormalizeDeviceKind(deviceKind),
-                recordId,
-                DateTimeOffset.UtcNow.AddMinutes(10));
-            if (_deviceVideoTickets.Count > 2048)
+            lock (_deviceGrantCleanupLock)
             {
-                DateTimeOffset now = DateTimeOffset.UtcNow;
-                foreach (var item in _deviceVideoTickets)
-                    if (item.Value.ExpiresAt <= now) _deviceVideoTickets.TryRemove(item.Key, out _);
+                _deviceVideoTickets[value] = new DeviceVideoTicket(
+                    deviceId,
+                    NormalizeDeviceKind(deviceKind),
+                    recordId,
+                    DateTimeOffset.UtcNow.AddMinutes(10));
+                TrimExpiredAndOverflow(
+                    _deviceVideoTickets,
+                    DeviceVideoTicketLimit,
+                    DeviceVideoTicketLowWater,
+                    ticket => ticket.ExpiresAt);
             }
             return value;
+        }
+
+        internal static int TrimExpiredAndOverflow<T>(
+            ConcurrentDictionary<string, T> entries,
+            int maximumCount,
+            int lowWaterCount,
+            Func<T, DateTimeOffset> expiresAtProvider)
+        {
+            ArgumentNullException.ThrowIfNull(entries);
+            ArgumentNullException.ThrowIfNull(expiresAtProvider);
+            if (maximumCount <= 0 || lowWaterCount < 0 || lowWaterCount >= maximumCount)
+                throw new ArgumentOutOfRangeException(nameof(maximumCount));
+            if (entries.Count <= maximumCount)
+                return 0;
+
+            int removed = 0;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach ((string key, T value) in entries)
+            {
+                if (expiresAtProvider(value) <= now && entries.TryRemove(key, out _))
+                    removed++;
+            }
+
+            int overflow = entries.Count - lowWaterCount;
+            if (overflow <= 0)
+                return removed;
+
+            foreach ((string key, T _) in entries
+                         .OrderBy(pair => expiresAtProvider(pair.Value))
+                         .Take(overflow))
+            {
+                if (entries.TryRemove(key, out _))
+                    removed++;
+            }
+            return removed;
         }
 
         private bool HasValidDeviceAssetTicket(HttpListenerContext ctx, string path)
