@@ -1549,7 +1549,13 @@ public sealed class DeploymentStartupTests
             Preset = DeploymentPresets.RecordingHost,
             Capabilities = [capability],
             HttpPort = 5280,
-            Address = $"http://127.0.0.1:5280/{nodeId}"
+            Address = $"http://127.0.0.1:5280/{nodeId}",
+            BackupCompatibility = string.Equals(
+                capability,
+                PackingProofCapabilities.MobileBackup,
+                StringComparison.OrdinalIgnoreCase)
+                    ? BackupCompatibilityPolicy.CreateHostInfo()
+                    : null
         };
 
     private static string ReadRepositoryFile(params string[] parts)

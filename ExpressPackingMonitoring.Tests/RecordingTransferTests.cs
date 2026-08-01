@@ -452,7 +452,8 @@ public sealed class RecordingTransferTests
         Preset = DeploymentPresets.RecordingHost,
         Capabilities = [PackingProofCapabilities.Host, PackingProofCapabilities.MobileBackup],
         HttpPort = 5280,
-        Address = "http://127.0.0.1:5280"
+        Address = "http://127.0.0.1:5280",
+        BackupCompatibility = BackupCompatibilityPolicy.CreateHostInfo()
     };
 
     private static string CreateTempDirectory()

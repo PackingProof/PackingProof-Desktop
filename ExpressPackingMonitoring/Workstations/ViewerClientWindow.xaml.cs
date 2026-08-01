@@ -223,6 +223,8 @@ public partial class ViewerClientWindow : Window
 
             string message = compatibleHosts.Count switch
             {
+                0 when _bindingOnly && hosts.Any(IsRecordingReceiverHost) =>
+                    "找到了保存主机，但版本过旧，请更新保存主机电脑",
                 0 when _bindingOnly && hosts.Count > 0 =>
                     "找到了主机，但没有可接收录像的保存主机",
                 0 => "没有找到主机，请检查两台电脑是否连接同一网络",
@@ -281,6 +283,11 @@ public partial class ViewerClientWindow : Window
         if (_bindingOnly && !IsRecordingReceiverHost(node))
         {
             ShowConnectionError("该主机未启用录像接收能力");
+            return;
+        }
+        if (_bindingOnly && !BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
+        {
+            ShowConnectionError("保存主机版本过旧，请更新保存主机电脑");
             return;
         }
 
@@ -762,11 +769,15 @@ public partial class ViewerClientWindow : Window
             PackingProofCapabilities.MobileBackup,
             StringComparer.OrdinalIgnoreCase);
 
+    private static bool IsCompatibleRecordingReceiverHost(PackingProofNodeInfo node) =>
+        IsRecordingReceiverHost(node)
+        && BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility);
+
     internal static IReadOnlyList<PackingProofNodeInfo> FilterDiscoveredHosts(
         IEnumerable<PackingProofNodeInfo> hosts,
         bool recordingWorkstation) =>
         recordingWorkstation
-            ? hosts.Where(IsRecordingReceiverHost).ToArray()
+            ? hosts.Where(IsCompatibleRecordingReceiverHost).ToArray()
             : hosts.ToArray();
 
     private void ShowConnectionError(string message)

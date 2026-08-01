@@ -609,7 +609,12 @@ public static class WorkstationNetwork
                 deviceName = deviceName?.Trim() ?? "",
                 deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                     ? "pc"
-                    : "mobile"
+                    : "mobile",
+                clientVersion = BackupCompatibilityPolicy.MinimumDesktopVersion,
+                clientBuildNumber = 0,
+                backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
+                enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
+                authVersion = BackupCompatibilityPolicy.AuthenticationVersion
             })
         };
         using HttpResponseMessage response = await client.SendAsync(request, token);
@@ -621,6 +626,16 @@ public static class WorkstationNetwork
             throw new InvalidOperationException("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”");
         if (response.StatusCode == HttpStatusCode.Conflict)
             throw new InvalidOperationException("这台电脑当前不是录像文件备份主机");
+        if ((int)response.StatusCode == 426)
+        {
+            BackupCompatibilityError? error = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
+                NetworkJsonOptions,
+                token);
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(error?.Error)
+                    ? "当前录制工位版本过低，请更新电脑端后重新连接"
+                    : error.Error);
+        }
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"保存主机拒绝连接（{(int)response.StatusCode}）");
         BackupDeviceEnrollmentResult? result = await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
@@ -1188,4 +1203,15 @@ internal sealed class BackupDeviceEnrollmentResult
     public string ComputerName { get; set; } = "";
     public string DeviceId { get; set; } = "";
     public string DeviceToken { get; set; } = "";
+    public string HostVersion { get; set; } = "";
+}
+
+internal sealed class BackupCompatibilityError
+{
+    public string ErrorCode { get; set; } = "";
+    public string Error { get; set; } = "";
+    public string UpdateTarget { get; set; } = "";
+    public string MinimumVersion { get; set; } = "";
+    public int MinimumBuildNumber { get; set; }
+    public string DownloadUrl { get; set; } = "";
 }

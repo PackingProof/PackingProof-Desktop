@@ -67,6 +67,50 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public async Task IncompatibleEnrollmentIsRejectedBeforeHostApproval()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        int approvalCount = 0;
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                {
+                    approvalCount++;
+                    return true;
+                });
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                new { deviceId = "obsolete-mobile-device", deviceName = "旧手机", deviceKind = "mobile" },
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal((HttpStatusCode)426, response.StatusCode);
+            Assert.Equal(0, approvalCount);
+            using JsonDocument body = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("backup_client_upgrade_required", body.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal("mobile", body.RootElement.GetProperty("updateTarget").GetString());
+            Assert.Equal("0.5.10", body.RootElement.GetProperty("minimumVersion").GetString());
+            Assert.Equal(11010, body.RootElement.GetProperty("minimumBuildNumber").GetInt32());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task DeviceEnrollmentRequiresExplicitHostApproval()
     {
         string directory = CreateTempDirectory();
@@ -86,7 +130,7 @@ public sealed class MobileBackupTests
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             using HttpResponseMessage response = await client.PostAsJsonAsync(
                 "/api/mobile-backup/enroll",
-                new { deviceId = "approval-required-device", deviceName = "测试手机", deviceKind = "mobile" },
+                CreateCompatibleEnrollment("approval-required-device", "测试手机"),
                 TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             using JsonDocument body = JsonDocument.Parse(
@@ -592,7 +636,7 @@ public sealed class MobileBackupTests
             const string deviceId = "phone-http-device";
             using HttpResponseMessage enrollment = await client.PostAsJsonAsync(
                 "/api/mobile-backup/enroll",
-                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                CreateCompatibleEnrollment(deviceId, "测试手机"),
                 cancellationToken);
             Assert.Equal(HttpStatusCode.OK, enrollment.StatusCode);
             using JsonDocument enrollmentJson = JsonDocument.Parse(
@@ -661,7 +705,7 @@ public sealed class MobileBackupTests
             const string otherDeviceId = "phone-other-device";
             using HttpResponseMessage otherEnrollment = await client.PostAsJsonAsync(
                 "/api/mobile-backup/enroll",
-                new { deviceId = otherDeviceId, deviceName = "另一台手机", deviceKind = "mobile" },
+                CreateCompatibleEnrollment(otherDeviceId, "另一台手机"),
                 cancellationToken);
             using JsonDocument otherEnrollmentJson = JsonDocument.Parse(
                 await otherEnrollment.Content.ReadAsStringAsync(cancellationToken));
@@ -689,7 +733,7 @@ public sealed class MobileBackupTests
             await Task.Delay(800, cancellationToken);
             using HttpResponseMessage rotatedEnrollment = await client.PostAsJsonAsync(
                 "/api/mobile-backup/enroll",
-                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                CreateCompatibleEnrollment(deviceId, "测试手机"),
                 cancellationToken);
             using JsonDocument rotatedJson = JsonDocument.Parse(
                 await rotatedEnrollment.Content.ReadAsStringAsync(cancellationToken));
@@ -703,7 +747,7 @@ public sealed class MobileBackupTests
             Assert.Equal(HttpStatusCode.OK, newTokenResponse.StatusCode);
             using HttpResponseMessage rateLimited = await client.PostAsJsonAsync(
                 "/api/mobile-backup/enroll",
-                new { deviceId, deviceName = "测试手机", deviceKind = "mobile" },
+                CreateCompatibleEnrollment(deviceId, "测试手机"),
                 cancellationToken);
             Assert.Equal((HttpStatusCode)429, rateLimited.StatusCode);
         }
@@ -899,6 +943,21 @@ public sealed class MobileBackupTests
         };
 
     private static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+    private static BackupDeviceEnrollmentRequest CreateCompatibleEnrollment(
+        string deviceId,
+        string deviceName,
+        string deviceKind = "mobile") => new()
+    {
+        DeviceId = deviceId,
+        DeviceName = deviceName,
+        DeviceKind = deviceKind,
+        ClientVersion = deviceKind == "pc" ? "0.0.32" : "0.5.10",
+        ClientBuildNumber = deviceKind == "pc" ? 0 : 11010,
+        BackupProtocol = "mobile-backup-v2",
+        EnrollmentVersion = 2,
+        AuthVersion = 3
+    };
 
     private static async Task<HttpResponseMessage> SendSignedAsync(
         HttpClient client,

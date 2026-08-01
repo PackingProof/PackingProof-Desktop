@@ -174,6 +174,8 @@ internal sealed class RecordingTransferService : IDisposable
                 throw new InvalidOperationException("保存主机身份已变化");
             if (!node.Capabilities.Contains(PackingProofCapabilities.MobileBackup, StringComparer.OrdinalIgnoreCase))
                 throw new InvalidOperationException("目标主机不支持录像接收");
+            if (!BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
+                throw new InvalidOperationException("保存主机版本过旧，请更新保存主机电脑");
 
             string sha256 = task.FileSha256;
             if (sha256.Length != 64)

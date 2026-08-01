@@ -32,8 +32,8 @@ internal sealed class MobileAppUpdatePolicyProvider
     internal static MobileAppUpdatePolicyProvider Shared { get; } = new();
     internal static MobileAppUpdatePolicy MinimumPolicy { get; } = new(
         SchemaVersion: 2,
-        MinimumVersion: "0.5.6",
-        MinimumBuildNumber: 11006,
+        MinimumVersion: BackupCompatibilityPolicy.MinimumMobileVersion,
+        MinimumBuildNumber: BackupCompatibilityPolicy.MinimumMobileBuildNumber,
         Message: "当前 APP 版本过低，需要更新");
     internal const string RepositoryUrl = "https://gitee.com/PackingProof/PackingProof-Mobile";
 

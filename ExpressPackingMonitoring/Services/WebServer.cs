@@ -53,6 +53,11 @@ namespace ExpressPackingMonitoring.Services
         public string DeviceName { get; set; } = "";
         public string DeviceKind { get; set; } = "mobile";
         public string RemoteAddress { get; set; } = "";
+        public string ClientVersion { get; set; } = "";
+        public int ClientBuildNumber { get; set; }
+        public string BackupProtocol { get; set; } = "";
+        public int EnrollmentVersion { get; set; }
+        public int AuthVersion { get; set; }
     }
 
     public sealed class OrderLookupResult
@@ -795,7 +800,12 @@ namespace ExpressPackingMonitoring.Services
                 NodeName = _nodeName,
                 Preset = _deploymentPreset,
                 Capabilities = PackingProofCapabilities.ForPreset(_deploymentPreset).ToList(),
-                HttpPort = Port
+                HttpPort = Port,
+                BackupCompatibility = PackingProofCapabilities.ForPreset(_deploymentPreset).Contains(
+                    PackingProofCapabilities.MobileBackup,
+                    StringComparer.OrdinalIgnoreCase)
+                        ? BackupCompatibilityPolicy.CreateHostInfo()
+                        : null
             });
         }
 
@@ -1023,6 +1033,23 @@ namespace ExpressPackingMonitoring.Services
                 SendJson(ctx, 400, new { errorCode = "invalid_device_id", error = "设备身份无效" });
                 return;
             }
+            var compatibilityFailure = BackupCompatibilityPolicy.ValidateClient(request);
+            if (compatibilityFailure != null)
+            {
+                SendJson(ctx, 426, new
+                {
+                    errorCode = "backup_client_upgrade_required",
+                    error = compatibilityFailure.Message,
+                    updateTarget = compatibilityFailure.UpdateTarget,
+                    minimumVersion = compatibilityFailure.MinimumVersion,
+                    minimumBuildNumber = compatibilityFailure.MinimumBuildNumber,
+                    downloadUrl = compatibilityFailure.DownloadUrl,
+                    protocol = BackupCompatibilityPolicy.BackupProtocol,
+                    enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
+                    authVersion = BackupCompatibilityPolicy.AuthenticationVersion
+                });
+                return;
+            }
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string rateLimitKey = $"{remoteAddress}:{deviceId.ToLowerInvariant()}";
             if (_backupEnrollmentAttempts.TryGetValue(rateLimitKey, out long previous)
@@ -1050,7 +1077,8 @@ namespace ExpressPackingMonitoring.Services
                 computerName = _nodeName,
                 deviceId = enrollment.DeviceId,
                 deviceToken = enrollment.DeviceCredential,
-                issuedAt = enrollment.IssuedAt
+                issuedAt = enrollment.IssuedAt,
+                hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion
             });
         }
 
