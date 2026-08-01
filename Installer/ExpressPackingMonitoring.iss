@@ -69,16 +69,39 @@ Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreve
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
-Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"; Parameters: "/SILENT /EPMUNINSTALLOPTIONS"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Description: "立即启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
+[CustomMessages]
+chinesesimplified.UninstallOptionsTitle=卸载快递打包监控
+chinesesimplified.UninstallOptionsHeading=卸载前，请选择要保留的内容
+chinesesimplified.UninstallOptionsDescription=默认不勾选，重新安装后仍可继续使用原来的设置和录像
+chinesesimplified.UninstallDeleteSettings=删除设置和临时文件
+chinesesimplified.UninstallDeleteSettingsHelp=清除设置、日志和缓存；不会删除录像、录像记录和恢复备份
+chinesesimplified.UninstallDeleteRecordings=删除录像和录像记录
+chinesesimplified.UninstallDeleteRecordingsHelp=先删除由程序管理的录像，全部成功后再删除录像数据库；删除后无法恢复
+chinesesimplified.UninstallStart=开始卸载
+chinesesimplified.UninstallCancel=取消
+chinesesimplified.UninstallCleanupFailed=部分选中的内容未能安全删除，其他数据已保留%n详情见：%1
+english.UninstallOptionsTitle=Uninstall PackingProof
+english.UninstallOptionsHeading=Choose what to keep before uninstalling
+english.UninstallOptionsDescription=Nothing is selected by default, so reinstalling can restore your settings and recordings
+english.UninstallDeleteSettings=Delete settings and temporary files
+english.UninstallDeleteSettingsHelp=Removes settings, logs, and cache without deleting recordings, history, or recovery backups
+english.UninstallDeleteRecordings=Delete recordings and recording history
+english.UninstallDeleteRecordingsHelp=Deletes managed recordings first, then removes the recording database only after all files are removed
+english.UninstallStart=Uninstall
+english.UninstallCancel=Cancel
+english.UninstallCleanupFailed=Some selected content could not be safely removed, so the remaining data was kept%nDetails: %1
+
 [Code]
 var
   DeleteLocalData: Boolean;
-  RecordingCleanupFailed: Boolean;
+  DeleteRecordings: Boolean;
+  CleanupFailed: Boolean;
   CleanupPlanPath: String;
   CleanupLogPath: String;
 
@@ -104,51 +127,19 @@ begin
   end;
 end;
 
-function ExtractJsonInt64(const Json, PropertyName: String): Int64;
+function HasCommandLineArgument(const ExpectedArgument: String): Boolean;
 var
-  Marker: String;
-  MarkerPos: Integer;
-  ValueStart: Integer;
-  ValueEnd: Integer;
-  ValueText: String;
+  Index: Integer;
 begin
-  Marker := '"' + PropertyName + '"';
-  MarkerPos := Pos(Marker, Json);
-  if MarkerPos = 0 then
-    RaiseException('清理清单缺少字段：' + PropertyName);
-
-  ValueStart := MarkerPos + Length(Marker);
-  while (ValueStart <= Length(Json)) and (Json[ValueStart] <> ':') do
-    ValueStart := ValueStart + 1;
-  if ValueStart > Length(Json) then
-    RaiseException('清理清单字段格式无效：' + PropertyName);
-
-  ValueStart := ValueStart + 1;
-  while (ValueStart <= Length(Json)) and
-        ((Json[ValueStart] = ' ') or (Json[ValueStart] = #9) or
-         (Json[ValueStart] = #13) or (Json[ValueStart] = #10)) do
-    ValueStart := ValueStart + 1;
-
-  ValueEnd := ValueStart;
-  while (ValueEnd <= Length(Json)) and
-        (Json[ValueEnd] >= '0') and (Json[ValueEnd] <= '9') do
-    ValueEnd := ValueEnd + 1;
-  ValueText := Copy(Json, ValueStart, ValueEnd - ValueStart);
-  if ValueText = '' then
-    RaiseException('清理清单字段不是有效数字：' + PropertyName);
-  Result := StrToInt64(ValueText);
-end;
-
-function FormatByteCount(const ByteCount: Int64): String;
-begin
-  if ByteCount >= 1073741824 then
-    Result := IntToStr(ByteCount div 1073741824) + ' GB'
-  else if ByteCount >= 1048576 then
-    Result := IntToStr(ByteCount div 1048576) + ' MB'
-  else if ByteCount >= 1024 then
-    Result := IntToStr(ByteCount div 1024) + ' KB'
-  else
-    Result := IntToStr(ByteCount) + ' 字节';
+  Result := False;
+  for Index := 1 to ParamCount do
+  begin
+    if CompareText(ParamStr(Index), ExpectedArgument) = 0 then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
 end;
 
 function RunCleanupCommand(const OptionName, PlanPath: String): Boolean;
@@ -158,8 +149,10 @@ var
   Parameters: String;
 begin
   AppExe := ExpandConstant('{app}\app\ExpressPackingMonitoring.exe');
-  Parameters := OptionName + ' ' + Quote(PlanPath) +
-    ' --uninstall-log ' + Quote(CleanupLogPath);
+  Parameters := OptionName;
+  if PlanPath <> '' then
+    Parameters := Parameters + ' ' + Quote(PlanPath);
+  Parameters := Parameters + ' --uninstall-log ' + Quote(CleanupLogPath);
   Result :=
     FileExists(AppExe) and
     Exec(AppExe, Parameters, ExpandConstant('{app}\app'), SW_HIDE,
@@ -167,112 +160,170 @@ begin
     (ResultCode = 0);
 end;
 
-procedure PrepareRecordingCleanup;
+function ShowUninstallOptions: Boolean;
 var
-  Json: AnsiString;
-  FileCount: Int64;
-  TotalBytes: Int64;
-  ConfirmationText: String;
+  OptionsForm: TSetupForm;
+  HeadingLabel: TNewStaticText;
+  DescriptionLabel: TNewStaticText;
+  SettingsCheckBox: TNewCheckBox;
+  SettingsHelpLabel: TNewStaticText;
+  RecordingsCheckBox: TNewCheckBox;
+  RecordingsHelpLabel: TNewStaticText;
+  Separator: TBevel;
+  StartButton: TNewButton;
+  CancelButton: TNewButton;
 begin
-  if IsSilentUninstall then
-    Exit;
+  OptionsForm := CreateCustomForm(ScaleX(520), ScaleY(300), True, True);
+  try
+    OptionsForm.Caption := CustomMessage('UninstallOptionsTitle');
+    OptionsForm.Position := poScreenCenter;
+    OptionsForm.BorderStyle := bsDialog;
 
-  if SuppressibleMsgBox(
-       '是否同时删除数据库登记的录像原文件？' + #13#10 + #13#10 +
-       '默认不会删除录像。选择“是”后会先统计文件数量和容量，并再次确认。' +
-       '未被数据库登记的文件和目录不会删除。',
-       mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then
+    HeadingLabel := TNewStaticText.Create(OptionsForm);
+    HeadingLabel.Parent := OptionsForm;
+    HeadingLabel.Left := ScaleX(24);
+    HeadingLabel.Top := ScaleY(22);
+    HeadingLabel.Width := ScaleX(472);
+    HeadingLabel.AutoSize := False;
+    HeadingLabel.Caption := CustomMessage('UninstallOptionsHeading');
+    HeadingLabel.Font.Size := 13;
+    HeadingLabel.Font.Style := [fsBold];
+
+    DescriptionLabel := TNewStaticText.Create(OptionsForm);
+    DescriptionLabel.Parent := OptionsForm;
+    DescriptionLabel.Left := ScaleX(24);
+    DescriptionLabel.Top := ScaleY(54);
+    DescriptionLabel.Width := ScaleX(472);
+    DescriptionLabel.AutoSize := False;
+    DescriptionLabel.WordWrap := True;
+    DescriptionLabel.Caption := CustomMessage('UninstallOptionsDescription');
+    DescriptionLabel.Font.Color := clGray;
+
+    SettingsCheckBox := TNewCheckBox.Create(OptionsForm);
+    SettingsCheckBox.Parent := OptionsForm;
+    SettingsCheckBox.Left := ScaleX(24);
+    SettingsCheckBox.Top := ScaleY(92);
+    SettingsCheckBox.Width := ScaleX(472);
+    SettingsCheckBox.Caption := CustomMessage('UninstallDeleteSettings');
+    SettingsCheckBox.Checked := False;
+    SettingsCheckBox.Font.Style := [fsBold];
+
+    SettingsHelpLabel := TNewStaticText.Create(OptionsForm);
+    SettingsHelpLabel.Parent := OptionsForm;
+    SettingsHelpLabel.Left := ScaleX(48);
+    SettingsHelpLabel.Top := ScaleY(116);
+    SettingsHelpLabel.Width := ScaleX(448);
+    SettingsHelpLabel.Height := ScaleY(34);
+    SettingsHelpLabel.AutoSize := False;
+    SettingsHelpLabel.WordWrap := True;
+    SettingsHelpLabel.Caption := CustomMessage('UninstallDeleteSettingsHelp');
+    SettingsHelpLabel.Font.Color := clGray;
+
+    RecordingsCheckBox := TNewCheckBox.Create(OptionsForm);
+    RecordingsCheckBox.Parent := OptionsForm;
+    RecordingsCheckBox.Left := ScaleX(24);
+    RecordingsCheckBox.Top := ScaleY(158);
+    RecordingsCheckBox.Width := ScaleX(472);
+    RecordingsCheckBox.Caption := CustomMessage('UninstallDeleteRecordings');
+    RecordingsCheckBox.Checked := False;
+    RecordingsCheckBox.Font.Style := [fsBold];
+
+    RecordingsHelpLabel := TNewStaticText.Create(OptionsForm);
+    RecordingsHelpLabel.Parent := OptionsForm;
+    RecordingsHelpLabel.Left := ScaleX(48);
+    RecordingsHelpLabel.Top := ScaleY(182);
+    RecordingsHelpLabel.Width := ScaleX(448);
+    RecordingsHelpLabel.Height := ScaleY(36);
+    RecordingsHelpLabel.AutoSize := False;
+    RecordingsHelpLabel.WordWrap := True;
+    RecordingsHelpLabel.Caption := CustomMessage('UninstallDeleteRecordingsHelp');
+    RecordingsHelpLabel.Font.Color := clGray;
+
+    Separator := TBevel.Create(OptionsForm);
+    Separator.Parent := OptionsForm;
+    Separator.Left := 0;
+    Separator.Top := ScaleY(238);
+    Separator.Width := OptionsForm.ClientWidth;
+    Separator.Height := ScaleY(1);
+    Separator.Shape := bsTopLine;
+
+    StartButton := TNewButton.Create(OptionsForm);
+    StartButton.Parent := OptionsForm;
+    StartButton.Width := ScaleX(112);
+    StartButton.Height := ScaleY(32);
+    StartButton.Left := OptionsForm.ClientWidth - ScaleX(248);
+    StartButton.Top := ScaleY(254);
+    StartButton.Caption := CustomMessage('UninstallStart');
+    StartButton.Default := True;
+    StartButton.ModalResult := mrOk;
+
+    CancelButton := TNewButton.Create(OptionsForm);
+    CancelButton.Parent := OptionsForm;
+    CancelButton.Width := ScaleX(112);
+    CancelButton.Height := ScaleY(32);
+    CancelButton.Left := OptionsForm.ClientWidth - ScaleX(128);
+    CancelButton.Top := ScaleY(254);
+    CancelButton.Caption := CustomMessage('UninstallCancel');
+    CancelButton.Cancel := True;
+    CancelButton.ModalResult := mrCancel;
+
+    Result := OptionsForm.ShowModal = mrOk;
+    if Result then
+    begin
+      DeleteLocalData := SettingsCheckBox.Checked;
+      DeleteRecordings := RecordingsCheckBox.Checked;
+    end;
+  finally
+    OptionsForm.Free;
+  end;
+end;
+
+function InitializeUninstall: Boolean;
+begin
+  DeleteLocalData := False;
+  DeleteRecordings := False;
+  CleanupFailed := False;
+
+  if IsSilentUninstall and not HasCommandLineArgument('/EPMUNINSTALLOPTIONS') then
+    Result := True
+  else
+    Result := ShowUninstallOptions;
+end;
+
+procedure PrepareRecordingCleanup;
+begin
+  if not DeleteRecordings then
     Exit;
 
   if not RunCleanupCommand('--uninstall-plan-recordings', CleanupPlanPath) then
   begin
-    RecordingCleanupFailed := True;
-    MsgBox(
-      '无法读取录像数据库，录像文件和本机应用数据均已保留。' + #13#10 +
-      '详情见：' + CleanupLogPath,
-      mbError, MB_OK);
+    CleanupFailed := True;
     Exit;
   end;
-
-  if not LoadStringFromFile(CleanupPlanPath, Json) then
-  begin
-    RecordingCleanupFailed := True;
-    MsgBox('无法读取录像清理清单，录像文件和本机应用数据均已保留。', mbError, MB_OK);
-    Exit;
-  end;
-
-  try
-    FileCount := ExtractJsonInt64(String(Json), 'TotalFiles');
-    TotalBytes := ExtractJsonInt64(String(Json), 'TotalBytes');
-  except
-    RecordingCleanupFailed := True;
-    MsgBox('录像清理清单格式无效，录像文件和本机应用数据均已保留。', mbError, MB_OK);
-    Exit;
-  end;
-
-  if FileCount = 0 then
-  begin
-    MsgBox('数据库中没有找到仍然存在的录像文件。', mbInformation, MB_OK);
-    Exit;
-  end;
-
-  ConfirmationText :=
-    '即将永久删除 ' + IntToStr(FileCount) + ' 个录像文件，合计约 ' +
-    FormatByteCount(TotalBytes) + '。' + #13#10 + #13#10 +
-    '此操作不可撤销。是否确认删除？';
-  if SuppressibleMsgBox(
-       ConfirmationText,
-       mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then
-    Exit;
 
   if not RunCleanupCommand('--uninstall-delete-recordings', CleanupPlanPath) then
-  begin
-    RecordingCleanupFailed := True;
-    MsgBox(
-      '部分录像未能安全删除。本机应用数据已保留，便于继续核对和重试。' +
-      Chr(13) + Chr(10) + '详情见：' + CleanupLogPath,
-      mbError, MB_OK);
-  end;
+    CleanupFailed := True;
 end;
 
 procedure PrepareLocalDataCleanup;
 begin
-  if IsSilentUninstall then
-  begin
-    DeleteLocalData := False;
+  if not DeleteLocalData or CleanupFailed then
     Exit;
-  end;
-
-  DeleteLocalData :=
-    SuppressibleMsgBox(
-      '是否删除本机应用数据？' + #13#10 + #13#10 +
-      '这会删除配置、数据库、日志和缓存。默认保留这些数据。' + #13#10 +
-      '如果不同时删除录像，录像原文件会保留，但历史索引将被删除。',
-      mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES;
+  if not RunCleanupCommand('--uninstall-delete-local-data', '') then
+    CleanupFailed := True;
 end;
 
-procedure DeleteLocalApplicationData;
+procedure CurStepChanged(CurStep: TSetupStep);
 var
-  UserDataPath: String;
-  ExpectedPath: String;
+  UninstallSubkey: String;
+  UninstallCommand: String;
 begin
-  if not DeleteLocalData or RecordingCleanupFailed then
+  if CurStep <> ssPostInstall then
     Exit;
 
-  UserDataPath := RemoveBackslashUnlessRoot(
-    ExpandConstant('{localappdata}\ExpressPackingMonitoring'));
-  ExpectedPath := RemoveBackslashUnlessRoot(
-    AddBackslash(ExpandConstant('{localappdata}')) + 'ExpressPackingMonitoring');
-  if CompareText(UserDataPath, ExpectedPath) <> 0 then
-  begin
-    MsgBox('本机应用数据路径校验失败，数据已保留。', mbError, MB_OK);
-    Exit;
-  end;
-
-  if DirExists(UserDataPath) and not DelTree(UserDataPath, True, True, True) then
-    MsgBox(
-      '部分本机应用数据未能删除，请稍后手动检查：' + UserDataPath,
-      mbError, MB_OK);
+  UninstallSubkey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}_is1';
+  UninstallCommand := Quote(ExpandConstant('{uninstallexe}')) + ' /SILENT /EPMUNINSTALLOPTIONS';
+  RegWriteStringValue(HKCU64, UninstallSubkey, 'UninstallString', UninstallCommand);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -282,13 +333,14 @@ begin
     CleanupPlanPath := ExpandConstant('{tmp}\ExpressPackingMonitoring-uninstall-recordings.json');
     CleanupLogPath := ExpandConstant('{tmp}\ExpressPackingMonitoring-Uninstall.log');
     DeleteFile(CleanupPlanPath);
-    RecordingCleanupFailed := False;
-    PrepareLocalDataCleanup;
+    CleanupFailed := False;
     PrepareRecordingCleanup;
+    PrepareLocalDataCleanup;
+    if CleanupFailed then
+      MsgBox(
+        FmtMessage(CustomMessage('UninstallCleanupFailed'), [CleanupLogPath]),
+        mbError, MB_OK);
   end
   else if CurUninstallStep = usPostUninstall then
-  begin
-    DeleteLocalApplicationData;
     DeleteFile(CleanupPlanPath);
-  end;
 end;

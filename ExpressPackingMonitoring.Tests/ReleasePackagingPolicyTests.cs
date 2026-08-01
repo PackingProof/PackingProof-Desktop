@@ -176,7 +176,17 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains(@"Filename: ""{app}\{#MyAppExeName}""; WorkingDir: ""{app}""", innoScript);
         Assert.Contains("--uninstall-plan-recordings", innoScript);
         Assert.Contains("--uninstall-delete-recordings", innoScript);
-        Assert.Contains("MB_DEFBUTTON2", innoScript);
+        Assert.Contains("--uninstall-delete-local-data", innoScript);
+        Assert.Contains("删除设置和临时文件", innoScript);
+        Assert.Contains("不会删除录像、录像记录和恢复备份", innoScript);
+        Assert.Contains("删除录像和录像记录", innoScript);
+        Assert.Contains("SettingsCheckBox.Checked := False", innoScript);
+        Assert.Contains("RecordingsCheckBox.Checked := False", innoScript);
+        Assert.Contains("/SILENT /EPMUNINSTALLOPTIONS", innoScript);
+        Assert.DoesNotContain("MB_DEFBUTTON2", innoScript);
+        Assert.DoesNotContain("是否删除本机应用数据", innoScript);
+        Assert.DoesNotContain("是否同时删除数据库登记的录像原文件", innoScript);
+        Assert.DoesNotContain("DelTree(UserDataPath", innoScript);
         Assert.DoesNotContain("WizardSilent", innoScript);
 
         Assert.Contains("INNO_SETUP_ISCC", buildScript);

@@ -32,6 +32,7 @@ internal static class UninstallCleanupService
 {
     private const string PlanOption = "--uninstall-plan-recordings";
     private const string DeleteOption = "--uninstall-delete-recordings";
+    private const string DeleteLocalDataOption = "--uninstall-delete-local-data";
     private const string LogOption = "--uninstall-log";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -40,7 +41,10 @@ internal static class UninstallCleanupService
         exitCode = 0;
         string planPath = GetOptionValue(args, PlanOption);
         string deletePlanPath = GetOptionValue(args, DeleteOption);
-        if (string.IsNullOrWhiteSpace(planPath) && string.IsNullOrWhiteSpace(deletePlanPath))
+        bool deleteLocalData = HasOption(args, DeleteLocalDataOption);
+        if (string.IsNullOrWhiteSpace(planPath) &&
+            string.IsNullOrWhiteSpace(deletePlanPath) &&
+            !deleteLocalData)
             return false;
 
         string logPath = GetOptionValue(args, LogOption);
@@ -60,9 +64,19 @@ internal static class UninstallCleanupService
                 throw new InvalidOperationException("快递打包监控仍在运行，请关闭所有程序窗口后重试");
             }
 
-            UninstallCleanupResult result = !string.IsNullOrWhiteSpace(planPath)
-                ? CreateRecordingPlan(databasePath, planPath, logPath)
-                : ExecuteRecordingPlan(databasePath, deletePlanPath, logPath);
+            UninstallCleanupResult result;
+            if (!string.IsNullOrWhiteSpace(planPath))
+            {
+                result = CreateRecordingPlan(databasePath, planPath, logPath);
+            }
+            else if (!string.IsNullOrWhiteSpace(deletePlanPath))
+            {
+                result = ExecuteRecordingCleanup(userDataDirectory, deletePlanPath, logPath);
+            }
+            else
+            {
+                result = DeleteLocalSettingsAndCache(userDataDirectory, logPath);
+            }
             AppendLog(logPath, result.Message);
             exitCode = result.Success ? 0 : 1;
         }
@@ -237,6 +251,74 @@ internal static class UninstallCleanupService
         return new UninstallCleanupResult(success, deletedFiles, deletedBytes, message);
     }
 
+    internal static UninstallCleanupResult ExecuteRecordingCleanup(
+        string userDataDirectory,
+        string planPath,
+        string logPath)
+    {
+        string normalizedUserDataDirectory = NormalizeDirectoryPath(userDataDirectory);
+        string databasePath = Path.Combine(normalizedUserDataDirectory, "videos.db");
+        UninstallCleanupResult recordings = ExecuteRecordingPlan(databasePath, planPath, logPath);
+        if (!recordings.Success)
+        {
+            AppendLog(logPath, "Recording database and backups preserved because recording cleanup was incomplete.");
+            return recordings;
+        }
+
+        SqliteConnection.ClearAllPools();
+        var failures = new List<string>();
+        foreach (string databaseFile in new[] { databasePath + "-wal", databasePath + "-shm", databasePath })
+            TryDeleteFileInsideRoot(normalizedUserDataDirectory, databaseFile, failures, logPath);
+
+        if (failures.Count == 0)
+        {
+            string backupsDirectory = Path.Combine(normalizedUserDataDirectory, "backups");
+            TryDeleteDirectoryInsideRoot(normalizedUserDataDirectory, backupsDirectory, failures, logPath);
+        }
+        else
+        {
+            AppendLog(logPath, "Recovery backups preserved because recording database cleanup was incomplete.");
+        }
+
+        bool success = failures.Count == 0;
+        string message = success
+            ? $"Recording cleanup completed and database removed: files={recordings.ProcessedFiles}, bytes={recordings.ProcessedBytes}"
+            : $"Recordings were removed, but recording metadata cleanup was incomplete:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}";
+        AppendLog(logPath, message);
+        return new UninstallCleanupResult(success, recordings.ProcessedFiles, recordings.ProcessedBytes, message);
+    }
+
+    internal static UninstallCleanupResult DeleteLocalSettingsAndCache(
+        string userDataDirectory,
+        string logPath)
+    {
+        string normalizedUserDataDirectory = NormalizeDirectoryPath(userDataDirectory);
+        var failures = new List<string>();
+
+        TryDeleteFileInsideRoot(
+            normalizedUserDataDirectory,
+            Path.Combine(normalizedUserDataDirectory, "config.json"),
+            failures,
+            logPath);
+        TryDeleteDirectoryInsideRoot(
+            normalizedUserDataDirectory,
+            Path.Combine(normalizedUserDataDirectory, "log"),
+            failures,
+            logPath);
+        TryDeleteDirectoryInsideRoot(
+            normalizedUserDataDirectory,
+            Path.Combine(normalizedUserDataDirectory, "cache"),
+            failures,
+            logPath);
+
+        bool success = failures.Count == 0;
+        string message = success
+            ? "Local settings, logs, and cache removed."
+            : $"Local settings cleanup incomplete:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}";
+        AppendLog(logPath, message);
+        return new UninstallCleanupResult(success, 0, 0, message);
+    }
+
     private static HashSet<string> ReadRegisteredPaths(string databasePath)
     {
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -337,6 +419,71 @@ internal static class UninstallCleanupService
         return Path.GetFullPath(path);
     }
 
+    private static string NormalizeDirectoryPath(string path)
+    {
+        string normalized = NormalizeRootedPath(path)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(Path.GetFileName(normalized)))
+            throw new InvalidDataException("卸载数据目录不能是磁盘根目录");
+        return normalized;
+    }
+
+    private static void TryDeleteFileInsideRoot(
+        string rootDirectory,
+        string filePath,
+        List<string> failures,
+        string logPath)
+    {
+        string normalizedPath = EnsureDirectChild(rootDirectory, filePath);
+        try
+        {
+            if (!File.Exists(normalizedPath))
+                return;
+            AppendLog(logPath, $"Deleting uninstall-owned file: {normalizedPath}");
+            File.Delete(normalizedPath);
+            if (File.Exists(normalizedPath))
+                throw new IOException("文件删除后仍然存在");
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"删除失败：{normalizedPath}，{ex.Message}");
+            AppendLog(logPath, $"Uninstall-owned file deletion failed: path={normalizedPath}, error={ex}");
+        }
+    }
+
+    private static void TryDeleteDirectoryInsideRoot(
+        string rootDirectory,
+        string directoryPath,
+        List<string> failures,
+        string logPath)
+    {
+        string normalizedPath = EnsureDirectChild(rootDirectory, directoryPath);
+        try
+        {
+            if (!Directory.Exists(normalizedPath))
+                return;
+            AppendLog(logPath, $"Deleting uninstall-owned directory: {normalizedPath}");
+            Directory.Delete(normalizedPath, recursive: true);
+            if (Directory.Exists(normalizedPath))
+                throw new IOException("目录删除后仍然存在");
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"删除失败：{normalizedPath}，{ex.Message}");
+            AppendLog(logPath, $"Uninstall-owned directory deletion failed: path={normalizedPath}, error={ex}");
+        }
+    }
+
+    private static string EnsureDirectChild(string rootDirectory, string candidatePath)
+    {
+        string normalizedRoot = NormalizeDirectoryPath(rootDirectory);
+        string normalizedCandidate = NormalizeRootedPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.Equals(Path.GetDirectoryName(normalizedCandidate), normalizedRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"卸载目标不在允许的数据目录中：{normalizedCandidate}");
+        return normalizedCandidate;
+    }
+
     private static string GetUserDataDirectory()
     {
         string? overridePath = Environment.GetEnvironmentVariable("EPM_USER_DATA_DIR");
@@ -360,6 +507,11 @@ internal static class UninstallCleanupService
                 return (args[index + 1] ?? "").Trim().Trim('"');
         }
         return "";
+    }
+
+    private static bool HasOption(string[] args, string optionName)
+    {
+        return args.Any(argument => string.Equals(argument, optionName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void AppendLog(string logPath, string message)

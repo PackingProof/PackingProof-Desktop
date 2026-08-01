@@ -172,10 +172,83 @@ public sealed class UninstallCleanupTests
         Assert.True(File.Exists(registered));
     }
 
+    [Fact]
+    public void ExecuteRecordingCleanup_DeletesManagedRecordingsBeforeDatabaseAndBackups()
+    {
+        using var fixture = new CleanupFixture();
+        string registered = fixture.CreateFile("recordings", "registered.mp4", "video-data");
+        string unregistered = fixture.CreateFile("recordings", "unregistered.mp4", "keep");
+        string backup = fixture.CreateFile("backups", "videos-backup.db", "backup");
+        fixture.Register(registered, "ORDER-1");
+        fixture.CreatePlan();
+
+        UninstallCleanupResult result = UninstallCleanupService.ExecuteRecordingCleanup(
+            fixture.Root,
+            fixture.PlanPath,
+            fixture.LogPath);
+
+        Assert.True(result.Success, result.Message);
+        Assert.False(File.Exists(registered));
+        Assert.True(File.Exists(unregistered));
+        Assert.False(File.Exists(fixture.DatabasePath));
+        Assert.False(File.Exists(backup));
+        Assert.False(Directory.Exists(Path.Combine(fixture.Root, "backups")));
+
+        string log = File.ReadAllText(fixture.LogPath, Encoding.UTF8);
+        Assert.True(
+            log.IndexOf("Deleted registered recording", StringComparison.Ordinal) <
+            log.IndexOf("Deleting uninstall-owned file", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ExecuteRecordingCleanup_OnRecordingFailurePreservesDatabaseAndBackups()
+    {
+        using var fixture = new CleanupFixture();
+        string registered = fixture.CreateFile("recordings", "changed.mp4", "original");
+        string backup = fixture.CreateFile("backups", "videos-backup.db", "backup");
+        fixture.Register(registered, "ORDER-1");
+        fixture.CreatePlan();
+        File.AppendAllText(registered, "-changed", Encoding.UTF8);
+
+        UninstallCleanupResult result = UninstallCleanupService.ExecuteRecordingCleanup(
+            fixture.Root,
+            fixture.PlanPath,
+            fixture.LogPath);
+
+        Assert.False(result.Success);
+        Assert.True(File.Exists(registered));
+        Assert.True(File.Exists(fixture.DatabasePath));
+        Assert.True(File.Exists(backup));
+    }
+
+    [Fact]
+    public void DeleteLocalSettingsAndCache_UsesAllowListAndPreservesRecordingData()
+    {
+        using var fixture = new CleanupFixture();
+        string config = fixture.CreateFile("", "config.json", "{}");
+        string log = fixture.CreateFile("log", "runtime.log", "log");
+        string cache = fixture.CreateFile("cache", "preview.tmp", "cache");
+        string backup = fixture.CreateFile("backups", "videos-backup.db", "backup");
+        string recording = fixture.CreateFile("recordings", "keep.mp4", "video");
+
+        UninstallCleanupResult result = UninstallCleanupService.DeleteLocalSettingsAndCache(
+            fixture.Root,
+            fixture.LogPath);
+
+        Assert.True(result.Success);
+        Assert.False(File.Exists(config));
+        Assert.False(File.Exists(log));
+        Assert.False(File.Exists(cache));
+        Assert.True(File.Exists(fixture.DatabasePath));
+        Assert.True(File.Exists(backup));
+        Assert.True(File.Exists(recording));
+    }
+
     private sealed class CleanupFixture : IDisposable
     {
         private readonly string _root;
 
+        public string Root => _root;
         public string DatabasePath { get; }
         public string PlanPath { get; }
         public string LogPath { get; }
