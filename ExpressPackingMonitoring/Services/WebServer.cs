@@ -163,7 +163,9 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKinds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
         private readonly ConcurrentDictionary<string, long> _backupEnrollmentAttempts = new(StringComparer.OrdinalIgnoreCase);
-        private readonly ConcurrentDictionary<string, Lazy<BackupDeviceEnrollmentOperation>> _pendingBackupEnrollments = new(StringComparer.OrdinalIgnoreCase);
+        private readonly object _backupEnrollmentApprovalLock = new();
+        private string _activeBackupEnrollmentKey;
+        private Lazy<BackupDeviceEnrollmentOperation> _activeBackupEnrollment;
         private readonly SemaphoreSlim _orderLookupSignal = new(0);
         private int _activeOrderLookupPolls;
         private long _lastOrderLookupPollUtcTicks;
@@ -1116,11 +1118,36 @@ namespace ExpressPackingMonitoring.Services
             }
             _backupEnrollmentAttempts[rateLimitKey] = now;
             string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}";
-            Lazy<BackupDeviceEnrollmentOperation> pending = _pendingBackupEnrollments.GetOrAdd(
-                pendingKey,
-                _ => new Lazy<BackupDeviceEnrollmentOperation>(
-                    () => ProcessBackupDeviceEnrollment(request),
-                    LazyThreadSafetyMode.ExecutionAndPublication));
+            Lazy<BackupDeviceEnrollmentOperation> pending;
+            lock (_backupEnrollmentApprovalLock)
+            {
+                if (_activeBackupEnrollment == null)
+                {
+                    _activeBackupEnrollmentKey = pendingKey;
+                    _activeBackupEnrollment = new Lazy<BackupDeviceEnrollmentOperation>(
+                        () => ProcessBackupDeviceEnrollment(request),
+                        LazyThreadSafetyMode.ExecutionAndPublication);
+                }
+                else if (!string.Equals(
+                             _activeBackupEnrollmentKey,
+                             pendingKey,
+                             StringComparison.OrdinalIgnoreCase))
+                {
+                    RuntimeLog.Info(
+                        "BackupEnrollment",
+                        $"Connection deferred while another approval is active deviceKind={deviceKind}, deviceId={SafeDeviceId(deviceId)}, remote={remoteAddress}");
+                    ctx.Response.Headers["Retry-After"] = "3";
+                    SendJson(ctx, 429, new
+                    {
+                        errorCode = "enrollment_approval_busy",
+                        error = "保存主机正在确认另一台设备，请稍后自动重试",
+                        retryAfterSeconds = 3
+                    });
+                    return;
+                }
+
+                pending = _activeBackupEnrollment;
+            }
             BackupDeviceEnrollmentOperation operation;
             try
             {
@@ -1128,8 +1155,14 @@ namespace ExpressPackingMonitoring.Services
             }
             finally
             {
-                _pendingBackupEnrollments.TryRemove(
-                    new KeyValuePair<string, Lazy<BackupDeviceEnrollmentOperation>>(pendingKey, pending));
+                lock (_backupEnrollmentApprovalLock)
+                {
+                    if (ReferenceEquals(_activeBackupEnrollment, pending))
+                    {
+                        _activeBackupEnrollment = null;
+                        _activeBackupEnrollmentKey = null;
+                    }
+                }
             }
             if (operation.Decision == BackupDeviceEnrollmentApprovalDecision.Denied)
             {

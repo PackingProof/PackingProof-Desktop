@@ -6,6 +6,8 @@ namespace ExpressPackingMonitoring.UI;
 
 internal static class BackupDeviceEnrollmentApprovalPrompt
 {
+    private static readonly TimeSpan ApprovalTimeout = TimeSpan.FromSeconds(65);
+
     internal static BackupDeviceEnrollmentApprovalDecision Show(
         Window? requestedOwner,
         BackupDeviceEnrollmentRequest request)
@@ -14,11 +16,20 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
         if (application?.Dispatcher == null || application.Dispatcher.HasShutdownStarted)
             return BackupDeviceEnrollmentApprovalDecision.Unavailable;
 
+        if (application.Dispatcher.CheckAccess())
+        {
+            RuntimeLog.Warn("BackupEnrollment", "Approval prompt was requested on the UI thread");
+            return BackupDeviceEnrollmentApprovalDecision.Unavailable;
+        }
+
+        var completion = new TaskCompletionSource<BackupDeviceEnrollmentApprovalDecision>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            return application.Dispatcher.CheckAccess()
-                ? ShowCore(requestedOwner, request)
-                : application.Dispatcher.Invoke(() => ShowCore(requestedOwner, request));
+            _ = application.Dispatcher.InvokeAsync(() => ShowCore(requestedOwner, request, completion));
+            return completion.Task.Wait(ApprovalTimeout)
+                ? completion.Task.GetAwaiter().GetResult()
+                : BackupDeviceEnrollmentApprovalDecision.Unavailable;
         }
         catch (Exception ex)
         {
@@ -27,16 +38,20 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
         }
     }
 
-    private static BackupDeviceEnrollmentApprovalDecision ShowCore(
+    private static void ShowCore(
         Window? requestedOwner,
-        BackupDeviceEnrollmentRequest request)
+        BackupDeviceEnrollmentRequest request,
+        TaskCompletionSource<BackupDeviceEnrollmentApprovalDecision> completion)
     {
         Window? owner = requestedOwner is { IsLoaded: true }
             ? requestedOwner
             : Application.Current?.Windows.OfType<Window>()
                 .FirstOrDefault(window => window.IsLoaded && window.IsVisible);
         if (owner == null)
-            return BackupDeviceEnrollmentApprovalDecision.Unavailable;
+        {
+            completion.TrySetResult(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+            return;
+        }
 
         if (!owner.IsVisible)
             owner.Show();
@@ -44,20 +59,10 @@ internal static class BackupDeviceEnrollmentApprovalPrompt
             owner.WindowState = WindowState.Normal;
         owner.Activate();
 
-        string kind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-            ? "录制电脑"
-            : "手机";
-        string name = string.IsNullOrWhiteSpace(request.DeviceName) ? kind : request.DeviceName;
         RuntimeLog.Info("BackupEnrollment", $"Showing approval prompt deviceKind={request.DeviceKind}, remote={request.RemoteAddress}");
-        bool approved = AppDialog.Confirm(
-            owner,
-            $"{name}（{request.RemoteAddress}）申请连接这台保存主机。允许后，该设备只能上传、查看和确认自己录制的录像",
-            "允许设备连接？",
-            confirmText: "允许连接",
-            cancelText: "拒绝",
-            severity: AppDialogSeverity.Information);
-        return approved
-            ? BackupDeviceEnrollmentApprovalDecision.Approved
-            : BackupDeviceEnrollmentApprovalDecision.Denied;
+        var prompt = new BackupDeviceEnrollmentApprovalWindow(request) { Owner = owner };
+        prompt.Completed += decision => completion.TrySetResult(decision);
+        prompt.Show();
+        prompt.Activate();
     }
 }

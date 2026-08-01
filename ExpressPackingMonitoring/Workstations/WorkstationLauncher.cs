@@ -593,64 +593,80 @@ public static class WorkstationNetwork
         string deviceId,
         string deviceName,
         string deviceKind,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        Func<TimeSpan, CancellationToken, Task>? retryDelay = null)
     {
         address = NormalizeAddress(address);
         if (address.Length == 0 || string.IsNullOrWhiteSpace(deviceId))
             throw new InvalidOperationException("保存主机地址或本机身份无效");
         using var client = CreateLanHttpClient(TimeSpan.FromSeconds(90));
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"{ToUrl(address)}/api/mobile-backup/enroll")
+        retryDelay ??= Task.Delay;
+        for (int attempt = 0; ; attempt++)
         {
-            Content = JsonContent.Create(new
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"{ToUrl(address)}/api/mobile-backup/enroll")
             {
-                deviceId = deviceId.Trim(),
-                deviceName = deviceName?.Trim() ?? "",
-                deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                    ? "pc"
-                    : "mobile",
-                clientVersion = BackupCompatibilityPolicy.MinimumDesktopVersion,
-                clientBuildNumber = 0,
-                backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
-                enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
-                authVersion = BackupCompatibilityPolicy.AuthenticationVersion
-            })
-        };
-        using HttpResponseMessage response = await client.SendAsync(request, token);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            throw new InvalidOperationException("保存主机版本过旧，请先更新电脑端");
-        if ((int)response.StatusCode == 429)
-            throw new InvalidOperationException("连接请求过于频繁，请稍后重试");
-        if (response.StatusCode == HttpStatusCode.Forbidden)
-            throw new InvalidOperationException("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”");
-        if (response.StatusCode == HttpStatusCode.Conflict)
-            throw new InvalidOperationException("这台电脑当前不是录像文件备份主机");
-        if ((int)response.StatusCode == 426)
-        {
-            BackupCompatibilityError? error = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
+                Content = JsonContent.Create(new
+                {
+                    deviceId = deviceId.Trim(),
+                    deviceName = deviceName?.Trim() ?? "",
+                    deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                        ? "pc"
+                        : "mobile",
+                    clientVersion = BackupCompatibilityPolicy.MinimumDesktopVersion,
+                    clientBuildNumber = 0,
+                    backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
+                    enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
+                    authVersion = BackupCompatibilityPolicy.AuthenticationVersion
+                })
+            };
+            using HttpResponseMessage response = await client.SendAsync(request, token);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                throw new InvalidOperationException("保存主机版本过旧，请先更新电脑端");
+            if ((int)response.StatusCode == 429)
+            {
+                BackupCompatibilityError? busy = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
+                    NetworkJsonOptions,
+                    token);
+                if (string.Equals(busy?.ErrorCode, "enrollment_approval_busy", StringComparison.OrdinalIgnoreCase)
+                    && attempt < 9)
+                {
+                    await retryDelay(TimeSpan.FromSeconds(3), token);
+                    continue;
+                }
+                throw new InvalidOperationException("连接请求过于频繁，请稍后重试");
+            }
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+                throw new InvalidOperationException("保存主机未允许本机连接，可重新申请并在保存主机上点“允许连接”");
+            if (response.StatusCode == HttpStatusCode.Conflict)
+                throw new InvalidOperationException("这台电脑当前不是录像文件备份主机");
+            if ((int)response.StatusCode == 426)
+            {
+                BackupCompatibilityError? error = await response.Content.ReadFromJsonAsync<BackupCompatibilityError>(
+                    NetworkJsonOptions,
+                    token);
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(error?.Error)
+                        ? "当前录制工位版本过低，请更新电脑端后重新连接"
+                        : error.Error);
+            }
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException("保存主机暂时无法处理连接申请，请稍后重试");
+            BackupDeviceEnrollmentResult? result = await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
                 NetworkJsonOptions,
                 token);
-            throw new InvalidOperationException(
-                string.IsNullOrWhiteSpace(error?.Error)
-                    ? "当前录制工位版本过低，请更新电脑端后重新连接"
-                    : error.Error);
+            if (result == null
+                || result.Protocol != "mobile-backup-v2"
+                || result.Version != 2
+                || result.AuthVersion != BackupRequestAuthentication.CurrentVersion
+                || result.DeviceToken.Length < 32
+                || !string.Equals(result.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("保存主机返回的设备令牌无效");
+            }
+            return result;
         }
-        if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"保存主机拒绝连接（{(int)response.StatusCode}）");
-        BackupDeviceEnrollmentResult? result = await response.Content.ReadFromJsonAsync<BackupDeviceEnrollmentResult>(
-            NetworkJsonOptions,
-            token);
-        if (result == null
-            || result.Protocol != "mobile-backup-v2"
-            || result.Version != 2
-            || result.AuthVersion != BackupRequestAuthentication.CurrentVersion
-            || result.DeviceToken.Length < 32
-            || !string.Equals(result.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("保存主机返回的设备令牌无效");
-        }
-        return result;
     }
 
     public static async Task<TestOrderBroadcastResult> SendTestOrderToRecordingDevicesAsync(

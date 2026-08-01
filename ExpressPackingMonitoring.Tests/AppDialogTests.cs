@@ -105,11 +105,16 @@ public sealed class AppDialogTests
             "ViewModels",
             "MainViewModel.cs");
 
-        Assert.Contains(
-            "application.Dispatcher.Invoke(() => ShowCore(requestedOwner, request))",
-            prompt,
-            StringComparison.Ordinal);
+        string window = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "BackupDeviceEnrollmentApprovalWindow.xaml");
+
+        Assert.Contains("application.Dispatcher.InvokeAsync", prompt, StringComparison.Ordinal);
         Assert.Contains("Application.Current?.Windows", prompt, StringComparison.Ordinal);
+        Assert.Contains("prompt.Show();", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowDialog", prompt, StringComparison.Ordinal);
+        Assert.Contains("60 秒内未处理", window, StringComparison.Ordinal);
         Assert.Contains(
             "BackupDeviceEnrollmentApprovalPrompt.Show(null, request)",
             mainViewModel,

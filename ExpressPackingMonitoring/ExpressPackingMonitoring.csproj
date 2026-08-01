@@ -152,6 +152,7 @@
     <Compile Include="ViewModels\MainViewModel.Transfer.cs" />
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalPrompt.cs" />
+    <Compile Include="UI\BackupDeviceEnrollmentApprovalWindow.xaml.cs" />
     <Compile Include="UI\ConfirmDialog.xaml.cs" />
     <Compile Include="UI\CloseBehaviorDialog.xaml.cs" />
     <Compile Include="UI\CameraBarcodeUpgradeDialog.xaml.cs" />

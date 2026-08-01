@@ -280,6 +280,66 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public async Task DifferentDeviceIsDeferredWhileOneApprovalIsActive()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        int approvalCount = 0;
+        using var approvalEntered = new ManualResetEventSlim();
+        using var releaseApproval = new ManualResetEventSlim();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                {
+                    Interlocked.Increment(ref approvalCount);
+                    approvalEntered.Set();
+                    releaseApproval.Wait(TestContext.Current.CancellationToken);
+                    return BackupDeviceEnrollmentApprovalDecision.Approved;
+                });
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+
+            Task<HttpResponseMessage> first = client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment("first-approval-device", "第一台手机"),
+                TestContext.Current.CancellationToken);
+            Assert.True(approvalEntered.Wait(
+                TimeSpan.FromSeconds(5),
+                TestContext.Current.CancellationToken));
+
+            using HttpResponseMessage second = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment("second-approval-device", "第二台手机"),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+            Assert.Equal("3", second.Headers.RetryAfter?.Delta?.TotalSeconds.ToString("0"));
+            using JsonDocument body = JsonDocument.Parse(
+                await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal("enrollment_approval_busy", body.RootElement.GetProperty("errorCode").GetString());
+            Assert.Equal(1, approvalCount);
+
+            releaseApproval.Set();
+            using HttpResponseMessage firstResponse = await first;
+            Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        }
+        finally
+        {
+            releaseApproval.Set();
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void ComputerIdIsGeneratedOnceAndThenRemainsStable()
     {
         var config = new AppConfig { WebAccessKey = AccessKey };
