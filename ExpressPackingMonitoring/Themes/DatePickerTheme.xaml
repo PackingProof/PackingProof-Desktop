@@ -3,8 +3,8 @@
         <Setter Property="Control.Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type DatePickerTextBox}">
-                    <Border CornerRadius="6" Background="Transparent" 
-                            BorderBrush="Transparent" BorderThickness="0" Padding="8,4">
+                    <Border CornerRadius="6" Background="{StaticResource TransparentBrush}"
+                            BorderBrush="{StaticResource TransparentBrush}" BorderThickness="0" Padding="8,4">
                         <ScrollViewer x:Name="PART_ContentHost" Margin="0" />
                     </Border>
                 </ControlTemplate>
@@ -14,7 +14,7 @@
 
     <!-- DatePicker Button -->
     <ControlTemplate x:Key="DropDownButtonTemplate" TargetType="Button">
-        <Border x:Name="Border" CornerRadius="0,6,6,0" Background="Transparent" Padding="4">
+        <Border x:Name="Border" CornerRadius="0,6,6,0" Background="{StaticResource TransparentBrush}" Padding="4">
             <Path x:Name="Icon" Fill="{DynamicResource TextSecondary}" Stretch="Uniform" Height="14" Width="14" 
                   Data="M 0,0 L 20,0 L 20,20 L 0,20 Z M 2,4 L 18,4 L 18,18 L 2,18 Z M 5,6 L 7,6 L 7,8 L 5,8 Z" />
         </Border>

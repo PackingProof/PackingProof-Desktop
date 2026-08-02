@@ -82,18 +82,20 @@ namespace ExpressPackingMonitoring.Helpers
 
             int imgWidth = totalModules * moduleWidth;
             int imgHeight = height;
+            Brush background = ResolveBrush("BarcodeBackground");
+            Brush foreground = ResolveBrush("BarcodeForeground");
 
             var visual = new DrawingVisual();
             using (var dc = visual.RenderOpen())
             {
-                dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, imgWidth, imgHeight));
+                dc.DrawRectangle(background, null, new Rect(0, 0, imgWidth, imgHeight));
 
                 int x = 2 * moduleWidth; // quiet zone
                 // Draw all code patterns
                 foreach (var code in allCodes)
-                    x = DrawPattern(dc, Patterns[code], x, imgHeight, moduleWidth);
+                    x = DrawPattern(dc, Patterns[code], x, imgHeight, moduleWidth, foreground);
                 // Draw stop pattern
-                DrawPattern(dc, StopPattern, x, imgHeight, moduleWidth);
+                DrawPattern(dc, StopPattern, x, imgHeight, moduleWidth, foreground);
             }
 
             var rtb = new RenderTargetBitmap(imgWidth, imgHeight, 96, 96, PixelFormats.Pbgra32);
@@ -102,14 +104,24 @@ namespace ExpressPackingMonitoring.Helpers
             return rtb;
         }
 
-        private static int DrawPattern(DrawingContext dc, int[] pattern, int x, int height, int moduleWidth)
+        private static Brush ResolveBrush(string resourceKey) =>
+            Application.Current?.TryFindResource(resourceKey) as Brush
+            ?? throw new InvalidOperationException($"Missing brush resource: {resourceKey}");
+
+        private static int DrawPattern(
+            DrawingContext dc,
+            int[] pattern,
+            int x,
+            int height,
+            int moduleWidth,
+            Brush foreground)
         {
             bool isBar = true;
             foreach (var w in pattern)
             {
                 int pixelWidth = w * moduleWidth;
                 if (isBar)
-                    dc.DrawRectangle(Brushes.Black, null, new Rect(x, 0, pixelWidth, height));
+                    dc.DrawRectangle(foreground, null, new Rect(x, 0, pixelWidth, height));
                 x += pixelWidth;
                 isBar = !isBar;
             }

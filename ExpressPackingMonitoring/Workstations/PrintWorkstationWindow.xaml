@@ -341,10 +341,10 @@
                       Height="18"
                       Margin="0,0,9,0"
                       Stretch="Uniform"
-                      Fill="White"
+                      Fill="{StaticResource TextOnAccent}"
                       VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding ToastState.ToastMessage, RelativeSource={RelativeSource AncestorType=Window}}"
-                           Foreground="White"
+                           Foreground="{StaticResource TextOnAccent}"
                            FontSize="15"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"

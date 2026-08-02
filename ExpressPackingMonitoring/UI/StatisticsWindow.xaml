@@ -10,7 +10,7 @@
         <Style x:Key="MetricButtonStyle" TargetType="RadioButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
             <Setter Property="Width" Value="80"/>
             <Setter Property="Height" Value="30"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Template">
@@ -25,7 +25,7 @@
             <Style.Triggers>
                 <Trigger Property="IsChecked" Value="True">
                     <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
-                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -164,7 +164,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="1,0"
-                                      Background="Transparent"
+                                      Background="{StaticResource TransparentBrush}"
                                       ToolTipService.InitialShowDelay="0"
                                       ToolTipService.BetweenShowDelay="0"
                                       ToolTipService.ShowDuration="60000">

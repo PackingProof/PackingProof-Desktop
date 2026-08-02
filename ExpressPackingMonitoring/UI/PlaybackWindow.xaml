@@ -70,7 +70,7 @@
                     </StackPanel>
                     <Grid>
                         <TextBox x:Name="SearchBox" FontSize="14" Padding="5,5,28,5" TextChanged="TextFilterChanged" BorderBrush="{DynamicResource AccentBlueDark}" BorderThickness="2"/>
-                        <Button Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="Transparent" BorderThickness="0" Focusable="False" Click="BtnClearSearch_Click">
+                        <Button Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="{StaticResource TransparentBrush}" BorderThickness="0" Focusable="False" Click="BtnClearSearch_Click">
                             <Path Data="{StaticResource FluentDismissIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}"/>
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -104,7 +104,7 @@
                     </Button>
                 </StackPanel>
 
-                <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <ListView x:Name="VideoList" Grid.Row="1" FontSize="14" SelectionChanged="VideoList_SelectionChanged" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="Margin" Value="0,0,0,8"/>
@@ -264,7 +264,7 @@
 
                         <Button x:Name="BtnTogglePlay" Grid.Column="0" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnTogglePlay_Click" ToolTip="播放" Margin="0,0,15,0">
                             <StackPanel Orientation="Horizontal">
-                                <Path x:Name="PlayStateIcon" Data="{StaticResource FluentPlayIcon}" Width="15" Height="15" Stretch="Uniform" Fill="White" Margin="0,0,6,0"/>
+                                <Path x:Name="PlayStateIcon" Data="{StaticResource FluentPlayIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
                                 <TextBlock x:Name="PlayStateText" Text="播放"/>
                             </StackPanel>
                         </Button>
@@ -274,11 +274,11 @@
                                 Thumb.DragCompleted="TimelineSlider_DragCompleted" 
                                 ValueChanged="TimelineSlider_ValueChanged"/>
 
-                        <TextBlock x:Name="TimeLabel" Grid.Column="2" MinWidth="145" Text="00:00:00 / 00:00:00" Foreground="White" VerticalAlignment="Center" Margin="15,0,0,0" FontFamily="Consolas"/>
+                        <TextBlock x:Name="TimeLabel" Grid.Column="2" MinWidth="145" Text="00:00:00 / 00:00:00" Foreground="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="15,0,0,0" FontFamily="Consolas"/>
 
                         <Button x:Name="BtnLocateFile" Grid.Column="3" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" Margin="15,0,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="White" Margin="0,0,6,0"/>
+                                <Path Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
                                 <TextBlock Text="定位文件"/>
                             </StackPanel>
                         </Button>

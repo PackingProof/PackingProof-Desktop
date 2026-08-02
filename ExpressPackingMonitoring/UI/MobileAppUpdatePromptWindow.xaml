@@ -11,7 +11,7 @@
         ShowInTaskbar="False"
         ShowActivated="False"
         WindowStartupLocation="Manual"
-        Background="Transparent"
+        Background="{StaticResource TransparentBrush}"
         Foreground="{DynamicResource TextPrimary}"
         AutomationProperties.Name="手机 App 更新提示">
     <Border Background="{DynamicResource PanelBackground}"

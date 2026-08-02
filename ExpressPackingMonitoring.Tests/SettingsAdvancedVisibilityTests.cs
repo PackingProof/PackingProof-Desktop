@@ -60,7 +60,7 @@ public sealed class SettingsAdvancedVisibilityTests
                 && (string?)element.Attribute("Value") == "{DynamicResource AccentBlue}");
         Assert.Contains(checkedTrigger.Descendants(Presentation + "Setter"),
             element => (string?)element.Attribute("Property") == "Foreground"
-                && (string?)element.Attribute("Value") == "White");
+                && (string?)element.Attribute("Value") == "{StaticResource TextOnAccent}");
         Assert.Contains(template.Descendants(Presentation + "MultiTrigger").Descendants(Presentation + "Setter"),
             element => (string?)element.Attribute("Property") == "Background"
                 && (string?)element.Attribute("Value") == "{DynamicResource AccentBlueDark}");

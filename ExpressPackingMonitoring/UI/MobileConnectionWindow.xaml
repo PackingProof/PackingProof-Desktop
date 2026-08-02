@@ -82,7 +82,7 @@
                                     Height="232"
                                     Padding="10"
                                     CornerRadius="10"
-                                    Background="White"
+                                    Background="{StaticResource QrCodeBackground}"
                                     BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1">
                                 <Image x:Name="QrCodeImage"
@@ -193,7 +193,7 @@
                                 Height="232"
                                 Padding="10"
                                 CornerRadius="10"
-                                Background="White"
+                                Background="{StaticResource QrCodeBackground}"
                                 BorderBrush="{DynamicResource BorderDefault}"
                                 BorderThickness="1">
                             <Image x:Name="MobileAppQrCodeImage"

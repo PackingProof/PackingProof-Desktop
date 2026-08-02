@@ -1316,14 +1316,10 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "UI",
             "FirstUseSetupWizardWindow.xaml");
-        string lightTheme = ReadRepositoryFile(
+        string colorTokens = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "Themes",
-            "LightTheme.xaml");
-        string darkTheme = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "Themes",
-            "DarkTheme.xaml");
+            "ColorTokens.xaml");
 
         Assert.Contains("x:Key=\"CameraPreviewOverlayButtonStyle\"", wizard, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource CameraPreviewOverlayButtonBackground}", wizard, StringComparison.Ordinal);
@@ -1333,12 +1329,9 @@ public sealed class DeploymentStartupTests
             "Style=\"{StaticResource CameraPreviewOverlayButtonStyle}\"",
             wizard,
             StringComparison.Ordinal);
-        foreach (string theme in new[] { lightTheme, darkTheme })
-        {
-            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBackground\"", theme, StringComparison.Ordinal);
-            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBorder\"", theme, StringComparison.Ordinal);
-            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonText\"", theme, StringComparison.Ordinal);
-        }
+        Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBackground\"", colorTokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBorder\"", colorTokens, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"CameraPreviewOverlayButtonText\"", colorTokens, StringComparison.Ordinal);
     }
 
     [Fact]

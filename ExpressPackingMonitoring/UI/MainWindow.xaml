@@ -21,7 +21,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBoxItem">
@@ -43,7 +43,7 @@
                             </Trigger>
                             <Trigger Property="IsSelected" Value="true">
                                 <Setter TargetName="Gd" Property="Background" Value="{DynamicResource AccentBlue}"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -59,7 +59,7 @@
         </Style>
 
         <Style TargetType="Button" x:Key="ModernBtn">
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -121,14 +121,14 @@
                             <Button Grid.Column="0" Command="{Binding ToggleModeCommand}" Focusable="False" Margin="0,0,16,0" Cursor="Hand" ToolTip="点击切换模式" Height="52" MinWidth="130">
                                 <Button.Style>
                                     <Style TargetType="Button">
-                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
                                         <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="{TemplateBinding Background}" CornerRadius="8">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0">
-                                                            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                             <TextBlock Text="{Binding CurrentMode, Converter={StaticResource LocalizedTextConverter}}" FontSize="24" FontWeight="Black" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
@@ -163,7 +163,7 @@
                                         </Style>
                                     </TextBox.Resources>
                                 </TextBox>
-                                <Button Command="{Binding ClearScanInputCommand}" Focusable="False" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="Transparent" BorderThickness="0">
+                                <Button Command="{Binding ClearScanInputCommand}" Focusable="False" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="{StaticResource TransparentBrush}" BorderThickness="0">
                                     <Path Data="{StaticResource FluentDismissIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource TextMuted}"/>
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
@@ -192,8 +192,8 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <Path x:Name="RecordActionIcon" Data="{StaticResource FluentRecordIcon}" Width="20" Height="20" Stretch="Uniform" Fill="White" Margin="0,0,8,0"/>
-                                                        <TextBlock x:Name="RecordActionText" Text="{x:Static localization:AppLanguage.StartRecordingText}" Foreground="White" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
+                                                        <Path x:Name="RecordActionIcon" Data="{StaticResource FluentRecordIcon}" Width="20" Height="20" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,8,0"/>
+                                                        <TextBlock x:Name="RecordActionText" Text="{x:Static localization:AppLanguage.StartRecordingText}" Foreground="{StaticResource TextOnAccent}" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
@@ -223,7 +223,7 @@
                                                 <Condition Binding="{Binding IsBusy}" Value="True"/>
                                                 <Condition Binding="{Binding IsShutdownInProgress}" Value="False"/>
                                             </MultiDataTrigger.Conditions>
-                                            <Setter Property="Background" Value="#A0A0A0"/> <!-- 灰色表示被锁定 -->
+                                            <Setter Property="Background" Value="{DynamicResource DisabledActionBackground}"/>
                                         </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding IsShutdownInProgress}" Value="True">
                                             <Setter Property="IsHitTestVisible" Value="False"/>
@@ -244,10 +244,10 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    IsHitTestVisible="False"
-                                   Stroke="#990078D7"
+                                   Stroke="{StaticResource CameraGuideStroke}"
                                    StrokeThickness="3"
                                    StrokeDashArray="4 2"
-                                   Fill="Transparent"
+                                   Fill="{StaticResource TransparentBrush}"
                                    Visibility="Collapsed"
                                    Opacity="1"
                                    RadiusX="2" RadiusY="2"/>
@@ -273,16 +273,16 @@
                             <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="3" StrokeDashArray="6 3">
                                 <Rectangle.Style>
                                     <Style TargetType="Rectangle">
-                                        <Setter Property="Stroke" Value="#CC0078D7"/>
-                                        <Setter Property="Fill" Value="#080078D7"/>
+                                        <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
+                                        <Setter Property="Fill" Value="{StaticResource CameraGuideFill}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
-                                                <Setter Property="Stroke" Value="#FFFFA000"/>
-                                                <Setter Property="Fill" Value="#10FFA000"/>
+                                                <Setter Property="Stroke" Value="{StaticResource CameraCandidateStroke}"/>
+                                                <Setter Property="Fill" Value="{StaticResource CameraCandidateFill}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
-                                                <Setter Property="Stroke" Value="#FF22A65A"/>
-                                                <Setter Property="Fill" Value="#1822A65A"/>
+                                                <Setter Property="Stroke" Value="{StaticResource CameraConfirmedStroke}"/>
+                                                <Setter Property="Fill" Value="{StaticResource CameraConfirmedFill}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -295,19 +295,19 @@
                                     CornerRadius="6">
                                 <Border.Style>
                                     <Style TargetType="Border">
-                                        <Setter Property="Background" Value="#CC0067B8"/>
+                                        <Setter Property="Background" Value="{StaticResource AccentBlue}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
-                                                <Setter Property="Background" Value="#DDC47A00"/>
+                                                <Setter Property="Background" Value="{StaticResource AccentOrange}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
-                                                <Setter Property="Background" Value="#DD188447"/>
+                                                <Setter Property="Background" Value="{StaticResource AccentGreen}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
                                 <TextBlock Text="{Binding CameraBarcodeStatusText}"
-                                           Foreground="White"
+                                           Foreground="{StaticResource TextOnAccent}"
                                            FontSize="13"
                                            FontWeight="SemiBold"/>
                             </Border>
@@ -326,30 +326,30 @@
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Setter Property="Background" Value="#E6A46300"/>
-                                        <Setter Property="BorderBrush" Value="#FFFFC15A"/>
+                                        <Setter Property="Background" Value="{StaticResource WarningOverlay}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource WarningOverlayBorder}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsPreviewAlertVisible}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsPreviewAlertCritical}" Value="True">
-                                                <Setter Property="Background" Value="#E6A12626"/>
-                                                <Setter Property="BorderBrush" Value="#FFFF8A80"/>
+                                                <Setter Property="Background" Value="{StaticResource DangerOverlay}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource DangerOverlayBorder}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
                                 <StackPanel>
                                     <TextBlock Text="{Binding PreviewAlertText}"
-                                               Foreground="White"
+                                               Foreground="{StaticResource TextOnAccent}"
                                                FontSize="22"
                                                FontWeight="SemiBold"
                                                LineHeight="31"
                                                TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="#E61C2533"
-                                    BorderBrush="#FFFFC857"
+                            <Border Background="{StaticResource OverlayStrong}"
+                                    BorderBrush="{StaticResource WarningOverlayBorder}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="12,10">
@@ -365,7 +365,7 @@
                                 </Border.Style>
                                 <StackPanel>
                                     <TextBlock Text="{Binding PreviewOrderRemarkText}"
-                                               Foreground="White"
+                                               Foreground="{StaticResource TextOnAccent}"
                                                FontSize="22"
                                                FontWeight="Bold"
                                                LineHeight="31"
@@ -383,7 +383,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="{Binding PreviewOrderDetailText}"
-                                               Foreground="White"
+                                               Foreground="{StaticResource TextOnAccent}"
                                                FontSize="15"
                                                FontWeight="SemiBold"
                                                LineHeight="22"
@@ -414,14 +414,14 @@
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
-                            <Border Background="#DD1a1a2e" CornerRadius="10"/>
+                            <Border Background="{StaticResource OverlayStrong}" CornerRadius="10"/>
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Path Data="{StaticResource FluentSleepIcon}" Width="52" Height="52" Stretch="Uniform" Fill="#AAFFFFFF" HorizontalAlignment="Center" Margin="0,0,0,12"/>
-                                <TextBlock Text="摄像头已休眠" FontSize="22" FontWeight="Bold" Foreground="#AAFFFFFF" HorizontalAlignment="Center"/>
-                                <TextBlock Text="点击任意位置唤醒，再将面单放入识别框" FontSize="14" Foreground="#88FFFFFF" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                <Path Data="{StaticResource FluentSleepIcon}" Width="52" Height="52" Stretch="Uniform" Fill="{StaticResource OverlayTextSecondary}" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                                <TextBlock Text="摄像头已休眠" FontSize="22" FontWeight="Bold" Foreground="{StaticResource OverlayTextSecondary}" HorizontalAlignment="Center"/>
+                                <TextBlock Text="点击任意位置唤醒，再将面单放入识别框" FontSize="14" Foreground="{StaticResource OverlayTextMuted}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
                                 <TextBlock Text="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”"
                                            FontSize="12"
-                                           Foreground="#77FFFFFF"
+                                           Foreground="{StaticResource OverlayTextMuted}"
                                            TextAlignment="Center"
                                            TextWrapping="Wrap"
                                            MaxWidth="620"
@@ -519,7 +519,7 @@
                     <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,0,0,6">
                         <TextBlock Text="本机录制动态" FontSize="18" FontWeight="Black" Foreground="{DynamicResource TextPrimary}"/>
                     </Border>
-                    <ListView Grid.Row="2" ItemsSource="{Binding FilteredLogs}" AlternationCount="2" BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView Grid.Row="2" ItemsSource="{Binding FilteredLogs}" AlternationCount="2" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <!-- 容器 Border -->
@@ -535,11 +535,11 @@
                                                         <TranslateTransform x:Name="ShimmerTransform" X="-1" />
                                                     </LinearGradientBrush.RelativeTransform>
                                                     <!-- 渐变点设计：透明 -> 浅红 -> 高亮白红(核心) -> 浅红 -> 透明 -->
-                                                    <GradientStop Color="Transparent" Offset="0"/>
-                                                    <GradientStop Color="#10FF0000" Offset="0.3"/>
-                                                    <GradientStop Color="#B0FF2222" Offset="0.5"/> <!-- 高对比度核心 -->
-                                                    <GradientStop Color="#10FF0000" Offset="0.7"/>
-                                                    <GradientStop Color="Transparent" Offset="1"/>
+                                                    <GradientStop Color="{StaticResource TransparentColor}" Offset="0"/>
+                                                    <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.3"/>
+                                                    <GradientStop Color="{StaticResource RecordingShimmerCoreColor}" Offset="0.5"/>
+                                                    <GradientStop Color="{StaticResource RecordingShimmerEdgeColor}" Offset="0.7"/>
+                                                    <GradientStop Color="{StaticResource TransparentColor}" Offset="1"/>
                                                 </LinearGradientBrush>
                                             </Rectangle.Fill>
                                         </Rectangle>
@@ -638,7 +638,7 @@
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
                                 <Setter Property="BorderThickness" Value="0"/>
                                 <Setter Property="Margin" Value="0"/>
                                 <Setter Property="Padding" Value="0"/>
@@ -661,7 +661,7 @@
                     </ListView>
 
                     <Border Grid.Row="3"
-                            Background="Transparent"
+                            Background="{StaticResource TransparentBrush}"
                             BorderThickness="0"
                             Padding="0"
                             Margin="0,6,0,0">
@@ -1035,7 +1035,7 @@
                                         ToolTip="{Binding MainConnectionButtonToolTip, Mode=OneWay}"
                                         Focusable="False">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" IsHitTestVisible="False">
-                                        <Path Width="14" Height="14" Stretch="Uniform" Fill="White">
+                                        <Path Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource TextOnAccent}">
                                             <Path.Style>
                                                 <Style TargetType="Path">
                                                     <Setter Property="Data" Value="{StaticResource FluentWifiIcon}"/>
@@ -1050,7 +1050,7 @@
                                         <TextBlock Text="{Binding MainConnectionButtonText, Mode=OneWay}"
                                                    Margin="5,0,0,0"
                                                    FontSize="12"
-                                                   Foreground="White"
+                                                   Foreground="{StaticResource TextOnAccent}"
                                                    VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
@@ -1141,7 +1141,7 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Text="{Binding ToastMessage}" Foreground="White" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding ToastMessage}" Foreground="{StaticResource TextOnAccent}" FontSize="18" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

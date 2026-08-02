@@ -117,9 +117,9 @@ public partial class ViewerClientWindow : Window
         HostNameText.Text = node.NodeName;
         HostAddressText.Text = node.Address;
         OnlineStatusText.Text = "在线";
-        OnlineStatusText.Foreground = TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
-        OnlineStatusIndicator.Fill =
-            TryFindResource("AccentGreen") as Brush ?? Brushes.Green;
+        Brush onlineStatusBrush = (Brush)FindResource("AccentGreen");
+        OnlineStatusText.Foreground = onlineStatusBrush;
+        OnlineStatusIndicator.Fill = onlineStatusBrush;
         OpenWebButton.IsEnabled = true;
         if (_bindingOnly)
         {
@@ -158,9 +158,9 @@ public partial class ViewerClientWindow : Window
         OnlineStatusText.Text = _bindingOnly && hasSavedHost
             ? "暂时离线，稍后会自动重试"
             : status;
-        OnlineStatusText.Foreground = TryFindResource("TextSecondary") as Brush ?? Brushes.Gray;
-        OnlineStatusIndicator.Fill =
-            TryFindResource("TextSecondary") as Brush ?? Brushes.Gray;
+        Brush offlineStatusBrush = (Brush)FindResource("TextSecondary");
+        OnlineStatusText.Foreground = offlineStatusBrush;
+        OnlineStatusIndicator.Fill = offlineStatusBrush;
         CapabilitiesText.Text = "—";
         RecorderCountText.Text = "0";
         OpenWebButton.IsEnabled = false;

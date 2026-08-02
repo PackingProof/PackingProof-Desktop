@@ -46,7 +46,7 @@
                                          Grid.Column="3"
                                          Width="16"
                                          Height="16"
-                                         Fill="Transparent"
+                                         Fill="{StaticResource TransparentBrush}"
                                          Stroke="{DynamicResource BorderDefault}"
                                          StrokeThickness="2"
                                          VerticalAlignment="Top"/>
