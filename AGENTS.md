@@ -75,6 +75,8 @@ Use C# with nullable references and implicit usings enabled. Follow the existing
 
 Before every release, run `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`; packaging remains blocked unless the automated checks pass. The real-device scenarios in `RELEASE_CHECKLIST.md` are recommended but non-blocking, and any unverified scenarios must be reported with the release. Do not pass `-ConfirmManualCoreChecks` unless those real-device checks were actually performed.
 
+Before declaring a release ready, perform an explicit release-readiness audit in addition to running the automated checks. Review the complete change set since the previous release and trace the affected critical paths for omitted requirements, unresolved defects or TODOs, newly introduced technical debt, performance or resource-lifetime regressions, and concurrency or race hazards, especially around recording, updates, enrollment, backup, deletion, and file replacement. Investigate every failing or flaky test instead of dismissing it as unrelated, and treat any credible correctness, data-safety, compatibility, performance, or race issue as a release blocker until it is fixed or the user explicitly accepts a documented exception. A successful build or test run alone is not sufficient to declare the release ready.
+
 ## Cross-Device Backup Compatibility
 
 - Treat every change to device enrollment, backup authentication, upload, or verified-receipt behavior as a two-sided protocol change. Hosts and clients must exchange explicit protocol, enrollment, authentication, application-version, and build capabilities instead of inferring compatibility from a display version alone.
