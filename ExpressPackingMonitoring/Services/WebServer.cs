@@ -1719,7 +1719,12 @@ namespace ExpressPackingMonitoring.Services
                     record.FileName,
                     sourceType = record.SourceType ?? "pc",
                     sourceDeviceId = record.SourceDeviceId ?? "",
-                    sourceDeviceName = record.SourceDeviceName ?? "",
+                    sourceDeviceName = ResolveVideoSourceDisplayName(
+                        record.SourceType,
+                        record.SourceDeviceId,
+                        record.SourceDeviceName,
+                        record.SourceDeviceKind,
+                        _nodeName),
                     sourceDeviceKind = record.SourceDeviceKind ?? "",
                     sourceSessionId = record.SourceSessionId ?? "",
                     contentSha256 = record.ContentSha256 ?? "",
@@ -2935,7 +2940,12 @@ namespace ExpressPackingMonitoring.Services
                 videoCodec = r.VideoCodec ?? "",
                 sourceType = r.SourceType ?? "pc",
                 sourceDeviceId = r.SourceDeviceId ?? "",
-                sourceDeviceName = r.SourceDeviceName ?? "",
+                sourceDeviceName = ResolveVideoSourceDisplayName(
+                    r.SourceType,
+                    r.SourceDeviceId,
+                    r.SourceDeviceName,
+                    r.SourceDeviceKind,
+                    _nodeName),
                 sourceDeviceKind = r.SourceDeviceKind ?? "",
                 sourceSessionId = r.SourceSessionId ?? "",
                 contentSha256 = r.ContentSha256 ?? "",
@@ -2974,7 +2984,12 @@ namespace ExpressPackingMonitoring.Services
                         "external",
                         StringComparison.OrdinalIgnoreCase)
                             ? ResolveVideoSourceName(source.DeviceId, source.DeviceName)
-                            : "电脑",
+                            : ResolveVideoSourceDisplayName(
+                                source.SourceType,
+                                source.DeviceId,
+                                source.DeviceName,
+                                "pc",
+                                _nodeName),
                     videoCount = source.VideoCount
                 })
                 .GroupBy(
@@ -3000,6 +3015,33 @@ namespace ExpressPackingMonitoring.Services
             return normalized.Length == 0
                 ? "手机设备"
                 : $"设备 {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
+        }
+
+        internal static string ResolveVideoSourceDisplayName(
+            string sourceType,
+            string deviceId,
+            string deviceName,
+            string deviceKind,
+            string localNodeName)
+        {
+            if (!string.Equals(sourceType, "external", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(localNodeName))
+                    return localNodeName.Trim();
+                if (!string.IsNullOrWhiteSpace(deviceName))
+                    return deviceName.Trim();
+                return "电脑";
+            }
+
+            if (!string.IsNullOrWhiteSpace(deviceName))
+                return deviceName.Trim();
+
+            string normalized = new((deviceId ?? "").Where(char.IsLetterOrDigit).ToArray());
+            if (normalized.Length > 0)
+                return $"设备 {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
+            return string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+                ? "电脑设备"
+                : "手机设备";
         }
 
         private void HandleVideoStatuses(HttpListenerContext ctx)

@@ -142,7 +142,12 @@ public sealed class WebRequestLimitTests
         Assert.Contains("data-icon=\"phoneDesktop\"", html);
         Assert.Contains("data-icon=\"integration\"", html);
         Assert.Contains("external device-color-'+sourceDeviceColor(v)", html);
-        Assert.Contains("status.textContent=external?sourceDeviceDisplayName(v):'电脑'", html);
+        Assert.Contains("status.textContent=sourceDeviceDisplayName(v)", html);
+        Assert.Contains("add('录像来源',sourceDeviceDisplayName(v))", html);
+        Assert.Contains("'录像来源':'Recording source'", html);
+        Assert.Contains("'全部设备':'All devices'", html);
+        Assert.Contains(".replace(/^手机(\\d+)$/g,'Phone $1')", html);
+        Assert.Contains(".replace(/^电脑(\\d+)$/g,'PC $1')", html);
         Assert.Contains("match=/^手机(\\d+)$/", html);
         Assert.Contains("return '设备 '+id.slice(-6)", html);
         Assert.Contains("tagLine.className='tag-line'", html);
