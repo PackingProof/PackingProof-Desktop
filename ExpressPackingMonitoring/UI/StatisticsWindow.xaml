@@ -49,6 +49,7 @@
                         <ComboBoxItem Content="最近7天" Tag="Last7"/>
                         <ComboBoxItem Content="最近30天" Tag="Last30"/>
                         <ComboBoxItem Content="最近1年" Tag="LastYear"/>
+                        <ComboBoxItem Content="本年" Tag="CurrentYear"/>
                         <ComboBoxItem Content="全部" Tag="All"/>
                     </ComboBox>
                     <DatePicker x:Name="PickerStart" Margin="10,0,5,0" Width="120" SelectedDateChanged="OnQueryFilterChanged"/>
@@ -176,7 +177,7 @@
                                                 <TextBlock Text="{Binding DateFull, Mode=OneWay}" FontWeight="Bold" FontSize="14" Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}"/>
                                                 <Grid MinWidth="150">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
 
                                                     <TextBlock Grid.Row="0" Text="打包件数" Foreground="{DynamicResource TextSecondary}"/>
                                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Pieces, Mode=OneWay, StringFormat={}{0} 件}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
@@ -186,6 +187,9 @@
 
                                                     <TextBlock Grid.Row="2" Text="占用空间" Foreground="{DynamicResource TextSecondary}"/>
                                                     <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SizeText, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
+
+                                                    <TextBlock Grid.Row="3" Text="平均单件用时" Foreground="{DynamicResource TextSecondary}" Margin="0,5,0,0"/>
+                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AverageTime, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,5,0,0"/>
                                                 </Grid>
                                             </StackPanel>
                                         </ToolTip>

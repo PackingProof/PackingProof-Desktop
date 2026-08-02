@@ -11,6 +11,7 @@ public sealed class StatisticsWindowTests
     [InlineData("Last7", "2026-07-17", "2026-07-23")]
     [InlineData("Last30", "2026-06-24", "2026-07-23")]
     [InlineData("LastYear", "2025-07-24", "2026-07-23")]
+    [InlineData("CurrentYear", "2026-01-01", "2026-07-23")]
     [InlineData("Month", "2026-07-01", "2026-07-23")]
     [InlineData("All", "2024-07-23", "2026-07-23")]
     public void GetPresetRange_ReturnsInclusiveDateRange(string tag, string expectedStart, string expectedEnd)
@@ -42,6 +43,17 @@ public sealed class StatisticsWindowTests
     }
 
     [Fact]
+    public void GetPresetRange_CurrentYearAtYearStartReturnsTodayOnly()
+    {
+        (DateTime start, DateTime end) = StatisticsWindow.GetPresetRange(
+            "CurrentYear",
+            new DateTime(2026, 1, 1, 18, 30, 0));
+
+        Assert.Equal(new DateTime(2026, 1, 1), start);
+        Assert.Equal(start, end);
+    }
+
+    [Fact]
     public void MetricButtons_RenderCachedDataWithoutStartingAnotherQuery()
     {
         string xaml = File.ReadAllText(FindRepositoryFile(
@@ -60,6 +72,7 @@ public sealed class StatisticsWindowTests
             "ExpressPackingMonitoring", "UI", "StatisticsWindow.xaml"));
 
         Assert.Contains("Content=\"最近1年\" Tag=\"LastYear\"", xaml);
+        Assert.Contains("Content=\"本年\" Tag=\"CurrentYear\"", xaml);
         Assert.Contains("Content=\"按年\" Tag=\"year\"", xaml);
         Assert.Contains("x:Name=\"ChartPlot\"", xaml);
         Assert.Contains("<RowDefinition Height=\"*\"/>", xaml);
@@ -68,6 +81,21 @@ public sealed class StatisticsWindowTests
         Assert.Contains("ToolTipService.BetweenShowDelay=\"0\"", xaml);
         Assert.Contains("ScaleY=\"{Binding BarRatio, Mode=OneWay}\"", xaml);
         Assert.Contains("ItemsSource=\"{Binding XAxisLabels, Mode=OneWay}\"", xaml);
+        Assert.Contains("Text=\"{Binding AverageTime, Mode=OneWay}\"", xaml);
+        Assert.Contains("Text=\"平均单件用时\"", xaml);
+    }
+
+    [Theory]
+    [InlineData(264, 3, "01:28")]
+    [InlineData(10983, 3, "1:01:01")]
+    [InlineData(100, 0, "00:00")]
+    [InlineData(0, 2, "00:00")]
+    public void FormatAverageDuration_ReturnsReadablePerItemTime(
+        double totalDurationSeconds,
+        int totalPieces,
+        string expected)
+    {
+        Assert.Equal(expected, StatisticsWindow.FormatAverageDuration(totalDurationSeconds, totalPieces));
     }
 
     [Fact]

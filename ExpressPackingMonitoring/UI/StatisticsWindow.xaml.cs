@@ -20,6 +20,7 @@ namespace ExpressPackingMonitoring.UI
         public double BarRatio { get; set; }
         public string SizeText { get; set; } = "";
         public string TotalTime { get; set; } = "";
+        public string AverageTime { get; set; } = "";
     }
 
     public class ChartAxisLabel
@@ -194,6 +195,7 @@ namespace ExpressPackingMonitoring.UI
                     DateSub = subLabel,
                     Pieces = h.TotalPieces,
                     TotalTime = TimeSpan.FromSeconds(h.TotalDurationSec).ToString(@"hh\:mm\:ss"),
+                    AverageTime = FormatAverageDuration(h.TotalDurationSec, h.TotalPieces),
                     SizeText = FormatSize(h.TotalBytes),
                     BarRatio = Math.Clamp(currentVal / maxVal, 0, 1)
                 });
@@ -205,7 +207,7 @@ namespace ExpressPackingMonitoring.UI
             SummaryPieces = $"{totalPieces} 件";
             SummarySize = FormatSize(totalBytes);
             SummaryDuration = $"{(int)totalSec / 3600}h {((int)totalSec % 3600) / 60}m";
-            SummaryAvgTime = totalPieces > 0 ? TimeSpan.FromSeconds(totalSec / totalPieces).ToString(@"mm\:ss") : "00:00";
+            SummaryAvgTime = FormatAverageDuration(totalSec, totalPieces);
         }
 
         private void ApplyPreset(string tag)
@@ -230,6 +232,7 @@ namespace ExpressPackingMonitoring.UI
                 "Last7" => (today.AddDays(-6), today),
                 "Last30" => (today.AddDays(-29), today),
                 "LastYear" => (today.AddYears(-1).AddDays(1), today),
+                "CurrentYear" => (new DateTime(today.Year, 1, 1), today),
                 "All" => (today.AddYears(-2), today),
                 _ => (today.AddDays(-6), today)
             };
@@ -323,6 +326,17 @@ namespace ExpressPackingMonitoring.UI
                 return ($"{year}年", "", $"{year}年");
 
             return (value, "", value);
+        }
+
+        internal static string FormatAverageDuration(double totalDurationSeconds, int totalPieces)
+        {
+            if (!double.IsFinite(totalDurationSeconds) || totalDurationSeconds <= 0 || totalPieces <= 0)
+                return "00:00";
+
+            TimeSpan average = TimeSpan.FromSeconds(totalDurationSeconds / totalPieces);
+            return average.TotalHours >= 1
+                ? $"{(int)average.TotalHours}:{average.Minutes:00}:{average.Seconds:00}"
+                : $"{average.Minutes:00}:{average.Seconds:00}";
         }
 
         private void ResetSummary()
