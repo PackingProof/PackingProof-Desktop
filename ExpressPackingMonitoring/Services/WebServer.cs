@@ -176,8 +176,12 @@ namespace ExpressPackingMonitoring.Services
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKinds = new();
         private readonly ConcurrentDictionary<string, long> _backupRequestNonces = new(StringComparer.Ordinal);
         private readonly object _backupEnrollmentApprovalLock = new();
+        private static readonly TimeSpan BackupEnrollmentRetryReuseWindow = TimeSpan.FromSeconds(10);
         private string _activeBackupEnrollmentKey;
         private Lazy<BackupDeviceEnrollmentOperation> _activeBackupEnrollment;
+        private string _recentBackupEnrollmentKey;
+        private BackupDeviceEnrollmentOperation _recentBackupEnrollment;
+        private DateTimeOffset _recentBackupEnrollmentExpiresAtUtc;
         private readonly SemaphoreSlim _orderLookupSignal = new(0);
         private int _activeOrderLookupPolls;
         private long _lastOrderLookupPollUtcTicks;
@@ -1210,16 +1214,30 @@ namespace ExpressPackingMonitoring.Services
                 });
                 return;
             }
-            string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}";
-            Lazy<BackupDeviceEnrollmentOperation> pending;
+            string pendingKey = $"{deviceKind}:{deviceId.ToLowerInvariant()}:{remoteAddress.ToLowerInvariant()}";
+            Lazy<BackupDeviceEnrollmentOperation> pending = null;
+            BackupDeviceEnrollmentOperation operation = null;
             lock (_backupEnrollmentApprovalLock)
             {
                 if (_activeBackupEnrollment == null)
                 {
-                    _activeBackupEnrollmentKey = pendingKey;
-                    _activeBackupEnrollment = new Lazy<BackupDeviceEnrollmentOperation>(
-                        () => ProcessBackupDeviceEnrollment(request),
-                        LazyThreadSafetyMode.ExecutionAndPublication);
+                    if (string.Equals(
+                            _recentBackupEnrollmentKey,
+                            pendingKey,
+                            StringComparison.OrdinalIgnoreCase)
+                        && _recentBackupEnrollment != null
+                        && DateTimeOffset.UtcNow <= _recentBackupEnrollmentExpiresAtUtc)
+                    {
+                        operation = _recentBackupEnrollment;
+                    }
+                    else
+                    {
+                        ClearRecentBackupEnrollment();
+                        _activeBackupEnrollmentKey = pendingKey;
+                        _activeBackupEnrollment = new Lazy<BackupDeviceEnrollmentOperation>(
+                            () => ProcessBackupDeviceEnrollment(request),
+                            LazyThreadSafetyMode.ExecutionAndPublication);
+                    }
                 }
                 else if (!string.Equals(
                              _activeBackupEnrollmentKey,
@@ -1241,19 +1259,29 @@ namespace ExpressPackingMonitoring.Services
 
                 pending = _activeBackupEnrollment;
             }
-            BackupDeviceEnrollmentOperation operation;
-            try
+            if (operation == null)
             {
-                operation = pending.Value;
-            }
-            finally
-            {
-                lock (_backupEnrollmentApprovalLock)
+                try
                 {
-                    if (ReferenceEquals(_activeBackupEnrollment, pending))
+                    operation = pending.Value;
+                }
+                finally
+                {
+                    lock (_backupEnrollmentApprovalLock)
                     {
-                        _activeBackupEnrollment = null;
-                        _activeBackupEnrollmentKey = null;
+                        if (ReferenceEquals(_activeBackupEnrollment, pending))
+                        {
+                            if (operation?.Decision == BackupDeviceEnrollmentApprovalDecision.Approved
+                                && operation.Enrollment != null)
+                            {
+                                _recentBackupEnrollmentKey = pendingKey;
+                                _recentBackupEnrollment = operation;
+                                _recentBackupEnrollmentExpiresAtUtc =
+                                    DateTimeOffset.UtcNow + BackupEnrollmentRetryReuseWindow;
+                            }
+                            _activeBackupEnrollment = null;
+                            _activeBackupEnrollmentKey = null;
+                        }
                     }
                 }
             }
@@ -1293,6 +1321,13 @@ namespace ExpressPackingMonitoring.Services
                 issuedAt = enrollment.IssuedAt,
                 hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion
             });
+        }
+
+        private void ClearRecentBackupEnrollment()
+        {
+            _recentBackupEnrollmentKey = null;
+            _recentBackupEnrollment = null;
+            _recentBackupEnrollmentExpiresAtUtc = default;
         }
 
         private BackupDeviceEnrollmentOperation ProcessBackupDeviceEnrollment(

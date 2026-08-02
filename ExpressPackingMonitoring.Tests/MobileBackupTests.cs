@@ -353,6 +353,58 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public async Task ImmediateEnrollmentRetryReusesApprovedCredentialWithoutAnotherPrompt()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        int approvalCount = 0;
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                deploymentPreset: DeploymentPresets.RecordingHost,
+                backupDeviceEnrollmentApprover: _ =>
+                {
+                    Interlocked.Increment(ref approvalCount);
+                    return BackupDeviceEnrollmentApprovalDecision.Approved;
+                });
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            var request = CreateCompatibleEnrollment("retry-request-device", "测试手机");
+
+            using HttpResponseMessage first = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                request,
+                TestContext.Current.CancellationToken);
+            using HttpResponseMessage retry = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                request,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            Assert.Equal(1, approvalCount);
+            using JsonDocument firstBody = JsonDocument.Parse(
+                await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            using JsonDocument retryBody = JsonDocument.Parse(
+                await retry.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                firstBody.RootElement.GetProperty("deviceToken").GetString(),
+                retryBody.RootElement.GetProperty("deviceToken").GetString());
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task DifferentDeviceIsDeferredWhileOneApprovalIsActive()
     {
         string directory = CreateTempDirectory();
