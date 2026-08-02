@@ -13,8 +13,9 @@ internal sealed class MobileAppUpdatePolicyProvider
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(6);
     private static readonly TimeSpan FailureRetryInterval = TimeSpan.FromMinutes(5);
     private static readonly Regex VersionPattern = new(
-        @"^v?(?<version>\d+\.\d+\.\d+)\+(?<build>\d+)$",
+        @"^v?(?<version>\d+\.\d+\.\d+)(?:\+(?<build>\d+))?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private const int MaximumBuildManifestBytes = 64 * 1024;
     private static readonly HttpClient Client = new()
     {
         Timeout = TimeSpan.FromSeconds(6)
@@ -93,6 +94,15 @@ internal sealed class MobileAppUpdatePolicyProvider
         response.EnsureSuccessStatusCode();
         string json = await response.Content.ReadAsStringAsync(cancellationToken);
         MobileAppReleaseInfo release = ParseLatestRelease(json);
+        if (release.BuildNumber <= 0)
+        {
+            int buildNumber = await TryResolveBuildNumberAsync(
+                json,
+                release.Version,
+                cancellationToken);
+            if (buildNumber > 0)
+                release = release with { BuildNumber = buildNumber };
+        }
         lock (_gate)
             _latestRelease = release;
         SaveCachedRelease(release);
@@ -106,10 +116,16 @@ internal sealed class MobileAppUpdatePolicyProvider
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         string tagName = document?.TagName?.Trim() ?? "";
         Match match = VersionPattern.Match(tagName);
-        if (!match.Success
-            || !int.TryParse(match.Groups["build"].Value, out int buildNumber)
-            || buildNumber <= 0)
+        if (!match.Success)
             throw new InvalidDataException("手机版最新版本格式无效");
+
+        int buildNumber = 0;
+        string buildText = match.Groups["build"].Value;
+        if (buildText.Length > 0
+            && (!int.TryParse(buildText, out buildNumber) || buildNumber <= 0))
+        {
+            throw new InvalidDataException("手机版最新版本格式无效");
+        }
 
         string version = match.Groups["version"].Value;
         return new MobileAppReleaseInfo(
@@ -117,6 +133,87 @@ internal sealed class MobileAppUpdatePolicyProvider
             version,
             buildNumber,
             ResolveDownloadUrl(document?.Assets));
+    }
+
+    private static async Task<int> TryResolveBuildNumberAsync(
+        string releaseJson,
+        string expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        string manifestUrl = ResolveBuildManifestUrl(releaseJson);
+        if (manifestUrl.Length == 0)
+            return 0;
+
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, manifestUrl);
+            request.Headers.UserAgent.ParseAdd("PackingProof-Desktop/1.0");
+            using HttpResponseMessage response = await Client.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength is long contentLength
+                && contentLength > MaximumBuildManifestBytes)
+            {
+                throw new InvalidDataException("手机版构建清单过大");
+            }
+
+            await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
+            if (buffer.Length > MaximumBuildManifestBytes)
+                throw new InvalidDataException("手机版构建清单过大");
+
+            return ParseBuildManifest(
+                System.Text.Encoding.UTF8.GetString(buffer.ToArray()),
+                expectedVersion);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            RuntimeLog.Warn("MobileUpdate", "手机版构建清单读取超时，改用版本号比较");
+            return 0;
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+            or JsonException
+            or InvalidDataException)
+        {
+            RuntimeLog.Warn("MobileUpdate", $"手机版构建清单读取失败，改用版本号比较：{ex.Message}");
+            return 0;
+        }
+    }
+
+    internal static string ResolveBuildManifestUrl(string releaseJson)
+    {
+        MobileAppReleaseDocument? document = JsonSerializer.Deserialize<MobileAppReleaseDocument>(
+            releaseJson,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        MobileAppReleaseAsset? asset = document?.Assets.FirstOrDefault(candidate =>
+            string.Equals(
+                candidate.Name?.Trim(),
+                "build-manifest.json",
+                StringComparison.OrdinalIgnoreCase));
+        return TryResolveTrustedGiteeUrl(asset?.BrowserDownloadUrl, out string url)
+            ? url
+            : "";
+    }
+
+    internal static int ParseBuildManifest(string json, string expectedVersion)
+    {
+        MobileAppBuildManifest? manifest = JsonSerializer.Deserialize<MobileAppBuildManifest>(
+            json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (manifest == null
+            || manifest.VersionCode <= 0
+            || !string.Equals(
+                manifest.VersionName?.Trim(),
+                expectedVersion?.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("手机版构建清单与 Release 版本不匹配");
+        }
+
+        return manifest.VersionCode;
     }
 
     private static string ResolveDownloadUrl(IReadOnlyList<MobileAppReleaseAsset>? assets)
@@ -135,15 +232,25 @@ internal sealed class MobileAppUpdatePolicyProvider
 
         foreach (MobileAppReleaseAsset asset in candidates)
         {
-            if (Uri.TryCreate(asset.BrowserDownloadUrl?.Trim(), UriKind.Absolute, out Uri? uri)
-                && uri.Scheme == Uri.UriSchemeHttps
-                && string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase))
-            {
-                return uri.AbsoluteUri;
-            }
+            if (TryResolveTrustedGiteeUrl(asset.BrowserDownloadUrl, out string url))
+                return url;
         }
 
         return ReleasesUrl;
+    }
+
+    private static bool TryResolveTrustedGiteeUrl(string? value, out string url)
+    {
+        if (Uri.TryCreate(value?.Trim(), UriKind.Absolute, out Uri? uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && string.Equals(uri.Host, "gitee.com", StringComparison.OrdinalIgnoreCase))
+        {
+            url = uri.AbsoluteUri;
+            return true;
+        }
+
+        url = "";
+        return false;
     }
 
     internal static bool IsUpdateAvailable(int currentBuildNumber, MobileAppReleaseInfo latestRelease)
@@ -169,6 +276,12 @@ internal sealed class MobileAppUpdatePolicyProvider
 
         [JsonPropertyName("browser_download_url")]
         public string BrowserDownloadUrl { get; set; } = "";
+    }
+
+    private sealed class MobileAppBuildManifest
+    {
+        public string VersionName { get; set; } = "";
+        public int VersionCode { get; set; }
     }
 
     private static MobileAppReleaseInfo? LoadCachedRelease()

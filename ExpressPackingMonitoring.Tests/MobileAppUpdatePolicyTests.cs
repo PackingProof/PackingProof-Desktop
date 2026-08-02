@@ -50,6 +50,63 @@ public sealed class MobileAppUpdatePolicyTests
     }
 
     [Fact]
+    public void LatestMobileReleaseAcceptsShortTagAndFallsBackToSemanticVersion()
+    {
+        MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
+            """{"tag_name":"v0.6.1"}""");
+
+        Assert.Equal("v0.6.1", release.TagName);
+        Assert.Equal("0.6.1", release.Version);
+        Assert.Equal(0, release.BuildNumber);
+    }
+
+    [Fact]
+    public void ShortTagCanResolveBuildNumberFromTrustedBuildManifest()
+    {
+        string releaseJson =
+            """
+            {
+              "tag_name":"v0.6.1",
+              "assets":[
+                {
+                  "name":"build-manifest.json",
+                  "browser_download_url":"https://gitee.com/PackingProof/PackingProof-Mobile/attach_files/1/download"
+                }
+              ]
+            }
+            """;
+
+        Assert.Equal(
+            "https://gitee.com/PackingProof/PackingProof-Mobile/attach_files/1/download",
+            MobileAppUpdatePolicyProvider.ResolveBuildManifestUrl(releaseJson));
+        Assert.Equal(
+            12001,
+            MobileAppUpdatePolicyProvider.ParseBuildManifest(
+                """{"versionName":"0.6.1","versionCode":12001}""",
+                "0.6.1"));
+    }
+
+    [Theory]
+    [InlineData("https://example.com/build-manifest.json")]
+    [InlineData("http://gitee.com/PackingProof/PackingProof-Mobile/build-manifest.json")]
+    public void ShortTagRejectsUntrustedBuildManifestUrl(string url)
+    {
+        string releaseJson =
+            $$"""{"tag_name":"v0.6.1","assets":[{"name":"build-manifest.json","browser_download_url":"{{url}}"}]}""";
+
+        Assert.Equal("", MobileAppUpdatePolicyProvider.ResolveBuildManifestUrl(releaseJson));
+    }
+
+    [Fact]
+    public void ShortTagRejectsMismatchedBuildManifest()
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            MobileAppUpdatePolicyProvider.ParseBuildManifest(
+                """{"versionName":"0.6.0","versionCode":12001}""",
+                "0.6.1"));
+    }
+
+    [Fact]
     public void LatestMobileReleasePrefersNamedGiteeApkAsset()
     {
         MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
@@ -91,7 +148,6 @@ public sealed class MobileAppUpdatePolicyTests
 
     [Theory]
     [InlineData("""{"tag_name":""}""")]
-    [InlineData("""{"tag_name":"v0.6.1"}""")]
     [InlineData("""{"tag_name":"latest"}""")]
     public void InvalidLatestReleaseIsRejected(string json)
     {
