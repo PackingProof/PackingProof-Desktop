@@ -303,6 +303,7 @@
   <data name="5. 完成" xml:space="preserve"><value>5. 完成</value></data>
   <data name="按日" xml:space="preserve"><value>按日</value></data>
   <data name="按月" xml:space="preserve"><value>按月</value></data>
+  <data name="按年" xml:space="preserve"><value>按年</value></data>
   <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。" xml:space="preserve"><value>按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。</value></data>
   <data name="按周" xml:space="preserve"><value>按周</value></data>
   <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。" xml:space="preserve"><value>按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。</value></data>
@@ -385,6 +386,7 @@
   <data name="总耗时:" xml:space="preserve"><value>总耗时:</value></data>
   <data name="总计时长" xml:space="preserve"><value>总计时长</value></data>
   <data name="最近30天" xml:space="preserve"><value>最近30天</value></data>
+  <data name="最近1年" xml:space="preserve"><value>最近1年</value></data>
   <data name="最近7天" xml:space="preserve"><value>最近7天</value></data>
   <data name="发货" xml:space="preserve"><value>发货</value></data>
   <data name="退货" xml:space="preserve"><value>退货</value></data>

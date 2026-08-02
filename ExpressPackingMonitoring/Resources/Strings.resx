@@ -303,6 +303,7 @@
   <data name="5. 完成" xml:space="preserve"><value>5. Complete</value></data>
   <data name="按日" xml:space="preserve"><value>Daily</value></data>
   <data name="按月" xml:space="preserve"><value>Monthly</value></data>
+  <data name="按年" xml:space="preserve"><value>Yearly</value></data>
   <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。" xml:space="preserve"><value>Select the hardware this computer is connected to. For ordinary computers that view videos, you can directly access the monitoring address using a browser.</value></data>
   <data name="按周" xml:space="preserve"><value>Weekly</value></data>
   <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。" xml:space="preserve"><value>Follow the most basic steps to confirm the packaging mode, camera, microphone and code scanner.</value></data>
@@ -385,6 +386,7 @@
   <data name="总耗时:" xml:space="preserve"><value>Total time:</value></data>
   <data name="总计时长" xml:space="preserve"><value>total duration</value></data>
   <data name="最近30天" xml:space="preserve"><value>Last 30 days</value></data>
+  <data name="最近1年" xml:space="preserve"><value>Last year</value></data>
   <data name="最近7天" xml:space="preserve"><value>Last 7 days</value></data>
   <data name="发货" xml:space="preserve"><value>Shipping</value></data>
   <data name="退货" xml:space="preserve"><value>Return</value></data>

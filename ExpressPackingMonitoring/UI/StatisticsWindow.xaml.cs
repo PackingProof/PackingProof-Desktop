@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -16,10 +17,15 @@ namespace ExpressPackingMonitoring.UI
         public string DateSub { get; set; } = "";
         public string DateFull { get; set; } = "";
         public int Pieces { get; set; }
-        public double BarHeight { get; set; }
+        public double BarRatio { get; set; }
         public string SizeText { get; set; } = "";
         public string TotalTime { get; set; } = "";
-        public Visibility LabelVisibility { get; set; } = Visibility.Visible;
+    }
+
+    public class ChartAxisLabel
+    {
+        public string DateLabel { get; set; } = "";
+        public string DateSub { get; set; } = "";
     }
 
     public partial class StatisticsWindow : Window, INotifyPropertyChanged
@@ -32,8 +38,10 @@ namespace ExpressPackingMonitoring.UI
         private bool _refreshLoopRunning;
         private bool _isClosed;
         private int _refreshRequestVersion;
+        private readonly DispatcherTimer _axisLabelResizeTimer;
 
         public ObservableCollection<ChartItem> ChartData { get; } = new();
+        public ObservableCollection<ChartAxisLabel> XAxisLabels { get; } = new();
         public ObservableCollection<string> YAxisLabels { get; } = new();
 
         private string _summaryPieces = "0 件";
@@ -54,12 +62,22 @@ namespace ExpressPackingMonitoring.UI
             _db = db;
             this.DataContext = this;
             PresetCombo.SelectedIndex = 2;
+            _axisLabelResizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            _axisLabelResizeTimer.Tick += (_, _) =>
+            {
+                _axisLabelResizeTimer.Stop();
+                UpdateAxisLabels();
+            };
 
             this.Loaded += (s, e) => {
                 ApplyPreset("Last7");
                 RequestDataRefresh();
             };
-            this.Closed += (_, _) => _isClosed = true;
+            this.Closed += (_, _) =>
+            {
+                _isClosed = true;
+                _axisLabelResizeTimer.Stop();
+            };
         }
 
         private void RequestDataRefresh()
@@ -120,6 +138,7 @@ namespace ExpressPackingMonitoring.UI
         private void RenderChart()
         {
             ChartData.Clear();
+            XAxisLabels.Clear();
             YAxisLabels.Clear();
 
             if (_cachedHistory.Count == 0)
@@ -150,7 +169,6 @@ namespace ExpressPackingMonitoring.UI
             }
 
             // 3. 生成 X 轴数据
-            int step = _cachedHistory.Count > 12 ? _cachedHistory.Count / 6 : 1;
             int totalPieces = 0;
             long totalBytes = 0;
             double totalSec = 0;
@@ -167,25 +185,21 @@ namespace ExpressPackingMonitoring.UI
                 totalSec += h.TotalDurationSec;
 
                 // 【修复核心】：处理非日期格式的字符串 (W11, 2024-03等)
-                string subLabel = "";
-                if (_cachedGroupMode == "day")
-                {
-                    if (DateTime.TryParse(h.Date, out DateTime dt))
-                        subLabel = GetChineseDayOfWeek(dt);
-                }
+                (string dateLabel, string subLabel, string dateFull) = FormatChartDate(h.Date, _cachedGroupMode);
 
                 ChartData.Add(new ChartItem
                 {
-                    DateFull = h.Date,
-                    DateLabel = h.Date.Length > 10 ? h.Date : h.Date, 
+                    DateFull = dateFull,
+                    DateLabel = dateLabel,
                     DateSub = subLabel,
                     Pieces = h.TotalPieces,
                     TotalTime = TimeSpan.FromSeconds(h.TotalDurationSec).ToString(@"hh\:mm\:ss"),
                     SizeText = FormatSize(h.TotalBytes),
-                    BarHeight = (currentVal / maxVal) * 320.0, // 稍微调高
-                    LabelVisibility = (i % step == 0) ? Visibility.Visible : Visibility.Hidden
+                    BarRatio = Math.Clamp(currentVal / maxVal, 0, 1)
                 });
             }
+
+            UpdateAxisLabels();
 
             // 4. 更新汇总
             SummaryPieces = $"{totalPieces} 件";
@@ -215,6 +229,7 @@ namespace ExpressPackingMonitoring.UI
                 "Month" => (new DateTime(today.Year, today.Month, 1), today),
                 "Last7" => (today.AddDays(-6), today),
                 "Last30" => (today.AddDays(-29), today),
+                "LastYear" => (today.AddYears(-1).AddDays(1), today),
                 "All" => (today.AddYears(-2), today),
                 _ => (today.AddDays(-6), today)
             };
@@ -242,13 +257,81 @@ namespace ExpressPackingMonitoring.UI
                 RenderChart();
         }
 
+        private void ChartPlot_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!IsLoaded || _isClosed || Math.Abs(e.NewSize.Width - e.PreviousSize.Width) < 1)
+                return;
+
+            _axisLabelResizeTimer.Stop();
+            _axisLabelResizeTimer.Start();
+        }
+
+        private void UpdateAxisLabels()
+        {
+            XAxisLabels.Clear();
+            foreach (ChartAxisLabel label in BuildAxisLabels(ChartData, ChartPlot.ActualWidth))
+                XAxisLabels.Add(label);
+        }
+
+        internal static IReadOnlyList<ChartAxisLabel> BuildAxisLabels(
+            IReadOnlyList<ChartItem> chartData,
+            double availableWidth)
+        {
+            if (chartData.Count == 0)
+                return Array.Empty<ChartAxisLabel>();
+
+            int labelCapacity = Math.Clamp((int)Math.Floor(Math.Max(0, availableWidth) / 110), 2, 8);
+            int labelCount = Math.Min(chartData.Count, labelCapacity);
+            var labels = new List<ChartAxisLabel>(labelCount);
+            for (int position = 0; position < labelCount; position++)
+            {
+                int index = labelCount == 1
+                    ? 0
+                    : (int)Math.Round(position * (chartData.Count - 1.0) / (labelCount - 1));
+                ChartItem item = chartData[index];
+                labels.Add(new ChartAxisLabel
+                {
+                    DateLabel = item.DateLabel,
+                    DateSub = item.DateSub
+                });
+            }
+
+            return labels;
+        }
+
+        internal static (string Label, string SubLabel, string FullLabel) FormatChartDate(
+            string value,
+            string groupMode)
+        {
+            if (groupMode == "day" && DateTime.TryParse(value, out DateTime day))
+            {
+                string weekDay = GetChineseDayOfWeek(day);
+                return (day.ToString("MM-dd"), weekDay, $"{day:yyyy年M月d日} {weekDay}");
+            }
+
+            if (groupMode == "week")
+            {
+                string[] parts = value.Split("-W", StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2)
+                    return (parts[0], $"第{parts[1]}周", $"{parts[0]}年第{parts[1]}周");
+            }
+
+            if (groupMode == "month" && DateTime.TryParse($"{value}-01", out DateTime month))
+                return (month.ToString("yyyy"), month.ToString("MM月"), month.ToString("yyyy年M月"));
+
+            if (groupMode == "year" && int.TryParse(value, out int year))
+                return ($"{year}年", "", $"{year}年");
+
+            return (value, "", value);
+        }
+
         private void ResetSummary()
         {
             SummaryPieces = "0 件"; SummarySize = "0 MB"; 
             SummaryDuration = "0h 0m"; SummaryAvgTime = "00:00";
         }
 
-        private string GetChineseDayOfWeek(DateTime dt) => dt.DayOfWeek switch {
+        private static string GetChineseDayOfWeek(DateTime dt) => dt.DayOfWeek switch {
             DayOfWeek.Sunday => "周日", DayOfWeek.Monday => "周一", DayOfWeek.Tuesday => "周二",
             DayOfWeek.Wednesday => "周三", DayOfWeek.Thursday => "周四", DayOfWeek.Friday => "周五",
             DayOfWeek.Saturday => "周六", _ => ""

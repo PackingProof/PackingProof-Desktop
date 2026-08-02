@@ -356,6 +356,33 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void GetAggregatedStats_GroupsCompletedVideosByYear()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            AddCompleted(database, "ORDER-2025-A", "发货", Path.Combine(tempDirectory, "2025-a.mp4"), new DateTime(2025, 2, 1));
+            AddCompleted(database, "ORDER-2025-B", "退货", Path.Combine(tempDirectory, "2025-b.mp4"), new DateTime(2025, 11, 1));
+            AddCompleted(database, "ORDER-2026", "发货", Path.Combine(tempDirectory, "2026.mp4"), new DateTime(2026, 1, 1));
+
+            List<DailyStat> stats = database.GetAggregatedStats(
+                new DateTime(2025, 1, 1),
+                new DateTime(2026, 12, 31),
+                "year");
+
+            Assert.Collection(
+                stats,
+                item => { Assert.Equal("2025", item.Date); Assert.Equal(2, item.TotalPieces); },
+                item => { Assert.Equal("2026", item.Date); Assert.Equal(1, item.TotalPieces); });
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void QueryVideosPaged_ReturnsOnlyRequestedPageFromTenThousandRecords()
     {
         string tempDirectory = CreateTempDirectory();

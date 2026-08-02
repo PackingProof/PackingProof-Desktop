@@ -1818,6 +1818,7 @@ namespace ExpressPackingMonitoring.Data
                 {
                     "week" => "strftime('%Y-W%W', v.StartTime)",
                     "month" => "strftime('%Y-%m', v.StartTime)",
+                    "year" => "strftime('%Y', v.StartTime)",
                     _ => "substr(v.StartTime, 1, 10)"
                 };
 
