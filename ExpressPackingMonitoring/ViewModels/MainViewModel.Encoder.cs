@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ExpressPackingMonitoring.ViewModels
@@ -15,14 +16,21 @@ namespace ExpressPackingMonitoring.ViewModels
     internal sealed record EncoderDetectionResult(
         List<GpuEncoderOption> Options,
         HashSet<string> ValidatedEncoders,
-        bool FfmpegAvailable)
+        bool FfmpegAvailable,
+        NvencDriverCompatibilityIssue? NvencDriverIssue)
     {
         internal bool Succeeded => FfmpegAvailable && ValidatedEncoders.Count > 0;
     }
 
+    internal sealed record NvencDriverCompatibilityIssue(
+        string RequiredApiVersion,
+        string DetectedApiVersion,
+        string MinimumDriverVersion);
+
     public partial class MainViewModel
     {
         internal const int CurrentEncoderDetectionCacheVersion = 3;
+        internal const string NvencDriverTooOldWarningCode = "nvenc_driver_too_old";
 
         private static string QueryFFmpegEncoders(string ffmpegPath)
         {
@@ -102,6 +110,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     detectionConfig.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
                     detectionConfig.IsEncoderDetected = detection.Succeeded;
                     detectionConfig.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+                    UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
+                    if (!ReferenceEquals(Config, detectionConfig))
+                        UpdateEncoderDriverWarning(detectionConfig, detection.NvencDriverIssue);
                     if (!detection.Succeeded)
                     {
                         SaveConfig();
@@ -201,6 +212,76 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex) { return (false, $"exception: {ex.Message}"); }
         }
 
+        internal static NvencDriverCompatibilityIssue? ParseNvencDriverCompatibilityIssue(string? stderr)
+        {
+            if (string.IsNullOrWhiteSpace(stderr)
+                || !stderr.Contains("nvenc", StringComparison.OrdinalIgnoreCase)
+                || (!stderr.Contains("required nvenc API version", StringComparison.OrdinalIgnoreCase)
+                    && !stderr.Contains("minimum required Nvidia driver", StringComparison.OrdinalIgnoreCase)))
+            {
+                return null;
+            }
+
+            Match apiMatch = Regex.Match(
+                stderr,
+                @"Required:\s*(?<required>[0-9.]+)\s+Found:\s*(?<detected>[0-9.]+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            Match driverMatch = Regex.Match(
+                stderr,
+                @"minimum required Nvidia driver for nvenc is\s+(?<driver>[0-9.]+)\s+or newer",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+            return new NvencDriverCompatibilityIssue(
+                apiMatch.Success ? apiMatch.Groups["required"].Value : "",
+                apiMatch.Success ? apiMatch.Groups["detected"].Value : "",
+                driverMatch.Success ? driverMatch.Groups["driver"].Value : "");
+        }
+
+        internal static void UpdateEncoderDriverWarning(
+            AppConfig config,
+            NvencDriverCompatibilityIssue? issue)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            config.EncoderDriverWarningCode = issue == null ? "" : NvencDriverTooOldWarningCode;
+            config.EncoderDriverRequiredApiVersion = issue?.RequiredApiVersion ?? "";
+            config.EncoderDriverDetectedApiVersion = issue?.DetectedApiVersion ?? "";
+            config.EncoderDriverMinimumVersion = issue?.MinimumDriverVersion ?? "";
+        }
+
+        internal static string? BuildEncoderDriverWarningMessage(AppConfig config)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            if (!string.Equals(
+                    EncodingHelper.NormalizeGpuSetting(config.GpuEncoder),
+                    "nvidia",
+                    StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(
+                    config.EncoderDriverWarningCode,
+                    NvencDriverTooOldWarningCode,
+                    StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var details = new List<string>();
+            if (!string.IsNullOrWhiteSpace(config.EncoderDriverRequiredApiVersion)
+                && !string.IsNullOrWhiteSpace(config.EncoderDriverDetectedApiVersion))
+            {
+                details.Add(
+                    $"NVENC API：需要 {config.EncoderDriverRequiredApiVersion}，当前驱动仅提供 {config.EncoderDriverDetectedApiVersion}");
+            }
+            if (!string.IsNullOrWhiteSpace(config.EncoderDriverMinimumVersion))
+                details.Add($"FFmpeg 要求 NVIDIA 驱动版本不低于 {config.EncoderDriverMinimumVersion}");
+
+            string detailText = details.Count == 0
+                ? "当前 NVIDIA 驱动无法满足 FFmpeg 的 NVENC 版本要求"
+                : string.Join("\n", details);
+            return
+                "已检测到 NVIDIA 显卡驱动与当前 FFmpeg 的 NVENC 版本不兼容。\n\n" +
+                detailText + "\n\n" +
+                "程序已自动改用 CPU 软编码，录像仍可继续。请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器。";
+        }
+
         private static bool WaitForEncoderProbeExit(Process process, int timeoutMs)
         {
             if (process.WaitForExit(timeoutMs))
@@ -241,6 +322,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
             };
             var validated = new HashSet<string>();
+            NvencDriverCompatibilityIssue? nvencDriverIssue = null;
 
             log.AppendLine($"FFmpeg 路径: {ffmpegPath}");
             log.AppendLine($"FFmpeg 存在: {!string.IsNullOrEmpty(ffmpegPath) && File.Exists(ffmpegPath)}");
@@ -249,7 +331,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 log.AppendLine("FFmpeg 不存在，跳过检测");
                 WriteEncoderLog(log);
-                return new EncoderDetectionResult(list, validated, false);
+                return new EncoderDetectionResult(list, validated, false, null);
             }
 
             string output = QueryFFmpegEncoders(ffmpegPath);
@@ -306,6 +388,10 @@ namespace ExpressPackingMonitoring.ViewModels
                         validated.Add(enc);
                         anyPassed = true;
                     }
+                    else if (enc.EndsWith("_nvenc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        nvencDriverIssue ??= ParseNvencDriverCompatibilityIssue(testDetail);
+                    }
                 }
 
                 if (anyPassed)
@@ -316,7 +402,7 @@ namespace ExpressPackingMonitoring.ViewModels
             log.AppendLine($"已验证编码器: {string.Join(", ", validated)}");
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 检测结束 ===");
             WriteEncoderLog(log);
-            return new EncoderDetectionResult(list, validated, true);
+            return new EncoderDetectionResult(list, validated, true, nvencDriverIssue);
         }
 
         private static void WriteEncoderLog(StringBuilder log)

@@ -489,6 +489,7 @@ public sealed class RecordingSpecificationTests
         Assert.False(result.FfmpegAvailable);
         Assert.False(result.Succeeded);
         Assert.Empty(result.ValidatedEncoders);
+        Assert.Null(result.NvencDriverIssue);
     }
 
     private static RealtimeEncodingBenchmarkResult Benchmark(

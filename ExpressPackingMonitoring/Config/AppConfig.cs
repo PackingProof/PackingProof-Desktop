@@ -241,6 +241,10 @@ namespace ExpressPackingMonitoring.Config
         public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
         public int EncoderDetectionCacheVersion { get; set; } = 0;
+        public string EncoderDriverWarningCode { get; set; } = "";
+        public string EncoderDriverRequiredApiVersion { get; set; } = "";
+        public string EncoderDriverDetectedApiVersion { get; set; } = "";
+        public string EncoderDriverMinimumVersion { get; set; } = "";
 
         public static bool NormalizeAfterLoad(AppConfig config)
         {

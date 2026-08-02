@@ -636,14 +636,25 @@ namespace ExpressPackingMonitoring.ViewModels
                         Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
                         Config.IsEncoderDetected = detection.Succeeded;
                         Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+                        UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
                     }
 
                     bool av1FallbackApplied = EncodingHelper.ApplyUnsupportedAv1Fallback(Config, ValidatedEncoders);
+                    string driverWarningMessage = BuildEncoderDriverWarningMessage(Config);
                     SaveConfig();
                     if (av1FallbackApplied)
                     {
                         Application.Current?.Dispatcher.BeginInvoke(() =>
                             ShowToast("当前电脑无法实时使用 AV1，已改用 H.265"));
+                    }
+                    if (!string.IsNullOrWhiteSpace(driverWarningMessage))
+                    {
+                        Application.Current?.Dispatcher.BeginInvoke(() =>
+                            AppDialog.ShowMessage(
+                                null,
+                                driverWarningMessage,
+                                "显卡驱动版本过低",
+                                AppDialogSeverity.Warning));
                     }
                 }
                 catch (Exception ex)
