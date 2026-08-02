@@ -184,6 +184,7 @@ begin
     HeadingLabel.Left := ScaleX(24);
     HeadingLabel.Top := ScaleY(22);
     HeadingLabel.Width := ScaleX(472);
+    HeadingLabel.Height := ScaleY(26);
     HeadingLabel.AutoSize := False;
     HeadingLabel.Caption := CustomMessage('UninstallOptionsHeading');
     HeadingLabel.Font.Size := 13;

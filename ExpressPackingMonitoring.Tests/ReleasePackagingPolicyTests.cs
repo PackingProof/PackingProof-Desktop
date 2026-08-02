@@ -238,6 +238,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("删除录像和录像记录", innoScript);
         Assert.Contains("SettingsCheckBox.Checked := False", innoScript);
         Assert.Contains("RecordingsCheckBox.Checked := False", innoScript);
+        Assert.Contains("HeadingLabel.Height := ScaleY(26)", innoScript);
         Assert.Contains("/SILENT /EPMUNINSTALLOPTIONS", innoScript);
         Assert.DoesNotContain("MB_DEFBUTTON2", innoScript);
         Assert.DoesNotContain("是否删除本机应用数据", innoScript);
