@@ -227,16 +227,11 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- 1. 保持稳定的 16:9 预览区域，视频仍按原始比例完整显示 -->
-                <Grid x:Name="VideoArea" Grid.Row="0" SizeChanged="VideoArea_SizeChanged">
-                    <Border x:Name="VideoFrame"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Background="Black"
-                            CornerRadius="6"
-                            ClipToBounds="True">
-                        <vlc:VideoView x:Name="PlayerView"/>
-                    </Border>
+                <!-- 1. 播放器填满可用区域，由 LibVLC 保持录像原始比例 -->
+                <Grid x:Name="VideoArea" Grid.Row="0" Background="{DynamicResource PanelBackground}">
+                    <vlc:VideoView x:Name="PlayerView"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Stretch"/>
                 </Grid>
 
                 <!-- 2. 控制条放在第 1 行 -->

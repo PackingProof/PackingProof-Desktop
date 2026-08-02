@@ -1,6 +1,5 @@
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.UI;
-using System.Windows;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -20,13 +19,18 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"PlayerHost\"", xaml);
         Assert.Contains("Width=\"1100\" MinHeight=\"560\" MinWidth=\"920\"", xaml);
         Assert.Contains("x:Name=\"VideoArea\"", xaml);
-        Assert.Contains("x:Name=\"VideoFrame\"", xaml);
+        Assert.Contains("x:Name=\"PlayerView\"", xaml);
+        Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml);
+        Assert.Contains("VerticalAlignment=\"Stretch\"", xaml);
+        Assert.DoesNotContain("x:Name=\"VideoFrame\"", xaml);
+        Assert.DoesNotContain("VideoArea_SizeChanged", xaml);
         Assert.Contains("x:Name=\"TimelineSlider\" Grid.Column=\"1\" MinWidth=\"120\"", xaml);
 
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
         Assert.DoesNotContain("MediaPlayer.Vout", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("CalculateAdaptiveWindowBounds", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("CalculateAspectFitSize", codeBehind, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -101,31 +105,6 @@ public sealed class PlaybackWindowTests
         string expected)
     {
         Assert.Equal(expected, PlaybackWindow.GetStopReasonDisplay(sourceType, stopReason));
-    }
-
-    [Theory]
-    [InlineData(1600, 900, 1600, 900)]
-    [InlineData(1000, 1000, 1000, 562.5)]
-    [InlineData(500, 200, 355.555556, 200)]
-    public void CalculateAspectFitSize_FitsSixteenByNineInsideAvailableArea(
-        double availableWidth,
-        double availableHeight,
-        double expectedWidth,
-        double expectedHeight)
-    {
-        Size result = PlaybackWindow.CalculateAspectFitSize(
-            new Size(availableWidth, availableHeight),
-            16.0 / 9.0);
-
-        Assert.Equal(expectedWidth, result.Width, precision: 5);
-        Assert.Equal(expectedHeight, result.Height, precision: 5);
-    }
-
-    [Fact]
-    public void CalculateAspectFitSize_InvalidAreaReturnsEmpty()
-    {
-        Assert.Equal(Size.Empty, PlaybackWindow.CalculateAspectFitSize(Size.Empty, 16.0 / 9.0));
-        Assert.Equal(Size.Empty, PlaybackWindow.CalculateAspectFitSize(new Size(100, 100), 0));
     }
 
     [Fact]

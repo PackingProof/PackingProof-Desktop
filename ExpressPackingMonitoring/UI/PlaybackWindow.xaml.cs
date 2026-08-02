@@ -134,7 +134,6 @@ namespace ExpressPackingMonitoring.UI
                 ? Visibility.Collapsed
                 : Visibility.Visible;
             UpdateLocateButtonState();
-            UpdateVideoFrameSize();
         }
 
         private void BtnImportVideos_Click(object sender, RoutedEventArgs e)
@@ -710,23 +709,6 @@ namespace ExpressPackingMonitoring.UI
             Dispatcher.Invoke(() => TimelineSlider.Maximum = Math.Max(0, e.Length / 1000.0));
         }
 
-        private void VideoArea_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            UpdateVideoFrameSize();
-        }
-
-        private void UpdateVideoFrameSize()
-        {
-            Size fitted = CalculateAspectFitSize(
-                new Size(VideoArea.ActualWidth, VideoArea.ActualHeight),
-                16.0 / 9.0);
-            if (fitted.Width <= 0 || fitted.Height <= 0)
-                return;
-
-            VideoFrame.Width = fitted.Width;
-            VideoFrame.Height = fitted.Height;
-        }
-
         private void MediaPlayer_TimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
         {
             if (_isDragging || _mediaPlayer == null)
@@ -861,26 +843,6 @@ namespace ExpressPackingMonitoring.UI
 
         internal static bool IsCurrentLoadRequest(int requestVersion, int currentRequestVersion, bool isClosing) =>
             !isClosing && requestVersion == currentRequestVersion;
-
-        internal static Size CalculateAspectFitSize(Size availableSize, double aspectRatio)
-        {
-            if (!double.IsFinite(availableSize.Width) || !double.IsFinite(availableSize.Height) ||
-                !double.IsFinite(aspectRatio) || availableSize.Width <= 0 ||
-                availableSize.Height <= 0 || aspectRatio <= 0)
-            {
-                return Size.Empty;
-            }
-
-            double width = availableSize.Width;
-            double height = width / aspectRatio;
-            if (height > availableSize.Height)
-            {
-                height = availableSize.Height;
-                width = height * aspectRatio;
-            }
-
-            return new Size(width, height);
-        }
 
         private readonly record struct VideoLoadRequest(
             DateTime? Start,
