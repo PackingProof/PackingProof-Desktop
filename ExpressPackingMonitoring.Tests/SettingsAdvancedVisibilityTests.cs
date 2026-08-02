@@ -41,6 +41,14 @@ public sealed class SettingsAdvancedVisibilityTests
             style.Elements(Presentation + "Setter"),
             element => (string?)element.Attribute("Property") == "HorizontalContentAlignment"
                 && (string?)element.Attribute("Value") == "Center");
+        Assert.Contains(
+            style.Elements(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "BorderBrush"
+                && (string?)element.Attribute("Value") == "{DynamicResource BorderStrong}");
+        Assert.Contains(
+            style.Elements(Presentation + "Setter"),
+            element => (string?)element.Attribute("Property") == "BorderThickness"
+                && (string?)element.Attribute("Value") == "1.5");
 
         XElement template = Assert.Single(style.Descendants(Presentation + "ControlTemplate"));
         XElement checkedTrigger = Assert.Single(
