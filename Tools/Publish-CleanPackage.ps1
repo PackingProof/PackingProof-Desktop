@@ -788,8 +788,7 @@ function Resolve-LauncherBaselineExecutable {
 }
 
 $appPublishDir = Join-Path $outputFullPath "app"
-$appBaseOutput = Join-Path $repoRoot "ExpressPackingMonitoring\bin_publish_tmp\clean-package-app\"
-$appBaseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring\obj_publish_tmp\clean-package-app\"
+$appBuildArtifacts = Join-Path $outputFullPath ".build-artifacts"
 $gitCommitId = Get-GitCommitId
 $packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
@@ -836,10 +835,10 @@ Invoke-DotNetPublish -Arguments @(
     "-p:InformationalVersion=$packageVersion",
     "-p:GitCommitId=$gitCommitId",
     "-p:PublishSingleFile=false",
-    "-p:BaseOutputPath=$appBaseOutput",
-    "-p:BaseIntermediateOutputPath=$appBaseIntermediate",
-    "-p:PublishDir=$appPublishDir\"
+    "--artifacts-path", $appBuildArtifacts,
+    "-o", $appPublishDir
 )
+Remove-Item -LiteralPath $appBuildArtifacts -Recurse -Force
 
 $ffmpegBaseline = Read-FFmpegBaselineManifest -ManifestPath $ffmpegBaselineManifestPath
 $ffmpegCacheDirectory = Join-Path $repoRoot "package\dependency-cache\ffmpeg\$($ffmpegBaseline.version)"

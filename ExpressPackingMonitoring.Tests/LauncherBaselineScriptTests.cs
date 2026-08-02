@@ -60,6 +60,19 @@ public sealed class LauncherBaselineScriptTests
     }
 
     [Fact]
+    public void LauncherBaselinePublish_UsesProjectIsolatedArtifactsLayout()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string script = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-LauncherBaseline.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("--artifacts-path $buildArtifacts", script, StringComparison.Ordinal);
+        Assert.Contains("-o $publishDir", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("BaseIntermediateOutputPath", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommandNormalizer_WritesAsciiCrLfRegardlessOfSourceLineEndings()
     {
         string repositoryRoot = FindRepositoryRoot();

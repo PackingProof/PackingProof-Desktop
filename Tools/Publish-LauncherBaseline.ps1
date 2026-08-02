@@ -93,8 +93,7 @@ $fingerprint = Get-LauncherLogicalFingerprint `
     -Runtime $Runtime `
     -UpdateCheckUrl $UpdateCheckUrl
 $launcherProject = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj"
-$baseOutput = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\bin_publish_tmp\launcher-baseline\"
-$baseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring.Launcher\obj_publish_tmp\launcher-baseline\"
+$buildArtifacts = Join-Path $outputFullPath "build-artifacts"
 $publishDir = Join-Path $outputFullPath "publish"
 $workDir = Join-Path $outputFullPath "package-work"
 $launcherPath = Join-Path $outputFullPath "ExpressPackingMonitoring.exe"
@@ -110,17 +109,17 @@ New-Item -ItemType Directory -Force -Path $publishDir,$workDir | Out-Null
     -c $Configuration `
     -r $Runtime `
     --self-contained true `
-    "-p:BaseOutputPath=$baseOutput" `
-    "-p:BaseIntermediateOutputPath=$baseIntermediate" `
+    --artifacts-path $buildArtifacts `
+    -o $publishDir `
     "-p:LauncherDefaultUpdateCheckUrl=$UpdateCheckUrl" `
-    "-p:PublishDir=$publishDir\"
+    "-p:PublishAot=true"
 if ($LASTEXITCODE -ne 0) {
     throw "Launcher baseline publish failed with exit code $LASTEXITCODE"
 }
 
 $publishedLauncher = Join-Path $publishDir "ExpressPackingMonitoring.exe"
 if (-not (Test-Path -LiteralPath $publishedLauncher -PathType Leaf)) {
-    $publishedLauncher = Get-ChildItem -LiteralPath $baseOutput -Recurse -Filter "ExpressPackingMonitoring.exe" |
+    $publishedLauncher = Get-ChildItem -LiteralPath $buildArtifacts -Recurse -Filter "ExpressPackingMonitoring.exe" |
         Where-Object { $_.FullName -like "*\native\*" } |
         Select-Object -First 1 -ExpandProperty FullName
 }
@@ -184,6 +183,7 @@ Assert-LauncherFile -Path $launcherPath -ExpectedSize $launcherSize -ExpectedSha
 
 Remove-Item -LiteralPath $publishDir -Recurse -Force
 Remove-Item -LiteralPath $workDir -Recurse -Force
+Remove-Item -LiteralPath $buildArtifacts -Recurse -Force
 Write-Host "Launcher baseline created: launcher-v$normalizedVersion"
 Write-Host "Manifest: $manifestFullPath"
 Write-Host "Package:  $packagePath"

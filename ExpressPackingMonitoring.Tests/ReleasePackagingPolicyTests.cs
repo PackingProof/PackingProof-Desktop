@@ -139,6 +139,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Launcher logical inputs changed", publishScript);
         Assert.Contains("git -C $repoRoot diff --quiet", publishScript);
         Assert.DoesNotContain("$launcherProject", publishScript);
+        Assert.Contains("\"--artifacts-path\", $appBuildArtifacts", publishScript);
+        Assert.Contains("\"-o\", $appPublishDir", publishScript);
+        Assert.DoesNotContain("BaseIntermediateOutputPath=$appBaseIntermediate", publishScript);
         Assert.Contains("dotnet publish $launcherProject", baselineScript);
         Assert.Contains("launcher-v$normalizedVersion", baselineScript);
         Assert.Contains("ExpressPackingMonitoring\\app.ico", commonScript);
