@@ -133,7 +133,9 @@ Copy-Item -LiteralPath $publishedLauncher -Destination $launcherPath -Force
 $launcherSize = (Get-Item -LiteralPath $launcherPath).Length
 $launcherHash = (Get-FileHash -LiteralPath $launcherPath -Algorithm SHA256).Hash.ToLowerInvariant()
 Copy-Item -LiteralPath $launcherPath -Destination (Join-Path $workDir "ExpressPackingMonitoring.exe") -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Install-LauncherPatch.cmd") -Destination (Join-Path $workDir "双击更新启动器.cmd") -Force
+Copy-NormalizedCommandFile `
+    -SourcePath (Join-Path $PSScriptRoot "Install-LauncherPatch.cmd") `
+    -DestinationPath (Join-Path $workDir "双击更新启动器.cmd")
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Apply-LauncherPatch.ps1") -Destination (Join-Path $workDir "apply_launcher_patch.ps1") -Force
 
 [ordered]@{

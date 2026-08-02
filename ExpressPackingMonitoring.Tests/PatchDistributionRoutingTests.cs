@@ -50,7 +50,7 @@ public sealed class PatchDistributionRoutingTests
             "$appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath",
             StringComparison.Ordinal);
         int installerCopyIndex = publisher.IndexOf(
-            "Copy-Item -LiteralPath $InstallerCmdPath",
+            "-SourcePath $InstallerCmdPath",
             StringComparison.Ordinal);
 
         Assert.True(patchHashIndex >= 0);

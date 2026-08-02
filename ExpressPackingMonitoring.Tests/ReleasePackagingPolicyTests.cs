@@ -93,6 +93,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("正在恢复原文件", appInstallerScript);
         Assert.Contains("apply_app_patch.ps1", installerCmd);
         Assert.Contains("powershell.exe", installerCmd);
+        Assert.Contains("Copy-NormalizedCommandFile", publishScript);
+        Assert.Contains("Copy-NormalizedCommandFile", launcherBaselineScript);
         Assert.DoesNotContain("taskkill", installerCmd, StringComparison.OrdinalIgnoreCase);
     }
 

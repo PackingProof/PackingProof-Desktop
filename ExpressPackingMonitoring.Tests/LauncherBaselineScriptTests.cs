@@ -46,12 +46,93 @@ public sealed class LauncherBaselineScriptTests
             $same = Get-LauncherLogicalFingerprint -RepositoryRoot '{{EscapePowerShell(repositoryRoot)}}' -Runtime 'win-x64' -UpdateCheckUrl 'https://example.test/one'
             $otherUrl = Get-LauncherLogicalFingerprint -RepositoryRoot '{{EscapePowerShell(repositoryRoot)}}' -Runtime 'win-x64' -UpdateCheckUrl 'https://example.test/two'
             $otherRuntime = Get-LauncherLogicalFingerprint -RepositoryRoot '{{EscapePowerShell(repositoryRoot)}}' -Runtime 'win-arm64' -UpdateCheckUrl 'https://example.test/one'
-            if ($one -ne $same -or $one -eq $otherUrl -or $one -eq $otherRuntime) { exit 1 }
+            $files = @(Get-LauncherFingerprintFiles)
+            if ($one -ne $same -or $one -eq $otherUrl -or $one -eq $otherRuntime -or
+                $files -notcontains 'Tools\Install-LauncherPatch.cmd' -or
+                $files -notcontains 'Tools\Apply-LauncherPatch.ps1') { exit 1 }
             """;
 
         ProcessResult result = RunPowerShell(command, repositoryRoot);
 
         Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
+    }
+
+    [Fact]
+    public void CommandNormalizer_WritesAsciiCrLfRegardlessOfSourceLineEndings()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string commonScript = Path.Combine(repositoryRoot, "Tools", "LauncherBaseline.Common.ps1");
+        string root = Path.Combine(Path.GetTempPath(), $"packingproof-command-normalize-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            string source = Path.Combine(root, "source.cmd");
+            string destination = Path.Combine(root, "destination.cmd");
+            File.WriteAllText(source, "@echo off\nsetlocal\necho ok\n", new UTF8Encoding(false));
+            string command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{EscapePowerShell(commonScript)}}'
+                Copy-NormalizedCommandFile -SourcePath '{{EscapePowerShell(source)}}' -DestinationPath '{{EscapePowerShell(destination)}}'
+                """;
+
+            ProcessResult result = RunPowerShell(command, repositoryRoot);
+
+            Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
+            byte[] bytes = File.ReadAllBytes(destination);
+            Assert.All(bytes, value => Assert.InRange(value, (byte)0, (byte)127));
+            for (int index = 0; index < bytes.Length; index++)
+            {
+                if (bytes[index] == (byte)'\n')
+                    Assert.True(index > 0 && bytes[index - 1] == (byte)'\r');
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void LogicalFingerprint_ChangesWhenManualLauncherInstallerChanges()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string commonScript = Path.Combine(repositoryRoot, "Tools", "LauncherBaseline.Common.ps1");
+        string root = Path.Combine(Path.GetTempPath(), $"packingproof-launcher-inputs-{Guid.NewGuid():N}");
+        try
+        {
+            foreach (string relativePath in new[]
+            {
+                @"ExpressPackingMonitoring.Launcher\Program.cs",
+                @"ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
+                @"ExpressPackingMonitoring\app.ico",
+                @"Tools\Install-LauncherPatch.cmd",
+                @"Tools\Apply-LauncherPatch.ps1"
+            })
+            {
+                string path = Path.Combine(root, relativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, relativePath, new UTF8Encoding(false));
+            }
+
+            string installer = Path.Combine(root, "Tools", "Install-LauncherPatch.cmd");
+            string command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{EscapePowerShell(commonScript)}}'
+                $before = Get-LauncherLogicalFingerprint -RepositoryRoot '{{EscapePowerShell(root)}}' -Runtime 'win-x64' -UpdateCheckUrl 'https://example.test/releases/latest'
+                Add-Content -LiteralPath '{{EscapePowerShell(installer)}}' -Value 'echo changed' -Encoding ASCII
+                $after = Get-LauncherLogicalFingerprint -RepositoryRoot '{{EscapePowerShell(root)}}' -Runtime 'win-x64' -UpdateCheckUrl 'https://example.test/releases/latest'
+                if ($before -eq $after) { exit 1 }
+                """;
+
+            ProcessResult result = RunPowerShell(command, repositoryRoot);
+
+            Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private sealed class Fixture : IDisposable

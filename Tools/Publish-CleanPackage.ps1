@@ -653,7 +653,9 @@ function New-AppPatchPackage {
         ConvertTo-Json -Depth 6 |
         Set-Content -LiteralPath (Join-Path $patchWorkDir "patch_manifest.json") -Encoding UTF8
 
-    Copy-Item -LiteralPath $InstallerCmdPath -Destination (Join-Path $patchWorkDir $appPatchInstallerCmdName) -Force
+    Copy-NormalizedCommandFile `
+        -SourcePath $InstallerCmdPath `
+        -DestinationPath (Join-Path $patchWorkDir $appPatchInstallerCmdName)
     Copy-Item -LiteralPath $InstallerScriptPath -Destination (Join-Path $patchWorkDir $appPatchInstallerScriptName) -Force
 
     $appPatchNotice = @(

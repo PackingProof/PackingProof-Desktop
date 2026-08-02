@@ -3,7 +3,9 @@ $script:LauncherUpdateProtocolVersion = 1
 $script:LauncherFingerprintFiles = @(
     "ExpressPackingMonitoring.Launcher\Program.cs",
     "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
-    "ExpressPackingMonitoring\app.ico"
+    "ExpressPackingMonitoring\app.ico",
+    "Tools\Install-LauncherPatch.cmd",
+    "Tools\Apply-LauncherPatch.ps1"
 )
 $script:LauncherPackageEntries = @(
     "ExpressPackingMonitoring.exe",
@@ -30,7 +32,7 @@ function Get-LauncherLogicalFingerprint {
 
             Add-LauncherFingerprintValue -Hasher $sha -Value $relativePath.Replace('\', '/')
             $extension = [System.IO.Path]::GetExtension($fullPath)
-            $content = if ($extension -in @(".cs", ".csproj")) {
+            $content = if ($extension -in @(".cs", ".csproj", ".cmd", ".ps1")) {
                 $normalizedText = [System.IO.File]::ReadAllText($fullPath, [System.Text.Encoding]::UTF8).
                     Replace("`r`n", "`n").
                     Replace("`r", "`n")
@@ -71,6 +73,20 @@ function Add-LauncherFingerprintSeparator {
 
     $separator = [byte[]](0)
     $Hasher.TransformBlock($separator, 0, $separator.Length, $null, 0) | Out-Null
+}
+
+function Copy-NormalizedCommandFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $text = [System.IO.File]::ReadAllText($SourcePath, [System.Text.Encoding]::UTF8)
+    if ($null -ne ($text.ToCharArray() | Where-Object { [int]$_ -gt 127 } | Select-Object -First 1)) {
+        throw "Command wrapper must contain ASCII characters only: $SourcePath"
+    }
+    $normalized = $text.Replace("`r`n", "`n").Replace("`r", "`n").Replace("`n", "`r`n")
+    [System.IO.File]::WriteAllText($DestinationPath, $normalized, [System.Text.Encoding]::ASCII)
 }
 
 function Read-LauncherBaselineManifest {
