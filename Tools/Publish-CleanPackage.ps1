@@ -929,12 +929,17 @@ $appPatchGiteeUrl = Expand-ReleaseTemplate -Template $appPatchGiteeUrlTemplate -
 $launcherPackagePlaceholderUrl = Expand-ReleaseTemplate -Template $launcherPackageUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $launcherPackageGithubUrl = Expand-ReleaseTemplate -Template $launcherPackageGithubUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $launcherPackageGiteeUrl = Expand-ReleaseTemplate -Template $launcherPackageGiteeUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
-$fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
-if ([string]::IsNullOrWhiteSpace($fullDownloadPageTemplate)) {
-    $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
-}
+$fullDownloadPageTemplate = Get-ConfiguredValue `
+    -Key "FULL_DOWNLOAD_PRIMARY_PAGE_URL_TEMPLATE" `
+    -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/tag/{tag}"
 $fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $zipFullPath)
-$fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/tag/{tag}"
+$fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE" -DefaultValue ""
+if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
+    $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
+}
+if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
+    $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
+}
 $fullDownloadFallbackPage = Expand-ReleaseTemplate -Template $fullDownloadFallbackPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $zipFullPath)
 
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
@@ -1179,6 +1184,7 @@ $releaseInfoLines += ""
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "54mI5pys77ya") + $releaseTag
 $releaseInfoLines += (ConvertFrom-Utf8Base64 "UmVsZWFzZSDpobXpnaLvvJo=") + $releasePage
 $releaseInfoLines += "Full download page: " + $fullDownloadPage
+$releaseInfoLines += "Full download fallback page: " + $fullDownloadFallbackPage
 $releaseInfoLines += ""
 $releaseInfoLines += "GitHub 默认上传："
 $releaseInfoLines += "1. Windows 安装向导（推荐）：" + $setupFileName

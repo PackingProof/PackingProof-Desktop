@@ -244,6 +244,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("$patchPackageInfo[\"github_url\"]", publishScript);
         Assert.Contains("$patchPackageInfo[\"gitee_url\"]", publishScript);
         Assert.Contains("full_download_fallback_page", publishScript);
+        Assert.Contains("FULL_DOWNLOAD_PRIMARY_PAGE_URL_TEMPLATE", publishScript);
+        Assert.Contains("FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE", publishScript);
+        Assert.Contains("-Key \"FULL_DOWNLOAD_PAGE\" -DefaultValue \"\"", publishScript);
+        Assert.Contains("Full download fallback page:", publishScript);
         Assert.Contains("$updateManifest[\"patch_package\"] = $null", publishScript);
         Assert.Contains("Remove-Item -LiteralPath $appPatchZipPath -Force", publishScript);
         Assert.Contains("$patchReason", publishScript);
