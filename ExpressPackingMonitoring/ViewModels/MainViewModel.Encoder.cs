@@ -22,7 +22,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
     public partial class MainViewModel
     {
-        internal const int CurrentEncoderDetectionCacheVersion = 2;
+        internal const int CurrentEncoderDetectionCacheVersion = 3;
 
         private static string QueryFFmpegEncoders(string ffmpegPath)
         {

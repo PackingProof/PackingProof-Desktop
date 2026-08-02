@@ -133,6 +133,8 @@ public sealed class ReleasePackagingPolicyTests
             "AppPatch bridge validation failed: launcher changed but updated app assembly is missing",
             publishScript);
         Assert.Contains("A new launcher baseline requires a compatible AppPatch bridge", publishScript);
+        Assert.Contains("[switch]$ReuseExistingLauncherBaseline", publishScript);
+        Assert.Contains("ReuseExistingLauncherBaseline requires an existing app release tag", publishScript);
         Assert.Contains("本版本不要重复上传 LauncherPatch", publishScript);
         Assert.DoesNotContain("Compress-PackageWithRetry -SourceDir $launcherPackageWorkDir", publishScript);
     }
@@ -158,9 +160,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Assert-FFmpegExecutable", commonScript);
         Assert.Contains("unsafe path", commonScript);
         Assert.Contains("trying next source", commonScript);
-        Assert.Contains("ffmpeg-8.1.2-essentials_build.7z", manifest);
-        Assert.Contains("GyanD/codexffmpeg/releases/download/8.1.2", manifest);
-        Assert.Contains("1326dde4c84ff1f96fe6b8916c5bed29e163e9b5dccf995f6f3db069d143ec5e", manifest);
+        Assert.Contains("ffmpeg-8.0.1-essentials_build.7z", manifest);
+        Assert.Contains("GyanD/codexffmpeg/releases/download/8.0.1", manifest);
+        Assert.Contains("5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d", manifest);
     }
 
     [Fact]

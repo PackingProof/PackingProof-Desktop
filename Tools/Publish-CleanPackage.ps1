@@ -19,6 +19,7 @@ param(
     [string]$PatchBaselineVersion = "0.0.18",
     [switch]$SkipTtsCacheGeneration,
     [switch]$ConfirmManualCoreChecks,
+    [switch]$ReuseExistingLauncherBaseline,
     [switch]$DisablePatch
 )
 
@@ -948,10 +949,20 @@ Assert-LauncherFile `
     -ExpectedSize $launcherExecutableSize `
     -ExpectedSha256 $launcherExecutableHash `
     -Description "Packaged launcher executable"
-$launcherPublishedWithRelease = [string]::Equals(
+$launcherReleaseTagMatches = [string]::Equals(
     [string]$launcherBaseline.release_tag,
     $releaseTag,
     [System.StringComparison]::OrdinalIgnoreCase)
+$launcherPublishedWithRelease = $launcherReleaseTagMatches -and -not $ReuseExistingLauncherBaseline
+if ($ReuseExistingLauncherBaseline) {
+    if (-not $launcherReleaseTagMatches) {
+        throw "ReuseExistingLauncherBaseline is only valid when the app release tag matches the locked launcher release tag."
+    }
+    & git -C $repoRoot rev-parse --verify --quiet "$releaseTag^{commit}" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "ReuseExistingLauncherBaseline requires an existing app release tag: $releaseTag"
+    }
+}
 if ($launcherPublishedWithRelease) {
     $cachedBaselinePackage = Join-Path $repoRoot "package\launcher-baselines\$releaseTag\$launcherPackageName"
     Assert-LauncherPackage -PackagePath $cachedBaselinePackage -Baseline $launcherBaseline

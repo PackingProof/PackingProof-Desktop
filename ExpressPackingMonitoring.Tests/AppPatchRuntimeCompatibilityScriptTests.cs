@@ -10,7 +10,7 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
 {
     [Theory]
     [InlineData("7.1.1")]
-    [InlineData("8.1.2")]
+    [InlineData("8.0.1")]
     public void KnownFfmpegAndVlcSuperset_AreCompatible(string version)
     {
         using var fixture = new Fixture(version);
@@ -117,9 +117,9 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
             byte[] fullFfmpeg = Encoding.UTF8.GetBytes("old-full");
             byte[] essentialsFfmpeg = _currentFfmpeg;
             _compatibleExecutables.Add(CreateCompatible("7.1.1", "full", fullFfmpeg));
-            _compatibleExecutables.Add(CreateCompatible("8.1.2", "essentials", essentialsFfmpeg));
+            _compatibleExecutables.Add(CreateCompatible("8.0.1", "essentials", essentialsFfmpeg));
             File.WriteAllBytes(CurrentFfmpegPath, _currentFfmpeg);
-            byte[] selected = baselineVersion == "8.1.2" ? essentialsFfmpeg : fullFfmpeg;
+            byte[] selected = baselineVersion == "8.0.1" ? essentialsFfmpeg : fullFfmpeg;
             File.WriteAllBytes(BaselineFfmpegPath, selected);
         }
 
