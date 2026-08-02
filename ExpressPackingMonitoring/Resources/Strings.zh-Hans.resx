@@ -854,4 +854,6 @@
   <data name="允许连接" xml:space="preserve"><value>允许连接</value></data>
   <data name="拒绝" xml:space="preserve"><value>拒绝</value></data>
   <data name="当前电脑无法实时使用 AV1，已改用 H.265" xml:space="preserve"><value>当前电脑无法实时使用 AV1，已改用 H.265</value></data>
+  <data name="可以在这里直接下载并校验 AppPatch；准备完成后，将在下次从根目录启动器启动时安装" xml:space="preserve"><value>可以在这里直接下载并校验 AppPatch；准备完成后，将在下次从根目录启动器启动时安装</value></data>
+  <data name="下载并准备更新" xml:space="preserve"><value>下载并准备更新</value></data>
 </root>

@@ -854,4 +854,6 @@
   <data name="允许连接" xml:space="preserve"><value>Allow connection</value></data>
   <data name="拒绝" xml:space="preserve"><value>Deny</value></data>
   <data name="当前电脑无法实时使用 AV1，已改用 H.265" xml:space="preserve"><value>This computer cannot use AV1 for real-time recording. H.265 is now selected</value></data>
+  <data name="可以在这里直接下载并校验 AppPatch；准备完成后，将在下次从根目录启动器启动时安装" xml:space="preserve"><value>Download and verify the AppPatch here; it will be installed the next time you start from the root launcher</value></data>
+  <data name="下载并准备更新" xml:space="preserve"><value>Download and prepare update</value></data>
 </root>
