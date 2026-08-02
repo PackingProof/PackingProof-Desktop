@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
@@ -95,8 +94,6 @@ namespace ExpressPackingMonitoring.UI
         private int _currentPage = 1;
         private int _totalVideos;
         private int _videoLoadRequestVersion;
-        private int _playbackRequestVersion;
-        private int _lastAdaptedPlaybackVersion;
         private VideoLoadRequest? _pendingVideoLoad;
         private long _currentMediaLengthMs;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
@@ -137,6 +134,7 @@ namespace ExpressPackingMonitoring.UI
                 ? Visibility.Collapsed
                 : Visibility.Visible;
             UpdateLocateButtonState();
+            UpdateVideoFrameSize();
         }
 
         private void BtnImportVideos_Click(object sender, RoutedEventArgs e)
@@ -527,7 +525,6 @@ namespace ExpressPackingMonitoring.UI
                     _mediaPlayer.TimeChanged -= MediaPlayer_TimeChanged;
                     _mediaPlayer.EndReached -= MediaPlayer_EndReached;
                     _mediaPlayer.EncounteredError -= MediaPlayer_EncounteredError;
-                    _mediaPlayer.Vout -= MediaPlayer_Vout;
 
                     if (_mediaPlayer.IsPlaying)
                     {
@@ -610,7 +607,6 @@ namespace ExpressPackingMonitoring.UI
 
             try
             {
-                int playbackRequestVersion = ++_playbackRequestVersion;
                 if (!await EnsurePlayerReadyAsync())
                     return;
 
@@ -636,7 +632,6 @@ namespace ExpressPackingMonitoring.UI
                 if (!_mediaPlayer!.Play(media))
                     throw new InvalidOperationException("播放器未能启动该文件。");
 
-                _lastAdaptedPlaybackVersion = Math.Min(_lastAdaptedPlaybackVersion, playbackRequestVersion - 1);
                 _timer.Start();
                 UpdatePlayState(true);
             }
@@ -715,77 +710,21 @@ namespace ExpressPackingMonitoring.UI
             Dispatcher.Invoke(() => TimelineSlider.Maximum = Math.Max(0, e.Length / 1000.0));
         }
 
-        private async void MediaPlayer_Vout(object? sender, MediaPlayerVoutEventArgs e)
+        private void VideoArea_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            int requestVersion = _playbackRequestVersion;
-            try
-            {
-                for (int attempt = 0; attempt < 5 && !_isClosing; attempt++)
-                {
-                    bool adapted = await Dispatcher.InvokeAsync(
-                        () => TryAdaptWindowToCurrentVideo(requestVersion),
-                        DispatcherPriority.Loaded);
-                    if (adapted)
-                        return;
-                    await Task.Delay(80);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (InvalidOperationException) when (_isClosing || Dispatcher.HasShutdownStarted)
-            {
-            }
+            UpdateVideoFrameSize();
         }
 
-        private bool TryAdaptWindowToCurrentVideo(int requestVersion)
+        private void UpdateVideoFrameSize()
         {
-            if (_isClosing || requestVersion != _playbackRequestVersion ||
-                requestVersion == _lastAdaptedPlaybackVersion || WindowState != WindowState.Normal)
-            {
-                return false;
-            }
+            Size fitted = CalculateAspectFitSize(
+                new Size(VideoArea.ActualWidth, VideoArea.ActualHeight),
+                16.0 / 9.0);
+            if (fitted.Width <= 0 || fitted.Height <= 0)
+                return;
 
-            Media? media = _mediaPlayer?.Media;
-            if (media == null)
-                return false;
-
-            foreach (MediaTrack track in media.Tracks)
-            {
-                if (track.TrackType != TrackType.Video)
-                    continue;
-
-                VideoTrack video = track.Data.Video;
-                double? aspect = GetVideoDisplayAspect(
-                    video.Width,
-                    video.Height,
-                    video.SarNum,
-                    video.SarDen,
-                    video.Orientation);
-                if (!aspect.HasValue || PlayerHost.ActualHeight <= 0 || ActualWidth <= 0 || ActualHeight <= 0)
-                    return false;
-
-                Rect workArea = GetCurrentMonitorWorkArea();
-                Rect currentBounds = new(Left, Top, ActualWidth, ActualHeight);
-                double horizontalChrome = Math.Max(0, ActualWidth - PlayerHost.ActualWidth);
-                double verticalChrome = Math.Max(0, ActualHeight - PlayerHost.ActualHeight);
-                Rect target = CalculateAdaptiveWindowBounds(
-                    aspect.Value,
-                    workArea,
-                    currentBounds,
-                    horizontalChrome,
-                    verticalChrome,
-                    PlayerHost.ActualHeight);
-
-                Width = target.Width;
-                Height = target.Height;
-                Left = target.Left;
-                Top = target.Top;
-                _lastAdaptedPlaybackVersion = requestVersion;
-                return true;
-            }
-
-            return false;
+            VideoFrame.Width = fitted.Width;
+            VideoFrame.Height = fitted.Height;
         }
 
         private void MediaPlayer_TimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
@@ -896,7 +835,6 @@ namespace ExpressPackingMonitoring.UI
                 _mediaPlayer.TimeChanged += MediaPlayer_TimeChanged;
                 _mediaPlayer.EndReached += MediaPlayer_EndReached;
                 _mediaPlayer.EncounteredError += MediaPlayer_EncounteredError;
-                _mediaPlayer.Vout += MediaPlayer_Vout;
                 PlayerView.MediaPlayer = _mediaPlayer;
                 BtnTogglePlay.IsEnabled = true;
                 TimelineSlider.IsEnabled = true;
@@ -924,86 +862,24 @@ namespace ExpressPackingMonitoring.UI
         internal static bool IsCurrentLoadRequest(int requestVersion, int currentRequestVersion, bool isClosing) =>
             !isClosing && requestVersion == currentRequestVersion;
 
-        internal static double? GetVideoDisplayAspect(
-            uint width,
-            uint height,
-            uint sampleAspectNumerator,
-            uint sampleAspectDenominator,
-            VideoOrientation orientation)
+        internal static Size CalculateAspectFitSize(Size availableSize, double aspectRatio)
         {
-            if (width == 0 || height == 0)
-                return null;
-
-            double sampleAspect = sampleAspectNumerator > 0 && sampleAspectDenominator > 0
-                ? (double)sampleAspectNumerator / sampleAspectDenominator
-                : 1.0;
-            double aspect = width * sampleAspect / height;
-            bool quarterTurn = orientation is VideoOrientation.LeftTop or VideoOrientation.LeftBottom or
-                VideoOrientation.RightTop or VideoOrientation.RightBottom;
-            if (quarterTurn)
-                aspect = 1.0 / aspect;
-            return double.IsFinite(aspect) && aspect > 0 ? aspect : null;
-        }
-
-        internal static Rect CalculateAdaptiveWindowBounds(
-            double videoAspect,
-            Rect workArea,
-            Rect currentBounds,
-            double horizontalChrome,
-            double verticalChrome,
-            double currentPlayerHeight)
-        {
-            const double safetyMargin = 16;
-            const double minimumPlayerWidth = 320;
-            const double minimumPlayerHeight = 320;
-            if (!double.IsFinite(videoAspect) || videoAspect <= 0 || workArea.Width <= safetyMargin * 2 ||
-                workArea.Height <= safetyMargin * 2)
+            if (!double.IsFinite(availableSize.Width) || !double.IsFinite(availableSize.Height) ||
+                !double.IsFinite(aspectRatio) || availableSize.Width <= 0 ||
+                availableSize.Height <= 0 || aspectRatio <= 0)
             {
-                return currentBounds;
+                return Size.Empty;
             }
 
-            Rect safeArea = new(
-                workArea.Left + safetyMargin,
-                workArea.Top + safetyMargin,
-                workArea.Width - safetyMargin * 2,
-                workArea.Height - safetyMargin * 2);
-            double maxPlayerWidth = Math.Max(1, safeArea.Width - horizontalChrome);
-            double maxPlayerHeight = Math.Max(1, safeArea.Height - verticalChrome);
-            double playerHeight = Math.Clamp(currentPlayerHeight, Math.Min(minimumPlayerHeight, maxPlayerHeight), maxPlayerHeight);
-            double playerWidth = playerHeight * videoAspect;
-
-            if (playerWidth > maxPlayerWidth)
+            double width = availableSize.Width;
+            double height = width / aspectRatio;
+            if (height > availableSize.Height)
             {
-                playerWidth = maxPlayerWidth;
-                playerHeight = playerWidth / videoAspect;
-            }
-            else if (playerWidth < minimumPlayerWidth && minimumPlayerWidth <= maxPlayerWidth)
-            {
-                playerWidth = minimumPlayerWidth;
-                playerHeight = Math.Min(maxPlayerHeight, playerWidth / videoAspect);
+                height = availableSize.Height;
+                width = height * aspectRatio;
             }
 
-            double targetWidth = Math.Min(safeArea.Width, horizontalChrome + playerWidth);
-            double targetHeight = Math.Min(safeArea.Height, verticalChrome + playerHeight);
-            double centerX = currentBounds.Left + currentBounds.Width / 2;
-            double centerY = currentBounds.Top + currentBounds.Height / 2;
-            double left = Math.Clamp(centerX - targetWidth / 2, safeArea.Left, safeArea.Right - targetWidth);
-            double top = Math.Clamp(centerY - targetHeight / 2, safeArea.Top, safeArea.Bottom - targetHeight);
-            return new Rect(left, top, targetWidth, targetHeight);
-        }
-
-        private Rect GetCurrentMonitorWorkArea()
-        {
-            IntPtr handle = new WindowInteropHelper(this).Handle;
-            if (handle == IntPtr.Zero || !NativeMonitor.TryGetWorkArea(handle, out Rect pixelArea))
-                return SystemParameters.WorkArea;
-
-            DpiScale dpi = VisualTreeHelper.GetDpi(this);
-            return new Rect(
-                pixelArea.Left / dpi.DpiScaleX,
-                pixelArea.Top / dpi.DpiScaleY,
-                pixelArea.Width / dpi.DpiScaleX,
-                pixelArea.Height / dpi.DpiScaleY);
+            return new Size(width, height);
         }
 
         private readonly record struct VideoLoadRequest(

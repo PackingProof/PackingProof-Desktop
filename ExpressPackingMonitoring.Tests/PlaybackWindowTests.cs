@@ -1,6 +1,5 @@
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.UI;
-using LibVLCSharp.Shared;
 using System.Windows;
 using Xunit;
 
@@ -19,6 +18,15 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"BtnPreviousPage\" Grid.Column=\"0\"", xaml);
         Assert.Contains("x:Name=\"BtnNextPage\" Grid.Column=\"2\"", xaml);
         Assert.Contains("x:Name=\"PlayerHost\"", xaml);
+        Assert.Contains("Width=\"1100\" MinHeight=\"560\" MinWidth=\"920\"", xaml);
+        Assert.Contains("x:Name=\"VideoArea\"", xaml);
+        Assert.Contains("x:Name=\"VideoFrame\"", xaml);
+        Assert.Contains("x:Name=\"TimelineSlider\" Grid.Column=\"1\" MinWidth=\"120\"", xaml);
+
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        Assert.DoesNotContain("MediaPlayer.Vout", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("CalculateAdaptiveWindowBounds", codeBehind, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -95,58 +103,29 @@ public sealed class PlaybackWindowTests
         Assert.Equal(expected, PlaybackWindow.GetStopReasonDisplay(sourceType, stopReason));
     }
 
-    [Fact]
-    public void GetVideoDisplayAspect_AccountsForSampleAspectAndQuarterTurn()
+    [Theory]
+    [InlineData(1600, 900, 1600, 900)]
+    [InlineData(1000, 1000, 1000, 562.5)]
+    [InlineData(500, 200, 355.555556, 200)]
+    public void CalculateAspectFitSize_FitsSixteenByNineInsideAvailableArea(
+        double availableWidth,
+        double availableHeight,
+        double expectedWidth,
+        double expectedHeight)
     {
-        Assert.Equal(
-            16.0 / 9.0,
-            PlaybackWindow.GetVideoDisplayAspect(1920, 1080, 1, 1, VideoOrientation.TopLeft)!.Value,
-            precision: 6);
-        Assert.Equal(
-            9.0 / 16.0,
-            PlaybackWindow.GetVideoDisplayAspect(1920, 1080, 1, 1, VideoOrientation.RightTop)!.Value,
-            precision: 6);
-        Assert.Equal(
-            4.0 / 3.0,
-            PlaybackWindow.GetVideoDisplayAspect(720, 576, 16, 15, VideoOrientation.TopLeft)!.Value,
-            precision: 6);
-        Assert.Null(PlaybackWindow.GetVideoDisplayAspect(0, 1080, 1, 1, VideoOrientation.TopLeft));
+        Size result = PlaybackWindow.CalculateAspectFitSize(
+            new Size(availableWidth, availableHeight),
+            16.0 / 9.0);
+
+        Assert.Equal(expectedWidth, result.Width, precision: 5);
+        Assert.Equal(expectedHeight, result.Height, precision: 5);
     }
 
     [Fact]
-    public void CalculateAdaptiveWindowBounds_FitsPortraitWithoutCroppingAndStaysOnScreen()
+    public void CalculateAspectFitSize_InvalidAreaReturnsEmpty()
     {
-        Rect result = PlaybackWindow.CalculateAdaptiveWindowBounds(
-            9.0 / 16.0,
-            new Rect(0, 0, 1920, 1080),
-            new Rect(500, 180, 1100, 700),
-            horizontalChrome: 365,
-            verticalChrome: 130,
-            currentPlayerHeight: 570);
-
-        Assert.Equal(685.625, result.Width, precision: 3);
-        Assert.Equal(700, result.Height, precision: 3);
-        Assert.InRange(result.Left, 16, 1920 - 16 - result.Width);
-        Assert.InRange(result.Top, 16, 1080 - 16 - result.Height);
-        Assert.Equal(9.0 / 16.0, (result.Width - 365) / (result.Height - 130), precision: 6);
-    }
-
-    [Fact]
-    public void CalculateAdaptiveWindowBounds_ClampsWideVideoToWorkArea()
-    {
-        Rect result = PlaybackWindow.CalculateAdaptiveWindowBounds(
-            32.0 / 9.0,
-            new Rect(100, 50, 1280, 720),
-            new Rect(200, 100, 1100, 700),
-            horizontalChrome: 365,
-            verticalChrome: 130,
-            currentPlayerHeight: 570);
-
-        Assert.InRange(result.Left, 116, 1364 - result.Width);
-        Assert.InRange(result.Top, 66, 754 - result.Height);
-        Assert.True(result.Width <= 1248);
-        Assert.True(result.Height <= 688);
-        Assert.Equal(32.0 / 9.0, (result.Width - 365) / (result.Height - 130), precision: 6);
+        Assert.Equal(Size.Empty, PlaybackWindow.CalculateAspectFitSize(Size.Empty, 16.0 / 9.0));
+        Assert.Equal(Size.Empty, PlaybackWindow.CalculateAspectFitSize(new Size(100, 100), 0));
     }
 
     [Fact]
