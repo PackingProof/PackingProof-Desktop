@@ -48,6 +48,8 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
+            TaskbarIdentityService.TryApply();
+
             CameraBarcodeRuntimeOptions.Initialize(e.Args);
             var config = WorkstationConfigStore.Load();
             AppLanguage.Initialize(config.Language);

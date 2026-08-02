@@ -232,6 +232,12 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("LanguageName=简体中文", chineseMessages);
         Assert.Contains("ButtonNext=下一步", chineseMessages);
         Assert.Contains(@"Filename: ""{app}\{#MyAppExeName}""; WorkingDir: ""{app}""", innoScript);
+        Assert.Equal(2, innoScript.Split(
+            "AppUserModelID: \"{#MyAppUserModelId}\"",
+            StringSplitOptions.None).Length - 1);
+        Assert.Contains(
+            "#define MyAppUserModelId \"PackingProof.ExpressPackingMonitoring\"",
+            innoScript);
         Assert.Contains("--uninstall-plan-recordings", innoScript);
         Assert.Contains("--uninstall-delete-recordings", innoScript);
         Assert.Contains("--uninstall-delete-local-data", innoScript);
