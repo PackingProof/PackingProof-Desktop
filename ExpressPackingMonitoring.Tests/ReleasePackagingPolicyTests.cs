@@ -166,6 +166,34 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void ReleaseValidation_RequiresHardwareAwareEncoderRoundTrips()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string releaseScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Test-Release.ps1"),
+            Encoding.UTF8);
+        string encoderScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Test-EncodingCodecs.ps1"),
+            Encoding.UTF8);
+        string solution = File.ReadAllText(
+            Path.Combine(repositoryRoot, "ExpressPackingMonitoring.sln"),
+            Encoding.UTF8);
+
+        Assert.Contains("Test-EncodingCodecs.ps1", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("Get-CimInstance Win32_VideoController", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("libx264", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("libx265", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("h264_nvenc", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("hevc_nvenc", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("h264_amf", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("hevc_amf", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("h264_qsv", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("hevc_qsv", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("EPM_REQUIRED_ENCODERS", encoderScript, StringComparison.Ordinal);
+        Assert.Contains("ExpressPackingMonitoring.EncodingIntegrationTests", solution, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Packaging_OnlyBuildsSlimPatchForCompatibleRuntimeBaseline()
     {
         string repositoryRoot = FindRepositoryRoot();

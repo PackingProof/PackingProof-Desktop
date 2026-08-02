@@ -7,6 +7,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $solution = Join-Path $repoRoot "ExpressPackingMonitoring.sln"
 $testsProject = Join-Path $repoRoot "ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj"
+$encodingTestScript = Join-Path $repoRoot "Tools\Test-EncodingCodecs.ps1"
 $webPage = Join-Path $repoRoot "ExpressPackingMonitoring\Web\index.html"
 $artifactsRoot = Join-Path $repoRoot "TestResults\ReleaseBuild\$Configuration"
 
@@ -64,6 +65,9 @@ if (-not (Test-Path $testsProject)) {
 if (-not (Test-Path $webPage)) {
     throw "Web page not found: $webPage"
 }
+if (-not (Test-Path $encodingTestScript)) {
+    throw "Encoder round-trip test script not found: $encodingTestScript"
+}
 
 if (Test-Path $artifactsRoot) {
     Remove-Item -LiteralPath $artifactsRoot -Recurse -Force
@@ -86,6 +90,9 @@ foreach ($requiredTest in $requiredCoreTests) {
 
 Write-Host "Running complete release test suite..."
 Invoke-DotNet -Arguments @("test", $testsProject, "-c", $Configuration, "--nologo", "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot)
+
+Write-Host "Running hardware-aware FFmpeg encoder round trips..."
+& $encodingTestScript -Configuration $Configuration -ArtifactsPath $artifactsRoot -NoBuild
 
 Write-Host "Checking Web JavaScript syntax..."
 $node = Get-Command node -ErrorAction SilentlyContinue

@@ -12,6 +12,8 @@ ExpressPackingMonitoring.Launcher/bin_publish_tmp/
 ExpressPackingMonitoring.Launcher/obj_publish_tmp/
 ExpressPackingMonitoring.Tests/bin/
 ExpressPackingMonitoring.Tests/obj/
+ExpressPackingMonitoring.EncodingIntegrationTests/bin/
+ExpressPackingMonitoring.EncodingIntegrationTests/obj/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/obj/
 Tools/ExpressPackingMonitoring.AutomationHost/bin/

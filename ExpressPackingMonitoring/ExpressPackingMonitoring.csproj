@@ -36,6 +36,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>ExpressPackingMonitoring.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.EncodingIntegrationTests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <!-- 修复自包含发布时 ComboBox 因缺少 Accessibility.dll 报错的问题 -->
