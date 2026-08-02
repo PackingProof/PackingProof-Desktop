@@ -5,11 +5,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services
 {
@@ -27,15 +27,28 @@ namespace ExpressPackingMonitoring.Services
     {
         private const int CacheSchemaVersion = 2;
         private static readonly TimeSpan ManualDebounce = TimeSpan.FromSeconds(300);
+        private static readonly TimeSpan FailureCacheMaxAge = TimeSpan.FromHours(12);
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true
         };
 
-        private static readonly HttpClient HttpClient = new()
+        private static readonly HttpClient SharedHttpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(8)
         };
+
+        private readonly HttpClient _httpClient;
+
+        public UpdateCheckService()
+            : this(SharedHttpClient)
+        {
+        }
+
+        internal UpdateCheckService(HttpClient httpClient)
+        {
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        }
 
         public async Task<UpdateCheckResult> CheckManualAsync(CancellationToken cancellationToken = default)
         {
@@ -62,28 +75,24 @@ namespace ExpressPackingMonitoring.Services
                 SaveCache(result);
                 return result;
             }
-            catch (Exception ex) when (IsRateLimitException(ex) && TryGetCachedResult(cache, out UpdateCheckResult cached))
+            catch (Exception ex) when (
+                ex is not OperationCanceledException
+                && TryGetCachedResult(cache, FailureCacheMaxAge, out UpdateCheckResult cached))
             {
-                RuntimeLog.Warn("Update", $"Update check rate limited, using cached success result: {ex.Message}");
+                RuntimeLog.Warn("Update", $"All update sources failed, using recent cached result: {ex.Message}");
                 return cached;
             }
         }
 
-        private async Task<UpdateCheckResult> FetchLatestReleaseAsync(CancellationToken cancellationToken)
+        internal async Task<UpdateCheckResult> FetchLatestReleaseAsync(CancellationToken cancellationToken)
         {
-            string url = UpdateCheckOptions.GetUpdateCheckUrl();
-            if (string.IsNullOrWhiteSpace(url))
-                throw new InvalidOperationException("更新检查地址未配置");
-
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
-
-            using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            string json = await response.Content.ReadAsStringAsync(cancellationToken);
-            using JsonDocument document = JsonDocument.Parse(json);
-            JsonElement root = document.RootElement;
+            var metadataClient = new UpdateMetadataClient(
+                _httpClient,
+                log: message => RuntimeLog.Info("Update", message));
+            using ResolvedUpdateRelease resolved = await metadataClient.FetchLatestReleaseAsync(
+                UpdateCheckOptions.GetUpdateCheckUrls(),
+                cancellationToken);
+            JsonElement root = resolved.Release.RootElement;
 
             string tagName = ReadString(root, "tag_name");
             if (string.IsNullOrWhiteSpace(tagName))
@@ -138,16 +147,6 @@ namespace ExpressPackingMonitoring.Services
 
             result = cache.Result;
             return true;
-        }
-
-        private static bool IsRateLimitException(Exception ex)
-        {
-            if (ex is HttpRequestException { StatusCode: HttpStatusCode.Forbidden })
-                return true;
-
-            string message = ex.Message ?? "";
-            return message.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("rate limit exceeded", StringComparison.OrdinalIgnoreCase);
         }
 
         private static UpdateCheckCache? LoadCache()
@@ -232,36 +231,7 @@ namespace ExpressPackingMonitoring.Services
 
         internal static string ReadUpdateManifestAssetUrl(JsonElement root, string latestVersion)
         {
-            if (!root.TryGetProperty("assets", out JsonElement assets)
-                || assets.ValueKind != JsonValueKind.Array)
-            {
-                return "";
-            }
-
-            string preferred = $"update_v{latestVersion}.json";
-            string fallback = "";
-            foreach (JsonElement asset in assets.EnumerateArray())
-            {
-                string name = ReadString(asset, "name").Trim();
-                string url = ReadString(asset, "browser_download_url").Trim();
-                if (url.Length == 0)
-                    url = ReadString(asset, "url").Trim();
-                if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
-                    || uri.Scheme != Uri.UriSchemeHttps)
-                {
-                    continue;
-                }
-
-                if (string.Equals(name, preferred, StringComparison.OrdinalIgnoreCase))
-                    return uri.AbsoluteUri;
-                if (fallback.Length == 0
-                    && string.Equals(name, "update.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    fallback = uri.AbsoluteUri;
-                }
-            }
-
-            return fallback;
+            return UpdateMetadataClient.FindUpdateManifestUrl(root, latestVersion);
         }
 
         internal static string NormalizeVersion(string value)

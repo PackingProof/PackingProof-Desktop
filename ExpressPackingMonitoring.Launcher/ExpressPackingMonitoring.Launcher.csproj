@@ -14,7 +14,7 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <StripSymbols>true</StripSymbols>
-    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest</LauncherDefaultUpdateCheckUrl>
+    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest</LauncherDefaultUpdateCheckUrl>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin_publish_tmp\**;obj_publish_tmp\**</DefaultItemExcludes>
   </PropertyGroup>
 
@@ -24,5 +24,9 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
   </ItemGroup>
 </Project>

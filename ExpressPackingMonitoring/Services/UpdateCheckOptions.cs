@@ -1,25 +1,43 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services
 {
     public static class UpdateCheckOptions
     {
         public const string UrlKey = "UPDATE_CHECK_URL";
-        private const string DefaultCheckUrl = "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest";
+        public const string FallbackUrlKey = "UPDATE_CHECK_FALLBACK_URL";
+        internal const string DefaultGiteeCheckUrl = UpdateEndpointPolicy.DefaultGiteeCheckUrl;
+        internal const string DefaultGithubCheckUrl = UpdateEndpointPolicy.DefaultGithubCheckUrl;
 
         public static string GetUpdateCheckUrl()
         {
-            string? value = Environment.GetEnvironmentVariable(UrlKey);
-            if (!string.IsNullOrWhiteSpace(value)) return value.Trim();
-
-            value = ReadEnvFileValue();
-            if (!string.IsNullOrWhiteSpace(value)) return value.Trim();
-
-            return DefaultCheckUrl;
+            return GetUpdateCheckUrls()[0];
         }
 
-        private static string? ReadEnvFileValue()
+        public static IReadOnlyList<string> GetUpdateCheckUrls()
+        {
+            string? primary = Environment.GetEnvironmentVariable(UrlKey);
+            if (string.IsNullOrWhiteSpace(primary))
+                primary = ReadEnvFileValue(UrlKey);
+
+            string? fallback = Environment.GetEnvironmentVariable(FallbackUrlKey);
+            if (string.IsNullOrWhiteSpace(fallback))
+                fallback = ReadEnvFileValue(FallbackUrlKey);
+
+            return ResolveUpdateCheckUrls(primary, fallback);
+        }
+
+        internal static IReadOnlyList<string> ResolveUpdateCheckUrls(
+            string? configuredPrimary,
+            string? configuredFallback)
+        {
+            return UpdateEndpointPolicy.ResolveCheckUrls(configuredPrimary, configuredFallback);
+        }
+
+        private static string? ReadEnvFileValue(string expectedKey)
         {
             foreach (string path in GetEnvFileCandidates())
             {
@@ -34,7 +52,7 @@ namespace ExpressPackingMonitoring.Services
                     if (separator <= 0) continue;
 
                     string key = line[..separator].Trim();
-                    if (!string.Equals(key, UrlKey, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!string.Equals(key, expectedKey, StringComparison.OrdinalIgnoreCase)) continue;
 
                     return line[(separator + 1)..].Trim().Trim('"', '\'');
                 }

@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -21,7 +22,8 @@ internal enum AppPatchPreparationStatus
 internal sealed record AppPatchPreparationResult(
     AppPatchPreparationStatus Status,
     string Message,
-    string FullDownloadUrl = "");
+    string FullDownloadUrl = "",
+    string FullDownloadFallbackUrl = "");
 
 internal sealed record AppPatchDownloadProgress(
     string Message,
@@ -83,15 +85,16 @@ internal sealed class AppPatchDownloadService
                 : update.DownloadUrl;
 
             if (!descriptor.PatchSupported)
-                return FullPackage(update, "此版本未提供可用的增量包", fallbackUrl);
+                return FullPackage(update, "此版本未提供可用的增量包", fallbackUrl, descriptor.FullDownloadFallbackUrl);
             if (!IsPatchUsable(descriptor))
-                return FullPackage(update, "增量更新信息不完整", fallbackUrl);
+                return FullPackage(update, "增量更新信息不完整", fallbackUrl, descriptor.FullDownloadFallbackUrl);
             if (CompareVersions(AppVersion.Current, descriptor.PatchBaselineVersion) < 0)
             {
                 return FullPackage(
                     update,
                     $"当前版本低于增量更新基线 {descriptor.PatchBaselineVersion}",
-                    fallbackUrl);
+                    fallbackUrl,
+                    descriptor.FullDownloadFallbackUrl);
             }
             if (CompareVersions(descriptor.LatestVersion, AppVersion.Current) <= 0)
             {
@@ -116,13 +119,34 @@ internal sealed class AppPatchDownloadService
             try
             {
                 Directory.CreateDirectory(downloadDirectory);
-                progress?.Report(new AppPatchDownloadProgress("正在下载增量更新包"));
-                await DownloadFileAsync(
-                    descriptor.PatchPackage.Url,
-                    downloadPath,
-                    descriptor.PatchPackage.Size,
-                    progress,
-                    cancellationToken);
+                PackageDownloadRoute route = GetDownloadRoute(descriptor.PatchPackage);
+                progress?.Report(new AppPatchDownloadProgress(
+                    route.PreferGitee ? "正在从 Gitee 下载增量更新包" : "正在从 GitHub 下载增量更新包"));
+                try
+                {
+                    await DownloadFileAsync(
+                        route.SelectedUrl,
+                        downloadPath,
+                        descriptor.PatchPackage.Size,
+                        progress,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (
+                    !cancellationToken.IsCancellationRequested
+                    && !route.PreferGitee
+                    && !string.Equals(route.GithubUrl, route.GiteeUrl, StringComparison.OrdinalIgnoreCase)
+                    && ex is HttpRequestException or IOException or TaskCanceledException)
+                {
+                    RuntimeLog.Warn("Update", $"GitHub AppPatch download failed, trying Gitee: {ex.Message}");
+                    TryDeleteOwnedFile(downloadPath);
+                    progress?.Report(new AppPatchDownloadProgress("GitHub 下载失败，正在改用 Gitee"));
+                    await DownloadFileAsync(
+                        route.GiteeUrl,
+                        downloadPath,
+                        descriptor.PatchPackage.Size,
+                        progress,
+                        cancellationToken);
+                }
                 ValidatePackage(downloadPath, descriptor.PatchPackage);
 
                 progress?.Report(new AppPatchDownloadProgress("校验通过，正在准备下次启动安装"));
@@ -290,6 +314,7 @@ internal sealed class AppPatchDownloadService
         string fullDownloadUrl = ReadString(root, "full_download_page");
         if (fullDownloadUrl.Length == 0)
             fullDownloadUrl = ReadString(root, "release_page");
+        string fullDownloadFallbackUrl = ReadString(root, "full_download_fallback_page");
 
         AppPatchPackageInfo package = new("", "", "", -1);
         if (root.TryGetProperty("patch_package", out JsonElement packageElement)
@@ -299,7 +324,9 @@ internal sealed class AppPatchDownloadService
                 ReadString(packageElement, "type"),
                 ReadString(packageElement, "url"),
                 ReadString(packageElement, "sha256"),
-                ReadInt64(packageElement, "size"));
+                ReadInt64(packageElement, "size"),
+                ReadString(packageElement, "github_url"),
+                ReadString(packageElement, "gitee_url"));
         }
 
         return new AppPatchDescriptor(
@@ -307,6 +334,7 @@ internal sealed class AppPatchDownloadService
             UpdateCheckService.NormalizeVersion(ReadString(root, "patch_baseline_version")),
             ReadBoolean(root, "patch_supported"),
             fullDownloadUrl,
+            fullDownloadFallbackUrl,
             package);
     }
 
@@ -318,11 +346,23 @@ internal sealed class AppPatchDownloadService
                 descriptor.PatchPackage.Type,
                 PatchPackageType,
                 StringComparison.OrdinalIgnoreCase)
-            && Uri.TryCreate(descriptor.PatchPackage.Url, UriKind.Absolute, out Uri? uri)
-            && uri.Scheme == Uri.UriSchemeHttps
+            && (UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.Url)
+                || UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.GithubUrl)
+                || UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.GiteeUrl))
             && descriptor.PatchPackage.Size > 0
             && descriptor.PatchPackage.Sha256.Length == 64
             && descriptor.PatchPackage.Sha256.All(Uri.IsHexDigit);
+    }
+
+    internal static PackageDownloadRoute GetDownloadRoute(AppPatchPackageInfo package)
+    {
+        return PackageDownloadRoutePolicy.Resolve(
+            package.GithubUrl,
+            package.GiteeUrl,
+            package.Url,
+            derivedGithubUrl: "",
+            consecutiveGithubFailures: 0,
+            fallbackThreshold: 3);
     }
 
     private static void ValidatePackage(string path, AppPatchPackageInfo package)
@@ -395,12 +435,14 @@ internal sealed class AppPatchDownloadService
     private static AppPatchPreparationResult FullPackage(
         UpdateCheckResult update,
         string message,
-        string? url = null)
+        string? url = null,
+        string? fallbackUrl = null)
     {
         return new AppPatchPreparationResult(
             AppPatchPreparationStatus.FullPackageRequired,
             message,
-            string.IsNullOrWhiteSpace(url) ? update.DownloadUrl : url);
+            string.IsNullOrWhiteSpace(url) ? update.DownloadUrl : url,
+            fallbackUrl ?? "");
     }
 
     private static int CompareVersions(string left, string right)
@@ -451,6 +493,19 @@ internal sealed class AppPatchDownloadService
             RuntimeLog.Warn("Update", $"Unable to clean owned update directory {Path.GetFileName(path)}: {ex.Message}");
         }
     }
+
+    private static void TryDeleteOwnedFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Update", $"Unable to clean owned update file {Path.GetFileName(path)}: {ex.Message}");
+        }
+    }
 }
 
 internal sealed record AppPatchDescriptor(
@@ -458,10 +513,13 @@ internal sealed record AppPatchDescriptor(
     string PatchBaselineVersion,
     bool PatchSupported,
     string FullDownloadUrl,
+    string FullDownloadFallbackUrl,
     AppPatchPackageInfo PatchPackage);
 
 internal sealed record AppPatchPackageInfo(
     string Type,
     string Url,
     string Sha256,
-    long Size);
+    long Size,
+    string GithubUrl = "",
+    string GiteeUrl = "");

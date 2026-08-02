@@ -71,7 +71,7 @@ if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl)) {
     $UpdateCheckUrl = Get-DotEnvValue -Key "UPDATE_CHECK_URL"
 }
 if ([string]::IsNullOrWhiteSpace($UpdateCheckUrl)) {
-    $UpdateCheckUrl = "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest"
+    $UpdateCheckUrl = "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
 }
 $UpdateCheckUrl = $UpdateCheckUrl.Trim()
 

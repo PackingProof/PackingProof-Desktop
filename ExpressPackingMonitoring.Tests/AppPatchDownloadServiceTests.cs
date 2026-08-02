@@ -36,6 +36,7 @@ public sealed class AppPatchDownloadServiceTests
 
         Assert.Equal(AppPatchPreparationStatus.FullPackageRequired, result.Status);
         Assert.Contains("低于增量更新基线", result.Message, StringComparison.Ordinal);
+        Assert.Equal("https://backup.example/releases", result.FullDownloadFallbackUrl);
         Assert.False(Directory.Exists(fixture.PendingDirectory));
     }
 
@@ -84,6 +85,25 @@ public sealed class AppPatchDownloadServiceTests
     }
 
     [Fact]
+    public async Task GithubPatchFailure_FallsBackToGiteePackage()
+    {
+        using var fixture = new AppPatchFixture();
+        byte[] package = "gitee-fallback-patch"u8.ToArray();
+        (string githubUrl, string giteeUrl) = fixture.AddDualSourceRelease("1.2.3", package);
+
+        AppPatchPreparationResult result = await fixture.PrepareAsync("1.2.3");
+
+        Assert.Equal(AppPatchPreparationStatus.Ready, result.Status);
+        Assert.True(fixture.Requests.IndexOf(githubUrl) >= 0);
+        Assert.True(fixture.Requests.IndexOf(giteeUrl) > fixture.Requests.IndexOf(githubUrl));
+        Assert.Equal(
+            package,
+            File.ReadAllBytes(Path.Combine(
+                fixture.PendingDirectory,
+                "ExpressPackingMonitoring_AppPatch_v1.2.3.zip")));
+    }
+
+    [Fact]
     public void UpdateManifestAssetPrefersVersionedNameAndRejectsHttp()
     {
         using var document = System.Text.Json.JsonDocument.Parse(
@@ -125,6 +145,7 @@ public sealed class AppPatchDownloadServiceTests
 
         internal string UpdatesDirectory => Path.Combine(_root, "updates");
         internal string PendingDirectory => Path.Combine(UpdatesDirectory, "pending");
+        internal List<string> Requests => _handler.Requests;
 
         internal void AddRelease(
             string version,
@@ -143,6 +164,7 @@ public sealed class AppPatchDownloadServiceTests
                   "patch_baseline_version": "{{baseline}}",
                   "patch_supported": true,
                   "full_download_page": "https://example.com/releases",
+                  "full_download_fallback_page": "https://backup.example/releases",
                   "patch_package": {
                     "type": "baseline_patch",
                     "url": "{{packageUrl}}",
@@ -153,6 +175,37 @@ public sealed class AppPatchDownloadServiceTests
                 """;
             _handler.Add(manifestUrl, Encoding.UTF8.GetBytes(manifest), "application/json");
             _handler.Add(packageUrl, package, "application/zip");
+        }
+
+        internal (string GithubUrl, string GiteeUrl) AddDualSourceRelease(
+            string version,
+            byte[] package)
+        {
+            string manifestUrl = ManifestBase + $"update-{version}.json";
+            string githubUrl = ManifestBase + $"github-patch-{version}.zip";
+            string giteeUrl = ManifestBase + $"gitee-patch-{version}.zip";
+            string hash = Convert.ToHexString(SHA256.HashData(package)).ToLowerInvariant();
+            string manifest =
+                $$"""
+                {
+                  "latest_version": "{{version}}",
+                  "patch_baseline_version": "0.0.0",
+                  "patch_supported": true,
+                  "full_download_page": "https://example.com/releases",
+                  "patch_package": {
+                    "type": "baseline_patch",
+                    "url": "{{giteeUrl}}",
+                    "github_url": "{{githubUrl}}",
+                    "gitee_url": "{{giteeUrl}}",
+                    "sha256": "{{hash}}",
+                    "size": {{package.Length}}
+                  }
+                }
+                """;
+            _handler.Add(manifestUrl, Encoding.UTF8.GetBytes(manifest), "application/json");
+            _handler.AddStatus(githubUrl, HttpStatusCode.ServiceUnavailable);
+            _handler.Add(giteeUrl, package, "application/zip");
+            return (githubUrl, giteeUrl);
         }
 
         internal Task<AppPatchPreparationResult> PrepareAsync(string version)
@@ -184,18 +237,37 @@ public sealed class AppPatchDownloadServiceTests
     {
         private readonly Dictionary<string, (byte[] Content, string ContentType)> _responses =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, HttpStatusCode> _statuses =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        internal List<string> Requests { get; } = [];
 
         internal void Add(string url, byte[] content, string contentType)
         {
             _responses[url] = (content, contentType);
         }
 
+        internal void AddStatus(string url, HttpStatusCode status)
+        {
+            _statuses[url] = status;
+        }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            string url = request.RequestUri?.AbsoluteUri ?? "";
+            Requests.Add(url);
+            if (_statuses.TryGetValue(url, out HttpStatusCode status))
+            {
+                return Task.FromResult(new HttpResponseMessage(status)
+                {
+                    RequestMessage = request
+                });
+            }
+
             if (request.RequestUri != null
-                && _responses.TryGetValue(request.RequestUri.AbsoluteUri, out var response))
+                && _responses.TryGetValue(url, out var response))
             {
                 var content = new ByteArrayContent(response.Content);
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(response.ContentType);

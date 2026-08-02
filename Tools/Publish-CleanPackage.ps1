@@ -532,7 +532,7 @@ function Get-ReleaseUrlBase {
         return $explicitBase.TrimEnd("/")
     }
 
-    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest"
+    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
     if ($checkUrl -match "^https://api\.github\.com/repos/([^/]+/[^/]+)/releases/latest/?$") {
         return "https://github.com/$($Matches[1])/releases"
     }
@@ -541,7 +541,7 @@ function Get-ReleaseUrlBase {
         return "https://gitee.com/$($Matches[1])/releases"
     }
 
-    return "https://github.com/m-RNA/ExpressPackingMonitoring/releases"
+    return "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases"
 }
 
 function Expand-ReleaseTemplate {
@@ -791,7 +791,7 @@ $appPublishDir = Join-Path $outputFullPath "app"
 $appBaseOutput = Join-Path $repoRoot "ExpressPackingMonitoring\bin_publish_tmp\clean-package-app\"
 $appBaseIntermediate = Join-Path $repoRoot "ExpressPackingMonitoring\obj_publish_tmp\clean-package-app\"
 $gitCommitId = Get-GitCommitId
-$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest"
+$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
 } elseif (-not [string]::IsNullOrWhiteSpace($BaselineLauncherManifestPath)) {
@@ -918,17 +918,25 @@ $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"
 $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
+$appPatchGithubUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
+$appPatchGiteeUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases/download/{tag}/{file}"
 $launcherPackageUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $launcherPackageGithubUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
+$launcherPackageGiteeUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
+$appPatchGithubUrl = Expand-ReleaseTemplate -Template $appPatchGithubUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
+$appPatchGiteeUrl = Expand-ReleaseTemplate -Template $appPatchGiteeUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $launcherPackagePlaceholderUrl = Expand-ReleaseTemplate -Template $launcherPackageUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $launcherPackageGithubUrl = Expand-ReleaseTemplate -Template $launcherPackageGithubUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
+$launcherPackageGiteeUrl = Expand-ReleaseTemplate -Template $launcherPackageGiteeUrlTemplate -ReleaseTag ([string]$launcherBaseline.release_tag) -FileName $launcherPackageName
 $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
 if ([string]::IsNullOrWhiteSpace($fullDownloadPageTemplate)) {
     $fullDownloadPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
 }
 $fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $zipFullPath)
+$fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/tag/{tag}"
+$fullDownloadFallbackPage = Expand-ReleaseTemplate -Template $fullDownloadFallbackPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $zipFullPath)
 
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
 if (Test-Path $legacyAppFullZipPath) {
@@ -1088,6 +1096,7 @@ $launcherPackageInfo["protocol_version"] = [int]$launcherBaseline.protocol_versi
 $launcherPackageInfo["version"] = [string]$launcherBaseline.version
 $launcherPackageInfo["url"] = $launcherPackagePlaceholderUrl
 $launcherPackageInfo["github_url"] = $launcherPackageGithubUrl
+$launcherPackageInfo["gitee_url"] = $launcherPackageGiteeUrl
 $launcherPackageInfo["size"] = $launcherPackageSize
 $launcherPackageInfo["sha256"] = $launcherPackageHash
 $launcherPackageInfo["executable_size"] = $launcherExecutableSize
@@ -1097,6 +1106,8 @@ if ($patchSupported) {
     $patchPackageInfo = [ordered]@{}
     $patchPackageInfo["type"] = "baseline_patch"
     $patchPackageInfo["url"] = $appPatchPlaceholderUrl
+    $patchPackageInfo["github_url"] = $appPatchGithubUrl
+    $patchPackageInfo["gitee_url"] = $appPatchGiteeUrl
     $patchPackageInfo["sha256"] = $appPatchHash
     $patchPackageInfo["size"] = $appPatchSize
     $updateManifest["patch_package"] = $patchPackageInfo
@@ -1115,6 +1126,7 @@ else {
     )
 }
 $updateManifest["full_download_page"] = $fullDownloadPage
+$updateManifest["full_download_fallback_page"] = $fullDownloadFallbackPage
 
 $updateManifest |
     ConvertTo-Json -Depth 6 |

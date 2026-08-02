@@ -125,7 +125,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Assert-LauncherPackage", commonScript);
         Assert.Contains("$updateManifest[\"launcher_package\"]", publishScript);
         Assert.Contains("$launcherPackageInfo[\"github_url\"]", publishScript);
+        Assert.Contains("$launcherPackageInfo[\"gitee_url\"]", publishScript);
         Assert.Contains("LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE", publishScript);
+        Assert.Contains("LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE", publishScript);
         Assert.Contains("$launcherPackageHash", publishScript);
         Assert.Contains("$launcherExecutableHash", publishScript);
         Assert.Contains("protocol_version", publishScript);
@@ -212,6 +214,11 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Test-IsAppPatchManagedRuntimePath", publishScript);
         Assert.Contains("Test-ZipContainsEntryPrefix", publishScript);
         Assert.Contains("patch_supported", publishScript);
+        Assert.Contains("APP_PATCH_GITHUB_URL_TEMPLATE", publishScript);
+        Assert.Contains("APP_PATCH_GITEE_URL_TEMPLATE", publishScript);
+        Assert.Contains("$patchPackageInfo[\"github_url\"]", publishScript);
+        Assert.Contains("$patchPackageInfo[\"gitee_url\"]", publishScript);
+        Assert.Contains("full_download_fallback_page", publishScript);
         Assert.Contains("$updateManifest[\"patch_package\"] = $null", publishScript);
         Assert.Contains("Remove-Item -LiteralPath $appPatchZipPath -Force", publishScript);
         Assert.Contains("$patchReason", publishScript);

@@ -3,6 +3,10 @@ $script:LauncherUpdateProtocolVersion = 1
 $script:LauncherFingerprintFiles = @(
     "ExpressPackingMonitoring.Launcher\Program.cs",
     "ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
+    "ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj",
+    "ExpressPackingMonitoring.UpdateCore\UpdateEndpointPolicy.cs",
+    "ExpressPackingMonitoring.UpdateCore\UpdateMetadataClient.cs",
+    "ExpressPackingMonitoring.UpdateCore\PackageDownloadRoutePolicy.cs",
     "ExpressPackingMonitoring\app.ico",
     "Tools\Install-LauncherPatch.cmd",
     "Tools\Apply-LauncherPatch.ps1"

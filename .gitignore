@@ -14,6 +14,8 @@ ExpressPackingMonitoring.Tests/bin/
 ExpressPackingMonitoring.Tests/obj/
 ExpressPackingMonitoring.EncodingIntegrationTests/bin/
 ExpressPackingMonitoring.EncodingIntegrationTests/obj/
+ExpressPackingMonitoring.UpdateCore/bin/
+ExpressPackingMonitoring.UpdateCore/obj/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/obj/
 Tools/ExpressPackingMonitoring.AutomationHost/bin/

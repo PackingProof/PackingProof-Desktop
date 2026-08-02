@@ -49,7 +49,9 @@ public sealed class LauncherBaselineScriptTests
             $files = @(Get-LauncherFingerprintFiles)
             if ($one -ne $same -or $one -eq $otherUrl -or $one -eq $otherRuntime -or
                 $files -notcontains 'Tools\Install-LauncherPatch.cmd' -or
-                $files -notcontains 'Tools\Apply-LauncherPatch.ps1') { exit 1 }
+                $files -notcontains 'Tools\Apply-LauncherPatch.ps1' -or
+                $files -notcontains 'ExpressPackingMonitoring.UpdateCore\UpdateMetadataClient.cs' -or
+                $files -notcontains 'ExpressPackingMonitoring.UpdateCore\PackageDownloadRoutePolicy.cs') { exit 1 }
             """;
 
         ProcessResult result = RunPowerShell(command, repositoryRoot);
@@ -104,6 +106,10 @@ public sealed class LauncherBaselineScriptTests
             {
                 @"ExpressPackingMonitoring.Launcher\Program.cs",
                 @"ExpressPackingMonitoring.Launcher\ExpressPackingMonitoring.Launcher.csproj",
+                @"ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj",
+                @"ExpressPackingMonitoring.UpdateCore\UpdateEndpointPolicy.cs",
+                @"ExpressPackingMonitoring.UpdateCore\UpdateMetadataClient.cs",
+                @"ExpressPackingMonitoring.UpdateCore\PackageDownloadRoutePolicy.cs",
                 @"ExpressPackingMonitoring\app.ico",
                 @"Tools\Install-LauncherPatch.cmd",
                 @"Tools\Apply-LauncherPatch.ps1"

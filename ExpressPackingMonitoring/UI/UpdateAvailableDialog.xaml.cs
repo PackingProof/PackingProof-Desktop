@@ -100,6 +100,14 @@ namespace ExpressPackingMonitoring.UI
                     DownloadUrl = string.IsNullOrWhiteSpace(preparation.FullDownloadUrl)
                         ? _result.DownloadUrl
                         : preparation.FullDownloadUrl;
+                    if (!string.IsNullOrWhiteSpace(preparation.FullDownloadFallbackUrl)
+                        && !string.Equals(
+                            preparation.FullDownloadFallbackUrl,
+                            DownloadUrl,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        DownloadStatusText.Text += $"\n备用下载页：{preparation.FullDownloadFallbackUrl}";
+                    }
                     _openFullDownloadPage = true;
                     DownloadButton.Content = "打开完整更新页面";
                     DownloadButton.IsEnabled = true;

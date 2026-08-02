@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using ExpressPackingMonitoring.UpdateCore;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -21,7 +22,8 @@ internal sealed record LauncherPackageInfo(
     long Size,
     string Sha256,
     long ExecutableSize,
-    string ExecutableSha256);
+    string ExecutableSha256,
+    string GiteeUrl = "");
 
 internal sealed record LauncherDownloadFailureState(
     string PackageVersion,
@@ -369,7 +371,8 @@ internal sealed class LauncherUpdateService
             ReadInt64(package, "size"),
             ReadString(package, "sha256"),
             ReadInt64(package, "executable_size"),
-            ReadString(package, "executable_sha256"));
+            ReadString(package, "executable_sha256"),
+            ReadString(package, "gitee_url"));
 
         return IsValid(result) ? result : null;
     }
@@ -458,48 +461,13 @@ internal sealed class LauncherUpdateService
     private static async Task<LauncherPackageInfo?> FetchPackageInfoAsync(
         CancellationToken cancellationToken)
     {
-        string releaseUrl = UpdateCheckOptions.GetUpdateCheckUrl();
-        using JsonDocument release = await GetJsonAsync(releaseUrl, cancellationToken);
-        string latestVersion = ReadString(release.RootElement, "tag_name")
-            .TrimStart('v', 'V');
-        string expectedName = $"update_v{latestVersion}.json";
-        string manifestUrl = "";
-
-        if (release.RootElement.TryGetProperty("assets", out JsonElement assets) &&
-            assets.ValueKind == JsonValueKind.Array)
-        {
-            foreach (JsonElement asset in assets.EnumerateArray())
-            {
-                string name = ReadString(asset, "name");
-                if (!string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase) &&
-                    !string.Equals(name, "update.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                manifestUrl = ReadString(asset, "browser_download_url");
-                if (string.Equals(name, expectedName, StringComparison.OrdinalIgnoreCase))
-                    break;
-            }
-        }
-
-        if (string.IsNullOrWhiteSpace(manifestUrl))
-            return null;
-
-        using JsonDocument manifest = await GetJsonAsync(manifestUrl, cancellationToken);
-        return ParsePackageInfo(manifest.RootElement);
-    }
-
-    private static async Task<JsonDocument> GetJsonAsync(
-        string url,
-        CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
-        using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var metadataClient = new UpdateMetadataClient(
+            HttpClient,
+            log: message => RuntimeLog.Info("LauncherUpdate", message));
+        using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
+            UpdateCheckOptions.GetUpdateCheckUrls(),
+            cancellationToken);
+        return ParsePackageInfo(resolved.Manifest.RootElement);
     }
 
     private static async Task DownloadAndVerifyAsync(
@@ -535,10 +503,11 @@ internal sealed class LauncherUpdateService
             {
                 RuntimeLog.Info(
                     "LauncherUpdate",
-                    $"Download launcher package source={(route.PreferFallback ? "manifest" : "github")}, failures={failureState.ConsecutiveGithubDownloadFailures}, version={package.Version}");
+                    $"Download launcher package source={(route.PreferFallback ? "gitee" : "github")}, failures={failureState.ConsecutiveGithubDownloadFailures}, version={package.Version}");
                 await DownloadFileAsync(route.SelectedUrl, temporaryPath, cancellationToken);
             }
-            catch (Exception ex) when (!route.PreferFallback &&
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested &&
+                                       !route.PreferFallback &&
                                        !AreSameUrl(route.GithubUrl, route.FallbackUrl))
             {
                 failureState = failureState with
@@ -553,7 +522,7 @@ internal sealed class LauncherUpdateService
                 TryDeleteFile(temporaryPath);
                 RuntimeLog.Info(
                     "LauncherUpdate",
-                    "Retry launcher package from manifest fallback source");
+                    "Retry launcher package from Gitee fallback source");
                 await DownloadFileAsync(route.FallbackUrl, temporaryPath, cancellationToken);
             }
 
@@ -720,7 +689,13 @@ internal sealed class LauncherUpdateService
         LauncherPackageInfo? package = JsonSerializer.Deserialize<LauncherPackageInfo>(
             File.ReadAllText(descriptorPath));
         if (package != null)
-            package = package with { GithubUrl = package.GithubUrl ?? "" };
+        {
+            package = package with
+            {
+                GithubUrl = package.GithubUrl ?? "",
+                GiteeUrl = package.GiteeUrl ?? ""
+            };
+        }
         return package != null && IsValid(package)
             ? package
             : throw new InvalidDataException("启动器待处理描述无效");
@@ -760,8 +735,9 @@ internal sealed class LauncherUpdateService
     private static bool IsValid(LauncherPackageInfo package)
         => package.ProtocolVersion == SupportedProtocolVersion
             && !string.IsNullOrWhiteSpace(package.Version)
-            && Uri.TryCreate(package.Url, UriKind.Absolute, out Uri? uri)
-            && (uri.Scheme == Uri.UriSchemeHttps || uri.IsLoopback)
+            && (UpdateEndpointPolicy.IsSecureAbsoluteUrl(package.Url)
+                || UpdateEndpointPolicy.IsSecureAbsoluteUrl(package.GithubUrl)
+                || UpdateEndpointPolicy.IsSecureAbsoluteUrl(package.GiteeUrl))
             && package.Size > 0
             && package.ExecutableSize > 0
             && IsSha256(package.Sha256)
@@ -771,16 +747,18 @@ internal sealed class LauncherUpdateService
         LauncherPackageInfo package,
         int consecutiveGithubFailures)
     {
-        string githubUrl = ResolveGithubDownloadUrl(package);
-        string fallbackUrl = package.Url;
-        bool preferFallback = Math.Max(0, consecutiveGithubFailures) >=
-                              GithubDownloadFailureFallbackThreshold &&
-                              !AreSameUrl(githubUrl, fallbackUrl);
+        PackageDownloadRoute route = PackageDownloadRoutePolicy.Resolve(
+            package.GithubUrl,
+            package.GiteeUrl,
+            package.Url,
+            ResolveDerivedGithubDownloadUrl(package),
+            consecutiveGithubFailures,
+            GithubDownloadFailureFallbackThreshold);
         return new LauncherDownloadRoute(
-            githubUrl,
-            fallbackUrl,
-            preferFallback ? fallbackUrl : githubUrl,
-            preferFallback);
+            route.GithubUrl,
+            route.GiteeUrl,
+            route.SelectedUrl,
+            route.PreferGitee);
     }
 
     internal static LauncherDownloadFailureState LoadDownloadFailureState(
@@ -848,11 +826,8 @@ internal sealed class LauncherUpdateService
     internal static void ResetDownloadFailureState(string statePath)
         => TryDeleteFile(statePath);
 
-    private static string ResolveGithubDownloadUrl(LauncherPackageInfo package)
+    private static string ResolveDerivedGithubDownloadUrl(LauncherPackageInfo package)
     {
-        if (IsValidDownloadUrl(package.GithubUrl))
-            return package.GithubUrl;
-
         string fileName;
         try
         {

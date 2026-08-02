@@ -7,20 +7,22 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ExpressPackingMonitoring.UpdateCore;
 
 internal static class Program
 {
     private const string AppRelativePath = "app\\ExpressPackingMonitoring.exe";
     private const string AppDllRelativePath = "app\\ExpressPackingMonitoring.dll";
     private const string UpdateUrlKey = "UPDATE_CHECK_URL";
+    private const string UpdateFallbackUrlKey = "UPDATE_CHECK_FALLBACK_URL";
     private const string DefaultCheckUrlMetadataKey = "LauncherDefaultUpdateCheckUrl";
-    private const string FallbackCheckUrl = "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest";
-    private const string DefaultPatchDownloadBaseUrl = "https://github.com/m-RNA/ExpressPackingMonitoring/releases/download";
+    private const string DefaultPatchDownloadBaseUrl = "https://github.com/PackingProof/PackingProof-Desktop/releases/download";
     private const string PatchPackageType = "baseline_patch";
     private const string WaitForProcessExitOption = "--wait-for-process-exit";
     private const string LaunchedByRootLauncherOption = "--launched-by-root-launcher";
     private const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
     private const int GithubDownloadFailureFallbackThreshold = 3;
+    private const int SuccessfulUpdateCheckCacheHours = 12;
     private const string InstanceNamePrefix = "ExpressPackingMonitoring";
     private const string CameraMonitorRole = "CameraMonitor";
     private const string PrintStationRole = "PrintStation";
@@ -368,52 +370,44 @@ internal static class Program
                 WriteLog("无法读取当前版本，跳过自动更新检查");
                 return null;
             }
+            if (ShouldSkipRecentSuccessfulUpdateCheck(currentVersion))
+            {
+                WriteLog($"最近 {SuccessfulUpdateCheckCacheHours} 小时已成功检查当前版本，跳过重复请求");
+                return null;
+            }
 
-            UpdateCheckUrlInfo checkUrl = GetUpdateCheckUrl(baseDir);
-            if (string.IsNullOrWhiteSpace(checkUrl.Url))
+            IReadOnlyList<string> checkUrls = GetUpdateCheckUrls(baseDir);
+            if (checkUrls.Count == 0)
             {
                 WriteLog("自动检查更新地址为空，跳过后台检查");
                 return null;
             }
 
-            WriteLog($"自动检查更新开始：current={currentVersion}, source={checkUrl.Source}");
-            using JsonDocument release = await GetJsonWithRetryAsync(
-                checkUrl.Url,
-                "Release 信息",
+            WriteLog($"自动检查更新开始：current={currentVersion}, sources={string.Join(" -> ", checkUrls)}");
+            var metadataClient = new UpdateMetadataClient(
+                HttpClient,
+                attemptsPerSource: MetadataRequestAttempts,
+                retryDelay: TimeSpan.FromMilliseconds(500),
+                log: message => WriteLog("更新元数据：" + message));
+            using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
+                checkUrls,
                 cancellationToken);
-            JsonElement releaseRoot = release.RootElement;
-            string tagName = ReadString(releaseRoot, "tag_name");
-            if (string.IsNullOrWhiteSpace(tagName))
-            {
-                WriteLog("自动检查更新结果缺少 tag_name，跳过本次检查");
-                return null;
-            }
-
-            string latestVersion = NormalizeVersion(tagName);
+            string latestVersion = resolved.LatestVersion;
             WriteLog($"自动检查更新版本：current={currentVersion}, latest={latestVersion}");
             if (CompareVersions(latestVersion, currentVersion) <= 0)
             {
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
                 WriteLog("当前已是最新版或高于远程版本，不下载 Patch");
                 return null;
             }
 
-            AssetInfo? manifestAsset = FindUpdateManifestAsset(releaseRoot, latestVersion);
-            if (manifestAsset == null)
-            {
-                WriteLog($"Release 资产中未找到 update_v{latestVersion}.json 或 update.json，跳过自动更新");
-                return null;
-            }
-
-            WriteLog($"找到更新描述文件：{manifestAsset.Name}");
-            using JsonDocument updateManifest = await GetJsonWithRetryAsync(
-                manifestAsset.Url,
-                "更新描述",
-                cancellationToken);
-            UpdateDescriptor descriptor = ReadUpdateDescriptor(updateManifest.RootElement, latestVersion);
+            WriteLog($"找到更新描述文件：{resolved.ManifestUrl}");
+            UpdateDescriptor descriptor = ReadUpdateDescriptor(resolved.Manifest.RootElement, latestVersion);
             WriteLog($"更新描述读取完成：latest={descriptor.LatestVersion}, patchSupported={descriptor.PatchSupported}, baseline={descriptor.PatchBaselineVersion}");
 
             if (!descriptor.PatchSupported)
             {
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
                 WriteLog("更新描述标记不支持自动增量更新，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.PatchNotSupported);
             }
@@ -421,17 +415,20 @@ internal static class Program
             if (!string.IsNullOrWhiteSpace(descriptor.PatchBaselineVersion) &&
                 CompareVersions(currentVersion, descriptor.PatchBaselineVersion) < 0)
             {
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
                 WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.VersionBelowBaseline);
             }
 
             if (!IsPatchDescriptorUsable(descriptor))
             {
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
                 WriteLog("更新描述中的 Patch 信息不完整，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.PatchDescriptorUnavailable);
             }
 
-            await DownloadPendingPatchAsync(updateManifest.RootElement, descriptor, cancellationToken);
+            await DownloadPendingPatchAsync(resolved.Manifest.RootElement, descriptor, cancellationToken);
+            SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
             WriteLog($"Patch 已下载到 pending，下次启动安装：{descriptor.LatestVersion}");
             return null;
         }
@@ -468,27 +465,32 @@ internal static class Program
             Directory.CreateDirectory(downloadDir);
             DeleteFileIfExists(tmpPath);
 
-            string githubUrl = BuildDefaultGithubPatchDownloadUrl(descriptor, patchZipName);
-            string fallbackUrl = descriptor.PatchPackage.Url;
+            string derivedGithubUrl = BuildDefaultGithubPatchDownloadUrl(descriptor, patchZipName);
             PatchDownloadFailureState failureState = LoadPatchDownloadFailureState(descriptor.LatestVersion);
-            bool preferFallback = failureState.ConsecutiveGithubDownloadFailures >= GithubDownloadFailureFallbackThreshold &&
-                !AreSameUrl(githubUrl, fallbackUrl);
-            string selectedUrl = preferFallback ? fallbackUrl : githubUrl;
+            PackageDownloadRoute route = PackageDownloadRoutePolicy.Resolve(
+                descriptor.PatchPackage.GithubUrl,
+                descriptor.PatchPackage.GiteeUrl,
+                descriptor.PatchPackage.Url,
+                derivedGithubUrl,
+                failureState.ConsecutiveGithubDownloadFailures,
+                GithubDownloadFailureFallbackThreshold);
 
             try
             {
-                WriteLog($"准备下载 Patch：version={descriptor.LatestVersion}, source={(preferFallback ? "manifest" : "github")}, failures={failureState.ConsecutiveGithubDownloadFailures}, url={selectedUrl}");
-                await DownloadFileAsync(selectedUrl, tmpPath, cancellationToken);
+                WriteLog($"准备下载 Patch：version={descriptor.LatestVersion}, source={(route.PreferGitee ? "gitee" : "github")}, failures={failureState.ConsecutiveGithubDownloadFailures}, url={route.SelectedUrl}");
+                await DownloadFileAsync(route.SelectedUrl, tmpPath, cancellationToken);
             }
-            catch (Exception ex) when (!preferFallback && !AreSameUrl(githubUrl, fallbackUrl))
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested
+                                       && !route.PreferGitee
+                                       && !AreSameUrl(route.GithubUrl, route.GiteeUrl))
             {
                 failureState.ConsecutiveGithubDownloadFailures++;
                 SavePatchDownloadFailureState(failureState);
                 WriteLog($"GitHub Patch 下载失败 {failureState.ConsecutiveGithubDownloadFailures}/{GithubDownloadFailureFallbackThreshold}：{ex.Message}");
 
                 TryDeleteFile(tmpPath);
-                WriteLog($"GitHub Patch 下载失败，本次立即改用更新描述中的下载地址：{fallbackUrl}");
-                await DownloadFileAsync(fallbackUrl, tmpPath, cancellationToken);
+                WriteLog($"GitHub Patch 下载失败，本次立即改用 Gitee：{route.GiteeUrl}");
+                await DownloadFileAsync(route.GiteeUrl, tmpPath, cancellationToken);
             }
 
             ValidateDownloadedFileSize(tmpPath, descriptor.PatchPackage.Size);
@@ -639,7 +641,9 @@ internal static class Program
     {
         return descriptor.PatchSupported &&
             string.Equals(descriptor.PatchPackage.Type, PatchPackageType, StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrWhiteSpace(descriptor.PatchPackage.Url) &&
+            (UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.Url) ||
+             UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.GithubUrl) ||
+             UpdateEndpointPolicy.IsSecureAbsoluteUrl(descriptor.PatchPackage.GiteeUrl)) &&
             !string.IsNullOrWhiteSpace(descriptor.PatchPackage.Sha256) &&
             !string.IsNullOrWhiteSpace(descriptor.LatestVersion);
     }
@@ -906,42 +910,6 @@ internal static class Program
         }
     }
 
-    private static async Task<JsonDocument> GetJsonAsync(string url, CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
-        using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-    }
-
-    private static async Task<JsonDocument> GetJsonWithRetryAsync(
-        string url,
-        string operationName,
-        CancellationToken cancellationToken)
-    {
-        Exception? lastError = null;
-        for (int attempt = 1; attempt <= MetadataRequestAttempts; attempt++)
-        {
-            try
-            {
-                return await GetJsonAsync(url, cancellationToken);
-            }
-            catch (Exception ex) when (
-                attempt < MetadataRequestAttempts &&
-                ex is not OperationCanceledException &&
-                ex is not JsonException)
-            {
-                lastError = ex;
-                WriteLog($"{operationName}请求失败，准备重试 {attempt + 1}/{MetadataRequestAttempts}：{ex.Message}");
-                await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
-            }
-        }
-
-        throw lastError ?? new InvalidOperationException($"{operationName}请求失败");
-    }
-
     private static async Task DownloadFileAsync(string url, string path, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -957,31 +925,6 @@ internal static class Program
         await source.CopyToAsync(target, cancellationToken);
     }
 
-    private static AssetInfo? FindUpdateManifestAsset(JsonElement releaseRoot, string latestVersion)
-    {
-        if (!releaseRoot.TryGetProperty("assets", out JsonElement assets) || assets.ValueKind != JsonValueKind.Array)
-            return null;
-
-        string preferred = $"update_v{latestVersion}.json";
-        AssetInfo? fallback = null;
-        foreach (JsonElement asset in assets.EnumerateArray())
-        {
-            string name = ReadString(asset, "name");
-            string url = ReadString(asset, "browser_download_url");
-            if (string.IsNullOrWhiteSpace(url))
-                url = ReadString(asset, "url");
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
-                continue;
-
-            if (string.Equals(name, preferred, StringComparison.OrdinalIgnoreCase))
-                return new AssetInfo(name, url);
-            if (fallback == null && string.Equals(name, "update.json", StringComparison.OrdinalIgnoreCase))
-                fallback = new AssetInfo(name, url);
-        }
-
-        return fallback;
-    }
-
     private static UpdateDescriptor ReadUpdateDescriptor(JsonElement manifestRoot, string fallbackVersion)
     {
         string latestVersion = NormalizeVersion(ReadString(manifestRoot, "latest_version"));
@@ -991,12 +934,14 @@ internal static class Program
         string fullDownloadPage = ReadString(manifestRoot, "full_download_page");
         if (string.IsNullOrWhiteSpace(fullDownloadPage))
             fullDownloadPage = ReadString(manifestRoot, "release_page");
+        string fullDownloadFallbackPage = ReadString(manifestRoot, "full_download_fallback_page");
 
         return new UpdateDescriptor(
             latestVersion,
             ReadString(manifestRoot, "title"),
             ReadNotes(manifestRoot),
             fullDownloadPage,
+            fullDownloadFallbackPage,
             NormalizeVersion(ReadString(manifestRoot, "patch_baseline_version")),
             ReadBoolean(manifestRoot, "patch_supported"),
             ReadPatchPackageInfo(manifestRoot));
@@ -1005,13 +950,15 @@ internal static class Program
     private static PatchPackageInfo ReadPatchPackageInfo(JsonElement manifestRoot)
     {
         if (!manifestRoot.TryGetProperty("patch_package", out JsonElement package) || package.ValueKind != JsonValueKind.Object)
-            return new PatchPackageInfo("", "", "", -1);
+            return new PatchPackageInfo("", "", "", -1, "", "");
 
         return new PatchPackageInfo(
             ReadString(package, "type"),
             ReadString(package, "url"),
             ReadString(package, "sha256"),
-            ReadInt64(package, "size"));
+            ReadInt64(package, "size"),
+            ReadString(package, "github_url"),
+            ReadString(package, "gitee_url"));
     }
 
     private static string[] ReadNotes(JsonElement manifestRoot)
@@ -1047,6 +994,13 @@ internal static class Program
             : $"New version: v{descriptor.LatestVersion}\n{reasonText}";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
             message += _useChinese ? $"\n完整包下载页：{descriptor.FullDownloadPage}" : $"\nFull package: {descriptor.FullDownloadPage}";
+        if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadFallbackPage)
+            && !AreSameUrl(descriptor.FullDownloadPage, descriptor.FullDownloadFallbackPage))
+        {
+            message += _useChinese
+                ? $"\n备用下载页：{descriptor.FullDownloadFallbackPage}"
+                : $"\nBackup download: {descriptor.FullDownloadFallbackPage}";
+        }
 
         return new UpdateNotification(_useChinese ? "需要完整更新" : "Full update required", message, true);
     }
@@ -1080,6 +1034,13 @@ internal static class Program
             : $"The previous version was restored\nNew version: v{descriptor.LatestVersion}\nDownload and extract the full package";
         if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadPage))
             message += _useChinese ? $"\n完整包下载页：{descriptor.FullDownloadPage}" : $"\nFull package: {descriptor.FullDownloadPage}";
+        if (!string.IsNullOrWhiteSpace(descriptor.FullDownloadFallbackPage)
+            && !AreSameUrl(descriptor.FullDownloadPage, descriptor.FullDownloadFallbackPage))
+        {
+            message += _useChinese
+                ? $"\n备用下载页：{descriptor.FullDownloadFallbackPage}"
+                : $"\nBackup download: {descriptor.FullDownloadFallbackPage}";
+        }
 
         return message;
     }
@@ -1126,11 +1087,20 @@ internal static class Program
         }
     }
 
-    private static UpdateCheckUrlInfo GetUpdateCheckUrl(string baseDir)
+    private static IReadOnlyList<string> GetUpdateCheckUrls(string baseDir)
     {
-        string? value = Environment.GetEnvironmentVariable(UpdateUrlKey);
+        string primary = GetConfiguredUpdateUrl(baseDir, UpdateUrlKey);
+        string fallback = GetConfiguredUpdateUrl(baseDir, UpdateFallbackUrlKey);
+        if (primary.Length == 0)
+            primary = GetEmbeddedDefaultCheckUrl();
+        return UpdateEndpointPolicy.ResolveCheckUrls(primary, fallback);
+    }
+
+    private static string GetConfiguredUpdateUrl(string baseDir, string expectedKey)
+    {
+        string? value = Environment.GetEnvironmentVariable(expectedKey);
         if (!string.IsNullOrWhiteSpace(value))
-            return new UpdateCheckUrlInfo(value.Trim(), "环境变量");
+            return value.Trim();
 
         foreach (string path in new[] { Path.Combine(baseDir, ".env"), Path.Combine(Environment.CurrentDirectory, ".env") })
         {
@@ -1148,15 +1118,15 @@ internal static class Program
                     continue;
 
                 string key = line[..separator].Trim();
-                if (string.Equals(key, UpdateUrlKey, StringComparison.OrdinalIgnoreCase))
-                    return new UpdateCheckUrlInfo(line[(separator + 1)..].Trim().Trim('"', '\''), ".env");
+                if (string.Equals(key, expectedKey, StringComparison.OrdinalIgnoreCase))
+                    return line[(separator + 1)..].Trim().Trim('"', '\'');
             }
         }
 
-        return GetEmbeddedDefaultCheckUrl();
+        return "";
     }
 
-    private static UpdateCheckUrlInfo GetEmbeddedDefaultCheckUrl()
+    private static string GetEmbeddedDefaultCheckUrl()
     {
         try
         {
@@ -1165,7 +1135,7 @@ internal static class Program
                 if (string.Equals(metadata.Key, DefaultCheckUrlMetadataKey, StringComparison.Ordinal) &&
                     !string.IsNullOrWhiteSpace(metadata.Value))
                 {
-                    return new UpdateCheckUrlInfo(metadata.Value.Trim(), "内置配置");
+                    return metadata.Value.Trim();
                 }
             }
         }
@@ -1173,7 +1143,7 @@ internal static class Program
         {
         }
 
-        return new UpdateCheckUrlInfo(FallbackCheckUrl, "默认配置");
+        return UpdateEndpointPolicy.DefaultGiteeCheckUrl;
     }
 
     private static string ReadString(JsonElement element, string propertyName)
@@ -1325,6 +1295,57 @@ internal static class Program
         return Path.Combine(GetUpdatesCacheDir(), "patch_download_failures.json");
     }
 
+    private static string GetSuccessfulUpdateCheckStatePath()
+    {
+        return Path.Combine(GetUpdatesCacheDir(), "app-check-state.json");
+    }
+
+    private static bool ShouldSkipRecentSuccessfulUpdateCheck(string currentVersion)
+    {
+        string path = GetSuccessfulUpdateCheckStatePath();
+        try
+        {
+            if (!File.Exists(path))
+                return false;
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
+            JsonElement root = document.RootElement;
+            string stateVersion = NormalizeVersion(ReadString(root, "current_version"));
+            string checkedAtText = ReadString(root, "checked_at_utc");
+            return string.Equals(stateVersion, NormalizeVersion(currentVersion), StringComparison.OrdinalIgnoreCase)
+                && DateTimeOffset.TryParse(checkedAtText, out DateTimeOffset checkedAt)
+                && DateTimeOffset.UtcNow - checkedAt <= TimeSpan.FromHours(SuccessfulUpdateCheckCacheHours);
+        }
+        catch (Exception ex)
+        {
+            WriteLog("读取更新检查缓存失败：" + ex.Message);
+            return false;
+        }
+    }
+
+    private static void SaveSuccessfulUpdateCheck(
+        string currentVersion,
+        string latestVersion,
+        string sourceUrl)
+    {
+        try
+        {
+            string path = GetSuccessfulUpdateCheckStatePath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string json =
+                "{" +
+                $"\"current_version\":\"{EscapeJsonString(NormalizeVersion(currentVersion))}\"," +
+                $"\"latest_version\":\"{EscapeJsonString(NormalizeVersion(latestVersion))}\"," +
+                $"\"source_url\":\"{EscapeJsonString(sourceUrl)}\"," +
+                $"\"checked_at_utc\":\"{DateTimeOffset.UtcNow:O}\"" +
+                "}";
+            File.WriteAllText(path, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+        catch (Exception ex)
+        {
+            WriteLog("保存更新检查缓存失败：" + ex.Message);
+        }
+    }
+
     private static string FindPendingPatchZip(string pendingDir)
     {
         if (!Directory.Exists(pendingDir))
@@ -1345,17 +1366,25 @@ internal static class Program
 
     private static string GetPatchZipFileName(UpdateDescriptor descriptor)
     {
-        try
+        foreach (string candidate in new[]
         {
-            string fileName = Path.GetFileName(new Uri(descriptor.PatchPackage.Url).LocalPath);
-            if (!string.IsNullOrWhiteSpace(fileName) &&
-                fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            descriptor.PatchPackage.GithubUrl,
+            descriptor.PatchPackage.GiteeUrl,
+            descriptor.PatchPackage.Url
+        })
+        {
+            try
             {
-                return fileName;
+                string fileName = Path.GetFileName(new Uri(candidate).LocalPath);
+                if (!string.IsNullOrWhiteSpace(fileName) &&
+                    fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                {
+                    return fileName;
+                }
             }
-        }
-        catch
-        {
+            catch
+            {
+            }
         }
 
         return $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
@@ -1603,17 +1632,20 @@ internal static class Program
         ushort wLanguageId,
         uint dwMilliseconds);
 
-    private sealed record UpdateCheckUrlInfo(string Url, string Source);
-
-    private sealed record AssetInfo(string Name, string Url);
-
-    private sealed record PatchPackageInfo(string Type, string Url, string Sha256, long Size);
+    private sealed record PatchPackageInfo(
+        string Type,
+        string Url,
+        string Sha256,
+        long Size,
+        string GithubUrl,
+        string GiteeUrl);
 
     private sealed record UpdateDescriptor(
         string LatestVersion,
         string Title,
         string[] Notes,
         string FullDownloadPage,
+        string FullDownloadFallbackPage,
         string PatchBaselineVersion,
         bool PatchSupported,
         PatchPackageInfo PatchPackage);

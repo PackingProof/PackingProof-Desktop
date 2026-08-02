@@ -31,8 +31,11 @@ public sealed class PatchDistributionRoutingTests
         Assert.Contains("自动检查更新开始：current=", launcher);
         Assert.Contains("Patch 已保存到 pending，等待下次启动安装", launcher);
         Assert.Contains("MetadataRequestAttempts = 2", launcher);
-        Assert.Contains("GetJsonWithRetryAsync", launcher);
-        Assert.Contains("本次立即改用更新描述中的下载地址", launcher);
+        Assert.Contains("UpdateMetadataClient", launcher);
+        Assert.Contains("FetchLatestManifestAsync", launcher);
+        Assert.Contains("本次立即改用 Gitee", launcher);
+        Assert.Contains("PackageDownloadRoutePolicy.Resolve", launcher);
+        Assert.Contains("SuccessfulUpdateCheckCacheHours", launcher);
         Assert.DoesNotContain(
             "if (failureState.ConsecutiveGithubDownloadFailures < GithubDownloadFailureFallbackThreshold)",
             launcher);

@@ -39,7 +39,8 @@ public sealed class LauncherSelfUpdateTests
         LauncherPackageInfo package = fixture.Describe(packagePath, launcher) with
         {
             Url = "https://gitee.com/example/launcher.zip",
-            GithubUrl = "https://github.com/example/launcher.zip"
+            GithubUrl = "https://github.com/example/launcher.zip",
+            GiteeUrl = "https://gitee.com/example/launcher-explicit.zip"
         };
 
         LauncherDownloadRoute initial = LauncherUpdateService.GetDownloadRoute(package, 0);
@@ -50,7 +51,7 @@ public sealed class LauncherSelfUpdateTests
         Assert.False(initial.PreferFallback);
         Assert.Equal(package.GithubUrl, secondFailure.SelectedUrl);
         Assert.False(secondFailure.PreferFallback);
-        Assert.Equal(package.Url, threshold.SelectedUrl);
+        Assert.Equal(package.GiteeUrl, threshold.SelectedUrl);
         Assert.True(threshold.PreferFallback);
     }
 
