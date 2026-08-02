@@ -1310,6 +1310,38 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void FirstUseWizardCameraRotationActionStaysReadableOverPreviewFrames()
+    {
+        string wizard = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml");
+        string lightTheme = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Themes",
+            "LightTheme.xaml");
+        string darkTheme = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Themes",
+            "DarkTheme.xaml");
+
+        Assert.Contains("x:Key=\"CameraPreviewOverlayButtonStyle\"", wizard, StringComparison.Ordinal);
+        Assert.Contains("{DynamicResource CameraPreviewOverlayButtonBackground}", wizard, StringComparison.Ordinal);
+        Assert.Contains("{DynamicResource CameraPreviewOverlayButtonBorder}", wizard, StringComparison.Ordinal);
+        Assert.Contains("{DynamicResource CameraPreviewOverlayButtonText}", wizard, StringComparison.Ordinal);
+        Assert.Contains(
+            "Style=\"{StaticResource CameraPreviewOverlayButtonStyle}\"",
+            wizard,
+            StringComparison.Ordinal);
+        foreach (string theme in new[] { lightTheme, darkTheme })
+        {
+            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBackground\"", theme, StringComparison.Ordinal);
+            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonBorder\"", theme, StringComparison.Ordinal);
+            Assert.Contains("x:Key=\"CameraPreviewOverlayButtonText\"", theme, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void ViewerClientCompletesFirstUseOnlyAfterBindingAValidatedHost()
     {
         string source = ReadRepositoryFile(

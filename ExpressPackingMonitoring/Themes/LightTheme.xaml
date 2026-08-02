@@ -38,4 +38,7 @@
     <Color x:Key="ShadowColor">#000000</Color>
     <SolidColorBrush x:Key="ToastBackground" Color="#CC0F172A"/>
     <SolidColorBrush x:Key="VideoPlaceholder" Color="#0F172A"/>
+    <SolidColorBrush x:Key="CameraPreviewOverlayButtonBackground" Color="#E6000000"/>
+    <SolidColorBrush x:Key="CameraPreviewOverlayButtonBorder" Color="#F2FFFFFF"/>
+    <SolidColorBrush x:Key="CameraPreviewOverlayButtonText" Color="#FFFFFFFF"/>
 </ResourceDictionary>

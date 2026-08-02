@@ -71,6 +71,19 @@
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
+
+        <Style x:Key="CameraPreviewOverlayButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="MinWidth" Value="108"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="Background" Value="{DynamicResource CameraPreviewOverlayButtonBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CameraPreviewOverlayButtonBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource CameraPreviewOverlayButtonText}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="32">
@@ -209,9 +222,8 @@
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
                                         Margin="0,0,14,0"
-                                        Padding="12,8"
                                         Click="RotateCameraButton_Click"
-                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        Style="{StaticResource CameraPreviewOverlayButtonStyle}"
                                         AutomationProperties.Name="旋转摄像头画面 180 度">
                                     <StackPanel Orientation="Horizontal">
                                         <Path Data="{StaticResource FluentArrowSyncIcon}"
