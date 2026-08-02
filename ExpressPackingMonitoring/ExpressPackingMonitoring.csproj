@@ -104,6 +104,8 @@
     <Compile Include="Data\VideoDatabase.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
+    <Compile Include="Helpers\NativeMonitor.cs" />
+    <Compile Include="Helpers\WindowsShellFileLocator.cs" />
     <Compile Include="Input\GlobalKeyboardHook.cs" />
     <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
     <Compile Include="Logging\RuntimeLog.cs" />

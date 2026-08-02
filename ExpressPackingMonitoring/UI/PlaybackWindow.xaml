@@ -193,19 +193,31 @@
                 </ListView>
 
                 <Grid Grid.Row="2" Margin="0,10,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Button x:Name="BtnPreviousPage" Grid.Column="0" Content="上一页" Style="{StaticResource SecondarySmallButtonStyle}" Click="BtnPreviousPage_Click"/>
-                    <TextBlock x:Name="PageStatusText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondary}"/>
-                    <Button x:Name="BtnNextPage" Grid.Column="2" Content="下一页" Style="{StaticResource SecondarySmallButtonStyle}" Click="BtnNextPage_Click"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock x:Name="PageStatusText"
+                               Grid.Row="0"
+                               Margin="0,0,0,6"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="NoWrap"
+                               Foreground="{DynamicResource TextSecondary}"/>
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="BtnPreviousPage" Grid.Column="0" Content="上一页" Style="{StaticResource SecondarySmallButtonStyle}" Click="BtnPreviousPage_Click"/>
+                        <Button x:Name="BtnNextPage" Grid.Column="2" Content="下一页" Style="{StaticResource SecondarySmallButtonStyle}" Click="BtnNextPage_Click"/>
+                    </Grid>
                 </Grid>
             </Grid>
         </Border>
 
-        <Border Grid.Column="1" Background="Black" CornerRadius="8" ClipToBounds="True">
+        <Border x:Name="PlayerHost" Grid.Column="1" Background="Black" CornerRadius="8" ClipToBounds="True">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.1"/>
             </Border.Effect>
