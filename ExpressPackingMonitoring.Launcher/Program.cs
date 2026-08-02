@@ -553,13 +553,16 @@ internal static class Program
                 string targetPath = GetSafeChildPath(appDir, file.RelativePath);
                 string backupPath = GetSafeChildPath(backupRoot, file.RelativePath);
                 bool existed = File.Exists(targetPath);
+                FileAttributes originalAttributes = FileAttributes.Normal;
                 if (existed)
                 {
+                    originalAttributes = File.GetAttributes(targetPath);
                     Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
                     File.Copy(targetPath, backupPath, overwrite: true);
+                    RemoveReadOnlyAttribute(backupPath);
                 }
 
-                backups.Add(new FileBackup(targetPath, backupPath, existed));
+                backups.Add(new FileBackup(targetPath, backupPath, existed, originalAttributes));
             }
 
             foreach (PatchFile file in manifest.Files)
@@ -567,7 +570,9 @@ internal static class Program
                 string sourcePath = GetSafeChildPath(patchFilesDir, file.RelativePath);
                 string targetPath = GetSafeChildPath(appDir, file.RelativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                RemoveReadOnlyAttribute(targetPath);
                 File.Copy(sourcePath, targetPath, overwrite: true);
+                RemoveReadOnlyAttribute(targetPath);
             }
 
             ValidateInstalledApp(baseDir, descriptor.LatestVersion);
@@ -696,7 +701,9 @@ internal static class Program
                 if (backup.Existed)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(backup.TargetPath)!);
+                    RemoveReadOnlyAttribute(backup.TargetPath);
                     File.Copy(backup.BackupPath, backup.TargetPath, overwrite: true);
+                    File.SetAttributes(backup.TargetPath, backup.OriginalAttributes);
                 }
                 else
                 {
@@ -1477,7 +1484,20 @@ internal static class Program
     private static void DeleteFileIfExists(string path)
     {
         if (File.Exists(path))
+        {
+            RemoveReadOnlyAttribute(path);
             File.Delete(path);
+        }
+    }
+
+    private static void RemoveReadOnlyAttribute(string path)
+    {
+        if (!File.Exists(path))
+            return;
+
+        FileAttributes attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+            File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
     }
 
     private static void TryDeleteDirectory(string path)
@@ -1608,7 +1628,11 @@ internal static class Program
 
     private sealed record PatchFile(string RelativePath, string Sha256, long Size);
 
-    private sealed record FileBackup(string TargetPath, string BackupPath, bool Existed);
+    private sealed record FileBackup(
+        string TargetPath,
+        string BackupPath,
+        bool Existed,
+        FileAttributes OriginalAttributes);
 
     private enum ManualUpdateReason
     {

@@ -21,6 +21,21 @@ function Get-DefaultConfigPath {
     return Join-Path $localAppData "ExpressPackingMonitoring\config.json"
 }
 
+function Remove-ReadOnlyAttribute {
+    param([string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return
+    }
+
+    $attributes = [System.IO.File]::GetAttributes($Path)
+    if (($attributes -band [System.IO.FileAttributes]::ReadOnly) -ne 0) {
+        [System.IO.File]::SetAttributes(
+            $Path,
+            ($attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)))
+    }
+}
+
 function Get-NormalizedDirectory {
     param([string]$Path)
 
@@ -410,16 +425,24 @@ try {
         $destinationDirectory = Split-Path -Parent $file.DestinationPath
         New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
         $destinationExisted = Test-Path -LiteralPath $file.DestinationPath -PathType Leaf
+        $originalAttributes = if ($destinationExisted) {
+            [System.IO.File]::GetAttributes($file.DestinationPath)
+        }
+        else {
+            [System.IO.FileAttributes]::Normal
+        }
         $backupPath = Join-Path $backupRoot $file.RelativePath
         if ($destinationExisted) {
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $backupPath) | Out-Null
             Copy-Item -LiteralPath $file.DestinationPath -Destination $backupPath -Force
+            Remove-ReadOnlyAttribute -Path $backupPath
         }
 
         $appliedFiles.Add([pscustomobject]@{
             DestinationPath = $file.DestinationPath
             BackupPath = $backupPath
             DestinationExisted = $destinationExisted
+            OriginalAttributes = $originalAttributes
         })
 
         $tempPath = $file.DestinationPath + ".manual-update-" + [Guid]::NewGuid().ToString("N")
@@ -427,11 +450,13 @@ try {
         try {
             Copy-Item -LiteralPath $file.SourcePath -Destination $tempPath -Force
             if ($destinationExisted) {
+                Remove-ReadOnlyAttribute -Path $file.DestinationPath
                 [System.IO.File]::Replace($tempPath, $file.DestinationPath, $replaceBackupPath, $true)
             }
             else {
                 [System.IO.File]::Move($tempPath, $file.DestinationPath)
             }
+            Remove-ReadOnlyAttribute -Path $file.DestinationPath
         }
         finally {
             try {
@@ -482,7 +507,9 @@ catch {
             try {
                 if ($applied.DestinationExisted -and (Test-Path -LiteralPath $applied.BackupPath -PathType Leaf)) {
                     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $applied.DestinationPath) | Out-Null
+                    Remove-ReadOnlyAttribute -Path $applied.DestinationPath
                     Copy-Item -LiteralPath $applied.BackupPath -Destination $applied.DestinationPath -Force
+                    [System.IO.File]::SetAttributes($applied.DestinationPath, $applied.OriginalAttributes)
                 }
                 elseif (-not $applied.DestinationExisted -and (Test-Path -LiteralPath $applied.DestinationPath)) {
                     Remove-Item -LiteralPath $applied.DestinationPath -Force

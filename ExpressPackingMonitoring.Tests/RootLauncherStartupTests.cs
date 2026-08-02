@@ -55,6 +55,16 @@ public sealed class RootLauncherStartupTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void RootLauncherClearsReadOnlyFilesAndRestoresOriginalAttributesOnRollback()
+    {
+        string source = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring.Launcher", "Program.cs"));
+
+        Assert.Contains("RemoveReadOnlyAttribute(targetPath);", source, StringComparison.Ordinal);
+        Assert.Contains("File.SetAttributes(backup.TargetPath, backup.OriginalAttributes);", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

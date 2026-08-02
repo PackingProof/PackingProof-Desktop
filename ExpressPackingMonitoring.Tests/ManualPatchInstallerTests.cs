@@ -25,6 +25,22 @@ public sealed class ManualPatchInstallerTests
     }
 
     [Fact]
+    public async Task Installer_ReplacesReadOnlyInstalledFile()
+    {
+        using var fixture = new ManualPatchFixture();
+        fixture.CreatePatch("new-content", useValidHash: true);
+        File.SetAttributes(fixture.TargetFilePath, FileAttributes.ReadOnly);
+
+        ProcessResult result = await fixture.RunInstallerAsync();
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"exit={result.ExitCode}{Environment.NewLine}stdout={result.StandardOutput}{Environment.NewLine}stderr={result.StandardError}");
+        Assert.Equal("new-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+        Assert.False((File.GetAttributes(fixture.TargetFilePath) & FileAttributes.ReadOnly) != 0);
+    }
+
+    [Fact]
     public async Task Installer_RejectsHashMismatchWithoutChangingInstalledFile()
     {
         using var fixture = new ManualPatchFixture();
