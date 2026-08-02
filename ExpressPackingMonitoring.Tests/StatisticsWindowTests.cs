@@ -86,16 +86,28 @@ public sealed class StatisticsWindowTests
     }
 
     [Theory]
-    [InlineData(264, 3, "01:28")]
-    [InlineData(10983, 3, "1:01:01")]
-    [InlineData(100, 0, "00:00")]
-    [InlineData(0, 2, "00:00")]
-    public void FormatAverageDuration_ReturnsReadablePerItemTime(
+    [InlineData(0, "0秒")]
+    [InlineData(double.NaN, "0秒")]
+    [InlineData(5.5, "6秒")]
+    [InlineData(60, "1分")]
+    [InlineData(64, "1分4秒")]
+    [InlineData(8100, "2时15分")]
+    [InlineData(3661, "1时1分1秒")]
+    public void FormatCompactDuration_OmitsZeroUnitsAndRoundsToNearestSecond(
         double totalDurationSeconds,
-        int totalPieces,
         string expected)
     {
-        Assert.Equal(expected, StatisticsWindow.FormatAverageDuration(totalDurationSeconds, totalPieces));
+        Assert.Equal(
+            expected,
+            StatisticsWindow.FormatCompactDuration(totalDurationSeconds, "时", "分", "秒"));
+    }
+
+    [Fact]
+    public void FormatCompactDuration_UsesProvidedLocalizedUnits()
+    {
+        Assert.Equal(
+            "1h1m1s",
+            StatisticsWindow.FormatCompactDuration(3661, "h", "m", "s"));
     }
 
     [Fact]

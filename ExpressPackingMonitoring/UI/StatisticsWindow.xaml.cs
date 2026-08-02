@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -194,8 +195,9 @@ namespace ExpressPackingMonitoring.UI
                     DateLabel = dateLabel,
                     DateSub = subLabel,
                     Pieces = h.TotalPieces,
-                    TotalTime = TimeSpan.FromSeconds(h.TotalDurationSec).ToString(@"hh\:mm\:ss"),
-                    AverageTime = FormatAverageDuration(h.TotalDurationSec, h.TotalPieces),
+                    TotalTime = FormatCompactDuration(h.TotalDurationSec),
+                    AverageTime = FormatCompactDuration(
+                        h.TotalPieces > 0 ? h.TotalDurationSec / h.TotalPieces : 0),
                     SizeText = FormatSize(h.TotalBytes),
                     BarRatio = Math.Clamp(currentVal / maxVal, 0, 1)
                 });
@@ -206,8 +208,8 @@ namespace ExpressPackingMonitoring.UI
             // 4. 更新汇总
             SummaryPieces = $"{totalPieces} 件";
             SummarySize = FormatSize(totalBytes);
-            SummaryDuration = $"{(int)totalSec / 3600}h {((int)totalSec % 3600) / 60}m";
-            SummaryAvgTime = FormatAverageDuration(totalSec, totalPieces);
+            SummaryDuration = FormatCompactDuration(totalSec);
+            SummaryAvgTime = FormatCompactDuration(totalPieces > 0 ? totalSec / totalPieces : 0);
         }
 
         private void ApplyPreset(string tag)
@@ -328,21 +330,39 @@ namespace ExpressPackingMonitoring.UI
             return (value, "", value);
         }
 
-        internal static string FormatAverageDuration(double totalDurationSeconds, int totalPieces)
-        {
-            if (!double.IsFinite(totalDurationSeconds) || totalDurationSeconds <= 0 || totalPieces <= 0)
-                return "00:00";
+        private static string FormatCompactDuration(double totalDurationSeconds) =>
+            FormatCompactDuration(
+                totalDurationSeconds,
+                AppLanguage.Get("统计时"),
+                AppLanguage.Get("统计分"),
+                AppLanguage.Get("统计秒"));
 
-            TimeSpan average = TimeSpan.FromSeconds(totalDurationSeconds / totalPieces);
-            return average.TotalHours >= 1
-                ? $"{(int)average.TotalHours}:{average.Minutes:00}:{average.Seconds:00}"
-                : $"{average.Minutes:00}:{average.Seconds:00}";
+        internal static string FormatCompactDuration(
+            double totalDurationSeconds,
+            string hourUnit,
+            string minuteUnit,
+            string secondUnit)
+        {
+            long totalSeconds = !double.IsFinite(totalDurationSeconds) || totalDurationSeconds <= 0
+                ? 0
+                : (long)Math.Round(totalDurationSeconds, MidpointRounding.AwayFromZero);
+            long hours = totalSeconds / 3600;
+            long minutes = totalSeconds % 3600 / 60;
+            long seconds = totalSeconds % 60;
+            var parts = new List<string>(3);
+            if (hours > 0)
+                parts.Add($"{hours}{hourUnit}");
+            if (minutes > 0)
+                parts.Add($"{minutes}{minuteUnit}");
+            if (seconds > 0 || parts.Count == 0)
+                parts.Add($"{seconds}{secondUnit}");
+            return string.Concat(parts);
         }
 
         private void ResetSummary()
         {
             SummaryPieces = "0 件"; SummarySize = "0 MB"; 
-            SummaryDuration = "0h 0m"; SummaryAvgTime = "00:00";
+            SummaryDuration = FormatCompactDuration(0); SummaryAvgTime = FormatCompactDuration(0);
         }
 
         private static string GetChineseDayOfWeek(DateTime dt) => dt.DayOfWeek switch {

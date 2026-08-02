@@ -385,6 +385,9 @@
   <data name="自动查找" xml:space="preserve"><value>automatic search</value></data>
   <data name="总耗时:" xml:space="preserve"><value>Total time:</value></data>
   <data name="总计时长" xml:space="preserve"><value>total duration</value></data>
+  <data name="统计分" xml:space="preserve"><value>m</value></data>
+  <data name="统计秒" xml:space="preserve"><value>s</value></data>
+  <data name="统计时" xml:space="preserve"><value>h</value></data>
   <data name="最近30天" xml:space="preserve"><value>Last 30 days</value></data>
   <data name="最近1年" xml:space="preserve"><value>Last year</value></data>
   <data name="本年" xml:space="preserve"><value>This year</value></data>
