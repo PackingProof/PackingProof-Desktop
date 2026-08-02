@@ -4,7 +4,7 @@
 // @version      2.12
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，同时发送到已配对的电脑和手机
 // @author       ExpressPackingMonitoring
-// @icon         https://raw.githubusercontent.com/m-RNA/ExpressPackingMonitoring/main/ExpressPackingMonitoring/app.ico
+// @icon         https://raw.githubusercontent.com/PackingProof/PackingProof-Desktop/main/ExpressPackingMonitoring/app.ico
 // @match        *://p4.kuaidizs.cn/*
 // @match        *://kuaidizs.cn/*
 // @match        *://*.kuaidizs.cn/*
@@ -173,7 +173,7 @@
         overlay.setAttribute('data-epm-refund-worker-overlay', '');
         overlay.innerHTML = `
             <div style="width:min(560px,calc(100vw - 48px));padding:48px 40px;border:1px solid rgba(255,255,255,.22);border-radius:20px;background:rgba(15,23,42,.72);box-shadow:0 24px 80px rgba(0,0,0,.38);text-align:center;">
-                <img src="https://raw.githubusercontent.com/m-RNA/ExpressPackingMonitoring/main/ExpressPackingMonitoring/app.ico" alt="" style="width:88px;height:88px;margin-bottom:24px;" />
+                <img src="https://raw.githubusercontent.com/PackingProof/PackingProof-Desktop/main/ExpressPackingMonitoring/app.ico" alt="" style="width:88px;height:88px;margin-bottom:24px;" />
                 <div style="font-size:34px;line-height:1.35;font-weight:800;letter-spacing:1px;">退款核验专用工作页</div>
                 <div style="margin-top:18px;font-size:22px;line-height:1.6;font-weight:700;color:#fecaca;">请勿操作或关闭此页面</div>
                 <div style="margin-top:22px;font-size:15px;line-height:1.8;color:#cbd5e1;">此页面由快递打包监控自动管理<br />用于在后台核验打印后退款订单</div>

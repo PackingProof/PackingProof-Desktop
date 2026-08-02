@@ -6,6 +6,28 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class ReleasePackagingPolicyTests
 {
     [Fact]
+    public void OfficialLinks_UseCurrentGithubRepository()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string[] relativePaths =
+        [
+            @"Installer\ExpressPackingMonitoring.iss",
+            @"Scripts\快递助手订单推送.user.js",
+            @"ExpressPackingMonitoring\Services\BackupCompatibilityPolicy.cs",
+            @"ExpressPackingMonitoring\UI\SettingsWindow.xaml.cs"
+        ];
+
+        foreach (string relativePath in relativePaths)
+        {
+            string content = File.ReadAllText(
+                Path.Combine(repositoryRoot, relativePath),
+                Encoding.UTF8);
+            Assert.Contains("PackingProof/PackingProof-Desktop", content, StringComparison.Ordinal);
+            Assert.DoesNotContain("m-RNA/ExpressPackingMonitoring", content, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
     public void Packaging_WarnsButDoesNotBlockWhenManualChecksAreUnconfirmed()
     {
         string repositoryRoot = FindRepositoryRoot();

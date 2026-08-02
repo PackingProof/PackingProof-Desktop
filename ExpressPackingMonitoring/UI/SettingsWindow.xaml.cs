@@ -1754,12 +1754,12 @@ namespace ExpressPackingMonitoring.UI
 
         private void OpenRepository_Click(object sender, RoutedEventArgs e)
         {
-            OpenExternalUrl("https://github.com/m-RNA/ExpressPackingMonitoring");
+            OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop");
         }
 
         private void OpenLicense_Click(object sender, RoutedEventArgs e)
         {
-            OpenExternalUrl("https://github.com/m-RNA/ExpressPackingMonitoring/blob/main/LICENSE");
+            OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop/blob/main/LICENSE");
         }
 
         private static string GetStorageRoot(string path)
