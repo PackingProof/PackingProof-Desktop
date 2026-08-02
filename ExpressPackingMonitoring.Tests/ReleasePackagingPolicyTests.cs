@@ -122,6 +122,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Replace(\"`r`n\", \"`n\")", commonScript);
         Assert.Contains("Assert-LauncherPackage", commonScript);
         Assert.Contains("$updateManifest[\"launcher_package\"]", publishScript);
+        Assert.Contains("$launcherPackageInfo[\"github_url\"]", publishScript);
+        Assert.Contains("LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE", publishScript);
         Assert.Contains("$launcherPackageHash", publishScript);
         Assert.Contains("$launcherExecutableHash", publishScript);
         Assert.Contains("protocol_version", publishScript);

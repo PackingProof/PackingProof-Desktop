@@ -17,10 +17,22 @@ internal sealed record LauncherPackageInfo(
     int ProtocolVersion,
     string Version,
     string Url,
+    string GithubUrl,
     long Size,
     string Sha256,
     long ExecutableSize,
     string ExecutableSha256);
+
+internal sealed record LauncherDownloadFailureState(
+    string PackageVersion,
+    string PackageSha256,
+    int ConsecutiveGithubDownloadFailures);
+
+internal sealed record LauncherDownloadRoute(
+    string GithubUrl,
+    string FallbackUrl,
+    string SelectedUrl,
+    bool PreferFallback);
 
 internal sealed record LauncherUpdateCheckState(
     string AppVersion,
@@ -46,6 +58,10 @@ internal sealed class LauncherUpdateService
     internal const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
     internal const string PendingDescriptorFileName = "launcher-package.json";
     internal const string CheckStateFileName = "launcher-check-state.json";
+    internal const string DownloadFailureStateFileName = "launcher-download-failures.json";
+    internal const int GithubDownloadFailureFallbackThreshold = 3;
+    internal const string DefaultGithubDownloadBaseUrl =
+        "https://github.com/PackingProof/PackingProof-Desktop/releases/download";
     internal const int MaxRetainedBackups = 3;
     internal static readonly TimeSpan LauncherExitWaitTimeout = TimeSpan.FromSeconds(5);
 
@@ -73,6 +89,9 @@ internal sealed class LauncherUpdateService
             string updatesDirectory = Path.Combine(AppPaths.CacheDir, "updates");
             string pendingRoot = Path.Combine(updatesDirectory, "launcher-pending");
             string checkStatePath = Path.Combine(updatesDirectory, CheckStateFileName);
+            string downloadFailureStatePath = Path.Combine(
+                updatesDirectory,
+                DownloadFailureStateFileName);
             string appVersion = GetCurrentAppVersion();
             if (await TryApplyPendingPackageAsync(
                     pendingRoot,
@@ -124,7 +143,11 @@ internal sealed class LauncherUpdateService
                 NormalizePathSegment(package.Version));
             Directory.CreateDirectory(pendingDirectory);
             string packagePath = Path.Combine(pendingDirectory, "launcher.zip");
-            await DownloadAndVerifyAsync(package, packagePath, cancellationToken);
+            await DownloadAndVerifyAsync(
+                package,
+                packagePath,
+                downloadFailureStatePath,
+                cancellationToken);
             SavePendingDescriptor(
                 Path.Combine(pendingDirectory, PendingDescriptorFileName),
                 package);
@@ -342,6 +365,7 @@ internal sealed class LauncherUpdateService
             protocolVersion,
             ReadString(package, "version"),
             ReadString(package, "url"),
+            ReadString(package, "github_url"),
             ReadInt64(package, "size"),
             ReadString(package, "sha256"),
             ReadInt64(package, "executable_size"),
@@ -481,6 +505,7 @@ internal sealed class LauncherUpdateService
     private static async Task DownloadAndVerifyAsync(
         LauncherPackageInfo package,
         string packagePath,
+        string failureStatePath,
         CancellationToken cancellationToken)
     {
         if (File.Exists(packagePath))
@@ -488,6 +513,7 @@ internal sealed class LauncherUpdateService
             try
             {
                 ValidateFile(packagePath, package.Size, package.Sha256, "已缓存启动器更新包");
+                ResetDownloadFailureState(failureStatePath);
                 return;
             }
             catch
@@ -499,24 +525,63 @@ internal sealed class LauncherUpdateService
         string temporaryPath = packagePath + $".{Guid.NewGuid():N}.tmp";
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, package.Url);
-            request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
-            using HttpResponseMessage response = await HttpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            response.EnsureSuccessStatusCode();
-            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using (var destination = File.Create(temporaryPath))
-                await source.CopyToAsync(destination, cancellationToken);
+            LauncherDownloadFailureState failureState = LoadDownloadFailureState(
+                failureStatePath,
+                package);
+            LauncherDownloadRoute route = GetDownloadRoute(
+                package,
+                failureState.ConsecutiveGithubDownloadFailures);
+            try
+            {
+                RuntimeLog.Info(
+                    "LauncherUpdate",
+                    $"Download launcher package source={(route.PreferFallback ? "manifest" : "github")}, failures={failureState.ConsecutiveGithubDownloadFailures}, version={package.Version}");
+                await DownloadFileAsync(route.SelectedUrl, temporaryPath, cancellationToken);
+            }
+            catch (Exception ex) when (!route.PreferFallback &&
+                                       !AreSameUrl(route.GithubUrl, route.FallbackUrl))
+            {
+                failureState = failureState with
+                {
+                    ConsecutiveGithubDownloadFailures =
+                        failureState.ConsecutiveGithubDownloadFailures + 1
+                };
+                SaveDownloadFailureState(failureStatePath, failureState);
+                RuntimeLog.Warn(
+                    "LauncherUpdate",
+                    $"GitHub launcher package download failed {failureState.ConsecutiveGithubDownloadFailures}/{GithubDownloadFailureFallbackThreshold}: {ex.Message}");
+                TryDeleteFile(temporaryPath);
+                RuntimeLog.Info(
+                    "LauncherUpdate",
+                    "Retry launcher package from manifest fallback source");
+                await DownloadFileAsync(route.FallbackUrl, temporaryPath, cancellationToken);
+            }
 
             ValidateFile(temporaryPath, package.Size, package.Sha256, "启动器更新包");
             File.Move(temporaryPath, packagePath);
+            ResetDownloadFailureState(failureStatePath);
         }
         finally
         {
             TryDeleteFile(temporaryPath);
         }
+    }
+
+    private static async Task DownloadFileAsync(
+        string url,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.ParseAdd("ExpressPackingMonitoring");
+        using HttpResponseMessage response = await HttpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var destination = File.Create(destinationPath);
+        await source.CopyToAsync(destination, cancellationToken);
     }
 
     private static async Task<bool> WaitForLauncherExitAsync(
@@ -654,6 +719,8 @@ internal sealed class LauncherUpdateService
     {
         LauncherPackageInfo? package = JsonSerializer.Deserialize<LauncherPackageInfo>(
             File.ReadAllText(descriptorPath));
+        if (package != null)
+            package = package with { GithubUrl = package.GithubUrl ?? "" };
         return package != null && IsValid(package)
             ? package
             : throw new InvalidDataException("启动器待处理描述无效");
@@ -699,6 +766,132 @@ internal sealed class LauncherUpdateService
             && package.ExecutableSize > 0
             && IsSha256(package.Sha256)
             && IsSha256(package.ExecutableSha256);
+
+    internal static LauncherDownloadRoute GetDownloadRoute(
+        LauncherPackageInfo package,
+        int consecutiveGithubFailures)
+    {
+        string githubUrl = ResolveGithubDownloadUrl(package);
+        string fallbackUrl = package.Url;
+        bool preferFallback = Math.Max(0, consecutiveGithubFailures) >=
+                              GithubDownloadFailureFallbackThreshold &&
+                              !AreSameUrl(githubUrl, fallbackUrl);
+        return new LauncherDownloadRoute(
+            githubUrl,
+            fallbackUrl,
+            preferFallback ? fallbackUrl : githubUrl,
+            preferFallback);
+    }
+
+    internal static LauncherDownloadFailureState LoadDownloadFailureState(
+        string statePath,
+        LauncherPackageInfo package)
+    {
+        try
+        {
+            if (File.Exists(statePath))
+            {
+                LauncherDownloadFailureState? state = JsonSerializer.Deserialize<LauncherDownloadFailureState>(
+                    File.ReadAllText(statePath));
+                if (state != null &&
+                    string.Equals(state.PackageVersion, package.Version, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(state.PackageSha256, package.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    return state with
+                    {
+                        ConsecutiveGithubDownloadFailures =
+                            Math.Max(0, state.ConsecutiveGithubDownloadFailures)
+                    };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("LauncherUpdate", $"Unable to read launcher download failure state: {ex.Message}");
+        }
+
+        return new LauncherDownloadFailureState(package.Version, package.Sha256, 0);
+    }
+
+    internal static void SaveDownloadFailureState(
+        string statePath,
+        LauncherDownloadFailureState state)
+    {
+        try
+        {
+            string directory = Path.GetDirectoryName(Path.GetFullPath(statePath))
+                ?? throw new InvalidOperationException("启动器下载状态目录无效");
+            Directory.CreateDirectory(directory);
+            string temporaryPath = statePath + $".{Guid.NewGuid():N}.tmp";
+            try
+            {
+                File.WriteAllText(
+                    temporaryPath,
+                    JsonSerializer.Serialize(state with
+                    {
+                        ConsecutiveGithubDownloadFailures =
+                            Math.Max(0, state.ConsecutiveGithubDownloadFailures)
+                    }));
+                File.Move(temporaryPath, statePath, overwrite: true);
+            }
+            finally
+            {
+                TryDeleteFile(temporaryPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("LauncherUpdate", $"Unable to save launcher download failure state: {ex.Message}");
+        }
+    }
+
+    internal static void ResetDownloadFailureState(string statePath)
+        => TryDeleteFile(statePath);
+
+    private static string ResolveGithubDownloadUrl(LauncherPackageInfo package)
+    {
+        if (IsValidDownloadUrl(package.GithubUrl))
+            return package.GithubUrl;
+
+        string fileName;
+        try
+        {
+            fileName = Path.GetFileName(new Uri(package.Url).LocalPath);
+        }
+        catch
+        {
+            fileName = "";
+        }
+
+        if (string.IsNullOrWhiteSpace(fileName) ||
+            !fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName = $"PackingProof_LauncherPatch_v{package.Version}.zip";
+        }
+
+        string tag = "v" + package.Version.Trim().TrimStart('v', 'V');
+        return $"{DefaultGithubDownloadBaseUrl}/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(fileName)}";
+    }
+
+    private static bool IsValidDownloadUrl(string value)
+        => Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) &&
+           (uri.Scheme == Uri.UriSchemeHttps || uri.IsLoopback);
+
+    private static bool AreSameUrl(string left, string right)
+    {
+        if (!Uri.TryCreate(left, UriKind.Absolute, out Uri? leftUri) ||
+            !Uri.TryCreate(right, UriKind.Absolute, out Uri? rightUri))
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return Uri.Compare(
+            leftUri,
+            rightUri,
+            UriComponents.AbsoluteUri,
+            UriFormat.SafeUnescaped,
+            StringComparison.OrdinalIgnoreCase) == 0;
+    }
 
     private static bool IsSha256(string value)
         => value.Length == 64 && value.All(Uri.IsHexDigit);

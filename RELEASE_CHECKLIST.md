@@ -82,6 +82,7 @@
 - 启动器未变化时不执行 Native AOT 重编译、不生成或上传本版本 LauncherPatch；完整包根启动器必须与锁定基线 EXE 的大小和 SHA256 完全一致
 - 启动器变化时先运行 `Tools/Publish-LauncherBaseline.ps1` 建立不可变基线；LauncherPatch 只包含根启动器、`launcher_patch_manifest.json`、`双击更新启动器.cmd`、`apply_launcher_patch.ps1` 和启动器更新说明
 - 本地基线文件缺失时允许从正式 App Release 下载，但必须验证 LauncherPatch 与包内 EXE 的大小、SHA256 和固定条目；任何不一致均阻止发布
+- 启动器包下载默认使用 GitHub，单次失败可立即使用更新清单中的 Gitee 地址兜底；连续失败达到阈值后优先 Gitee，成功或命中已验证缓存后必须清零失败计数
 - 分别使用两个双击脚本从旧版本升级一次，确认文件校验成功、主程序更新失败可回滚、启动器只替换根入口，配置、数据库、录像和 `app/` 中非目标文件均保留
 - `update_vX.Y.Z.json` 的更新内容与最终发布说明一致，合并发布时包含尚未正式发布版本的有效改动
 - GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen

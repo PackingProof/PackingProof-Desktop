@@ -23,6 +23,64 @@ public sealed class LauncherSelfUpdateTests
         LauncherPackageInfo package = Assert.IsType<LauncherPackageInfo>(
             LauncherUpdateService.ParsePackageInfo(valid.RootElement));
         Assert.Equal("1.2.3", package.Version);
+        Assert.Equal("", package.GithubUrl);
+        Assert.StartsWith(
+            "https://github.com/PackingProof/PackingProof-Desktop/releases/download/v1.2.3/",
+            LauncherUpdateService.GetDownloadRoute(package, 0).GithubUrl,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LauncherDownload_PrefersGithubThenUsesManifestFallbackAfterRepeatedFailures()
+    {
+        using var fixture = new Fixture();
+        byte[] launcher = Encoding.UTF8.GetBytes("launcher-download");
+        string packagePath = fixture.CreatePackage(launcher);
+        LauncherPackageInfo package = fixture.Describe(packagePath, launcher) with
+        {
+            Url = "https://gitee.com/example/launcher.zip",
+            GithubUrl = "https://github.com/example/launcher.zip"
+        };
+
+        LauncherDownloadRoute initial = LauncherUpdateService.GetDownloadRoute(package, 0);
+        LauncherDownloadRoute secondFailure = LauncherUpdateService.GetDownloadRoute(package, 2);
+        LauncherDownloadRoute threshold = LauncherUpdateService.GetDownloadRoute(package, 3);
+
+        Assert.Equal(package.GithubUrl, initial.SelectedUrl);
+        Assert.False(initial.PreferFallback);
+        Assert.Equal(package.GithubUrl, secondFailure.SelectedUrl);
+        Assert.False(secondFailure.PreferFallback);
+        Assert.Equal(package.Url, threshold.SelectedUrl);
+        Assert.True(threshold.PreferFallback);
+    }
+
+    [Fact]
+    public void LauncherDownloadFailureState_IsScopedToImmutablePackageIdentity()
+    {
+        using var fixture = new Fixture();
+        byte[] launcher = Encoding.UTF8.GetBytes("launcher-state");
+        string packagePath = fixture.CreatePackage(launcher);
+        LauncherPackageInfo package = fixture.Describe(packagePath, launcher);
+        string statePath = Path.Combine(
+            fixture.Root,
+            LauncherUpdateService.DownloadFailureStateFileName);
+        var state = new LauncherDownloadFailureState(package.Version, package.Sha256, 2);
+
+        LauncherUpdateService.SaveDownloadFailureState(statePath, state);
+
+        Assert.Equal(
+            2,
+            LauncherUpdateService.LoadDownloadFailureState(
+                statePath,
+                package).ConsecutiveGithubDownloadFailures);
+        Assert.Equal(
+            0,
+            LauncherUpdateService.LoadDownloadFailureState(
+                statePath,
+                package with { Sha256 = new string('f', 64) }).ConsecutiveGithubDownloadFailures);
+
+        LauncherUpdateService.ResetDownloadFailureState(statePath);
+        Assert.False(File.Exists(statePath));
     }
 
     [Fact]
@@ -140,6 +198,37 @@ public sealed class LauncherSelfUpdateTests
     }
 
     [Fact]
+    public void LegacyPendingDescriptor_DerivesGithubUrlWithoutMigration()
+    {
+        using var fixture = new Fixture();
+        string descriptorPath = Path.Combine(
+            fixture.Root,
+            LauncherUpdateService.PendingDescriptorFileName);
+        File.WriteAllText(
+            descriptorPath,
+            $$"""
+            {
+              "ProtocolVersion": 1,
+              "Version": "1.2.3",
+              "Url": "https://gitee.com/example/PackingProof_LauncherPatch_v1.2.3.zip",
+              "Size": 123,
+              "Sha256": "{{new string('a', 64)}}",
+              "ExecutableSize": 45,
+              "ExecutableSha256": "{{new string('b', 64)}}"
+            }
+            """,
+            Encoding.UTF8);
+
+        LauncherPackageInfo package = LauncherUpdateService.LoadPendingDescriptor(descriptorPath);
+        LauncherDownloadRoute route = LauncherUpdateService.GetDownloadRoute(package, 0);
+
+        Assert.Equal("", package.GithubUrl);
+        Assert.Equal(
+            "https://github.com/PackingProof/PackingProof-Desktop/releases/download/v1.2.3/PackingProof_LauncherPatch_v1.2.3.zip",
+            route.GithubUrl);
+    }
+
+    [Fact]
     public void BackupRetention_DeletesOnlyOldGeneratedLauncherBackups()
     {
         using var fixture = new Fixture();
@@ -251,6 +340,7 @@ public sealed class LauncherSelfUpdateTests
                 LauncherUpdateService.SupportedProtocolVersion,
                 "1.2.3",
                 "https://example.com/launcher.zip",
+                "https://github.com/example/launcher.zip",
                 new FileInfo(packagePath).Length,
                 LauncherUpdateService.ComputeSha256(packagePath),
                 launcher.Length,
