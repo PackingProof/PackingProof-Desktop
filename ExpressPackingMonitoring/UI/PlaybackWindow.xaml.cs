@@ -91,6 +91,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _videoLoadLoopRunning;
         private bool _playerInitializationFailed;
         private bool _playerInitializing;
+        private bool _awaitingFirstFrame;
         private int _currentPage = 1;
         private int _totalVideos;
         private int _videoLoadRequestVersion;
@@ -610,6 +611,7 @@ namespace ExpressPackingMonitoring.UI
                     return;
 
                 // UI 状态立即重置
+                ShowPlaybackCover("正在准备视频...");
                 _timer.Stop();
                 _currentMediaLengthMs = 0;
                 TimelineSlider.Maximum = 0;
@@ -628,6 +630,7 @@ namespace ExpressPackingMonitoring.UI
                 // 增加一些优化参数，减少内存压力
                 media.AddOption(":file-caching=300"); // 减小缓存
 
+                _awaitingFirstFrame = true;
                 if (!_mediaPlayer!.Play(media))
                     throw new InvalidOperationException("播放器未能启动该文件。");
 
@@ -636,6 +639,7 @@ namespace ExpressPackingMonitoring.UI
             }
             catch (Exception ex)
             {
+                ShowPlaybackCover("视频播放失败");
                 UpdatePlayState(false);
                 AppDialog.ShowMessage(this, $"视频播放失败：{ex.Message}", "播放错误", AppDialogSeverity.Warning);
             }
@@ -717,6 +721,7 @@ namespace ExpressPackingMonitoring.UI
             Dispatcher.BeginInvoke(() =>
             {
                 if (!this.IsLoaded) return;
+                RevealPlaybackSurfaceAfterFirstFrame();
                 TimelineSlider.Value = Math.Max(0, e.Time / 1000.0);
                 TimeLabel.Text = $"{TimeSpan.FromMilliseconds(e.Time):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(_currentMediaLengthMs):hh\\:mm\\:ss}";
             });
@@ -736,10 +741,27 @@ namespace ExpressPackingMonitoring.UI
         {
             Dispatcher.Invoke(() =>
             {
+                ShowPlaybackCover("视频解码失败");
                 _timer.Stop();
                 UpdatePlayState(false);
                 AppDialog.ShowMessage(this, "播放器解码失败，请确认视频文件完整。", "播放错误", AppDialogSeverity.Warning);
             });
+        }
+
+        private void ShowPlaybackCover(string message)
+        {
+            _awaitingFirstFrame = false;
+            PlaybackCoverText.Text = message;
+            PlaybackCover.Visibility = Visibility.Visible;
+        }
+
+        private void RevealPlaybackSurfaceAfterFirstFrame()
+        {
+            if (!_awaitingFirstFrame)
+                return;
+
+            _awaitingFirstFrame = false;
+            PlaybackCover.Visibility = Visibility.Collapsed;
         }
 
         private void Timer_Tick(object? sender, EventArgs e)

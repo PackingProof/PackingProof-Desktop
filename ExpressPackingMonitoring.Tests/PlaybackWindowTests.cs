@@ -20,6 +20,9 @@ public sealed class PlaybackWindowTests
         Assert.Contains("Width=\"1100\" MinHeight=\"560\" MinWidth=\"920\"", xaml);
         Assert.Contains("x:Name=\"VideoArea\"", xaml);
         Assert.Contains("x:Name=\"PlayerView\"", xaml);
+        Assert.Contains("x:Name=\"PlaybackCover\"", xaml);
+        Assert.Contains("x:Name=\"PlaybackCoverText\"", xaml);
+        Assert.Contains("Text=\"请选择录像开始播放\"", xaml);
         Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml);
         Assert.Contains("VerticalAlignment=\"Stretch\"", xaml);
         Assert.DoesNotContain("x:Name=\"VideoFrame\"", xaml);
@@ -29,6 +32,8 @@ public sealed class PlaybackWindowTests
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
         Assert.DoesNotContain("MediaPlayer.Vout", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ShowPlaybackCover(\"正在准备视频...\")", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("RevealPlaybackSurfaceAfterFirstFrame();", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("CalculateAdaptiveWindowBounds", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("CalculateAspectFitSize", codeBehind, StringComparison.Ordinal);
     }

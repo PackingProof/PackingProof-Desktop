@@ -231,7 +231,25 @@
                 <Grid x:Name="VideoArea" Grid.Row="0" Background="{DynamicResource PanelBackground}">
                     <vlc:VideoView x:Name="PlayerView"
                                    HorizontalAlignment="Stretch"
-                                   VerticalAlignment="Stretch"/>
+                                   VerticalAlignment="Stretch">
+                        <Border x:Name="PlaybackCover"
+                                Background="{DynamicResource PanelBackground}">
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <Path Data="{StaticResource FluentPlayIcon}"
+                                      Width="36"
+                                      Height="36"
+                                      Stretch="Uniform"
+                                      Fill="{DynamicResource TextMuted}"
+                                      HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="PlaybackCoverText"
+                                           Text="请选择录像开始播放"
+                                           Margin="0,12,0,0"
+                                           Foreground="{DynamicResource TextSecondary}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </vlc:VideoView>
                 </Grid>
 
                 <!-- 2. 控制条放在第 1 行 -->
