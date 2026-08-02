@@ -7,7 +7,8 @@ internal enum LanRequestCategory
     Heartbeat,
     BackupTransfer,
     MediaStream,
-    ClipWork
+    ClipWork,
+    Thumbnail
 }
 
 internal sealed class LanRequestRateLimiter
@@ -123,6 +124,7 @@ internal sealed class LanRequestRateLimiter
             LanRequestCategory.Enrollment => (24, 2),
             LanRequestCategory.Heartbeat => (180, 4),
             LanRequestCategory.BackupTransfer => (900, 6),
+            LanRequestCategory.Thumbnail => (240, 8),
             LanRequestCategory.MediaStream => (120, 4),
             LanRequestCategory.ClipWork => (30, 2),
             _ => (300, 8)

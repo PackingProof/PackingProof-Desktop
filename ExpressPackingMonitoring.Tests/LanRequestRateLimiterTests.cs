@@ -75,11 +75,68 @@ public sealed class LanRequestRateLimiterTests
         renewed?.Dispose();
     }
 
+    [Fact]
+    public void ThumbnailBurstAllowsNormalBrowserConcurrencyWithoutRelaxingMediaStreams()
+    {
+        var limiter = new LanRequestRateLimiter();
+        var thumbnailLeases = new List<IDisposable>();
+        try
+        {
+            for (int index = 0; index < 8; index++)
+            {
+                Assert.True(limiter.TryEnter(
+                    "192.168.1.20",
+                    LanRequestCategory.Thumbnail,
+                    out IDisposable? lease,
+                    out _));
+                thumbnailLeases.Add(Assert.IsAssignableFrom<IDisposable>(lease));
+            }
+
+            Assert.False(limiter.TryEnter(
+                "192.168.1.20",
+                LanRequestCategory.Thumbnail,
+                out _,
+                out int retryAfterSeconds));
+            Assert.Equal(2, retryAfterSeconds);
+        }
+        finally
+        {
+            foreach (IDisposable lease in thumbnailLeases)
+                lease.Dispose();
+        }
+
+        var mediaLeases = new List<IDisposable>();
+        try
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                Assert.True(limiter.TryEnter(
+                    "192.168.1.21",
+                    LanRequestCategory.MediaStream,
+                    out IDisposable? lease,
+                    out _));
+                mediaLeases.Add(Assert.IsAssignableFrom<IDisposable>(lease));
+            }
+
+            Assert.False(limiter.TryEnter(
+                "192.168.1.21",
+                LanRequestCategory.MediaStream,
+                out _,
+                out _));
+        }
+        finally
+        {
+            foreach (IDisposable lease in mediaLeases)
+                lease.Dispose();
+        }
+    }
+
     [Theory]
     [InlineData("POST", "/api/mobile-backup/enroll", 1)]
     [InlineData("POST", "/api/connections/heartbeat", 2)]
     [InlineData("PUT", "/api/mobile-backup/uploads/abc/chunks", 3)]
     [InlineData("GET", "/api/videos/12/play", 4)]
+    [InlineData("GET", "/api/videos/12/thumbnail", 6)]
     [InlineData("POST", "/api/videos/12/clip/preview", 5)]
     [InlineData("GET", "/api/videos", 0)]
     public void RequestsAreClassifiedByCost(string method, string path, int expected)

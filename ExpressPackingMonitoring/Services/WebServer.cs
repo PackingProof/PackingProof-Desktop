@@ -1007,9 +1007,13 @@ namespace ExpressPackingMonitoring.Services
                 return LanRequestCategory.ClipWork;
             }
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/thumbnail", StringComparison.OrdinalIgnoreCase))
+            {
+                return LanRequestCategory.Thumbnail;
+            }
+            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
                 && (path.EndsWith("/play", StringComparison.OrdinalIgnoreCase)
                     || path.EndsWith("/download", StringComparison.OrdinalIgnoreCase)
-                    || path.EndsWith("/thumbnail", StringComparison.OrdinalIgnoreCase)
                     || path.StartsWith("/api/clips/", StringComparison.OrdinalIgnoreCase)
                     || path.StartsWith("/api/mobile-backup/clips/", StringComparison.OrdinalIgnoreCase)
                     || path.StartsWith("/api/clip-previews/", StringComparison.OrdinalIgnoreCase)

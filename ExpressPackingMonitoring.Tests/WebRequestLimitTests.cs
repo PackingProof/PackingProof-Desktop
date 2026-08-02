@@ -134,6 +134,9 @@ public sealed class WebRequestLimitTests
         string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));
 
         Assert.Contains("thumb.loading='lazy'", html);
+        Assert.Contains("thumb.decoding='async'", html);
+        Assert.Contains("loadThumbnailWithRetry(thumb,v.thumbnailUrl)", html);
+        Assert.Contains("attempt>=3||!thumb.isConnected", html);
         Assert.Contains("v.thumbnailUrl", html);
         Assert.Contains("id=\"mobileConnectButton\"", html);
         Assert.Contains("data-icon=\"phoneDesktop\"", html);
