@@ -29,6 +29,7 @@ namespace ExpressPackingMonitoring.Config
         // 仅用于把旧版本 JSON 缓存一次性迁移到 SQLite；新版本不再写入此文件。
         public static readonly string OrderInfoCachePath = Path.Combine(CacheDir, "orderinfo_cache.json");
         public static readonly string UpdateCheckCachePath = Path.Combine(CacheDir, "update_check_cache.json");
+        public static readonly string UpdatesCacheDir = Path.Combine(CacheDir, "updates");
         public static readonly string MobileAppUpdateCachePath = Path.Combine(CacheDir, "mobile_app_update_cache.json");
 
         static AppPaths()

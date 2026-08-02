@@ -20,10 +20,12 @@ namespace ExpressPackingMonitoring.Services
         public string Title { get; init; } = "";
         public string Body { get; init; } = "";
         public string DownloadUrl { get; init; } = "";
+        public string UpdateManifestUrl { get; init; } = "";
     }
 
     public sealed class UpdateCheckService
     {
+        private const int CacheSchemaVersion = 2;
         private static readonly TimeSpan ManualDebounce = TimeSpan.FromSeconds(300);
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -102,6 +104,7 @@ namespace ExpressPackingMonitoring.Services
             string body = ReadString(root, "body");
             string releaseUrl = ReadString(root, "html_url");
             string assetUrl = ReadFirstAssetUrl(root);
+            string normalizedLatestVersion = NormalizeVersion(tagName);
 
             return new UpdateCheckResult
             {
@@ -109,7 +112,8 @@ namespace ExpressPackingMonitoring.Services
                 LatestVersion = tagName,
                 Title = ReadString(root, "name"),
                 Body = body,
-                DownloadUrl = ChooseDownloadUrl(body, releaseUrl, assetUrl)
+                DownloadUrl = ChooseDownloadUrl(body, releaseUrl, assetUrl),
+                UpdateManifestUrl = ReadUpdateManifestAssetUrl(root, normalizedLatestVersion)
             };
         }
 
@@ -129,6 +133,7 @@ namespace ExpressPackingMonitoring.Services
         {
             result = default!;
             if (cache?.Result == null) return false;
+            if (cache.SchemaVersion != CacheSchemaVersion) return false;
             if (!string.Equals(cache.CurrentVersion, AppVersion.Current, StringComparison.OrdinalIgnoreCase)) return false;
 
             result = cache.Result;
@@ -167,6 +172,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 var cache = new UpdateCheckCache
                 {
+                    SchemaVersion = CacheSchemaVersion,
                     CurrentVersion = AppVersion.Current,
                     LastSuccessUtc = DateTimeOffset.UtcNow,
                     Result = result
@@ -224,6 +230,49 @@ namespace ExpressPackingMonitoring.Services
             return "";
         }
 
+        internal static string ReadUpdateManifestAssetUrl(JsonElement root, string latestVersion)
+        {
+            if (!root.TryGetProperty("assets", out JsonElement assets)
+                || assets.ValueKind != JsonValueKind.Array)
+            {
+                return "";
+            }
+
+            string preferred = $"update_v{latestVersion}.json";
+            string fallback = "";
+            foreach (JsonElement asset in assets.EnumerateArray())
+            {
+                string name = ReadString(asset, "name").Trim();
+                string url = ReadString(asset, "browser_download_url").Trim();
+                if (url.Length == 0)
+                    url = ReadString(asset, "url").Trim();
+                if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+                    || uri.Scheme != Uri.UriSchemeHttps)
+                {
+                    continue;
+                }
+
+                if (string.Equals(name, preferred, StringComparison.OrdinalIgnoreCase))
+                    return uri.AbsoluteUri;
+                if (fallback.Length == 0
+                    && string.Equals(name, "update.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    fallback = uri.AbsoluteUri;
+                }
+            }
+
+            return fallback;
+        }
+
+        internal static string NormalizeVersion(string value)
+        {
+            string normalized = value?.Trim() ?? "";
+            if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                normalized = normalized[1..];
+            int suffixIndex = normalized.IndexOfAny(new[] { '+', '-' });
+            return suffixIndex >= 0 ? normalized[..suffixIndex] : normalized;
+        }
+
         private static string ReadString(JsonElement element, string propertyName)
         {
             if (!element.TryGetProperty(propertyName, out JsonElement value))
@@ -265,6 +314,7 @@ namespace ExpressPackingMonitoring.Services
 
         private sealed class UpdateCheckCache
         {
+            public int SchemaVersion { get; set; }
             public string CurrentVersion { get; set; } = "";
             public DateTimeOffset LastSuccessUtc { get; set; }
             public UpdateCheckResult? Result { get; set; }

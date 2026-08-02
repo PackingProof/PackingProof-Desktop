@@ -1831,7 +1831,7 @@ namespace ExpressPackingMonitoring.UI
                 Owner = this
             };
 
-            if (dialog.ShowDialog() == true)
+            if (dialog.ShowDialog() == true && dialog.OpenFullDownloadPageRequested)
             {
                 try
                 {

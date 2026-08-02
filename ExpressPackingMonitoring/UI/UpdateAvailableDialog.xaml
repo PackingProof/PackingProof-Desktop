@@ -14,6 +14,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel>
@@ -42,21 +43,37 @@
                                           Foreground="{DynamicResource TextSecondary}"/>
             </Border>
             <TextBlock Margin="0,12,0,0"
-                       Text="推荐继续使用根目录启动器自动更新。手动更新时，请完整解压 AppPatch 后双击包内的“双击更新主程序.cmd”"
+                       Text="可以在这里直接下载并校验 AppPatch；准备完成后，将在下次从根目录启动器启动时安装"
                        FontSize="12"
                        Foreground="{DynamicResource TextSecondary}"
                        TextWrapping="Wrap"/>
         </StackPanel>
 
-        <StackPanel Grid.Row="1"
+        <StackPanel Grid.Row="1" Margin="0,16,0,0">
+            <TextBlock x:Name="DownloadStatusText"
+                       Visibility="Collapsed"
+                       Foreground="{DynamicResource TextSecondary}"
+                       TextWrapping="Wrap"/>
+            <ProgressBar x:Name="DownloadProgressBar"
+                         Visibility="Collapsed"
+                         Height="6"
+                         Margin="0,8,0,0"
+                         Minimum="0"
+                         Maximum="100"
+                         IsIndeterminate="True"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,22,0,0">
-            <Button Content="打开更新页面"
+            <Button x:Name="DownloadButton"
+                    Content="下载并准备更新"
                     Style="{StaticResource PrimaryButtonStyle}"
                     Margin="0,0,10,0"
                     Click="Download_Click"/>
-            <Button Content="稍后再说"
+            <Button x:Name="LaterButton"
+                    Content="稍后再说"
                     Style="{StaticResource SecondaryButtonStyle}"
                     Click="Later_Click"/>
         </StackPanel>
