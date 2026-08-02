@@ -136,6 +136,7 @@
     <Compile Include="Services\RecordingProfileDetector.cs" />
     <Compile Include="Services\RecordingWorkstationCachePolicy.cs" />
     <Compile Include="Services\RecordingTransferService.cs" />
+    <Compile Include="Services\RootLauncherStartupService.cs" />
     <Compile Include="Services\CompletedVideoSpecificationProbe.cs" />
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\UserscriptGuideNavigation.cs" />

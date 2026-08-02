@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.34",
-  "tag": "launcher-v0.0.34",
-  "release_tag": "v0.0.34",
+  "version": "0.0.36",
+  "tag": "launcher-v0.0.36",
+  "release_tag": "v0.0.36",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest",
-  "source_fingerprint": "e25700379ed6f764fb356da12b46cecf3efb2189464a32adf1990ddea57bac8a",
+  "source_fingerprint": "1b2609a74fafbdfe14525ce7c94dab5de35e239490109135399cb5ac4572c6e1",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -15,10 +15,10 @@
     "Tools/Apply-LauncherPatch.ps1"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.34.zip",
-    "size": 3073227,
-    "sha256": "70580a7791cc0874569f60956288704af5b06becbe6e98484809af1b393c1ffd",
-    "executable_size": 6293504,
-    "executable_sha256": "5d8b4382adcbeb73573c4058f86445eacf8f9e598ea4a9df66fccb43c8a86345"
+    "file": "PackingProof_LauncherPatch_v0.0.36.zip",
+    "size": 3074317,
+    "sha256": "7fcb8c5e5892fe938aeed01272f77466bfd901024ea75ac83c152b00fba6e6a0",
+    "executable_size": 6297088,
+    "executable_sha256": "eb1d74a0ba4bf1d008673896118a76d37454f237ff5734fa038efdffffb4e995"
   }
 }

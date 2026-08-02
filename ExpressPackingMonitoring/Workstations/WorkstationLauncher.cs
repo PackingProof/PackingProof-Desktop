@@ -923,6 +923,27 @@ public static class WorkstationNetwork
         }
     }
 
+    public static bool TryScheduleRootLauncherRestart(string reason = "app-update")
+    {
+        if (!LauncherUpdateService.TryResolveInstalledLauncher(
+                AppContext.BaseDirectory,
+                out string launcherPath))
+        {
+            RuntimeLog.Warn("Restart", "Cannot schedule update restart outside clean package layout");
+            return false;
+        }
+
+        string workingDirectory = Path.GetDirectoryName(launcherPath) ?? AppContext.BaseDirectory;
+        if (!TryScheduleRestart(launcherPath, workingDirectory, reason))
+            return false;
+
+        RuntimeLog.RecordShutdownRequest("ApplicationUpdateRestart", reason);
+        RuntimeLog.Info(
+            "Restart",
+            $"Root launcher scheduled after resource cleanup currentPid={Environment.ProcessId}, reason={reason}");
+        return true;
+    }
+
     internal static bool TryScheduleRestart(
         string executablePath,
         string workingDirectory,

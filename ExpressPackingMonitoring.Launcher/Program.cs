@@ -17,6 +17,8 @@ internal static class Program
     private const string FallbackCheckUrl = "https://api.github.com/repos/m-RNA/ExpressPackingMonitoring/releases/latest";
     private const string DefaultPatchDownloadBaseUrl = "https://github.com/m-RNA/ExpressPackingMonitoring/releases/download";
     private const string PatchPackageType = "baseline_patch";
+    private const string WaitForProcessExitOption = "--wait-for-process-exit";
+    private const string LaunchedByRootLauncherOption = "--launched-by-root-launcher";
     private const string UpdateMutexName = @"Local\ExpressPackingMonitoring.Launcher.Update";
     private const int GithubDownloadFailureFallbackThreshold = 3;
     private const string InstanceNamePrefix = "ExpressPackingMonitoring";
@@ -38,6 +40,16 @@ internal static class Program
     private static int Main(string[] args)
     {
         _useChinese = ResolveChineseLanguage();
+        if (!TryPrepareStartupArguments(args, out string[] appArgs, out string waitError))
+        {
+            WriteLog("等待旧主程序退出失败：" + waitError);
+            ShowMessage(
+                _useChinese ? "无法重启更新" : "Unable to restart update",
+                waitError,
+                ErrorIcon);
+            return 3;
+        }
+
         string baseDir = AppContext.BaseDirectory;
         string appPath = Path.Combine(baseDir, AppRelativePath);
         bool appAlreadyRunning = IsAppRunning(appPath);
@@ -50,16 +62,16 @@ internal static class Program
 
         if (appAlreadyRunning)
         {
-            if (!TryActivateExistingApp(args))
+            if (!TryActivateExistingApp(appArgs))
             {
-                int startResult = StartApp(baseDir, appPath, args);
+                int startResult = StartApp(baseDir, appPath, appArgs);
                 if (startResult != 0)
                     return startResult;
             }
         }
         else
         {
-            int startResult = StartApp(baseDir, appPath, args);
+            int startResult = StartApp(baseDir, appPath, appArgs);
             if (startResult != 0)
                 return startResult;
         }
@@ -91,6 +103,77 @@ internal static class Program
         backgroundUpdateThread?.Join();
         notificationThread?.Join();
         return 0;
+    }
+
+    private static bool TryPrepareStartupArguments(
+        IReadOnlyList<string> args,
+        out string[] appArgs,
+        out string error)
+    {
+        var forwarded = new List<string>();
+        int waitPid = 0;
+        for (int i = 0; i < args.Count; i++)
+        {
+            string arg = args[i] ?? "";
+            if (string.Equals(arg, LaunchedByRootLauncherOption, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!string.Equals(arg, WaitForProcessExitOption, StringComparison.OrdinalIgnoreCase))
+            {
+                forwarded.Add(arg);
+                continue;
+            }
+
+            if (i + 1 >= args.Count
+                || !int.TryParse(args[++i], out waitPid)
+                || waitPid <= 0
+                || waitPid == Environment.ProcessId)
+            {
+                appArgs = Array.Empty<string>();
+                error = _useChinese ? "等待进程参数无效" : "Invalid wait process argument";
+                return false;
+            }
+        }
+
+        if (waitPid > 0 && !WaitForProcessExit(waitPid, TimeSpan.FromSeconds(20), out error))
+        {
+            appArgs = Array.Empty<string>();
+            return false;
+        }
+
+        appArgs = forwarded.ToArray();
+        error = "";
+        return true;
+    }
+
+    private static bool WaitForProcessExit(int processId, TimeSpan timeout, out string error)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            if (!process.WaitForExit((int)timeout.TotalMilliseconds))
+            {
+                error = _useChinese
+                    ? "旧主程序未能及时退出，请稍后从根目录启动器重试"
+                    : "The previous application did not exit in time. Try the root launcher again later.";
+                return false;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // 进程已退出。
+        }
+        catch (InvalidOperationException)
+        {
+            // 进程已退出。
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
+        error = "";
+        return true;
     }
 
     private static UpdateNotification? RunExclusivePendingInstall(string baseDir)
@@ -646,6 +729,7 @@ internal static class Program
                 UseShellExecute = false
             };
 
+            startInfo.ArgumentList.Add(LaunchedByRootLauncherOption);
             foreach (string arg in args)
                 startInfo.ArgumentList.Add(arg);
 
@@ -1193,6 +1277,10 @@ internal static class Program
 
     private static string GetUserDataDir()
     {
+        string? overridePath = Environment.GetEnvironmentVariable("EPM_USER_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(overridePath))
+            return Path.GetFullPath(overridePath);
+
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string root = string.IsNullOrWhiteSpace(localAppData) ? AppContext.BaseDirectory : localAppData;
         return Path.Combine(root, "ExpressPackingMonitoring");

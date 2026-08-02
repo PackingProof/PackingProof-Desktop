@@ -42,6 +42,12 @@ namespace ExpressPackingMonitoring
                 return;
             }
 
+            if (RootLauncherStartupService.TryRedirectNormalStartup(e.Args))
+            {
+                Shutdown(0);
+                return;
+            }
+
             CameraBarcodeRuntimeOptions.Initialize(e.Args);
             var config = WorkstationConfigStore.Load();
             AppLanguage.Initialize(config.Language);

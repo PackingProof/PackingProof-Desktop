@@ -1826,12 +1826,24 @@ namespace ExpressPackingMonitoring.UI
 
         private void ShowUpdateDialog(UpdateCheckResult result)
         {
-            var dialog = new UpdateAvailableDialog(result)
+            var dialog = new UpdateAvailableDialog(
+                result,
+                new AppPatchDownloadService(),
+                () => Context.ToastSource is MainViewModel viewModel
+                    ? viewModel.IsRecording
+                    : _isRecording)
             {
                 Owner = this
             };
 
-            if (dialog.ShowDialog() == true && dialog.OpenFullDownloadPageRequested)
+            dialog.ShowDialog();
+            if (dialog.RestartRequested)
+            {
+                RestartForPreparedUpdate();
+                return;
+            }
+
+            if (dialog.OpenFullDownloadPageRequested)
             {
                 try
                 {
@@ -1846,6 +1858,30 @@ namespace ExpressPackingMonitoring.UI
                         AppDialog.ShowMessage(this, "打开下载页面失败", "检查更新", AppDialogSeverity.Warning);
                 }
             }
+        }
+
+        private void RestartForPreparedUpdate()
+        {
+            if (!WorkstationNetwork.TryScheduleRootLauncherRestart("manual-app-update"))
+            {
+                AppDialog.ShowMessage(
+                    this,
+                    "无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动",
+                    "无法立即重启",
+                    AppDialogSeverity.Warning);
+                return;
+            }
+
+            DialogResult = false;
+            Close();
+            _ = Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Window mainWindow = Application.Current.MainWindow;
+                if (mainWindow != null)
+                    mainWindow.Close();
+                else
+                    Application.Current.Shutdown();
+            }));
         }
 
         private void BtnCancel_Click(object sender, RoutedEventArgs e)

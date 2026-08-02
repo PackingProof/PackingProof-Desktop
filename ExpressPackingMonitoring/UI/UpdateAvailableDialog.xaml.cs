@@ -8,23 +8,27 @@ namespace ExpressPackingMonitoring.UI
     {
         private readonly UpdateCheckResult _result;
         private readonly AppPatchDownloadService _downloadService;
+        private readonly Func<bool> _isRecordingProvider;
         private bool _openFullDownloadPage;
 
         public bool OpenFullDownloadPageRequested { get; private set; }
+        public bool RestartRequested { get; private set; }
         public string DownloadUrl { get; private set; }
 
-        public UpdateAvailableDialog(UpdateCheckResult result)
-            : this(result, new AppPatchDownloadService())
+        public UpdateAvailableDialog(UpdateCheckResult result, bool isRecording = false)
+            : this(result, new AppPatchDownloadService(), () => isRecording)
         {
         }
 
         internal UpdateAvailableDialog(
             UpdateCheckResult result,
-            AppPatchDownloadService downloadService)
+            AppPatchDownloadService downloadService,
+            Func<bool>? isRecordingProvider = null)
         {
             InitializeComponent();
             _result = result;
             _downloadService = downloadService;
+            _isRecordingProvider = isRecordingProvider ?? (() => false);
             DownloadUrl = result.DownloadUrl;
             VersionText.Text = $"发现新版本：{result.LatestVersion}";
             TitleText.Text = string.IsNullOrWhiteSpace(result.Title)
@@ -71,13 +75,23 @@ namespace ExpressPackingMonitoring.UI
                 case AppPatchPreparationStatus.AlreadyReady:
                     DownloadProgressBar.IsIndeterminate = false;
                     DownloadProgressBar.Value = 100;
-                    DownloadStatusText.Text = preparation.Message
-                        + "，完全退出程序后，下次从根目录启动器启动时自动安装";
-                    DownloadButton.Content = "完成";
-                    DownloadButton.IsEnabled = true;
-                    DownloadButton.Click -= Download_Click;
-                    DownloadButton.Click += Complete_Click;
-                    LaterButton.Visibility = Visibility.Collapsed;
+                    DownloadStatusText.Text = preparation.Message;
+                    bool isRecording = _isRecordingProvider();
+                    string restartMessage = isRecording
+                        ? preparation.Message
+                            + "\n\n当前正在录像。立即重启会先结束并保存当前录像，确认保存完成后再安装更新。"
+                        : preparation.Message
+                            + "\n\n是否立即退出程序，并通过根目录启动器安装更新？";
+                    RestartRequested = AppDialog.Confirm(
+                        this,
+                        restartMessage,
+                        "补丁准备完成",
+                        isRecording ? "保存录像并重启" : "立即重启更新",
+                        "稍后更新",
+                        isRecording ? AppDialogSeverity.Warning : AppDialogSeverity.Information,
+                        isDangerous: isRecording);
+                    DialogResult = RestartRequested;
+                    Close();
                     break;
 
                 case AppPatchPreparationStatus.FullPackageRequired:
@@ -100,12 +114,6 @@ namespace ExpressPackingMonitoring.UI
                     LaterButton.IsEnabled = true;
                     break;
             }
-        }
-
-        private void Complete_Click(object sender, RoutedEventArgs e)
-        {
-            DialogResult = false;
-            Close();
         }
 
         private void Later_Click(object sender, RoutedEventArgs e)
