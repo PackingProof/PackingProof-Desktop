@@ -1,115 +1,392 @@
-# <img src="ExpressPackingMonitoring/app.ico" align="left" width="128" height="128"/> Express Packing Monitoring
+<div align="center">
 
-[简体中文](README.md) | English
+<img src="ExpressPackingMonitoring/app.ico" width="112" alt="PackingProof logo">
 
-[![GitHub Stars](https://img.shields.io/github/stars/PackingProof/PackingProof-Desktop?style=flat&color=ffcf49)](https://github.com/PackingProof/PackingProof-Desktop)
-[![GitHub All Releases](https://img.shields.io/github/downloads/PackingProof/PackingProof-Desktop/total)](https://github.com/PackingProof/PackingProof-Desktop/releases)
+# PackingProof
 
-A packing video and shipment-risk interception tool for e-commerce sellers and packing stations. It records automatically when a shipping barcode is scanned, integrates with Kuaidi Assistant to announce buyer messages and seller notes, and alerts packers when an order is refunded after its shipping label has already been printed.
+**Free and open-source packing recording and shipment-risk interception**
 
-> It does more than preserve evidence for disputes: it surfaces special instructions and stops refunded orders before shipment, helping prevent packing mistakes and avoidable losses.
+Start recording from a shipping-label scan and organize videos by tracking number.
+Announce order notes, catch post-print refunds, and back up recordings from multiple phones and PCs.
 
-![Application screenshot](Image/软件截图.jpg)
+<br>
 
-## Who It Is For
+<a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
+  <img src="https://img.shields.io/badge/Download-Windows-D97745?style=for-the-badge&logo=windows&logoColor=white" height="38" alt="Download for Windows">
+</a>
+&nbsp;
+<a href="https://github.com/PackingProof/PackingProof-Mobile/releases/latest">
+  <img src="https://img.shields.io/badge/Download-Android-695647?style=for-the-badge&logo=android&logoColor=white" height="38" alt="Download for Android">
+</a>
 
-- Sellers who print shipping labels with Kuaidi Assistant and want to keep their existing workflow
-- Packing stations that need to catch refunds occurring after a label has been printed
-- Teams that want buyer messages, seller notes, and product information announced while packing
-- Sellers who need hands-free recording and fast retrieval by tracking number
-- Warehouses that need recordings from phones or other recording PCs backed up centrally and played on the LAN
-- Users who want to trim the beginning or end of a recording before downloading it
-- Computers with limited storage that need automatic cleanup while reserving free disk space
+<br><br>
 
-## Main Features
+[简体中文](README.md) · English
 
-- Integrates with Kuaidi Assistant to sync orders and announce buyer messages, seller notes, and product information
-- Checks for post-print refunds asynchronously in shipping and return modes, with status-specific alerts that do not interrupt recording
-- Uses the camera to recognize one-dimensional shipping-label barcodes and start recording automatically
-- Reads the central guide at a high rate, adds a low-rate full-frame fallback while idle, and restricts recognition to the guide while recording to reduce product-barcode false triggers
-- Keeps camera recognition and keyboard-mode scanners available together, so a scanner can remain as a background-input and recovery fallback
-- Supports camera recording, audio capture, and video watermarks
-- Offers four computer roles through a two-question selector: record and store locally, record and upload to another computer, recording-file backup host, or view-only client
-- Keeps a recording workstation usable before its storage host is bound or while the host is offline; completed files remain in a safe local cache and are uploaded later
-- Lets a backup host receive recordings from Android phones and other recording PCs
-- Searches recordings by order or tracking number and plays them in a browser
-- Provides browser-based trim-and-download with a selectable time range
-- Supports multiple storage locations, automatic drive switching, and reserve-space-based cleanup
-- Keeps multi-location long-term storage separate from the recording workstation's single-location rolling cache
-- Checks for updates through the launcher, verifies incremental packages, and installs pending updates on the next launch; both AppPatch and LauncherPatch archives include double-click manual installers
+<br>
 
-## Requirements
+[![GitHub Stars](https://img.shields.io/github/stars/PackingProof/PackingProof-Desktop?style=flat-square&color=E7B65C)](https://github.com/PackingProof/PackingProof-Desktop)
+[![Downloads](https://img.shields.io/github/downloads/PackingProof/PackingProof-Desktop/total?style=flat-square&color=D97745)](https://github.com/PackingProof/PackingProof-Desktop/releases)
+[![License](https://img.shields.io/github/license/PackingProof/PackingProof-Desktop?style=flat-square&color=695647)](LICENSE)
 
-- Windows 10/11 x64
-- USB camera
-- Barcode scanner configured as a keyboard input device (optional, but recommended as a fallback)
+</div>
 
-`PackingProof_Setup_vX.Y.Z.exe` is the recommended download. It installs per-user without administrator rights, always adds a Start menu shortcut, and selects the desktop shortcut by default. The full 7z is the smaller portable package, while the full ZIP supports native Windows extraction and recovery. These distributions normally include the required .NET runtime and `ffmpeg.exe`. Running from source requires the .NET 8 SDK and `ffmpeg.exe` (the Essentials build is recommended).
+<br>
+
+![PackingProof application](Image/软件截图.jpg)
+
+---
+
+## Why PackingProof
+
+Conventional surveillance may show that a parcel was packed, but finding the video for one specific order is often difficult.
+
+PackingProof links the **tracking number, order details, and packing recording**:
+
+> Scan the shipping label to start recording, then stop and save the video when packing is complete.
+> When evidence is needed, enter the tracking number to retrieve the recording.
+
+PackingProof also surfaces special instructions, warns about duplicate tracking numbers, and helps stop refunded orders before shipment.
+
+## Core Features
+
+### Scan to Record
+
+Recognize a one-dimensional barcode on a shipping label and start recording automatically.
+
+Keyboard-mode barcode scanners remain supported as the primary input method or as a fallback when camera recognition is unavailable.
+
+### Order Note Announcements
+
+Integrate with Kuaidi Assistant to announce:
+
+* Buyer messages
+* Seller notes
+* Product information
+
+This helps reduce missed instructions and packing mistakes.
+
+### Post-Print Refund Interception
+
+If an order is refunded after its shipping label has been printed, PackingProof can warn the packer when that label is scanned.
+
+Refund verification runs asynchronously and does not delay recording startup.
+
+### Multiple Phones and PCs
+
+One computer can act as a recording storage host and receive:
+
+* Android phone recordings
+* Recordings from other PC workstations
+* Recordings made by the host itself
+
+The resulting library can be searched and played across the LAN.
+
+## Workflow
+
+<div align="center">
+
+**Scan the shipping label**
+
+↓
+
+**Start recording automatically**
+
+↓
+
+**Announce order notes and verify refund status**
+
+↓
+
+**Finish packing and stop recording**
+
+↓
+
+**Search and play by tracking number**
+
+</div>
+
+Camera recognition and a keyboard-mode scanner can be used together without changing the existing packing workflow.
+
+## Workstation Roles
+
+On first launch, two simple questions help select the purpose of the current computer.
+
+| Role | Recommended use |
+| --- | --- |
+| **Record and store on this computer** | One packing station with long-term local storage |
+| **Record and store on another computer** | Multiple recording PCs uploading to one host |
+| **Recording file backup host** | Central receiver for phones and other recording PCs |
+| **Connect to a host for viewing only** | Search, playback, and management without local recording |
+
+A recording workstation remains usable before a host is bound or while its host is offline.
+
+Completed videos remain in a local cache and upload automatically after connectivity returns. Cache cleanup considers a file only after the host has confirmed that it was received and verified in full.
 
 ## Quick Start
 
-1. Choose what this computer should do on first launch.
-2. For either recording role, select the camera, microphone, and long-term storage or cache location.
-3. A recording workstation can start recording immediately and bind its storage host later; a backup host can connect Android phones and other recording PCs.
-4. Place the shipping-label barcode inside the guide until it is recognized, or use the existing scanner workflow.
-5. Finish the shipment or scan the stop command to end recording.
-6. Enter the tracking number in the recording list whenever you need to retrieve the video.
+### 1. Prepare the Hardware
 
-Camera sleep is disabled by default. If it is explicitly enabled in Advanced settings, click the application, press a key, or use the scanner to wake the camera before placing a label inside the guide.
+* A Windows 10 or Windows 11 x64 computer
+* A USB camera
+* A microphone, optional
+* A keyboard-mode barcode scanner, optional but recommended
 
-## Updating
+### 2. Install PackingProof
 
-- Start the app from an installer-created shortcut or the root `ExpressPackingMonitoring.exe`. The launcher downloads verified incremental packages in the background and installs them on the next launch.
-- To update the main application manually, extract `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip` completely and run `双击更新主程序.cmd`. The script validates every patched file, locates the existing installation, and rolls back on failure without deleting configuration, database records, or recordings.
-- To update the root launcher manually, extract `PackingProof_LauncherPatch_vX.Y.Z.zip` completely and run `双击更新启动器.cmd`. It replaces only the root entry executable and retains a verified launcher backup. Automatic updates do not require downloading either archive manually.
-- If the installed version is below the patch baseline, run the newer Setup for an in-place upgrade. The full ZIP is the recovery alternative. Existing portable folders are never migrated or removed automatically. Keep `%LOCALAPPDATA%\ExpressPackingMonitoring\` to preserve configuration and database records.
+The recommended download is:
 
-## Uninstalling and Data
+```text
+PackingProof_Setup_vX.Y.Z.exe
+```
 
-- Uninstall keeps configuration, database, logs, cache, and recordings by default.
-- Local application data and database-registered recording files are separate, default-No choices.
-- Recording deletion shows the exact count and total size before a second confirmation. It deletes only unchanged files still registered in the database and never scans or clears recording directories.
-- If the database is missing, corrupt, busy, or any recording cleanup fails, recordings and local data are retained. Details remain in the uninstall log under the system temporary directory.
+The installer does not require administrator rights. It installs for the current user and creates a Start menu shortcut.
+
+### 3. Complete First-Time Setup
+
+After the first launch:
+
+1. Choose the purpose of this computer.
+2. Select the camera and microphone.
+3. Choose a recording storage or cache location.
+4. Connect a recording storage host if needed.
+5. Place the shipping-label barcode inside the guide in the center of the preview.
+6. When packing is complete, use the Stop button in the main window to end recording.
+
+Recording starts automatically after the barcode is recognized.
+
+### 4. Find a Recording
+
+Open the recording list and enter a tracking number.
+
+Recordings can also be played from a phone or another computer through the LAN Web interface.
 
 ## LAN Playback
 
-1. Run the app in the local-recording or recording-file-backup-host role.
-2. Open “Connect phone/PC” and scan the recording Web QR code, or open the displayed address from another device on the same LAN.
-3. Android phones can scan the separate app-download QR code; mobile browsers also show a download entry at the top of the Web page.
+The local-recording and recording-file-backup-host roles can run the LAN Web service.
 
-Allow network access if Windows Firewall prompts you.
+1. Open **Connect phone/PC** in PackingProof.
+2. Scan the recording Web QR code with a phone.
+3. Alternatively, open the displayed address from another device on the same LAN.
+4. Enter a tracking number to search and play recordings.
+
+The Web interface can also keep a selected time range and download the resulting clip.
+
+Allow LAN access if Windows Firewall prompts you.
 
 ![LAN Web playback](Image/WebService.jpg)
 
-## Order Note Announcements
+## Order Notes and Refund Interception
 
-This feature uses the included browser userscript:
+This feature uses the browser userscript included with PackingProof.
+
+### Basic Setup
 
 1. Install Tampermonkey or Violentmonkey.
-2. Click “Install order integration” in the application and follow the guide to install the included userscript.
-3. When the printing page opens or its orders change, the script sends the current order information to the monitoring workstation automatically. Normal order syncing does not depend on the refund worker page.
-4. The monitoring workstation can announce buyer messages, seller notes, and product information.
-5. To enable post-print refund alerts, keep one signed-in Kuaidi Assistant batch-printing page open. The script opens a background refund verification worker without taking focus. Only this worker changes the official post-print-refund filter; the page being used by the operator is not changed.
-6. After a scan, recording starts immediately while refund data is requested asynchronously. The worker first returns the current refund list. If the tracking number is absent, it performs an exact historical lookup. When the printing workstation is offline or the lookup fails, the monitor falls back to order data retained in SQLite for 90 days.
+2. Click **Install order integration** in PackingProof.
+3. Follow the guide to install the provided userscript.
+4. Open and sign in to the Kuaidi Assistant printing page.
 
-The refund worker has a dedicated title and translucent overlay. Do not operate it manually. If it is closed accidentally, the script recreates it automatically; it can also be reopened from the userscript menu.
+When orders on the printing page change, the script synchronizes their information with PackingProof.
 
-When the userscript connects to a new monitor address for the first time, the browser may request cross-origin access. Confirm that the destination is the local computer or a trusted LAN workstation before allowing it. Reinstalling the script through the monitor's setup guide adds an exact permission for the current workstation.
+After a shipping label is scanned, PackingProof can announce buyer messages, seller notes, and product information.
 
-Duplicate tracking numbers are checked against non-deleted recording records from the last 30 days, independently of the browser cache. Order and refund caches are stored in SQLite. The legacy `orderinfo_cache.json` file is migrated during an upgrade and removed afterward.
+<details>
+<summary><strong>Show refund verification details</strong></summary>
 
-## Recording Storage
+<br>
 
-Configuration, databases, logs, and recordings are stored in the current user's local data directories. Existing settings and recording records are preserved during normal upgrades as long as the user data is not deleted.
+To enable post-print refund alerts, keep one signed-in Kuaidi Assistant batch-printing page open.
 
-Long-term storage settings represent reserved free space, not a recording quota. When a drive falls below its reserve threshold, the application stops writing new recordings to that drive and prefers the next configured location. The system drive automatically receives a larger safety reserve to protect Windows and other applications.
+The userscript creates a dedicated refund verification worker page in the background:
 
-The “record and upload to another computer” role uses a local rolling cache. Its default 100 GB limit does not preallocate disk space; the effective safe capacity is also constrained by actual free space and the drive reserve. Cleanup removes only the oldest recordings already verified by the storage host. Unbound, pending, uploading, or failed recordings are never removed automatically.
+* It does not take focus from the operator.
+* Only the worker page changes the official post-print-refund filter.
+* The printing page currently used by the operator is not changed automatically.
+* The worker has a dedicated title and translucent overlay and should not be operated manually.
+* If closed accidentally, it is recreated automatically.
+
+Scanning a tracking number starts recording immediately while refund data is requested asynchronously.
+
+Verification follows this order:
+
+1. Check the current post-print-refund list.
+2. If the tracking number is absent, perform an exact historical order lookup.
+3. If the lookup fails or the printing workstation is offline, use order data retained in local SQLite storage for the last 90 days.
+
+Duplicate tracking numbers are checked against non-deleted recording records from the last 30 days and do not depend on browser cache.
+
+</details>
+
+When the userscript connects to a new monitor address for the first time, the browser may request cross-origin access. Allow it only after confirming that the destination is this computer or another trusted PackingProof service on the LAN. Reinstalling the script through the in-app guide adds the exact permission required for the current service.
+
+## Recording Storage and Cache
+
+Long-term local recording can use multiple storage locations.
+
+When a drive falls below its configured free-space reserve, PackingProof can:
+
+1. Stop writing new recordings to that drive.
+2. Switch to the next available storage location.
+3. Clean older recordings according to the configured policy.
+4. Keep an additional safety reserve on the Windows system drive.
+
+The **record and store on another computer** role uses a separate local cache.
+
+Its default limit is `100 GB`, but that space is not preallocated.
+
+<details>
+<summary><strong>Show cache safety rules</strong></summary>
+
+<br>
+
+Usable cache capacity is limited by all of the following:
+
+* The configured cache limit
+* Actual free disk space
+* The minimum free-space reserve
+
+Under storage pressure, PackingProof removes only recordings that the storage host has already confirmed and verified.
+
+The following files are never removed automatically by cache cleanup:
+
+* Recordings made before a host is bound
+* Pending uploads
+* Active uploads
+* Failed uploads
+* Recordings not yet fully confirmed by the host
+
+</details>
+
+## Choosing a Download
+
+| File | Purpose |
+| --- | --- |
+| `PackingProof_Setup_vX.Y.Z.exe` | Recommended for most users |
+| Full `.7z` | Smaller portable package |
+| Full `.zip` | Native Windows extraction and recovery |
+| `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip` | Manual main-application update |
+| `PackingProof_LauncherPatch_vX.Y.Z.zip` | Manual root-launcher update |
+
+Official packages normally include the required .NET runtime and FFmpeg, so no separate installation is needed.
+
+## Updating
+
+For daily use, start PackingProof from:
+
+* The Start menu or desktop shortcut created by Setup
+* The root `ExpressPackingMonitoring.exe` in the installation directory
+
+The launcher checks for verified incremental updates in the background and installs a pending update on the next launch.
+
+<details>
+<summary><strong>Show manual update and recovery instructions</strong></summary>
+
+<br>
+
+### Update the Main Application Manually
+
+Download and fully extract:
+
+```text
+ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip
+```
+
+Then run:
+
+```text
+双击更新主程序.cmd
+```
+
+The script validates the patch, locates the existing installation, rolls back on failure, and preserves configuration, databases, and recordings.
+
+### Update the Root Launcher Manually
+
+Download and fully extract:
+
+```text
+PackingProof_LauncherPatch_vX.Y.Z.zip
+```
+
+Then run:
+
+```text
+双击更新启动器.cmd
+```
+
+This script replaces only the root launcher and retains a verified backup of the previous launcher.
+
+### Upgrade an Older Installation
+
+If the installed version is below the AppPatch baseline, run the newer Setup for an in-place upgrade. The full ZIP can be used for recovery.
+
+Do not delete:
+
+```text
+%LOCALAPPDATA%\ExpressPackingMonitoring\
+```
+
+This directory contains application settings, databases, and recording records.
+
+</details>
+
+## Uninstalling and Preserving Data
+
+The uninstaller provides two independent options:
+
+* Delete settings and temporary files
+* Delete recordings and recording records
+
+Both options are cleared by default, so a normal uninstall keeps user settings, databases, and recordings.
+
+<details>
+<summary><strong>Show recording deletion safeguards</strong></summary>
+
+<br>
+
+Settings cleanup removes only application settings, logs, and temporary cache. It does not remove recordings, the recording database, or database recovery backups.
+
+Recording cleanup processes only exact files that remain registered in the database and have not changed after confirmation. It never scans and empties an entire recording directory.
+
+Recordings and databases are retained if the database is missing, corrupt, busy, or if any recording deletion fails. Detailed results are written to the uninstall log in the system temporary directory.
+
+</details>
+
+## Running from Source
+
+Development requires:
+
+* .NET 8 SDK
+* FFmpeg, with an Essentials build recommended
+* Windows 10/11 x64
+
+```bash
+git clone https://github.com/PackingProof/PackingProof-Desktop.git
+cd PackingProof-Desktop
+```
+
+Open and build the solution with Visual Studio, Rider, or the `dotnet` CLI.
+
+## Feedback and Contributions
+
+Report problems or suggest features through [GitHub Issues](https://github.com/PackingProof/PackingProof-Desktop/issues).
+
+Contributions to testing, documentation, code, and real-world usage guidance are welcome. If PackingProof is useful to you, consider starring the repository so more sellers can discover it.
 
 ## License
 
-This project is open source under the [AGPL-3.0 License](LICENSE).
+PackingProof is open source under the [AGPL-3.0 License](LICENSE).
 
-Personal learning and use in your own store are free. If you distribute a modified version or provide it as a network service, you must comply with the source-sharing requirements of AGPL-3.0.
+You may use, study, and modify the project at no cost under the license. Distributing a modified version or providing it as a network service requires compliance with the corresponding AGPL-3.0 source-sharing obligations.
 
-![Packing station scenario](Image/场景图.jpg)
+---
+
+<div align="center">
+
+<img src="Image/场景图.jpg" alt="PackingProof packing station">
+
+<br><br>
+
+**Make every parcel easy to trace back to its packing record.**
+
+</div>
