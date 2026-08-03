@@ -1549,6 +1549,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     var result = await BatchConvertMkvToMp4Async(
                         new Progress<string>(msg => Debug.WriteLine($"[PostStopMux] {msg}")),
                         CancellationToken.None).ConfigureAwait(false);
+                    _recordingTransferService?.EnqueueCompletedRecordings();
 
                     RuntimeLog.Info(
                         "MkvToMp4",

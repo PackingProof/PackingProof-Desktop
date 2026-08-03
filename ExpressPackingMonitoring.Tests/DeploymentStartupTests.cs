@@ -583,6 +583,32 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void PostStopMuxImmediatelyQueuesCompletedRecordingsForTransfer()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+        int methodStart = source.IndexOf("private void QueuePostStopMux", StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        int methodEnd = source.IndexOf(
+            "private async Task SafeStopRecordingAsync",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodEnd > methodStart);
+        string method = source[methodStart..methodEnd];
+        int conversion = method.IndexOf("await BatchConvertMkvToMp4Async", StringComparison.Ordinal);
+        int enqueue = method.IndexOf(
+            "_recordingTransferService?.EnqueueCompletedRecordings();",
+            StringComparison.Ordinal);
+
+        Assert.True(conversion >= 0);
+        Assert.True(enqueue > conversion);
+    }
+
+    [Fact]
     public void PcRecordingStatusUsesNicknameRoleCardsAndSharedOrderCard()
     {
         string mainWindow = ReadRepositoryFile(
