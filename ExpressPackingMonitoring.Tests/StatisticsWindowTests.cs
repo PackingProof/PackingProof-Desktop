@@ -80,6 +80,12 @@ public sealed class StatisticsWindowTests
         Assert.Contains("ToolTipService.InitialShowDelay=\"0\"", xaml);
         Assert.Contains("ToolTipService.BetweenShowDelay=\"0\"", xaml);
         Assert.Contains("ScaleY=\"{Binding BarRatio, Mode=OneWay}\"", xaml);
+        Assert.Contains("ScaleY=\"{Binding ShippingRatio, Mode=OneWay}\"", xaml);
+        Assert.Contains("ScaleY=\"{Binding ReturnRatio, Mode=OneWay}\"", xaml);
+        Assert.Contains("Text=\"{Binding ShippingText, Mode=OneWay}\"", xaml);
+        Assert.Contains("Text=\"{Binding ReturnText, Mode=OneWay}\"", xaml);
+        Assert.Contains("Background=\"{DynamicResource AccentBlueDark}\"", xaml);
+        Assert.Contains("Background=\"{DynamicResource AccentOrange}\"", xaml);
         Assert.Contains("ItemsSource=\"{Binding XAxisLabels, Mode=OneWay}\"", xaml);
         Assert.Contains("Text=\"{Binding AverageTime, Mode=OneWay}\"", xaml);
         Assert.Contains("Text=\"平均单件用时\"", xaml);

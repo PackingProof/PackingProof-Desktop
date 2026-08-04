@@ -346,8 +346,14 @@ public sealed class VideoDatabaseTests
             DailyStat stat = Assert.Single(database.GetAggregatedStats(date, date));
 
             Assert.Equal(2, stat.TotalPieces);
+            Assert.Equal(2, stat.ShippingPieces);
+            Assert.Equal(0, stat.ReturnPieces);
             Assert.Equal(180, stat.TotalDurationSec);
+            Assert.Equal(180, stat.ShippingDurationSec);
+            Assert.Equal(0, stat.ReturnDurationSec);
             Assert.Equal(1024, stat.TotalBytes);
+            Assert.Equal(1024, stat.ShippingBytes);
+            Assert.Equal(0, stat.ReturnBytes);
         }
         finally
         {
@@ -373,8 +379,20 @@ public sealed class VideoDatabaseTests
 
             Assert.Collection(
                 stats,
-                item => { Assert.Equal("2025", item.Date); Assert.Equal(2, item.TotalPieces); },
-                item => { Assert.Equal("2026", item.Date); Assert.Equal(1, item.TotalPieces); });
+                item =>
+                {
+                    Assert.Equal("2025", item.Date);
+                    Assert.Equal(2, item.TotalPieces);
+                    Assert.Equal(1, item.ShippingPieces);
+                    Assert.Equal(1, item.ReturnPieces);
+                },
+                item =>
+                {
+                    Assert.Equal("2026", item.Date);
+                    Assert.Equal(1, item.TotalPieces);
+                    Assert.Equal(1, item.ShippingPieces);
+                    Assert.Equal(0, item.ReturnPieces);
+                });
         }
         finally
         {

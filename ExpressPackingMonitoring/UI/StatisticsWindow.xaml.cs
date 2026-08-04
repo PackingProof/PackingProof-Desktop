@@ -18,7 +18,13 @@ namespace ExpressPackingMonitoring.UI
         public string DateSub { get; set; } = "";
         public string DateFull { get; set; } = "";
         public int Pieces { get; set; }
+        public int ShippingPieces { get; set; }
+        public int ReturnPieces { get; set; }
         public double BarRatio { get; set; }
+        public double ShippingRatio { get; set; }
+        public double ReturnRatio { get; set; }
+        public string ShippingText { get; set; } = "";
+        public string ReturnText { get; set; } = "";
         public string SizeText { get; set; } = "";
         public string TotalTime { get; set; } = "";
         public string AverageTime { get; set; } = "";
@@ -178,9 +184,12 @@ namespace ExpressPackingMonitoring.UI
             for (int i = 0; i < _cachedHistory.Count; i++)
             {
                 var h = _cachedHistory[i];
-                double currentVal = ModePieces.IsChecked == true ? h.TotalPieces :
-                                    ModeDuration.IsChecked == true ? h.TotalDurationSec :
-                                    h.TotalBytes / 1024.0 / 1024.0;
+                (double shippingValue, double returnValue) = ModePieces.IsChecked == true
+                    ? (h.ShippingPieces, h.ReturnPieces)
+                    : ModeDuration.IsChecked == true
+                        ? (h.ShippingDurationSec, h.ReturnDurationSec)
+                        : (h.ShippingBytes / 1024.0 / 1024.0, h.ReturnBytes / 1024.0 / 1024.0);
+                double currentVal = shippingValue + returnValue;
 
                 totalPieces += h.TotalPieces;
                 totalBytes += h.TotalBytes;
@@ -195,11 +204,25 @@ namespace ExpressPackingMonitoring.UI
                     DateLabel = dateLabel,
                     DateSub = subLabel,
                     Pieces = h.TotalPieces,
+                    ShippingPieces = h.ShippingPieces,
+                    ReturnPieces = h.ReturnPieces,
+                    ShippingText = ModePieces.IsChecked == true
+                        ? $"{h.ShippingPieces} 件"
+                        : ModeDuration.IsChecked == true
+                            ? FormatCompactDuration(h.ShippingDurationSec)
+                            : FormatSize(h.ShippingBytes),
+                    ReturnText = ModePieces.IsChecked == true
+                        ? $"{h.ReturnPieces} 件"
+                        : ModeDuration.IsChecked == true
+                            ? FormatCompactDuration(h.ReturnDurationSec)
+                            : FormatSize(h.ReturnBytes),
                     TotalTime = FormatCompactDuration(h.TotalDurationSec),
                     AverageTime = FormatCompactDuration(
                         h.TotalPieces > 0 ? h.TotalDurationSec / h.TotalPieces : 0),
                     SizeText = FormatSize(h.TotalBytes),
-                    BarRatio = Math.Clamp(currentVal / maxVal, 0, 1)
+                    BarRatio = Math.Clamp(currentVal / maxVal, 0, 1),
+                    ShippingRatio = currentVal > 0 ? Math.Clamp(shippingValue / currentVal, 0, 1) : 0,
+                    ReturnRatio = currentVal > 0 ? Math.Clamp(returnValue / currentVal, 0, 1) : 0
                 });
             }
 

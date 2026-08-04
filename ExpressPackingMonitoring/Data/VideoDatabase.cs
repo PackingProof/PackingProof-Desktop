@@ -54,8 +54,14 @@ namespace ExpressPackingMonitoring.Data
     {
         public string Date { get; set; } = "";
         public int TotalPieces { get; set; }
+        public int ShippingPieces { get; set; }
+        public int ReturnPieces { get; set; }
         public double TotalDurationSec { get; set; }
+        public double ShippingDurationSec { get; set; }
+        public double ReturnDurationSec { get; set; }
         public long TotalBytes { get; set; } // 新增
+        public long ShippingBytes { get; set; }
+        public long ReturnBytes { get; set; }
     }
 
     /// <summary>
@@ -1833,8 +1839,14 @@ namespace ExpressPackingMonitoring.Data
                     SELECT 
                         {dateSelector} AS GroupDate,
                         COUNT(*) AS TotalPieces,
+                        SUM(CASE WHEN v.Mode = '退货' THEN 0 ELSE 1 END) AS ShippingPieces,
+                        SUM(CASE WHEN v.Mode = '退货' THEN 1 ELSE 0 END) AS ReturnPieces,
                         SUM(v.DurationSeconds) AS TotalDurationSec,
-                        SUM(CASE WHEN v.Id = c.CanonicalId THEN v.FileSizeBytes ELSE 0 END) AS TotalBytes
+                        SUM(CASE WHEN v.Mode = '退货' THEN 0 ELSE v.DurationSeconds END) AS ShippingDurationSec,
+                        SUM(CASE WHEN v.Mode = '退货' THEN v.DurationSeconds ELSE 0 END) AS ReturnDurationSec,
+                        SUM(CASE WHEN v.Id = c.CanonicalId THEN v.FileSizeBytes ELSE 0 END) AS TotalBytes,
+                        SUM(CASE WHEN v.Id = c.CanonicalId AND v.Mode <> '退货' THEN v.FileSizeBytes ELSE 0 END) AS ShippingBytes,
+                        SUM(CASE WHEN v.Id = c.CanonicalId AND v.Mode = '退货' THEN v.FileSizeBytes ELSE 0 END) AS ReturnBytes
                     FROM VideoRecords v
                     LEFT JOIN CanonicalFiles c ON c.FilePath = v.FilePath
                     WHERE v.StartTime >= @start AND v.StartTime <= @end
@@ -1854,8 +1866,14 @@ namespace ExpressPackingMonitoring.Data
                     {
                         Date = reader.GetString(0),
                         TotalPieces = reader.GetInt32(1),
-                        TotalDurationSec = reader.GetDouble(2),
-                        TotalBytes = reader.IsDBNull(3) ? 0 : reader.GetInt64(3)
+                        ShippingPieces = reader.GetInt32(2),
+                        ReturnPieces = reader.GetInt32(3),
+                        TotalDurationSec = reader.GetDouble(4),
+                        ShippingDurationSec = reader.GetDouble(5),
+                        ReturnDurationSec = reader.GetDouble(6),
+                        TotalBytes = reader.IsDBNull(7) ? 0 : reader.GetInt64(7),
+                        ShippingBytes = reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
+                        ReturnBytes = reader.IsDBNull(9) ? 0 : reader.GetInt64(9)
                     });
                 }
                 return results;

@@ -177,41 +177,48 @@
                                                 <TextBlock Text="{Binding DateFull, Mode=OneWay}" FontWeight="Bold" FontSize="14" Margin="0,0,0,8" Foreground="{DynamicResource TextPrimary}"/>
                                                 <Grid MinWidth="150">
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                                    <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
 
-                                                    <TextBlock Grid.Row="0" Text="打包件数" Foreground="{DynamicResource TextSecondary}"/>
-                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Pieces, Mode=OneWay, StringFormat={}{0} 件}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                    <TextBlock Grid.Row="0" Text="发货" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ShippingText, Mode=OneWay}" Foreground="{DynamicResource AccentBlueDark}" FontWeight="Bold" HorizontalAlignment="Right"/>
 
-                                                    <TextBlock Grid.Row="1" Text="总计时长" Foreground="{DynamicResource TextSecondary}" Margin="0,5"/>
-                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TotalTime, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,5"/>
+                                                    <TextBlock Grid.Row="1" Text="退货" Foreground="{DynamicResource TextSecondary}" Margin="0,5"/>
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ReturnText, Mode=OneWay}" Foreground="{DynamicResource AccentOrange}" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,5"/>
 
-                                                    <TextBlock Grid.Row="2" Text="占用空间" Foreground="{DynamicResource TextSecondary}"/>
-                                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SizeText, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
+                                                    <TextBlock Grid.Row="2" Text="总计时长" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TotalTime, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
 
-                                                    <TextBlock Grid.Row="3" Text="平均单件用时" Foreground="{DynamicResource TextSecondary}" Margin="0,5,0,0"/>
-                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AverageTime, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,5,0,0"/>
+                                                    <TextBlock Grid.Row="3" Text="占用空间" Foreground="{DynamicResource TextSecondary}"/>
+                                                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SizeText, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right"/>
+
+                                                    <TextBlock Grid.Row="4" Text="平均单件用时" Foreground="{DynamicResource TextSecondary}" Margin="0,5,0,0"/>
+                                                    <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding AverageTime, Mode=OneWay}" Foreground="{DynamicResource TextPrimary}" FontWeight="Bold" HorizontalAlignment="Right" Margin="0,5,0,0"/>
                                                 </Grid>
                                             </StackPanel>
                                         </ToolTip>
                                     </Grid.ToolTip>
-                                    <Border VerticalAlignment="Bottom" CornerRadius="3,3,0,0"
-                                            Height="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            MaxWidth="45"
-                                            RenderTransformOrigin="0.5,1">
-                                        <Border.RenderTransform>
+                                    <Grid VerticalAlignment="Bottom"
+                                          Height="{Binding ActualHeight, Mode=OneWay, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                          MaxWidth="45"
+                                          RenderTransformOrigin="0.5,1">
+                                        <Grid.RenderTransform>
                                             <ScaleTransform ScaleY="{Binding BarRatio, Mode=OneWay}"/>
-                                        </Border.RenderTransform>
-                                        <Border.Style>
-                                            <Style TargetType="Border">
-                                                <Setter Property="Background" Value="{DynamicResource AccentBlueDark}"/>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                    </Border>
+                                        </Grid.RenderTransform>
+                                        <Border VerticalAlignment="Stretch" CornerRadius="0,0,3,3"
+                                                Background="{DynamicResource AccentBlueDark}"
+                                                RenderTransformOrigin="0.5,1">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform ScaleY="{Binding ShippingRatio, Mode=OneWay}"/>
+                                            </Border.RenderTransform>
+                                        </Border>
+                                        <Border VerticalAlignment="Stretch" CornerRadius="3,3,0,0"
+                                                Background="{DynamicResource AccentOrange}"
+                                                RenderTransformOrigin="0.5,0">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform ScaleY="{Binding ReturnRatio, Mode=OneWay}"/>
+                                            </Border.RenderTransform>
+                                        </Border>
+                                    </Grid>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
