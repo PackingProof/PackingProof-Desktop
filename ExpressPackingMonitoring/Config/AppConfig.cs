@@ -631,9 +631,8 @@ namespace ExpressPackingMonitoring.Config
                 .Select(drive => Path.GetPathRoot(drive.RootPath) ?? drive.RootPath)
                 .Where(root => !string.IsNullOrWhiteSpace(root))
                 .Select(root => root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar)
-                .Where(root => !string.Equals(root, @"C:\", StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(root => root, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(root => root, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (roots.Count == 0)

@@ -90,7 +90,7 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
-    public void CreateDefaultStorageLocations_UsesEveryReadyNonSystemFixedDrive()
+    public void CreateDefaultStorageLocations_UsesEveryReadyFixedDriveInDescendingDriveLetterOrder()
     {
         var drives = new[]
         {
@@ -103,8 +103,10 @@ public sealed class DefaultConfigurationTests
 
         List<StorageLocation> locations = AppConfig.CreateDefaultStorageLocations(drives);
 
-        Assert.Equal([@"D:\快递打包视频", @"E:\快递打包视频"], locations.Select(location => location.Path));
-        Assert.Equal([0, 1], locations.Select(location => location.Priority));
+        Assert.Equal(
+            [@"E:\快递打包视频", @"D:\快递打包视频", @"C:\快递打包视频"],
+            locations.Select(location => location.Path));
+        Assert.Equal([0, 1, 2], locations.Select(location => location.Priority));
     }
 
     [Fact]
