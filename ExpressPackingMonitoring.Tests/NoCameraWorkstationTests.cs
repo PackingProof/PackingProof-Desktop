@@ -445,6 +445,40 @@ public sealed class NoCameraWorkstationTests
         }
     }
 
+    [Fact]
+    public async Task RepairLanAccessRepairsPermissionsBeforeReportingStorageFailure()
+    {
+        string directory = CreateTempDirectory();
+        bool permissionsRepaired = false;
+        var config = new AppConfig
+        {
+            WebServerPort = GetFreeTcpPort(),
+            WebAccessKey = AccessKey,
+            StorageLocations = []
+        };
+
+        try
+        {
+            using var host = new NoCameraWorkstationHost(
+                config,
+                Path.Combine(directory, "videos.db"),
+                Path.Combine(directory, "state"),
+                _ => permissionsRepaired = true);
+
+            bool repaired = await host.RepairLanAccessAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(permissionsRepaired);
+            Assert.False(repaired);
+            Assert.False(host.IsRunning);
+            Assert.Contains("局域网权限已修复", host.ErrorMessage, StringComparison.Ordinal);
+            Assert.Contains("录像存储不可用", host.ErrorMessage, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
     private static int GetFreeTcpPort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -10,6 +10,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private AppConfig _config;
     private readonly string _databasePath;
     private readonly string _stateDirectory;
+    private readonly Action<int> _repairLanAccess;
     private VideoDatabase? _database;
     private WebServer? _server;
     private bool _disposed;
@@ -17,11 +18,13 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public NoCameraWorkstationHost(
         AppConfig config,
         string? databasePath = null,
-        string? stateDirectory = null)
+        string? stateDirectory = null,
+        Action<int>? repairLanAccess = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _databasePath = databasePath ?? AppPaths.VideoDatabasePath;
         _stateDirectory = stateDirectory ?? Path.Combine(AppPaths.CacheDir, "mobile-backup");
+        _repairLanAccess = repairLanAccess ?? WebServer.RepairLanAccess;
     }
 
     public bool IsRunning => _server != null;
@@ -157,11 +160,27 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     {
         try
         {
-            await StartAsync(requestLanAccess: true, cancellationToken);
+            RuntimeLog.Info("NoCamera", $"Repairing LAN access port={_config.WebServerPort}");
+            _repairLanAccess(_config.WebServerPort);
+            RuntimeLog.Info("NoCamera", $"LAN access permissions repaired port={_config.WebServerPort}");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"局域网权限修复失败：{GetFriendlyError(ex)}";
+            RuntimeLog.Error("NoCamera", "LAN access permission repair failed", ex);
+            return false;
+        }
+
+        try
+        {
+            // 权限已单独修复；后续启动不应再被存储空间等无关前置条件阻止权限修复。
+            await StartAsync(requestLanAccess: false, cancellationToken);
             return IsLanAvailable;
         }
-        catch
+        catch (Exception ex)
         {
+            ErrorMessage = $"局域网权限已修复，但设备备份服务无法启动：{ErrorMessage}";
+            RuntimeLog.Warn("NoCamera", $"LAN permissions repaired but service restart failed: {ex.Message}");
             return false;
         }
     }

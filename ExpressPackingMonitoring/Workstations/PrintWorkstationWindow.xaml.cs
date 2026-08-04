@@ -496,10 +496,15 @@ public partial class PrintWorkstationWindow : Window
         if (repaired && _host.IsLanAvailable)
             CompleteDeploymentSetup();
         RepairLanButton.IsEnabled = true;
-        if (!repaired && !_host.IsRunning)
-            SetStatus("局域网修复失败", _host.ErrorMessage, StatusVisual.Error);
-        else if (!repaired)
-            ShowToast("局域网修复未成功，请检查防火墙和网络设置", StatusVisual.Warning);
+        if (!repaired)
+        {
+            string message = string.IsNullOrWhiteSpace(_host.ErrorMessage)
+                ? "局域网修复失败，请检查防火墙和网络设置"
+                : _host.ErrorMessage;
+            StatusVisual visual = _host.IsRunning ? StatusVisual.Warning : StatusVisual.Error;
+            SetStatus(message, "", visual);
+            ShowToast(message, visual);
+        }
     }
 
     private async Task<bool> ApplySettingsAsync(AppConfig nextConfig)

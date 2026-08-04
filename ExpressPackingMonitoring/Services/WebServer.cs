@@ -436,6 +436,11 @@ namespace ExpressPackingMonitoring.Services
             RunElevatedCmd(BuildAccessSetupCommand(port, userSid, includeUrlAcl), "配置局域网服务访问权限");
         }
 
+        internal static void RepairLanAccess(int port)
+        {
+            ConfigureLanAccess(port, includeUrlAcl: true);
+        }
+
         internal const string FirewallRuleName = "快递打包监控 Web服务";
 
         internal static string BuildAccessSetupCommand(int port, string userSid, bool includeUrlAcl = true)
