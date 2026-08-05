@@ -1443,6 +1443,9 @@ namespace ExpressPackingMonitoring.Data
                       AND FilePath <> ''
                       AND lower(FilePath) LIKE '%.mp4'
                       AND (@recordedAfter = '' OR StartTime >= @recordedAfter OR StopReason = '导入')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM RecordingTransferQueue q
+                          WHERE q.LocalVideoRecordId = VideoRecords.Id)
                     ORDER BY StartTime ASC, Id ASC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@limit", limit);

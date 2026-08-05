@@ -145,6 +145,70 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
+    public void EnqueueStillFindsNewRecordingsWhenQueueScanLimitIsReached()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            using var database = new VideoDatabase(databasePath);
+            using var store = new RecordingTransferQueueStore(databasePath);
+
+            const int total = 505;
+            DateTime start = DateTime.Now.AddMinutes(-total);
+            for (int i = 1; i <= total; i++)
+            {
+                string videoPath = Path.Combine(directory, $"video-{i:D4}.mp4");
+                File.WriteAllBytes(videoPath, new byte[128]);
+                long recordId = database.InsertVideoRecord(
+                    $"TRACK-{i:D4}",
+                    "发货",
+                    "",
+                    "",
+                    videoPath,
+                    start.AddMinutes(i));
+                database.UpdateVideoRecordOnStop(
+                    recordId,
+                    start.AddMinutes(i + 1),
+                    60,
+                    128,
+                    "手动");
+                if (i <= 500)
+                {
+                    store.Enqueue(
+                        recordId,
+                        videoPath,
+                        $"{config.NodeId}:{recordId}",
+                        targetNodeId,
+                        "http://127.0.0.1:5280",
+                        DateTime.UtcNow);
+                }
+            }
+
+            using (var service = new RecordingTransferService(store, database, () => config))
+            {
+                Assert.Equal(total - 500, service.EnqueueCompletedRecordings());
+            }
+
+            using var reopened = new RecordingTransferQueueStore(databasePath);
+            Assert.Equal(total, reopened.GetSummary().PendingCount);
+            RecordingTransferTask[] pending = reopened.GetReady(DateTime.UtcNow, limit: total + 10).ToArray();
+            Assert.Equal(
+                Enumerable.Range(501, total - 500),
+                pending
+                    .Where(task => task.LocalVideoRecordId > 500)
+                    .Select(task => (int)task.LocalVideoRecordId)
+                    .OrderBy(id => id));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void CompletedRecordingIsQueuedAfterHostIsBoundLater()
     {
         string directory = CreateTempDirectory();
