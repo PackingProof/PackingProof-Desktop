@@ -123,6 +123,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly BackupPairingTokenService _backupPairingTokens;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
+        private readonly UserscriptConfigRevisionStore _userscriptConfigRevision;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -292,6 +293,9 @@ namespace ExpressPackingMonitoring.Services
                 Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));
             _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"));
+            // 放在状态目录子目录，避免被 MobileBackupService 只扫描顶层 *.json 的上传状态清理误删。
+            _userscriptConfigRevision = new UserscriptConfigRevisionStore(
+                Path.Combine(resolvedMobileBackupStateDirectory, "userscript-config", "revision.json"));
             if (string.Equals(_deploymentPreset, DeploymentPresets.RecordingHost, StringComparison.Ordinal))
                 _recordingComputerNicknames.RegisterHost(_nodeId, _nodeName, nodeNameCustomized);
             _connectedClients = new ConnectedClientRegistry();
@@ -3974,6 +3978,12 @@ namespace ExpressPackingMonitoring.Services
                 Address = $"http://{primaryAuthority}"
             };
             script = PrintToolInstallGuide.AddRecordingDevices(script, devices, host);
+            string scriptUrl =
+                $"{ctx.Request.Url?.Scheme ?? "http"}://{primaryAuthority}/kuaidizs-order-push.user.js";
+            script = PrintToolInstallGuide.AddUserscriptUpdateUrls(script, scriptUrl);
+            string fingerprint = PrintToolInstallGuide.ComputeConfigFingerprint(devices, host);
+            int revision = _userscriptConfigRevision.GetRevision(fingerprint);
+            script = PrintToolInstallGuide.RewriteUserscriptVersion(script, revision);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "application/javascript; charset=utf-8";
             ctx.Response.Headers["Content-Disposition"] = "inline; filename=\"kuaidizs-order-push.user.js\"";

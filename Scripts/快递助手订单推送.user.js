@@ -9,6 +9,7 @@
 // @match        *://kuaidizs.cn/*
 // @match        *://*.kuaidizs.cn/*
 // PACKING_PROOF_CONNECT_TARGETS
+// PACKING_PROOF_UPDATE_URLS
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @grant        GM_getValue

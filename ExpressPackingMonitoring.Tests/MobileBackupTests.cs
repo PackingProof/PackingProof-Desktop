@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -1286,11 +1287,35 @@ public sealed class MobileBackupTests
             Assert.Contains("\"url\":\"http://192.168.31.205:5280\"", script);
             Assert.Contains("// @connect      192.168.31.205", script);
             Assert.DoesNotContain("// @connect      127.0.0.1", script);
+            Assert.Contains(
+                $"// @updateURL     http://192.168.31.250:{port}/kuaidizs-order-push.user.js",
+                script);
+            Assert.Contains(
+                $"// @downloadURL   http://192.168.31.250:{port}/kuaidizs-order-push.user.js",
+                script);
+            Assert.DoesNotContain("// @updateURL     127.0.0.1", script);
+
+            string versionLine = ExtractUserscriptVersion(script);
+            Assert.Matches(@"^2\.12\.\d+$", versionLine);
+            Assert.True(
+                File.Exists(Path.Combine(stateDirectory, "userscript-config", "revision.json")),
+                "配置修订号状态文件应位于状态目录子目录，避免被上传状态清理误删");
+            string secondScript = await client.GetStringAsync(
+                $"/kuaidizs-order-push.user.js?connect=127.0.0.1:{port}",
+                TestContext.Current.CancellationToken);
+            Assert.Equal(versionLine, ExtractUserscriptVersion(secondScript));
         }
         finally
         {
             DeleteTempDirectory(directory);
         }
+    }
+
+    private static string ExtractUserscriptVersion(string script)
+    {
+        Match match = Regex.Match(script, @"// @version\s+([^\r\n]+)");
+        Assert.True(match.Success, "脚本缺少 @version 行");
+        return match.Groups[1].Value.Trim();
     }
 
     [Fact]

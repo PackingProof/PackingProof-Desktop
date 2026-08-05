@@ -346,6 +346,137 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
+    public void UserscriptTemplate_KeepsUpdateUrlsPlaceholderWithoutHardcodedUrls()
+    {
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "快递助手订单推送.user.js");
+        string script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("// PACKING_PROOF_UPDATE_URLS", script);
+        Assert.DoesNotContain("// @updateURL", script);
+        Assert.DoesNotContain("// @downloadURL", script);
+    }
+
+    [Fact]
+    public void AddUserscriptUpdateUrls_InjectsStationUpdateAndDownloadUrls()
+    {
+        const string script =
+            "// ==UserScript==\n" +
+            "// @version      2.12\n" +
+            "// PACKING_PROOF_UPDATE_URLS\n" +
+            "// ==/UserScript==";
+
+        string customized = PrintToolInstallGuide.AddUserscriptUpdateUrls(
+            script,
+            "http://192.168.1.20:5280/kuaidizs-order-push.user.js");
+
+        Assert.Contains(
+            "// @updateURL     http://192.168.1.20:5280/kuaidizs-order-push.user.js",
+            customized);
+        Assert.Contains(
+            "// @downloadURL   http://192.168.1.20:5280/kuaidizs-order-push.user.js",
+            customized);
+        Assert.DoesNotContain("PACKING_PROOF_UPDATE_URLS", customized);
+    }
+
+    [Fact]
+    public void AddUserscriptUpdateUrls_IsSafeWithMissingMarkerOrEmptyArguments()
+    {
+        const string script = "// @version      2.12";
+
+        Assert.Equal(script, PrintToolInstallGuide.AddUserscriptUpdateUrls(script, ""));
+        Assert.Equal("", PrintToolInstallGuide.AddUserscriptUpdateUrls("", "http://x/y"));
+        Assert.Equal(script, PrintToolInstallGuide.AddUserscriptUpdateUrls(script, "http://x/y"));
+    }
+
+    [Fact]
+    public void RewriteUserscriptVersion_AppendsConfigRevisionOnce()
+    {
+        Assert.Equal(
+            "// @version      2.12.0",
+            PrintToolInstallGuide.RewriteUserscriptVersion("// @version      2.12", 0));
+        Assert.Equal(
+            "// @version      2.12.3",
+            PrintToolInstallGuide.RewriteUserscriptVersion("// @version      2.12", 3));
+        Assert.Equal(
+            "// @version      2.12",
+            PrintToolInstallGuide.RewriteUserscriptVersion("// @version      2.12", -1));
+        Assert.Equal("", PrintToolInstallGuide.RewriteUserscriptVersion("", 1));
+    }
+
+    [Fact]
+    public void ComputeConfigFingerprint_IsOrderIndependentAndChangesWithConfig()
+    {
+        var deviceA = new RecordingDeviceInfo
+        {
+            NodeId = "pc-node",
+            NodeName = "一号电脑录像",
+            DeviceType = "pc",
+            Address = "http://192.168.1.20:5280"
+        };
+        var deviceB = new RecordingDeviceInfo
+        {
+            NodeId = "mobile-node",
+            NodeName = "打包手机一",
+            DeviceType = "mobile",
+            Address = "http://192.168.1.31:5281"
+        };
+
+        string forward = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { deviceA, deviceB }, null);
+        string reversed = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { deviceB, deviceA }, null);
+        string onlyA = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { deviceA }, null);
+        var sameAddressOtherNode = new RecordingDeviceInfo
+        {
+            NodeId = "other-node",
+            NodeName = "其他名字",
+            DeviceType = "pc",
+            Address = "http://192.168.1.20:5280"
+        };
+        string deduped = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { deviceA, sameAddressOtherNode }, null);
+
+        Assert.Equal(forward, reversed);
+        Assert.Equal(onlyA, deduped);
+        Assert.NotEqual(forward, onlyA);
+    }
+
+    [Fact]
+    public void ComputeConfigFingerprint_ChangesWhenHostChanges()
+    {
+        var device = new RecordingDeviceInfo
+        {
+            NodeId = "pc-node",
+            NodeName = "一号电脑录像",
+            DeviceType = "pc",
+            Address = "http://192.168.1.20:5280"
+        };
+        var hostA = new PackingProofNodeInfo
+        {
+            NodeId = "backup-host",
+            NodeName = "手机备份主机",
+            Address = "http://192.168.1.20:5280"
+        };
+        var hostB = new PackingProofNodeInfo
+        {
+            NodeId = "backup-host",
+            NodeName = "手机备份主机",
+            Address = "http://192.168.1.22:5280"
+        };
+
+        string withHostA = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { device }, hostA);
+        string withHostB = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { device }, hostB);
+        string withoutHost = PrintToolInstallGuide.ComputeConfigFingerprint(
+            new[] { device }, null);
+
+        Assert.NotEqual(withHostA, withHostB);
+        Assert.NotEqual(withHostA, withoutHost);
+    }
+
+    [Fact]
     public void RecordingDeviceGuideProvidesEnglishTextForBroadcastSteps()
     {
         var devices = new[]

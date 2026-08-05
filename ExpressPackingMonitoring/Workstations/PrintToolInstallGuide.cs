@@ -2,8 +2,10 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace ExpressPackingMonitoring;
 
@@ -11,6 +13,7 @@ internal static class PrintToolInstallGuide
 {
     private const string TemplateFileName = "kuaidizs-install-guide.html";
     private const string ScriptFileName = "快递助手订单推送.user.js";
+    private const string UpdateUrlsMarker = "// PACKING_PROOF_UPDATE_URLS";
 
     public static string CreateLocalGuide(string monitorAddress)
     {
@@ -129,11 +132,7 @@ internal static class PrintToolInstallGuide
         if (string.IsNullOrWhiteSpace(script))
             return script;
 
-        RecordingDeviceInfo[] devices = (recordingDevices ?? [])
-            .Where(device => device != null)
-            .GroupBy(device => device.Address, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToArray();
+        RecordingDeviceInfo[] devices = NormalizeRecordingDevices(recordingDevices);
         if (devices.Length == 0)
             return script;
 
@@ -159,6 +158,68 @@ internal static class PrintToolInstallGuide
         List<Uri> addresses = NormalizeMonitorAddresses(connectAddresses);
         customized = AddExactConnectPermissions(customized, addresses.Select(uri => uri.Host));
         return customized;
+    }
+
+    /// <summary>把油猴元数据占位行替换为指向当前工位的 @updateURL / @downloadURL。</summary>
+    internal static string AddUserscriptUpdateUrls(string script, string scriptUrl)
+    {
+        if (string.IsNullOrWhiteSpace(script) || string.IsNullOrWhiteSpace(scriptUrl))
+            return script;
+        string newline = script.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        string replacement =
+            $"// @updateURL     {scriptUrl}{newline}" +
+            $"// @downloadURL   {scriptUrl}";
+        return script.Replace(UpdateUrlsMarker, replacement, StringComparison.Ordinal);
+    }
+
+    /// <summary>在模板基础版本后追加配置修订号：2.12 → 2.12.0 / 2.12.3。</summary>
+    internal static string RewriteUserscriptVersion(string script, int revision)
+    {
+        if (string.IsNullOrWhiteSpace(script) || revision < 0)
+            return script;
+        return Regex.Replace(
+            script,
+            @"(// @version\s+[^\r\n\s]+)",
+            match => match.Value + "." + revision,
+            RegexOptions.CultureInvariant);
+    }
+
+    /// <summary>
+    /// 计算设备配置指纹：与 AddRecordingDevices 使用同一份去重后的设备集，
+    /// 按地址升序归一化，保证“最近活跃顺序变化”不触发修订号递增。
+    /// </summary>
+    internal static string ComputeConfigFingerprint(
+        IEnumerable<RecordingDeviceInfo>? recordingDevices,
+        PackingProofNodeInfo? host)
+    {
+        RecordingDeviceInfo[] devices = NormalizeRecordingDevices(recordingDevices);
+        var builder = new StringBuilder();
+        foreach (RecordingDeviceInfo device in devices
+            .OrderBy(device => device.Address, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append(device.NodeId).Append('\n');
+            builder.Append(device.NodeName).Append('\n');
+            builder.Append(device.DeviceType).Append('\n');
+            builder.Append(device.Address).Append('\n');
+        }
+        if (host != null)
+        {
+            builder.Append(host.NodeId).Append('\n');
+            builder.Append(host.NodeName).Append('\n');
+            builder.Append(host.Address).Append('\n');
+        }
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())))
+            .ToLowerInvariant();
+    }
+
+    private static RecordingDeviceInfo[] NormalizeRecordingDevices(
+        IEnumerable<RecordingDeviceInfo>? recordingDevices)
+    {
+        return (recordingDevices ?? [])
+            .Where(device => device != null)
+            .GroupBy(device => device.Address, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     private static string AddExactConnectPermissions(string script, IEnumerable<string> hosts)
