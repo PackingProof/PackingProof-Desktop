@@ -63,7 +63,68 @@ function Invoke-DotNetPublish {
     }
 }
 
+# 结束从仓库内 Release/构建产物目录启动的遗留主程序实例，避免其锁定构建输出。
+# 只处理路径位于仓库开发构建目录（ExpressPackingMonitoring\bin\Release 或 package 下 .build-artifacts）
+# 的进程，绝不触碰 %LOCALAPPDATA% 等已安装版本。
+function Stop-StaleReleaseAppInstances {
+    $releaseBinRoot = [System.IO.Path]::GetFullPath(
+        (Join-Path $repoRoot "ExpressPackingMonitoring\bin\Release"))
+    $packageRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "package"))
+    $stopped = @()
+    foreach ($process in @(Get-Process -Name "ExpressPackingMonitoring" -ErrorAction SilentlyContinue)) {
+        try {
+            $processPath = $process.Path
+        }
+        catch {
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($processPath)) {
+            continue
+        }
+
+        $fullPath = [System.IO.Path]::GetFullPath($processPath)
+        $isReleaseBinInstance = $fullPath.StartsWith(
+            $releaseBinRoot + [System.IO.Path]::DirectorySeparatorChar,
+            [System.StringComparison]::OrdinalIgnoreCase)
+        $isBuildArtifactInstance = $fullPath.StartsWith(
+                $packageRoot + [System.IO.Path]::DirectorySeparatorChar,
+                [System.StringComparison]::OrdinalIgnoreCase) -and
+            $fullPath.IndexOf(
+                ".build-artifacts",
+                [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        if (-not ($isReleaseBinInstance -or $isBuildArtifactInstance)) {
+            continue
+        }
+
+        Write-Host "Stopping stale release app instance (PID $($process.Id)): $fullPath"
+        try {
+            $null = $process.CloseMainWindow()
+        }
+        catch {
+        }
+        if (-not $process.WaitForExit(5000)) {
+            try {
+                $process.Kill()
+            }
+            catch {
+            }
+            try {
+                $process.WaitForExit(3000)
+            }
+            catch {
+            }
+        }
+        $stopped += "$($process.Id)"
+    }
+
+    if ($stopped.Count -gt 0) {
+        Write-Host "Stopped stale release app instances: $($stopped -join ', ')"
+    }
+}
+
 function New-DefaultTtsCache {
+    Stop-StaleReleaseAppInstances
+
     $targetDir = Join-Path $repoRoot "package\tts_cache"
     if ($SkipTtsCacheGeneration) {
         Write-Host "Default TTS cache generation skipped by option."
@@ -827,6 +888,7 @@ if ($LASTEXITCODE -ne 0) {
 
 New-DefaultTtsCache
 
+Stop-StaleReleaseAppInstances
 Invoke-DotNetPublish -Arguments @(
     $appProject,
     "-c", $Configuration,
