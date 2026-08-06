@@ -388,6 +388,13 @@ namespace ExpressPackingMonitoring.UI
         {
             if (Capabilities.CanUseCamera || Capabilities.CanRecordAudio)
             {
+                // 已配置网络摄像头时，在设备枚举前先显示面板，避免重新打开时闪一下。
+                if (Capabilities.CanUseCamera
+                    && string.Equals(Config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowNetworkCameraPanelUi();
+                }
+
                 _isLoadingDevices = true;
                 try
                 {
@@ -521,8 +528,17 @@ namespace ExpressPackingMonitoring.UI
             var cameras = result.Cameras;
             if (cameras.Count == 0)
                 cameras.Add(new CameraInfo { Index = 0, Name = "[0] 未检测到摄像头" });
+            cameras.Add(new CameraInfo
+            {
+                Index = -1,
+                Name = AppLanguage.Get("网络摄像头（手动地址）"),
+                Moniker = "network:"
+            });
             CameraComboBox.ItemsSource = cameras;
-            CameraComboBox.SelectedValue = config.CameraIndex;
+            if (string.Equals(config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase))
+                CameraComboBox.SelectedItem = cameras.FirstOrDefault(IsNetworkCamera);
+            else
+                CameraComboBox.SelectedValue = config.CameraIndex;
 
             // 更新麦克风
             var mics = result.Mics;
@@ -653,9 +669,19 @@ namespace ExpressPackingMonitoring.UI
 
         private async void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (CameraComboBox.SelectedItem is CameraInfo selectedCam && IsNetworkCamera(selectedCam))
+            {
+                ShowNetworkCameraPanelUi();
+                return;
+            }
+
             if (_isLoadingDevices) return;
             if (CameraComboBox.SelectedItem is CameraInfo cam)
             {
+                NetworkCameraPanel.Visibility = Visibility.Collapsed;
+                ResComboBox.IsEnabled = true;
+                FpsComboBox.IsEnabled = true;
+
                 // 加载该摄像头的独立配置（如果存在）
                 int w = Config.FrameWidth;
                 int h = Config.FrameHeight;
@@ -687,6 +713,94 @@ namespace ExpressPackingMonitoring.UI
                     h,
                     fps,
                     preferCachedRecommendation: !hasSavedCameraConfig);
+            }
+        }
+
+        private void ShowNetworkCameraPanelUi()
+        {
+            NetworkCameraPanel.Visibility = Visibility.Visible;
+            if (string.IsNullOrWhiteSpace(NetworkCameraUrlTextBox.Text))
+                NetworkCameraUrlTextBox.Text = Config.NetworkCameraUrl;
+            EnsureNetworkTransportCombo();
+
+            string networkKey = AppConfig.GetCameraConfigKey("network", Config.NetworkCameraUrl);
+            if (!string.IsNullOrWhiteSpace(Config.NetworkCameraUrl)
+                && Config.CameraConfigs.TryGetValue(networkKey, out CameraSettings networkSettings))
+            {
+                Config.AudioDeviceName = networkSettings.AudioDeviceName ?? "";
+                Config.AudioDeviceMoniker = networkSettings.AudioDeviceMoniker ?? "";
+                Config.AudioSyncOffsetMs = networkSettings.AudioSyncOffsetMs;
+                Config.CameraRotate180 = networkSettings.Rotate180;
+            }
+
+            ResComboBox.IsEnabled = false;
+            FpsComboBox.IsEnabled = false;
+            NetworkCameraStatusText.Text = "";
+        }
+
+        private static bool IsNetworkCamera(CameraInfo camera)
+        {
+            return string.Equals(camera?.Moniker, "network:", StringComparison.Ordinal);
+        }
+
+        private void NetworkCameraUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            NetworkCameraUrlPlaceholderText.Visibility = string.IsNullOrEmpty(NetworkCameraUrlTextBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void EnsureNetworkTransportCombo()
+        {
+            if (NetworkCameraTransportComboBox.Items.Count == 0)
+            {
+                NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "TCP", Tag = "tcp" });
+                NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "UDP", Tag = "udp" });
+            }
+            string transport = Config.NetworkCameraRtspTransport ?? "tcp";
+            NetworkCameraTransportComboBox.SelectedItem =
+                NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>()
+                    .FirstOrDefault(item =>
+                        string.Equals((string)item.Tag, transport, StringComparison.OrdinalIgnoreCase))
+                ?? NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>().First();
+        }
+
+        private string GetSelectedNetworkTransport()
+        {
+            return NetworkCameraTransportComboBox.SelectedItem is ComboBoxItem item
+                && item.Tag is string tag
+                && string.Equals(tag, "udp", StringComparison.OrdinalIgnoreCase)
+                    ? "udp"
+                    : "tcp";
+        }
+
+        private async void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!NetworkCameraUrlPolicy.TryNormalize(
+                    NetworkCameraUrlTextBox.Text,
+                    out string url,
+                    out string error))
+            {
+                NetworkCameraStatusText.Text = $"地址无效：{error}";
+                return;
+            }
+
+            NetworkCameraTestButton.IsEnabled = false;
+            NetworkCameraStatusText.Text = "正在连接网络摄像头...";
+            try
+            {
+                using var probeSource = new NetworkCameraSource(
+                    url,
+                    GetSelectedNetworkTransport(),
+                    Config.Fps > 0 ? Config.Fps : 15);
+                bool connected = await probeSource.StartAsync();
+                NetworkCameraStatusText.Text = connected
+                    ? $"连接成功：{probeSource.ActualWidth}×{probeSource.ActualHeight} @ {probeSource.ActualFps} FPS"
+                    : $"连接失败：{probeSource.LastError ?? "无法获取画面信息"}";
+            }
+            finally
+            {
+                NetworkCameraTestButton.IsEnabled = true;
             }
         }
 
@@ -1219,24 +1333,23 @@ namespace ExpressPackingMonitoring.UI
             // 2. 手动同步部分控件（防止可焦点未切换时绑定未更新）
             if (Capabilities.CanUseCamera && CameraComboBox.SelectedItem is CameraInfo cam)
             {
-                Config.CameraMonikerString = cam.Moniker;
-                Config.CameraIndex = cam.Index;
-
-                if (ResComboBox.SelectedItem is ResOption selectedRes)
+                if (IsNetworkCamera(cam))
                 {
-                    Config.FrameWidth = selectedRes.Width;
-                    Config.FrameHeight = selectedRes.Height;
-                }
+                    if (!NetworkCameraUrlPolicy.TryNormalize(
+                            NetworkCameraUrlTextBox.Text,
+                            out string networkUrl,
+                            out string networkError))
+                    {
+                        Context.ShowToast?.Invoke($"网络摄像头地址无效：{networkError}");
+                        return false;
+                    }
 
-                if (FpsComboBox.SelectedItem is ComboBoxItem fpsItem && fpsItem.Tag is int fps)
-                {
-                    Config.Fps = fps;
-                }
-
-                // 更新此摄像头的独立配置
-                if (!string.IsNullOrEmpty(cam.Moniker))
-                {
-                    Config.CameraConfigs[cam.Moniker] = new CameraSettings
+                    Config.CameraSourceKind = "network";
+                    Config.NetworkCameraUrl = networkUrl;
+                    Config.NetworkCameraRtspTransport = GetSelectedNetworkTransport();
+                    Config.CameraMonikerString = "";
+                    Config.CameraIndex = -1;
+                    Config.CameraConfigs[AppConfig.GetCameraConfigKey("network", networkUrl)] = new CameraSettings
                     {
                         FrameWidth = Config.FrameWidth,
                         FrameHeight = Config.FrameHeight,
@@ -1246,6 +1359,38 @@ namespace ExpressPackingMonitoring.UI
                         AudioSyncOffsetMs = Config.AudioSyncOffsetMs,
                         Rotate180 = Config.CameraRotate180
                     };
+                }
+                else
+                {
+                    Config.CameraSourceKind = "usb";
+                    Config.CameraMonikerString = cam.Moniker;
+                    Config.CameraIndex = cam.Index;
+
+                    if (ResComboBox.SelectedItem is ResOption selectedRes)
+                    {
+                        Config.FrameWidth = selectedRes.Width;
+                        Config.FrameHeight = selectedRes.Height;
+                    }
+
+                    if (FpsComboBox.SelectedItem is ComboBoxItem fpsItem && fpsItem.Tag is int fps)
+                    {
+                        Config.Fps = fps;
+                    }
+
+                    // 更新此摄像头的独立配置
+                    if (!string.IsNullOrEmpty(cam.Moniker))
+                    {
+                        Config.CameraConfigs[cam.Moniker] = new CameraSettings
+                        {
+                            FrameWidth = Config.FrameWidth,
+                            FrameHeight = Config.FrameHeight,
+                            Fps = Config.Fps,
+                            AudioDeviceName = Config.AudioDeviceName,
+                            AudioDeviceMoniker = Config.AudioDeviceMoniker,
+                            AudioSyncOffsetMs = Config.AudioSyncOffsetMs,
+                            Rotate180 = Config.CameraRotate180
+                        };
+                    }
                 }
             }
 
@@ -1518,11 +1663,40 @@ namespace ExpressPackingMonitoring.UI
             DetectRecordingProfileButton.Content = AppLanguage.Translate("正在检测，请稍候");
             try
             {
-                IReadOnlyList<NativeCameraMode> nativeModes = await RunOnStaThread(() =>
+                IReadOnlyList<NativeCameraMode> nativeModes;
+                if (IsNetworkCamera(camera))
                 {
-                    var device = new VideoCaptureDevice(camera.Moniker);
-                    return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
-                });
+                    if (!NetworkCameraUrlPolicy.TryNormalize(
+                            NetworkCameraUrlTextBox.Text,
+                            out string networkUrl,
+                            out string networkError))
+                    {
+                        Context.ShowToast?.Invoke("请先填写网络摄像头地址");
+                        return;
+                    }
+
+                    using var probeSource = new NetworkCameraSource(
+                        networkUrl,
+                        GetSelectedNetworkTransport(),
+                        Config.Fps > 0 ? Config.Fps : 15);
+                    bool connected = await probeSource.StartAsync();
+                    if (!connected)
+                    {
+                        Context.ShowToast?.Invoke(
+                            $"网络摄像头连接失败：{probeSource.LastError ?? "请检查地址和网络"}");
+                        return;
+                    }
+                    nativeModes = probeSource.NativeModes;
+                    probeSource.Stop();
+                }
+                else
+                {
+                    nativeModes = await RunOnStaThread(() =>
+                    {
+                        var device = new VideoCaptureDevice(camera.Moniker);
+                        return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
+                    });
+                }
                 RecordingProfileRecommendation recommendation =
                     await Context.DetectRecordingProfileAsync(Config, nativeModes);
                 if (recommendation?.Success != true
@@ -1557,12 +1731,17 @@ namespace ExpressPackingMonitoring.UI
                 RecordingProfileDetector.ApplyRecommendation(
                     Config,
                     recommendedMode,
-                    camera.Moniker);
-                await LoadCameraCapabilitiesAsync(
-                    camera.Index,
-                    recommendedMode.Width,
-                    recommendedMode.Height,
-                    recommendedMode.Fps);
+                    IsNetworkCamera(camera)
+                        ? AppConfig.GetCameraConfigKey("network", Config.NetworkCameraUrl)
+                        : camera.Moniker);
+                if (!IsNetworkCamera(camera))
+                {
+                    await LoadCameraCapabilitiesAsync(
+                        camera.Index,
+                        recommendedMode.Width,
+                        recommendedMode.Height,
+                        recommendedMode.Fps);
+                }
                 Context.ShowToast?.Invoke("已填入推荐录制规格，保存设置后生效");
             }
             catch (Exception ex)

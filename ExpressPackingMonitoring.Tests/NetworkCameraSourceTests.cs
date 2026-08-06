@@ -93,7 +93,9 @@ public sealed class NetworkCameraSourceTests
         Assert.True(!string.IsNullOrWhiteSpace(ffmpegPath) && File.Exists(ffmpegPath),
             "ffmpeg.exe 不存在于测试输出目录");
 
-        int port = Random.Shared.Next(20000, 60000);
+        int port;
+        using (var portProbe = new System.Net.Sockets.UdpClient(0))
+            port = ((System.Net.IPEndPoint)portProbe.Client!.LocalEndPoint!).Port;
         string url = $"udp://127.0.0.1:{port}";
         using var server = Process.Start(new ProcessStartInfo
         {

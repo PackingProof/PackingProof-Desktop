@@ -11,6 +11,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ using ZXing.Common;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.Localization;
 using Mat = OpenCvSharp.Mat;
 using MatType = OpenCvSharp.MatType;
 
@@ -36,6 +38,7 @@ public partial class FirstUseSetupWizardWindow : Window
     private int _stepIndex;
     private bool _isLoadingDevices;
     private VideoCaptureDevice _previewCamera;
+    private NetworkCameraSource _networkPreviewSource;
     private Task _previewCameraForceStopTask;
     private DateTime _lastPreviewUpdateAt = DateTime.MinValue;
     private WasapiCapture _micCapture;
@@ -157,6 +160,9 @@ public partial class FirstUseSetupWizardWindow : Window
         _isLoadingDevices = true;
         try
         {
+            // 已配置网络摄像头时，在设备枚举前先显示面板，避免打开时闪一下。
+            if (string.Equals(_config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase))
+                ShowNetworkCameraPanelUi();
             await LoadDevicesAsync();
         }
         finally
@@ -207,11 +213,24 @@ public partial class FirstUseSetupWizardWindow : Window
         {
             cameras.Add(new CameraInfo { Index = 0, Name = "[0] 未检测到摄像头", Moniker = "" });
         }
+        cameras.Add(new CameraInfo
+        {
+            Index = -1,
+            Name = AppLanguage.Get("网络摄像头（手动地址）"),
+            Moniker = "network:"
+        });
 
         CameraComboBox.ItemsSource = cameras;
-        CameraComboBox.SelectedItem = cameras.FirstOrDefault(c => !string.IsNullOrEmpty(_config.CameraMonikerString) && c.Moniker == _config.CameraMonikerString)
-            ?? cameras.FirstOrDefault(c => c.Index == _config.CameraIndex)
-            ?? cameras.FirstOrDefault();
+        if (string.Equals(_config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase))
+        {
+            CameraComboBox.SelectedItem = cameras.FirstOrDefault(c => c.Moniker == "network:");
+        }
+        else
+        {
+            CameraComboBox.SelectedItem = cameras.FirstOrDefault(c => !string.IsNullOrEmpty(_config.CameraMonikerString) && c.Moniker == _config.CameraMonikerString)
+                ?? cameras.FirstOrDefault(c => c.Index == _config.CameraIndex)
+                ?? cameras.FirstOrDefault();
+        }
 
         var mics = result.Mics;
         if (mics.Count == 0)
@@ -308,6 +327,20 @@ public partial class FirstUseSetupWizardWindow : Window
     {
         if (_stepIndex == 1)
         {
+            if (IsNetworkCameraSelected)
+            {
+                if (!NetworkCameraUrlPolicy.TryNormalize(NetworkCameraUrlTextBox.Text, out _, out string networkError))
+                {
+                    CameraStatusText.Text = $"网络摄像头地址无效：{networkError}";
+                    CameraStatusText.Visibility = Visibility.Visible;
+                    return;
+                }
+                if (!TryLeaveCameraStep())
+                    return;
+                ShowStep(2);
+                return;
+            }
+
             if (CameraComboBox.SelectedItem is not CameraInfo camera
                 || string.IsNullOrWhiteSpace(camera.Moniker))
             {
@@ -386,18 +419,54 @@ public partial class FirstUseSetupWizardWindow : Window
         Close();
     }
 
-    private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_isLoadingDevices) return;
-        LoadSelectedCameraRotation();
-        _evaluatedCameraMoniker = "";
-        if (_stepIndex == 1)
+        private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (IsNetworkCameraSelected)
+            {
+                // 切换到网络摄像头时先断开正在运行的 USB/网络预览，避免旧画面继续显示。
+                if (!StopCameraPreview())
+                {
+                    SetCameraPreviewStatus("上一个摄像头未能停止，请重新插拔后重试");
+                    return;
+                }
+                CameraPreviewImage.Source = null;
+                CameraRecognitionPreviewImage.Source = null;
+                CameraRecognitionGuide.Visibility = Visibility.Collapsed;
+                _cameraBarcodeRecognition.Reset();
+                ShowNetworkCameraPanelUi();
+                if (_stepIndex == 1)
+                {
+                    CameraStatusText.Text = "请输入网络摄像头地址，然后点击测试连接";
+                    CameraStatusText.Visibility = Visibility.Visible;
+                }
+                return;
+            }
+
+            if (_isLoadingDevices) return;
+            NetworkCameraPanel.Visibility = Visibility.Collapsed;
+            NetworkCameraTransportComboBox.Visibility = Visibility.Collapsed;
+            NetworkCameraTestButton.Visibility = Visibility.Collapsed;
+            LoadSelectedCameraRotation();
+            _evaluatedCameraMoniker = "";
+            if (_stepIndex == 1)
         {
             StartCameraPreviewFromSelection(enableRecognition: false);
+            }
         }
-    }
 
-    private void RotateCameraButton_Click(object sender, RoutedEventArgs e)
+        private void ShowNetworkCameraPanelUi()
+        {
+            NetworkCameraPanel.Visibility = Visibility.Visible;
+            NetworkCameraTransportComboBox.Visibility = Visibility.Visible;
+            NetworkCameraTestButton.Visibility = Visibility.Visible;
+            if (string.IsNullOrWhiteSpace(NetworkCameraUrlTextBox.Text))
+                NetworkCameraUrlTextBox.Text = _config.NetworkCameraUrl ?? "";
+            EnsureNetworkTransportCombo();
+            LoadSelectedCameraRotation();
+            _evaluatedCameraMoniker = "";
+        }
+
+        private void RotateCameraButton_Click(object sender, RoutedEventArgs e)
     {
         _config.CameraRotate180 = !_config.CameraRotate180;
         SaveSelectedCameraRotation();
@@ -406,20 +475,20 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private void LoadSelectedCameraRotation()
     {
-        _config.CameraRotate180 = CameraComboBox.SelectedItem is CameraInfo camera
-            && !string.IsNullOrWhiteSpace(camera.Moniker)
-            && _config.CameraConfigs.TryGetValue(camera.Moniker, out CameraSettings settings)
+        string key = GetSelectedCameraConfigKey();
+        _config.CameraRotate180 = !string.IsNullOrWhiteSpace(key)
+            && _config.CameraConfigs.TryGetValue(key, out CameraSettings settings)
             && settings.Rotate180;
         UpdateRotateCameraButtonText();
     }
 
     private void SaveSelectedCameraRotation()
     {
-        if (CameraComboBox.SelectedItem is not CameraInfo camera
-            || string.IsNullOrWhiteSpace(camera.Moniker))
+        string key = GetSelectedCameraConfigKey();
+        if (string.IsNullOrWhiteSpace(key))
             return;
 
-        if (!_config.CameraConfigs.TryGetValue(camera.Moniker, out CameraSettings settings))
+        if (!_config.CameraConfigs.TryGetValue(key, out CameraSettings settings))
         {
             settings = new CameraSettings
             {
@@ -430,10 +499,17 @@ public partial class FirstUseSetupWizardWindow : Window
                 AudioDeviceMoniker = _config.AudioDeviceMoniker,
                 AudioSyncOffsetMs = _config.AudioSyncOffsetMs
             };
-            _config.CameraConfigs[camera.Moniker] = settings;
+            _config.CameraConfigs[key] = settings;
         }
 
         settings.Rotate180 = _config.CameraRotate180;
+    }
+
+    private string GetSelectedCameraConfigKey()
+    {
+        if (IsNetworkCameraSelected)
+            return AppConfig.GetCameraConfigKey("network", NetworkCameraUrlTextBox.Text);
+        return CameraComboBox.SelectedItem is CameraInfo camera ? camera.Moniker ?? "" : "";
     }
 
     private void UpdateRotateCameraButtonText()
@@ -488,7 +564,7 @@ public partial class FirstUseSetupWizardWindow : Window
         }
 
         if (!force
-            && string.Equals(_evaluatedCameraMoniker, camera.Moniker, StringComparison.Ordinal))
+            && string.Equals(_evaluatedCameraMoniker, GetSelectedCameraConfigKey(), StringComparison.Ordinal))
             return true;
 
         _isRecordingProfileDetectionRunning = true;
@@ -496,7 +572,9 @@ public partial class FirstUseSetupWizardWindow : Window
         NextButton.IsEnabled = false;
         SkipButton.IsEnabled = false;
         CameraComboBox.IsEnabled = false;
-        RecordingProfileStatusText.Text = "正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候";
+        RecordingProfileStatusText.Text = IsNetworkCameraSelected
+            ? "正在连接网络摄像头并测试实时编码能力，请稍候"
+            : "正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候";
         RecordingProfileStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentBlue");
         RecordingProfileProgress.Visibility = Visibility.Visible;
         RecordingProfileProgress.IsIndeterminate = true;
@@ -506,11 +584,37 @@ public partial class FirstUseSetupWizardWindow : Window
         IReadOnlyList<NativeCameraMode> nativeModes = [];
         try
         {
-            nativeModes = await RunOnStaThread(() =>
+            if (IsNetworkCameraSelected)
             {
-                var device = new VideoCaptureDevice(camera.Moniker);
-                return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
-            });
+                string networkUrl = NetworkCameraUrlTextBox.Text?.Trim() ?? "";
+                if (!NetworkCameraUrlPolicy.TryNormalize(networkUrl, out networkUrl, out string networkError))
+                {
+                    FailRecordingProfile($"网络摄像头地址无效：{networkError}");
+                    return false;
+                }
+
+                using var probeSource = new NetworkCameraSource(
+                    networkUrl,
+                    GetSelectedNetworkTransport(),
+                    _config.Fps > 0 ? _config.Fps : 15);
+                bool connected = await probeSource.StartAsync();
+                if (!connected)
+                {
+                    FailRecordingProfile(
+                        $"无法连接网络摄像头：{probeSource.LastError ?? "请检查地址和网络"}");
+                    return false;
+                }
+                nativeModes = probeSource.NativeModes;
+                probeSource.Stop();
+            }
+            else
+            {
+                nativeModes = await RunOnStaThread(() =>
+                {
+                    var device = new VideoCaptureDevice(camera.Moniker);
+                    return RecordingProfileDetector.GetNativeModes(device.VideoCapabilities);
+                });
+            }
 
             var detection = await Task.Run(() =>
             {
@@ -577,7 +681,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 _config.FrameWidth = mode.Width;
                 _config.FrameHeight = mode.Height;
                 _config.Fps = mode.Fps;
-                _evaluatedCameraMoniker = camera.Moniker;
+                _evaluatedCameraMoniker = GetSelectedCameraConfigKey();
                 RealtimeEncodingBenchmarkResult benchmark =
                     RecordingProfileDetector.FindBenchmark(
                         detection.recommendation.Benchmarks,
@@ -609,7 +713,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 _config.FrameHeight = fallbackMode.Height;
                 _config.Fps = fallbackMode.Fps;
             }
-            _evaluatedCameraMoniker = camera.Moniker;
+            _evaluatedCameraMoniker = GetSelectedCameraConfigKey();
             RecordingProfileStatusText.Text = fallback is NativeCameraMode
                 ? $"{detection.recommendation.Message}，已采用可用的原生配置，仍可继续"
                 : $"{detection.recommendation.Message}，已保留程序默认配置，仍可继续";
@@ -641,7 +745,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 _config.FrameHeight = fallbackMode.Height;
                 _config.Fps = fallbackMode.Fps;
             }
-            _evaluatedCameraMoniker = camera.Moniker;
+            _evaluatedCameraMoniker = GetSelectedCameraConfigKey();
             RecordingProfileStatusText.Text = fallback is NativeCameraMode
                 ? "录制性能检测失败，已采用可用的原生配置，仍可继续"
                 : "录制性能检测失败，已保留程序默认配置，仍可继续";
@@ -672,6 +776,23 @@ public partial class FirstUseSetupWizardWindow : Window
         }
     }
 
+    private void FailRecordingProfile(string message)
+    {
+        _isRecordingProfileDetectionRunning = false;
+        RecordingProfileStatusText.Text = message;
+        RecordingProfileStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+        RecordingProfileProgress.Visibility = Visibility.Collapsed;
+        RecordingProfileResultPanel.Visibility = Visibility.Visible;
+        RecordingProfileRetryButton.Visibility = Visibility.Visible;
+        RecordingProfileResultTitle.Text = "网络摄像头连接失败";
+        RecordingProfileResultTitle.Foreground = (System.Windows.Media.Brush)FindResource("AccentRed");
+        RecordingProfileResultText.Text = "请返回上一步检查地址后重试";
+        BackButton.IsEnabled = _stepIndex > 0;
+        NextButton.IsEnabled = true;
+        SkipButton.IsEnabled = true;
+        CameraComboBox.IsEnabled = true;
+    }
+
     private async void RecordingProfileRetryButton_Click(
         object sender,
         RoutedEventArgs e)
@@ -692,6 +813,12 @@ public partial class FirstUseSetupWizardWindow : Window
         CameraRecognitionGuide.Visibility = Visibility.Collapsed;
         _cameraBarcodeRecognition.Reset();
         _isRecognitionPreview = enableRecognition;
+
+        if (IsNetworkCameraSelected)
+        {
+            StartNetworkCameraPreview(enableRecognition);
+            return;
+        }
 
         if (CameraComboBox.SelectedItem is not CameraInfo camera || string.IsNullOrEmpty(camera.Moniker))
         {
@@ -721,6 +848,159 @@ public partial class FirstUseSetupWizardWindow : Window
             SetCameraPreviewStatus($"摄像头预览启动失败：{ex.Message}");
             StopCameraPreview();
         }
+    }
+
+    private async void StartNetworkCameraPreview(bool enableRecognition)
+    {
+        if (!NetworkCameraUrlPolicy.TryNormalize(NetworkCameraUrlTextBox.Text, out string url, out string error))
+        {
+            SetCameraPreviewStatus($"地址无效：{error}");
+            return;
+        }
+
+        NetworkCameraTestButton.IsEnabled = false;
+        SetCameraPreviewStatus("正在连接网络摄像头...");
+        var source = new NetworkCameraSource(
+            url,
+            GetSelectedNetworkTransport(),
+            _config.Fps > 0 ? _config.Fps : 15);
+        _networkPreviewSource = source;
+        source.FrameReady += NetworkPreviewSource_FrameReady;
+
+        bool connected = await source.StartAsync();
+        NetworkCameraTestButton.IsEnabled = true;
+        if (!connected)
+        {
+            NetworkPreviewSourceStop();
+            SetCameraPreviewStatus($"连接失败：{source.LastError ?? "无法获取画面信息"}");
+            return;
+        }
+
+        if (enableRecognition)
+            CameraRecognitionSelectedCameraText.Text = AppLanguage.Get("网络摄像头（手动地址）");
+        SetCameraPreviewStatus("正在等待网络摄像头画面...");
+    }
+
+    private void NetworkPreviewSource_FrameReady(object sender, NetworkCameraFrameEventArgs e)
+    {
+        try
+        {
+            if (DateTime.UtcNow - _lastPreviewUpdateAt < TimeSpan.FromMilliseconds(100))
+            {
+                e.Frame.Dispose();
+                return;
+            }
+            _lastPreviewUpdateAt = DateTime.UtcNow;
+
+            using Mat frame = e.Frame;
+            if (_config.CameraRotate180)
+                OpenCvSharp.Cv2.Flip(frame, frame, OpenCvSharp.FlipMode.XY);
+
+            bool recognitionPreview = _isRecognitionPreview;
+            if (recognitionPreview)
+            {
+                _cameraBarcodeRecognition.TrySubmitFrame(
+                    frame.Clone(),
+                    allowFullFrame: false);
+            }
+
+            int width = frame.Width;
+            int height = frame.Height;
+            byte[] pixels = new byte[width * height * 3];
+            Marshal.Copy(frame.Data, pixels, 0, pixels.Length);
+            BitmapSource source = BitmapSource.Create(
+                width,
+                height,
+                96,
+                96,
+                PixelFormats.Bgr24,
+                null,
+                pixels,
+                width * 3);
+            source.Freeze();
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (recognitionPreview)
+                {
+                    CameraRecognitionPreviewImage.Source = source;
+                    CameraRecognitionGuide.Visibility = Visibility.Visible;
+                    UpdateCameraRecognitionGuide();
+                    CameraRecognitionPreviewStatusText.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    CameraPreviewImage.Source = source;
+                    CameraStatusText.Visibility = Visibility.Collapsed;
+                }
+            }));
+        }
+        catch
+        {
+            e.Frame.Dispose();
+        }
+    }
+
+    private void NetworkPreviewSourceStop()
+    {
+        NetworkCameraSource source = _networkPreviewSource;
+        if (source == null)
+            return;
+        source.FrameReady -= NetworkPreviewSource_FrameReady;
+        try
+        {
+            source.Stop();
+        }
+        catch { }
+        if (ReferenceEquals(_networkPreviewSource, source))
+            _networkPreviewSource = null;
+    }
+
+    private void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!StopCameraPreview())
+        {
+            SetCameraPreviewStatus("上一个摄像头未能停止，请稍后重试");
+            return;
+        }
+        CameraPreviewImage.Source = null;
+        CameraRecognitionPreviewImage.Source = null;
+        _cameraBarcodeRecognition.Reset();
+        _isRecognitionPreview = false;
+        StartNetworkCameraPreview(enableRecognition: false);
+    }
+
+    private bool IsNetworkCameraSelected =>
+        CameraComboBox.SelectedItem is CameraInfo camera && camera.Moniker == "network:";
+
+    private string GetSelectedNetworkTransport()
+    {
+        return NetworkCameraTransportComboBox.SelectedItem is ComboBoxItem item
+            && item.Tag is string tag
+            && string.Equals(tag, "udp", StringComparison.OrdinalIgnoreCase)
+                ? "udp"
+                : "tcp";
+    }
+
+    private void EnsureNetworkTransportCombo()
+    {
+        if (NetworkCameraTransportComboBox.Items.Count == 0)
+        {
+            NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "TCP", Tag = "tcp" });
+            NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "UDP", Tag = "udp" });
+        }
+        string transport = _config.NetworkCameraRtspTransport ?? "tcp";
+        NetworkCameraTransportComboBox.SelectedItem =
+            NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals((string)item.Tag, transport, StringComparison.OrdinalIgnoreCase))
+            ?? NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>().First();
+    }
+
+    private void NetworkCameraUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        NetworkCameraUrlPlaceholderText.Visibility = string.IsNullOrEmpty(NetworkCameraUrlTextBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void SetCameraPreviewStatus(string text)
@@ -881,6 +1161,22 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private bool StopCameraPreview()
     {
+        NetworkCameraSource networkSource = _networkPreviewSource;
+        if (networkSource != null)
+        {
+            networkSource.FrameReady -= NetworkPreviewSource_FrameReady;
+            try
+            {
+                networkSource.Stop();
+            }
+            catch { }
+            if (ReferenceEquals(_networkPreviewSource, networkSource))
+                _networkPreviewSource = null;
+            _isRecognitionPreview = false;
+            _cameraBarcodeRecognition.Reset();
+            return true;
+        }
+
         VideoCaptureDevice camera = _previewCamera;
         if (camera == null)
         {
@@ -1092,8 +1388,30 @@ public partial class FirstUseSetupWizardWindow : Window
         _config.EnableAudioRecording = true;
         ApplyScannerModeFromTest();
 
-        if (CameraComboBox.SelectedItem is CameraInfo camera && !string.IsNullOrEmpty(camera.Moniker))
+        if (IsNetworkCameraSelected)
         {
+            if (NetworkCameraUrlPolicy.TryNormalize(NetworkCameraUrlTextBox.Text, out string networkUrl, out _))
+            {
+                _config.CameraSourceKind = "network";
+                _config.NetworkCameraUrl = networkUrl;
+                _config.NetworkCameraRtspTransport = GetSelectedNetworkTransport();
+                _config.CameraMonikerString = "";
+                _config.CameraIndex = -1;
+                _config.CameraConfigs[AppConfig.GetCameraConfigKey("network", networkUrl)] = new CameraSettings
+                {
+                    FrameWidth = _config.FrameWidth,
+                    FrameHeight = _config.FrameHeight,
+                    Fps = _config.Fps,
+                    AudioDeviceName = _config.AudioDeviceName,
+                    AudioDeviceMoniker = _config.AudioDeviceMoniker,
+                    AudioSyncOffsetMs = _config.AudioSyncOffsetMs,
+                    Rotate180 = _config.CameraRotate180
+                };
+            }
+        }
+        else if (CameraComboBox.SelectedItem is CameraInfo camera && !string.IsNullOrEmpty(camera.Moniker))
+        {
+            _config.CameraSourceKind = "usb";
             _config.CameraIndex = camera.Index;
             _config.CameraMonikerString = camera.Moniker;
         }

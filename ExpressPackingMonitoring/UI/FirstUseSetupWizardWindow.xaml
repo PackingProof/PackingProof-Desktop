@@ -72,6 +72,38 @@
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
 
+        <!-- 与设置页“单号判断规则”等输入框保持同一套主题样式 -->
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border CornerRadius="8"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Background="{TemplateBinding Background}">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                            </Trigger>
+                            <Trigger Property="IsReadOnly" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="CameraPreviewOverlayButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource BaseButtonStyle}">
@@ -203,12 +235,50 @@
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
-                        <ComboBox x:Name="CameraComboBox"
-                                  Grid.Row="1"
-                                  Height="38"
-                                  DisplayMemberPath="Name"
-                                  SelectionChanged="CameraComboBox_SelectionChanged"
-                                  Margin="0,0,0,16"/>
+                        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="CameraComboBox"
+                                          Height="36"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="CameraComboBox_SelectionChanged"/>
+                                <ComboBox x:Name="NetworkCameraTransportComboBox"
+                                          Grid.Column="1"
+                                          Width="110"
+                                          Height="36"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          Visibility="Collapsed"/>
+                                <Button x:Name="NetworkCameraTestButton"
+                                        Grid.Column="2"
+                                        Content="测试连接"
+                                        Height="36"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Visibility="Collapsed"
+                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        Click="NetworkCameraTestButton_Click"/>
+                            </Grid>
+                            <StackPanel x:Name="NetworkCameraPanel"
+                                        Visibility="Collapsed"
+                                        Margin="0,8,0,0">
+                                <Grid>
+                                    <TextBox x:Name="NetworkCameraUrlTextBox"
+                                             TextChanged="NetworkCameraUrlTextBox_TextChanged"
+                                             ToolTip="rtsp://user:password@192.168.1.64:554/stream"/>
+                                    <TextBlock x:Name="NetworkCameraUrlPlaceholderText"
+                                               Text="例如：rtsp://账号:密码@192.168.1.64:554/stream"
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               IsHitTestVisible="False"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
                         <Border Grid.Row="2"
                                 Background="{StaticResource VideoSurfaceBackground}"
                                 BorderBrush="{DynamicResource BorderDefault}"
@@ -452,9 +522,9 @@
                                             <Button x:Name="RecordingProfileRetryButton"
                                                     Content="重新检测"
                                                     Margin="0,14,0,0"
-                                                    Padding="16,7"
                                                     HorizontalAlignment="Left"
                                                     Visibility="Collapsed"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
                                                     Click="RecordingProfileRetryButton_Click"/>
                                         </StackPanel>
                                     </Border>

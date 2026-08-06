@@ -1258,10 +1258,37 @@ public sealed class DeploymentStartupTests
         Assert.Contains("NextButton.IsEnabled = false;", wizardSource, StringComparison.Ordinal);
         Assert.Contains("SkipButton.IsEnabled = false;", wizardSource, StringComparison.Ordinal);
         Assert.Contains("RecordingProfileResultPanel.Visibility = Visibility.Visible;", wizardSource, StringComparison.Ordinal);
-        Assert.Contains("_evaluatedCameraMoniker = camera.Moniker;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("_evaluatedCameraMoniker = GetSelectedCameraConfigKey();", wizardSource, StringComparison.Ordinal);
         Assert.Contains("NextButton.Content = \"下一步\";", wizardSource, StringComparison.Ordinal);
         Assert.Contains("SelectSafeFallback(nativeModes)", wizardSource, StringComparison.Ordinal);
         Assert.Contains("return true;", wizardSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FirstUseWizardStopsRunningPreviewWhenSwitchingToNetworkCamera()
+    {
+        string wizardSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml.cs");
+
+        int networkBranch = wizardSource.IndexOf(
+            "if (IsNetworkCameraSelected)",
+            StringComparison.Ordinal);
+        int stopPreview = wizardSource.IndexOf(
+            "StopCameraPreview()",
+            networkBranch,
+            StringComparison.Ordinal);
+        int showPanel = wizardSource.IndexOf(
+            "ShowNetworkCameraPanelUi()",
+            stopPreview,
+            StringComparison.Ordinal);
+
+        Assert.True(networkBranch >= 0);
+        Assert.True(stopPreview > networkBranch);
+        Assert.True(showPanel > stopPreview);
+        Assert.Contains("CameraPreviewImage.Source = null;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("上一个摄像头未能停止，请重新插拔后重试", wizardSource, StringComparison.Ordinal);
     }
 
     [Fact]
