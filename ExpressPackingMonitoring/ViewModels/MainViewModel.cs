@@ -49,6 +49,7 @@ namespace ExpressPackingMonitoring.ViewModels
         public static HashSet<string> ValidatedEncoders { get; private set; } = new();
 
         private VideoCaptureDevice _videoSource;
+        private NetworkCameraSource _networkCameraSource;
         private Task _cameraForceStopTask;
         private Mat _latestFrame;
         private readonly object _frameLock = new object();
@@ -3426,7 +3427,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 StartCamera();
                 _lastRestartAttempt = DateTime.Now;
-                RuntimeLog.Info("Camera", $"RestartCamera done running={_videoSource?.IsRunning == true}");
+                RuntimeLog.Info("Camera", $"RestartCamera done running={IsVideoSourceRunning()}");
             }
             catch (Exception ex)
             {
@@ -3466,7 +3467,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     StartCamera();
                     _lastRestartAttempt = DateTime.Now;
 
-                    if (_videoSource != null && _videoSource.IsRunning)
+                    if (IsVideoSourceRunning())
                     {
                         _consecutiveRestartFailures = 0;
                         RuntimeLog.Info("Camera", "Camera reconnected after stopping interrupted recording");
@@ -3500,7 +3501,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     StartCamera();
                     _lastRestartAttempt = DateTime.Now;
 
-                    if (_videoSource != null && _videoSource.IsRunning)
+                    if (IsVideoSourceRunning())
                     {
                         _consecutiveRestartFailures = 0;
                         RuntimeLog.Info("Camera", "Camera reconnected while idle");
@@ -3650,13 +3651,19 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (_videoSource != null)
+                if (_videoSource != null || _networkCameraSource != null)
                 {
-                    RuntimeLog.Warn("Camera", $"StartCamera skipped because previous source still exists, running={_videoSource.IsRunning}");
+                    RuntimeLog.Warn("Camera", $"StartCamera skipped because previous source still exists, running={IsVideoSourceRunning()}");
                     return;
                 }
 
                 int previewSessionId = BeginPreviewSession(clearFrame: true);
+
+                if (IsNetworkCameraConfigured())
+                {
+                    StartNetworkCamera(previewSessionId);
+                    return;
+                }
 
                 var videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
                 if (videoDevices.Count == 0) 
@@ -3777,10 +3784,98 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        private bool IsNetworkCameraConfigured()
+        {
+            return string.Equals(Config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(Config.NetworkCameraUrl);
+        }
+
+        private void StartNetworkCamera(int previewSessionId)
+        {
+            if (!NetworkCameraUrlPolicy.TryNormalize(Config.NetworkCameraUrl, out string url, out string error))
+            {
+                RuntimeLog.Warn("Camera", $"Network camera URL rejected: {error}");
+                ShowToast($"网络摄像头地址无效：{error}");
+                return;
+            }
+
+            var source = new NetworkCameraSource(
+                url,
+                Config.NetworkCameraRtspTransport,
+                Config.Fps > 0 ? Config.Fps : 15);
+            source.StreamInfoReady += NetworkCameraSource_StreamInfoReady;
+            source.FrameReady += NetworkCameraSource_FrameReady;
+            source.SourceError += NetworkCameraSource_SourceError;
+
+            bool started = source.Start();
+            if (!started)
+            {
+                RuntimeLog.Warn("Camera", $"StartNetworkCamera failed: {source.LastError}");
+                ShowToast($"网络摄像头连接失败：{source.LastError}");
+                source.Dispose();
+                return;
+            }
+
+            _networkCameraSource = source;
+            _lastFrameTime = DateTime.Now;
+            _lastPreviewPublishedAt = DateTime.Now;
+            _cameraEverConnected = true;
+            RuntimeLog.Info(
+                "Camera",
+                $"StartNetworkCamera url={NetworkCameraUrlPolicy.SanitizeForLog(url)}, transport={Config.NetworkCameraRtspTransport}, previewSession={previewSessionId}");
+        }
+
+        private void NetworkCameraSource_StreamInfoReady(object sender, NetworkCameraStreamInfoEventArgs e)
+        {
+            _actualCameraWidth = e.Width;
+            _actualCameraHeight = e.Height;
+            _actualCameraFps = e.Fps;
+            RuntimeLog.Info("Camera", $"Network camera stream ready {e.Width}x{e.Height}@{e.Fps}");
+        }
+
+        private void NetworkCameraSource_SourceError(object sender, NetworkCameraErrorEventArgs e)
+        {
+            RuntimeLog.Error("Camera", $"NetworkCameraSourceError: {e.Description}");
+            if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                return;
+            if ((DateTime.Now - _lastRestartAttempt).TotalSeconds < MinRestartIntervalSeconds)
+                return;
+
+            _ = Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                    return;
+                ShowToast("警告：网络摄像头连接异常，尝试重连...");
+                RestartCameraWithRecordingStop();
+            });
+        }
+
         private bool StopCamera()
         {
             if (!_isDisposed)
                 ResetCameraBarcodeRecognition();
+
+            NetworkCameraSource networkSource = _networkCameraSource;
+            if (networkSource != null)
+            {
+                networkSource.StreamInfoReady -= NetworkCameraSource_StreamInfoReady;
+                networkSource.FrameReady -= NetworkCameraSource_FrameReady;
+                networkSource.SourceError -= NetworkCameraSource_SourceError;
+                try
+                {
+                    networkSource.Stop();
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Camera", $"Network camera stop failed: {ex.Message}");
+                }
+                if (ReferenceEquals(_networkCameraSource, networkSource))
+                    _networkCameraSource = null;
+                lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                BeginPreviewSession(clearFrame: true);
+                RuntimeLog.Info("Camera", "StopNetworkCamera completed");
+                return true;
+            }
 
             VideoCaptureDevice source = _videoSource;
             if (source != null)
@@ -3833,18 +3928,42 @@ namespace ExpressPackingMonitoring.ViewModels
 
             try
             {
-                Mat newMat = BitmapToMat(eventArgs.Frame);
-                CameraFrameOrientation.Apply(newMat, Config.CameraRotate180);
+                HandleCameraFrame(BitmapToMat(eventArgs.Frame));
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Camera", "NewFrame conversion failed", ex);
+            }
+        }
+
+        private void NetworkCameraSource_FrameReady(object sender, NetworkCameraFrameEventArgs e)
+        {
+            _lastFrameTime = DateTime.Now;
+            if (!_cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps))
+            {
+                e.Frame.Dispose();
+                return;
+            }
+
+            HandleCameraFrame(e.Frame);
+        }
+
+        private void HandleCameraFrame(Mat frame)
+        {
+            try
+            {
+                CameraFrameOrientation.Apply(frame, Config.CameraRotate180);
                 lock (_frameLock)
                 {
                     _latestFrame?.Dispose();
-                    _latestFrame = newMat;
+                    _latestFrame = frame;
                 }
                 _cameraFrameReady.Signal();
             }
             catch (Exception ex)
             {
-                RuntimeLog.Error("Camera", "NewFrame conversion failed", ex);
+                frame.Dispose();
+                RuntimeLog.Error("Camera", "NewFrame processing failed", ex);
             }
         }
 
@@ -4403,6 +4522,19 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool IsVideoSourceRunning()
         {
+            var networkSource = _networkCameraSource;
+            if (networkSource != null)
+            {
+                try
+                {
+                    return networkSource.IsRunning;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             var source = _videoSource;
             if (source == null) return false;
 

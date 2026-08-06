@@ -457,6 +457,7 @@
   <data name="警告：摄像头已断开，等待重新连接..." xml:space="preserve"><value>警告：摄像头已断开，等待重新连接...</value></data>
   <data name="警告：视频文件太小，已删除" xml:space="preserve"><value>警告：视频文件太小，已删除</value></data>
   <data name="警告：未检测到任何摄像头" xml:space="preserve"><value>警告：未检测到任何摄像头</value></data>
+  <data name="警告：网络摄像头连接异常，尝试重连..." xml:space="preserve"><value>警告：网络摄像头连接异常，尝试重连...</value></data>
   <data name="警告：未找到 FFmpeg，无法录制" xml:space="preserve"><value>警告：未找到 FFmpeg，无法录制</value></data>
   <data name="警告：音轨校验失败，已保留原始文件" xml:space="preserve"><value>警告：音轨校验失败，已保留原始文件</value></data>
   <data name="警告：音频录制失败，已保留原始文件" xml:space="preserve"><value>警告：音频录制失败，已保留原始文件</value></data>

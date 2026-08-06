@@ -457,6 +457,7 @@
   <data name="警告：摄像头已断开，等待重新连接..." xml:space="preserve"><value>Warning: Camera has been disconnected, waiting to be reconnected...</value></data>
   <data name="警告：视频文件太小，已删除" xml:space="preserve"><value>Warning: Video file is too small and has been deleted</value></data>
   <data name="警告：未检测到任何摄像头" xml:space="preserve"><value>Warning: No cameras detected</value></data>
+  <data name="警告：网络摄像头连接异常，尝试重连..." xml:space="preserve"><value>Warning: Network camera connection error. Reconnecting...</value></data>
   <data name="警告：未找到 FFmpeg，无法录制" xml:space="preserve"><value>Warning: FFmpeg not found, unable to record</value></data>
   <data name="警告：音轨校验失败，已保留原始文件" xml:space="preserve"><value>Warning: Track verification failed, original file retained</value></data>
   <data name="警告：音频录制失败，已保留原始文件" xml:space="preserve"><value>Warning: Audio recording failed, original file retained</value></data>

@@ -83,13 +83,20 @@ namespace ExpressPackingMonitoring.ViewModels
             IReadOnlyList<NativeCameraMode> nativeModes = selectedNativeModes ?? [];
             if (nativeModes.Count == 0)
             {
-                try
+                if (IsNetworkCameraConfigured())
                 {
-                    nativeModes = RecordingProfileDetector.GetNativeModes(_videoSource?.VideoCapabilities);
+                    nativeModes = _networkCameraSource?.NativeModes ?? [];
                 }
-                catch
+                else
                 {
-                    nativeModes = [];
+                    try
+                    {
+                        nativeModes = RecordingProfileDetector.GetNativeModes(_videoSource?.VideoCapabilities);
+                    }
+                    catch
+                    {
+                        nativeModes = [];
+                    }
                 }
             }
 

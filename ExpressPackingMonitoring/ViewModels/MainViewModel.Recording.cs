@@ -505,13 +505,13 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 // 0. 环境预检查 (摄像头、麦克风)
-                if (_videoSource == null || !_videoSource.IsRunning)
+                if (!IsVideoSourceRunning())
                 {
                     // 尝试重启一次摄像头，以防万一用户刚插上
                     RestartCamera();
                     await Task.Delay(1000); // 给一点点启动时间
 
-                    if (_videoSource == null || !_videoSource.IsRunning)
+                    if (!IsVideoSourceRunning())
                     {
                         ShowToast("警告：摄像头未就绪，请检查连接");
                         SpeakWarning(DefaultSpeechCatalog.CameraNotReady);
