@@ -860,4 +860,5 @@
   <data name="正在准备视频..." xml:space="preserve"><value>正在准备视频...</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>视频播放失败</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>视频解码失败</value></data>
+  <data name="一键反馈" xml:space="preserve"><value>一键反馈</value></data>
 </root>

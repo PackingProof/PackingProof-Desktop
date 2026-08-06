@@ -162,6 +162,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isSyncingScannerModes;
         private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
+        private const string FeedbackEmail = "PackingProof@outlook.com";
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
             : this(SettingsContext.ForCameraWorkstation(mainVM), clonedConfig, diskUsagePercent, diskUsageText, isRecording)
@@ -1755,6 +1756,83 @@ namespace ExpressPackingMonitoring.UI
         private void OpenRepository_Click(object sender, RoutedEventArgs e)
         {
             OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop");
+        }
+
+        private async void Feedback_Click(object sender, RoutedEventArgs e)
+        {
+            Button feedbackButton = sender as Button;
+            if (feedbackButton != null) feedbackButton.IsEnabled = false;
+            try
+            {
+                bool confirmed = AppDialog.Confirm(
+                    this,
+                    $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}。",
+                    "一键反馈",
+                    confirmText: "开始打包",
+                    severity: AppDialogSeverity.Warning);
+                if (!confirmed) return;
+
+                IReadOnlyList<string> warnings = Array.Empty<string>();
+                string zipPath = await Task.Run(() =>
+                {
+                    var service = new FeedbackPackageService(AppPaths.UserDataDir);
+                    string path = service.CreatePackage(out IReadOnlyList<string> packageWarnings);
+                    warnings = packageWarnings;
+                    return path;
+                });
+
+                try { Clipboard.SetText(zipPath); } catch { }
+                try
+                {
+                    Process.Start(new ProcessStartInfo(
+                        "explorer.exe",
+                        $"/select,\"{zipPath}\"") { UseShellExecute = true });
+                }
+                catch { }
+                string subject = Uri.EscapeDataString(
+                    $"PackingProof 反馈（{ExpressPackingMonitoring.Config.AppVersion.Current}）");
+                string body = Uri.EscapeDataString($"请查收反馈压缩包（请将附件添加后发送）：\n{zipPath}");
+                try
+                {
+                    Process.Start(new ProcessStartInfo(
+                        $"mailto:{FeedbackEmail}?subject={subject}&body={body}")
+                    {
+                        UseShellExecute = true
+                    });
+                }
+                catch { }
+
+                var info = new FileInfo(zipPath);
+                string message =
+                    $"反馈包已生成：\n{zipPath}\n\n" +
+                    $"大小：{FormatBytes(info.Length)}\n" +
+                    $"已复制路径、打开所在文件夹，并为你打开邮件客户端（默认反馈邮箱 {FeedbackEmail}），请将压缩包作为附件发送。\n\n" +
+                    "注意：包内含完整订单数据库与本地配置，请勿转发给无关人员。";
+                if (warnings.Count > 0)
+                    message += "\n\n提示：\n" + string.Join("\n", warnings.Take(10));
+                AppDialog.ShowMessage(this, message, "一键反馈", AppDialogSeverity.Information);
+            }
+            catch (Exception ex)
+            {
+                AppDialog.ShowMessage(this, $"打包失败：{ex.Message}", "一键反馈", AppDialogSeverity.Error);
+            }
+            finally
+            {
+                if (feedbackButton != null) feedbackButton.IsEnabled = true;
+            }
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            string[] units = { "B", "KB", "MB", "GB" };
+            double value = bytes;
+            int unit = 0;
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+            return $"{value:0.##} {units[unit]}";
         }
 
         private void OpenLicense_Click(object sender, RoutedEventArgs e)

@@ -524,6 +524,25 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        /// <summary>为“一键反馈”生成当前数据库的一致性快照（VACUUM INTO）。</summary>
+        public void CreateFeedbackSnapshot(string destinationPath) =>
+            CreateFeedbackSnapshot(_dbPath, destinationPath);
+
+        internal static void CreateFeedbackSnapshot(string dbPath, string destinationPath)
+        {
+            string directory = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+            if (File.Exists(destinationPath)) File.Delete(destinationPath);
+
+            using var connection = new SqliteConnection($"Data Source={dbPath}");
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA busy_timeout=10000;";
+            command.ExecuteNonQuery();
+            command.CommandText = $"VACUUM INTO '{destinationPath.Replace("'", "''")}'";
+            command.ExecuteNonQuery();
+        }
+
         public void UpsertOrderInfos(IEnumerable<OrderInfo> items)
         {
             if (items == null) return;

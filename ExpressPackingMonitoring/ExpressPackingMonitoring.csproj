@@ -152,6 +152,7 @@
     <Compile Include="Services\VideoFolderImportService.cs" />
     <Compile Include="Services\WebServer.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />
+    <Compile Include="Services\FeedbackPackageService.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
     <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />
     <Compile Include="ViewModels\CameraLifecycleSynchronization.cs" />
