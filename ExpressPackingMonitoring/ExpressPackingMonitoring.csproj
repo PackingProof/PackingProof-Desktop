@@ -20,6 +20,9 @@
     <PublishSingleFile>false</PublishSingleFile>
     <!-- 原生库保持可独立加载，优先保证 OpenCV/SQLite/LibVLC 等运行稳定性。 -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- 开发构建使用与发布一致的 FFmpeg 基线（Tools/ffmpeg-baseline.json），避免开发/发布能力漂移。 -->
+    <FFmpegBaselineVersion>8.0.1</FFmpegBaselineVersion>
+    <FFmpegBaselineExecutable>..\package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
     <SatelliteResourceLanguages>en-US;zh-Hans</SatelliteResourceLanguages>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <GitCommitId Condition="'$(GitCommitId)' == ''">$(SourceRevisionId)</GitCommitId>
@@ -217,9 +220,18 @@
     </ItemGroup>
   </Target>
 
-  <!-- ffmpeg.exe 作为独立进程保留，但发布到 tools 子目录，避免根目录混杂依赖文件。 -->
+  <!-- ffmpeg.exe 作为独立进程保留，但发布到 tools 子目录，避免根目录混杂依赖文件。
+       开发构建优先复制钉死的 FFmpeg 基线缓存；缓存不存在时回退到项目根目录的 ffmpeg.exe。 -->
   <ItemGroup>
-    <Content Include="ffmpeg.exe" Condition="Exists('ffmpeg.exe')">
+    <Content Include="$(FFmpegBaselineExecutable)"
+             Condition="Exists('$(FFmpegBaselineExecutable)')">
+      <TargetPath>tools\ffmpeg.exe</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="ffmpeg.exe"
+             Condition="!Exists('$(FFmpegBaselineExecutable)') And Exists('ffmpeg.exe')">
       <TargetPath>tools\ffmpeg.exe</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
