@@ -160,18 +160,23 @@ namespace ExpressPackingMonitoring.Audio
 
             try
             {
-                var voices = SpeechSynthesizer.AllVoices;
-                var femaleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Female && v.Language == "zh-CN");
-                var maleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Male && v.Language == "zh-CN");
-                var anyZh = femaleZh ?? maleZh ?? voices.FirstOrDefault(v => v != null && v.Language.StartsWith("zh"));
+                // Windows 7 及更早系统没有 WinRT，初始化 Windows.Media.SpeechSynthesis
+                // 会在 WinRT 模块析构时因缺少 api-ms-win-core-com-l1-1-0.dll 导致进程崩溃。
+                if (OperatingSystem.IsWindowsVersionAtLeast(6, 2))
+                {
+                    var voices = SpeechSynthesizer.AllVoices;
+                    var femaleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Female && v.Language == "zh-CN");
+                    var maleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Male && v.Language == "zh-CN");
+                    var anyZh = femaleZh ?? maleZh ?? voices.FirstOrDefault(v => v != null && v.Language.StartsWith("zh"));
 
-                _ttsNormal = new SpeechSynthesizer();
-                if (femaleZh != null) _ttsNormal.Voice = femaleZh;
-                else if (anyZh != null) _ttsNormal.Voice = anyZh;
+                    _ttsNormal = new SpeechSynthesizer();
+                    if (femaleZh != null) _ttsNormal.Voice = femaleZh;
+                    else if (anyZh != null) _ttsNormal.Voice = anyZh;
 
-                _ttsWarning = new SpeechSynthesizer();
-                if (maleZh != null) _ttsWarning.Voice = maleZh;
-                else if (anyZh != null) _ttsWarning.Voice = anyZh;
+                    _ttsWarning = new SpeechSynthesizer();
+                    if (maleZh != null) _ttsWarning.Voice = maleZh;
+                    else if (anyZh != null) _ttsWarning.Voice = anyZh;
+                }
             }
             catch (Exception ex)
             {
