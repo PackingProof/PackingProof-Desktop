@@ -140,6 +140,10 @@ namespace ExpressPackingMonitoring.Config
         public string CameraMonikerString { get; set; } = "";
         public int CameraIndex { get; set; } = 0; // 保留作为回退
         public bool CameraRotate180 { get; set; }
+        // 摄像头来源："usb"=本地 USB/内置摄像头，"network"=网络摄像头（RTSP/RTMP/HTTP 流）。
+        public string CameraSourceKind { get; set; } = "usb";
+        public string NetworkCameraUrl { get; set; } = "";
+        public string NetworkCameraRtspTransport { get; set; } = "tcp";
 
         // 存储不同摄像头的配置：Key 为 MonikerString
         public Dictionary<string, CameraSettings> CameraConfigs { get; set; } = new();
@@ -412,6 +416,30 @@ namespace ExpressPackingMonitoring.Config
                 config.LastKnownHostAccessKey = normalizedHostAccessKey;
                 changed = true;
             }
+
+            string normalizedCameraSourceKind = NormalizeCameraSourceKind(
+                config.CameraSourceKind,
+                config.NetworkCameraUrl);
+            if (!string.Equals(config.CameraSourceKind, normalizedCameraSourceKind, StringComparison.Ordinal))
+            {
+                config.CameraSourceKind = normalizedCameraSourceKind;
+                changed = true;
+            }
+            string normalizedNetworkCameraUrl = config.NetworkCameraUrl?.Trim() ?? "";
+            if (!string.Equals(config.NetworkCameraUrl, normalizedNetworkCameraUrl, StringComparison.Ordinal))
+            {
+                config.NetworkCameraUrl = normalizedNetworkCameraUrl;
+                changed = true;
+            }
+            string normalizedNetworkCameraTransport = NormalizeNetworkTransport(config.NetworkCameraRtspTransport);
+            if (!string.Equals(
+                    config.NetworkCameraRtspTransport,
+                    normalizedNetworkCameraTransport,
+                    StringComparison.Ordinal))
+            {
+                config.NetworkCameraRtspTransport = normalizedNetworkCameraTransport;
+                changed = true;
+            }
             if (normalizedPreset == DeploymentPresets.RecordingWorkstation
                 && config.BackupConnectionSchemaVersion < CurrentBackupConnectionSchemaVersion)
             {
@@ -607,6 +635,27 @@ namespace ExpressPackingMonitoring.Config
             return name.StartsWith("电脑", StringComparison.Ordinal)
                 && int.TryParse(name["电脑".Length..], out int number)
                 && number > 0;
+        }
+
+        internal static string NormalizeCameraSourceKind(string? kind, string? networkCameraUrl)
+        {
+            if (string.Equals(kind, "network", StringComparison.OrdinalIgnoreCase))
+                return "network";
+            if (string.Equals(kind, "usb", StringComparison.OrdinalIgnoreCase))
+                return "usb";
+            return string.IsNullOrWhiteSpace(networkCameraUrl) ? "usb" : "network";
+        }
+
+        internal static string NormalizeNetworkTransport(string? transport)
+        {
+            return string.Equals(transport, "udp", StringComparison.OrdinalIgnoreCase) ? "udp" : "tcp";
+        }
+
+        internal static string GetCameraConfigKey(string? sourceKind, string? monikerOrUrl)
+        {
+            string value = monikerOrUrl?.Trim() ?? "";
+            string kind = NormalizeCameraSourceKind(sourceKind, value);
+            return kind == "network" ? "network:" + value : value;
         }
 
         private static List<StorageLocation> CreateDefaultStorageLocations()

@@ -138,6 +138,7 @@
     <Compile Include="Services\MobileBackupService.cs" />
     <Compile Include="Services\MobileOrderReceiverRegistry.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
+    <Compile Include="Services\NetworkCameraUrlPolicy.cs" />
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
