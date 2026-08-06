@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
 using OpenCvSharp;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -53,6 +54,7 @@ internal sealed class NetworkCameraSource : IDisposable
 {
     private const int StreamInfoTimeoutMs = 10_000;
     private const int DefaultFallbackFps = 15;
+    private static readonly ConcurrentDictionary<string, bool> FpsModeSupportCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _url;
     private readonly string _transport;
@@ -127,7 +129,7 @@ internal sealed class NetworkCameraSource : IDisposable
             var startInfo = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = BuildArguments(_url, _transport),
+                Arguments = BuildArguments(_url, _transport, SupportsFpsMode(ffmpegPath)),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -187,7 +189,7 @@ internal sealed class NetworkCameraSource : IDisposable
         Stop();
     }
 
-    internal static string BuildArguments(string url, string transport)
+    internal static string BuildArguments(string url, string transport, bool useFpsMode)
     {
         var builder = new StringBuilder();
         builder.Append("-hide_banner -nostdin -loglevel info -fflags nobuffer -flags low_delay");
@@ -211,8 +213,68 @@ internal sealed class NetworkCameraSource : IDisposable
 
         string escapedUrl = url.Replace("\"", "\\\"", StringComparison.Ordinal);
         builder.Append(" -i \"").Append(escapedUrl).Append('"');
-        builder.Append(" -an -fps_mode passthrough -f rawvideo -pix_fmt bgr24 pipe:1");
+        builder.Append(" -an ");
+        // -fps_mode 需要 FFmpeg 5.1+，老显卡/Win7 机器使用的 FFmpeg 4.4.x
+        // 只支持 -vsync passthrough，两者语义相同，按实际版本动态选择。
+        builder.Append(useFpsMode ? "-fps_mode passthrough" : "-vsync passthrough");
+        builder.Append(" -f rawvideo -pix_fmt bgr24 pipe:1");
         return builder.ToString();
+    }
+
+    internal static bool SupportsFpsMode(string ffmpegPath) =>
+        FpsModeSupportCache.GetOrAdd(ffmpegPath ?? "", DetectFpsModeSupport);
+
+    private static bool DetectFpsModeSupport(string ffmpegPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+                return false;
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = "-hide_banner -version",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using Process? proc = Process.Start(startInfo);
+            if (proc == null)
+                return false;
+
+            Task<string> outputTask = proc.StandardOutput.ReadToEndAsync();
+            bool exited = proc.WaitForExit(3000);
+            if (!exited)
+            {
+                try { proc.Kill(); } catch { /* 进程可能已退出，忽略 */ }
+            }
+
+            string firstLine = outputTask.Wait(TimeSpan.FromSeconds(2))
+                ? (outputTask.Result.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "")
+                : "";
+            return ParseVersionSupportsFpsMode(firstLine);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool ParseVersionSupportsFpsMode(string? versionLine)
+    {
+        if (string.IsNullOrWhiteSpace(versionLine))
+            return false;
+
+        Match match = Regex.Match(versionLine, @"ffmpeg version\s+(\d+)\.(\d+)");
+        if (!match.Success)
+            return false;
+
+        int major = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+        int minor = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+        return major > 5 || (major == 5 && minor >= 1);
     }
 
     internal static bool TryParseStreamInfo(string line, out int width, out int height, out int fps)

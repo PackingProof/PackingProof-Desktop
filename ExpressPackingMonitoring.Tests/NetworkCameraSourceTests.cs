@@ -13,11 +13,14 @@ public sealed class NetworkCameraSourceTests
     {
         string args = NetworkCameraSource.BuildArguments(
             "rtsp://admin:secret@10.0.0.8:554/stream",
-            "tcp");
+            "tcp",
+            useFpsMode: false);
 
         Assert.Contains("-rtsp_transport tcp", args);
         Assert.Contains("-stimeout 5000000", args);
         Assert.Contains(" -an ", args);
+        Assert.Contains("-vsync passthrough", args);
+        Assert.DoesNotContain("-fps_mode", args);
         Assert.Contains("-f rawvideo", args);
         Assert.Contains("-pix_fmt bgr24", args);
         Assert.Contains("pipe:1", args);
@@ -25,17 +28,41 @@ public sealed class NetworkCameraSourceTests
     }
 
     [Fact]
+    public void BuildArguments_UsesFpsModeWhenSupported()
+    {
+        string args = NetworkCameraSource.BuildArguments(
+            "rtsp://admin:secret@10.0.0.8:554/stream",
+            "tcp",
+            useFpsMode: true);
+
+        Assert.Contains("-fps_mode passthrough", args);
+        Assert.DoesNotContain("-vsync", args);
+    }
+
+    [Fact]
     public void BuildArguments_OnlyRtspGetsTransportOption()
     {
         Assert.DoesNotContain(
             "-rtsp_transport",
-            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "tcp"));
+            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "tcp", useFpsMode: false));
         Assert.Contains(
             "-timeout 5000000",
-            NetworkCameraSource.BuildArguments("http://10.0.0.8:8080/video.mjpg", "tcp"));
+            NetworkCameraSource.BuildArguments("http://10.0.0.8:8080/video.mjpg", "tcp", useFpsMode: false));
         Assert.DoesNotContain(
             "-timeout",
-            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "udp"));
+            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "udp", useFpsMode: false));
+    }
+
+    [Theory]
+    [InlineData("ffmpeg version 4.4.1-full_build-www.gyan.dev Copyright (c) 2000-2021 the FFmpeg developers", false)]
+    [InlineData("ffmpeg version 5.0.1-full_build-www.gyan.dev Copyright (c) 2000-2022 the FFmpeg developers", false)]
+    [InlineData("ffmpeg version 5.1.2-full_build-www.gyan.dev Copyright (c) 2000-2022 the FFmpeg developers", true)]
+    [InlineData("ffmpeg version 8.0.1-essentials_build-www.gyan.dev Copyright (c) 2000-2025 the FFmpeg developers", true)]
+    [InlineData("ffmpeg version N-110001-gabcdef", false)]
+    [InlineData("", false)]
+    public void ParseVersionSupportsFpsMode_MatchesReleaseCutoff(string versionLine, bool expected)
+    {
+        Assert.Equal(expected, NetworkCameraSource.ParseVersionSupportsFpsMode(versionLine));
     }
 
     [Theory]
