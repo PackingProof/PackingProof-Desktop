@@ -21,6 +21,7 @@ namespace ExpressPackingMonitoring.Services
         public string Body { get; init; } = "";
         public string DownloadUrl { get; init; } = "";
         public string UpdateManifestUrl { get; init; } = "";
+        public string SourceUrl { get; init; } = "";
     }
 
     public sealed class UpdateCheckService
@@ -122,7 +123,8 @@ namespace ExpressPackingMonitoring.Services
                 Title = ReadString(root, "name"),
                 Body = body,
                 DownloadUrl = ChooseDownloadUrl(body, releaseUrl, assetUrl),
-                UpdateManifestUrl = ReadUpdateManifestAssetUrl(root, normalizedLatestVersion)
+                UpdateManifestUrl = ReadUpdateManifestAssetUrl(root, normalizedLatestVersion),
+                SourceUrl = resolved.SourceUrl
             };
         }
 

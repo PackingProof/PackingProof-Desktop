@@ -415,8 +415,19 @@ internal static class Program
             if (!string.IsNullOrWhiteSpace(descriptor.PatchBaselineVersion) &&
                 CompareVersions(currentVersion, descriptor.PatchBaselineVersion) < 0)
             {
+                bool stepPrepared = await TryPrepareBaselineStepAsync(
+                    checkUrls,
+                    currentVersion,
+                    descriptor,
+                    cancellationToken);
+                if (stepPrepared)
+                {
+                    SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                    WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，已准备先升级到基线版本，下次启动安装");
+                    return null;
+                }
                 SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
-                WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，提示用户下载完整包");
+                WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，未找到可先升级到基线的增量包，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.VersionBelowBaseline);
             }
 
@@ -441,6 +452,79 @@ internal static class Program
         {
             WriteLog("自动检查更新失败：" + ex);
             return null;
+        }
+    }
+
+    private static async Task<bool> TryPrepareBaselineStepAsync(
+        IReadOnlyList<string> checkUrls,
+        string currentVersion,
+        UpdateDescriptor latestDescriptor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var metadataClient = new UpdateMetadataClient(
+                HttpClient,
+                attemptsPerSource: MetadataRequestAttempts,
+                retryDelay: TimeSpan.FromMilliseconds(500),
+                log: message => WriteLog("更新元数据：" + message));
+            string targetVersion = latestDescriptor.PatchBaselineVersion;
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int stepIndex = 0; stepIndex < 10; stepIndex++)
+            {
+                if (string.IsNullOrWhiteSpace(targetVersion) || !visited.Add(targetVersion))
+                    return false;
+
+                WriteLog($"尝试查找基线版本 {targetVersion} 的增量包");
+                using ResolvedUpdateManifest? step = await metadataClient.TryResolveManifestForVersionAsync(
+                    checkUrls,
+                    targetVersion,
+                    cancellationToken);
+                if (step == null)
+                {
+                    WriteLog($"未找到基线版本 {targetVersion} 的更新描述");
+                    return false;
+                }
+
+                UpdateDescriptor stepDescriptor = ReadUpdateDescriptor(
+                    step.Manifest.RootElement,
+                    step.LatestVersion);
+                if (!string.Equals(stepDescriptor.LatestVersion, targetVersion, StringComparison.OrdinalIgnoreCase)
+                    || !stepDescriptor.PatchSupported
+                    || !IsPatchDescriptorUsable(stepDescriptor)
+                    || CompareVersions(stepDescriptor.LatestVersion, currentVersion) <= 0)
+                {
+                    WriteLog($"基线版本 {targetVersion} 的增量包不可用");
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(stepDescriptor.PatchBaselineVersion)
+                    || CompareVersions(currentVersion, stepDescriptor.PatchBaselineVersion) >= 0)
+                {
+                    await DownloadPendingPatchAsync(
+                        step.Manifest.RootElement,
+                        stepDescriptor,
+                        cancellationToken);
+                    WriteLog($"基线版本 {stepDescriptor.LatestVersion} 的补丁已下载到 pending，下次启动先安装它");
+                    return true;
+                }
+
+                if (CompareVersions(stepDescriptor.PatchBaselineVersion, targetVersion) >= 0)
+                    return false;
+                targetVersion = stepDescriptor.PatchBaselineVersion;
+            }
+
+            return false;
+        }
+        catch (OperationCanceledException ex)
+        {
+            WriteLog("查找基线版本增量包超时：" + ex.Message);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            WriteLog("查找基线版本增量包失败：" + ex);
+            return false;
         }
     }
 

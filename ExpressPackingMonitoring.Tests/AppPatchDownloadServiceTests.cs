@@ -41,6 +41,60 @@ public sealed class AppPatchDownloadServiceTests
     }
 
     [Fact]
+    public async Task BelowNewBaseline_WithUsableBaselinePatch_PreparesStepUpInsteadOfFullPackage()
+    {
+        using var fixture = new AppPatchFixture();
+        byte[] baselinePackage = "baseline-step-patch"u8.ToArray();
+        fixture.AddRelease("9.9.9", "9.0.0", "latest-patch"u8.ToArray());
+        fixture.AddBaselineRelease("9.0.0", "0.0.0", baselinePackage);
+
+        AppPatchPreparationResult result = await fixture.PrepareAsync("9.9.9");
+
+        Assert.Equal(AppPatchPreparationStatus.Ready, result.Status);
+        Assert.Contains("先升级到基线版本 9.0.0", result.Message, StringComparison.Ordinal);
+        Assert.Contains("继续升级到最新版本 9.9.9", result.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            baselinePackage,
+            File.ReadAllBytes(Path.Combine(
+                fixture.PendingDirectory,
+                "ExpressPackingMonitoring_AppPatch_v9.0.0.zip")));
+        Assert.Contains(fixture.BaselineTagUrl("9.0.0"), fixture.Requests);
+    }
+
+    [Fact]
+    public async Task BelowNewBaseline_WithoutUsableBaselinePatch_StillRequiresFullPackage()
+    {
+        using var fixture = new AppPatchFixture();
+        fixture.AddRelease("9.9.9", "9.0.0", "latest-patch"u8.ToArray());
+
+        AppPatchPreparationResult result = await fixture.PrepareAsync("9.9.9");
+
+        Assert.Equal(AppPatchPreparationStatus.FullPackageRequired, result.Status);
+        Assert.Contains("未找到可先升级到基线版本的增量包", result.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(fixture.PendingDirectory));
+    }
+
+    [Fact]
+    public async Task BelowNewBaseline_WalksBackMultipleBaselineHops_ToNearestReachableStep()
+    {
+        using var fixture = new AppPatchFixture();
+        byte[] firstHopPackage = "first-hop-patch"u8.ToArray();
+        fixture.AddRelease("9.9.9", "9.0.0", "latest-patch"u8.ToArray());
+        fixture.AddBaselineRelease("9.0.0", "8.0.0", "second-hop-patch"u8.ToArray());
+        fixture.AddBaselineRelease("8.0.0", "0.0.0", firstHopPackage);
+
+        AppPatchPreparationResult result = await fixture.PrepareAsync("9.9.9");
+
+        Assert.Equal(AppPatchPreparationStatus.Ready, result.Status);
+        Assert.Contains("先升级到基线版本 8.0.0", result.Message, StringComparison.Ordinal);
+        Assert.Equal(
+            firstHopPackage,
+            File.ReadAllBytes(Path.Combine(
+                fixture.PendingDirectory,
+                "ExpressPackingMonitoring_AppPatch_v8.0.0.zip")));
+    }
+
+    [Fact]
     public async Task FailedHashValidationPreservesExistingPendingDirectory()
     {
         using var fixture = new AppPatchFixture();
@@ -125,6 +179,7 @@ public sealed class AppPatchDownloadServiceTests
     private sealed class AppPatchFixture : IDisposable
     {
         private const string ManifestBase = "https://updates.example/";
+        private const string ApiBase = "https://api.example/repos/packingproof/desktop";
         private readonly string _root;
         private readonly RoutingHandler _handler = new();
         private readonly HttpClient _client;
@@ -146,6 +201,12 @@ public sealed class AppPatchDownloadServiceTests
         internal string UpdatesDirectory => Path.Combine(_root, "updates");
         internal string PendingDirectory => Path.Combine(UpdatesDirectory, "pending");
         internal List<string> Requests => _handler.Requests;
+        internal string SourceUrl => ApiBase + "/releases/latest";
+
+        internal string BaselineTagUrl(string version)
+        {
+            return $"{ApiBase}/releases/tags/v{version}";
+        }
 
         internal void AddRelease(
             string version,
@@ -175,6 +236,32 @@ public sealed class AppPatchDownloadServiceTests
                 """;
             _handler.Add(manifestUrl, Encoding.UTF8.GetBytes(manifest), "application/json");
             _handler.Add(packageUrl, package, "application/zip");
+        }
+
+        internal void AddBaselineRelease(
+            string version,
+            string baseline,
+            byte[] package,
+            string? advertisedHash = null)
+        {
+            AddRelease(version, baseline, package, advertisedHash);
+            string manifestUrl = ManifestBase + $"update-{version}.json";
+            string release =
+                $$"""
+                {
+                  "tag_name": "v{{version}}",
+                  "assets": [
+                    {
+                      "name": "update_v{{version}}.json",
+                      "browser_download_url": "{{manifestUrl}}"
+                    }
+                  ]
+                }
+                """;
+            _handler.Add(
+                BaselineTagUrl(version),
+                Encoding.UTF8.GetBytes(release),
+                "application/json");
         }
 
         internal (string GithubUrl, string GiteeUrl) AddDualSourceRelease(
@@ -215,7 +302,8 @@ public sealed class AppPatchDownloadServiceTests
                 HasUpdate = true,
                 LatestVersion = version,
                 DownloadUrl = "https://example.com/releases",
-                UpdateManifestUrl = ManifestBase + $"update-{version}.json"
+                UpdateManifestUrl = ManifestBase + $"update-{version}.json",
+                SourceUrl = SourceUrl
             });
         }
 

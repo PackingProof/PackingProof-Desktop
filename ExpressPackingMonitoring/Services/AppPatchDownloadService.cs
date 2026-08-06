@@ -90,9 +90,16 @@ internal sealed class AppPatchDownloadService
                 return FullPackage(update, "增量更新信息不完整", fallbackUrl, descriptor.FullDownloadFallbackUrl);
             if (CompareVersions(AppVersion.Current, descriptor.PatchBaselineVersion) < 0)
             {
+                AppPatchPreparationResult? stepUp = await TryPrepareBaselineStepAsync(
+                    update,
+                    descriptor,
+                    progress,
+                    cancellationToken);
+                if (stepUp != null)
+                    return stepUp;
                 return FullPackage(
                     update,
-                    $"当前版本低于增量更新基线 {descriptor.PatchBaselineVersion}",
+                    $"当前版本低于增量更新基线 {descriptor.PatchBaselineVersion}，且未找到可先升级到基线版本的增量包",
                     fallbackUrl,
                     descriptor.FullDownloadFallbackUrl);
             }
@@ -103,79 +110,11 @@ internal sealed class AppPatchDownloadService
                     "当前版本已不低于更新版本");
             }
 
-            string pendingDirectory = Path.Combine(_updatesDirectory, "pending");
-            AppPatchPreparationResult? existing = InspectPendingExclusive(
-                pendingDirectory,
-                descriptor.LatestVersion);
-            if (existing != null)
-                return existing;
-
-            string operationId = Guid.NewGuid().ToString("N");
-            string downloadDirectory = Path.Combine(_updatesDirectory, $"download-{operationId}");
-            string stagingDirectory = Path.Combine(_updatesDirectory, $"staging-{operationId}");
-            string backupDirectory = Path.Combine(_updatesDirectory, $"replaced-{operationId}");
-            string patchFileName = $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
-            string downloadPath = Path.Combine(downloadDirectory, patchFileName);
-            try
-            {
-                Directory.CreateDirectory(downloadDirectory);
-                PackageDownloadRoute route = GetDownloadRoute(descriptor.PatchPackage);
-                progress?.Report(new AppPatchDownloadProgress(
-                    route.PreferGitee ? "正在从 Gitee 下载增量更新包" : "正在从 GitHub 下载增量更新包"));
-                try
-                {
-                    await DownloadFileAsync(
-                        route.SelectedUrl,
-                        downloadPath,
-                        descriptor.PatchPackage.Size,
-                        progress,
-                        cancellationToken);
-                }
-                catch (Exception ex) when (
-                    !cancellationToken.IsCancellationRequested
-                    && !route.PreferGitee
-                    && !string.Equals(route.GithubUrl, route.GiteeUrl, StringComparison.OrdinalIgnoreCase)
-                    && ex is HttpRequestException or IOException or TaskCanceledException)
-                {
-                    RuntimeLog.Warn("Update", $"GitHub AppPatch download failed, trying Gitee: {ex.Message}");
-                    TryDeleteOwnedFile(downloadPath);
-                    progress?.Report(new AppPatchDownloadProgress("GitHub 下载失败，正在改用 Gitee"));
-                    await DownloadFileAsync(
-                        route.GiteeUrl,
-                        downloadPath,
-                        descriptor.PatchPackage.Size,
-                        progress,
-                        cancellationToken);
-                }
-                ValidatePackage(downloadPath, descriptor.PatchPackage);
-
-                progress?.Report(new AppPatchDownloadProgress("校验通过，正在准备下次启动安装"));
-                Directory.CreateDirectory(stagingDirectory);
-                File.Move(downloadPath, Path.Combine(stagingDirectory, patchFileName));
-                File.WriteAllText(
-                    Path.Combine(stagingDirectory, "update_manifest.json"),
-                    manifestJson,
-                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-
-                AppPatchPreparationResult published = PublishPendingExclusive(
-                    stagingDirectory,
-                    pendingDirectory,
-                    backupDirectory,
-                    descriptor.LatestVersion);
-                if (published.Status != AppPatchPreparationStatus.Ready)
-                    return published;
-                RuntimeLog.Info(
-                    "Update",
-                    $"Manual AppPatch prepared version={descriptor.LatestVersion}");
-                return new AppPatchPreparationResult(
-                    AppPatchPreparationStatus.Ready,
-                    $"版本 {descriptor.LatestVersion} 的补丁已下载并校验");
-            }
-            finally
-            {
-                TryDeleteOwnedDirectory(downloadDirectory);
-                TryDeleteOwnedDirectory(stagingDirectory);
-            }
+            return await DownloadAndPublishAsync(
+                descriptor,
+                manifestJson,
+                progress,
+                cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -194,14 +133,190 @@ internal sealed class AppPatchDownloadService
         }
     }
 
+    private async Task<AppPatchPreparationResult?> TryPrepareBaselineStepAsync(
+        UpdateCheckResult update,
+        AppPatchDescriptor latestDescriptor,
+        IProgress<AppPatchDownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(update.SourceUrl))
+        {
+            RuntimeLog.Warn("Update", "无法确定更新来源，跳过基线分步升级查找");
+            return null;
+        }
+
+        var metadataClient = new UpdateMetadataClient(
+            _client,
+            log: message => RuntimeLog.Info("Update", message));
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string targetVersion = latestDescriptor.PatchBaselineVersion;
+        try
+        {
+            for (int stepIndex = 0; stepIndex < 10; stepIndex++)
+            {
+                if (targetVersion.Length == 0 || !visited.Add(targetVersion))
+                    return null;
+
+                progress?.Report(new AppPatchDownloadProgress(
+                    $"当前版本低于新基线，正在查找基线版本 {targetVersion} 的增量包"));
+                using ResolvedUpdateManifest? step = await metadataClient.TryResolveManifestForVersionAsync(
+                    new[] { update.SourceUrl },
+                    targetVersion,
+                    cancellationToken);
+                if (step == null)
+                {
+                    RuntimeLog.Warn("Update", $"未找到基线版本 {targetVersion} 的更新描述");
+                    return null;
+                }
+
+                AppPatchDescriptor stepDescriptor = ParseDescriptor(
+                    step.Manifest.RootElement.GetRawText(),
+                    step.LatestVersion);
+                if (!string.Equals(
+                        stepDescriptor.LatestVersion,
+                        targetVersion,
+                        StringComparison.OrdinalIgnoreCase)
+                    || !IsPatchUsable(stepDescriptor)
+                    || CompareVersions(stepDescriptor.LatestVersion, AppVersion.Current) <= 0)
+                {
+                    RuntimeLog.Warn("Update", $"基线版本 {targetVersion} 的增量包不可用");
+                    return null;
+                }
+
+                if (string.IsNullOrWhiteSpace(stepDescriptor.PatchBaselineVersion)
+                    || CompareVersions(AppVersion.Current, stepDescriptor.PatchBaselineVersion) >= 0)
+                {
+                    AppPatchPreparationResult prepared = await DownloadAndPublishAsync(
+                        stepDescriptor,
+                        step.Manifest.RootElement.GetRawText(),
+                        progress,
+                        cancellationToken,
+                        requireExactPendingVersion: true);
+                    if (prepared.Status == AppPatchPreparationStatus.Busy)
+                        return prepared;
+                    if (prepared.Status is not (
+                            AppPatchPreparationStatus.Ready
+                            or AppPatchPreparationStatus.AlreadyReady))
+                        return null;
+
+                    return prepared with
+                    {
+                        Message =
+                            $"已准备先升级到基线版本 {stepDescriptor.LatestVersion}；"
+                            + $"重启安装后，将自动继续升级到最新版本 {update.LatestVersion}"
+                    };
+                }
+
+                if (CompareVersions(stepDescriptor.PatchBaselineVersion, targetVersion) >= 0)
+                    return null;
+                targetVersion = stepDescriptor.PatchBaselineVersion;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Update", $"查找基线分步升级失败：{ex.Message}");
+        }
+
+        return null;
+    }
+
+    private async Task<AppPatchPreparationResult> DownloadAndPublishAsync(
+        AppPatchDescriptor descriptor,
+        string manifestJson,
+        IProgress<AppPatchDownloadProgress>? progress,
+        CancellationToken cancellationToken,
+        bool requireExactPendingVersion = false)
+    {
+        string pendingDirectory = Path.Combine(_updatesDirectory, "pending");
+        AppPatchPreparationResult? existing = InspectPendingExclusive(
+            pendingDirectory,
+            descriptor.LatestVersion,
+            requireExactPendingVersion);
+        if (existing != null)
+            return existing;
+
+        string operationId = Guid.NewGuid().ToString("N");
+        string downloadDirectory = Path.Combine(_updatesDirectory, $"download-{operationId}");
+        string stagingDirectory = Path.Combine(_updatesDirectory, $"staging-{operationId}");
+        string backupDirectory = Path.Combine(_updatesDirectory, $"replaced-{operationId}");
+        string patchFileName = $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
+        string downloadPath = Path.Combine(downloadDirectory, patchFileName);
+        try
+        {
+            Directory.CreateDirectory(downloadDirectory);
+            PackageDownloadRoute route = GetDownloadRoute(descriptor.PatchPackage);
+            progress?.Report(new AppPatchDownloadProgress(
+                route.PreferGitee ? "正在从 Gitee 下载增量更新包" : "正在从 GitHub 下载增量更新包"));
+            try
+            {
+                await DownloadFileAsync(
+                    route.SelectedUrl,
+                    downloadPath,
+                    descriptor.PatchPackage.Size,
+                    progress,
+                    cancellationToken);
+            }
+            catch (Exception ex) when (
+                !cancellationToken.IsCancellationRequested
+                && !route.PreferGitee
+                && !string.Equals(route.GithubUrl, route.GiteeUrl, StringComparison.OrdinalIgnoreCase)
+                && ex is HttpRequestException or IOException or TaskCanceledException)
+            {
+                RuntimeLog.Warn("Update", $"GitHub AppPatch download failed, trying Gitee: {ex.Message}");
+                TryDeleteOwnedFile(downloadPath);
+                progress?.Report(new AppPatchDownloadProgress("GitHub 下载失败，正在改用 Gitee"));
+                await DownloadFileAsync(
+                    route.GiteeUrl,
+                    downloadPath,
+                    descriptor.PatchPackage.Size,
+                    progress,
+                    cancellationToken);
+            }
+            ValidatePackage(downloadPath, descriptor.PatchPackage);
+
+            progress?.Report(new AppPatchDownloadProgress("校验通过，正在准备下次启动安装"));
+            Directory.CreateDirectory(stagingDirectory);
+            File.Move(downloadPath, Path.Combine(stagingDirectory, patchFileName));
+            File.WriteAllText(
+                Path.Combine(stagingDirectory, "update_manifest.json"),
+                manifestJson,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+            AppPatchPreparationResult published = PublishPendingExclusive(
+                stagingDirectory,
+                pendingDirectory,
+                backupDirectory,
+                descriptor.LatestVersion,
+                requireExactPendingVersion);
+            if (published.Status != AppPatchPreparationStatus.Ready)
+                return published;
+            RuntimeLog.Info(
+                "Update",
+                $"Manual AppPatch prepared version={descriptor.LatestVersion}");
+            return new AppPatchPreparationResult(
+                AppPatchPreparationStatus.Ready,
+                $"版本 {descriptor.LatestVersion} 的补丁已下载并校验");
+        }
+        finally
+        {
+            TryDeleteOwnedDirectory(downloadDirectory);
+            TryDeleteOwnedDirectory(stagingDirectory);
+        }
+    }
+
     private static AppPatchPreparationResult? InspectPendingExclusive(
         string pendingDirectory,
-        string requestedVersion)
+        string requestedVersion,
+        bool requireExactVersion = false)
     {
         return RunExclusive(() =>
         {
             if (TryReadValidPendingVersion(pendingDirectory, out string pendingVersion)
-                && CompareVersions(pendingVersion, requestedVersion) >= 0)
+                && IsPendingVersionSatisfied(pendingVersion, requestedVersion, requireExactVersion))
             {
                 return new AppPatchPreparationResult(
                     AppPatchPreparationStatus.AlreadyReady,
@@ -216,12 +331,13 @@ internal sealed class AppPatchDownloadService
         string stagingDirectory,
         string pendingDirectory,
         string backupDirectory,
-        string requestedVersion)
+        string requestedVersion,
+        bool requireExactVersion = false)
     {
         return RunExclusive(() =>
         {
             if (TryReadValidPendingVersion(pendingDirectory, out string pendingVersion)
-                && CompareVersions(pendingVersion, requestedVersion) >= 0)
+                && IsPendingVersionSatisfied(pendingVersion, requestedVersion, requireExactVersion))
             {
                 return new AppPatchPreparationResult(
                     AppPatchPreparationStatus.AlreadyReady,
@@ -235,6 +351,15 @@ internal sealed class AppPatchDownloadService
         }) ?? new AppPatchPreparationResult(
             AppPatchPreparationStatus.Busy,
             "另一个更新任务正在运行，请稍后重试");
+    }
+
+    private static bool IsPendingVersionSatisfied(
+        string pendingVersion,
+        string requestedVersion,
+        bool requireExactVersion)
+    {
+        int comparison = CompareVersions(pendingVersion, requestedVersion);
+        return requireExactVersion ? comparison == 0 : comparison >= 0;
     }
 
     private static T? RunExclusive<T>(Func<T?> action) where T : class

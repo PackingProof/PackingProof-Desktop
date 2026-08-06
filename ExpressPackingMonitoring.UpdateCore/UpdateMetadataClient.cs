@@ -124,6 +124,93 @@ public sealed class UpdateMetadataClient
             cancellationToken);
     }
 
+    /// <summary>
+    /// 尝试按版本号查找指定 Release 的 update 清单。
+    /// 仅支持形如 .../releases/latest 的 GitHub/Gitee API 更新源；
+    /// 找不到对应 Release、清单资产或清单内容时返回 null。
+    /// </summary>
+    public async Task<ResolvedUpdateManifest?> TryResolveManifestForVersionAsync(
+        IReadOnlyList<string> sourceUrls,
+        string targetVersion,
+        CancellationToken cancellationToken)
+    {
+        string normalizedTarget = NormalizeVersion(targetVersion);
+        if (normalizedTarget.Length == 0)
+            return null;
+
+        foreach (string sourceUrl in sourceUrls)
+        {
+            string tagUrl = DeriveReleaseByTagUrl(sourceUrl, normalizedTarget);
+            if (tagUrl.Length == 0)
+                continue;
+
+            try
+            {
+                JsonDocument release = await GetJsonAsync(tagUrl, cancellationToken);
+                JsonDocument? manifest = null;
+                try
+                {
+                    string tag = NormalizeVersion(ReadString(release.RootElement, "tag_name"));
+                    if (tag.Length == 0
+                        || !string.Equals(tag, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                    {
+                        release.Dispose();
+                        continue;
+                    }
+
+                    string manifestUrl = FindUpdateManifestUrl(release.RootElement, normalizedTarget);
+                    if (manifestUrl.Length == 0)
+                    {
+                        release.Dispose();
+                        continue;
+                    }
+
+                    manifest = await GetJsonAsync(manifestUrl, cancellationToken);
+                    _log?.Invoke($"target manifest resolved version={normalizedTarget} url={manifestUrl}");
+                    return new ResolvedUpdateManifest(
+                        release,
+                        manifest,
+                        sourceUrl,
+                        manifestUrl,
+                        normalizedTarget);
+                }
+                catch
+                {
+                    manifest?.Dispose();
+                    release.Dispose();
+                    throw;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"target manifest lookup failed version={normalizedTarget} url={tagUrl}, error={ex.Message}");
+            }
+        }
+
+        return null;
+    }
+
+    public static string DeriveReleaseByTagUrl(string sourceUrl, string targetVersion)
+    {
+        if (!UpdateEndpointPolicy.IsSecureAbsoluteUrl(sourceUrl))
+            return "";
+
+        string trimmed = sourceUrl.TrimEnd('/');
+        if (!trimmed.EndsWith("/releases/latest", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        string apiBase = trimmed[..^"/latest".Length];
+        string tag = NormalizeVersion(targetVersion);
+        if (tag.Length == 0)
+            return "";
+
+        return $"{apiBase}/tags/v{tag}";
+    }
+
     public static string FindUpdateManifestUrl(JsonElement releaseRoot, string latestVersion)
     {
         if (!releaseRoot.TryGetProperty("assets", out JsonElement assets)
