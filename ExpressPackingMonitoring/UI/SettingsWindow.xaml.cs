@@ -1767,21 +1767,25 @@ namespace ExpressPackingMonitoring.UI
                 bool confirmed = AppDialog.Confirm(
                     this,
                     $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}。",
-                    "一键反馈",
+                    "反馈问题",
                     confirmText: "开始打包",
                     severity: AppDialogSeverity.Warning);
                 if (!confirmed) return;
 
                 IReadOnlyList<string> warnings = Array.Empty<string>();
-                string zipPath = await Task.Run(() =>
+                string zipPath = "";
+                string emlPath = "";
+                await Task.Run(() =>
                 {
                     var service = new FeedbackPackageService(AppPaths.UserDataDir);
-                    string path = service.CreatePackage(out IReadOnlyList<string> packageWarnings);
+                    zipPath = service.CreatePackage(out IReadOnlyList<string> packageWarnings);
                     warnings = packageWarnings;
-                    return path;
+                    emlPath = service.CreateFeedbackEml(zipPath, FeedbackEmail);
                 });
 
                 try { Clipboard.SetText(zipPath); } catch { }
+                // 直接打开文件位置；邮件客户端不自动打开，避免窗口互相覆盖，
+                // 由用户在结果弹窗里点击“发送邮件”后再打开。
                 try
                 {
                     Process.Start(new ProcessStartInfo(
@@ -1789,32 +1793,51 @@ namespace ExpressPackingMonitoring.UI
                         $"/select,\"{zipPath}\"") { UseShellExecute = true });
                 }
                 catch { }
-                string subject = Uri.EscapeDataString(
-                    $"PackingProof 反馈（{ExpressPackingMonitoring.Config.AppVersion.Current}）");
-                string body = Uri.EscapeDataString($"请查收反馈压缩包（请将附件添加后发送）：\n{zipPath}");
-                try
-                {
-                    Process.Start(new ProcessStartInfo(
-                        $"mailto:{FeedbackEmail}?subject={subject}&body={body}")
-                    {
-                        UseShellExecute = true
-                    });
-                }
-                catch { }
 
                 var info = new FileInfo(zipPath);
                 string message =
                     $"反馈包已生成：\n{zipPath}\n\n" +
                     $"大小：{FormatBytes(info.Length)}\n" +
-                    $"已复制路径、打开所在文件夹，并为你打开邮件客户端（默认反馈邮箱 {FeedbackEmail}），请将压缩包作为附件发送。\n\n" +
+                    "已复制路径并打开所在文件夹。\n\n" +
+                    $"点击“发送邮件”会尝试直接打开一封已带反馈模板和压缩包附件的新邮件（收件人 {FeedbackEmail}），填写问题后发送即可；若本机没有经典 Outlook，会退回邮件草稿或普通邮件（可能需要手动添加附件）。\n\n" +
                     "注意：包内含完整订单数据库与本地配置，请勿转发给无关人员。";
                 if (warnings.Count > 0)
                     message += "\n\n提示：\n" + string.Join("\n", warnings.Take(10));
-                AppDialog.ShowMessage(this, message, "一键反馈", AppDialogSeverity.Information);
+
+                bool sendMail = AppDialog.Confirm(
+                    this,
+                    message,
+                    "反馈问题",
+                    confirmText: "发送邮件",
+                    cancelText: "关闭",
+                    severity: AppDialogSeverity.Information,
+                    isDangerous: false);
+                if (sendMail)
+                {
+                    string subject =
+                        $"PackingProof 反馈（{ExpressPackingMonitoring.Config.AppVersion.Current}）";
+                    string body = FeedbackPackageService.BuildFeedbackBody(
+                        zipPath,
+                        ExpressPackingMonitoring.Config.AppVersion.Current,
+                        ExpressPackingMonitoring.Config.AppVersion.CommitShortId);
+                    bool opened =
+                        FeedbackMailLauncher.TryOpenOutlookDraft(
+                            FeedbackEmail, subject, body, zipPath)
+                        || FeedbackMailLauncher.TryOpenEmlDraft(emlPath)
+                        || FeedbackMailLauncher.TryOpenMailto(FeedbackEmail, subject, body);
+                    if (!opened)
+                    {
+                        AppDialog.ShowMessage(
+                            this,
+                            $"未能打开邮件客户端，请手动发送到 {FeedbackEmail}（压缩包路径已复制到剪贴板，请作为附件添加）。",
+                            "反馈问题",
+                            AppDialogSeverity.Warning);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(this, $"打包失败：{ex.Message}", "一键反馈", AppDialogSeverity.Error);
+                AppDialog.ShowMessage(this, $"打包失败：{ex.Message}", "反馈问题", AppDialogSeverity.Error);
             }
             finally
             {

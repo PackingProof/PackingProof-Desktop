@@ -874,19 +874,8 @@
                                 </Grid.RowDefinitions>
                                 <TabPanel IsItemsHost="True"
                                           KeyboardNavigation.TabIndex="1"/>
-                                <Button x:Name="FeedbackButton"
-                                        Grid.Row="1"
-                                        Margin="0,8,0,0"
-                                        Click="Feedback_Click"
-                                        Style="{StaticResource FeedbackButtonStyle}"
-                                        AutomationProperties.Name="一键反馈">
-                                    <TextBlock Text="一键反馈"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"/>
-                                </Button>
                                 <ToggleButton x:Name="AdvancedModeButton"
-                                              Grid.Row="2"
+                                              Grid.Row="1"
                                               Margin="0,8,0,0"
                                               Style="{StaticResource AdvancedModeButtonStyle}"
                                               IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -896,6 +885,17 @@
                                                VerticalAlignment="Center"
                                                FontWeight="SemiBold"/>
                                 </ToggleButton>
+                                <Button x:Name="FeedbackButton"
+                                        Grid.Row="2"
+                                        Margin="0,8,0,0"
+                                        Click="Feedback_Click"
+                                        Style="{StaticResource FeedbackButtonStyle}"
+                                        AutomationProperties.Name="点击反馈问题">
+                                    <TextBlock Text="点击反馈问题"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold"/>
+                                </Button>
                             </Grid>
                         </Border>
 

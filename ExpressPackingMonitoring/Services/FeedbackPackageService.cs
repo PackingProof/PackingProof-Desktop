@@ -89,6 +89,96 @@ internal sealed class FeedbackPackageService
         return raw;
     }
 
+    /// <summary>
+    /// 在反馈包旁边生成已内嵌压缩包附件的 .eml 邮件草稿。
+    /// mailto 无法携带附件，所以用标准 MIME 草稿让默认邮件客户端直接带附件打开。
+    /// </summary>
+    internal string CreateFeedbackEml(string zipPath, string recipientEmail)
+    {
+        string emlPath = Path.ChangeExtension(zipPath, ".eml");
+        string subject = $"PackingProof 反馈（{_appVersion}）";
+        string body = BuildFeedbackBody(zipPath, _appVersion, _commitId);
+        File.WriteAllText(
+            emlPath,
+            BuildEml(recipientEmail, subject, body, zipPath),
+            Encoding.UTF8);
+        PruneOldFiles($"{ZipPrefix}*.eml", new List<string>());
+        return emlPath;
+    }
+
+    internal static string BuildFeedbackBody(string zipPath, string appVersion, string commitId)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("反馈信息");
+        builder.AppendLine();
+        builder.AppendLine("问题描述：");
+        builder.AppendLine("（请描述遇到的问题）");
+        builder.AppendLine();
+        builder.AppendLine("复现步骤：");
+        builder.AppendLine("1.");
+        builder.AppendLine("2.");
+        builder.AppendLine();
+        builder.AppendLine("期望行为：");
+        builder.AppendLine("（期望的结果）");
+        builder.AppendLine();
+        builder.AppendLine("实际行为：");
+        builder.AppendLine("（实际的结果）");
+        builder.AppendLine();
+        builder.AppendLine($"应用版本：{appVersion}");
+        builder.AppendLine($"Commit：{commitId}");
+        builder.AppendLine($"操作系统：{Environment.OSVersion}");
+        builder.AppendLine($"反馈包生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        builder.AppendLine($"反馈包：{Path.GetFileName(zipPath)}（已作为附件）");
+        return builder.ToString();
+    }
+
+    private static string BuildEml(
+        string recipientEmail,
+        string subject,
+        string body,
+        string zipPath)
+    {
+        string boundary = $"----=_PackingProof_{Guid.NewGuid():N}";
+        string fileName = Path.GetFileName(zipPath);
+        var builder = new StringBuilder();
+        builder.AppendLine("MIME-Version: 1.0");
+        builder.AppendLine($"To: {recipientEmail}");
+        builder.AppendLine($"Subject: {EncodeHeader(subject)}");
+        builder.AppendLine($"Content-Type: multipart/mixed; boundary=\"{boundary}\"");
+        builder.AppendLine();
+        builder.AppendLine($"--{boundary}");
+        builder.AppendLine("Content-Type: text/plain; charset=\"utf-8\"");
+        builder.AppendLine("Content-Transfer-Encoding: base64");
+        builder.AppendLine();
+        builder.AppendLine(Base64Lines(body));
+        builder.AppendLine($"--{boundary}");
+        builder.AppendLine($"Content-Type: application/zip; name=\"{fileName}\"");
+        builder.AppendLine("Content-Transfer-Encoding: base64");
+        builder.AppendLine($"Content-Disposition: attachment; filename=\"{fileName}\"");
+        builder.AppendLine();
+        builder.AppendLine(Base64Lines(File.ReadAllBytes(zipPath)));
+        builder.AppendLine($"--{boundary}--");
+        return builder.ToString();
+    }
+
+    private static string EncodeHeader(string value) =>
+        $"=?UTF-8?B?{Convert.ToBase64String(Encoding.UTF8.GetBytes(value))}?=";
+
+    private static string Base64Lines(string text) =>
+        Base64Lines(Encoding.UTF8.GetBytes(text));
+
+    private static string Base64Lines(byte[] bytes)
+    {
+        string base64 = Convert.ToBase64String(bytes);
+        var builder = new StringBuilder();
+        for (int index = 0; index < base64.Length; index += 76)
+        {
+            int length = Math.Min(76, base64.Length - index);
+            builder.Append(base64, index, length).AppendLine();
+        }
+        return builder.ToString();
+    }
+
     private void CopyLogs(string stagingDir, List<string> warnings)
     {
         string logDir = Path.Combine(_userDataDir, "log");
@@ -188,7 +278,7 @@ internal sealed class FeedbackPackageService
     private void WriteInfoFile(string stagingDir, List<string> warnings)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("PackingProof 一键反馈信息");
+        builder.AppendLine("PackingProof 反馈信息");
         builder.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         builder.AppendLine($"应用版本：{_appVersion}");
         builder.AppendLine($"Commit：{_commitId}");
@@ -233,10 +323,16 @@ internal sealed class FeedbackPackageService
 
     private void PruneOldPackages(List<string> warnings)
     {
+        PruneOldFiles($"{ZipPrefix}*.zip", warnings);
+        PruneOldFiles($"{ZipPrefix}*.eml", warnings);
+    }
+
+    private void PruneOldFiles(string pattern, List<string> warnings)
+    {
         try
         {
             foreach (FileInfo old in Directory
-                .EnumerateFiles(_feedbackDir, $"{ZipPrefix}*.zip", SearchOption.TopDirectoryOnly)
+                .EnumerateFiles(_feedbackDir, pattern, SearchOption.TopDirectoryOnly)
                 .Select(path => new FileInfo(path))
                 .OrderByDescending(info => info.LastWriteTimeUtc)
                 .Skip(MaxPackagesToKeep))
