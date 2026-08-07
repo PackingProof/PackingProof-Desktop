@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36811.4
@@ -15,6 +16,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpressPackingMonitoring.EncodingIntegrationTests", "ExpressPackingMonitoring.EncodingIntegrationTests\ExpressPackingMonitoring.EncodingIntegrationTests.csproj", "{4052E1C2-78FB-47EB-B5CC-69D119F60F65}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpressPackingMonitoring.UpdateCore", "ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj", "{BF41EF6E-8454-4291-BFE8-A2C9CCAA4EEB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExpressPackingMonitoring.WinTts", "ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj", "{13D1D2BE-B76F-4983-9E4E-EA922194EF75}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -98,6 +101,18 @@ Global
 		{BF41EF6E-8454-4291-BFE8-A2C9CCAA4EEB}.Release|x64.Build.0 = Release|Any CPU
 		{BF41EF6E-8454-4291-BFE8-A2C9CCAA4EEB}.Release|x86.ActiveCfg = Release|Any CPU
 		{BF41EF6E-8454-4291-BFE8-A2C9CCAA4EEB}.Release|x86.Build.0 = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|x64.Build.0 = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Debug|x86.Build.0 = Debug|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|x64.ActiveCfg = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|x64.Build.0 = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|x86.ActiveCfg = Release|Any CPU
+		{13D1D2BE-B76F-4983-9E4E-EA922194EF75}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

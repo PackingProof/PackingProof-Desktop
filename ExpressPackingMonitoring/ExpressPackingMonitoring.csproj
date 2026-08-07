@@ -97,6 +97,7 @@
     <Compile Include="Audio\AudioProbe.cs" />
     <Compile Include="Audio\DefaultSpeechCatalog.cs" />
     <Compile Include="Audio\SpeechService.cs" />
+    <Compile Include="Audio\WindowsTtsBridge.cs" />
     <Compile Include="Config\AppConfig.cs" />
     <Compile Include="Config\AppPaths.cs" />
     <Compile Include="Config\AppVersion.cs" />
@@ -216,10 +217,6 @@
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb' Or '%(Extension)' == '.xml' Or '%(Extension)' == '.lib'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('libvlc\win-x86\'))" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').Contains('\include\'))" />
-      <!-- WinRT 运行时在 Windows 7 上不可用，且当前代码已无任何 WinRT 引用；
-           打包时排除，避免探测加载在 Win7 上触发 WinRT 初始化崩溃。 -->
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Windows.SDK.NET'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('WinRT.Runtime'))" />
     </ItemGroup>
   </Target>
 
