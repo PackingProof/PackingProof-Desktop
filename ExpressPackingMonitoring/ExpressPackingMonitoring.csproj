@@ -246,6 +246,9 @@
 
       <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlc.dll" />
       <LibVlcX64Dll Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\libvlccore.dll" />
+      <!-- 按目录收录播放相关插件，只排除与本地录像回放无关的目录
+           （access 使用下方白名单；access_output/mux/services_discovery/
+           stream_out/visualization/lua 与播放无关）。 -->
       <LibVlcX64Plugin
         Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*"
         Exclude="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access_output\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\mux\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\services_discovery\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\stream_out\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\visualization\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\lua\**\*" />
@@ -254,7 +257,13 @@
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libattachment_plugin.dll" />
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libimem_plugin.dll" />
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libaccess_concat_plugin.dll" />
-      <LibVlcX64Hrtf Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\hrtfs\**\*" />
+
+      <!-- 移除运行时不需要的诊断/设计时程序集，进一步压缩发布体积：
+           ReachFramework（XPS/打印，应用未使用）、WinForms 设计时程序集。 -->
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'ReachFramework'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('System.Windows.Forms.Design'))" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'System.Design'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'System.Drawing.Design'" />
 
       <ResolvedFileToPublish Include="@(LibVlcX64Dll)">
         <RelativePath>libvlc\win-x64\%(Filename)%(Extension)</RelativePath>
@@ -268,11 +277,6 @@
       </ResolvedFileToPublish>
       <ResolvedFileToPublish Include="@(LibVlcX64AccessPlugin)">
         <RelativePath>libvlc\win-x64\plugins\access\%(Filename)%(Extension)</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-      </ResolvedFileToPublish>
-      <ResolvedFileToPublish Include="@(LibVlcX64Hrtf)">
-        <RelativePath>libvlc\win-x64\hrtfs\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>

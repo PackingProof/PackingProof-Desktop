@@ -40,14 +40,42 @@ public sealed class LibVlcPackagingTests
     }
 
     [Fact]
-    public void Publish_RetainsDecoderDemuxerOutputAndHrtfFamilies()
+    public void Publish_RetainsCorePlaybackFamilies()
     {
         string project = ReadProject();
 
         Assert.Contains("plugins\\**\\*", project);
-        Assert.Contains("LibVlcX64Hrtf", project);
         Assert.Contains("libvlc.dll", project);
         Assert.Contains("libvlccore.dll", project);
+        Assert.DoesNotContain("codec\\libavcodec_plugin.dll", project);
+        Assert.DoesNotContain("codec\\libd3d11va_plugin.dll", project);
+        Assert.DoesNotContain("codec\\libdxva2_plugin.dll", project);
+        Assert.DoesNotContain("demux\\libmkv_plugin.dll", project);
+        Assert.DoesNotContain("demux\\libmp4_plugin.dll", project);
+        Assert.DoesNotContain("video_output\\libdirect3d11_plugin.dll", project);
+        Assert.DoesNotContain("audio_output\\libwasapi_plugin.dll", project);
+        Assert.DoesNotContain("LibVlcX64Hrtf", project);
+        Assert.DoesNotContain("plugins\\video_filter\\**\\*", project);
+        Assert.DoesNotContain("plugins\\text_renderer\\**\\*", project);
+        Assert.DoesNotContain("plugins\\codec\\libaom_plugin.dll", project);
+        Assert.DoesNotContain("plugins\\codec\\libvpx_plugin.dll", project);
+        Assert.DoesNotContain("plugins\\codec\\liblibass_plugin.dll", project);
+        Assert.DoesNotContain("plugins\\demux\\libadaptive_plugin.dll", project);
+        Assert.DoesNotContain("StartsWith('misc\\')", project);
+    }
+
+    [Theory]
+    [InlineData("plugins\\access_output\\**\\*")]
+    [InlineData("plugins\\mux\\**\\*")]
+    [InlineData("plugins\\services_discovery\\**\\*")]
+    [InlineData("plugins\\stream_out\\**\\*")]
+    [InlineData("plugins\\visualization\\**\\*")]
+    [InlineData("plugins\\lua\\**\\*")]
+    public void Publish_ExcludesUnusedPlaybackPlugins(string excludedPattern)
+    {
+        string project = ReadProject();
+
+        Assert.Contains(excludedPattern, project);
     }
 
     private static string ReadProject() => File.ReadAllText(
