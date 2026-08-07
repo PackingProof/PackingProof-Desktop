@@ -126,6 +126,25 @@ public sealed class DeploymentPresetTests
         Assert.Equal(AppConfig.CurrentRecordingSetupVersion, config.RecordingSetupVersion);
     }
 
+    [Fact]
+    public void ResetDeploymentSetupForRetryMakesDeploymentSetupRequiredAgain()
+    {
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingHost,
+            DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion,
+            DeploymentSetupVersion = AppConfig.CurrentDeploymentSetupVersion,
+            FirstUseWizardCompleted = true
+        };
+
+        AppConfig.ResetDeploymentSetupForRetry(config);
+
+        Assert.Equal(0, config.DeploymentSetupVersion);
+        Assert.True(AppConfig.ShouldRunDeploymentSetup(config));
+        Assert.Equal(DeploymentPresets.RecordingHost, config.DeploymentPreset);
+        Assert.True(config.FirstUseWizardCompleted);
+    }
+
     [Theory]
     [InlineData(0, false)]
     [InlineData(0, true)]

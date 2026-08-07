@@ -787,6 +787,12 @@ namespace ExpressPackingMonitoring.Config
             config.FirstUseWizardCompleted = true;
         }
 
+        internal static void ResetDeploymentSetupForRetry(AppConfig config)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            config.DeploymentSetupVersion = 0;
+        }
+
         internal static bool ShouldPromptCameraBarcodeUpgrade(AppConfig config)
         {
             return config != null

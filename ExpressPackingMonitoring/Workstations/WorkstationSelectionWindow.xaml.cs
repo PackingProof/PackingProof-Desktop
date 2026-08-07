@@ -13,16 +13,18 @@ internal sealed record WorkstationPurposeSummary(
 public partial class WorkstationSelectionWindow : Window
 {
     private readonly string _currentPreset;
+    private readonly bool _confirmCurrentPreset;
     private bool? _recordOnThisComputer;
     private bool? _useAsStorageHost;
 
     public string? SelectedPreset { get; private set; }
 
-    public WorkstationSelectionWindow(string? currentPreset = null)
+    public WorkstationSelectionWindow(string? currentPreset = null, bool confirmCurrentPreset = false)
     {
         _currentPreset = DeploymentPresets.IsKnown(currentPreset)
             ? DeploymentPresets.Normalize(currentPreset)
             : "";
+        _confirmCurrentPreset = confirmCurrentPreset;
 
         InitializeComponent();
         RestoreCurrentAnswers();
@@ -110,7 +112,14 @@ public partial class WorkstationSelectionWindow : Window
             _useAsStorageHost.Value);
         if (string.Equals(selected, _currentPreset, StringComparison.OrdinalIgnoreCase))
         {
-            DialogResult = false;
+            if (!_confirmCurrentPreset)
+            {
+                DialogResult = false;
+                return;
+            }
+
+            SelectedPreset = selected;
+            DialogResult = true;
             return;
         }
 

@@ -1218,6 +1218,17 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void FailedRecordingWizardReturnsToPurposeSelection()
+    {
+        string appSource = ReadRepositoryFile("ExpressPackingMonitoring", "App.xaml.cs");
+
+        Assert.Contains("confirmCurrentPreset: true", appSource, StringComparison.Ordinal);
+        Assert.Contains("AppConfig.ResetDeploymentSetupForRetry(config)", appSource, StringComparison.Ordinal);
+        Assert.Contains("requiresDeploymentSetup = true;", appSource, StringComparison.Ordinal);
+        Assert.Contains("continue;", appSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FirstUseWizardUsesDedicatedAdvisoryRecordingPerformanceStep()
     {
         string wizard = ReadRepositoryFile(

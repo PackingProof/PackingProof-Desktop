@@ -97,81 +97,96 @@ namespace ExpressPackingMonitoring
 
             string startupPreset = config.DeploymentPreset;
             bool requiresDeploymentSetup = forceChoose || AppConfig.ShouldRunDeploymentSetup(config);
-            if (!DeploymentPresets.IsKnown(startupPreset) || requiresDeploymentSetup)
+            while (true)
             {
-                var selector = new WorkstationSelectionWindow();
-                if (selector.ShowDialog() != true || string.IsNullOrWhiteSpace(selector.SelectedPreset))
+                if (!DeploymentPresets.IsKnown(startupPreset) || requiresDeploymentSetup)
                 {
-                    RuntimeLog.RecordShutdownRequest("DeploymentSelectionCancelled");
+                    var selector = new WorkstationSelectionWindow(startupPreset, confirmCurrentPreset: true);
+                    if (selector.ShowDialog() != true || string.IsNullOrWhiteSpace(selector.SelectedPreset))
+                    {
+                        RuntimeLog.RecordShutdownRequest("DeploymentSelectionCancelled");
+                        Shutdown(0);
+                        return;
+                    }
+
+                    AppConfig draft = JsonSerializer.Deserialize<AppConfig>(
+                        JsonSerializer.Serialize(config)) ?? new AppConfig();
+                    draft.DeploymentPreset = selector.SelectedPreset;
+                    if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                    {
+                        draft.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
+                        RecordingWorkstationCachePolicy.ConfigureInitialLocation(
+                            draft,
+                            preserveExistingLocation: config.FirstUseWizardCompleted);
+                    }
+                    draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
+                    draft.EnableWebServer = DeploymentCapabilities
+                        .ForPreset(selector.SelectedPreset)
+                        .CanRunWebServer;
+                    draft.WorkstationRole = selector.SelectedPreset switch
+                    {
+                        DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
+                        DeploymentPresets.MobileBackupHost => WorkstationRoles.PrintStation,
+                        _ => ""
+                    };
+
+                    AppConfig.NormalizeAfterLoad(draft);
+                    config = draft;
+                    startupPreset = draft.DeploymentPreset;
+                    requiresDeploymentSetup = false;
+                }
+
+                if (!DeploymentPresets.IsKnown(startupPreset))
+                {
+                    RuntimeLog.RecordShutdownRequest("InvalidDeploymentPreset", startupPreset);
                     Shutdown(0);
                     return;
                 }
 
-                AppConfig draft = JsonSerializer.Deserialize<AppConfig>(
-                    JsonSerializer.Serialize(config)) ?? new AppConfig();
-                draft.DeploymentPreset = selector.SelectedPreset;
-                if (selector.SelectedPreset == DeploymentPresets.RecordingWorkstation)
+                if ((string.Equals(
+                         startupPreset,
+                         DeploymentPresets.RecordingHost,
+                         StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(
+                         startupPreset,
+                         DeploymentPresets.RecordingWorkstation,
+                         StringComparison.OrdinalIgnoreCase))
+                    && AppConfig.ShouldRunRecordingSetup(config))
                 {
-                    draft.RecordingWorkstationActivatedAtUtc = DateTime.UtcNow;
-                    RecordingWorkstationCachePolicy.ConfigureInitialLocation(
-                        draft,
-                        preserveExistingLocation: config.FirstUseWizardCompleted);
-                }
-                draft.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
-                draft.EnableWebServer = DeploymentCapabilities
-                    .ForPreset(selector.SelectedPreset)
-                    .CanRunWebServer;
-                draft.WorkstationRole = selector.SelectedPreset switch
-                {
-                    DeploymentPresets.RecordingHost => WorkstationRoles.CameraMonitor,
-                    DeploymentPresets.MobileBackupHost => WorkstationRoles.PrintStation,
-                    _ => ""
-                };
+                    if (!FirstUseSetupWizardWindow.TryConfigureRecordingHost(
+                            config,
+                            owner: null,
+                            out AppConfig configuredRecordingHost))
+                    {
+                        RuntimeLog.RecordShutdownRequest("RecordingHostSetupCancelled");
+                        AppConfig.ResetDeploymentSetupForRetry(config);
+                        if (!WorkstationConfigStore.TryUpdate(
+                                current => { current.DeploymentSetupVersion = 0; },
+                                out _,
+                                out string resetError))
+                        {
+                            RuntimeLog.Warn("Setup", $"重置部署设置版本失败：{resetError}");
+                        }
 
-                AppConfig.NormalizeAfterLoad(draft);
-                config = draft;
-                startupPreset = draft.DeploymentPreset;
-            }
+                        requiresDeploymentSetup = true;
+                        continue;
+                    }
 
-            if (!DeploymentPresets.IsKnown(startupPreset))
-            {
-                RuntimeLog.RecordShutdownRequest("InvalidDeploymentPreset", startupPreset);
-                Shutdown(0);
-                return;
-            }
+                    if (!WorkstationConfigStore.TrySave(configuredRecordingHost, out string saveError))
+                    {
+                        AppDialog.ShowMessage(
+                            null,
+                            $"配置保存失败，程序无法安全启动。\n\n{saveError}",
+                            "启动失败",
+                            AppDialogSeverity.Error);
+                        Shutdown(1);
+                        return;
+                    }
 
-            if ((string.Equals(
-                     startupPreset,
-                     DeploymentPresets.RecordingHost,
-                     StringComparison.OrdinalIgnoreCase)
-                 || string.Equals(
-                     startupPreset,
-                     DeploymentPresets.RecordingWorkstation,
-                     StringComparison.OrdinalIgnoreCase))
-                && AppConfig.ShouldRunRecordingSetup(config))
-            {
-                if (!FirstUseSetupWizardWindow.TryConfigureRecordingHost(
-                        config,
-                        owner: null,
-                        out AppConfig configuredRecordingHost))
-                {
-                    RuntimeLog.RecordShutdownRequest("RecordingHostSetupCancelled");
-                    Shutdown(0);
-                    return;
+                    config = configuredRecordingHost;
                 }
 
-                if (!WorkstationConfigStore.TrySave(configuredRecordingHost, out string saveError))
-                {
-                    AppDialog.ShowMessage(
-                        null,
-                        $"配置保存失败，程序无法安全启动。\n\n{saveError}",
-                        "启动失败",
-                        AppDialogSeverity.Error);
-                    Shutdown(1);
-                    return;
-                }
-
-                config = configuredRecordingHost;
+                break;
             }
 
             AutoStartService.Apply(config.AutoStartOnBoot);
