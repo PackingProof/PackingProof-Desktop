@@ -24,6 +24,7 @@ namespace ExpressPackingMonitoring
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            WinRtPlacementService.Apply();
             base.OnStartup(e);
             if (!WorkstationNetwork.WaitForRestartParentExit(e.Args, 15000, out string restartWaitError))
             {
