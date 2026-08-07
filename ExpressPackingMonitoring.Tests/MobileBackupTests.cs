@@ -567,6 +567,7 @@ public sealed class MobileBackupTests
             };
             MobileBackupCompleteResult completed = service.Complete(fileSha, completeRequest);
             MobileBackupCompleteResult repeated = service.Complete(fileSha, completeRequest);
+            DateTime localStart = completeRequest.StartedAt.ToLocalTime().DateTime;
 
             Assert.Equal("verified", completed.Status);
             Assert.False(completed.AlreadyCompleted);
@@ -589,8 +590,8 @@ public sealed class MobileBackupTests
                     "recordings",
                     "手机备份",
                     "打包手机-PHONE1",
-                    "2026-07-19",
-                    "TRACK-001_20260719_100000_退货.mp4"),
+                    localStart.ToString("yyyy-MM-dd"),
+                    $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_退货.mp4"),
                 record.FilePath);
         }
         finally
@@ -756,14 +757,18 @@ public sealed class MobileBackupTests
         {
             byte[] file = Encoding.UTF8.GetBytes("new mobile video");
             string sha = Sha256(file);
+            DateTime localStart = CompleteRequest(sha, "collision-session", "TRACK-001", "phone-1", "手机")
+                .StartedAt.ToLocalTime().DateTime;
             string dateDirectory = Path.Combine(
                 directory,
                 "recordings",
                 "手机备份",
                 "手机-PHONE1",
-                "2026-07-19");
+                localStart.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dateDirectory);
-            File.WriteAllText(Path.Combine(dateDirectory, "TRACK-001_20260719_100000_发货.mp4"), "existing video");
+            File.WriteAllText(
+                Path.Combine(dateDirectory, $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_发货.mp4"),
+                "existing video");
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
             var service = CreateService(database, directory);
             service.CreateOrResume(CreateRequest(sha, file.Length));
@@ -774,7 +779,7 @@ public sealed class MobileBackupTests
                 CompleteRequest(sha, "collision-session", "TRACK-001", "phone-1", "手机"));
 
             Assert.Equal(
-                $"TRACK-001_20260719_100000_发货_{sha[..8]}.mp4",
+                $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_发货_{sha[..8]}.mp4",
                 Path.GetFileName(database.GetVideoById(completed.RecordId).FilePath));
         }
         finally

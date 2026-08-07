@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Input;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
@@ -11,6 +12,11 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ConfigurationAndScannerTests
 {
+    public ConfigurationAndScannerTests()
+    {
+        AppLanguage.Initialize(AppLanguage.Chinese);
+    }
+
     [Fact]
     public void EnsureAppRootDirectory_PersistsNormalizedRuntimeDirectory()
     {
