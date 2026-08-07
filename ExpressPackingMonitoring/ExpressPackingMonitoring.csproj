@@ -100,6 +100,7 @@
     <Compile Include="Audio\AudioProbe.cs" />
     <Compile Include="Audio\DefaultSpeechCatalog.cs" />
     <Compile Include="Audio\SpeechService.cs" />
+    <Compile Include="Audio\WindowsTtsFallback.cs" />
     <Compile Include="Config\AppConfig.cs" />
     <Compile Include="Config\AppPaths.cs" />
     <Compile Include="Config\AppVersion.cs" />

@@ -28,7 +28,6 @@ using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
 using System.Drawing;
 using System.Drawing.Imaging;
-using Windows.Media.SpeechSynthesis;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 

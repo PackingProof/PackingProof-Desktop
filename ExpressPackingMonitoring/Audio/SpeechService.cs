@@ -14,7 +14,6 @@ using System.Threading;
 using EdgeTTS;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-using Windows.Media.SpeechSynthesis;
 using SherpaOnnx;
 
 namespace ExpressPackingMonitoring.Audio
@@ -37,8 +36,7 @@ namespace ExpressPackingMonitoring.Audio
     public class SpeechService : IDisposable
     {
         private static readonly TimeSpan EdgeTtsTimeout = TimeSpan.FromSeconds(20);
-        private SpeechSynthesizer? _ttsNormal;
-        private SpeechSynthesizer? _ttsWarning;
+        private WindowsTtsFallback? _windowsTts;
         private OfflineTts? _kokoroTts;
         private readonly object _kokoroLock = new();
         private BlockingCollection<SpeechRequest> _speechQueue = null!;
@@ -158,31 +156,26 @@ namespace ExpressPackingMonitoring.Audio
             _speechThread = new Thread(SpeechThreadLoop) { IsBackground = true, Name = "SpeechThread" };
             _speechThread.Start();
 
+            // Windows 7 及更早系统没有 WinRT：只要加载 WinRT 运行时，模块析构时
+            // 就会因缺少 api-ms-win-core-com-l1-1-0.dll 导致进程崩溃。
+            // WindowsTtsFallback 的初始化方法在 Win7 上不会被调用，
+            // 因此 WinRT 程序集不会被加载。
+            if (OperatingSystem.IsWindowsVersionAtLeast(6, 2))
+            {
+                TryInitWindowsTts();
+            }
+        }
+
+        private void TryInitWindowsTts()
+        {
             try
             {
-                // Windows 7 及更早系统没有 WinRT，初始化 Windows.Media.SpeechSynthesis
-                // 会在 WinRT 模块析构时因缺少 api-ms-win-core-com-l1-1-0.dll 导致进程崩溃。
-                if (OperatingSystem.IsWindowsVersionAtLeast(6, 2))
-                {
-                    var voices = SpeechSynthesizer.AllVoices;
-                    var femaleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Female && v.Language == "zh-CN");
-                    var maleZh = voices.FirstOrDefault(v => v != null && v.Gender == VoiceGender.Male && v.Language == "zh-CN");
-                    var anyZh = femaleZh ?? maleZh ?? voices.FirstOrDefault(v => v != null && v.Language.StartsWith("zh"));
-
-                    _ttsNormal = new SpeechSynthesizer();
-                    if (femaleZh != null) _ttsNormal.Voice = femaleZh;
-                    else if (anyZh != null) _ttsNormal.Voice = anyZh;
-
-                    _ttsWarning = new SpeechSynthesizer();
-                    if (maleZh != null) _ttsWarning.Voice = maleZh;
-                    else if (anyZh != null) _ttsWarning.Voice = anyZh;
-                }
+                _windowsTts = new WindowsTtsFallback();
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[SpeechService] Init failed: {ex.Message}");
-                _ttsNormal = null;
-                _ttsWarning = null;
+                Debug.WriteLine($"[SpeechService] Windows TTS init failed: {ex.Message}");
+                _windowsTts = null;
             }
         }
 
@@ -387,18 +380,12 @@ namespace ExpressPackingMonitoring.Audio
 
         private bool SpeakWithWindowsTts(string text, bool isWarning)
         {
-            var synth = isWarning ? _ttsWarning : _ttsNormal;
-            if (synth == null) return true;
-
-            var result = synth.SynthesizeTextToStreamAsync(text).AsTask().GetAwaiter().GetResult();
-            using var ms = new MemoryStream();
-            result.AsStreamForRead().CopyTo(ms);
-            var wavData = ms.ToArray();
-
-            if (wavData.Length < 44) return true;
-            if (_speechCancelRequested || _isDisposed) return true;
-
-            PlayWavBlocking(wavData);
+            if (_windowsTts == null) return true;
+            if (_windowsTts.TrySynthesize(text, isWarning, out byte[] wavData))
+            {
+                if (_speechCancelRequested || _isDisposed) return true;
+                PlayWavBlocking(wavData);
+            }
             return true;
         }
 
@@ -1529,10 +1516,8 @@ namespace ExpressPackingMonitoring.Audio
         {
             if (Interlocked.Exchange(ref _resourceCleanupStarted, 1) != 0) return;
 
-            _ttsNormal?.Dispose();
-            _ttsNormal = null;
-            _ttsWarning?.Dispose();
-            _ttsWarning = null;
+            _windowsTts?.Dispose();
+            _windowsTts = null;
             lock (_kokoroLock) { _kokoroTts?.Dispose(); _kokoroTts = null; }
             _speechQueue?.Dispose();
             _preGenQueue?.Dispose();
