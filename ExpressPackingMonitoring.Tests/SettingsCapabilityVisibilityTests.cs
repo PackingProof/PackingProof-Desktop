@@ -44,6 +44,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [Theory]
     [InlineData("摄像头", "Capabilities.CanUseCamera")]
     [InlineData("麦克风", "Capabilities.CanRecordAudio")]
+    [InlineData("录制声音", "Capabilities.CanRecordAudio")]
     [InlineData("视频编码格式", "Capabilities.CanRecordPcVideo")]
     [InlineData("启用录像水印", "Capabilities.CanRecordPcVideo")]
     [InlineData("配置向导", "Capabilities.CanUseCamera")]
@@ -59,6 +60,21 @@ public sealed class SettingsCapabilityVisibilityTests
                 .Select(element => (string?)element.Attribute("Visibility"))
                 .Where(value => value != null),
             value => value!.Contains(capability, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RecordingSoundToggleAppearsAboveMicrophoneInDeviceTab()
+    {
+        XElement tab = Assert.Single(
+            LoadSettingsXaml().Descendants(Presentation + "TabItem"),
+            element => (string?)element.Attribute("Header") == "设备与画面");
+
+        string?[] labels = tab.Descendants(Presentation + "TextBlock")
+            .Select(element => (string?)element.Attribute("Text"))
+            .Where(text => text == "录制声音" || text == "麦克风")
+            .ToArray();
+
+        Assert.Equal(new string?[] { "录制声音", "麦克风" }, labels);
     }
 
     [Theory]

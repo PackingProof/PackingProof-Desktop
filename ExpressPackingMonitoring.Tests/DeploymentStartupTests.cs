@@ -1212,7 +1212,9 @@ public sealed class DeploymentStartupTests
         Assert.Contains("AppConfig.ShouldRunRecordingSetup(config)", appSource, StringComparison.Ordinal);
         Assert.Contains("SkipButton.Visibility = allowSkip", wizardSource, StringComparison.Ordinal);
         Assert.Contains("录制主机必须先选择可用摄像头", wizardSource, StringComparison.Ordinal);
-        Assert.Contains("录制主机必须先选择可用麦克风", wizardSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("录制主机必须先选择可用麦克风", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("_config.EnableAudioRecording = true;", wizardSource, StringComparison.Ordinal);
+        Assert.Contains("_config.AudioDeviceName = \"\";", wizardSource, StringComparison.Ordinal);
     }
 
     [Fact]

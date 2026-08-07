@@ -1161,6 +1161,26 @@
                                                   AutomationProperties.Name="画面旋转 180 度"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="录制声音" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="需要保留现场声音时开启"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="AudioRecordCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableAudioRecording}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowLastStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, TargetNullValue=False}"
                                           Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">
@@ -3028,25 +3048,6 @@
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Left"
                                                 Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="录制声音" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="需要保留现场声音时开启"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="AudioRecordCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableAudioRecording}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"

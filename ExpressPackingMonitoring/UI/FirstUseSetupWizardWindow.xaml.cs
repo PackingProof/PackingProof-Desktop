@@ -379,13 +379,6 @@ public partial class FirstUseSetupWizardWindow : Window
                 ShowStep(1);
                 return;
             }
-            if (MicComboBox.SelectedItem is not MicInfo selectedMic || !IsAvailableMic(selectedMic))
-            {
-                AppDialog.ShowMessage(this, "录制主机必须先选择可用麦克风", "麦克风尚未配置",
-                    AppDialogSeverity.Information);
-                ShowStep(4);
-                return;
-            }
             ApplySelections();
             WasSkipped = false;
             DialogResult = true;
@@ -1388,6 +1381,17 @@ public partial class FirstUseSetupWizardWindow : Window
         _config.EnableAudioRecording = true;
         ApplyScannerModeFromTest();
 
+        if (MicComboBox.SelectedItem is MicInfo mic && IsAvailableMic(mic))
+        {
+            _config.AudioDeviceName = mic.Name;
+            _config.AudioDeviceMoniker = mic.Moniker ?? "";
+        }
+        else
+        {
+            _config.AudioDeviceName = "";
+            _config.AudioDeviceMoniker = "";
+        }
+
         if (IsNetworkCameraSelected)
         {
             if (NetworkCameraUrlPolicy.TryNormalize(NetworkCameraUrlTextBox.Text, out string networkUrl, out _))
@@ -1414,12 +1418,6 @@ public partial class FirstUseSetupWizardWindow : Window
             _config.CameraSourceKind = "usb";
             _config.CameraIndex = camera.Index;
             _config.CameraMonikerString = camera.Moniker;
-        }
-
-        if (MicComboBox.SelectedItem is MicInfo mic && IsAvailableMic(mic))
-        {
-            _config.AudioDeviceName = mic.Name;
-            _config.AudioDeviceMoniker = mic.Moniker ?? "";
         }
 
         if (!string.IsNullOrEmpty(_config.CameraMonikerString))
