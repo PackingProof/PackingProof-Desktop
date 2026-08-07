@@ -30,6 +30,31 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      - name: 选择大空间临时目录
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tempRoot = $null
+          foreach ($drive in @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 32GB } | Sort-Object Free -Descending)) {
+            $candidate = Join-Path $drive.Root "_epm_ci_tmp"
+            try {
+              New-Item -ItemType Directory -Force -Path $candidate | Out-Null
+              $tempRoot = $candidate
+              break
+            } catch { }
+          }
+          if (-not $tempRoot) {
+            $tempRoot = Join-Path $env:RUNNER_TEMP "epm_ci_tmp"
+            New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+          }
+          "TMP=$tempRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TEMP=$tempRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "CI temp root: $tempRoot"
+
+      - name: 准备钉死的 FFmpeg 依赖
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\Prepare-PinnedFFmpeg.ps1
+
       - name: 还原依赖
         run: dotnet restore ExpressPackingMonitoring.sln --nologo
 

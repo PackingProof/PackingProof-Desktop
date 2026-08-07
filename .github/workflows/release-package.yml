@@ -64,6 +64,31 @@ jobs:
             throw "patch_baseline_version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$baseline"
           }
 
+      - name: 选择大空间临时目录
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tempRoot = $null
+          foreach ($drive in @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 32GB } | Sort-Object Free -Descending)) {
+            $candidate = Join-Path $drive.Root "_epm_ci_tmp"
+            try {
+              New-Item -ItemType Directory -Force -Path $candidate | Out-Null
+              $tempRoot = $candidate
+              break
+            } catch { }
+          }
+          if (-not $tempRoot) {
+            $tempRoot = Join-Path $env:RUNNER_TEMP "epm_ci_tmp"
+            New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+          }
+          "TMP=$tempRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TEMP=$tempRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "CI temp root: $tempRoot"
+
+      - name: 准备钉死的 FFmpeg 依赖
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\Prepare-PinnedFFmpeg.ps1
+
       - name: 运行发布自动验收（Release 构建、全量测试、WPF 启停、Web 端到端）
         shell: pwsh
         run: pwsh -NoProfile -File Tools\Test-Release-Automated.ps1 -Configuration Release
