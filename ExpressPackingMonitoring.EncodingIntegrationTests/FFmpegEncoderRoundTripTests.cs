@@ -214,6 +214,7 @@ public sealed class FFmpegEncoderRoundTripTests
 
         string[] unsupportedMarkers =
         [
+            "Unknown encoder",
             "AMF_NOT_SUPPORTED",
             "not supported by the hardware",
             "unsupported (-3)",

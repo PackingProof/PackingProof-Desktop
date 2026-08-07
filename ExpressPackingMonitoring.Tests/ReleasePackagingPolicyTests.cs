@@ -167,7 +167,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Packaging_UsesPinnedVerifiedFfmpegEssentialsDependency()
+    public void Packaging_UsesPinnedVerifiedFfmpegDependency()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publishScript = File.ReadAllText(
@@ -187,9 +187,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Assert-FFmpegExecutable", commonScript);
         Assert.Contains("unsafe path", commonScript);
         Assert.Contains("trying next source", commonScript);
-        Assert.Contains("ffmpeg-8.0.1-essentials_build.7z", manifest);
-        Assert.Contains("GyanD/codexffmpeg/releases/download/8.0.1", manifest);
-        Assert.Contains("5af82a0d4fe2b9eae211b967332ea97edfc51c6b328ca35b827e73eac560dc0d", manifest);
+        Assert.Contains("ffmpeg-4.4.1-full_build.7z", manifest);
+        Assert.Contains("GyanD/codexffmpeg/releases/download/4.4.1", manifest);
+        Assert.Contains("78c5b75623a0ac03c0fb9b047474685127f453bc6cef00b9af7d80e9eaf50c96", manifest);
     }
 
     [Fact]
