@@ -36,7 +36,6 @@ namespace ExpressPackingMonitoring.Audio
     public class SpeechService : IDisposable
     {
         private static readonly TimeSpan EdgeTtsTimeout = TimeSpan.FromSeconds(20);
-        private WindowsTtsFallback? _windowsTts;
         private OfflineTts? _kokoroTts;
         private readonly object _kokoroLock = new();
         private BlockingCollection<SpeechRequest> _speechQueue = null!;
@@ -155,28 +154,6 @@ namespace ExpressPackingMonitoring.Audio
             _speechQueue = new BlockingCollection<SpeechRequest>();
             _speechThread = new Thread(SpeechThreadLoop) { IsBackground = true, Name = "SpeechThread" };
             _speechThread.Start();
-
-            // Windows 7 及更早系统没有 WinRT：只要加载 WinRT 运行时，模块析构时
-            // 就会因缺少 api-ms-win-core-com-l1-1-0.dll 导致进程崩溃。
-            // WindowsTtsFallback 的初始化方法在 Win7 上不会被调用，
-            // 因此 WinRT 程序集不会被加载。
-            if (OperatingSystem.IsWindowsVersionAtLeast(6, 2))
-            {
-                TryInitWindowsTts();
-            }
-        }
-
-        private void TryInitWindowsTts()
-        {
-            try
-            {
-                _windowsTts = new WindowsTtsFallback();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[SpeechService] Windows TTS init failed: {ex.Message}");
-                _windowsTts = null;
-            }
         }
 
         /// <summary>
@@ -380,12 +357,8 @@ namespace ExpressPackingMonitoring.Audio
 
         private bool SpeakWithWindowsTts(string text, bool isWarning)
         {
-            if (_windowsTts == null) return true;
-            if (_windowsTts.TrySynthesize(text, isWarning, out byte[] wavData))
-            {
-                if (_speechCancelRequested || _isDisposed) return true;
-                PlayWavBlocking(wavData);
-            }
+            // Windows 系统语音依赖 WinRT，在 Windows 7 上加载 WinRT 会崩溃，
+            // 因此已移除该系统语音回退；语音统一走 Edge TTS / Kokoro。
             return true;
         }
 
@@ -1516,8 +1489,6 @@ namespace ExpressPackingMonitoring.Audio
         {
             if (Interlocked.Exchange(ref _resourceCleanupStarted, 1) != 0) return;
 
-            _windowsTts?.Dispose();
-            _windowsTts = null;
             lock (_kokoroLock) { _kokoroTts?.Dispose(); _kokoroTts = null; }
             _speechQueue?.Dispose();
             _preGenQueue?.Dispose();

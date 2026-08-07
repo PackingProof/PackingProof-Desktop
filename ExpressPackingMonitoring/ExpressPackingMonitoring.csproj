@@ -62,10 +62,9 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.34" />
     <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Extended.Wpf.Toolkit" Version="5.0.0" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.9.4" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240627000" ExcludeAssets="build;buildTransitive" PrivateAssets="all" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.10.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260226" />
     <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.13.0.20260226" />
@@ -100,7 +99,6 @@
     <Compile Include="Audio\AudioProbe.cs" />
     <Compile Include="Audio\DefaultSpeechCatalog.cs" />
     <Compile Include="Audio\SpeechService.cs" />
-    <Compile Include="Audio\WindowsTtsFallback.cs" />
     <Compile Include="Config\AppConfig.cs" />
     <Compile Include="Config\AppPaths.cs" />
     <Compile Include="Config\AppVersion.cs" />
