@@ -94,7 +94,8 @@ if ($hasIntel) {
     Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_qsv"
 }
 
-Write-Host "Physical video controllers: $(@($adapters.Name) -join '; ')"
+$adapterNames = @($adapters | ForEach-Object { $_.Name })
+Write-Host "Physical video controllers: $($adapterNames -join '; ')"
 Write-Host "Required encoder round trips: $($requiredEncoders -join ', ')"
 Write-Host "Hardware-conditional AV1 round trips: $($optionalEncoders -join ', ')"
 
