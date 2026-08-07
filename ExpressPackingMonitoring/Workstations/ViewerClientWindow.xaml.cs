@@ -74,6 +74,8 @@ public partial class ViewerClientWindow : Window
         Loaded += ViewerClientWindow_Loaded;
         Closed += (_, _) =>
         {
+            if (!_deploymentSetupPersisted)
+                PersistPurposeWithoutCompletion();
             _onlineTimer.Stop();
             _searchCancellation?.Cancel();
             _searchCancellation?.Dispose();
@@ -81,6 +83,29 @@ public partial class ViewerClientWindow : Window
             _qrScanCancellation?.Dispose();
             CloseManualConnectionWindow();
         };
+    }
+
+    private void PersistPurposeWithoutCompletion()
+    {
+        try
+        {
+            WorkstationConfigStore.TryUpdate(
+                config =>
+                {
+                    config.DeploymentPreset = _deploymentPreset;
+                    config.DeploymentSchemaVersion = DeploymentPresets.CurrentSchemaVersion;
+                    config.WorkstationRole = _bindingOnly
+                        ? WorkstationRoles.CameraMonitor
+                        : "";
+                    config.EnableWebServer = false;
+                },
+                out _,
+                out _);
+        }
+        catch
+        {
+            // 保存失败不阻塞关闭；下次启动仍会回到用途选择
+        }
     }
 
     private async void ViewerClientWindow_Loaded(object sender, RoutedEventArgs e)
@@ -521,6 +546,8 @@ public partial class ViewerClientWindow : Window
             return;
         }
 
+        // 新用途已保存到磁盘，关闭窗口时不要再覆盖回当前查看器用途
+        _deploymentSetupPersisted = true;
         _config.DeploymentPreset = savedConfig.DeploymentPreset;
         _config.DeploymentSchemaVersion = savedConfig.DeploymentSchemaVersion;
         _config.WorkstationRole = savedConfig.WorkstationRole;

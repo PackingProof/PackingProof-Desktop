@@ -1441,6 +1441,29 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void ViewerClientSavesPurposeOnCloseWithoutCompletingSetup()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "ViewerClientWindow.xaml.cs");
+
+        Assert.Contains("PersistPurposeWithoutCompletion();", source, StringComparison.Ordinal);
+        int methodStart = source.IndexOf(
+            "private void PersistPurposeWithoutCompletion()",
+            StringComparison.Ordinal);
+        Assert.True(methodStart >= 0);
+
+        string method = source[methodStart..];
+        int nextMethod = method.IndexOf("private ", 1, StringComparison.Ordinal);
+        if (nextMethod > 0)
+            method = method[..nextMethod];
+
+        Assert.DoesNotContain("MarkDeploymentSetupCompleted", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeploymentSetupVersion", method, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SwitchingNonRecordingComputerToRecordingDefersSetupUntilRestart()
     {
         string viewerSource = ReadRepositoryFile(
