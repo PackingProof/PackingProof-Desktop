@@ -1,0 +1,161 @@
+name: 发布包构建（手动触发）
+
+"on":
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 发布版本，例如 v0.0.41 或 0.0.41
+        required: true
+        type: string
+      patch_baseline_version:
+        description: AppPatch 基线版本，默认 0.0.18
+        required: false
+        default: "0.0.18"
+        type: string
+      disable_patch:
+        description: 不生成 AppPatch 增量包
+        required: false
+        default: false
+        type: boolean
+      skip_tts_cache:
+        description: 跳过默认 Edge TTS 语音缓存生成
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-package-build
+  cancel-in-progress: false
+
+jobs:
+  build-release-package:
+    name: 自动化验收并生成发布包
+    runs-on: windows-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: 检出代码（含标签）
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 安装 .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 校验输入参数
+        env:
+          VERSION: ${{ inputs.version }}
+          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = "$env:VERSION".Trim()
+          $baseline = "$env:PATCH_BASELINE_VERSION".Trim()
+          if ($version -notmatch "^v?\d+\.\d+\.\d+$") {
+            throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$version"
+          }
+          if ($baseline -notmatch "^v?\d+\.\d+\.\d+$") {
+            throw "patch_baseline_version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$baseline"
+          }
+
+      - name: 运行发布自动验收（Release 构建、全量测试、WPF 启停、Web 端到端）
+        shell: pwsh
+        run: pwsh -NoProfile -File Tools\Test-Release-Automated.ps1 -Configuration Release
+
+      - name: 准备 AppPatch 基线
+        if: ${{ ! inputs.disable_patch }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $baseline = "$env:PATCH_BASELINE_VERSION".Trim().TrimStart("v")
+          $tag = "v$baseline"
+          $headers = @{
+            "User-Agent" = "PackingProof-CI"
+            Authorization = "Bearer $env:GH_TOKEN"
+          }
+          Write-Host "查询基线发布资产：$tag"
+          $release = Invoke-RestMethod `
+            -Uri "https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/tags/$tag" `
+            -Headers $headers
+          $zipAsset = @($release.assets | Where-Object {
+            $_.name -like "*.zip" -and
+            $_.name -notlike "*AppPatch*" -and
+            $_.name -notlike "*LauncherPatch*"
+          } | Sort-Object @{ Expression = {
+            if ($_.name -like "PackingProof+*") { 0 }
+            elseif ($_.name -like "ExpressPackingMonitoring+*") { 1 }
+            else { 2 }
+          } } | Select-Object -First 1)
+          if (-not $zipAsset) {
+            throw "未在 $tag 的 GitHub Release 中找到完整 ZIP 资产，无法生成 AppPatch；如确需跳过增量包请勾选 disable_patch"
+          }
+          $extractRoot = Join-Path $env:RUNNER_TEMP "apppatch-baseline"
+          $zipPath = Join-Path $env:RUNNER_TEMP $zipAsset.name
+          Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
+          Write-Host "下载基线完整包：$($zipAsset.name)（$([Math]::Round($zipAsset.size / 1MB, 1)) MiB）"
+          Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $zipPath -Headers $headers -MaximumRedirection 5
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
+          $appDir = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter "ExpressPackingMonitoring.dll" -Depth 4 -ErrorAction SilentlyContinue |
+            Where-Object { $_.DirectoryName.EndsWith("\app", [System.StringComparison]::OrdinalIgnoreCase) } |
+            Select-Object -First 1 -ExpandProperty DirectoryName
+          if (-not $appDir -or -not (Test-Path -LiteralPath (Join-Path $appDir "ExpressPackingMonitoring.exe"))) {
+            throw "基线完整包中未找到 app\ExpressPackingMonitoring.exe"
+          }
+          Write-Host "AppPatch 基线目录：$appDir"
+          "PATCH_BASELINE_APP_DIR=$appDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: 生成发布包（Setup、7z、ZIP、AppPatch、更新清单）
+        env:
+          VERSION: ${{ inputs.version }}
+          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $arguments = @(
+            "-NoProfile",
+            "-File",
+            "Tools\Publish-CleanPackage.ps1",
+            "-Configuration", "Release",
+            "-Version", "$env:VERSION",
+            "-PatchBaselineVersion", "$env:PATCH_BASELINE_VERSION"
+          )
+          if ("$env:PATCH_BASELINE_APP_DIR") {
+            $arguments += @("-BaselineAppDir", "$env:PATCH_BASELINE_APP_DIR")
+          }
+          if ("${{ inputs.disable_patch }}" -eq "true") {
+            $arguments += "-DisablePatch"
+          }
+          if ("${{ inputs.skip_tts_cache }}" -eq "true") {
+            $arguments += "-SkipTtsCacheGeneration"
+          }
+          & pwsh @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "Publish-CleanPackage.ps1 失败，退出码 $LASTEXITCODE"
+          }
+
+      - name: 上传发布工件
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-package-${{ inputs.version }}
+          path: package/PackingProof+${{ inputs.version }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: 输出工件清单与哈希
+        shell: pwsh
+        run: |
+          $root = "package\PackingProof+${{ inputs.version }}"
+          Get-ChildItem -LiteralPath $root -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host ("{0}  {1,12:N0} bytes  SHA256={2}" -f $_.Name, $_.Length, $hash)
+          }

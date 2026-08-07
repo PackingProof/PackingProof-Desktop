@@ -1,0 +1,43 @@
+name: CI
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: 构建与单元测试（Debug）
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 1
+
+      - name: 安装 .NET 8
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: 还原依赖
+        run: dotnet restore ExpressPackingMonitoring.sln --nologo
+
+      - name: 构建解决方案
+        run: dotnet build ExpressPackingMonitoring.sln -c Debug --no-restore --nologo
+
+      - name: 运行单元测试
+        run: dotnet test ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj -c Debug --no-build --no-restore --nologo
+
+      - name: 检查用户脚本语法
+        run: node --check "Scripts\快递助手订单推送.user.js"
