@@ -187,9 +187,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Assert-FFmpegExecutable", commonScript);
         Assert.Contains("unsafe path", commonScript);
         Assert.Contains("trying next source", commonScript);
-        Assert.Contains("ffmpeg-4.4.1-full_build.7z", manifest);
+        Assert.Contains("ffmpeg-4.4.1-essentials_build.7z", manifest);
         Assert.Contains("GyanD/codexffmpeg/releases/download/4.4.1", manifest);
         Assert.Contains("78c5b75623a0ac03c0fb9b047474685127f453bc6cef00b9af7d80e9eaf50c96", manifest);
+        Assert.Contains("8436760af8f81c95eff92d854a7684e6d3cedb872888420359fc45c8eb2664ac", manifest);
     }
 
     [Fact]

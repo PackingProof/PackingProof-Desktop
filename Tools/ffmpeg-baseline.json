@@ -2,13 +2,19 @@
   "schema_version": 1,
   "version": "4.4.1",
   "runtime": "win-x64",
-  "provider": "Gyan FFmpeg Full",
+  "provider": "Gyan FFmpeg Essentials",
   "app_patch_compatible_executables": [
     {
       "version": "4.4.1",
       "variant": "full_build",
       "size": 113721856,
       "sha256": "78c5b75623a0ac03c0fb9b047474685127f453bc6cef00b9af7d80e9eaf50c96"
+    },
+    {
+      "version": "4.4.1",
+      "variant": "essentials_build",
+      "size": 77399040,
+      "sha256": "8436760af8f81c95eff92d854a7684e6d3cedb872888420359fc45c8eb2664ac"
     },
     {
       "version": "7.1.1",
@@ -24,15 +30,15 @@
     }
   ],
   "package": {
-    "file": "ffmpeg-4.4.1-full_build.7z",
-    "size": 41613825,
-    "sha256": "016cac40110c1016f9e4a981a08b6c51b50c11cb1cbb794903e7d1ea879b6f9d",
-    "entry": "ffmpeg-4.4.1-full_build\\bin\\ffmpeg.exe",
-    "executable_size": 113721856,
-    "executable_sha256": "78c5b75623a0ac03c0fb9b047474685127f453bc6cef00b9af7d80e9eaf50c96",
+    "file": "ffmpeg-4.4.1-essentials_build.7z",
+    "size": 23812897,
+    "sha256": "064f6d9900139eec6d2ab9df7b005bdd97cc210711654c2712caf46ec85efec3",
+    "entry": "ffmpeg-4.4.1-essentials_build\\bin\\ffmpeg.exe",
+    "executable_size": 77399040,
+    "executable_sha256": "8436760af8f81c95eff92d854a7684e6d3cedb872888420359fc45c8eb2664ac",
     "urls": [
-      "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-4.4.1-full_build.7z",
-      "https://github.com/GyanD/codexffmpeg/releases/download/4.4.1/ffmpeg-4.4.1-full_build.7z"
+      "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-4.4.1-essentials_build.7z",
+      "https://github.com/GyanD/codexffmpeg/releases/download/4.4.1/ffmpeg-4.4.1-essentials_build.7z"
     ]
   }
 }
