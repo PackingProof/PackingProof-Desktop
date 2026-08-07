@@ -49,6 +49,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private VideoCaptureDevice _videoSource;
         private NetworkCameraSource _networkCameraSource;
+        private DateTime _networkCameraStartedAt = DateTime.MinValue;
         private Task _cameraForceStopTask;
         private Mat _latestFrame;
         private readonly object _frameLock = new object();
@@ -149,6 +150,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _consecutiveRestartFailures = 0;
         private const int MaxConsecutiveRestartFailures = 5;
         private const double MinRestartIntervalSeconds = 3.0;
+        // RTSP 网络源首帧可能因等待关键帧延迟数秒，宽限期内不判信号丢失。
+        private const double NetworkCameraConnectGraceSeconds = 20.0;
 
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
         private sealed class PrintedRefundScanCheck
@@ -3469,7 +3472,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     StartCamera();
                     _lastRestartAttempt = DateTime.Now;
 
-                    if (IsVideoSourceRunning())
+                    if (IsCameraStreamReady())
                     {
                         _consecutiveRestartFailures = 0;
                         RuntimeLog.Info("Camera", "Camera reconnected after stopping interrupted recording");
@@ -3503,7 +3506,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     StartCamera();
                     _lastRestartAttempt = DateTime.Now;
 
-                    if (IsVideoSourceRunning())
+                    if (IsCameraStreamReady())
                     {
                         _consecutiveRestartFailures = 0;
                         RuntimeLog.Info("Camera", "Camera reconnected while idle");
@@ -3819,6 +3822,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             _networkCameraSource = source;
+            _networkCameraStartedAt = DateTime.Now;
             _lastFrameTime = DateTime.Now;
             _lastPreviewPublishedAt = DateTime.Now;
             _cameraEverConnected = true;
@@ -4207,7 +4211,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         else if (IsVideoSourceRunning())
                         {
                             double noFrameSeconds = (DateTime.Now - _lastFrameTime).TotalSeconds;
-                            if (noFrameSeconds > 1.5)
+                            if (IsNetworkCameraGracePeriod())
+                            {
+                                // 网络源等待首个关键帧期间不判信号丢失。
+                            }
+                            else if (noFrameSeconds > 1.5)
                             {
                                 Debug.WriteLine($"[Camera] 信号丢失 {noFrameSeconds:F1}s，尝试重连 (失败次数={_consecutiveRestartFailures})");
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
@@ -4341,6 +4349,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
             if (!IsVideoSourceRunning() || !_cameraEverConnected) return;
             if (_lastFrameTime == DateTime.MinValue || _lastPreviewPublishedAt == DateTime.MinValue) return;
+            if (IsNetworkCameraGracePeriod()) return;
 
             DateTime now = DateTime.Now;
             TimeSpan sinceLastFrame = now - _lastFrameTime;
@@ -4553,6 +4562,20 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 return false;
             }
+        }
+
+        private bool IsCameraStreamReady()
+        {
+            var networkSource = _networkCameraSource;
+            if (networkSource != null)
+                return networkSource.ActualWidth > 0 && networkSource.ActualHeight > 0;
+            return IsVideoSourceRunning();
+        }
+
+        private bool IsNetworkCameraGracePeriod()
+        {
+            return _networkCameraSource != null
+                && (DateTime.Now - _networkCameraStartedAt).TotalSeconds < NetworkCameraConnectGraceSeconds;
         }
 
         private void TryPerformMotionDetection(Mat currentFrame)
