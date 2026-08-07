@@ -406,7 +406,7 @@ PackingProof_LauncherPatch_vX.Y.Z.zip
 * FFmpeg
 * Windows 10/11 x64
 
-FFmpeg 推荐使用 Essentials 版本。
+FFmpeg 正式发布包内置 4.4.1 Essentials（兼容 Win7 老显卡硬件编码）；选择 AV1 时会自动回退 H.265。高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe`，官方不保证支持。
 
 ```bash
 git clone https://github.com/PackingProof/PackingProof-Desktop.git

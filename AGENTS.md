@@ -32,6 +32,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - Release packages must not include `config.json`, `videos.db`, cache files, logs, recordings, or other local runtime data.
 - Runtime data is stored under `%LOCALAPPDATA%\ExpressPackingMonitoring\`, so normal upgrades keep user configuration and database records.
 - `ffmpeg.exe` may be resolved from `app\tools\ffmpeg.exe`, the application runtime directory, or the system `PATH`.
+- 正式发布基线固定为 FFmpeg 4.4.1 Essentials（兼容 Win7 老显卡 NVENC API 11.1）。AV1 硬件编码不作为产品能力，选择 AV1 时会自动回退 H.265；双 FFmpeg 基线方案（8.0.1 + 4.4.1）已评估但暂不实施。高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe` 获取新能力，官方不保证支持。
 - `Scripts/快递助手订单推送.user.js` is the browser userscript used for order push integration.
 - Edge TTS is the default online voice path. Kokoro local TTS models and runtime dependencies are optional and should not be bundled unless explicitly intended.
 - Full packages include the generated default Edge TTS cache. AppPatch packages must exclude TTS cache files.
