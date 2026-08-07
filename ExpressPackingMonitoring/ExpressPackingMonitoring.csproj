@@ -19,7 +19,7 @@
     <!-- 原生库保持可独立加载，优先保证 OpenCV/SQLite/LibVLC 等运行稳定性。 -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- 开发构建使用与发布一致的 FFmpeg 基线（Tools/ffmpeg-baseline.json），避免开发/发布能力漂移。 -->
-    <FFmpegBaselineVersion>8.0.1</FFmpegBaselineVersion>
+    <FFmpegBaselineVersion>4.4.1</FFmpegBaselineVersion>
     <FFmpegBaselineExecutable>..\package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
     <SatelliteResourceLanguages>en-US;zh-Hans</SatelliteResourceLanguages>
     <ApplicationIcon>app.ico</ApplicationIcon>
