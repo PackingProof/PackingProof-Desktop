@@ -63,7 +63,7 @@ public sealed class SettingsCapabilityVisibilityTests
     }
 
     [Fact]
-    public void RecordingSoundToggleAppearsAboveMicrophoneInDeviceTab()
+    public void RecordingSoundToggleAppearsBelowMicrophoneInDeviceTab()
     {
         XElement tab = Assert.Single(
             LoadSettingsXaml().Descendants(Presentation + "TabItem"),
@@ -74,7 +74,7 @@ public sealed class SettingsCapabilityVisibilityTests
             .Where(text => text == "录制声音" || text == "麦克风")
             .ToArray();
 
-        Assert.Equal(new string?[] { "录制声音", "麦克风" }, labels);
+        Assert.Equal(new string?[] { "麦克风", "录制声音" }, labels);
     }
 
     [Theory]
