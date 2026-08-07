@@ -52,8 +52,10 @@ internal sealed class NetworkCameraErrorEventArgs : EventArgs
 /// </summary>
 internal sealed class NetworkCameraSource : IDisposable
 {
-    private const int StreamInfoTimeoutMs = 10_000;
+    private const int StreamInfoTimeoutMs = 15_000;
     private const int DefaultFallbackFps = 15;
+    private const int MaxStderrLines = 40;
+    private const int MaxStderrDetailLength = 240;
     private static readonly ConcurrentDictionary<string, bool> FpsModeSupportCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _url;
@@ -61,6 +63,8 @@ internal sealed class NetworkCameraSource : IDisposable
     private readonly int _fallbackFps;
     private readonly string? _ffmpegPathOverride;
     private readonly object _lifecycleLock = new();
+    private readonly object _stderrLock = new();
+    private readonly List<string> _stderrLines = new(MaxStderrLines);
     private Process? _process;
     private Task? _frameReadTask;
     private TaskCompletionSource<bool>? _streamInfoReady;
@@ -116,42 +120,12 @@ internal sealed class NetworkCameraSource : IDisposable
             StopInternalLocked();
             _stopping = false;
             LastError = null;
+            _stderrLines.Clear();
             _streamInfoReady = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            string ffmpegPath = _ffmpegPathOverride ?? AppPaths.FindFFmpeg();
-            if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
-            {
-                LastError = "未找到 ffmpeg.exe，无法连接网络摄像头";
-                RuntimeLog.Warn("NetworkCamera", LastError);
-                return false;
-            }
-
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = BuildArguments(_url, _transport, SupportsFpsMode(ffmpegPath)),
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-
-            try
-            {
-                _process = Process.Start(startInfo);
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Error("NetworkCamera", $"Failed to start ffmpeg: {ex.Message}");
-                LastError = "无法启动 ffmpeg 解码进程";
-                return false;
-            }
-
+            _process = LaunchProcess(_transport);
             if (_process == null)
-            {
-                LastError = "无法启动 ffmpeg 解码进程";
                 return false;
-            }
 
             _frameReadTask = Task.Run(FrameReadLoop);
             return true;
@@ -304,14 +278,45 @@ internal sealed class NetworkCameraSource : IDisposable
 
     private async Task FrameReadLoop()
     {
-        Process? process = _process;
-        if (process == null)
-            return;
-
         try
         {
-            if (!await WaitForStreamInfoAsync(process))
+            string transport = _transport;
+            Process? process = _process;
+            if (process == null)
                 return;
+
+            bool streamReady = await WaitForStreamInfoAsync(process);
+            if (!streamReady && !_stopping && IsRtspUrl)
+            {
+                // 部分无线摄像头只支持 UDP 回传，TCP 拿不到流时自动换一次传输方式。
+                string fallbackTransport = transport == "tcp" ? "udp" : "tcp";
+                RuntimeLog.Warn(
+                    "NetworkCamera",
+                    $"RTSP stream info unavailable with {transport}, retrying with {fallbackTransport}");
+                KillProcess(process);
+                process = LaunchProcess(fallbackTransport);
+                if (process != null)
+                {
+                    _process = process;
+                    streamReady = await WaitForStreamInfoAsync(process);
+                }
+            }
+
+            if (!streamReady)
+            {
+                if (!_stopping)
+                    FailStreamInfo();
+                return;
+            }
+
+            if (process == null)
+            {
+                if (!_stopping)
+                    FailStreamInfo();
+                return;
+            }
+
+            _ = Task.Run(() => DrainStderrAsync(process));
 
             int frameSize = ActualWidth * ActualHeight * 3;
             byte[] buffer = new byte[frameSize];
@@ -341,28 +346,188 @@ internal sealed class NetworkCameraSource : IDisposable
 
     private async Task<bool> WaitForStreamInfoAsync(Process process)
     {
-        while (!_stopping && !process.HasExited)
+        try
         {
-            string? line = await process.StandardError.ReadLineAsync();
-            if (line == null)
-                break;
-
-            if (TryParseStreamInfo(line, out int width, out int height, out int fps))
+            while (!_stopping && !process.HasExited)
             {
-                ActualWidth = width;
-                ActualHeight = height;
-                ActualFps = fps > 0 ? fps : _fallbackFps;
-                NativeModes = [new NativeCameraMode(width, height, ActualFps)];
-                _streamInfoReady?.TrySetResult(true);
-                StreamInfoReady?.Invoke(this, new NetworkCameraStreamInfoEventArgs(width, height, ActualFps));
-                return true;
+                string? line = await process.StandardError.ReadLineAsync();
+                if (line == null)
+                    break;
+
+                RecordStderrLine(line);
+                if (TryParseStreamInfo(line, out int width, out int height, out int fps))
+                {
+                    ActualWidth = width;
+                    ActualHeight = height;
+                    ActualFps = fps > 0 ? fps : _fallbackFps;
+                    NativeModes = [new NativeCameraMode(width, height, ActualFps)];
+                    _streamInfoReady?.TrySetResult(true);
+                    StreamInfoReady?.Invoke(this, new NetworkCameraStreamInfoEventArgs(width, height, ActualFps));
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("NetworkCamera", $"Read ffmpeg stderr failed: {ex.Message}");
+        }
+
+        // 进程已退出或流结束：把剩余的 stderr 读完，用于定位真实原因。
+        try
+        {
+            while (!_stopping && await process.StandardError.ReadLineAsync() is { } tailLine)
+                RecordStderrLine(tailLine);
+        }
+        catch { }
+
+        return false;
+    }
+
+    private async Task DrainStderrAsync(Process process)
+    {
+        try
+        {
+            while (!_stopping)
+            {
+                string? line = await process.StandardError.ReadLineAsync();
+                if (line == null)
+                    break;
+                RecordStderrLine(line);
+            }
+        }
+        catch { }
+    }
+
+    private Process? LaunchProcess(string transport)
+    {
+        string ffmpegPath = _ffmpegPathOverride ?? AppPaths.FindFFmpeg();
+        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+        {
+            LastError = "未找到 ffmpeg.exe，无法连接网络摄像头";
+            RuntimeLog.Warn("NetworkCamera", LastError);
+            return null;
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = BuildArguments(_url, transport, SupportsFpsMode(ffmpegPath)),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        try
+        {
+            Process? process = Process.Start(startInfo);
+            if (process == null)
+                LastError = "无法启动 ffmpeg 解码进程";
+            return process;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Error("NetworkCamera", $"Failed to start ffmpeg: {ex.Message}");
+            LastError = "无法启动 ffmpeg 解码进程";
+            return null;
+        }
+    }
+
+    private bool IsRtspUrl =>
+        Uri.TryCreate(_url, UriKind.Absolute, out Uri? uri)
+        && string.Equals(uri.Scheme, "rtsp", StringComparison.OrdinalIgnoreCase);
+
+    private void FailStreamInfo()
+    {
+        string detail = BuildStderrError();
+        lock (_stderrLock)
+        {
+            if (_stderrLines.Count > 0)
+            {
+                string tail = string.Join(" | ", _stderrLines.TakeLast(5));
+                RuntimeLog.Warn("NetworkCamera", $"ffmpeg stderr tail: {tail}");
             }
         }
 
-        if (!_stopping)
-            RaiseError("无法获取网络摄像头画面信息，请检查地址和协议");
+        LastError = detail.Length > 0
+            ? $"无法获取网络摄像头画面信息：{detail}"
+            : "无法获取网络摄像头画面信息，请检查地址和协议";
         _streamInfoReady?.TrySetResult(false);
-        return false;
+        RaiseError(LastError);
+    }
+
+    private string BuildStderrError()
+    {
+        string[] lines;
+        lock (_stderrLock)
+            lines = _stderrLines.ToArray();
+
+        string? candidate = null;
+        for (int i = lines.Length - 1; i >= 0; i--)
+        {
+            string line = lines[i].Trim();
+            if (line.Length == 0)
+                continue;
+            candidate = line;
+            if (line.Contains("error", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("unauthorized", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("refused", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("permission", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("401", StringComparison.Ordinal)
+                || line.Contains("403", StringComparison.Ordinal)
+                || line.Contains("404", StringComparison.Ordinal))
+                break;
+        }
+
+        if (string.IsNullOrWhiteSpace(candidate))
+            return "";
+        return candidate.Length <= MaxStderrDetailLength
+            ? candidate
+            : candidate[..MaxStderrDetailLength];
+    }
+
+    internal static string SanitizeStderrText(string line, string url)
+    {
+        if (string.IsNullOrEmpty(line))
+            return line ?? "";
+        string sanitizedUrl = NetworkCameraUrlPolicy.SanitizeForLog(url);
+        return line.Replace(url, sanitizedUrl, StringComparison.Ordinal);
+    }
+
+    private void RecordStderrLine(string line)
+    {
+        string sanitized = SanitizeStderrText(line, _url);
+        lock (_stderrLock)
+        {
+            _stderrLines.Add(sanitized);
+            if (_stderrLines.Count > MaxStderrLines)
+                _stderrLines.RemoveAt(0);
+        }
+    }
+
+    private static void KillProcess(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException) { }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("NetworkCamera", $"Kill ffmpeg failed: {ex.Message}");
+        }
+        try
+        {
+            process.WaitForExit(3000);
+        }
+        catch { }
+        process.Dispose();
     }
 
     private Mat? BufferToMat(byte[] buffer)
@@ -415,24 +580,7 @@ internal sealed class NetworkCameraSource : IDisposable
         Process? process = _process;
         _process = null;
         if (process != null)
-        {
-            try
-            {
-                if (!process.HasExited)
-                    process.Kill(entireProcessTree: true);
-            }
-            catch (InvalidOperationException) { }
-            catch (Exception ex)
-            {
-                RuntimeLog.Warn("NetworkCamera", $"Stop ffmpeg failed: {ex.Message}");
-            }
-            try
-            {
-                process.WaitForExit(3000);
-            }
-            catch { }
-            process.Dispose();
-        }
+            KillProcess(process);
         _streamInfoReady?.TrySetResult(false);
         ActualWidth = 0;
         ActualHeight = 0;

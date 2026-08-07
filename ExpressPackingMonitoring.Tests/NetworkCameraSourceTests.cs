@@ -65,6 +65,19 @@ public sealed class NetworkCameraSourceTests
         Assert.Equal(expected, NetworkCameraSource.ParseVersionSupportsFpsMode(versionLine));
     }
 
+    [Fact]
+    public void SanitizeStderrText_MasksUrlCredentials()
+    {
+        string url = "rtsp://admin:secret@10.0.0.8:554/stream";
+        string line = $"{url}: Connection timed out";
+
+        string sanitized = NetworkCameraSource.SanitizeStderrText(line, url);
+
+        Assert.DoesNotContain("secret", sanitized);
+        Assert.Contains("admin:***@10.0.0.8", sanitized);
+        Assert.Contains("Connection timed out", sanitized);
+    }
+
     [Theory]
     [InlineData(
         "Stream #0:0: Video: h264 (High), yuv420p(progressive), 1920x1080 [SAR 1:1 DAR 16:9], 25 fps, 25 tbr, 90k tbn, 50 tbc",
