@@ -40,16 +40,16 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 
 - Users should start the root launcher. The launcher starts the app immediately, checks updates in the background, downloads verified AppPatch packages into `%LOCALAPPDATA%\ExpressPackingMonitoring\cache\updates`, and installs pending patches on the next launcher run.
 - The main app may update the root launcher through the optional, separately verified `launcher_package` descriptor. It must wait for the old launcher process to exit, use the shared update mutex, replace only the standard root launcher, verify the result, and restore the previous launcher on failure.
-- AppPatch packages are fixed-baseline cumulative patches. The default patch baseline is `0.0.18`, but scripts may allow overriding it when a new formal baseline is chosen.
+- AppPatch packages are fixed-baseline cumulative patches. The AppPatch baseline is specified by `-PatchBaselineVersion` and defaults to `0.0.18`, but scripts may allow overriding it when a new formal baseline is chosen. It is independent from the launcher baseline.
 - Keep update URLs configurable through environment variables or `.env`. The default update check URL is GitHub releases latest API; `.env` may point to another release provider.
 - Do not generate AppFull or ManualUpdate packages. GitHub Release uploads normally include the Setup, full 7z, compatibility zip, `update_vX.Y.Z.json`, optional `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`, and a LauncherPatch only when that release establishes a new launcher baseline.
-- Launcher baselines are immutable and recorded in `Tools/launcher-baseline.json`. Ordinary app releases must reuse the locked launcher bytes and must not rebuild or re-upload LauncherPatch. When launcher logical inputs change, run `Tools/Publish-LauncherBaseline.ps1`, commit the new lock, and create a plain `launcher-vX.Y.Z` Git tag without creating a GitHub or Gitee Release for that component tag.
+- The launcher baseline is immutable and recorded in `Tools/launcher-baseline.json`; it locks the launcher source fingerprint and the launcher bytes used in clean packages and `launcher_package`. Ordinary app releases must reuse the locked launcher bytes and must not rebuild or re-upload LauncherPatch. When launcher logical inputs change, run `Tools/Publish-LauncherBaseline.ps1`, commit the new lock, and create a plain `launcher-vX.Y.Z` Git tag without creating a GitHub or Gitee Release for that component tag. A launcher change does not force a full reinstall: the release ships a LauncherPatch that the updated app applies automatically through `launcher_package`.
 - AppPatch and LauncherPatch are separate ZIP files. Each includes its own double-click manual installer and instructions; AppPatch must never contain the launcher executable. The old launcher updates the app first, then the updated app applies the independently verified launcher bridge.
 - Keep release notes in `update_vX.Y.Z.json` synchronized with the final release description before uploading.
 - Keep `launcher_manifest_vX.Y.Z.json` and `release_info_vX.Y.Z.txt` as local verification and handoff files; do not upload them to GitHub or Gitee by default.
 - Gitee releases receive the update JSON, optional AppPatch, and a LauncherPatch only for a new launcher baseline, but not the Setup, full package 7z, or full package zip.
 - For Gitee, open the new-release page for the user and let the user complete the form and upload files manually; do not automate submission unless the user explicitly changes this workflow.
-- Do not update ExpressPackingMonitoring.Launcher unless necessary
+- Update the launcher only when necessary; once its logic changes, publish a new launcher baseline and LauncherPatch instead of modifying the locked bytes.
 
 ## Storage, Cache, and Web Video
 
