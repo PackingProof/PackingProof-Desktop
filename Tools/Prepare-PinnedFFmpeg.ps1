@@ -13,6 +13,9 @@ if (Test-Path -LiteralPath $destinationPath -PathType Leaf) {
     try {
         Assert-FFmpegExecutable -ExecutablePath $destinationPath -Baseline $baseline
         Write-Host "Pinned FFmpeg already prepared: $destinationPath"
+        if ($env:GITHUB_PATH) {
+            $cacheDirectory | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        }
         return
     }
     catch {
@@ -41,3 +44,6 @@ Resolve-FFmpegBaselineExecutable `
 Copy-Item -LiteralPath $dependencyOutput -Destination $destinationPath -Force
 Assert-FFmpegExecutable -ExecutablePath $destinationPath -Baseline $baseline
 Write-Host "Pinned FFmpeg prepared: $destinationPath"
+if ($env:GITHUB_PATH) {
+    $cacheDirectory | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+}
