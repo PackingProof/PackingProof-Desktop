@@ -1401,6 +1401,27 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void WizardSkipButtonSitsLeftOfBackButtonInBottomActions()
+    {
+        string wizard = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml");
+
+        int bottomBar = wizard.LastIndexOf("Grid.Row=\"2\"", StringComparison.Ordinal);
+        Assert.True(bottomBar >= 0);
+        string bottomSection = wizard[bottomBar..];
+        int rightGroup = bottomSection.IndexOf("HorizontalAlignment=\"Right\"", StringComparison.Ordinal);
+        int skip = bottomSection.IndexOf("x:Name=\"SkipButton\"", StringComparison.Ordinal);
+        int back = bottomSection.IndexOf("x:Name=\"BackButton\"", StringComparison.Ordinal);
+
+        Assert.True(rightGroup >= 0);
+        Assert.True(skip > rightGroup);
+        Assert.True(back > skip);
+        Assert.DoesNotContain("HorizontalAlignment=\"Left\"", bottomSection, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientCompletesFirstUseOnlyAfterBindingAValidatedHost()
     {
         string source = ReadRepositoryFile(

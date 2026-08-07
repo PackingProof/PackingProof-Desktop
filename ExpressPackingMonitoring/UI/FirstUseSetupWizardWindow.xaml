@@ -680,13 +680,12 @@
                 BorderThickness="0,1,0,0"
                 Padding="0,16,0,0">
             <Grid>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="SkipButton"
                             Content="跳过"
                             Style="{StaticResource SecondaryButtonStyle}"
+                            Margin="0,0,10,0"
                             Click="SkipButton_Click"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button x:Name="BackButton"
                             Content="上一步"
                             Style="{StaticResource SecondaryButtonStyle}"
