@@ -902,6 +902,25 @@ Invoke-DotNetPublish -Arguments @(
 )
 Remove-Item -LiteralPath $appBuildArtifacts -Recurse -Force
 
+# Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
+# Win7 兼容变体在下方产物生成后剔除这些文件。
+$winttsProject = Join-Path $repoRoot "ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
+$winttsPublishDir = Join-Path $repoRoot "package\.wintts-publish-tmp"
+Invoke-DotNetPublish -Arguments @(
+    $winttsProject,
+    "-c", $Configuration,
+    "--nologo",
+    "-o", $winttsPublishDir
+)
+foreach ($winttsFile in @("ExpressPackingMonitoring.WinTts.dll", "Microsoft.Windows.SDK.NET.dll", "WinRT.Runtime.dll")) {
+    $winttsSource = Join-Path $winttsPublishDir $winttsFile
+    if (-not (Test-Path -LiteralPath $winttsSource -PathType Leaf)) {
+        throw "WinTts publish output missing: $winttsSource"
+    }
+    Copy-Item -LiteralPath $winttsSource -Destination (Join-Path $appPublishDir $winttsFile) -Force
+}
+Remove-Item -LiteralPath $winttsPublishDir -Recurse -Force
+
 $ffmpegBaseline = Read-FFmpegBaselineManifest -ManifestPath $ffmpegBaselineManifestPath
 $ffmpegCacheDirectory = Join-Path $repoRoot "package\dependency-cache\ffmpeg\$($ffmpegBaseline.version)"
 $sevenZipExecutable = Resolve-SevenZipExecutable
