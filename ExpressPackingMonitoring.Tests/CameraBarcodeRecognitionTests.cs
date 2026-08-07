@@ -234,6 +234,28 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
+    [InlineData("6901234567892", true)]
+    [InlineData("6901234567890", false)]
+    [InlineData("690123456789", false)]
+    [InlineData("69012345678901", false)]
+    [InlineData("6891234567892", false)]
+    [InlineData("7001234567892", false)]
+    [InlineData("690123456789A", false)]
+    [InlineData("YT123456789012", false)]
+    public void CandidatePolicy_ProductEan13Detection(string value, bool expected)
+    {
+        Assert.Equal(expected, CameraBarcodeCandidatePolicy.IsProductEan13(value));
+    }
+
+    [Fact]
+    public void CandidatePolicy_WorkScanRejectsProductEan13ButIsValidStillAccepts()
+    {
+        Assert.True(CameraBarcodeCandidatePolicy.IsValid("6901234567892", "^[a-zA-Z0-9-]{12,25}$"));
+        Assert.False(CameraBarcodeCandidatePolicy.IsValidForWorkScan("6901234567892", "^[a-zA-Z0-9-]{12,25}$"));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidForWorkScan("YT123456789012", "^[a-zA-Z0-9-]{12,25}$"));
+    }
+
+    [Theory]
     [InlineData("YT123456789012", "YT123456789012", true, true)]
     [InlineData(" yt123456789012 ", "YT123456789012", true, true)]
     [InlineData("YT123456789012", "SF123456789012", true, false)]
@@ -333,6 +355,46 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void RecordingDecisionPolicy_ProductEan13IsIgnoredForWorkScan(
+        bool isRecording,
+        bool inputOnCooldown)
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "6901234567892",
+            fromCamera: false,
+            canProcess: true,
+            isRecording,
+            recordingOrderId: "",
+            sameBarcodeStopEnabled: false,
+            inputOnCooldown,
+            "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Ignore, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.ProductBarcodeIgnored, decision.Reason);
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_ProductEan13NeverStopsSameCodeRecording()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "6901234567892",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: true,
+            recordingOrderId: "6901234567892",
+            sameBarcodeStopEnabled: true,
+            inputOnCooldown: false,
+            "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Ignore, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.ProductBarcodeIgnored, decision.Reason);
+    }
+
+    [Theory]
     [InlineData(new[] { "--camera-barcode-shadow" }, null, true)]
     [InlineData(new string[0], "true", true)]
     [InlineData(new string[0], "0", false)]
@@ -415,6 +477,16 @@ public sealed class CameraBarcodeRecognitionTests
     public void Decoder_DoesNotAcceptUpcProductBarcode()
     {
         using Mat frame = CreateFrameWithBarcode("012345678905", BarcodeFormat.UPC_A, inGuide: true);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        Assert.Null(decoder.DecodeGuideRegion(frame));
+        Assert.Null(decoder.DecodeFullFrame(frame));
+    }
+
+    [Fact]
+    public void Decoder_DoesNotAcceptItfProductBarcode()
+    {
+        using Mat frame = CreateFrameWithBarcode("16901234567892", BarcodeFormat.ITF, inGuide: true);
         using var decoder = new CameraBarcodeFrameDecoder();
 
         Assert.Null(decoder.DecodeGuideRegion(frame));

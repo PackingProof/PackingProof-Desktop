@@ -43,6 +43,7 @@ internal enum BarcodeRecordingDecisionReason
     CannotProcess,
     EmptyInput,
     CameraCurrentCodeIgnored,
+    ProductBarcodeIgnored,
     CooldownOrderQueued,
     CooldownIgnored,
     ClearCommand,
@@ -90,6 +91,9 @@ internal static class BarcodeRecordingDecisionPolicy
             return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.CameraCurrentCodeIgnored, normalized);
         }
 
+        if (CameraBarcodeCandidatePolicy.IsProductEan13(normalized))
+            return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.ProductBarcodeIgnored, normalized);
+
         if (inputOnCooldown)
         {
             return IsOrderScan(normalized, orderIdRegex)
@@ -132,6 +136,7 @@ internal static class BarcodeRecordingDecisionPolicy
         BarcodeRecordingDecisionReason.CannotProcess => "程序忙碌或正在关闭",
         BarcodeRecordingDecisionReason.EmptyInput => "空输入",
         BarcodeRecordingDecisionReason.CameraCurrentCodeIgnored => "未开启同码停录，摄像头忽略当前录制单号",
+        BarcodeRecordingDecisionReason.ProductBarcodeIgnored => "商品条码，已忽略",
         BarcodeRecordingDecisionReason.CooldownOrderQueued => "扫码冷却中，保留最后一个单号",
         BarcodeRecordingDecisionReason.CooldownIgnored => "扫码冷却中",
         BarcodeRecordingDecisionReason.ClearCommand => "清除输入指令",
@@ -203,6 +208,35 @@ internal static class CameraBarcodeCandidatePolicy
 
         try { return Regex.IsMatch(normalized, orderIdRegex ?? ""); }
         catch { return false; }
+    }
+
+    /// 工作识别专用：先按现有规则校验，再拒绝 EAN-13 商品条码。
+    /// 普通校验/历史查询继续使用 <see cref="IsValid"/>，不受影响。
+    public static bool IsValidForWorkScan(string? value, string? orderIdRegex)
+    {
+        string normalized = (value ?? "").Trim().ToUpperInvariant();
+        return IsValid(normalized, orderIdRegex) && !IsProductEan13(normalized);
+    }
+
+    /// 判断是否为 EAN-13 商品条码：13 位数字、690-699 前缀且校验位合法。
+    /// 扫码枪链路没有码制信息，用该启发式避免把商品条码当成面单号。
+    public static bool IsProductEan13(string? value)
+    {
+        string normalized = (value ?? "").Trim();
+        if (normalized.Length != 13 || normalized[0] != '6' || normalized[1] != '9')
+            return false;
+
+        for (int index = 0; index < normalized.Length; index++)
+        {
+            if (!char.IsAsciiDigit(normalized[index]))
+                return false;
+        }
+
+        int sum = 0;
+        for (int index = 0; index < 12; index++)
+            sum += (index % 2 == 0 ? 1 : 3) * (normalized[index] - '0');
+        int checkDigit = (10 - sum % 10) % 10;
+        return checkDigit == normalized[12] - '0';
     }
 
     public static bool IsCurrentRecordingCode(string? value, string? recordingOrderId, bool isRecording)
@@ -377,8 +411,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     private static readonly HashSet<BarcodeFormat> AllowedFormats =
     [
         BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.ITF
+        BarcodeFormat.CODE_39
     ];
 
     private readonly BarcodeReaderGeneric _reader = new()

@@ -1103,6 +1103,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 case BarcodeRecordingDecisionReason.CameraCurrentCodeIgnored:
                     RuntimeLog.Info("CameraBarcode", $"Ignored current recording barcode while same-code stop is disabled: {upperResult}");
                     return;
+                case BarcodeRecordingDecisionReason.ProductBarcodeIgnored:
+                    RuntimeLog.Info("Scan", $"Ignored product barcode: {upperResult}");
+                    return;
                 case BarcodeRecordingDecisionReason.CooldownOrderQueued:
                     _pendingScanDuringCooldown = upperResult;
                     RuntimeLog.Info("Scan", $"Scan queued during cooldown: {upperResult}");
@@ -1331,7 +1334,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool IsOrderScan(string upperResult)
         {
-            return CameraBarcodeCandidatePolicy.IsValid(upperResult, Config.OrderIdRegex);
+            return CameraBarcodeCandidatePolicy.IsValidForWorkScan(upperResult, Config.OrderIdRegex);
         }
 
         internal static bool ShouldAlertPrintedRefund(string mode, bool alertEnabled, OrderInfo orderInfo)
