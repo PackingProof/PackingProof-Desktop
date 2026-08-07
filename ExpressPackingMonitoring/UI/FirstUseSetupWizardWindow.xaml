@@ -240,21 +240,13 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <ComboBox x:Name="CameraComboBox"
                                           Height="36"
                                           DisplayMemberPath="Name"
                                           SelectionChanged="CameraComboBox_SelectionChanged"/>
-                                <ComboBox x:Name="NetworkCameraTransportComboBox"
-                                          Grid.Column="1"
-                                          Width="110"
-                                          Height="36"
-                                          Margin="8,0,0,0"
-                                          VerticalAlignment="Center"
-                                          Visibility="Collapsed"/>
                                 <Button x:Name="NetworkCameraTestButton"
-                                        Grid.Column="2"
+                                        Grid.Column="1"
                                         Content="测试连接"
                                         Height="36"
                                         Margin="8,0,0,0"

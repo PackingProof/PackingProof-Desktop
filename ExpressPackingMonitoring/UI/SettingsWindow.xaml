@@ -1120,11 +1120,6 @@
                                         <StackPanel Grid.Row="2"
                                                     Orientation="Horizontal"
                                                     Margin="0,10,0,0">
-                                            <ComboBox x:Name="NetworkCameraTransportComboBox"
-                                                      Width="110"
-                                                      Height="32"
-                                                      VerticalAlignment="Center"
-                                                      Margin="0,0,8,0"/>
                                             <Button x:Name="NetworkCameraTestButton"
                                                     Content="测试连接"
                                                     Height="32"

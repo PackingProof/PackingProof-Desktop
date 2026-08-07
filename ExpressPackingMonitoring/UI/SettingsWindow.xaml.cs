@@ -721,7 +721,6 @@ namespace ExpressPackingMonitoring.UI
             NetworkCameraPanel.Visibility = Visibility.Visible;
             if (string.IsNullOrWhiteSpace(NetworkCameraUrlTextBox.Text))
                 NetworkCameraUrlTextBox.Text = Config.NetworkCameraUrl;
-            EnsureNetworkTransportCombo();
 
             string networkKey = AppConfig.GetCameraConfigKey("network", Config.NetworkCameraUrl);
             if (!string.IsNullOrWhiteSpace(Config.NetworkCameraUrl)
@@ -750,30 +749,6 @@ namespace ExpressPackingMonitoring.UI
                 : Visibility.Collapsed;
         }
 
-        private void EnsureNetworkTransportCombo()
-        {
-            if (NetworkCameraTransportComboBox.Items.Count == 0)
-            {
-                NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "TCP", Tag = "tcp" });
-                NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "UDP", Tag = "udp" });
-            }
-            string transport = Config.NetworkCameraRtspTransport ?? "tcp";
-            NetworkCameraTransportComboBox.SelectedItem =
-                NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>()
-                    .FirstOrDefault(item =>
-                        string.Equals((string)item.Tag, transport, StringComparison.OrdinalIgnoreCase))
-                ?? NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>().First();
-        }
-
-        private string GetSelectedNetworkTransport()
-        {
-            return NetworkCameraTransportComboBox.SelectedItem is ComboBoxItem item
-                && item.Tag is string tag
-                && string.Equals(tag, "udp", StringComparison.OrdinalIgnoreCase)
-                    ? "udp"
-                    : "tcp";
-        }
-
         private async void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
         {
             if (!NetworkCameraUrlPolicy.TryNormalize(
@@ -791,7 +766,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 using var probeSource = new NetworkCameraSource(
                     url,
-                    GetSelectedNetworkTransport(),
+                    AppConfig.NormalizeNetworkTransport(Config.NetworkCameraRtspTransport),
                     Config.Fps > 0 ? Config.Fps : 15);
                 bool connected = await probeSource.StartAsync();
                 NetworkCameraStatusText.Text = connected
@@ -1346,7 +1321,6 @@ namespace ExpressPackingMonitoring.UI
 
                     Config.CameraSourceKind = "network";
                     Config.NetworkCameraUrl = networkUrl;
-                    Config.NetworkCameraRtspTransport = GetSelectedNetworkTransport();
                     Config.CameraMonikerString = "";
                     Config.CameraIndex = -1;
                     Config.CameraConfigs[AppConfig.GetCameraConfigKey("network", networkUrl)] = new CameraSettings
@@ -1677,7 +1651,7 @@ namespace ExpressPackingMonitoring.UI
 
                     using var probeSource = new NetworkCameraSource(
                         networkUrl,
-                        GetSelectedNetworkTransport(),
+                        AppConfig.NormalizeNetworkTransport(Config.NetworkCameraRtspTransport),
                         Config.Fps > 0 ? Config.Fps : 15);
                     bool connected = await probeSource.StartAsync();
                     if (!connected)

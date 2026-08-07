@@ -437,7 +437,6 @@ public partial class FirstUseSetupWizardWindow : Window
 
             if (_isLoadingDevices) return;
             NetworkCameraPanel.Visibility = Visibility.Collapsed;
-            NetworkCameraTransportComboBox.Visibility = Visibility.Collapsed;
             NetworkCameraTestButton.Visibility = Visibility.Collapsed;
             LoadSelectedCameraRotation();
             _evaluatedCameraMoniker = "";
@@ -450,11 +449,9 @@ public partial class FirstUseSetupWizardWindow : Window
         private void ShowNetworkCameraPanelUi()
         {
             NetworkCameraPanel.Visibility = Visibility.Visible;
-            NetworkCameraTransportComboBox.Visibility = Visibility.Visible;
             NetworkCameraTestButton.Visibility = Visibility.Visible;
             if (string.IsNullOrWhiteSpace(NetworkCameraUrlTextBox.Text))
                 NetworkCameraUrlTextBox.Text = _config.NetworkCameraUrl ?? "";
-            EnsureNetworkTransportCombo();
             LoadSelectedCameraRotation();
             _evaluatedCameraMoniker = "";
         }
@@ -588,7 +585,7 @@ public partial class FirstUseSetupWizardWindow : Window
 
                 using var probeSource = new NetworkCameraSource(
                     networkUrl,
-                    GetSelectedNetworkTransport(),
+                    AppConfig.NormalizeNetworkTransport(_config.NetworkCameraRtspTransport),
                     _config.Fps > 0 ? _config.Fps : 15);
                 bool connected = await probeSource.StartAsync();
                 if (!connected)
@@ -855,7 +852,7 @@ public partial class FirstUseSetupWizardWindow : Window
         SetCameraPreviewStatus("正在连接网络摄像头...");
         var source = new NetworkCameraSource(
             url,
-            GetSelectedNetworkTransport(),
+            AppConfig.NormalizeNetworkTransport(_config.NetworkCameraRtspTransport),
             _config.Fps > 0 ? _config.Fps : 15);
         _networkPreviewSource = source;
         source.FrameReady += NetworkPreviewSource_FrameReady;
@@ -965,29 +962,6 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private bool IsNetworkCameraSelected =>
         CameraComboBox.SelectedItem is CameraInfo camera && camera.Moniker == "network:";
-
-    private string GetSelectedNetworkTransport()
-    {
-        return NetworkCameraTransportComboBox.SelectedItem is ComboBoxItem item
-            && item.Tag is string tag
-            && string.Equals(tag, "udp", StringComparison.OrdinalIgnoreCase)
-                ? "udp"
-                : "tcp";
-    }
-
-    private void EnsureNetworkTransportCombo()
-    {
-        if (NetworkCameraTransportComboBox.Items.Count == 0)
-        {
-            NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "TCP", Tag = "tcp" });
-            NetworkCameraTransportComboBox.Items.Add(new ComboBoxItem { Content = "UDP", Tag = "udp" });
-        }
-        string transport = _config.NetworkCameraRtspTransport ?? "tcp";
-        NetworkCameraTransportComboBox.SelectedItem =
-            NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>()
-                .FirstOrDefault(item => string.Equals((string)item.Tag, transport, StringComparison.OrdinalIgnoreCase))
-            ?? NetworkCameraTransportComboBox.Items.OfType<ComboBoxItem>().First();
-    }
 
     private void NetworkCameraUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
@@ -1398,7 +1372,6 @@ public partial class FirstUseSetupWizardWindow : Window
             {
                 _config.CameraSourceKind = "network";
                 _config.NetworkCameraUrl = networkUrl;
-                _config.NetworkCameraRtspTransport = GetSelectedNetworkTransport();
                 _config.CameraMonikerString = "";
                 _config.CameraIndex = -1;
                 _config.CameraConfigs[AppConfig.GetCameraConfigKey("network", networkUrl)] = new CameraSettings
