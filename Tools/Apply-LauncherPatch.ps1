@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$PatchRoot = $PSScriptRoot,
+    [string]$PatchRoot = "",
     [string]$ConfigPath = "",
     [string]$LauncherRootPath = "",
     [switch]$SkipProcessCheck
@@ -8,6 +8,49 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+
+if ([string]::IsNullOrEmpty($PatchRoot)) {
+    if ($MyInvocation.MyCommand.Path) {
+        $PatchRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+    else {
+        throw "无法确定补丁根目录，请通过 -PatchRoot 指定"
+    }
+}
+
+function Test-IsNullOrWhiteSpace {
+    param([string]$Value)
+    return [string]::IsNullOrEmpty($Value) -or $Value.Trim().Length -eq 0
+}
+
+function ConvertFrom-Json35 {
+    param([string]$Json)
+    if (Get-Command ConvertFrom-Json -ErrorAction SilentlyContinue) {
+        return $Json | ConvertFrom-Json
+    }
+    Add-Type -AssemblyName System.Web.Extensions -ErrorAction SilentlyContinue
+    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+    $serializer.MaxJsonLength = 104857600
+    return $serializer.DeserializeObject($Json)
+}
+
+function Get-JsonProperty {
+    param($Object, [string]$Name)
+    if ($null -eq $Object) {
+        return $null
+    }
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.ContainsKey($Name)) {
+            return $Object[$Name]
+        }
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -ne $property) {
+        return $property.Value
+    }
+    return $null
+}
 
 function Get-FileSha256 {
     param([string]$Path)
@@ -25,10 +68,10 @@ function Get-FileSha256 {
 
 function Get-DefaultConfigPath {
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    if (Test-IsNullOrWhiteSpace $localAppData) {
         $localAppData = $env:LOCALAPPDATA
     }
-    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    if (Test-IsNullOrWhiteSpace $localAppData) {
         throw "无法定位 Windows 用户数据目录"
     }
     return Join-Path $localAppData "ExpressPackingMonitoring\config.json"
@@ -58,7 +101,7 @@ function Resolve-LauncherRootCandidate {
     param([string]$CandidatePath)
 
     $value = $CandidatePath.Trim().Trim('"')
-    if ([string]::IsNullOrWhiteSpace($value)) {
+    if (Test-IsNullOrWhiteSpace $value) {
         throw "安装位置不能为空"
     }
     if (-not [System.IO.Path]::IsPathRooted($value)) {
@@ -70,7 +113,7 @@ function Resolve-LauncherRootCandidate {
             throw "快捷方式不存在"
         }
         $value = Get-ShortcutTargetPath -ShortcutPath $value
-        if ([string]::IsNullOrWhiteSpace($value)) {
+        if (Test-IsNullOrWhiteSpace $value) {
             throw "无法读取快捷方式指向的软件位置"
         }
         $value = [System.IO.Path]::GetFullPath($value)
@@ -134,7 +177,7 @@ function Stop-InstalledLauncher {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+if (Test-IsNullOrWhiteSpace $ConfigPath) {
     $ConfigPath = Get-DefaultConfigPath
 }
 $PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
@@ -153,32 +196,33 @@ try {
         -not (Test-Path -LiteralPath $sourceLauncherPath -PathType Leaf)) {
         throw "LauncherPatch 缺少启动器或校验清单"
     }
-    $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
-    if (-not [string]::Equals([string]$manifest.type, "launcher_patch", [System.StringComparison]::OrdinalIgnoreCase) -or
-        -not [string]::Equals([string]$manifest.file, "ExpressPackingMonitoring.exe", [System.StringComparison]::Ordinal)) {
+    $manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
+    if (-not [string]::Equals([string](Get-JsonProperty $manifest "type"), "launcher_patch", [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals([string](Get-JsonProperty $manifest "file"), "ExpressPackingMonitoring.exe", [System.StringComparison]::Ordinal)) {
         throw "启动器更新清单无效"
     }
-    $expectedSize = [long]$manifest.size
-    $expectedHash = ([string]$manifest.sha256).Trim().ToLowerInvariant()
+    $expectedSize = [long](Get-JsonProperty $manifest "size")
+    $expectedHash = ([string](Get-JsonProperty $manifest "sha256")).Trim().ToLowerInvariant()
     if ((Get-Item -LiteralPath $sourceLauncherPath).Length -ne $expectedSize -or
         (Get-FileSha256 -Path $sourceLauncherPath) -ne $expectedHash) {
         throw "启动器文件大小或 SHA256 校验失败"
     }
 
     $launcherRoot = ""
-    if (-not [string]::IsNullOrWhiteSpace($LauncherRootPath)) {
+    if (-not (Test-IsNullOrWhiteSpace $LauncherRootPath)) {
         $launcherRoot = Resolve-LauncherRootCandidate -CandidatePath $LauncherRootPath
     }
     else {
         try {
-            $config = Get-Content -Raw -Encoding UTF8 -LiteralPath $ConfigPath | ConvertFrom-Json
-            $launcherRoot = Resolve-LauncherRootCandidate -CandidatePath ([string]$config.AppRootDirectory)
+            $config = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($ConfigPath, [System.Text.Encoding]::UTF8))
+            $configRoot = [string](Get-JsonProperty $config "AppRootDirectory")
+            $launcherRoot = Resolve-LauncherRootCandidate -CandidatePath $configRoot
         }
         catch {
             Write-UpdateLog -LogPath $logPath -Message "Unable to resolve launcher root from config: $($_.Exception.Message)"
         }
     }
-    if ([string]::IsNullOrWhiteSpace($launcherRoot)) {
+    if (Test-IsNullOrWhiteSpace $launcherRoot) {
         $launcherRoot = Request-LauncherRootDirectory
     }
 
@@ -218,11 +262,12 @@ try {
     $retainedBackup = Join-Path $backupDirectory ("manual-launcher-{0:yyyyMMdd-HHmmssfff}.bak" -f [DateTime]::Now)
     Move-Item -LiteralPath $adjacentBackupPath -Destination $retainedBackup
     $adjacentBackupPath = ""
-    @(Get-ChildItem -LiteralPath $backupDirectory -File -Filter "manual-launcher-*.bak" |
-        Sort-Object LastWriteTimeUtc -Descending |
-        Select-Object -Skip 3) | ForEach-Object {
-            Remove-Item -LiteralPath $_.FullName -Force
-        }
+    $retainedBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter "manual-launcher-*.bak" |
+        Where-Object { -not $_.PSIsContainer } |
+        Sort-Object LastWriteTimeUtc -Descending)
+    for ($backupIndex = 3; $backupIndex -lt $retainedBackups.Count; $backupIndex++) {
+        Remove-Item -LiteralPath $retainedBackups[$backupIndex].FullName -Force
+    }
 
     Write-UpdateLog -LogPath $logPath -Message "Manual launcher patch completed: root=$launcherRoot"
     Write-Host ""
@@ -238,10 +283,10 @@ catch {
     $exitCode = 1
 }
 finally {
-    if (-not [string]::IsNullOrWhiteSpace($temporaryPath) -and (Test-Path -LiteralPath $temporaryPath)) {
+    if ((-not (Test-IsNullOrWhiteSpace $temporaryPath)) -and (Test-Path -LiteralPath $temporaryPath)) {
         Remove-Item -LiteralPath $temporaryPath -Force
     }
-    if (-not [string]::IsNullOrWhiteSpace($adjacentBackupPath) -and (Test-Path -LiteralPath $adjacentBackupPath)) {
+    if ((-not (Test-IsNullOrWhiteSpace $adjacentBackupPath)) -and (Test-Path -LiteralPath $adjacentBackupPath)) {
         Write-UpdateLog -LogPath $logPath -Message "Retained adjacent launcher backup after failure: $adjacentBackupPath"
     }
 }

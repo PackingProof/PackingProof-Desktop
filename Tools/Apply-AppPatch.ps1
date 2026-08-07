@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$PatchRoot = $PSScriptRoot,
+    [string]$PatchRoot = "",
     [string]$ConfigPath = "",
     [string]$AppRootPath = "",
     [switch]$SkipProcessCheck,
@@ -10,12 +10,55 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
+if ([string]::IsNullOrEmpty($PatchRoot)) {
+    if ($MyInvocation.MyCommand.Path) {
+        $PatchRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+    else {
+        throw "无法确定补丁根目录，请通过 -PatchRoot 指定"
+    }
+}
+
+function Test-IsNullOrWhiteSpace {
+    param([string]$Value)
+    return [string]::IsNullOrEmpty($Value) -or $Value.Trim().Length -eq 0
+}
+
+function ConvertFrom-Json35 {
+    param([string]$Json)
+    if (Get-Command ConvertFrom-Json -ErrorAction SilentlyContinue) {
+        return $Json | ConvertFrom-Json
+    }
+    Add-Type -AssemblyName System.Web.Extensions -ErrorAction SilentlyContinue
+    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+    $serializer.MaxJsonLength = 104857600
+    return $serializer.DeserializeObject($Json)
+}
+
+function Get-JsonProperty {
+    param($Object, [string]$Name)
+    if ($null -eq $Object) {
+        return $null
+    }
+    if ($Object -is [System.Collections.IDictionary]) {
+        if ($Object.ContainsKey($Name)) {
+            return $Object[$Name]
+        }
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -ne $property) {
+        return $property.Value
+    }
+    return $null
+}
+
 function Get-DefaultConfigPath {
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    if (Test-IsNullOrWhiteSpace $localAppData) {
         $localAppData = $env:LOCALAPPDATA
     }
-    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    if (Test-IsNullOrWhiteSpace $localAppData) {
         throw "无法定位 Windows 用户数据目录"
     }
     return Join-Path $localAppData "ExpressPackingMonitoring\config.json"
@@ -39,7 +82,7 @@ function Remove-ReadOnlyAttribute {
 function Get-NormalizedDirectory {
     param([string]$Path)
 
-    if ([string]::IsNullOrWhiteSpace($Path) -or -not [System.IO.Path]::IsPathRooted($Path)) {
+    if ((Test-IsNullOrWhiteSpace $Path) -or -not [System.IO.Path]::IsPathRooted($Path)) {
         throw "config.json 中的 AppRootDirectory 无效"
     }
 
@@ -65,7 +108,7 @@ function Get-ShortcutTargetPath {
         }
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($targetPath)) {
+    if (-not (Test-IsNullOrWhiteSpace $targetPath)) {
         return $targetPath
     }
 
@@ -112,7 +155,7 @@ function Resolve-AppRootCandidate {
             $cleanedPath = $cleanedPath.Substring(1, $cleanedPath.Length - 2).Trim()
         }
     }
-    if ([string]::IsNullOrWhiteSpace($cleanedPath)) {
+    if (Test-IsNullOrWhiteSpace $cleanedPath) {
         throw "没有提供安装位置"
     }
 
@@ -132,7 +175,7 @@ function Resolve-AppRootCandidate {
 
         $shortcutTarget = Get-ShortcutTargetPath -ShortcutPath $resolvedInput
 
-        if ([string]::IsNullOrWhiteSpace($shortcutTarget)) {
+        if (Test-IsNullOrWhiteSpace $shortcutTarget) {
             throw "快捷方式没有有效目标：$resolvedInput"
         }
         if (-not [System.IO.Path]::IsPathRooted($shortcutTarget)) {
@@ -209,7 +252,7 @@ function Get-InstalledVersion {
 
     $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($DllPath)
     foreach ($candidate in @($info.ProductVersion, $info.FileVersion)) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and
+        if ((-not (Test-IsNullOrWhiteSpace $candidate)) -and
             $candidate -match "(\d+\.\d+\.\d+(?:\.\d+)?)") {
             return [Version]$Matches[1]
         }
@@ -238,7 +281,7 @@ function Get-TargetProcesses {
     $targetFullPath = [System.IO.Path]::GetFullPath($TargetExePath)
     return @(Get-Process -Name "ExpressPackingMonitoring" -ErrorAction SilentlyContinue | Where-Object {
         try {
-            -not [string]::IsNullOrWhiteSpace($_.Path) -and
+            (-not (Test-IsNullOrWhiteSpace $_.Path)) -and
                 [string]::Equals(
                     [System.IO.Path]::GetFullPath($_.Path),
                     $targetFullPath,
@@ -280,7 +323,7 @@ function Write-UpdateLog {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+if (Test-IsNullOrWhiteSpace $ConfigPath) {
     $ConfigPath = Get-DefaultConfigPath
 }
 
@@ -288,7 +331,7 @@ $ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
 $PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
 $userDataDirectory = Split-Path -Parent $ConfigPath
 $logPath = Join-Path $userDataDirectory "log\manual_update.log"
-$mutex = [System.Threading.Mutex]::new($false, "Local\ExpressPackingMonitoring.ManualPatch")
+$mutex = New-Object System.Threading.Mutex($false, "Local\ExpressPackingMonitoring.ManualPatch")
 $ownsMutex = $false
 $exitCode = 0
 $appliedFiles = New-Object System.Collections.Generic.List[object]
@@ -311,21 +354,21 @@ try {
         if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
             throw "config.json does not exist"
         }
-        $config = Get-Content -Raw -Encoding UTF8 -LiteralPath $ConfigPath | ConvertFrom-Json
-        $appRootProperty = if ($null -eq $config) { $null } else { $config.PSObject.Properties["AppRootDirectory"] }
-        if ($null -eq $appRootProperty -or [string]::IsNullOrWhiteSpace([string]$appRootProperty.Value)) {
+        $config = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($ConfigPath, [System.Text.Encoding]::UTF8))
+        $appRootValue = [string](Get-JsonProperty $config "AppRootDirectory")
+        if (Test-IsNullOrWhiteSpace $appRootValue) {
             throw "config.json does not contain AppRootDirectory"
         }
-        $configuredAppRoot = Resolve-AppRootCandidate -CandidatePath ([string]$appRootProperty.Value)
+        $configuredAppRoot = Resolve-AppRootCandidate -CandidatePath $appRootValue
     }
     catch {
         Write-UpdateLog -LogPath $logPath -Message "Unable to read config for manual patch: $($_.Exception.Message)"
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($configuredAppRoot)) {
+    if (-not (Test-IsNullOrWhiteSpace $configuredAppRoot)) {
         $appRoot = $configuredAppRoot
     }
-    elseif (-not [string]::IsNullOrWhiteSpace($AppRootPath)) {
+    elseif (-not (Test-IsNullOrWhiteSpace $AppRootPath)) {
         $appRoot = Resolve-AppRootCandidate -CandidatePath $AppRootPath
     }
     else {
@@ -344,13 +387,13 @@ try {
         throw "增量更新包缺少 files 目录"
     }
 
-    $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath | ConvertFrom-Json
-    if (-not [string]::Equals([string]$manifest.type, "baseline_patch", [System.StringComparison]::OrdinalIgnoreCase)) {
+    $manifest = ConvertFrom-Json35 -Json ([System.IO.File]::ReadAllText($manifestPath, [System.Text.Encoding]::UTF8))
+    if (-not [string]::Equals([string](Get-JsonProperty $manifest "type"), "baseline_patch", [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "不支持的增量更新包类型"
     }
 
-    $baselineVersion = Get-VersionNumber -Value ([string]$manifest.patch_baseline_version)
-    $latestVersion = Get-VersionNumber -Value ([string]$manifest.latest_version)
+    $baselineVersion = Get-VersionNumber -Value ([string](Get-JsonProperty $manifest "patch_baseline_version"))
+    $latestVersion = Get-VersionNumber -Value ([string](Get-JsonProperty $manifest "latest_version"))
     if (-not $SkipVersionCheck) {
         $installedVersion = Get-InstalledVersion -DllPath $targetDllPath
         if ($installedVersion -ge $latestVersion) {
@@ -363,16 +406,16 @@ try {
         }
     }
 
-    $manifestFiles = @($manifest.files)
+    $manifestFiles = @(Get-JsonProperty $manifest "files")
     if ($manifestFiles.Count -eq 0) {
         throw "补丁清单没有可安装文件"
     }
 
     $validatedFiles = New-Object System.Collections.Generic.List[object]
     foreach ($file in $manifestFiles) {
-        $relativePath = ([string]$file.path).Trim().Replace("/", "\")
+        $relativePath = ([string](Get-JsonProperty $file "path")).Trim().Replace("/", "\")
         $segments = @($relativePath -split "[\\/]")
-        if ([string]::IsNullOrWhiteSpace($relativePath) -or
+        if ((Test-IsNullOrWhiteSpace $relativePath) -or
             [System.IO.Path]::IsPathRooted($relativePath) -or
             $segments -contains "." -or
             $segments -contains "..") {
@@ -389,24 +432,24 @@ try {
             throw "补丁文件不存在：$relativePath"
         }
 
-        $expectedSize = [long]$file.size
+        $expectedSize = [long](Get-JsonProperty $file "size")
         $actualSize = (Get-Item -LiteralPath $sourcePath).Length
         if ($actualSize -ne $expectedSize) {
             throw "补丁文件大小校验失败：$relativePath"
         }
 
-        $expectedHash = ([string]$file.sha256).Trim().ToLowerInvariant()
+        $expectedHash = ([string](Get-JsonProperty $file "sha256")).Trim().ToLowerInvariant()
         $actualHash = Get-FileSha256 -Path $sourcePath
-        if ([string]::IsNullOrWhiteSpace($expectedHash) -or $actualHash -ne $expectedHash) {
+        if ((Test-IsNullOrWhiteSpace $expectedHash) -or $actualHash -ne $expectedHash) {
             throw "补丁文件 SHA256 校验失败：$relativePath"
         }
 
-        $validatedFiles.Add([pscustomobject]@{
+        $validatedFiles.Add((New-Object PSObject -Property @{
             RelativePath = $relativePath
             SourcePath = $sourcePath
             DestinationPath = $destinationPath
             ExpectedHash = $expectedHash
-        })
+        }))
     }
 
     if (-not $SkipProcessCheck) {
@@ -438,12 +481,12 @@ try {
             Remove-ReadOnlyAttribute -Path $backupPath
         }
 
-        $appliedFiles.Add([pscustomobject]@{
+        $appliedFiles.Add((New-Object PSObject -Property @{
             DestinationPath = $file.DestinationPath
             BackupPath = $backupPath
             DestinationExisted = $destinationExisted
             OriginalAttributes = $originalAttributes
-        })
+        }))
 
         $tempPath = $file.DestinationPath + ".manual-update-" + [Guid]::NewGuid().ToString("N")
         $replaceBackupPath = $file.DestinationPath + ".manual-replace-backup-" + [Guid]::NewGuid().ToString("N")
