@@ -113,6 +113,12 @@ namespace ExpressPackingMonitoring.UI
         public MainWindow(bool enableCloseBehaviorPrompt = true)
         {
             InitializeComponent();
+            StatsBarBorder.SizeChanged += (_, _) => UpdateStatsBarVisibility();
+            Loaded += (_, _) => UpdateStatsBarVisibility();
+            if (DataContext is MainViewModel statsViewModel)
+            {
+                statsViewModel.PropertyChanged += OnStatsViewModelPropertyChanged;
+            }
             _closeBehaviorController = new WindowCloseBehaviorController(
                 this,
                 RequestExitFromTray,
@@ -579,6 +585,124 @@ namespace ExpressPackingMonitoring.UI
         {
             return !string.IsNullOrWhiteSpace(message)
                 && message.Contains("文件不存在，跳过", StringComparison.Ordinal);
+        }
+
+        internal enum StatsBarVisibility
+        {
+            All,
+            WithoutTotal,
+            OnlyToday
+        }
+
+        internal static StatsBarVisibility ResolveStatsVisibility(
+            double availableWidth,
+            double todayWidth,
+            double averageWidth,
+            double totalWidth,
+            double gap)
+        {
+            const double tolerance = 1.0;
+            if (todayWidth + gap + averageWidth + gap + totalWidth <= availableWidth + tolerance)
+                return StatsBarVisibility.All;
+            if (todayWidth + gap + averageWidth <= availableWidth + tolerance)
+                return StatsBarVisibility.WithoutTotal;
+            return StatsBarVisibility.OnlyToday;
+        }
+
+        internal static (bool AverageVisible, bool TotalVisible) ResolveGroupVisibility(
+            StatsBarVisibility visibility) =>
+            visibility switch
+            {
+                StatsBarVisibility.All => (true, true),
+                StatsBarVisibility.WithoutTotal => (true, false),
+                _ => (false, false)
+            };
+
+        internal static bool ShouldHideDataButton(
+            double availableContentWidth,
+            double onlyTodayWidth,
+            double buttonsAllWidth,
+            double buttonsWithoutDataWidth)
+        {
+            const double tolerance = 1.0;
+            bool evenOnlyTodayOverflows = onlyTodayWidth + buttonsAllWidth > availableContentWidth + tolerance;
+            bool fitsWithoutDataButton = onlyTodayWidth + buttonsWithoutDataWidth <= availableContentWidth + tolerance;
+            return evenOnlyTodayOverflows && fitsWithoutDataButton;
+        }
+
+        private bool _statsBarUpdating;
+
+        private void UpdateStatsBarVisibility()
+        {
+            if (_statsBarUpdating || StatsBarBorder == null || StatsBarBorder.ActualWidth <= 0)
+                return;
+
+            _statsBarUpdating = true;
+            try
+            {
+                TodayCountGroup.Visibility = Visibility.Visible;
+                AverageTimeGroup.Visibility = Visibility.Visible;
+                TotalTimeGroup.Visibility = Visibility.Visible;
+                DataButton.Visibility = Visibility.Visible;
+
+                double todayWidth = MeasureStatsGroupWidth(TodayCountGroup);
+                double averageWidth = MeasureStatsGroupWidth(AverageTimeGroup);
+                double totalWidth = MeasureStatsGroupWidth(TotalTimeGroup);
+                double availableContentWidth = Math.Max(0, StatsBarBorder.ActualWidth - 40);
+                double buttonsAllWidth = ActionButtonsPanel.Children
+                    .OfType<Button>()
+                    .Sum(MeasureButtonOuterWidth);
+                double buttonsWithoutDataWidth = buttonsAllWidth - MeasureButtonOuterWidth(DataButton);
+
+                StatsBarVisibility visibility =
+                    ResolveStatsVisibility(
+                        availableContentWidth - buttonsAllWidth,
+                        todayWidth,
+                        averageWidth,
+                        totalWidth,
+                        16);
+                (bool averageVisible, bool totalVisible) = ResolveGroupVisibility(visibility);
+                TotalTimeGroup.Visibility =
+                    totalVisible ? Visibility.Visible : Visibility.Collapsed;
+                AverageTimeGroup.Visibility =
+                    averageVisible ? Visibility.Visible : Visibility.Collapsed;
+                DataButton.Visibility =
+                    ShouldHideDataButton(
+                        availableContentWidth,
+                        todayWidth,
+                        buttonsAllWidth,
+                        buttonsWithoutDataWidth)
+                        ? Visibility.Collapsed
+                        : Visibility.Visible;
+            }
+            finally
+            {
+                _statsBarUpdating = false;
+            }
+        }
+
+        private static double MeasureStatsGroupWidth(FrameworkElement group)
+        {
+            group.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return Math.Max(0, group.DesiredSize.Width - group.Margin.Left - group.Margin.Right);
+        }
+
+        private static double MeasureButtonOuterWidth(Button button)
+        {
+            button.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return button.DesiredSize.Width + button.Margin.Left + button.Margin.Right;
+        }
+
+        private void OnStatsViewModelPropertyChanged(
+            object? sender,
+            System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(MainViewModel.TotalPieces)
+                || e.PropertyName == nameof(MainViewModel.AveragePackTimeDisplay)
+                || e.PropertyName == nameof(MainViewModel.TotalPackTimeDisplay))
+            {
+                Dispatcher.BeginInvoke(new Action(UpdateStatsBarVisibility));
+            }
         }
 
         private async Task FinishShutdownAsync(MainViewModel? vm)

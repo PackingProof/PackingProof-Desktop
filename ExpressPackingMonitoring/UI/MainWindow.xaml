@@ -432,34 +432,40 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,12" Margin="0,20,0,0">
+                <Border x:Name="StatsBarBorder" Grid.Row="2" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,12" Margin="0,20,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="本机今日:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}" Margin="0,0,24,0">
-                                <Run Text="{Binding TotalPieces, Mode=OneWay}"/><Run Text="件" FontSize="15"/>
-                            </TextBlock>
-                            <TextBlock Text="平均:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}" Margin="0,0,24,0">
-                                <Run Text="{Binding AveragePackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding AveragePackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding AveragePackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="15"/>
-                            </TextBlock>
-                            <TextBlock Text="总耗时:" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,8,3"/>
-                            <TextBlock FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
-                                <Run Text="{Binding TotalPackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding TotalPackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="15"/>
-                                <Run Text="{Binding TotalPackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="15"/>
-                            </TextBlock>
+                        <StackPanel x:Name="StatsPanel" Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel x:Name="TodayCountGroup" Orientation="Horizontal" Margin="0,0,16,0">
+                                <TextBlock Text="今日" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                    <Run Text="{Binding TotalPieces, Mode=OneWay}"/><Run Text="件" FontSize="14"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel x:Name="AverageTimeGroup" Orientation="Horizontal" Margin="0,0,16,0">
+                                <TextBlock Text="平均" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                    <Run Text="{Binding AveragePackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="14"/>
+                                    <Run Text="{Binding AveragePackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="14"/>
+                                    <Run Text="{Binding AveragePackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding AveragePackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="14"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel x:Name="TotalTimeGroup" Orientation="Horizontal">
+                                <TextBlock Text="总耗时" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Bottom" Margin="0,0,6,3"/>
+                                <TextBlock FontSize="22" FontWeight="Black" Foreground="{DynamicResource AccentBlueDark}">
+                                    <Run Text="{Binding TotalPackTimeDisplay.HourValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.HourUnit, Mode=OneWay}" FontSize="14"/>
+                                    <Run Text="{Binding TotalPackTimeDisplay.MinuteValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.MinuteUnit, Mode=OneWay}" FontSize="14"/>
+                                    <Run Text="{Binding TotalPackTimeDisplay.SecondValue, Mode=OneWay}"/><Run Text="{Binding TotalPackTimeDisplay.SecondUnit, Mode=OneWay}" FontSize="14"/>
+                                </TextBlock>
+                            </StackPanel>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button Style="{StaticResource ModernBtn}" Command="{Binding OpenStatsCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0">
+                        <StackPanel x:Name="ActionButtonsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="DataButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenStatsCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0">
                                 <StackPanel Orientation="Horizontal">
                                     <Path Data="{StaticResource FluentDataIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
                                     <TextBlock Text="数据" Foreground="{DynamicResource TextPrimary}"/>

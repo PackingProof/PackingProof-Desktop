@@ -328,6 +328,7 @@
   <data name="更新内容：" xml:space="preserve"><value>Updates:</value></data>
   <data name="回放" xml:space="preserve"><value>Playback</value></data>
   <data name="件" xml:space="preserve"><value> items</value></data>
+  <data name="今日" xml:space="preserve"><value>Today</value></data>
   <data name="今日:" xml:space="preserve"><value>Today:</value></data>
   <data name="本机今日:" xml:space="preserve"><value>Local today:</value></data>
   <data name="局域网查看视频" xml:space="preserve"><value>View video on LAN</value></data>
@@ -340,6 +341,7 @@
   <data name="录制中" xml:space="preserve"><value>Recording</value></data>
   <data name="能看到实时画面，就说明摄像头基础配置正常。" xml:space="preserve"><value>If you can see the real-time picture, it means that the basic configuration of the camera is normal.</value></data>
   <data name="配置完成" xml:space="preserve"><value>Configuration completed</value></data>
+  <data name="平均" xml:space="preserve"><value>Average</value></data>
   <data name="平均:" xml:space="preserve"><value>Average:</value></data>
   <data name="平均单件用时" xml:space="preserve"><value>Average time per item</value></data>
   <data name="前往下载" xml:space="preserve"><value>Download</value></data>
@@ -383,6 +385,7 @@
   <data name="正在准备摄像头预览..." xml:space="preserve"><value>Preparing camera preview...</value></data>
   <data name="至" xml:space="preserve"><value>to</value></data>
   <data name="自动查找" xml:space="preserve"><value>automatic search</value></data>
+  <data name="总耗时" xml:space="preserve"><value>Total time</value></data>
   <data name="总耗时:" xml:space="preserve"><value>Total time:</value></data>
   <data name="总计时长" xml:space="preserve"><value>total duration</value></data>
   <data name="统计分" xml:space="preserve"><value>m</value></data>
