@@ -264,11 +264,8 @@ public sealed class AppDialogTests
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory != null)
         {
-            string path = Path.Combine([directory.FullName, .. parts]);
-            if (File.Exists(path))
-                return path;
-            if (Directory.Exists(path))
-                return path;
+            if (File.Exists(Path.Combine(directory.FullName, "ExpressPackingMonitoring.sln")))
+                return Path.Combine([directory.FullName, .. parts]);
             directory = directory.Parent;
         }
 

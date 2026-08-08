@@ -117,9 +117,9 @@ public sealed class MainWindowStatsBarTests
         System.IO.DirectoryInfo? directory = new(System.AppContext.BaseDirectory);
         while (directory != null)
         {
-            string path = System.IO.Path.Combine([directory.FullName, .. parts]);
-            if (System.IO.File.Exists(path) || System.IO.Directory.Exists(path))
-                return path;
+            if (System.IO.File.Exists(
+                    System.IO.Path.Combine(directory.FullName, "ExpressPackingMonitoring.sln")))
+                return System.IO.Path.Combine([directory.FullName, .. parts]);
             directory = directory.Parent;
         }
 
