@@ -254,6 +254,7 @@ public static class WorkstationNetwork
 
     private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromMilliseconds(800));
     private static readonly HttpClient TestOrderClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
+    private static readonly HttpClient LoopbackClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly JsonSerializerOptions NetworkJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -334,7 +335,10 @@ public static class WorkstationNetwork
 
         try
         {
-            using var response = await Client.GetAsync($"{ToUrl(address)}/api/node-info", token);
+            // 局域网扫描使用短超时快速跳过不可达地址；回环主机是本机服务，
+            // 首次请求在慢速/高负载环境（如 CI）可能超过 800ms，使用更宽松的超时。
+            HttpClient client = IsLoopbackAddress(address) ? LoopbackClient : Client;
+            using var response = await client.GetAsync($"{ToUrl(address)}/api/node-info", token);
             if (!response.IsSuccessStatusCode)
                 return null;
 
@@ -356,6 +360,14 @@ public static class WorkstationNetwork
         {
             return null;
         }
+    }
+
+    private static bool IsLoopbackAddress(string address)
+    {
+        string host = NormalizeAddress(address).Split(':')[0];
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return IPAddress.TryParse(host, out IPAddress? ip) && IPAddress.IsLoopback(ip);
     }
 
     public static async Task<IReadOnlyList<RecordingDeviceInfo>> GetRecordingDevicesAsync(
