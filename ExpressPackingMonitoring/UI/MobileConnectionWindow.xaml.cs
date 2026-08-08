@@ -86,7 +86,7 @@ public partial class MobileConnectionWindow : Window
         }
         catch (Exception ex)
         {
-            AppDialog.ShowMessage(this, $"复制网址失败：{ex.Message}", "手机/电脑连接", AppDialogSeverity.Warning);
+            AppDialog.Error(this, $"复制网址失败：{ex.Message}", "手机/电脑连接");
         }
     }
 
@@ -95,7 +95,7 @@ public partial class MobileConnectionWindow : Window
         if (WorkstationNetwork.TryOpenUrl(_url, out string error))
             return;
 
-        AppDialog.ShowMessage(this, $"打开网页失败：{error}", "手机/电脑连接", AppDialogSeverity.Warning);
+        AppDialog.Error(this, $"打开网页失败：{error}", "手机/电脑连接");
     }
 
     private void OpenMobileAppDownload_Click(object sender, RoutedEventArgs e)
@@ -103,11 +103,10 @@ public partial class MobileConnectionWindow : Window
         if (WorkstationNetwork.TryOpenUrl(_mobileAppDownloadUrl, out string error))
             return;
 
-        AppDialog.ShowMessage(
+        AppDialog.Error(
             this,
             AppLanguage.Format("打开手机 App 下载页失败：{0}", error),
-            AppLanguage.Get("手机/电脑连接"),
-            AppDialogSeverity.Warning);
+            AppLanguage.Get("手机/电脑连接"));
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)

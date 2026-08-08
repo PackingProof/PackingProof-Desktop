@@ -295,9 +295,9 @@ namespace ExpressPackingMonitoring.UI
                 this,
                 AppLanguage.Get("实时封装时如果麦克风断开或音频设备异常被占用，可能导致 FFmpeg 录制中断，从而造成视频异常或录制失败"),
                 AppLanguage.Get("开启音频直接写入 MKV？"),
+                AppDialogSeverity.Warning,
                 confirmText: AppLanguage.Get("了解风险并开启"),
-                cancelText: AppLanguage.Get("保持关闭"),
-                severity: AppDialogSeverity.Warning);
+                cancelText: AppLanguage.Get("保持关闭"));
         }
 
         private void ApplyDirectAacRecordingChoice(CheckBox checkBox, bool enabled)
@@ -844,7 +844,7 @@ namespace ExpressPackingMonitoring.UI
 
             if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
             {
-                AppDialog.ShowMessage(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误", AppDialogSeverity.Warning);
+                AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
 
@@ -855,11 +855,10 @@ namespace ExpressPackingMonitoring.UI
         {
             if (_isRecording)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Warning(
                     this,
                     "请先结束当前录像，再更改本地缓存位置",
-                    "正在录像",
-                    AppDialogSeverity.Information);
+                    "正在录像");
                 return;
             }
 
@@ -884,11 +883,10 @@ namespace ExpressPackingMonitoring.UI
                     isSystemDrive);
             if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     $"无法使用这个缓存位置：\n{selectedPath}\n\n{errorMessage}",
-                    "更改缓存位置",
-                    AppDialogSeverity.Warning);
+                    "更改缓存位置");
                 return;
             }
 
@@ -1003,11 +1001,10 @@ namespace ExpressPackingMonitoring.UI
                     out RecordingCacheSpaceSnapshot snapshot,
                     out string error))
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     error,
-                    "本地缓存位置不可用",
-                    AppDialogSeverity.Warning);
+                    "本地缓存位置不可用");
                 return false;
             }
 
@@ -1015,11 +1012,10 @@ namespace ExpressPackingMonitoring.UI
                 < RecordingWorkstationCachePolicy
                     .RecordingAndPackagingHeadroomBytes)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Warning(
                     this,
                     "此磁盘当前安全可用空间不足以容纳一段录像及封装临时文件，请选择其他缓存位置",
-                    "本地缓存空间不足",
-                    AppDialogSeverity.Warning);
+                    "本地缓存空间不足");
                 return false;
             }
 
@@ -1027,11 +1023,10 @@ namespace ExpressPackingMonitoring.UI
                 && snapshot.ConfiguredLimitBytes > snapshot.EffectiveLimitBytes)
             {
                 _recordingCacheLimitExplained = true;
-                AppDialog.ShowMessage(
+                AppDialog.Information(
                     this,
                     $"缓存上限设置为 {Config.RecordingCacheMaxGB} GB；此磁盘当前建议最多 {FormatGb(snapshot.EffectiveLimitBytes)}。系统会自动采用较小值，不会预占或强占磁盘空间",
-                    "已按磁盘安全空间调整",
-                    AppDialogSeverity.Information);
+                    "已按磁盘安全空间调整");
             }
 
             return true;
@@ -1049,7 +1044,7 @@ namespace ExpressPackingMonitoring.UI
 
             if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
             {
-                AppDialog.ShowMessage(this, "该路径已在列表中。", "提示", AppDialogSeverity.Information);
+                AppDialog.Information(this, "该路径已在列表中。", "提示");
                 return;
             }
 
@@ -1059,17 +1054,16 @@ namespace ExpressPackingMonitoring.UI
                 string.Equals(GetStorageRoot(x.Path), selectedRoot, StringComparison.OrdinalIgnoreCase));
             if (sameDisk != null)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Information(
                     this,
                     $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序。",
-                    "磁盘已存在",
-                    AppDialogSeverity.Information);
+                    "磁盘已存在");
                 return;
             }
 
             if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
             {
-                AppDialog.ShowMessage(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误", AppDialogSeverity.Warning);
+                AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
 
@@ -1123,7 +1117,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (Config.StorageLocations.Count <= 1)
                 {
-                    AppDialog.ShowMessage(this, "至少需要保留一个存储路径。", "警告", AppDialogSeverity.Warning);
+                    AppDialog.Warning(this, "至少需要保留一个存储路径。", "警告");
                     return;
                 }
 
@@ -1131,9 +1125,9 @@ namespace ExpressPackingMonitoring.UI
                     this,
                     $"确定要移除路径: {selected.Path} 吗？\n注意：此操作不会删除物理文件，但系统将不再管理该目录。",
                     "确认移除",
-                    "移除",
-                    "取消",
                     AppDialogSeverity.Warning,
+                    confirmText: "移除",
+                    cancelText: "取消",
                     isDangerous: true);
                 if (shouldRemove)
                 {
@@ -1150,7 +1144,7 @@ namespace ExpressPackingMonitoring.UI
             }
             else
             {
-                AppDialog.ShowMessage(this, "请先在列表中选中要移除的行。", "提示", AppDialogSeverity.Information);
+                AppDialog.Warning(this, "请先在列表中选中要移除的行。", "提示");
             }
         }
 
@@ -1262,11 +1256,10 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (!TryNormalizeComputerNickname(Config.NodeName, out string normalizedNickname))
                 {
-                    AppDialog.ShowMessage(
+                    AppDialog.Warning(
                         this,
                         "电脑昵称需要填写 1 到 20 个字符，不能包含换行或其他控制字符",
-                        "电脑昵称不正确",
-                        AppDialogSeverity.Warning);
+                        "电脑昵称不正确");
                     ComputerNicknameTextBox?.Focus();
                     return false;
                 }
@@ -1290,9 +1283,9 @@ namespace ExpressPackingMonitoring.UI
                     this,
                     "已开启录制声音，但未选择麦克风。录制可能会失败或没有声音。\n\n是否继续保存？",
                     "音频提醒",
-                    "继续保存",
-                    "返回设置",
                     AppDialogSeverity.Warning,
+                    confirmText: "继续保存",
+                    cancelText: "返回设置",
                     isDangerous: false);
                 if (!shouldContinue) return false;
             }
@@ -1420,11 +1413,10 @@ namespace ExpressPackingMonitoring.UI
                 _originalNodeName = Config.NodeName;
                 if (_originalLanguage != Config.Language)
                 {
-                    AppDialog.ShowMessage(
+                    AppDialog.Information(
                         this,
                         AppLanguage.Get("RestartSaved"),
-                        AppLanguage.Get("RestartRequired"),
-                        AppDialogSeverity.Information);
+                        AppLanguage.Get("RestartRequired"));
                     _originalLanguage = Config.Language;
                 }
             }
@@ -1518,11 +1510,10 @@ namespace ExpressPackingMonitoring.UI
                 CultureInfo.CurrentCulture,
                 AppLanguage.Translate("不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空"),
                 periodNumber);
-            AppDialog.ShowMessage(
+            AppDialog.Warning(
                 this,
                 message,
-                AppLanguage.Translate("时间格式错误"),
-                AppDialogSeverity.Warning);
+                AppLanguage.Translate("时间格式错误"));
             return false;
         }
 
@@ -1611,9 +1602,9 @@ namespace ExpressPackingMonitoring.UI
                 $"可能无法稳定实时录制。\n\n实测最大编码速度：{cached.MeasuredEncodingFps:F1} FPS，" +
                 $"未达到保留 20% 余量所需的 {fps * RecordingProfileDetector.RequiredEncodingSpeed:F1} FPS。\n\n是否仍然应用此配置？",
                 "录制性能提醒",
-                "仍然应用",
-                "返回调整",
                 AppDialogSeverity.Warning,
+                confirmText: "仍然应用",
+                cancelText: "返回调整",
                 isDangerous: false);
         }
 
@@ -1692,9 +1683,9 @@ namespace ExpressPackingMonitoring.UI
                     $"当前配置：{Config.FrameWidth}×{Config.FrameHeight} @ {Config.Fps} FPS\n" +
                     $"推荐配置：{recommendedMode.Width}×{recommendedMode.Height} @ {recommendedMode.Fps} FPS",
                     "录制规格推荐",
-                    "应用推荐配置",
-                    "保持当前配置",
                     AppDialogSeverity.Information,
+                    confirmText: "应用推荐配置",
+                    cancelText: "保持当前配置",
                     isDangerous: false);
                 if (!applyRecommendation)
                 {
@@ -1867,9 +1858,9 @@ namespace ExpressPackingMonitoring.UI
                     $"建议切换到: {fallbackLabel}\n\n" +
                     $"是否在保存时自动改为 {fallbackLabel}？",
                     "编码器不可用",
-                    "使用建议方案",
-                    "取消保存",
                     AppDialogSeverity.Warning,
+                    confirmText: "使用建议方案",
+                    cancelText: "取消保存",
                     isDangerous: false);
 
                 if (!useFallback)
@@ -1881,12 +1872,12 @@ namespace ExpressPackingMonitoring.UI
             }
 
             // 同一编解码器可用，但会回退到别的实现
-            AppDialog.ShowMessage(
+            AppDialog.Information(
                 this,
                 $"当前选择的 {requestedLabel} 不可用。\n\n" +
                 $"保存后实际会回退到: {fallbackLabel}\n\n" +
                 $"设置将按可用方案保存。",
-                "编码器将自动回退", AppDialogSeverity.Information);
+                "编码器将自动回退");
 
             EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
             SyncEncoderComboboxes(fallbackEncoder);
@@ -1921,8 +1912,8 @@ namespace ExpressPackingMonitoring.UI
                     this,
                     $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}。",
                     "反馈问题",
-                    confirmText: "开始打包",
-                    severity: AppDialogSeverity.Warning);
+                    AppDialogSeverity.Warning,
+                    confirmText: "开始打包");
                 if (!confirmed) return;
 
                 IReadOnlyList<string> warnings = Array.Empty<string>();
@@ -1961,9 +1952,9 @@ namespace ExpressPackingMonitoring.UI
                     this,
                     message,
                     "反馈问题",
+                    AppDialogSeverity.Information,
                     confirmText: "发送邮件",
                     cancelText: "关闭",
-                    severity: AppDialogSeverity.Information,
                     isDangerous: false);
                 if (sendMail)
                 {
@@ -1980,17 +1971,16 @@ namespace ExpressPackingMonitoring.UI
                         || FeedbackMailLauncher.TryOpenMailto(FeedbackEmail, subject, body);
                     if (!opened)
                     {
-                        AppDialog.ShowMessage(
+                        AppDialog.Error(
                             this,
                             $"未能打开邮件客户端，请手动发送到 {FeedbackEmail}（压缩包路径已复制到剪贴板，请作为附件添加）。",
-                            "反馈问题",
-                            AppDialogSeverity.Warning);
+                            "反馈问题");
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(this, $"打包失败：{ex.Message}", "反馈问题", AppDialogSeverity.Error);
+                AppDialog.Error(this, $"打包失败：{ex.Message}", "反馈问题");
             }
             finally
             {
@@ -2050,7 +2040,7 @@ namespace ExpressPackingMonitoring.UI
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(null, $"无法打开链接：{ex.Message}", "打开链接失败", AppDialogSeverity.Warning);
+                AppDialog.Error(null, $"无法打开链接：{ex.Message}", "打开链接失败");
             }
         }
 
@@ -2109,7 +2099,7 @@ namespace ExpressPackingMonitoring.UI
                     if (Context.ShowToast != null)
                         Context.ShowToast("打开下载页面失败");
                     else
-                        AppDialog.ShowMessage(this, "打开下载页面失败", "检查更新", AppDialogSeverity.Warning);
+                        AppDialog.Error(this, "打开下载页面失败", "检查更新");
                 }
             }
         }
@@ -2118,11 +2108,10 @@ namespace ExpressPackingMonitoring.UI
         {
             if (!WorkstationNetwork.TryScheduleRootLauncherRestart("manual-app-update"))
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     "无法定位支持更新的根目录启动器。补丁已经保留，可完全退出后手动从软件根目录启动",
-                    "无法立即重启",
-                    AppDialogSeverity.Warning);
+                    "无法立即重启");
                 return;
             }
 

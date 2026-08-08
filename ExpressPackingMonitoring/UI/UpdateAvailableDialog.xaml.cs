@@ -86,9 +86,9 @@ namespace ExpressPackingMonitoring.UI
                         this,
                         restartMessage,
                         "补丁准备完成",
-                        isRecording ? "保存录像并重启" : "立即重启更新",
-                        "稍后更新",
                         isRecording ? AppDialogSeverity.Warning : AppDialogSeverity.Information,
+                        confirmText: isRecording ? "保存录像并重启" : "立即重启更新",
+                        cancelText: "稍后更新",
                         isDangerous: isRecording);
                     DialogResult = RestartRequested;
                     Close();

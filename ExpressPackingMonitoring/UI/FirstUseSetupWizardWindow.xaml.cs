@@ -374,8 +374,7 @@ public partial class FirstUseSetupWizardWindow : Window
             if (CameraComboBox.SelectedItem is not CameraInfo selectedCamera
                 || string.IsNullOrWhiteSpace(selectedCamera.Moniker))
             {
-                AppDialog.ShowMessage(this, "录制主机必须先选择可用摄像头", "摄像头尚未配置",
-                    AppDialogSeverity.Information);
+                AppDialog.Warning(this, "录制主机必须先选择可用摄像头", "摄像头尚未配置");
                 ShowStep(1);
                 return;
             }

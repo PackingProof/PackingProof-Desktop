@@ -522,11 +522,10 @@ public partial class PrintWorkstationWindow : Window
                 if (TrySaveAndActivateConfig(previousConfig, nextConfig, out string error))
                     return true;
 
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     $"配置保存失败：{error}",
-                    "设置",
-                    AppDialogSeverity.Error);
+                    "设置");
                 return false;
             });
         }
@@ -564,11 +563,10 @@ public partial class PrintWorkstationWindow : Window
             RepairLanButton.IsEnabled = true;
             if (recovered)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     ex.Message,
-                    "服务重启失败，已恢复原设置",
-                    AppDialogSeverity.Error);
+                    "服务重启失败，已恢复原设置");
             }
             else
             {
@@ -728,11 +726,10 @@ public partial class PrintWorkstationWindow : Window
                     out AppConfig savedConfig,
                     out string error))
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     $"用途保存失败：{error}",
-                    "切换用途",
-                    AppDialogSeverity.Error);
+                    "切换用途");
                 return false;
             }
 

@@ -653,11 +653,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!string.IsNullOrWhiteSpace(driverWarningMessage))
                     {
                         Application.Current?.Dispatcher.BeginInvoke(() =>
-                            AppDialog.ShowMessage(
+                            AppDialog.Warning(
                                 null,
                                 driverWarningMessage,
-                                "显卡驱动版本过低",
-                                AppDialogSeverity.Warning));
+                                "显卡驱动版本过低"));
                     }
                 }
                 catch (Exception ex)
@@ -931,7 +930,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告", AppDialogSeverity.Warning);
+                AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
             }
         }
 
@@ -2240,7 +2239,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(null, $"无法访问存储路径：{ex.Message}", "存储错误", AppDialogSeverity.Error);
+                AppDialog.Error(null, $"无法访问存储路径：{ex.Message}", "存储错误");
                 return;
             }
 
@@ -2275,7 +2274,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 _playbackWindow = null;
-                AppDialog.ShowMessage(null, $"打开回放窗口失败：{ex.Message}", "回放错误", AppDialogSeverity.Warning);
+                AppDialog.Error(null, $"打开回放窗口失败：{ex.Message}", "回放错误");
             }
         }
 

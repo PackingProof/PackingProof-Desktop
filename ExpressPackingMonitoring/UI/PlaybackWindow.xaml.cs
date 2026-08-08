@@ -262,7 +262,7 @@ namespace ExpressPackingMonitoring.UI
                         _totalVideos = 0;
                         _currentPage = 1;
                         ShowCurrentPage();
-                        AppDialog.ShowMessage(this, $"加载回放列表失败：{ex.Message}", "回放错误", AppDialogSeverity.Warning);
+                        AppDialog.Error(this, $"加载回放列表失败：{ex.Message}", "回放错误");
                         continue;
                     }
 
@@ -567,31 +567,30 @@ namespace ExpressPackingMonitoring.UI
             {
                 string reason = string.IsNullOrEmpty(video.DeleteReason) ? "系统清理" : video.DeleteReason;
                 string time = video.DeletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "未知";
-                AppDialog.ShowMessage(
+                AppDialog.Information(
                     this,
                     $"该视频已被覆盖删除，无法播放。\n\n单号: {video.OrderId}\n删除原因: {reason}\n删除时间: {time}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
-                    "视频已删除", AppDialogSeverity.Information);
+                    "视频已删除");
                 UpdateLocateButtonState(video);
                 return;
             }
 
             if (video.IsMissing)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Error(
                     this,
                     $"视频文件已被外部删除或移动，无法播放。\n\n单号: {video.OrderId}\n路径: {video.FullPath}\n原始大小: {video.FileSize}\n录制时长: {video.Duration}",
-                    "文件丢失", AppDialogSeverity.Warning);
+                    "文件丢失");
                 UpdateLocateButtonState(video);
                 return;
             }
 
             if (video.IsStoredOnHost)
             {
-                AppDialog.ShowMessage(
+                AppDialog.Information(
                     this,
                     "这段录像已转移到绑定主机，请从录制工位主界面打开主机录像页面查看",
-                    "已保存到主机",
-                    AppDialogSeverity.Information);
+                    "已保存到主机");
                 UpdateLocateButtonState(video);
                 return;
             }
@@ -641,7 +640,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 ShowPlaybackCover("视频播放失败");
                 UpdatePlayState(false);
-                AppDialog.ShowMessage(this, $"视频播放失败：{ex.Message}", "播放错误", AppDialogSeverity.Warning);
+                AppDialog.Error(this, $"视频播放失败：{ex.Message}", "播放错误");
             }
             finally
             {
@@ -673,7 +672,7 @@ namespace ExpressPackingMonitoring.UI
         {
             if (VideoList.SelectedItem is not VideoItem video || video.IsUnavailable || string.IsNullOrWhiteSpace(video.FullPath))
             {
-                AppDialog.ShowMessage(this, "请先选择一个可用视频。", "定位文件", AppDialogSeverity.Information);
+                AppDialog.Warning(this, "请先选择一个可用视频。", "定位文件");
                 return;
             }
 
@@ -682,20 +681,19 @@ namespace ExpressPackingMonitoring.UI
                 FileLocationResult result = WindowsShellFileLocator.Locate(video.FullPath);
                 if (result == FileLocationResult.OpenedFolder)
                 {
-                    AppDialog.ShowMessage(
+                    AppDialog.Information(
                         this,
                         "已打开文件所在文件夹，但系统未能自动选中录像文件。",
-                        "定位文件",
-                        AppDialogSeverity.Information);
+                        "定位文件");
                 }
                 else if (result != FileLocationResult.Selected)
                 {
-                    AppDialog.ShowMessage(this, "录像文件不存在或路径无效。", "定位失败", AppDialogSeverity.Warning);
+                    AppDialog.Error(this, "录像文件不存在或路径无效。", "定位失败");
                 }
             }
             catch (Exception ex)
             {
-                AppDialog.ShowMessage(this, $"无法打开文件管理器：{ex.Message}", "定位失败", AppDialogSeverity.Warning);
+                AppDialog.Error(this, $"无法打开文件管理器：{ex.Message}", "定位失败");
             }
         }
 
@@ -744,7 +742,7 @@ namespace ExpressPackingMonitoring.UI
                 ShowPlaybackCover("视频解码失败");
                 _timer.Stop();
                 UpdatePlayState(false);
-                AppDialog.ShowMessage(this, "播放器解码失败，请确认视频文件完整。", "播放错误", AppDialogSeverity.Warning);
+                AppDialog.Error(this, "播放器解码失败，请确认视频文件完整。", "播放错误");
             });
         }
 
@@ -847,7 +845,7 @@ namespace ExpressPackingMonitoring.UI
             catch (Exception ex)
             {
                 _playerInitializationFailed = true;
-                AppDialog.ShowMessage(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放。", "回放错误", AppDialogSeverity.Warning);
+                AppDialog.Error(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放。", "回放错误");
                 return false;
             }
             finally

@@ -153,7 +153,7 @@ public partial class MainViewModel
             requireAccessKey: true,
             Config.LastKnownHostAccessKey);
         if (!WorkstationNetwork.TryOpenUrl(url, out string error))
-            AppDialog.ShowMessage(null, error, "打开主机录像失败", AppDialogSeverity.Error);
+            AppDialog.Error(null, error, "打开主机录像失败");
     }
 
     private void RetryRecordingTransfers()
@@ -240,11 +240,10 @@ public partial class MainViewModel
             && summary != null
             && summary.PendingCount + summary.UploadingCount + summary.FailedCount > 0)
         {
-            AppDialog.ShowMessage(
+            AppDialog.Warning(
                 null,
                 "仍有录像等待上传。为避免已有任务被静默改到另一台主机，请等待队列完成后再更换主机",
-                "暂时无法更换主机",
-                AppDialogSeverity.Warning);
+                "暂时无法更换主机");
             return;
         }
 

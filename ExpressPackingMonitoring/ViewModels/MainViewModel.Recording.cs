@@ -486,9 +486,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 Application.Current?.MainWindow,
                 "本地缓存暂时没有足够空间开始下一段录像。系统已先清理可安全删除的已上传录像，其他录像仍完整保留",
                 "本地缓存空间不足",
+                AppDialogSeverity.Warning,
                 confirmText: "管理保存主机",
-                cancelText: "更改缓存位置",
-                severity: AppDialogSeverity.Warning);
+                cancelText: "更改缓存位置");
             if (manageHost)
                 ChangeBoundHost(Application.Current?.MainWindow);
             else
@@ -783,10 +783,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     ShowToast("警告：录制启动失败");
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
-                    AppDialog.ShowMessage(
+                    AppDialog.Error(
                         null,
                         $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n已自动尝试 CPU 软编码；若仍失败，请检查摄像头画面和存储路径。",
-                        "录制失败", AppDialogSeverity.Warning);
+                        "录制失败");
                 });
             }
         }

@@ -412,7 +412,7 @@ public partial class ViewerClientWindow : Window
     {
         string address = _boundHost?.Address ?? _config.LastKnownHostAddress;
         if (!WorkstationNetwork.TryOpenUrl(address, out string error))
-            AppDialog.ShowMessage(this, error, "打开录像网页失败", AppDialogSeverity.Error);
+            AppDialog.Error(this, error, "打开录像网页失败");
     }
 
     private async void SearchHosts_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();
@@ -426,9 +426,9 @@ public partial class ViewerClientWindow : Window
                 this,
                 "更换后，新的录像会发送到新主机。尚未上传完成的录像仍会保留在本机",
                 "更换保存主机",
+                AppDialogSeverity.Warning,
                 confirmText: "继续选择",
-                cancelText: "保留当前",
-                severity: AppDialogSeverity.Information))
+                cancelText: "保留当前"))
         {
             return;
         }
@@ -444,14 +444,13 @@ public partial class ViewerClientWindow : Window
         string address = _boundHost?.Address ?? _config.LastKnownHostAddress;
         if (string.IsNullOrWhiteSpace(address))
         {
-            AppDialog.ShowMessage(this, "请先搜索并绑定 PackingProof 主机", "安装快递助手联动",
-                AppDialogSeverity.Information);
+            AppDialog.Warning(this, "请先搜索并绑定 PackingProof 主机", "安装快递助手联动");
             return;
         }
 
         if (!UserscriptGuideNavigation.TryOpen(address, out string error))
         {
-            AppDialog.ShowMessage(this, error, "安装快递助手联动失败", AppDialogSeverity.Error);
+            AppDialog.Error(this, error, "安装快递助手联动失败");
             return;
         }
 
@@ -541,8 +540,7 @@ public partial class ViewerClientWindow : Window
                 out AppConfig savedConfig,
                 out string error))
         {
-            AppDialog.ShowMessage(this, $"用途保存失败：{error}", "切换用途",
-                AppDialogSeverity.Error);
+            AppDialog.Error(this, $"用途保存失败：{error}", "切换用途");
             return;
         }
 
@@ -628,9 +626,9 @@ public partial class ViewerClientWindow : Window
                 this,
                 $"本机还有 {viewModel.PendingRecordingTransferCount} 个录像等待原保存主机。继续后，这些录像将改为上传到“{node.NodeName}”",
                 "更换保存主机",
+                AppDialogSeverity.Warning,
                 confirmText: "继续连接",
-                cancelText: "保留原主机",
-                severity: AppDialogSeverity.Warning))
+                cancelText: "保留原主机"))
         {
             return;
         }

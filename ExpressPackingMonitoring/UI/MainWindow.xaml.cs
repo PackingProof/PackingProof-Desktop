@@ -472,9 +472,9 @@ namespace ExpressPackingMonitoring.UI
                         this,
                         msg,
                         "正在录制 - 退出确认",
-                        "退出并保存",
-                        "继续录制",
                         AppDialogSeverity.Warning,
+                        confirmText: "退出并保存",
+                        cancelText: "继续录制",
                         isDangerous: true))
                 {
                     e.Cancel = true;
@@ -512,7 +512,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 _shutdownInProgress = false;
                 WorkstationNetwork.CancelPendingRestart();
-                AppDialog.ShowMessage(this, "录像保存失败，请检查日志", "退出已取消", AppDialogSeverity.Warning);
+                AppDialog.Error(this, "录像保存失败，请检查日志", "退出已取消");
                 return;
             }
 

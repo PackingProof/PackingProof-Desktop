@@ -58,9 +58,9 @@ public partial class VideoImportDialog : Window
                 this,
                 "请先把视频放到录像文件夹，再回来导入\n\n导入后请不要自行移动或删除，程序会负责回放、备份和空间管理",
                 "只能导入录像文件夹内的视频",
-                "打开录像文件夹",
-                "返回",
                 AppDialogSeverity.Information,
+                confirmText: "打开录像文件夹",
+                cancelText: "返回",
                 isDangerous: false);
             if (openFolder)
                 OpenManagedFolder();
@@ -92,7 +92,7 @@ public partial class VideoImportDialog : Window
         }
         catch (Exception ex)
         {
-            AppDialog.ShowMessage(this, ex.Message, "导入视频失败", AppDialogSeverity.Warning);
+            AppDialog.Error(this, ex.Message, "导入视频失败");
             ShowInstructions();
         }
         finally
@@ -168,7 +168,7 @@ public partial class VideoImportDialog : Window
         }
         catch (Exception ex)
         {
-            AppDialog.ShowMessage(this, $"无法打开录像文件夹：{ex.Message}", "打开失败", AppDialogSeverity.Warning);
+            AppDialog.Error(this, $"无法打开录像文件夹：{ex.Message}", "打开失败");
         }
     }
 }

@@ -49,11 +49,10 @@ internal static class MobileAppUpdatePrompt
         catch (Exception ex)
         {
             RuntimeLog.Error("MobileUpdate", "Open mobile app download page failed", ex);
-            AppDialog.ShowMessage(
+            AppDialog.Error(
                 owner,
                 "打开手机版下载页面失败，请稍后重试",
-                "手机 App 更新",
-                AppDialogSeverity.Warning);
+                "手机 App 更新");
         }
     }
 }

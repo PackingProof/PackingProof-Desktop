@@ -1088,11 +1088,10 @@ public static class WorkstationNetwork
         if (TryRestartApplication("workstation-role-change", owner))
             return true;
 
-        AppDialog.ShowMessage(
+        AppDialog.Error(
             owner,
             "自动重启失败，请手动关闭后重新打开程序",
-            "切换用途",
-            AppDialogSeverity.Error);
+            "切换用途");
         return false;
     }
 

@@ -30,7 +30,7 @@ public partial class ConfirmDialog : Window
         {
             AppDialogSeverity.Error => "FluentDismissIcon",
             AppDialogSeverity.Warning => "FluentWarningIcon",
-            _ => "FluentCheckIcon"
+            _ => "FluentInfoIcon"
         };
         string brushKey = severity switch
         {
