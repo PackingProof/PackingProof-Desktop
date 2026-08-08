@@ -202,7 +202,7 @@ public sealed class WebRequestLimitTests
     }
 
     [Fact]
-    public void MobileOverview_UsesCompactCardsAndDisablesCompatibilityOnFirstVisit()
+    public void MobileOverview_UsesCompactCardsAndAutoCodecDetection()
     {
         string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));
 
@@ -210,9 +210,14 @@ public sealed class WebRequestLimitTests
         Assert.Contains(".overview .summary-card:nth-child(3){display:none}", html);
         Assert.Contains(".overview #oldestNote,.overview #retentionNote{display:none}", html);
         Assert.DoesNotContain("<p>按日期或订单号检索局域网监控端录像", html);
-        Assert.Contains("localStorage.getItem(compatStorageKey)===null", html);
-        Assert.Contains("window.matchMedia('(max-width:900px)').matches", html);
-        Assert.Contains("localStorage.setItem(compatStorageKey,'0')", html);
+        Assert.Contains("playbackCompatMode=saved===null?null:saved!=='0'", html);
+        Assert.Contains("function probeCodecSupport()", html);
+        Assert.Contains("canPlayType", html);
+        Assert.Contains("hvc1.1.6.L120.90", html);
+        Assert.Contains("hev1.1.6.L120.90", html);
+        Assert.Contains("av01.0.04M.08", html);
+        Assert.Contains("function compatValueFor(codec)", html);
+        Assert.DoesNotContain("localStorage.setItem(compatStorageKey,'0')", html);
         Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:min(70vh,calc(100vh - 190px))", html);
         Assert.Contains("max-height:calc(100vh - 32px);overflow:auto", html);
         Assert.Contains("function paginationWindowSize(){return window.matchMedia('(max-width:560px)').matches?3:window.matchMedia('(max-width:900px)').matches?5:9}", html);
