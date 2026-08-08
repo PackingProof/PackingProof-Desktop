@@ -1761,6 +1761,7 @@ namespace ExpressPackingMonitoring.Services
                     trackingNumber = record.TrackingNumber ?? "",
                     record.Mode,
                     record.FileName,
+                    videoCodec = record.VideoCodec ?? "",
                     sourceType = record.SourceType ?? "pc",
                     sourceDeviceId = record.SourceDeviceId ?? "",
                     sourceDeviceName = ResolveVideoSourceDisplayName(

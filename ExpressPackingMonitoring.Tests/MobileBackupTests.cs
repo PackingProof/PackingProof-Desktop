@@ -1043,6 +1043,8 @@ public sealed class MobileBackupTests
                 .Single(item => item.GetProperty("id").GetInt64() == pcVideoId);
             Assert.Equal("pc", pcVideo.GetProperty("sourceType").GetString());
             Assert.Equal("", pcVideo.GetProperty("sourceDeviceId").GetString());
+            Assert.Equal("h264", pcVideo.GetProperty("videoCodec").GetString());
+            Assert.True(video.TryGetProperty("videoCodec", out _));
             using HttpResponseMessage pcVideoPlayback = await client.GetAsync(
                 pcVideo.GetProperty("playUrl").GetString(),
                 cancellationToken);
