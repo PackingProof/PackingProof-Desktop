@@ -220,6 +220,8 @@
   <data name="扫码枪没有自动回车时使用。只在软件窗口内识别，避免影响其他程序输入" xml:space="preserve"><value>扫码枪没有自动回车时使用。只在软件窗口内识别，避免影响其他程序输入</value></data>
   <data name="扫码最小长度" xml:space="preserve"><value>扫码最小长度</value></data>
   <data name="扫描残留的 MKV 和 WAV，合并为 MP4" xml:space="preserve"><value>扫描残留的 MKV 和 WAV，合并为 MP4</value></data>
+  <data name="ScanInput.PlaceholderGlobal" xml:space="preserve"><value>支持后台扫码，也可手动输入</value></data>
+  <data name="ScanInput.PlaceholderLocal" xml:space="preserve"><value>仅软件内扫码或手动输入</value></data>
   <data name="商品名太长时，用这些词自动停顿" xml:space="preserve"><value>商品名太长时，用这些词自动停顿</value></data>
   <data name="上移" xml:space="preserve"><value>上移</value></data>
   <data name="少于这个时长的视频不保存" xml:space="preserve"><value>少于这个时长的视频不保存</value></data>

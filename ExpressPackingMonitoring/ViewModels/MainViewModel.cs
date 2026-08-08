@@ -434,9 +434,18 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(MainConnectionButtonText));
                     OnPropertyChanged(nameof(MainConnectionButtonToolTip));
                     OnPropertyChanged(nameof(ComputerDisplayName));
+                    OnPropertyChanged(nameof(ScanInputPlaceholder));
                 }
             }
         }
+        public string ScanInputPlaceholder =>
+            ResolveScanInputPlaceholder(Config.EnableGlobalKeyboard);
+
+        internal static string ResolveScanInputPlaceholder(bool enableGlobalKeyboard) =>
+            AppLanguage.Get(
+                enableGlobalKeyboard
+                    ? "ScanInput.PlaceholderGlobal"
+                    : "ScanInput.PlaceholderLocal");
         public string ComputerDisplayName =>
             string.IsNullOrWhiteSpace(Config?.NodeName) ? "电脑1" : Config.NodeName.Trim();
         public string WorkstationPrintStatusText { get => _workstationPrintStatusText; set => SetProperty(ref _workstationPrintStatusText, value); }

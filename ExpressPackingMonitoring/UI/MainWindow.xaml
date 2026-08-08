@@ -101,7 +101,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+                <Border x:Name="TopBarBorder" Grid.Row="0" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -118,23 +118,30 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0" Command="{Binding ToggleModeCommand}" Focusable="False" Margin="0,0,16,0" Cursor="Hand" ToolTip="点击切换模式" Height="52" MinWidth="130">
+                            <Button x:Name="ModeButton" Grid.Column="0" Command="{Binding ToggleModeCommand}" Focusable="False" Margin="0,0,16,0" Cursor="Hand" ToolTip="点击切换模式" Height="52">
                                 <Button.Style>
                                     <Style TargetType="Button">
+                                        <Setter Property="MinWidth" Value="130"/>
                                         <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
                                         <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="{TemplateBinding Background}" CornerRadius="8">
-                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0">
+                                                        <StackPanel x:Name="ModeContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0">
                                                             <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                            <TextBlock Text="{Binding CurrentMode, Converter={StaticResource LocalizedTextConverter}}" FontSize="24" FontWeight="Black" VerticalAlignment="Center"/>
+                                                            <TextBlock x:Name="ModeText" Text="{Binding CurrentMode, Converter={StaticResource LocalizedTextConverter}}" FontSize="22" FontWeight="Black" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <DataTrigger Binding="{Binding CurrentMode}" Value="退货">
                                                             <Setter TargetName="ModeIcon" Property="Data" Value="{StaticResource FluentReturnIcon}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsCompactLayout, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                            <Setter Property="MinWidth" Value="52"/>
+                                                            <Setter TargetName="ModeText" Property="Visibility" Value="Collapsed"/>
+                                                            <Setter TargetName="ModeContent" Property="Margin" Value="0"/>
+                                                            <Setter TargetName="ModeIcon" Property="Margin" Value="0"/>
                                                         </DataTrigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -163,6 +170,27 @@
                                         </Style>
                                     </TextBox.Resources>
                                 </TextBox>
+                                <TextBlock x:Name="ScanInputPlaceholderText"
+                                           Text="{Binding ScanInputPlaceholder}"
+                                           FontFamily="Microsoft YaHei UI, Segoe UI"
+                                           FontSize="22"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Center"
+                                           Margin="18,0,40,0"
+                                           IsHitTestVisible="False"
+                                           TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ScanInputText}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <Button Command="{Binding ClearScanInputCommand}" Focusable="False" Width="28" Height="28" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="{StaticResource TransparentBrush}" BorderThickness="0">
                                     <Path Data="{StaticResource FluentDismissIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource TextMuted}"/>
                                     <Button.Template>
@@ -181,17 +209,18 @@
                             </Grid>
                         </Grid>
 
-                        <Button Grid.Column="1" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Width="160" Cursor="Hand">
+                        <Button x:Name="RecordButton" Grid.Column="1" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Cursor="Hand" ToolTip="{x:Static localization:AppLanguage.StartRecordingText}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource ModernBtn}">
+                                    <Setter Property="Width" Value="160"/>
                                     <Setter Property="Background" Value="{DynamicResource AccentGreen}"/>
                                     <Setter Property="FontWeight" Value="Black"/>
-                                    <Setter Property="FontSize" Value="20"/>
+                                    <Setter Property="FontSize" Value="22"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}" CornerRadius="8">
-                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <StackPanel x:Name="RecordActionContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Path x:Name="RecordActionIcon" Data="{StaticResource FluentRecordIcon}" Width="20" Height="20" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,8,0"/>
                                                         <TextBlock x:Name="RecordActionText" Text="{x:Static localization:AppLanguage.StartRecordingText}" Foreground="{StaticResource TextOnAccent}" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
                                                     </StackPanel>
@@ -200,6 +229,7 @@
                                                     <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                                         <Setter TargetName="RecordActionIcon" Property="Data" Value="{StaticResource FluentStopIcon}"/>
                                                         <Setter TargetName="RecordActionText" Property="Text" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
+                                                        <Setter Property="ToolTip" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
                                                     </DataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
@@ -208,7 +238,14 @@
                                                         </MultiDataTrigger.Conditions>
                                                         <Setter TargetName="RecordActionIcon" Property="Data" Value="{StaticResource FluentArrowSyncIcon}"/>
                                                         <Setter TargetName="RecordActionText" Property="Text" Value="{Binding BusyText}"/>
+                                                        <Setter Property="ToolTip" Value="{Binding BusyText}"/>
                                                     </MultiDataTrigger>
+                                                    <DataTrigger Binding="{Binding IsCompactLayout, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                        <Setter Property="Width" Value="52"/>
+                                                        <Setter TargetName="RecordActionText" Property="Visibility" Value="Collapsed"/>
+                                                        <Setter TargetName="RecordActionContent" Property="Margin" Value="0"/>
+                                                        <Setter TargetName="RecordActionIcon" Property="Margin" Value="0"/>
+                                                    </DataTrigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Setter.Value>
@@ -465,22 +502,22 @@
                         </StackPanel>
 
                         <StackPanel x:Name="ActionButtonsPanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="DataButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenStatsCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0">
+                            <Button x:Name="DataButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenStatsCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0" ToolTip="数据">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentDataIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
-                                    <TextBlock Text="数据" Foreground="{DynamicResource TextPrimary}"/>
+                                    <Path x:Name="DataButtonIcon" Data="{StaticResource FluentDataIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
+                                    <TextBlock x:Name="DataButtonText" Text="数据" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource ModernBtn}" Command="{Binding OpenPlaybackCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0">
+                            <Button x:Name="PlaybackButton" Style="{StaticResource ModernBtn}" Command="{Binding OpenPlaybackCommand}" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" Margin="0,0,10,0" ToolTip="回放">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentVideoIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
-                                    <TextBlock Text="回放" Foreground="{DynamicResource TextPrimary}"/>
+                                    <Path x:Name="PlaybackButtonIcon" Data="{StaticResource FluentVideoIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,7,0"/>
+                                    <TextBlock x:Name="PlaybackButtonText" Text="回放" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource ModernBtn}" Click="BtnSettings_Click" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42">
+                            <Button x:Name="SettingsButton" Style="{StaticResource ModernBtn}" Click="BtnSettings_Click" Background="{DynamicResource ControlBackgroundHover}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="2" Width="120" Height="42" ToolTip="设置">
                                 <StackPanel Orientation="Horizontal">
-                                    <Path Data="{StaticResource FluentSettingsIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource TextSecondary}" Margin="0,0,7,0"/>
-                                    <TextBlock Text="设置" Foreground="{DynamicResource TextPrimary}"/>
+                                    <Path x:Name="SettingsButtonIcon" Data="{StaticResource FluentSettingsIcon}" Width="18" Height="18" Stretch="Uniform" Fill="{DynamicResource TextSecondary}" Margin="0,0,7,0"/>
+                                    <TextBlock x:Name="SettingsButtonText" Text="设置" Foreground="{DynamicResource TextPrimary}"/>
                                 </StackPanel>
                             </Button>
                         </StackPanel>

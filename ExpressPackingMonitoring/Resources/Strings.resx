@@ -220,6 +220,8 @@
   <data name="扫码枪没有自动回车时使用。只在软件窗口内识别，避免影响其他程序输入" xml:space="preserve"><value>Use when the scanner does not send Enter. Recognition is limited to this window so other applications are unaffected</value></data>
   <data name="扫码最小长度" xml:space="preserve"><value>Minimum scan length</value></data>
   <data name="扫描残留的 MKV 和 WAV，合并为 MP4" xml:space="preserve"><value>Scan residual MKV and WAV and merge into MP4</value></data>
+  <data name="ScanInput.PlaceholderGlobal" xml:space="preserve"><value>Supports background scanning; you can also type manually</value></data>
+  <data name="ScanInput.PlaceholderLocal" xml:space="preserve"><value>Scan within the app or type manually</value></data>
   <data name="商品名太长时，用这些词自动停顿" xml:space="preserve"><value>When the product name is too long, use these words to automatically pause</value></data>
   <data name="上移" xml:space="preserve"><value>Move up</value></data>
   <data name="少于这个时长的视频不保存" xml:space="preserve"><value>Videos shorter than this length will not be saved</value></data>

@@ -37,6 +37,24 @@ namespace ExpressPackingMonitoring.UI
         private DateTime _lastScanInputCharAt = DateTime.MinValue;
         private int _lastScanInputLength;
         private bool _testOrderSending;
+        private const double TopModeButtonTextWidth = 130;
+        private const double TopRecordButtonTextWidth = 160;
+        private const double TopModeButtonRightMargin = 16;
+        private const double TopColumnGap = 20;
+        private const double MinimumScanInputWidth = 320;
+        private const double IconButtonWidth = 52;
+
+        public static readonly DependencyProperty IsCompactLayoutProperty = DependencyProperty.Register(
+            nameof(IsCompactLayout),
+            typeof(bool),
+            typeof(MainWindow),
+            new PropertyMetadata(false));
+
+        public bool IsCompactLayout
+        {
+            get => (bool)GetValue(IsCompactLayoutProperty);
+            set => SetValue(IsCompactLayoutProperty, value);
+        }
 
         private bool IsCapsLockOn() => (GetKeyState(VK_CAPITAL) & 1) != 0;
 
@@ -114,7 +132,12 @@ namespace ExpressPackingMonitoring.UI
         {
             InitializeComponent();
             StatsBarBorder.SizeChanged += (_, _) => UpdateStatsBarVisibility();
-            Loaded += (_, _) => UpdateStatsBarVisibility();
+            TopBarBorder.SizeChanged += (_, _) => UpdateTopBarCompactState();
+            Loaded += (_, _) =>
+            {
+                UpdateStatsBarVisibility();
+                UpdateTopBarCompactState();
+            };
             if (DataContext is MainViewModel statsViewModel)
             {
                 statsViewModel.PropertyChanged += OnStatsViewModelPropertyChanged;
@@ -618,19 +641,30 @@ namespace ExpressPackingMonitoring.UI
                 _ => (false, false)
             };
 
-        internal static bool ShouldHideDataButton(
+        internal enum ActionButtonLayout
+        {
+            Text,
+            IconOnly,
+            IconOnlyNoData
+        }
+
+        internal static ActionButtonLayout ResolveActionButtonLayout(
             double availableContentWidth,
             double onlyTodayWidth,
-            double buttonsAllWidth,
-            double buttonsWithoutDataWidth)
+            double buttonsTextWidth,
+            double buttonsIconWidth,
+            double buttonsIconWithoutDataWidth)
         {
             const double tolerance = 1.0;
-            bool evenOnlyTodayOverflows = onlyTodayWidth + buttonsAllWidth > availableContentWidth + tolerance;
-            bool fitsWithoutDataButton = onlyTodayWidth + buttonsWithoutDataWidth <= availableContentWidth + tolerance;
-            return evenOnlyTodayOverflows && fitsWithoutDataButton;
+            if (onlyTodayWidth + buttonsTextWidth <= availableContentWidth + tolerance)
+                return ActionButtonLayout.Text;
+            if (onlyTodayWidth + buttonsIconWidth <= availableContentWidth + tolerance)
+                return ActionButtonLayout.IconOnly;
+            return ActionButtonLayout.IconOnlyNoData;
         }
 
         private bool _statsBarUpdating;
+        private bool _topBarUpdating;
 
         private void UpdateStatsBarVisibility()
         {
@@ -643,20 +677,25 @@ namespace ExpressPackingMonitoring.UI
                 TodayCountGroup.Visibility = Visibility.Visible;
                 AverageTimeGroup.Visibility = Visibility.Visible;
                 TotalTimeGroup.Visibility = Visibility.Visible;
+                ApplyBottomButtonLayout(ActionButtonLayout.Text);
                 DataButton.Visibility = Visibility.Visible;
 
                 double todayWidth = MeasureStatsGroupWidth(TodayCountGroup);
                 double averageWidth = MeasureStatsGroupWidth(AverageTimeGroup);
                 double totalWidth = MeasureStatsGroupWidth(TotalTimeGroup);
                 double availableContentWidth = Math.Max(0, StatsBarBorder.ActualWidth - 40);
-                double buttonsAllWidth = ActionButtonsPanel.Children
+                double buttonsTextWidth = ActionButtonsPanel.Children
                     .OfType<Button>()
                     .Sum(MeasureButtonOuterWidth);
-                double buttonsWithoutDataWidth = buttonsAllWidth - MeasureButtonOuterWidth(DataButton);
+                double buttonsIconWidth = ActionButtonsPanel.Children
+                    .OfType<Button>()
+                    .Sum(button => IconButtonWidth + button.Margin.Left + button.Margin.Right);
+                double buttonsIconWithoutDataWidth = buttonsIconWidth
+                    - (IconButtonWidth + DataButton.Margin.Left + DataButton.Margin.Right);
 
                 StatsBarVisibility visibility =
                     ResolveStatsVisibility(
-                        availableContentWidth - buttonsAllWidth,
+                        availableContentWidth - buttonsTextWidth,
                         todayWidth,
                         averageWidth,
                         totalWidth,
@@ -666,12 +705,18 @@ namespace ExpressPackingMonitoring.UI
                     totalVisible ? Visibility.Visible : Visibility.Collapsed;
                 AverageTimeGroup.Visibility =
                     averageVisible ? Visibility.Visible : Visibility.Collapsed;
-                DataButton.Visibility =
-                    ShouldHideDataButton(
+
+                ActionButtonLayout buttonLayout = visibility == StatsBarVisibility.OnlyToday
+                    ? ResolveActionButtonLayout(
                         availableContentWidth,
                         todayWidth,
-                        buttonsAllWidth,
-                        buttonsWithoutDataWidth)
+                        buttonsTextWidth,
+                        buttonsIconWidth,
+                        buttonsIconWithoutDataWidth)
+                    : ActionButtonLayout.Text;
+                ApplyBottomButtonLayout(buttonLayout);
+                DataButton.Visibility =
+                    buttonLayout == ActionButtonLayout.IconOnlyNoData
                         ? Visibility.Collapsed
                         : Visibility.Visible;
             }
@@ -693,15 +738,62 @@ namespace ExpressPackingMonitoring.UI
             return button.DesiredSize.Width + button.Margin.Left + button.Margin.Right;
         }
 
+        private void ApplyBottomButtonLayout(ActionButtonLayout layout)
+        {
+            bool iconOnly = layout != ActionButtonLayout.Text;
+            double width = iconOnly ? IconButtonWidth : 120;
+            DataButton.Width = width;
+            PlaybackButton.Width = width;
+            SettingsButton.Width = width;
+
+            DataButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
+            PlaybackButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
+            SettingsButtonText.Visibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
+
+            Thickness iconMargin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 7, 0);
+            DataButtonIcon.Margin = iconMargin;
+            PlaybackButtonIcon.Margin = iconMargin;
+            SettingsButtonIcon.Margin = iconMargin;
+        }
+
+        private void UpdateTopBarCompactState()
+        {
+            if (_topBarUpdating || TopBarBorder == null || TopBarBorder.ActualWidth <= 0)
+                return;
+
+            _topBarUpdating = true;
+            try
+            {
+                double availableWidth = Math.Max(0, TopBarBorder.ActualWidth - 40);
+                double requiredWidth = TopModeButtonTextWidth
+                    + TopModeButtonRightMargin
+                    + TopColumnGap
+                    + TopRecordButtonTextWidth
+                    + MinimumScanInputWidth;
+                IsCompactLayout = requiredWidth > availableWidth;
+            }
+            finally
+            {
+                _topBarUpdating = false;
+            }
+        }
+
         private void OnStatsViewModelPropertyChanged(
             object? sender,
             System.ComponentModel.PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(MainViewModel.TotalPieces)
                 || e.PropertyName == nameof(MainViewModel.AveragePackTimeDisplay)
-                || e.PropertyName == nameof(MainViewModel.TotalPackTimeDisplay))
+                || e.PropertyName == nameof(MainViewModel.TotalPackTimeDisplay)
+                || e.PropertyName == nameof(MainViewModel.CurrentMode)
+                || e.PropertyName == nameof(MainViewModel.IsRecording)
+                || e.PropertyName == nameof(MainViewModel.IsBusy))
             {
-                Dispatcher.BeginInvoke(new Action(UpdateStatsBarVisibility));
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    UpdateStatsBarVisibility();
+                    UpdateTopBarCompactState();
+                }));
             }
         }
 
