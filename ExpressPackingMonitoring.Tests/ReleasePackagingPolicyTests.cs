@@ -296,6 +296,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("(Length(Dir) = 3) and (Dir[2] = ':') and (Dir[3] = '\\')", innoScript);
         Assert.Contains("ForceDirectories(Dir)", innoScript);
         Assert.Contains("DirRequiresAdmin", innoScript);
+        Assert.DoesNotContain("需要管理员权限", innoScript);
+        Assert.DoesNotContain("administrator rights", innoScript);
+        Assert.Contains("Program Files、Windows、ProgramData 或磁盘根目录", innoScript);
         Assert.Contains("PrivilegesRequired=lowest", innoScript);
         Assert.Contains("ArchitecturesAllowed=x64compatible", innoScript);
         Assert.Contains("CloseApplications=yes", innoScript);
