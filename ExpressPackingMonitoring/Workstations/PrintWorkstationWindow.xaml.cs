@@ -85,6 +85,7 @@ public partial class PrintWorkstationWindow : Window
         bool enableCloseBehaviorPrompt = true)
     {
         InitializeComponent();
+        Title = $"{Title} {AppVersion.Current}";
         MaxHeight = CalculateWindowMaxHeight(SystemParameters.WorkArea.Height);
         _config = config;
         _openPlaybackOnStartup = openPlaybackOnStartup;

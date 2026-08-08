@@ -50,9 +50,11 @@ public partial class ViewerClientWindow : Window
                 : DeploymentPresets.ViewerClient;
         _bindingOnly = _deploymentPreset == DeploymentPresets.RecordingWorkstation;
         InitializeComponent();
+        if (!_bindingOnly)
+            Title = $"{Title} {AppVersion.Current}";
         if (_bindingOnly)
         {
-            Title = "PackingProof 保存主机";
+            Title = $"PackingProof 保存主机 {AppVersion.Current}";
             WindowHeadingText.Text = "保存主机";
             WindowDescriptionText.Text = "选择一台电脑保存录像；暂时不设置也可以先录像";
             SwitchPurposeButton.Visibility = Visibility.Collapsed;
