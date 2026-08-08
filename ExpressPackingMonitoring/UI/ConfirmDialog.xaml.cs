@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using ExpressPackingMonitoring.Services;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -26,18 +27,14 @@ public partial class ConfirmDialog : Window
         if (!isDangerous || !showCancelButton)
             ConfirmButton.SetResourceReference(StyleProperty, "PrimaryButtonStyle");
 
-        string iconKey = severity switch
+        ToastSeverity toastSeverity = severity switch
         {
-            AppDialogSeverity.Error => "FluentDismissIcon",
-            AppDialogSeverity.Warning => "FluentWarningIcon",
-            _ => "FluentInfoIcon"
+            AppDialogSeverity.Error => ToastSeverity.Error,
+            AppDialogSeverity.Warning => ToastSeverity.Warning,
+            _ => ToastSeverity.Information
         };
-        string brushKey = severity switch
-        {
-            AppDialogSeverity.Error => "AccentRed",
-            AppDialogSeverity.Warning => "AccentOrange",
-            _ => "AccentBlue"
-        };
+        string iconKey = NotificationVisuals.GetIconKey(toastSeverity);
+        string brushKey = NotificationVisuals.GetBrushKey(toastSeverity);
         if (TryFindResource(iconKey) is Geometry icon)
             SeverityIcon.Data = icon;
         SeverityIcon.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, brushKey);

@@ -364,9 +364,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string _toastMessage;
         private bool _isToastVisible;
+        private ToastSeverity _toastSeverity = ToastSeverity.Success;
         private CancellationTokenSource _toastCts;
         public string ToastMessage { get => _toastMessage; set => SetProperty(ref _toastMessage, value); }
         public bool IsToastVisible { get => _isToastVisible; set => SetProperty(ref _isToastVisible, value); }
+        public ToastSeverity ToastSeverity { get => _toastSeverity; set => SetProperty(ref _toastSeverity, value); }
 
         private string _previewOrderRemarkText = "";
         private string _previewOrderDetailText = "";
@@ -648,7 +650,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (av1FallbackApplied)
                     {
                         Application.Current?.Dispatcher.BeginInvoke(() =>
-                            ShowToast("当前电脑无法实时使用 AV1，已改用 H.265"));
+                            ShowToast("当前电脑无法实时使用 AV1，已改用 H.265", ToastSeverity.Warning));
                     }
                     if (!string.IsNullOrWhiteSpace(driverWarningMessage))
                     {
@@ -1111,13 +1113,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 case BarcodeRecordingDecisionReason.CooldownOrderQueued:
                     _pendingScanDuringCooldown = upperResult;
                     RuntimeLog.Info("Scan", $"Scan queued during cooldown: {upperResult}");
-                    ShowToast("扫码过快，已保留最后一个单号");
+                    ShowToast("扫码过快，已保留最后一个单号", ToastSeverity.Warning);
                     return;
                 case BarcodeRecordingDecisionReason.CooldownIgnored:
                     return;
                 case BarcodeRecordingDecisionReason.ClearCommand:
                     StartInputCooldown();
-                    ShowToast("提示：扫码框已清除");
+                    ShowToast("扫码框已清除", ToastSeverity.Information);
                     return;
                 case BarcodeRecordingDecisionReason.ShippingCommand:
                     CurrentMode = "发货";
@@ -1140,11 +1142,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = SafeStopRecordingAsync(true, mergeAfterStop: true);
                     return;
                 case BarcodeRecordingDecisionReason.RecordingOrderMissing:
-                    ShowToast("当前录像未绑定单号，无法同码停录");
+                    ShowToast("当前录像未绑定单号，无法同码停录", ToastSeverity.Warning);
                     SpeakWarning(DefaultSpeechCatalog.RecordingHasNoOrderNumber);
                     return;
                 case BarcodeRecordingDecisionReason.RecordingOrderMismatch:
-                    ShowToast($"警告：单号不一致：{upperResult}");
+                    ShowToast($"单号不一致：{upperResult}", ToastSeverity.Warning);
                     SpeakWarning(DefaultSpeechCatalog.OrderNumberMismatch);
                     return;
                 case BarcodeRecordingDecisionReason.InvalidOrderNumber:
@@ -1160,7 +1162,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (!await _recorderLock.WaitAsync(0))
                 {
-                    ShowToast("录制状态正在切换，请稍后再试");
+                    ShowToast("录制状态正在切换，请稍后再试", ToastSeverity.Information);
                     return;
                 }
 
@@ -1568,7 +1570,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("视频合成失败，已保留原文件");
+                            ShowToast("视频合成失败，已保留原文件", ToastSeverity.Error);
                     });
                 }
             });
@@ -1603,7 +1605,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         // 录制、编码、磁盘清理逻辑已移动到 MainViewModel.Recording.cs / MainViewModel.Encoder.cs / MainViewModel.Cleanup.cs
 
-        public void ShowToast(string message)
+        public void ShowToast(string message, ToastSeverity severity = ToastSeverity.Success)
         {
             message = AppLanguage.Translate(message);
             if (_alertService != null)
@@ -1611,22 +1613,28 @@ namespace ExpressPackingMonitoring.ViewModels
                 _alertService.Publish(new AlertRequest
                 {
                     Message = message,
+                    Severity = severity,
                     Priority = AlertPriority.Normal,
                     Sound = AlertSound.None,
-                    DisplayDuration = TimeSpan.FromMilliseconds(2500)
+                    DisplayDuration = GetToastDisplayDuration(severity)
                 });
                 return;
             }
 
-            PresentToast(message, TimeSpan.FromMilliseconds(2500));
+            PresentToast(message, GetToastDisplayDuration(severity), severity);
         }
+
+        private static TimeSpan GetToastDisplayDuration(ToastSeverity severity) =>
+            severity is ToastSeverity.Warning or ToastSeverity.Error
+                ? TimeSpan.FromSeconds(4)
+                : TimeSpan.FromMilliseconds(2500);
 
         private void PresentAlert(AlertRequest request)
         {
             if (ShouldShowPreviewAlert(request))
                 PresentPreviewAlert(request);
             else
-                PresentToast(request.Message, request.DisplayDuration);
+                PresentToast(request.Message, request.DisplayDuration, request.Severity);
         }
 
         internal static bool ShouldShowPreviewAlert(AlertRequest request)
@@ -1766,7 +1774,10 @@ namespace ExpressPackingMonitoring.ViewModels
             });
         }
 
-        private void PresentToast(string message, TimeSpan displayDuration)
+        private void PresentToast(
+            string message,
+            TimeSpan displayDuration,
+            ToastSeverity severity = ToastSeverity.Success)
         {
             Application.Current?.Dispatcher?.InvokeAsync(async () =>
             {
@@ -1774,6 +1785,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _toastCts = new CancellationTokenSource();
                 var token = _toastCts.Token;
                 ToastMessage = message;
+                ToastSeverity = severity;
                 IsToastVisible = true;
                 try { await Task.Delay(displayDuration, token); }
                 catch (OperationCanceledException) { return; }
@@ -1866,7 +1878,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return true;
 
             if (notifyUser)
-                ShowToast($"配置保存失败，请检查磁盘空间或权限: {error}");
+                ShowToast($"配置保存失败，请检查磁盘空间或权限: {error}", ToastSeverity.Error);
             return false;
         }
 
@@ -1876,7 +1888,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (_isEncoderDetectRunning)
             {
-                ShowToast("处理中：编码器环境检测中，请稍后打开设置...");
+                ShowToast("处理中：编码器环境检测中，请稍后打开设置...", ToastSeverity.Information);
                 return;
             }
             try
@@ -1897,7 +1909,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     mainWindow?.ResumeCapsLockAfterModalWindow();
                 }
             }
-            catch (Exception ex) { ShowToast($"设置错误: {ex.Message}"); }
+            catch (Exception ex) { ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error); }
         }
 
         public async Task<bool> ApplySettingsAsync(AppConfig nextConfig)
@@ -1987,7 +1999,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     bool webServerShouldApply = (webServerChanged || webServerNeedsRecovery) && !workstationChanged;
                     if (webServerShouldApply)
                     {
-                        ShowToast("正在应用局域网服务设置...");
+                        ShowToast("正在应用局域网服务设置...", ToastSeverity.Information);
                         webServerApplied = await RestartWebServerAsync(allowAccessSetup: Config.EnableWebServer);
                     }
                     else if (!webServerChanged && !webServerNeedsRecovery)
@@ -1999,12 +2011,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         if (IsRecording)
                         {
-                            ShowToast("提示：配置已保存，摄像头配置将在录制结束后生效");
+                            ShowToast("配置已保存，摄像头配置将在录制结束后生效", ToastSeverity.Information);
                             _pendingCameraRestart = true;
                         }
                         else
                         {
-                            ShowToast("提示：配置已保存，重启相机");
+                            ShowToast("配置已保存，重启相机", ToastSeverity.Information);
                             _consecutiveRestartFailures = 0;
                             RestartCamera();
                         }
@@ -2018,7 +2030,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                ShowToast($"设置错误: {ex.Message}");
+                ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error);
                 return false;
             }
         }
@@ -2056,7 +2068,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     pausedCamera = StopCamera();
                     if (!pausedCamera)
                     {
-                        ShowToast("摄像头未能停止，暂时无法打开配置向导");
+                        ShowToast("摄像头未能停止，暂时无法打开配置向导", ToastSeverity.Warning);
                         return;
                     }
                 }
@@ -2097,20 +2109,22 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (Config.EnableWebServer)
                 {
-                    ShowToast("正在应用局域网服务设置...");
+                    ShowToast("正在应用局域网服务设置...", ToastSeverity.Information);
                     bool webServerReady = await RestartWebServerAsync(allowAccessSetup: true);
                     _webServerStartupTask = Task.FromResult(webServerReady);
                     if (!webServerReady)
                         return;
                 }
 
-                ShowToast(wizard.WasSkipped ? "已跳过配置向导" : "配置向导已完成");
+                ShowToast(
+                    wizard.WasSkipped ? "已跳过配置向导" : "配置向导已完成",
+                    wizard.WasSkipped ? ToastSeverity.Information : ToastSeverity.Success);
                 ShowMobileConnectionSetupPromptIfReady(owner);
             }
             catch (Exception ex)
             {
                 RuntimeLog.Error("SetupWizard", "First-use setup wizard failed", ex);
-                ShowToast($"配置向导错误: {ex.Message}");
+                ShowToast($"配置向导错误: {ex.Message}", ToastSeverity.Error);
             }
             finally
             {
@@ -2197,7 +2211,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return true;
 
             _isSetupWizardActive = false;
-            ShowToast("摄像头未能停止，暂时无法打开配置向导");
+            ShowToast("摄像头未能停止，暂时无法打开配置向导", ToastSeverity.Warning);
             return false;
         }
 
@@ -2457,7 +2471,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!_isDisposed)
                 {
                     ShowToast(
-                        $"有 {result.NotificationCount} 个视频合成失败，原文件已保留，可在高级设置的维护工具中手动合并");
+                        $"有 {result.NotificationCount} 个视频合成失败，原文件已保留，可在高级设置的维护工具中手动合并",
+                        ToastSeverity.Error);
                 }
             });
         }
@@ -2672,7 +2687,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                ShowToast("录像保存失败，请检查日志");
+                ShowToast("录像保存失败，请检查日志", ToastSeverity.Error);
                 RuntimeLog.Error("Shutdown", "Save before shutdown exception", ex);
                 return false;
             }
@@ -2791,7 +2806,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     : "启动失败";
                 WorkstationStatusToolTip = $"其他设备暂时无法连接这台电脑。\n{ex.Message}";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), ex.Message);
-                ShowToast($"警告：局域网服务启动失败: {ex.Message}");
+                ShowToast($"局域网服务启动失败: {ex.Message}", ToastSeverity.Error);
                 return false;
             }
             finally
@@ -3093,7 +3108,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (!TryGetMobileConnectionUrl(out string url))
             {
-                ShowToast(GetMobileConnectionUnavailableMessage());
+                ShowToast(GetMobileConnectionUnavailableMessage(), ToastSeverity.Warning);
                 return;
             }
 
@@ -3115,11 +3130,11 @@ namespace ExpressPackingMonitoring.ViewModels
             if (copied && opened)
                 ShowToast("已复制并打开监控网页");
             else if (copied)
-                ShowToast($"已复制地址，打开网页失败: {openError}");
+                ShowToast($"已复制地址，打开网页失败: {openError}", ToastSeverity.Error);
             else if (opened)
-                ShowToast("已打开监控网页，复制失败请重试");
+                ShowToast("已打开监控网页，复制失败请重试", ToastSeverity.Warning);
             else
-                ShowToast($"复制和打开都失败: {openError}");
+                ShowToast($"复制和打开都失败: {openError}", ToastSeverity.Error);
         }
 
         private string BuildMonitorAccessUrl()
@@ -3141,11 +3156,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!SaveConfig(notifyUser: false))
                 {
                     Config.EnableWebServer = false;
-                    ShowToast("设备连接服务启用失败，请检查配置文件权限");
+                    ShowToast("设备连接服务启用失败，请检查配置文件权限", ToastSeverity.Error);
                 }
                 else
                 {
-                    ShowToast("正在启动设备连接服务...");
+                    ShowToast("正在启动设备连接服务...", ToastSeverity.Information);
                     await RestartWebServerAsync(allowAccessSetup: true);
                 }
             }
@@ -3192,7 +3207,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (!TryGetMobileConnectionUrl(out string url))
             {
-                ShowToast(GetMobileConnectionUnavailableMessage());
+                ShowToast(GetMobileConnectionUnavailableMessage(), ToastSeverity.Warning);
                 return;
             }
 
@@ -3205,7 +3220,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                ShowToast($"复制网址失败: {ex.Message}");
+                ShowToast($"复制网址失败: {ex.Message}", ToastSeverity.Error);
             }
         }
 
@@ -3270,7 +3285,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         selector.SelectedPreset,
                         StringComparison.OrdinalIgnoreCase))
                 {
-                    ShowToast($"当前已经是{DeploymentPresets.GetDisplayName(Config.DeploymentPreset)}");
+                    ShowToast($"当前已经是{DeploymentPresets.GetDisplayName(Config.DeploymentPreset)}", ToastSeverity.Information);
                     return;
                 }
 
@@ -3311,7 +3326,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_webServer?.HasActiveMobileBackups == true)
                 {
                     SwitchWorkstationButtonText = "等待备份完成";
-                    ShowToast("设备录像正在备份，完成后将自动重启");
+                    ShowToast("设备录像正在备份，完成后将自动重启", ToastSeverity.Warning);
                     await _webServer.WaitForMobileBackupsAsync(_purposeSwitchCts.Token);
                 }
 
@@ -3426,7 +3441,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!StopCamera())
                 {
                     RuntimeLog.Warn("Camera", "RestartCamera aborted because previous camera did not stop");
-                    ShowToast("摄像头停止失败，请重新插拔后重试");
+                    ShowToast("摄像头停止失败，请重新插拔后重试", ToastSeverity.Error);
                     return;
                 }
                 StartCamera();
@@ -3465,7 +3480,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     if (!StopCamera())
                     {
-                        ShowToast("摄像头停止失败，未继续重连");
+                        ShowToast("摄像头停止失败，未继续重连", ToastSeverity.Error);
                         return;
                     }
                     StartCamera();
@@ -3484,7 +3499,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
                         {
                             RuntimeLog.Warn("Camera", $"Camera reconnect failed {_consecutiveRestartFailures} times after interrupted recording");
-                            ShowToast($"警告：摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，录制已停止。请重新插拔后在设置中手动重启。");
+                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，录制已停止。请重新插拔后在设置中手动重启。", ToastSeverity.Error);
                             SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
                             Debug.WriteLine($"[Camera] 录制中连续 {_consecutiveRestartFailures} 次重连失败，停止录制和自动重连");
                         }
@@ -3499,7 +3514,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 非录制状态：原有逻辑
                     if (!StopCamera())
                     {
-                        ShowToast("摄像头停止失败，未继续重连");
+                        ShowToast("摄像头停止失败，未继续重连", ToastSeverity.Error);
                         return;
                     }
                     StartCamera();
@@ -3516,7 +3531,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         RuntimeLog.Warn("Camera", $"Camera reconnect failed while idle, failures={_consecutiveRestartFailures}");
                         if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
                         {
-                            ShowToast($"警告：摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，已停止自动重连。请重新插拔后在设置中手动重启。");
+                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，已停止自动重连。请重新插拔后在设置中手动重启。", ToastSeverity.Error);
                             SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
                             Debug.WriteLine($"[Camera] 连续 {_consecutiveRestartFailures} 次重连失败，停止自动重连");
                         }
@@ -3583,14 +3598,14 @@ namespace ExpressPackingMonitoring.ViewModels
                             || Config.IsCameraIdleNoSleepTime(DateTime.Now)) return; // 再次检查防止竞态和跨入保护时段
                         if (!StopCamera())
                         {
-                            ShowToast("摄像头未能进入休眠，请重新插拔后重试");
+                            ShowToast("摄像头未能进入休眠，请重新插拔后重试", ToastSeverity.Warning);
                             return;
                         }
                         IsCameraSleeping = true; // SetProperty 会同时更新字段并触发 PropertyChanged
                         VideoFrame = null;
                         ShowToast(AppLanguage.Format(
                             "摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”",
-                            Config.CameraIdleMinutes));
+                            Config.CameraIdleMinutes), ToastSeverity.Information);
                         Debug.WriteLine($"[Idle] 摄像头休眠: 空闲{idleMinutes:F1}分钟");
                         RuntimeLog.Info("MkvRecover", "Camera idle, start pending MKV conversion");
                         _mkvRecoveryTask = Task.Run(RecoverOrphanedMkvAsync);
@@ -3673,7 +3688,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (videoDevices.Count == 0) 
                 { 
                     RuntimeLog.Warn("Camera", "StartCamera found no video devices");
-                    ShowToast("警告：未检测到任何摄像头");
+                    ShowToast("未检测到任何摄像头", ToastSeverity.Warning);
                     SpeakWarning(DefaultSpeechCatalog.CameraNotDetected);
                     return; 
                 }
@@ -3698,7 +3713,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         Debug.WriteLine($"[Camera] 目标摄像头未找到: {targetMoniker}，不切换到其他设备");
                         RuntimeLog.Warn("Camera", $"Configured camera missing, moniker={targetMoniker}");
-                        ShowToast("警告：目标摄像头未连接，等待重新插入");
+                        ShowToast("目标摄像头未连接，等待重新插入", ToastSeverity.Warning);
                         return;
                     }
                 }
@@ -3741,7 +3756,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() => {
                         if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                             return;
-                        ShowToast("警告：摄像头连接发生错误，尝试重连...");
+                        ShowToast("摄像头连接发生错误，尝试重连...", ToastSeverity.Warning);
                         RestartCameraWithRecordingStop();
                     });
                 };
@@ -3784,7 +3799,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 RuntimeLog.Error("Camera", "StartCamera failed", ex);
-                ShowToast("摄像头启动失败");
+                ShowToast("摄像头启动失败", ToastSeverity.Error);
             }
         }
 
@@ -3799,7 +3814,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!NetworkCameraUrlPolicy.TryNormalize(Config.NetworkCameraUrl, out string url, out string error))
             {
                 RuntimeLog.Warn("Camera", $"Network camera URL rejected: {error}");
-                ShowToast($"网络摄像头地址无效：{error}");
+                ShowToast($"网络摄像头地址无效：{error}", ToastSeverity.Error);
                 return;
             }
 
@@ -3815,7 +3830,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!started)
             {
                 RuntimeLog.Warn("Camera", $"StartNetworkCamera failed: {source.LastError}");
-                ShowToast($"网络摄像头连接失败：{source.LastError}");
+                ShowToast($"网络摄像头连接失败：{source.LastError}", ToastSeverity.Error);
                 source.Dispose();
                 return;
             }
@@ -3850,7 +3865,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                     return;
-                ShowToast("警告：网络摄像头连接异常，尝试重连...");
+                ShowToast("网络摄像头连接异常，尝试重连...", ToastSeverity.Warning);
                 RestartCameraWithRecordingStop();
             });
         }
@@ -3976,13 +3991,13 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (_webServer == null || string.IsNullOrWhiteSpace(MonitorAccessAddress))
             {
-                ShowToast("局域网服务尚未就绪，暂时无法生成快递助手脚本");
+                ShowToast("局域网服务尚未就绪，暂时无法生成快递助手脚本", ToastSeverity.Warning);
                 return;
             }
 
             if (!UserscriptGuideNavigation.TryOpen($"http://{MonitorAccessAddress}", out string error))
             {
-                ShowToast($"打开快递助手联动安装向导失败：{error}");
+                ShowToast($"打开快递助手联动安装向导失败：{error}", ToastSeverity.Error);
                 return;
             }
 
@@ -4218,7 +4233,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             {
                                 Debug.WriteLine($"[Camera] 信号丢失 {noFrameSeconds:F1}s，尝试重连 (失败次数={_consecutiveRestartFailures})");
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                                    ShowToast("警告：摄像头信号丢失，尝试重连...");
+                                    ShowToast("摄像头信号丢失，尝试重连...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
                                     RestartCameraWithRecordingStop();
                                 });
@@ -4232,7 +4247,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             {
                                 Debug.WriteLine($"[Camera] 摄像头断开，尝试重连 (失败次数={_consecutiveRestartFailures})");
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                                    ShowToast("警告：摄像头已断开，等待重新连接...");
+                                    ShowToast("摄像头已断开，等待重新连接...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
                                     RestartCameraWithRecordingStop();
                                 });
@@ -4302,7 +4317,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => { 
                                 if (_isDisposed) return;
                                 await SafeStopRecordingAsync(); 
-                                ShowToast("画面静止超时，自动停录"); 
+                                ShowToast("画面静止超时，自动停录", ToastSeverity.Warning); 
                                 SpeakWarning(DefaultSpeechCatalog.MotionTimeoutStopped);
                                 CurrentOrderId = ""; 
                                 ScanInputText = ""; 
@@ -4315,7 +4330,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => { 
                                 if (_isDisposed) return;
                                 await SafeStopRecordingAsync(); 
-                                ShowToast("提示：已达最大录像限制时长");
+                                ShowToast("已达最大录像限制时长", ToastSeverity.Information);
                                 SpeakWarning(DefaultSpeechCatalog.RecordingDurationStopped);
                                 CurrentOrderId = ""; 
                                 ScanInputText = ""; 
@@ -4400,7 +4415,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _ = Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
-                ShowToast("警告：预览画面卡住，正在重连摄像头...");
+                ShowToast("预览画面卡住，正在重连摄像头...", ToastSeverity.Warning);
                 RestartCameraWithRecordingStop();
             });
         }

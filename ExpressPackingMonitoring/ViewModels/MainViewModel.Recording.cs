@@ -160,12 +160,12 @@ namespace ExpressPackingMonitoring.ViewModels
                                 FilteredLogs.Remove(scanRecord);
                                 if (tooSmall)
                                 {
-                                    ShowToast("警告：视频文件太小，已删除");
+                                    ShowToast("视频文件太小，已删除", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.VideoFileTooSmall);
                                 }
                                 else if (tooShort)
                                 {
-                                    ShowToast($"警告：录像过短({recordDuration:F1}s)，已丢弃");
+                                    ShowToast($"录像过短({recordDuration:F1}s)，已丢弃", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.RecordingTooShort);
                                 }
                             }
@@ -513,7 +513,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     if (!IsVideoSourceRunning())
                     {
-                        ShowToast("警告：摄像头未就绪，请检查连接");
+                        ShowToast("摄像头未就绪，请检查连接", ToastSeverity.Warning);
                         SpeakWarning(DefaultSpeechCatalog.CameraNotReady);
                         return;
                     }
@@ -522,7 +522,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!await WaitForCameraFrameAsync(TimeSpan.FromSeconds(3)))
                 {
                     RuntimeLog.Warn("Recording", "Camera is running but no valid frame arrived within 3 seconds");
-                    ShowToast("警告：摄像头唤醒后没有画面，未开始录制");
+                    ShowToast("摄像头唤醒后没有画面，未开始录制", ToastSeverity.Warning);
                     SpeakWarning(DefaultSpeechCatalog.CameraNotReady);
                     return;
                 }
@@ -550,14 +550,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     baseFolder = ResolveBestStoragePath();
                     if (!IsDirectoryWritable(baseFolder))
                     {
-                        ShowToast("警告：存储路径不可写，请检查磁盘");
+                        ShowToast("存储路径不可写，请检查磁盘", ToastSeverity.Warning);
                         SpeakWarning(DefaultSpeechCatalog.StoragePathNotWritable);
                         return;
                     }
                 }
                 catch (Exception ex)
                 {
-                    ShowToast($"警告：存储初始化失败: {ex.Message}");
+                    ShowToast($"存储初始化失败: {ex.Message}", ToastSeverity.Error);
                     return;
                 }
 
@@ -568,7 +568,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    ShowToast($"警告：无法创建日期目录: {ex.Message}");
+                    ShowToast($"无法创建日期目录: {ex.Message}", ToastSeverity.Error);
                     return;
                 }
 
@@ -589,14 +589,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 string ffmpegPath = FindFFmpeg();
                 if (string.IsNullOrEmpty(ffmpegPath))
                 {
-                    ShowToast("警告：未找到 FFmpeg，无法录制");
+                    ShowToast("未找到 FFmpeg，无法录制", ToastSeverity.Error);
                     ClearCurrentAudioLogPath(audioLogPath);
                     return;
                 }
 
                 if (useDirectAac && !PrepareDirectAudioPipe())
                 {
-                    ShowToast("实时 AAC 音频管道初始化失败，已取消开录");
+                    ShowToast("实时 AAC 音频管道初始化失败，已取消开录", ToastSeverity.Error);
                     ClearCurrentAudioLogPath(audioLogPath);
                     return;
                 }
@@ -664,7 +664,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac))
                     {
                         WriteAudioDiagnostic("麦克风录音启动失败");
-                        ShowToast("音频录制启动失败");
+                        ShowToast("音频录制启动失败", ToastSeverity.Error);
                         SpeakWarning(DefaultSpeechCatalog.AudioRecordingStartFailed);
                         try
                         {
@@ -698,7 +698,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     Environment.MachineName) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");
 
-                ShowToast("提示：开始录像");
+                ShowToast("开始录像", ToastSeverity.Information);
                 Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
                 _currentScanRecord = new ScanRecord(_recordingOrderId, "0s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
@@ -781,7 +781,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                     }
 
-                    ShowToast("警告：录制启动失败");
+                    ShowToast("录制启动失败", ToastSeverity.Error);
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
                     AppDialog.Error(
                         null,
@@ -2218,7 +2218,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("警告：音频录制失败，已保留原始文件");
+                            ShowToast("音频录制失败，已保留原始文件", ToastSeverity.Error);
                     });
                     return;
                 }
@@ -2228,7 +2228,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("警告：音频疑似提前静音，已保留原始文件");
+                            ShowToast("音频疑似提前静音，已保留原始文件", ToastSeverity.Warning);
                     });
                     return;
                 }
@@ -2282,7 +2282,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("警告：音轨校验失败，已保留原始文件");
+                            ShowToast("音轨校验失败，已保留原始文件", ToastSeverity.Error);
                     });
                 }
             }

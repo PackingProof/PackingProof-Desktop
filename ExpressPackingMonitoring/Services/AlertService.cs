@@ -23,6 +23,15 @@ namespace ExpressPackingMonitoring.Services
         Warning
     }
 
+    /// <summary>Toast 展示严重度：决定图标（对勾 / 感叹号 / 叉号 / i）和强调色。</summary>
+    public enum ToastSeverity
+    {
+        Success,
+        Warning,
+        Error,
+        Information
+    }
+
     public sealed class AlertSpeechFollowup
     {
         public string Text { get; init; } = string.Empty;
@@ -34,6 +43,7 @@ namespace ExpressPackingMonitoring.Services
     {
         public string Message { get; init; } = string.Empty;
         public string SpeechText { get; init; } = string.Empty;
+        public ToastSeverity Severity { get; init; } = ToastSeverity.Success;
         public AlertPriority Priority { get; init; } = AlertPriority.Normal;
         public AlertSound Sound { get; init; } = AlertSound.Warning;
         public AlertVoiceStyle VoiceStyle { get; init; } = AlertVoiceStyle.Warning;

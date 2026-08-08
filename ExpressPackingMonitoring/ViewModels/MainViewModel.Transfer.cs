@@ -145,7 +145,7 @@ public partial class MainViewModel
     {
         if (!IsRecordingWorkstation || string.IsNullOrWhiteSpace(Config.LastKnownHostAddress))
         {
-            ShowToast("尚未绑定保存主机");
+            ShowToast("尚未绑定保存主机", ToastSeverity.Warning);
             return;
         }
         string url = MobileConnectionService.BuildAccessUrl(

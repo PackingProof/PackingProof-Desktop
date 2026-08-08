@@ -66,7 +66,7 @@ public sealed class SettingsContext
     public Action<double?>? SetPreviewZoomScale { get; init; }
     public Func<bool>? SuspendCameraForSetupWizard { get; init; }
     public Action? ResumeCameraAfterSetupWizard { get; init; }
-    public Action<string>? ShowToast { get; init; }
+    public Action<string, ToastSeverity>? ShowToast { get; init; }
     public Func<IProgress<string>, CancellationToken, Task<MkvBatchConversionResult>>? BatchConvertMkvToMp4Async { get; init; }
     public ICommand? ResetEncoderDetectCommand { get; init; }
     internal Func<AppConfig, IReadOnlyList<NativeCameraMode>, Task<RecordingProfileRecommendation?>>? DetectRecordingProfileAsync { get; init; }

@@ -1141,7 +1141,39 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Text="{Binding ToastMessage}" Foreground="{StaticResource TextOnAccent}" FontSize="18" FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal">
+                <Path Width="20"
+                      Height="20"
+                      Margin="0,0,10,0"
+                      Stretch="Uniform"
+                      VerticalAlignment="Center">
+                    <Path.Style>
+                        <Style TargetType="Path">
+                            <Setter Property="Data" Value="{StaticResource FluentCheckIcon}"/>
+                            <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ToastSeverity}" Value="Warning">
+                                    <Setter Property="Data" Value="{StaticResource FluentWarningIcon}"/>
+                                    <Setter Property="Fill" Value="{DynamicResource AccentOrange}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ToastSeverity}" Value="Error">
+                                    <Setter Property="Data" Value="{StaticResource FluentDismissIcon}"/>
+                                    <Setter Property="Fill" Value="{DynamicResource AccentRed}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ToastSeverity}" Value="Information">
+                                    <Setter Property="Data" Value="{StaticResource FluentInfoIcon}"/>
+                                    <Setter Property="Fill" Value="{DynamicResource AccentBlue}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Path.Style>
+                </Path>
+                <TextBlock Text="{Binding ToastMessage}"
+                           Foreground="{StaticResource TextOnAccent}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

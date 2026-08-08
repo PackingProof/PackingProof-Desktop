@@ -1308,7 +1308,7 @@ namespace ExpressPackingMonitoring.UI
                             out string networkUrl,
                             out string networkError))
                     {
-                        Context.ShowToast?.Invoke($"网络摄像头地址无效：{networkError}");
+                        Context.ShowToast?.Invoke($"网络摄像头地址无效：{networkError}", ToastSeverity.Error);
                         return false;
                     }
 
@@ -1615,7 +1615,7 @@ namespace ExpressPackingMonitoring.UI
                 || CameraComboBox.SelectedItem is not CameraInfo camera
                 || string.IsNullOrWhiteSpace(camera.Moniker))
             {
-                Context.ShowToast?.Invoke("请先选择可用摄像头");
+                Context.ShowToast?.Invoke("请先选择可用摄像头", ToastSeverity.Warning);
                 return;
             }
 
@@ -1636,7 +1636,7 @@ namespace ExpressPackingMonitoring.UI
                             out string networkUrl,
                             out string networkError))
                     {
-                        Context.ShowToast?.Invoke("请先填写网络摄像头地址");
+                        Context.ShowToast?.Invoke("请先填写网络摄像头地址", ToastSeverity.Warning);
                         return;
                     }
 
@@ -1648,7 +1648,8 @@ namespace ExpressPackingMonitoring.UI
                     if (!connected)
                     {
                         Context.ShowToast?.Invoke(
-                            $"网络摄像头连接失败：{probeSource.LastError ?? "请检查地址和网络"}");
+                            $"网络摄像头连接失败：{probeSource.LastError ?? "请检查地址和网络"}",
+                            ToastSeverity.Error);
                         return;
                     }
                     nativeModes = probeSource.NativeModes;
@@ -1668,13 +1669,14 @@ namespace ExpressPackingMonitoring.UI
                     || recommendation.Mode is not NativeCameraMode recommendedMode)
                 {
                     Context.ShowToast?.Invoke(
-                        recommendation?.Message ?? "录制性能检测失败，已保留当前配置");
+                        recommendation?.Message ?? "录制性能检测失败，已保留当前配置",
+                        ToastSeverity.Error);
                     return;
                 }
 
                 if (!RecordingProfileDetector.IsRecommendationDifferent(Config, recommendedMode))
                 {
-                    Context.ShowToast?.Invoke("检测完成，当前录制规格已是推荐配置");
+                    Context.ShowToast?.Invoke("检测完成，当前录制规格已是推荐配置", ToastSeverity.Success);
                     return;
                 }
 
@@ -1689,7 +1691,7 @@ namespace ExpressPackingMonitoring.UI
                     isDangerous: false);
                 if (!applyRecommendation)
                 {
-                    Context.ShowToast?.Invoke("已保持当前录制配置");
+                    Context.ShowToast?.Invoke("已保持当前录制配置", ToastSeverity.Success);
                     return;
                 }
 
@@ -1707,12 +1709,12 @@ namespace ExpressPackingMonitoring.UI
                         recommendedMode.Height,
                         recommendedMode.Fps);
                 }
-                Context.ShowToast?.Invoke("已填入推荐录制规格，保存设置后生效");
+                Context.ShowToast?.Invoke("已填入推荐录制规格，保存设置后生效", ToastSeverity.Success);
             }
             catch (Exception ex)
             {
                 RuntimeLog.Error("RecordingProfile", "Settings recording profile detection failed", ex);
-                Context.ShowToast?.Invoke("录制性能检测失败，已保留当前配置");
+                Context.ShowToast?.Invoke("录制性能检测失败，已保留当前配置", ToastSeverity.Error);
             }
             finally
             {
@@ -2097,7 +2099,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     RuntimeLog.Error("Update", "Open download page failed", ex);
                     if (Context.ShowToast != null)
-                        Context.ShowToast("打开下载页面失败");
+                        Context.ShowToast("打开下载页面失败", ToastSeverity.Error);
                     else
                         AppDialog.Error(this, "打开下载页面失败", "检查更新");
                 }

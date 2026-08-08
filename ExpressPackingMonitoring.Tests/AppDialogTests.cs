@@ -19,7 +19,7 @@ public sealed class AppDialogTests
         Assert.Contains("public static bool Confirm(", source, StringComparison.Ordinal);
         Assert.Contains("dispatcher.Invoke(action)", source, StringComparison.Ordinal);
         Assert.Contains("WindowStartupLocation.CenterScreen", source, StringComparison.Ordinal);
-        Assert.Contains("Fluent", ReadRepositoryFile(
+        Assert.Contains("NotificationVisuals", ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",
             "ConfirmDialog.xaml.cs"), StringComparison.Ordinal);
@@ -35,10 +35,13 @@ public sealed class AppDialogTests
     public void AppDialog_InformationUsesDedicatedInfoIcon()
     {
         string icons = ReadRepositoryFile("ExpressPackingMonitoring", "Themes", "FluentIcons.xaml");
+        string visuals = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "NotificationVisuals.cs");
         string dialogCode = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "ConfirmDialog.xaml.cs");
 
         Assert.Contains("x:Key=\"FluentInfoIcon\"", icons, StringComparison.Ordinal);
-        Assert.Contains("\"FluentInfoIcon\"", dialogCode, StringComparison.Ordinal);
+        Assert.Contains("FluentInfoIcon", visuals, StringComparison.Ordinal);
+        Assert.Contains("FluentCheckIcon", visuals, StringComparison.Ordinal);
+        Assert.DoesNotContain("FluentInfoIcon", dialogCode, StringComparison.Ordinal);
         Assert.DoesNotContain("FluentCheckIcon", dialogCode, StringComparison.Ordinal);
     }
 
@@ -99,6 +102,57 @@ public sealed class AppDialogTests
                 }
             }
         }
+    }
+
+    [Fact]
+    public void ToastMessages_DoNotUseWarningTextPrefix()
+    {
+        string projectDirectory = FindRepositoryPath("ExpressPackingMonitoring");
+        string[] sourceFiles = Directory.GetFiles(projectDirectory, "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+                && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        foreach (string sourceFile in sourceFiles)
+        {
+            string source = File.ReadAllText(sourceFile);
+            Assert.DoesNotContain("ShowToast(\"警告：", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ShowToast($\"警告：", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ToastSeverity_IsPlumbedThroughAlertPipeline()
+    {
+        string alertService = ReadRepositoryFile("ExpressPackingMonitoring", "Services", "AlertService.cs");
+        string viewModel = ReadRepositoryFile("ExpressPackingMonitoring", "ViewModels", "MainViewModel.cs");
+        string settingsContext = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "SettingsContext.cs");
+
+        Assert.Contains("public enum ToastSeverity", alertService, StringComparison.Ordinal);
+        Assert.Contains("ToastSeverity Severity { get; init; } = ToastSeverity.Success", alertService, StringComparison.Ordinal);
+        Assert.Contains(
+            "public void ShowToast(string message, ToastSeverity severity = ToastSeverity.Success)",
+            viewModel,
+            StringComparison.Ordinal);
+        Assert.Contains("Action<string, ToastSeverity>? ShowToast", settingsContext, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowToast_BindsSeverityVisuals()
+    {
+        string mainWindow = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");
+        string printWorkstation = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml.cs");
+
+        Assert.Contains("{Binding ToastSeverity}", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FluentCheckIcon", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FluentWarningIcon", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FluentDismissIcon", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FluentInfoIcon", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("NotificationVisuals.GetIconKey", printWorkstation, StringComparison.Ordinal);
+        Assert.Contains("NotificationVisuals.GetBrushKey", printWorkstation, StringComparison.Ordinal);
     }
 
     [Theory]

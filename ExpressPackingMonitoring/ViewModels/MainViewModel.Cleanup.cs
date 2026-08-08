@@ -140,7 +140,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 RecordingCacheStatusText =
                     "本地缓存已接近磁盘安全线，正在安全停止当前录像";
                 IsRecordingCacheWarning = true;
-                ShowToast("本地缓存空间不足，正在安全保存当前录像");
+                ShowToast("本地缓存空间不足，正在安全保存当前录像", ToastSeverity.Warning);
                 SpeakWarning(DefaultSpeechCatalog.StoragePathNotWritable);
                 await SafeStopRecordingAsync(isManual: false, mergeAfterStop: true);
             });

@@ -68,7 +68,9 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             RecordingProfileRecommendation? recommendation =
                 await DetectAndRecommendRecordingProfileAsync(Config, null);
-            ShowToast(recommendation?.Message ?? "录制性能检测失败，已保留现有设置");
+            ShowToast(
+                recommendation?.Message ?? "录制性能检测失败，已保留现有设置",
+                recommendation?.Success == true ? ToastSeverity.Success : ToastSeverity.Error);
         }
 
         internal async Task<RecordingProfileRecommendation?> DetectAndRecommendRecordingProfileAsync(

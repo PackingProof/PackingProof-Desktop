@@ -238,29 +238,27 @@ public partial class PrintWorkstationWindow : Window
             StatusIconPath.Fill = brush;
     }
 
-    private void ShowToast(string message, StatusVisual visual = StatusVisual.Success)
+    private void ShowToast(string message, ToastSeverity severity = ToastSeverity.Success)
     {
         _toastTimer.Stop();
         ToastState.ToastMessage = AppLanguage.Translate(message);
         ToastState.IsToastVisible = true;
-        _toastTimer.Interval = visual is StatusVisual.Warning or StatusVisual.Error
+        _toastTimer.Interval = severity is ToastSeverity.Warning or ToastSeverity.Error
             ? TimeSpan.FromSeconds(4)
             : TimeSpan.FromMilliseconds(2500);
-        string iconKey = visual switch
-        {
-            StatusVisual.Error => "FluentDismissIcon",
-            StatusVisual.Warning => "FluentWarningIcon",
-            _ => "FluentCheckIcon"
-        };
+        string iconKey = NotificationVisuals.GetIconKey(severity);
+        string brushKey = NotificationVisuals.GetBrushKey(severity);
         if (TryFindResource(iconKey) is Geometry icon)
             ToastIconPath.Data = icon;
+        if (TryFindResource(brushKey) is Brush brush)
+            ToastIconPath.Fill = brush;
         _toastTimer.Start();
     }
 
     private void OpenLocalPlayback()
     {
         if (!WorkstationNetwork.TryOpenUrl(_host.LocalPlaybackUrl, out string error))
-            ShowToast($"打开本机回放失败：{error}", StatusVisual.Error);
+            ShowToast($"打开本机回放失败：{error}", ToastSeverity.Error);
     }
 
     private void OpenWeb_Click(object sender, RoutedEventArgs e) => OpenLocalPlayback();
@@ -306,7 +304,7 @@ public partial class PrintWorkstationWindow : Window
             ShowMobileConnection = ShowMobileConnection,
             CopyMobileConnectionUrl = CopyMobileConnectionUrl,
             OpenUserscriptGuide = OpenUserscriptGuide,
-            ShowToast = message => ShowToast(message),
+            ShowToast = (message, severity) => ShowToast(message, severity),
             ToastSource = ToastState
         };
         (double diskUsagePercent, string diskUsageText) = GetDiskUsage(_host.StoragePath);
@@ -352,7 +350,7 @@ public partial class PrintWorkstationWindow : Window
         }
         catch (Exception ex)
         {
-            ShowToast($"复制连接地址失败：{ex.Message}", StatusVisual.Error);
+            ShowToast($"复制连接地址失败：{ex.Message}", ToastSeverity.Error);
         }
     }
 
@@ -503,7 +501,7 @@ public partial class PrintWorkstationWindow : Window
                 : _host.ErrorMessage;
             StatusVisual visual = _host.IsRunning ? StatusVisual.Warning : StatusVisual.Error;
             SetStatus(message, "", visual);
-            ShowToast(message, visual);
+            ShowToast(message, visual == StatusVisual.Error ? ToastSeverity.Error : ToastSeverity.Warning);
         }
     }
 
@@ -635,13 +633,13 @@ public partial class PrintWorkstationWindow : Window
     {
         if (!_host.IsLanAvailable)
         {
-            ShowToast("局域网服务尚未就绪，请先修复后再安装订单联动", StatusVisual.Warning);
+            ShowToast("局域网服务尚未就绪，请先修复后再安装订单联动", ToastSeverity.Warning);
             return;
         }
 
         if (!UserscriptGuideNavigation.TryOpen(_host.LanAccessUrl, out string error))
         {
-            ShowToast($"打开订单联动安装向导失败：{error}", StatusVisual.Error);
+            ShowToast($"打开订单联动安装向导失败：{error}", ToastSeverity.Error);
             return;
         }
         UserscriptTargetState.MarkGuideOpened(
@@ -753,7 +751,7 @@ public partial class PrintWorkstationWindow : Window
             if (_host.HasActiveMobileBackups)
             {
                 SwitchPurposeButtonText.Text = "等待备份完成";
-                ShowToast("设备录像正在备份，完成后将自动重启", StatusVisual.Warning);
+                ShowToast("设备录像正在备份，完成后将自动重启", ToastSeverity.Warning);
             }
 
             await _host.WaitForMobileBackupsAsync(_lifetimeCts.Token);

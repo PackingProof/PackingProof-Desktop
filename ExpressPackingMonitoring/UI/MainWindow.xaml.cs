@@ -503,7 +503,7 @@ namespace ExpressPackingMonitoring.UI
                     vm.BusyText = "正在关闭程序...";
                     vm.IsBusy = true;
                     if (!IsRoutineShutdownProgressMessage(msg))
-                        vm.ShowToast(msg);
+                        vm.ShowToast(msg, ToastSeverity.Information);
                 });
                 saved = await vm.SaveRecordingsBeforeShutdownAsync(progress);
             }
