@@ -293,6 +293,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("DisableDirPage=no", innoScript);
         Assert.Contains("IsProtectedInstallRoot", innoScript);
         Assert.Contains("IsDirectoryWritable", innoScript);
+        Assert.Contains("(Length(Dir) = 3) and (Dir[2] = ':') and (Dir[3] = '\\')", innoScript);
+        Assert.Contains("ForceDirectories(Dir)", innoScript);
         Assert.Contains("DirRequiresAdmin", innoScript);
         Assert.Contains("PrivilegesRequired=lowest", innoScript);
         Assert.Contains("ArchitecturesAllowed=x64compatible", innoScript);

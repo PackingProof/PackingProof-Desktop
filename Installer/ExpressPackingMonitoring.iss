@@ -164,7 +164,7 @@ begin
     StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{pf32}'))) or
     StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{win}'))) or
     StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{commonappdata}'))) or
-    ((Length(Dir) >= 3) and (Dir[2] = ':') and (Dir[3] = '\'));
+    ((Length(Dir) = 3) and (Dir[2] = ':') and (Dir[3] = '\'));
 end;
 
 function IsDirectoryWritable(const Dir: String): Boolean;
@@ -174,7 +174,7 @@ begin
   Result := False;
   if not DirExists(Dir) then
   begin
-    if not CreateDir(Dir) then
+    if not ForceDirectories(Dir) then
       Exit;
   end;
 
