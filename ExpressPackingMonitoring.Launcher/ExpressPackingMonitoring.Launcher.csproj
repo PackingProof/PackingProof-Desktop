@@ -14,7 +14,7 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <StripSymbols>true</StripSymbols>
-    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest</LauncherDefaultUpdateCheckUrl>
+    <LauncherDefaultUpdateCheckUrl Condition="'$(LauncherDefaultUpdateCheckUrl)' == ''">https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest</LauncherDefaultUpdateCheckUrl>
     <DefaultItemExcludes>$(DefaultItemExcludes);bin_publish_tmp\**;obj_publish_tmp\**</DefaultItemExcludes>
   </PropertyGroup>
 

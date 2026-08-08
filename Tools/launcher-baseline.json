@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.41",
-  "tag": "launcher-v0.0.41",
-  "release_tag": "v0.0.41",
+  "version": "0.0.42",
+  "tag": "launcher-v0.0.42",
+  "release_tag": "v0.0.42",
   "runtime": "win-x64",
-  "update_check_url": "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest",
-  "source_fingerprint": "75d551744ea99cc216c0793dd8513191db27ba4a9f2f3ca806d69d6ab2948ec6",
+  "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
+  "source_fingerprint": "47acd03c73af8cc43a4ea0ccc174a5cc4d9d00cb662db059b27e22b038cc8e01",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -19,10 +19,10 @@
     "Tools/Apply-LauncherPatch.ps1"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.41.zip",
-    "size": 3093446,
-    "sha256": "0088751ec6ecfcf5ab8b03f11618b7389b21ad6be28cca059b79a412790647e7",
+    "file": "PackingProof_LauncherPatch_v0.0.42.zip",
+    "size": 3093434,
+    "sha256": "2c8cf32db124d6000523fd3039a2e1ae194eb2324cced7ce1780b2654c9ea1b4",
     "executable_size": 6334976,
-    "executable_sha256": "ff51ed94439cb427378f35ebc101e4347b74940ed78c86a5b838ce567a217196"
+    "executable_sha256": "1f9cf41dbf2ab457788fadd79e44ae553c938697c0504131b3985d0fbb880cd5"
   }
 }

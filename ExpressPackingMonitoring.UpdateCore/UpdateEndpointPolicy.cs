@@ -3,7 +3,7 @@ namespace ExpressPackingMonitoring.UpdateCore;
 public static class UpdateEndpointPolicy
 {
     public const string DefaultGiteeCheckUrl =
-        "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest";
+        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest";
     public const string DefaultGithubCheckUrl =
         "https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/latest";
 
