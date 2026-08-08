@@ -11,7 +11,7 @@ internal static class BackupCompatibilityPolicy
     internal const int MinimumMobileBuildNumber = 11010;
     internal const string MinimumDesktopVersion = "0.0.32";
     internal const string MobileDownloadUrl =
-        "https://gitee.com/PackingProof/PackingProof-Mobile/releases";
+        "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
     internal const string DesktopDownloadUrl =
         "https://github.com/PackingProof/PackingProof-Desktop/releases/latest";
 

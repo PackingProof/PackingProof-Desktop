@@ -68,8 +68,7 @@ public partial class MobileConnectionWindow : Window
 
     private void UpdateMobileAppDownload(MobileAppReleaseInfo? release)
     {
-        _mobileAppDownloadUrl = release?.DownloadUrl
-            ?? MobileAppUpdatePolicyProvider.ReleasesUrl;
+        _mobileAppDownloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
         MobileAppQrCodeImage.Source =
             MobileConnectionService.CreateQrBitmap(_mobileAppDownloadUrl);
         MobileAppVersionText.Text = release == null

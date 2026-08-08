@@ -1479,8 +1479,7 @@ namespace ExpressPackingMonitoring.Services
                         latestVersion = latestRelease?.Version ?? "",
                         latestBuildNumber = latestRelease?.BuildNumber ?? 0,
                         latestTag = latestRelease?.TagName ?? "",
-                        downloadUrl = latestRelease?.DownloadUrl
-                            ?? MobileAppUpdatePolicyProvider.ReleasesUrl
+                        downloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl
                     }
                 });
             }
@@ -2230,8 +2229,7 @@ namespace ExpressPackingMonitoring.Services
         internal static MobileAppDownloadInfo CreateMobileAppDownloadInfo(
             MobileAppReleaseInfo latestRelease)
         {
-            string downloadUrl = latestRelease?.DownloadUrl
-                ?? MobileAppUpdatePolicyProvider.ReleasesUrl;
+            string downloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
             return new MobileAppDownloadInfo(
                 latestRelease?.Version ?? "",
                 downloadUrl,

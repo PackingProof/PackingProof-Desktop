@@ -23,7 +23,7 @@ internal sealed class MobileAppUpdatePolicyProvider
     private const string LatestReleaseApiUrl =
         "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases/latest";
     internal const string ReleasesUrl =
-        "https://gitee.com/PackingProof/PackingProof-Mobile/releases";
+        "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
 
     private readonly object _gate = new();
     private DateTimeOffset _lastAttemptUtc = DateTimeOffset.MinValue;
@@ -132,7 +132,7 @@ internal sealed class MobileAppUpdatePolicyProvider
             tagName,
             version,
             buildNumber,
-            ResolveDownloadUrl(document?.Assets));
+            ResolveDownloadUrl());
     }
 
     private static async Task<int> TryResolveBuildNumberAsync(
@@ -216,28 +216,7 @@ internal sealed class MobileAppUpdatePolicyProvider
         return manifest.VersionCode;
     }
 
-    private static string ResolveDownloadUrl(IReadOnlyList<MobileAppReleaseAsset>? assets)
-    {
-        if (assets == null || assets.Count == 0)
-            return ReleasesUrl;
-
-        IEnumerable<MobileAppReleaseAsset> candidates = assets
-            .OrderByDescending(asset => string.Equals(
-                asset.Name?.Trim(),
-                "PackingProof-Mobile.apk",
-                StringComparison.OrdinalIgnoreCase))
-            .Where(asset => asset.Name?.Trim().EndsWith(
-                ".apk",
-                StringComparison.OrdinalIgnoreCase) == true);
-
-        foreach (MobileAppReleaseAsset asset in candidates)
-        {
-            if (TryResolveTrustedGiteeUrl(asset.BrowserDownloadUrl, out string url))
-                return url;
-        }
-
-        return ReleasesUrl;
-    }
+    private static string ResolveDownloadUrl() => ReleasesUrl;
 
     private static bool TryResolveTrustedGiteeUrl(string? value, out string url)
     {

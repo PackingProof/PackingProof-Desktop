@@ -6,7 +6,7 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class MobileAppUpdatePolicyTests
 {
     [Fact]
-    public void WebDownloadInfoUsesCachedReleaseOrStableFallbackImmediately()
+    public void WebDownloadInfoAlwaysUsesLatestReleasesPage()
     {
         MobileAppDownloadInfo cached = WebServer.CreateMobileAppDownloadInfo(
             new MobileAppReleaseInfo(
@@ -17,7 +17,9 @@ public sealed class MobileAppUpdatePolicyTests
         MobileAppDownloadInfo fallback = WebServer.CreateMobileAppDownloadInfo(null!);
 
         Assert.Equal("0.5.8", cached.Version);
-        Assert.Contains("attach_files/1/download", cached.DownloadUrl, StringComparison.Ordinal);
+        Assert.Equal(
+            MobileAppUpdatePolicyProvider.ReleasesUrl,
+            cached.DownloadUrl);
         Assert.StartsWith("data:image/png;base64,", cached.QrCode, StringComparison.Ordinal);
         Assert.Equal("", fallback.Version);
         Assert.Equal(MobileAppUpdatePolicyProvider.ReleasesUrl, fallback.DownloadUrl);
@@ -36,7 +38,7 @@ public sealed class MobileAppUpdatePolicyTests
     }
 
     [Fact]
-    public void LatestMobileReleaseFallsBackToGiteeRepositoryWhenNoApkAssetExists()
+    public void LatestMobileReleaseFallsBackToLatestReleasesPageWhenNoApkAssetExists()
     {
         MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
             """{"tag_name":"v0.6.1+12001","name":"v0.6.1"}""");
@@ -45,7 +47,7 @@ public sealed class MobileAppUpdatePolicyTests
         Assert.Equal("0.6.1", release.Version);
         Assert.Equal(12001, release.BuildNumber);
         Assert.Equal(
-            "https://gitee.com/PackingProof/PackingProof-Mobile/releases",
+            MobileAppUpdatePolicyProvider.ReleasesUrl,
             release.DownloadUrl);
     }
 
@@ -107,7 +109,7 @@ public sealed class MobileAppUpdatePolicyTests
     }
 
     [Fact]
-    public void LatestMobileReleasePrefersNamedGiteeApkAsset()
+    public void LatestMobileReleaseUsesLatestReleasesPageForDownload()
     {
         MobileAppReleaseInfo release = MobileAppUpdatePolicyProvider.ParseLatestRelease(
             """
@@ -127,7 +129,7 @@ public sealed class MobileAppUpdatePolicyTests
             """);
 
         Assert.Equal(
-            "https://gitee.com/PackingProof/PackingProof-Mobile/releases/download/v0.6.1/PackingProof-Mobile.apk",
+            MobileAppUpdatePolicyProvider.ReleasesUrl,
             release.DownloadUrl);
     }
 
