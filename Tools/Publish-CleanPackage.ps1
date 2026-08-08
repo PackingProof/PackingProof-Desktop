@@ -593,7 +593,7 @@ function Get-ReleaseUrlBase {
         return $explicitBase.TrimEnd("/")
     }
 
-    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
+    $checkUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
     if ($checkUrl -match "^https://api\.github\.com/repos/([^/]+/[^/]+)/releases/latest/?$") {
         return "https://github.com/$($Matches[1])/releases"
     }
@@ -602,7 +602,7 @@ function Get-ReleaseUrlBase {
         return "https://gitee.com/$($Matches[1])/releases"
     }
 
-    return "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases"
+    return "https://gitee.com/PackingProof/PackingProof-Desktop/releases"
 }
 
 function Expand-ReleaseTemplate {
@@ -851,7 +851,7 @@ function Resolve-LauncherBaselineExecutable {
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBuildArtifacts = Join-Path $outputFullPath ".build-artifacts"
 $gitCommitId = Get-GitCommitId
-$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest"
+$packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
 } elseif (-not [string]::IsNullOrWhiteSpace($BaselineLauncherManifestPath)) {
@@ -999,10 +999,10 @@ $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"
 $appPatchUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $appPatchGithubUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
-$appPatchGiteeUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases/download/{tag}/{file}"
+$appPatchGiteeUrlTemplate = Get-ConfiguredValue -Key "APP_PATCH_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
 $launcherPackageUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/download/{tag}/{file}"
 $launcherPackageGithubUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITHUB_URL_TEMPLATE" -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
-$launcherPackageGiteeUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/chenjjian/ExpressPackingMonitoring/releases/download/{tag}/{file}"
+$launcherPackageGiteeUrlTemplate = Get-ConfiguredValue -Key "LAUNCHER_PACKAGE_GITEE_URL_TEMPLATE" -DefaultValue "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/{tag}/{file}"
 $releasePage = Expand-ReleaseTemplate -Template $releasePageTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchPlaceholderUrl = Expand-ReleaseTemplate -Template $appPatchUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName
 $appPatchGithubUrl = Expand-ReleaseTemplate -Template $appPatchGithubUrlTemplate -ReleaseTag $releaseTag -FileName $appPatchZipName

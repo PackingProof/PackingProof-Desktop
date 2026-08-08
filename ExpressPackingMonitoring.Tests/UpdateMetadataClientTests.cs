@@ -13,9 +13,9 @@ public sealed class UpdateMetadataClientTests
         "0.0.50",
         "https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/tags/v0.0.50")]
     [InlineData(
-        "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/latest",
+        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
         "v0.0.50",
-        "https://gitee.com/api/v5/repos/chenjjian/ExpressPackingMonitoring/releases/tags/v0.0.50")]
+        "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/tags/v0.0.50")]
     public void DeriveReleaseByTagUrl_SupportsGithubAndGiteeLatestEndpoints(
         string sourceUrl,
         string targetVersion,
