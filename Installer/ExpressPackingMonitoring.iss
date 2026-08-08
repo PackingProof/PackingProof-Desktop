@@ -30,7 +30,7 @@ AppSupportURL=https://github.com/PackingProof/PackingProof-Desktop/issues
 AppUpdatesURL=https://github.com/PackingProof/PackingProof-Desktop/releases
 DefaultDirName={localappdata}\Programs\ExpressPackingMonitoring
 DefaultGroupName={#MyAppName}
-DisableDirPage=yes
+DisableDirPage=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -97,6 +97,8 @@ english.UninstallDeleteRecordingsHelp=Deletes managed recordings first, then rem
 english.UninstallStart=Uninstall
 english.UninstallCancel=Cancel
 english.UninstallCleanupFailed=Some selected content could not be safely removed, so the remaining data was kept%nDetails: %1
+chinesesimplified.DirRequiresAdmin=所选文件夹需要管理员权限才能安装，请换一个普通文件夹（例如 D:\PackingProof 或“文档”文件夹）。安装位置必须允许当前用户直接写入，否则以后无法自动更新。
+english.DirRequiresAdmin=The selected folder requires administrator rights to install. Please choose a normal user-writable folder (for example D:\PackingProof or your Documents folder). The install location must be writable by the current user, otherwise automatic updates will fail.
 
 [Code]
 var
@@ -140,6 +142,60 @@ begin
       Result := True;
       Exit;
     end;
+  end;
+end;
+
+function StartsWithFolder(const Dir, Prefix: String): Boolean;
+begin
+  Result := (Pos(Prefix, Dir) = 1) and
+    ((Length(Dir) = Length(Prefix)) or (Dir[Length(Prefix) + 1] = '\'));
+end;
+
+function IsProtectedInstallRoot(const Dir: String): Boolean;
+var
+  UpperDir: String;
+begin
+  UpperDir := Uppercase(Dir);
+  Result :=
+    StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{pf}'))) or
+    StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{pf32}'))) or
+    StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{win}'))) or
+    StartsWithFolder(UpperDir, Uppercase(ExpandConstant('{commonappdata}'))) or
+    ((Length(Dir) >= 3) and (Dir[2] = ':') and (Dir[3] = '\'));
+end;
+
+function IsDirectoryWritable(const Dir: String): Boolean;
+var
+  TestFile: String;
+begin
+  Result := False;
+  if not DirExists(Dir) then
+  begin
+    if not CreateDir(Dir) then
+      Exit;
+  end;
+
+  TestFile := AddBackslash(Dir) + 'PackingProofSetupWriteTest.tmp';
+  if SaveStringToFile(TestFile, 'x', False) then
+  begin
+    DeleteFile(TestFile);
+    Result := True;
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  SelectedDir: String;
+begin
+  Result := True;
+  if CurPageID <> wpSelectDir then
+    Exit;
+
+  SelectedDir := WizardDirValue;
+  if IsProtectedInstallRoot(SelectedDir) or (not IsDirectoryWritable(SelectedDir)) then
+  begin
+    MsgBox(CustomMessage('DirRequiresAdmin'), mbInformation, MB_OK);
+    Result := False;
   end;
 end;
 
