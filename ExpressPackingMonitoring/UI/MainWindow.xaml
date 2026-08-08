@@ -137,7 +137,7 @@
                                                         <DataTrigger Binding="{Binding CurrentMode}" Value="退货">
                                                             <Setter TargetName="ModeIcon" Property="Data" Value="{StaticResource FluentReturnIcon}"/>
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsCompactLayout, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                        <DataTrigger Binding="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
                                                             <Setter Property="MinWidth" Value="52"/>
                                                             <Setter TargetName="ModeText" Property="Visibility" Value="Collapsed"/>
                                                             <Setter TargetName="ModeContent" Property="Margin" Value="0"/>
@@ -240,7 +240,7 @@
                                                         <Setter TargetName="RecordActionText" Property="Text" Value="{Binding BusyText}"/>
                                                         <Setter Property="ToolTip" Value="{Binding BusyText}"/>
                                                     </MultiDataTrigger>
-                                                    <DataTrigger Binding="{Binding IsCompactLayout, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                    <DataTrigger Binding="{Binding IsRecordButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
                                                         <Setter Property="Width" Value="52"/>
                                                         <Setter TargetName="RecordActionText" Property="Visibility" Value="Collapsed"/>
                                                         <Setter TargetName="RecordActionContent" Property="Margin" Value="0"/>

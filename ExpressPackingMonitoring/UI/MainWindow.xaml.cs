@@ -44,16 +44,28 @@ namespace ExpressPackingMonitoring.UI
         private const double MinimumScanInputWidth = 320;
         private const double IconButtonWidth = 52;
 
-        public static readonly DependencyProperty IsCompactLayoutProperty = DependencyProperty.Register(
-            nameof(IsCompactLayout),
+        public static readonly DependencyProperty IsModeButtonCompactProperty = DependencyProperty.Register(
+            nameof(IsModeButtonCompact),
             typeof(bool),
             typeof(MainWindow),
             new PropertyMetadata(false));
 
-        public bool IsCompactLayout
+        public bool IsModeButtonCompact
         {
-            get => (bool)GetValue(IsCompactLayoutProperty);
-            set => SetValue(IsCompactLayoutProperty, value);
+            get => (bool)GetValue(IsModeButtonCompactProperty);
+            set => SetValue(IsModeButtonCompactProperty, value);
+        }
+
+        public static readonly DependencyProperty IsRecordButtonCompactProperty = DependencyProperty.Register(
+            nameof(IsRecordButtonCompact),
+            typeof(bool),
+            typeof(MainWindow),
+            new PropertyMetadata(false));
+
+        public bool IsRecordButtonCompact
+        {
+            get => (bool)GetValue(IsRecordButtonCompactProperty);
+            set => SetValue(IsRecordButtonCompactProperty, value);
         }
 
         private bool IsCapsLockOn() => (GetKeyState(VK_CAPITAL) & 1) != 0;
@@ -610,36 +622,38 @@ namespace ExpressPackingMonitoring.UI
                 && message.Contains("文件不存在，跳过", StringComparison.Ordinal);
         }
 
-        internal enum StatsBarVisibility
+        internal enum BottomBarLayout
         {
-            All,
-            WithoutTotal,
-            OnlyToday
+            AllText,
+            AllIconOnly,
+            WithoutTotalIconOnly,
+            OnlyTodayIconOnly,
+            OnlyTodayNoData
         }
 
-        internal static StatsBarVisibility ResolveStatsVisibility(
-            double availableWidth,
+        internal static BottomBarLayout ResolveBottomBarLayout(
+            double availableContentWidth,
             double todayWidth,
             double averageWidth,
             double totalWidth,
-            double gap)
+            double gap,
+            double buttonsTextWidth,
+            double buttonsIconWidth)
         {
             const double tolerance = 1.0;
-            if (todayWidth + gap + averageWidth + gap + totalWidth <= availableWidth + tolerance)
-                return StatsBarVisibility.All;
-            if (todayWidth + gap + averageWidth <= availableWidth + tolerance)
-                return StatsBarVisibility.WithoutTotal;
-            return StatsBarVisibility.OnlyToday;
+            if (todayWidth + gap + averageWidth + gap + totalWidth + buttonsTextWidth
+                <= availableContentWidth + tolerance)
+                return BottomBarLayout.AllText;
+            if (todayWidth + gap + averageWidth + gap + totalWidth + buttonsIconWidth
+                <= availableContentWidth + tolerance)
+                return BottomBarLayout.AllIconOnly;
+            if (todayWidth + gap + averageWidth + buttonsIconWidth
+                <= availableContentWidth + tolerance)
+                return BottomBarLayout.WithoutTotalIconOnly;
+            if (todayWidth + buttonsIconWidth <= availableContentWidth + tolerance)
+                return BottomBarLayout.OnlyTodayIconOnly;
+            return BottomBarLayout.OnlyTodayNoData;
         }
-
-        internal static (bool AverageVisible, bool TotalVisible) ResolveGroupVisibility(
-            StatsBarVisibility visibility) =>
-            visibility switch
-            {
-                StatsBarVisibility.All => (true, true),
-                StatsBarVisibility.WithoutTotal => (true, false),
-                _ => (false, false)
-            };
 
         internal enum ActionButtonLayout
         {
@@ -648,20 +662,16 @@ namespace ExpressPackingMonitoring.UI
             IconOnlyNoData
         }
 
-        internal static ActionButtonLayout ResolveActionButtonLayout(
-            double availableContentWidth,
-            double onlyTodayWidth,
-            double buttonsTextWidth,
-            double buttonsIconWidth,
-            double buttonsIconWithoutDataWidth)
-        {
-            const double tolerance = 1.0;
-            if (onlyTodayWidth + buttonsTextWidth <= availableContentWidth + tolerance)
-                return ActionButtonLayout.Text;
-            if (onlyTodayWidth + buttonsIconWidth <= availableContentWidth + tolerance)
-                return ActionButtonLayout.IconOnly;
-            return ActionButtonLayout.IconOnlyNoData;
-        }
+        internal static (bool AverageVisible, bool TotalVisible, ActionButtonLayout Buttons)
+            ResolveBottomBarVisibility(BottomBarLayout layout) =>
+            layout switch
+            {
+                BottomBarLayout.AllText => (true, true, ActionButtonLayout.Text),
+                BottomBarLayout.AllIconOnly => (true, true, ActionButtonLayout.IconOnly),
+                BottomBarLayout.WithoutTotalIconOnly => (true, false, ActionButtonLayout.IconOnly),
+                BottomBarLayout.OnlyTodayIconOnly => (false, false, ActionButtonLayout.IconOnly),
+                _ => (false, false, ActionButtonLayout.IconOnlyNoData)
+            };
 
         private bool _statsBarUpdating;
         private bool _topBarUpdating;
@@ -690,35 +700,16 @@ namespace ExpressPackingMonitoring.UI
                 double buttonsIconWidth = ActionButtonsPanel.Children
                     .OfType<Button>()
                     .Sum(button => IconButtonWidth + button.Margin.Left + button.Margin.Right);
-                double buttonsIconWithoutDataWidth = buttonsIconWidth
-                    - (IconButtonWidth + DataButton.Margin.Left + DataButton.Margin.Right);
 
-                StatsBarVisibility visibility =
-                    ResolveStatsVisibility(
-                        availableContentWidth - buttonsTextWidth,
-                        todayWidth,
-                        averageWidth,
-                        totalWidth,
-                        16);
-                (bool averageVisible, bool totalVisible) = ResolveGroupVisibility(visibility);
-                TotalTimeGroup.Visibility =
-                    totalVisible ? Visibility.Visible : Visibility.Collapsed;
-                AverageTimeGroup.Visibility =
-                    averageVisible ? Visibility.Visible : Visibility.Collapsed;
-
-                ActionButtonLayout buttonLayout = visibility == StatsBarVisibility.OnlyToday
-                    ? ResolveActionButtonLayout(
-                        availableContentWidth,
-                        todayWidth,
-                        buttonsTextWidth,
-                        buttonsIconWidth,
-                        buttonsIconWithoutDataWidth)
-                    : ActionButtonLayout.Text;
-                ApplyBottomButtonLayout(buttonLayout);
-                DataButton.Visibility =
-                    buttonLayout == ActionButtonLayout.IconOnlyNoData
-                        ? Visibility.Collapsed
-                        : Visibility.Visible;
+                BottomBarLayout layout = ResolveBottomBarLayout(
+                    availableContentWidth,
+                    todayWidth,
+                    averageWidth,
+                    totalWidth,
+                    16,
+                    buttonsTextWidth,
+                    buttonsIconWidth);
+                ApplyBottomBarLayout(layout);
             }
             finally
             {
@@ -736,6 +727,21 @@ namespace ExpressPackingMonitoring.UI
         {
             button.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             return button.DesiredSize.Width + button.Margin.Left + button.Margin.Right;
+        }
+
+        private void ApplyBottomBarLayout(BottomBarLayout layout)
+        {
+            (bool averageVisible, bool totalVisible, ActionButtonLayout buttons) =
+                ResolveBottomBarVisibility(layout);
+            AverageTimeGroup.Visibility =
+                averageVisible ? Visibility.Visible : Visibility.Collapsed;
+            TotalTimeGroup.Visibility =
+                totalVisible ? Visibility.Visible : Visibility.Collapsed;
+            ApplyBottomButtonLayout(buttons);
+            DataButton.Visibility =
+                buttons == ActionButtonLayout.IconOnlyNoData
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
         }
 
         private void ApplyBottomButtonLayout(ActionButtonLayout layout)
@@ -756,6 +762,32 @@ namespace ExpressPackingMonitoring.UI
             SettingsButtonIcon.Margin = iconMargin;
         }
 
+        internal enum TopBarCompactState
+        {
+            BothText,
+            ModeIconOnly,
+            BothIconOnly
+        }
+
+        internal static TopBarCompactState ResolveTopBarCompactState(
+            double availableWidth,
+            double modeTextWidth,
+            double recordTextWidth,
+            double iconWidth,
+            double modeRightMargin,
+            double columnGap,
+            double minimumScanWidth)
+        {
+            const double tolerance = 1.0;
+            if (modeTextWidth + modeRightMargin + columnGap + recordTextWidth + minimumScanWidth
+                <= availableWidth + tolerance)
+                return TopBarCompactState.BothText;
+            if (iconWidth + modeRightMargin + columnGap + recordTextWidth + minimumScanWidth
+                <= availableWidth + tolerance)
+                return TopBarCompactState.ModeIconOnly;
+            return TopBarCompactState.BothIconOnly;
+        }
+
         private void UpdateTopBarCompactState()
         {
             if (_topBarUpdating || TopBarBorder == null || TopBarBorder.ActualWidth <= 0)
@@ -765,12 +797,17 @@ namespace ExpressPackingMonitoring.UI
             try
             {
                 double availableWidth = Math.Max(0, TopBarBorder.ActualWidth - 40);
-                double requiredWidth = TopModeButtonTextWidth
-                    + TopModeButtonRightMargin
-                    + TopColumnGap
-                    + TopRecordButtonTextWidth
-                    + MinimumScanInputWidth;
-                IsCompactLayout = requiredWidth > availableWidth;
+                TopBarCompactState state = ResolveTopBarCompactState(
+                    availableWidth,
+                    TopModeButtonTextWidth,
+                    TopRecordButtonTextWidth,
+                    IconButtonWidth,
+                    TopModeButtonRightMargin,
+                    TopColumnGap,
+                    MinimumScanInputWidth);
+                IsModeButtonCompact =
+                    state is TopBarCompactState.ModeIconOnly or TopBarCompactState.BothIconOnly;
+                IsRecordButtonCompact = state == TopBarCompactState.BothIconOnly;
             }
             finally
             {
