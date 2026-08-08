@@ -99,6 +99,8 @@ english.UninstallCancel=Cancel
 english.UninstallCleanupFailed=Some selected content could not be safely removed, so the remaining data was kept%nDetails: %1
 chinesesimplified.DirRequiresAdmin=所选文件夹需要管理员权限才能安装，请换一个普通文件夹（例如 D:\PackingProof 或“文档”文件夹）。安装位置必须允许当前用户直接写入，否则以后无法自动更新。
 english.DirRequiresAdmin=The selected folder requires administrator rights to install. Please choose a normal user-writable folder (for example D:\PackingProof or your Documents folder). The install location must be writable by the current user, otherwise automatic updates will fail.
+chinesesimplified.UpgradeDirChanged=检测到本机已安装旧版本，你选择了新的安装文件夹。%n%n本次升级不需要先卸载旧版本，直接继续安装即可；升级过程不会删除你的用户数据和录像（它们保存在系统用户目录中）。%n%n注意：旧文件夹中的程序不会被自动删除，之后也不会出现在“添加或删除程序”里。如无特殊原因，建议返回上一步保持默认目录完成升级；若继续使用新文件夹，可在安装完成后手动删除旧文件夹。
+english.UpgradeDirChanged=An existing installation was detected, and you chose a new install folder.%n%nYou do not need to uninstall the old version first. Continue the installation directly; upgrading will not delete your user data or recordings (they are stored in your user profile folder).%n%nNote: the old folder will not be removed automatically and will no longer appear in "Add or remove programs". Unless you have a specific reason, we recommend going back and keeping the default folder for the upgrade. If you continue with the new folder, you can delete the old one manually after installation.
 
 [Code]
 var
@@ -107,6 +109,7 @@ var
   CleanupFailed: Boolean;
   CleanupPlanPath: String;
   CleanupLogPath: String;
+  UpgradeDirNoticeShown: Boolean;
 
 function Quote(const Value: String): String;
 begin
@@ -183,9 +186,21 @@ begin
   end;
 end;
 
+function GetPreviousInstallDir: String;
+var
+  InstallDir: String;
+begin
+  Result := '';
+  if RegQueryStringValue(HKCU64,
+    'Software\Microsoft\Windows\CurrentVersion\Uninstall\{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}_is1',
+    'InstallLocation', InstallDir) then
+    Result := InstallDir;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   SelectedDir: String;
+  PreviousDir: String;
 begin
   Result := True;
   if CurPageID <> wpSelectDir then
@@ -196,6 +211,17 @@ begin
   begin
     MsgBox(CustomMessage('DirRequiresAdmin'), mbInformation, MB_OK);
     Result := False;
+    Exit;
+  end;
+
+  if (not WizardSilent) and (not UpgradeDirNoticeShown) then
+  begin
+    PreviousDir := GetPreviousInstallDir;
+    if (PreviousDir <> '') and (CompareText(PreviousDir, SelectedDir) <> 0) then
+    begin
+      MsgBox(CustomMessage('UpgradeDirChanged'), mbInformation, MB_OK);
+      UpgradeDirNoticeShown := True;
+    end;
   end;
 end;
 
