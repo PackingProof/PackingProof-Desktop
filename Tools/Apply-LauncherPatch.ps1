@@ -18,6 +18,26 @@ if ([string]::IsNullOrEmpty($PatchRoot)) {
     }
 }
 
+function Write-UpdateHost {
+    param(
+        [string]$Message = "",
+        [System.ConsoleColor]$ForegroundColor = [System.ConsoleColor]::Gray
+    )
+    try {
+        if ($PSBoundParameters.ContainsKey('ForegroundColor')) {
+            Write-Host $Message -ForegroundColor $ForegroundColor
+        }
+        else {
+            Write-Host $Message
+        }
+    }
+    catch {
+        # Windows 7 PowerShell 2.0 控制台偶发 0x1F（设备未就绪），
+        # 输出失败不应中断更新流程；降级到标准输出尽力显示。
+        try { [Console]::Out.WriteLine($Message) } catch { }
+    }
+}
+
 function Test-IsNullOrWhiteSpace {
     param([string]$Value)
     return [string]::IsNullOrEmpty($Value) -or $Value.Trim().Length -eq 0
@@ -61,8 +81,9 @@ function Get-FileSha256 {
         return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace("-", "").ToLowerInvariant()
     }
     finally {
-        $sha.Dispose()
-        $stream.Dispose()
+        # PowerShell 2.0 兼容：HashAlgorithm 用 Clear()，FileStream 用 Close()。
+        $sha.Clear()
+        $stream.Close()
     }
 }
 
@@ -145,9 +166,9 @@ function Resolve-LauncherRootCandidate {
 }
 
 function Request-LauncherRootDirectory {
-    Write-Host ""
-    Write-Host "未能自动找到软件位置。" -ForegroundColor Yellow
-    Write-Host "请把软件根目录、根目录 ExpressPackingMonitoring.exe 或桌面快捷方式拖到此窗口，然后按 Enter。"
+    Write-UpdateHost ""
+    Write-UpdateHost "未能自动找到软件位置。" -ForegroundColor Yellow
+    Write-UpdateHost "请把软件根目录、根目录 ExpressPackingMonitoring.exe 或桌面快捷方式拖到此窗口，然后按 Enter。"
     return Resolve-LauncherRootCandidate -CandidatePath (Read-Host "安装位置")
 }
 
@@ -191,7 +212,7 @@ $adjacentBackupPath = ""
 $exitCode = 0
 
 try {
-    Write-Host "正在检查启动器更新包..." -ForegroundColor Cyan
+    Write-UpdateHost "正在检查启动器更新包..." -ForegroundColor Cyan
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $sourceLauncherPath -PathType Leaf)) {
         throw "LauncherPatch 缺少启动器或校验清单"
@@ -228,7 +249,7 @@ try {
 
     $targetLauncherPath = Join-Path $launcherRoot "ExpressPackingMonitoring.exe"
     if ((Get-FileSha256 -Path $targetLauncherPath) -eq $expectedHash) {
-        Write-Host "当前启动器已经是此版本，无需重复更新" -ForegroundColor Green
+        Write-UpdateHost "当前启动器已经是此版本，无需重复更新" -ForegroundColor Green
         return
     }
     if (-not $SkipProcessCheck) {
@@ -270,16 +291,16 @@ try {
     }
 
     Write-UpdateLog -LogPath $logPath -Message "Manual launcher patch completed: root=$launcherRoot"
-    Write-Host ""
-    Write-Host "启动器更新完成" -ForegroundColor Green
-    Write-Host "下次从原来的入口打开 PackingProof 即可"
+    Write-UpdateHost ""
+    Write-UpdateHost "启动器更新完成" -ForegroundColor Green
+    Write-UpdateHost "下次从原来的入口打开 PackingProof 即可"
 }
 catch {
     $failure = $_.Exception.Message
     Write-UpdateLog -LogPath $logPath -Message "Manual launcher patch failed: $failure"
-    Write-Host ""
-    Write-Host "启动器更新失败：$failure" -ForegroundColor Red
-    Write-Host "现有主程序、录像、配置和数据库均未修改"
+    Write-UpdateHost ""
+    Write-UpdateHost "启动器更新失败：$failure" -ForegroundColor Red
+    Write-UpdateHost "现有主程序、录像、配置和数据库均未修改"
     $exitCode = 1
 }
 finally {

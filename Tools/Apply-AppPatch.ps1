@@ -19,6 +19,26 @@ if ([string]::IsNullOrEmpty($PatchRoot)) {
     }
 }
 
+function Write-UpdateHost {
+    param(
+        [string]$Message = "",
+        [System.ConsoleColor]$ForegroundColor = [System.ConsoleColor]::Gray
+    )
+    try {
+        if ($PSBoundParameters.ContainsKey('ForegroundColor')) {
+            Write-Host $Message -ForegroundColor $ForegroundColor
+        }
+        else {
+            Write-Host $Message
+        }
+    }
+    catch {
+        # Windows 7 PowerShell 2.0 控制台偶发 0x1F（设备未就绪），
+        # 输出失败不应中断更新流程；降级到标准输出尽力显示。
+        try { [Console]::Out.WriteLine($Message) } catch { }
+    }
+}
+
 function Test-IsNullOrWhiteSpace {
     param([string]$Value)
     return [string]::IsNullOrEmpty($Value) -or $Value.Trim().Length -eq 0
@@ -164,14 +184,16 @@ function Resolve-AppRootCandidate {
         throw "不支持网络快捷方式 .url，请拖入安装文件夹、程序 EXE 或 .lnk 快捷方式"
     }
 
-    $visitedShortcuts = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+    $visitedShortcuts = New-Object System.Collections.Generic.List[string]
     while ([string]::Equals([System.IO.Path]::GetExtension($resolvedInput), ".lnk", [System.StringComparison]::OrdinalIgnoreCase)) {
         if (-not (Test-Path -LiteralPath $resolvedInput -PathType Leaf)) {
             throw "快捷方式不存在：$resolvedInput"
         }
-        if (-not $visitedShortcuts.Add($resolvedInput)) {
+        $visitedKey = $resolvedInput.ToLowerInvariant()
+        if ($visitedShortcuts.Contains($visitedKey)) {
             throw "快捷方式存在循环引用：$resolvedInput"
         }
+        $visitedShortcuts.Add($visitedKey)
 
         $shortcutTarget = Get-ShortcutTargetPath -ShortcutPath $resolvedInput
 
@@ -215,15 +237,15 @@ function Resolve-AppRootCandidate {
 
 function Request-AppRootDirectory {
     while ($true) {
-        Write-Host ""
-        Write-Host "未能从 config.json 自动找到软件安装目录。" -ForegroundColor Yellow
-        Write-Host "请把安装文件夹或 ExpressPackingMonitoring.exe 拖到此窗口，然后按 Enter。"
+        Write-UpdateHost ""
+        Write-UpdateHost "未能从 config.json 自动找到软件安装目录。" -ForegroundColor Yellow
+        Write-UpdateHost "请把安装文件夹或 ExpressPackingMonitoring.exe 拖到此窗口，然后按 Enter。"
         $draggedPath = Read-Host "安装位置"
         try {
             return Resolve-AppRootCandidate -CandidatePath $draggedPath
         }
         catch {
-            Write-Host $_.Exception.Message -ForegroundColor Yellow
+            Write-UpdateHost $_.Exception.Message -ForegroundColor Yellow
         }
     }
 }
@@ -270,8 +292,9 @@ function Get-FileSha256 {
         return ([System.BitConverter]::ToString($hash)).Replace("-", "").ToLowerInvariant()
     }
     finally {
-        $sha.Dispose()
-        $stream.Dispose()
+        # PowerShell 2.0 兼容：HashAlgorithm 用 Clear()，FileStream 用 Close()。
+        $sha.Clear()
+        $stream.Close()
     }
 }
 
@@ -297,7 +320,7 @@ function Stop-TargetApplication {
     param([string]$TargetExePath)
 
     foreach ($process in @(Get-TargetProcesses -TargetExePath $TargetExePath)) {
-        Write-Host "检测到程序正在运行，正在请求安全退出..." -ForegroundColor Yellow
+        Write-UpdateHost "检测到程序正在运行，正在请求安全退出..." -ForegroundColor Yellow
         if (-not $process.CloseMainWindow()) {
             throw "无法请求程序退出，请手动关闭程序后重新双击更新脚本"
         }
@@ -348,7 +371,7 @@ try {
         throw "另一个增量更新正在执行"
     }
 
-    Write-Host "正在检查增量更新包..." -ForegroundColor Cyan
+    Write-UpdateHost "正在检查增量更新包..." -ForegroundColor Cyan
     $configuredAppRoot = ""
     try {
         if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
@@ -397,7 +420,7 @@ try {
     if (-not $SkipVersionCheck) {
         $installedVersion = Get-InstalledVersion -DllPath $targetDllPath
         if ($installedVersion -ge $latestVersion) {
-            Write-Host "当前已是 v$installedVersion，无需重复更新" -ForegroundColor Green
+            Write-UpdateHost "当前已是 v$installedVersion，无需重复更新" -ForegroundColor Green
             Write-UpdateLog -LogPath $logPath -Message "Manual patch skipped: installed=$installedVersion, latest=$latestVersion"
             return
         }
@@ -537,14 +560,14 @@ try {
     }
     $backupRoot = ""
     Write-UpdateLog -LogPath $logPath -Message "Manual patch completed: latest=$latestVersion"
-    Write-Host ""
-    Write-Host "增量更新完成，已升级到 v$latestVersion" -ForegroundColor Green
-    Write-Host "请从原来的根目录启动器重新打开软件"
+    Write-UpdateHost ""
+    Write-UpdateHost "增量更新完成，已升级到 v$latestVersion" -ForegroundColor Green
+    Write-UpdateHost "请从原来的根目录启动器重新打开软件"
 }
 catch {
     $failure = $_.Exception.Message
     if ($appliedFiles.Count -gt 0) {
-        Write-Host "更新失败，正在恢复原文件..." -ForegroundColor Yellow
+        Write-UpdateHost "更新失败，正在恢复原文件..." -ForegroundColor Yellow
         for ($index = $appliedFiles.Count - 1; $index -ge 0; $index--) {
             $applied = $appliedFiles[$index]
             try {
@@ -565,16 +588,20 @@ catch {
     }
 
     Write-UpdateLog -LogPath $logPath -Message "Manual patch failed: $failure"
-    Write-Host ""
-    Write-Host "增量更新失败：$failure" -ForegroundColor Red
-    Write-Host "原程序文件已尽可能恢复，详情见：$logPath"
+    Write-UpdateHost ""
+    Write-UpdateHost "增量更新失败：$failure" -ForegroundColor Red
+    Write-UpdateHost "原程序文件已尽可能恢复，详情见：$logPath"
     $exitCode = 1
 }
 finally {
     if ($ownsMutex) {
         $mutex.ReleaseMutex()
     }
-    $mutex.Dispose()
+    if ($null -ne $mutex) {
+        # Windows 7 的 PowerShell 2.0 无法解析 Mutex.Dispose()，
+        # 使用等价的 WaitHandle.Close() 释放互斥锁句柄。
+        $mutex.Close()
+    }
 }
 
 exit $exitCode
