@@ -290,7 +290,10 @@ public sealed class ReleasePackagingPolicyTests
 
         Assert.Contains("99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05", innoScript);
         Assert.Contains(@"DefaultDirName={localappdata}\Programs\ExpressPackingMonitoring", innoScript);
-        Assert.Contains("DisableDirPage=yes", innoScript);
+        Assert.Contains("DisableDirPage=no", innoScript);
+        Assert.Contains("IsProtectedInstallRoot", innoScript);
+        Assert.Contains("IsDirectoryWritable", innoScript);
+        Assert.Contains("DirRequiresAdmin", innoScript);
         Assert.Contains("PrivilegesRequired=lowest", innoScript);
         Assert.Contains("ArchitecturesAllowed=x64compatible", innoScript);
         Assert.Contains("CloseApplications=yes", innoScript);
@@ -319,7 +322,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.DoesNotContain("是否删除本机应用数据", innoScript);
         Assert.DoesNotContain("是否同时删除数据库登记的录像原文件", innoScript);
         Assert.DoesNotContain("DelTree(UserDataPath", innoScript);
-        Assert.DoesNotContain("WizardSilent", innoScript);
+        Assert.DoesNotContain("if WizardSilent", innoScript);
+        Assert.Contains("(not WizardSilent) and (not UpgradeDirNoticeShown)", innoScript);
 
         Assert.Contains("INNO_SETUP_ISCC", buildScript);
         Assert.Contains("InstallerCompression = \"lzma2/ultra64\"", buildScript);
