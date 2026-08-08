@@ -6,7 +6,7 @@
   "release_tag": "v0.0.42",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
-  "source_fingerprint": "47acd03c73af8cc43a4ea0ccc174a5cc4d9d00cb662db059b27e22b038cc8e01",
+  "source_fingerprint": "86b93e07517969c04b0f029689a6e7ac1428fe2610d080a98eb4a7ce6362a478",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -20,9 +20,9 @@
   ],
   "package": {
     "file": "PackingProof_LauncherPatch_v0.0.42.zip",
-    "size": 3093434,
-    "sha256": "2c8cf32db124d6000523fd3039a2e1ae194eb2324cced7ce1780b2654c9ea1b4",
+    "size": 3093645,
+    "sha256": "00711e184523acc03fd831fd09ddad6e06eff52119d60f023aa68caac2bdbf0a",
     "executable_size": 6334976,
-    "executable_sha256": "1f9cf41dbf2ab457788fadd79e44ae553c938697c0504131b3985d0fbb880cd5"
+    "executable_sha256": "01fe210e902c1a8234133eeb0ead90bafae167ff53334eafa89da40645eeaa42"
   }
 }
