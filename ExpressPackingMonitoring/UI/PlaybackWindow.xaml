@@ -228,8 +228,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- 1. 播放器填满可用区域，由 LibVLC 保持录像原始比例 -->
-                <Grid x:Name="VideoArea" Grid.Row="0" Background="{DynamicResource PanelBackground}">
+                <Grid x:Name="VideoArea" Grid.Row="0" Background="{DynamicResource VideoSurfaceBackground}">
                     <vlc:VideoView x:Name="PlayerView"
+                                   Background="{DynamicResource VideoSurfaceBackground}"
                                    HorizontalAlignment="Stretch"
                                    VerticalAlignment="Stretch">
                         <Border x:Name="PlaybackCover"

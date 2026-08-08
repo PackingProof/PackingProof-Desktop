@@ -20,6 +20,13 @@ public sealed class PlaybackWindowTests
         Assert.Contains("Width=\"1100\" MinHeight=\"560\" MinWidth=\"920\"", xaml);
         Assert.Contains("x:Name=\"VideoArea\"", xaml);
         Assert.Contains("x:Name=\"PlayerView\"", xaml);
+        Assert.Contains(
+            "x:Name=\"VideoArea\" Grid.Row=\"0\" Background=\"{DynamicResource VideoSurfaceBackground}\"",
+            xaml);
+        Assert.Contains("Background=\"{DynamicResource VideoSurfaceBackground}\"", xaml);
+        Assert.DoesNotContain(
+            "x:Name=\"VideoArea\" Grid.Row=\"0\" Background=\"{DynamicResource PanelBackground}\"",
+            xaml);
         Assert.Contains("x:Name=\"PlaybackCover\"", xaml);
         Assert.Contains("x:Name=\"PlaybackCoverText\"", xaml);
         Assert.Contains("Text=\"请选择录像开始播放\"", xaml);
