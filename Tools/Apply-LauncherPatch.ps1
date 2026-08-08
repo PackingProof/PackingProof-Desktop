@@ -7,7 +7,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$isWindows7 = ([Environment]::OSVersion.Version.Major -eq 6) -and
+    ([Environment]::OSVersion.Version.Minor -eq 1)
+if (-not $isWindows7) {
+    [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+}
 
 if ([string]::IsNullOrEmpty($PatchRoot)) {
     if ($MyInvocation.MyCommand.Path) {

@@ -1,7 +1,10 @@
 @echo off
 setlocal
 
-chcp 65001 >nul
+ver | findstr /r /c:"6\.1\." >nul
+if errorlevel 1 (
+    chcp 65001 >nul
+)
 title PackingProof Launcher Update
 cd /d "%~dp0"
 
