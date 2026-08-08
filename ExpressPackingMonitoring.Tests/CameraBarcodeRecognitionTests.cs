@@ -616,6 +616,57 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public async Task InvalidCandidateEvent_FiresForRejectedCodeAndThrottlesSameCode()
+    {
+        using Mat frame = CreateFrameWithBarcode("1234", BarcodeFormat.CODE_128, inGuide: true);
+        var received = new List<string>();
+        using var service = new CameraBarcodeRecognitionService(
+            _ => false,
+            invalidCandidateThrottle: TimeSpan.FromMilliseconds(600));
+        service.InvalidCandidate += received.Add;
+
+        service.TrySubmitFrame(frame, allowFullFrame: false);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.Single(received);
+
+        service.TrySubmitFrame(frame, allowFullFrame: false);
+        await Task.Delay(120, TestContext.Current.CancellationToken);
+        Assert.Single(received);
+
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame, allowFullFrame: false);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.Equal(2, received.Count);
+    }
+
+    [Fact]
+    public async Task InvalidCandidateEvent_FiresForProductBarcode()
+    {
+        using Mat frame = CreateFrameWithBarcode("6901234567892", BarcodeFormat.CODE_128, inGuide: true);
+        var received = new List<string>();
+        using var service = new CameraBarcodeRecognitionService(
+            value => CameraBarcodeCandidatePolicy.IsValidForWorkScan(value, "^[a-zA-Z0-9-]{12,25}$"));
+        service.InvalidCandidate += received.Add;
+
+        service.TrySubmitFrame(frame, allowFullFrame: false);
+        await Task.Delay(600, TestContext.Current.CancellationToken);
+
+        Assert.Contains("6901234567892", received);
+    }
+
+    [Theory]
+    [InlineData("^[a-zA-Z0-9-]{16}$", "需 16 位")]
+    [InlineData("^[a-zA-Z0-9-]{12,25}$", "需 12–25 位")]
+    [InlineData("^[a-zA-Z0-9-]{12,}$", "需至少 12 位")]
+    [InlineData("^[a-zA-Z0-9-]{16,16}$", "需 16 位")]
+    [InlineData("^[a-zA-Z0-9-]+$", "")]
+    [InlineData("", "")]
+    public void GetOrderIdLengthHint_ParsesExpectedLength(string pattern, string expected)
+    {
+        Assert.Equal(expected, CameraBarcodeCandidatePolicy.GetOrderIdLengthHint(pattern));
+    }
+
+    [Fact]
     public void ExistingConfigWithoutCameraRecognitionFieldRemainsDisabled()
     {
         const string json = "{\"FirstUseWizardCompleted\":true,\"EnableGlobalKeyboard\":true}";

@@ -760,6 +760,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds));
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
+            _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;
         }
 
         private bool CanSubmitCameraBarcode()
@@ -860,6 +861,28 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             _ = dispatcher.BeginInvoke(new Action(() => ApplyCameraBarcodeStatus(status)));
+        }
+
+        private void OnCameraBarcodeInvalidCandidate(string code)
+        {
+            if (_isDisposed || Config?.EnableCameraBarcodeRecognition != true)
+                return;
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+                return;
+
+            _ = dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_isDisposed || Config == null)
+                    return;
+
+                string hint = CameraBarcodeCandidatePolicy.GetOrderIdLengthHint(Config.OrderIdRegex);
+                string message = string.IsNullOrEmpty(hint)
+                    ? $"识别到非面单条码：{code}，已忽略"
+                    : $"条码长度不符：实际 {code.Length} 位（{hint}），已忽略";
+                ShowToast(message, ToastSeverity.Warning);
+            }));
         }
 
         private void ApplyCameraBarcodeStatus(CameraBarcodeRecognitionStatus status)

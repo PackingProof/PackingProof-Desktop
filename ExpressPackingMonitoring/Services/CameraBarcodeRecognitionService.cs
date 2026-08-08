@@ -239,6 +239,28 @@ internal static class CameraBarcodeCandidatePolicy
         return checkDigit == normalized[12] - '0';
     }
 
+    /// 从订单号正则提取期望长度提示（如 {16} → “需 16 位”、{12,25} → “需 12–25 位”）。
+    public static string GetOrderIdLengthHint(string? orderIdRegex)
+    {
+        string pattern = (orderIdRegex ?? "").Trim();
+        if (pattern.Length == 0)
+            return "";
+
+        Match match = Regex.Match(pattern, @"\{(\d+)(?:,(\d*))?\}");
+        if (!match.Success)
+            return "";
+
+        string min = match.Groups[1].Value;
+        string max = match.Groups[2].Value;
+        if (!match.Groups[2].Success)
+            return $"需 {min} 位";
+        if (max.Length == 0)
+            return $"需至少 {min} 位";
+        if (min == max)
+            return $"需 {min} 位";
+        return $"需 {min}–{max} 位";
+    }
+
     public static bool IsCurrentRecordingCode(string? value, string? recordingOrderId, bool isRecording)
     {
         if (!isRecording)
@@ -841,6 +863,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private DateTimeOffset _lastFullFrameAttemptAt;
     private DateTimeOffset _lastSlowDecodeLogAt;
     private DateTimeOffset _lastRecognitionErrorLogAt;
+    private string _lastInvalidCandidate = "";
+    private DateTimeOffset _lastInvalidCandidateAt;
+    private readonly TimeSpan _invalidCandidateThrottle;
     private long _droppedFrames;
     private long _forceDecodeUntilUtcTicks;
     private int _generation;
@@ -849,19 +874,22 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
     public event Action<CameraBarcodeRecognitionStatus>? StatusChanged;
     public event Action<string>? BarcodeConfirmed;
+    public event Action<string>? InvalidCandidate;
 
     public CameraBarcodeRecognitionService(
         Func<string, bool> candidateValidator,
         Func<bool>? fullFrameAllowed = null,
         Func<string, TimeSpan>? intermittentConfirmationWindowProvider = null,
         Func<TimeSpan>? rearmDelayProvider = null,
-        bool reportVisibleCodes = false)
+        bool reportVisibleCodes = false,
+        TimeSpan? invalidCandidateThrottle = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _fullFrameAllowed = fullFrameAllowed;
         _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
         _rearmDelayProvider = rearmDelayProvider;
         _reportVisibleCodes = reportVisibleCodes;
+        _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
@@ -975,7 +1003,10 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             }
 
             if (code != null && !IsValidCandidate(code))
+            {
+                NotifyInvalidCandidate(code);
                 code = null;
+            }
 
             if (generation != Volatile.Read(ref _generation) || _disposed)
                 return;
@@ -1031,6 +1062,23 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     {
         try { return _candidateValidator(code); }
         catch { return false; }
+    }
+
+    private void NotifyInvalidCandidate(string code)
+    {
+        if (_disposed || string.IsNullOrEmpty(code))
+            return;
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (string.Equals(code, _lastInvalidCandidate, StringComparison.Ordinal) &&
+            now - _lastInvalidCandidateAt < _invalidCandidateThrottle)
+        {
+            return;
+        }
+
+        _lastInvalidCandidate = code;
+        _lastInvalidCandidateAt = now;
+        InvalidCandidate?.Invoke(code);
     }
 
     internal static CameraBarcodeRecognitionStatus CreateStatus(
