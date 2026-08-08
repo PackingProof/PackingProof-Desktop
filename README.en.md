@@ -112,6 +112,8 @@ Camera recognition and a keyboard-mode scanner can be used together without chan
 
 On first launch, two simple questions help select the purpose of the current computer.
 
+![Purpose selection](Image/询问用途.jpg)
+
 | Role | Recommended use |
 | --- | --- |
 | **Record and store on this computer** | One packing station with long-term local storage |
@@ -263,8 +265,8 @@ The following files are never removed automatically by cache cleanup:
 | File | Purpose |
 | --- | --- |
 | `PackingProof_Setup_vX.Y.Z.exe` | Recommended for most users |
-| Full `.7z` | Smaller portable package |
-| Full `.zip` | Native Windows extraction and recovery |
+| `PackingProof+vX.Y.Z.7z` | Smaller portable package |
+| `PackingProof+vX.Y.Z.zip` | Native Windows extraction and recovery |
 | `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip` | Manual main-application update |
 | `PackingProof_LauncherPatch_vX.Y.Z.zip` | Manual root-launcher update |
 
