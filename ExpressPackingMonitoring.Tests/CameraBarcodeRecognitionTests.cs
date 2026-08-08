@@ -619,6 +619,8 @@ public sealed class CameraBarcodeRecognitionTests
     public async Task InvalidCandidateEvent_FiresForRejectedCodeAndThrottlesSameCode()
     {
         using Mat frame = CreateFrameWithBarcode("1234", BarcodeFormat.CODE_128, inGuide: true);
+        using Mat movedFrame = MoveBarcodeRegion(frame, 380, 120);
+        using Mat movedFrame2 = MoveBarcodeRegion(frame, 380, 520);
         var received = new List<string>();
         using var service = new CameraBarcodeRecognitionService(
             _ => false,
@@ -629,12 +631,12 @@ public sealed class CameraBarcodeRecognitionTests
         await Task.Delay(300, TestContext.Current.CancellationToken);
         Assert.Single(received);
 
-        service.TrySubmitFrame(frame, allowFullFrame: false);
+        service.TrySubmitFrame(movedFrame, allowFullFrame: false);
         await Task.Delay(120, TestContext.Current.CancellationToken);
         Assert.Single(received);
 
-        await Task.Delay(500, TestContext.Current.CancellationToken);
-        service.TrySubmitFrame(frame, allowFullFrame: false);
+        await Task.Delay(700, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(movedFrame2, allowFullFrame: false);
         await Task.Delay(500, TestContext.Current.CancellationToken);
         Assert.Equal(2, received.Count);
     }
@@ -865,6 +867,15 @@ public sealed class CameraBarcodeRecognitionTests
         using Mat target = frame.SubMat(new Rect(x, y, oriented.Width, oriented.Height));
         oriented.CopyTo(target);
         return frame;
+    }
+
+    private static Mat MoveBarcodeRegion(Mat source, int x, int y)
+    {
+        var moved = new Mat(new OpenCvSharp.Size(1280, 720), MatType.CV_8UC3, Scalar.White);
+        using Mat src = source.SubMat(new Rect(380, 300, 520, 120));
+        using Mat dst = moved.SubMat(new Rect(x, y, 520, 120));
+        src.CopyTo(dst);
+        return moved;
     }
 
     private static Mat CreateSolidFrame(byte value) =>
