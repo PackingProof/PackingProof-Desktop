@@ -170,7 +170,9 @@ public sealed class WebRequestLimitTests
         Assert.Contains(".mobile-app-download{grid-column:1;grid-row:1}", html);
         Assert.Contains("grid-template-columns:minmax(0,1fr) 56px 56px 56px", html);
         Assert.Contains(".mobile-app-download-title{font-size:13px;font-weight:760;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}", html);
-        Assert.Contains("grid-template-columns:minmax(190px,1fr) 56px 56px 56px 56px", html);
+        Assert.Contains("grid-template-columns:minmax(0,1fr) 56px 56px 56px 56px", html);
+        Assert.Contains(".title-block h1{margin:0;font-size:26px;line-height:1.2;font-weight:750;white-space:nowrap}", html);
+        Assert.Contains("text-decoration:none;justify-self:start}", html);
         Assert.Contains("id=\"desktopAppDownloadButton\" href=\"https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest\"", html);
         Assert.Contains("const target=document.querySelector('.top-actions');", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
