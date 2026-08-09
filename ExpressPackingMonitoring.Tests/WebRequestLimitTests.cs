@@ -181,6 +181,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("titleBlock.appendChild(btn)", html);
         Assert.Contains(".title-block{display:flex;align-items:center;justify-content:space-between", html);
         Assert.Contains("grid-template-columns:minmax(0,1fr) 56px 56px}", html);
+        Assert.Contains(".top-actions>.language-float .language-menu{right:0;top:calc(100% + 9px);bottom:auto}", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
@@ -243,7 +244,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("自动切换为兼容播放", html);
         Assert.DoesNotContain("expressPlaybackCompatMode", html);
         Assert.DoesNotContain("compatModeToggle", html);
-        Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:min(84vh,calc(100vh - 110px))", html);
+        Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:min(76vh,calc(100vh - 180px))", html);
         Assert.Contains("max-height:calc(100vh - 32px);overflow:auto", html);
         Assert.Contains("function paginationWindowSize(){return window.matchMedia('(max-width:560px)').matches?3:window.matchMedia('(max-width:900px)').matches?5:9}", html);
         Assert.Contains("refreshResponsivePagination()", html);
