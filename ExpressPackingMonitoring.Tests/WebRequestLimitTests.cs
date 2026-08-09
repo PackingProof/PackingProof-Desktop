@@ -181,6 +181,7 @@ public sealed class WebRequestLimitTests
         string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));
 
         Assert.Contains("id=\"videoSource\"", html);
+        Assert.Contains("button,input,select{font:inherit}", html);
         Assert.Contains("<option value=\"\">全部设备</option>", html);
         Assert.Contains("fetch('/api/video-sources'", html);
         Assert.Contains("select.replaceChildren(new Option('全部设备',''))", html);
