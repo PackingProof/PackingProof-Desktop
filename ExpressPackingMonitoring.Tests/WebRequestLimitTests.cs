@@ -168,6 +168,8 @@ public sealed class WebRequestLimitTests
             html);
         Assert.Contains("@media (min-width:561px) and (max-width:900px)", html);
         Assert.Contains(".mobile-app-download{grid-column:1;grid-row:1}", html);
+        Assert.Contains("grid-template-columns:minmax(0,1fr) 56px 56px 56px", html);
+        Assert.Contains(".mobile-app-download-title{font-size:13px;font-weight:760;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
