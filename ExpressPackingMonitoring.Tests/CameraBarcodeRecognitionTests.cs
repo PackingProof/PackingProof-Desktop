@@ -22,6 +22,7 @@ public sealed class CameraBarcodeRecognitionTests
 
         Assert.Equal("YT123456789012", observation.CandidateCode);
         Assert.Empty(observation.ConfirmedCode);
+        Assert.True(observation.KeepDecoding);
     }
 
     [Fact]
@@ -34,6 +35,7 @@ public sealed class CameraBarcodeRecognitionTests
         CameraBarcodeObservation held = tracker.Observe("YT123456789012", Start.AddSeconds(1));
 
         Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+        Assert.False(confirmed.KeepDecoding);
         Assert.Empty(held.ConfirmedCode);
         Assert.Equal("YT123456789012", held.VisibleCode);
     }

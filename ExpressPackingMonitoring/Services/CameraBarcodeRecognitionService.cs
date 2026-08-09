@@ -343,7 +343,7 @@ internal sealed class CameraBarcodeStabilityTracker
             _candidateHits = 1;
             return new CameraBarcodeObservation(
                 _candidateCode,
-                KeepDecoding: _candidateRequiredHits >= 3);
+                KeepDecoding: true);
         }
 
         _candidateHits++;
@@ -351,7 +351,7 @@ internal sealed class CameraBarcodeStabilityTracker
         {
             return new CameraBarcodeObservation(
                 _candidateCode,
-                KeepDecoding: _candidateRequiredHits >= 3);
+                KeepDecoding: true);
         }
 
         _lockedCodes[normalized] = now;
