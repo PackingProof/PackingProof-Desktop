@@ -3926,6 +3926,8 @@ namespace ExpressPackingMonitoring.Services
 
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
+            // 前端页面每次请求实时读取，禁止浏览器缓存，避免修改后仍显示旧页面。
+            ctx.Response.Headers["Cache-Control"] = "no-store";
             byte[] bytes = Encoding.UTF8.GetBytes(html);
             ctx.Response.ContentLength64 = bytes.Length;
             ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
