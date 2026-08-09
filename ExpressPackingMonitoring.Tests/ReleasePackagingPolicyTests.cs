@@ -328,7 +328,22 @@ public sealed class ReleasePackagingPolicyTests
         Assert.DoesNotContain("是否同时删除数据库登记的录像原文件", innoScript);
         Assert.DoesNotContain("DelTree(UserDataPath", innoScript);
         Assert.DoesNotContain("if WizardSilent", innoScript);
-        Assert.Contains("(not WizardSilent) and (not UpgradeDirNoticeShown)", innoScript);
+        Assert.Contains("if (not WizardSilent) then", innoScript);
+        Assert.Contains("if not UpgradeDirPromptShown then", innoScript);
+        Assert.Contains("(PreviousDir <> '') or DirHasInstalledApp(SelectedDir)", innoScript);
+        Assert.DoesNotContain("你选择了新的安装文件夹", innoScript);
+        Assert.Contains("CheckForMutexes('Local\\ExpressPackingMonitoring.Mutex')", innoScript);
+        Assert.Contains("InstallDir[Length(InstallDir)] = '\\'", innoScript);
+        Assert.Contains("function PrepareToInstall(var NeedsRestart: Boolean): String", innoScript);
+        Assert.Contains("function RemoveOldInstall", innoScript);
+        Assert.Contains("DirHasInstalledApp", innoScript);
+        Assert.Contains("OldUninstaller := AddBackslash(Dir) + 'unins000.exe'", innoScript);
+        Assert.Contains("'/SILENT'", innoScript);
+        Assert.Contains("SW_SHOWNORMAL", innoScript);
+        Assert.Contains("是否先删除旧版本的程序文件和启动器", innoScript);
+        Assert.Contains("你的设置、数据库和录像都会保留", innoScript);
+        Assert.Contains("旧版本位置", innoScript);
+        Assert.Contains("AppRunningBeforeRemove", innoScript);
 
         Assert.Contains("INNO_SETUP_ISCC", buildScript);
         Assert.Contains("InstallerCompression = \"lzma2/ultra64\"", buildScript);

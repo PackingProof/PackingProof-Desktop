@@ -99,8 +99,14 @@ english.UninstallCancel=Cancel
 english.UninstallCleanupFailed=Some selected content could not be safely removed, so the remaining data was kept%nDetails: %1
 chinesesimplified.DirRequiresAdmin=所选文件夹不支持安装。请不要选择 Program Files、Windows、ProgramData 或磁盘根目录这类系统文件夹，换一个普通文件夹（例如 D:\PackingProof 或“文档”文件夹）即可。安装位置必须允许当前用户直接写入，否则以后无法自动更新。
 english.DirRequiresAdmin=The selected folder is not supported for installation. Please avoid system folders such as Program Files, Windows, ProgramData, or a drive root, and choose a normal user-writable folder (for example D:\PackingProof or your Documents folder). The install location must remain writable by the current user, otherwise automatic updates will fail.
-chinesesimplified.UpgradeDirChanged=检测到本机已安装旧版本，你选择了新的安装文件夹。%n%n本次升级不需要先卸载旧版本，直接继续安装即可；升级过程不会删除你的用户数据和录像（它们保存在系统用户目录中）。%n%n注意：旧文件夹中的程序不会被自动删除，之后也不会出现在“添加或删除程序”里。如无特殊原因，建议返回上一步保持默认目录完成升级；若继续使用新文件夹，可在安装完成后手动删除旧文件夹。
-english.UpgradeDirChanged=An existing installation was detected, and you chose a new install folder.%n%nYou do not need to uninstall the old version first. Continue the installation directly; upgrading will not delete your user data or recordings (they are stored in your user profile folder).%n%nNote: the old folder will not be removed automatically and will no longer appear in "Add or remove programs". Unless you have a specific reason, we recommend going back and keeping the default folder for the upgrade. If you continue with the new folder, you can delete the old one manually after installation.
+chinesesimplified.UpgradeDirPrompt=检测到本机已安装旧版本。%n%n是否先删除旧版本的程序文件和启动器，再重新安装？%n你的设置、数据库和录像都会保留（它们保存在系统用户目录中），不会受影响。%n%n选择“是”会先卸载旧版本，再继续安装；选择“否”则直接覆盖安装，旧文件夹中可能残留不再使用的文件。
+english.UpgradeDirPrompt=An existing installation was detected.%n%nDo you want to remove the old version's program files and launcher before reinstalling?%nYour settings, database, and recordings will be kept (they are stored in your user profile folder) and will not be affected.%n%nChoose Yes to uninstall the old version before continuing, or No to install directly over the old version (stale files may remain in the old folder).
+chinesesimplified.AppRunningBeforeRemove=快递打包监控正在运行。请先关闭正在运行的快递打包监控，然后再继续安装。
+english.AppRunningBeforeRemove=PackingProof is currently running. Please close PackingProof before continuing the installation.
+chinesesimplified.OldVersionRunningAtPrepare=快递打包监控仍在运行，无法删除旧版本。%n请先关闭快递打包监控，然后重新运行安装程序。%n%n旧版本位置：%1
+english.OldVersionRunningAtPrepare=PackingProof is still running, so the previous version cannot be removed.%nPlease close PackingProof and run the installer again.%n%nOld version location: %1
+chinesesimplified.OldVersionRemovalFailed=删除旧版本失败，本次安装已中止。%n请关闭正在运行的快递打包监控（如有），然后重新运行安装程序。%n%n旧版本位置：%1
+english.OldVersionRemovalFailed=Removing the previous version failed, so this installation has been cancelled.%nPlease close PackingProof if it is running, and run the installer again.%n%nOld version location: %1
 
 [Code]
 var
@@ -109,7 +115,8 @@ var
   CleanupFailed: Boolean;
   CleanupPlanPath: String;
   CleanupLogPath: String;
-  UpgradeDirNoticeShown: Boolean;
+  RemoveOldVersion: Boolean;
+  UpgradeDirPromptShown: Boolean;
 
 function Quote(const Value: String): String;
 begin
@@ -194,7 +201,72 @@ begin
   if RegQueryStringValue(HKCU64,
     'Software\Microsoft\Windows\CurrentVersion\Uninstall\{99E9FCE3-C8FE-4D7A-9FA4-BC9CB9186B05}_is1',
     'InstallLocation', InstallDir) then
+  begin
+    while (Length(InstallDir) > 3) and (InstallDir[Length(InstallDir)] = '\') do
+      Delete(InstallDir, Length(InstallDir), 1);
     Result := InstallDir;
+  end;
+end;
+
+function DirHasInstalledApp(const Dir: String): Boolean;
+begin
+  Result :=
+    FileExists(AddBackslash(Dir) + 'app\ExpressPackingMonitoring.dll') or
+    FileExists(AddBackslash(Dir) + 'app\ExpressPackingMonitoring.exe') or
+    FileExists(AddBackslash(Dir) + 'ExpressPackingMonitoring.exe');
+end;
+
+function RemoveOldInstall(const Dir: String): String;
+var
+  OldUninstaller: String;
+  AppDir: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+  if not DirExists(Dir) then
+    Exit;
+  if (Length(Dir) = 3) and (Dir[2] = ':') and (Dir[3] = '\') then
+    Exit;
+  if not (DirHasInstalledApp(Dir) or FileExists(AddBackslash(Dir) + 'unins000.exe')) then
+    Exit;
+
+  OldUninstaller := AddBackslash(Dir) + 'unins000.exe';
+  if FileExists(OldUninstaller) then
+  begin
+    Log('Removing old install via uninstaller: ' + OldUninstaller);
+    if not Exec(OldUninstaller, '/SILENT', Dir, SW_SHOWNORMAL,
+        ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      Log('Old uninstaller failed: resultCode=' + IntToStr(ResultCode));
+      Result := FmtMessage(CustomMessage('OldVersionRemovalFailed'), [Dir]);
+    end
+    else
+      Log('Old install removed via uninstaller: ' + Dir);
+    Exit;
+  end;
+
+  Log('Removing old install files directly: ' + Dir);
+  AppDir := AddBackslash(Dir) + 'app';
+  if DirExists(AppDir) and not DelTree(AppDir, True, True, True) then
+  begin
+    Result := FmtMessage(CustomMessage('OldVersionRemovalFailed'), [Dir]);
+    Exit;
+  end;
+
+  if FileExists(AddBackslash(Dir) + 'ExpressPackingMonitoring.exe') and
+     not DeleteFile(AddBackslash(Dir) + 'ExpressPackingMonitoring.exe') then
+  begin
+    Result := FmtMessage(CustomMessage('OldVersionRemovalFailed'), [Dir]);
+    Exit;
+  end;
+
+  DeleteFile(AddBackslash(Dir) + 'LICENSE.txt');
+  DeleteFile(AddBackslash(Dir) + 'unins000.exe');
+  DeleteFile(AddBackslash(Dir) + 'unins000.dat');
+
+  if CompareText(Dir, WizardDirValue) <> 0 then
+    RemoveDir(Dir);
+  Log('Old install files removed directly: ' + Dir);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -214,14 +286,67 @@ begin
     Exit;
   end;
 
-  if (not WizardSilent) and (not UpgradeDirNoticeShown) then
+  if (not WizardSilent) then
   begin
     PreviousDir := GetPreviousInstallDir;
-    if (PreviousDir <> '') and (CompareText(PreviousDir, SelectedDir) <> 0) then
+    if (PreviousDir <> '') or DirHasInstalledApp(SelectedDir) then
     begin
-      MsgBox(CustomMessage('UpgradeDirChanged'), mbInformation, MB_OK);
-      UpgradeDirNoticeShown := True;
+      if not UpgradeDirPromptShown then
+      begin
+        UpgradeDirPromptShown := True;
+        if MsgBox(CustomMessage('UpgradeDirPrompt'), mbConfirmation, MB_YESNO) = IDYES then
+        begin
+          if CheckForMutexes('Local\ExpressPackingMonitoring.Mutex') then
+          begin
+            UpgradeDirPromptShown := False;
+            MsgBox(CustomMessage('AppRunningBeforeRemove'), mbInformation, MB_OK);
+            Result := False;
+            Exit;
+          end;
+
+          RemoveOldVersion := True;
+        end
+        else
+          RemoveOldVersion := False;
+      end;
     end;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  PreviousDir: String;
+begin
+  Result := '';
+  NeedsRestart := False;
+  if not RemoveOldVersion then
+    Exit;
+
+  PreviousDir := GetPreviousInstallDir;
+  if (PreviousDir <> '') and (CompareText(PreviousDir, WizardDirValue) <> 0) then
+  begin
+    if CheckForMutexes('Local\ExpressPackingMonitoring.Mutex') then
+    begin
+      Result := FmtMessage(CustomMessage('OldVersionRunningAtPrepare'), [PreviousDir]);
+      Exit;
+    end;
+
+    Result := RemoveOldInstall(PreviousDir);
+    if Result <> '' then
+      Exit;
+  end;
+
+  if DirHasInstalledApp(WizardDirValue) then
+  begin
+    if CheckForMutexes('Local\ExpressPackingMonitoring.Mutex') then
+    begin
+      Result := FmtMessage(CustomMessage('OldVersionRunningAtPrepare'), [WizardDirValue]);
+      Exit;
+    end;
+
+    Result := RemoveOldInstall(WizardDirValue);
+    if Result <> '' then
+      Exit;
   end;
 end;
 
