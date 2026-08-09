@@ -183,6 +183,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
+        Assert.Contains("fetch('/api/mobile-app-download'+(location.search||'')", html);
+        Assert.Contains("let downloadUrl=open?open.href:''", html);
         Assert.Contains(".floating-tools{display:none}", html);
         Assert.Contains("if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches)return", html);
     }
