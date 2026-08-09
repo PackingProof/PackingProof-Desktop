@@ -2783,6 +2783,7 @@
                                                     Minimum="0.3"
                                                     Maximum="1"
                                                     TickFrequency="0.05"
+                                                    ValueChanged="CameraBarcodeGuideSlider_ValueChanged"
                                                     Value="{Binding Config.CameraBarcodeGuideWidthRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
@@ -2811,6 +2812,7 @@
                                                     Minimum="0.3"
                                                     Maximum="1"
                                                     TickFrequency="0.05"
+                                                    ValueChanged="CameraBarcodeGuideSlider_ValueChanged"
                                                     Value="{Binding Config.CameraBarcodeGuideHeightRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
@@ -2839,6 +2841,7 @@
                                                     Minimum="-1"
                                                     Maximum="1"
                                                     TickFrequency="0.05"
+                                                    ValueChanged="CameraBarcodeGuideSlider_ValueChanged"
                                                     Value="{Binding Config.CameraBarcodeGuideOffsetX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
@@ -2867,6 +2870,7 @@
                                                     Minimum="-1"
                                                     Maximum="1"
                                                     TickFrequency="0.05"
+                                                    ValueChanged="CameraBarcodeGuideSlider_ValueChanged"
                                                     Value="{Binding Config.CameraBarcodeGuideOffsetY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
@@ -2899,7 +2903,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>

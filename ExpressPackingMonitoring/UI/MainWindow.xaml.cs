@@ -222,7 +222,8 @@ namespace ExpressPackingMonitoring.UI
                     {
                         if (args.PropertyName == nameof(MainViewModel.LastZoomRect) ||
                             args.PropertyName == nameof(MainViewModel.CameraFrameSize) ||
-                            args.PropertyName == nameof(MainViewModel.IsCameraBarcodeRecognitionEnabled))
+                            args.PropertyName == nameof(MainViewModel.IsCameraBarcodeRecognitionEnabled) ||
+                            args.PropertyName == nameof(MainViewModel.PreviewGuideGeometry))
                         {
                             Dispatcher.BeginInvoke(new Action(() => UpdateCameraOverlays(vm)));
                         }
@@ -315,11 +316,12 @@ namespace ExpressPackingMonitoring.UI
             }
 
             AppConfig config = vm.Config;
-            var geometry = new CameraBarcodeGuideGeometry(
-                config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
-                config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
-                config?.CameraBarcodeGuideOffsetX ?? 0,
-                config?.CameraBarcodeGuideOffsetY ?? 0);
+            CameraBarcodeGuideGeometry geometry = vm.PreviewGuideGeometry
+                ?? new CameraBarcodeGuideGeometry(
+                    config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
+                    config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
+                    config?.CameraBarcodeGuideOffsetX ?? 0,
+                    config?.CameraBarcodeGuideOffsetY ?? 0);
 
             double scale = Math.Min(actualW / sourceW, actualH / sourceH);
             CameraBarcodeGuide.Width = sourceW * geometry.WidthRatio * scale;

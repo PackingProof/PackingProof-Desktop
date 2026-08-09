@@ -141,6 +141,19 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
+    public void ConfirmationCountRow_UsesRegularAdvancedSpacing()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement label = FindLabel(document, "识别确认次数");
+        XElement row = Assert.Single(label.Ancestors(Presentation + "Grid").Take(1));
+
+        Assert.Contains("AdvancedSettingRowStyle", row.ToString(SaveOptions.DisableFormatting));
+        Assert.DoesNotContain(
+            "AdvancedSettingRowLastStyle",
+            row.ToString(SaveOptions.DisableFormatting));
+    }
+
+    [Fact]
     public void DirectMkvAudio_UsesStableCopyAndKeepsCompatibilityWarning()
     {
         XDocument document = LoadSettingsXaml();

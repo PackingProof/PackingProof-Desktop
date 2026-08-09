@@ -446,6 +446,29 @@ internal sealed class CameraBarcodeStabilityTracker
     }
 }
 
+/// 摄像头触发开始录制失败后，在去抖窗口内忽略同一单号，避免失败后立刻连环重扫。
+internal sealed class CameraBarcodeFailedStartSuppression
+{
+    private string _code = "";
+    private DateTimeOffset _failedAt;
+
+    public void RecordFailure(string? code, DateTimeOffset now)
+    {
+        _code = (code ?? "").Trim().ToUpperInvariant();
+        _failedAt = now;
+    }
+
+    public bool IsSuppressed(string? code, DateTimeOffset now, double rearmSeconds)
+    {
+        if (_code.Length == 0)
+            return false;
+
+        string normalized = (code ?? "").Trim().ToUpperInvariant();
+        return string.Equals(normalized, _code, StringComparison.Ordinal)
+            && (now - _failedAt).TotalSeconds < rearmSeconds;
+    }
+}
+
 internal sealed class CameraBarcodeFrameDecoder : IDisposable
 {
     internal const double GuideWidthRatio = 0.85;
@@ -861,7 +884,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     }
 }
 
-internal readonly record struct CameraBarcodeGuideGeometry(
+public readonly record struct CameraBarcodeGuideGeometry(
     double WidthRatio,
     double HeightRatio,
     double OffsetX,

@@ -178,6 +178,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _shutdownPrepared;
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
+        private readonly CameraBarcodeFailedStartSuppression _cameraStartFailedSuppression = new();
         private Process _currentFfmpegProcess;
         private TaskCompletionSource<long> _firstRecordingFrameWritten;
         private long _recordingStartTimestamp;
@@ -397,6 +398,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private double? _previewZoomScale;
         public double? PreviewZoomScale { get => _previewZoomScale; set => SetProperty(ref _previewZoomScale, value); }
+
+        private CameraBarcodeGuideGeometry? _previewGuideGeometry;
+        public CameraBarcodeGuideGeometry? PreviewGuideGeometry
+        {
+            get => _previewGuideGeometry;
+            set => SetProperty(ref _previewGuideGeometry, value);
+        }
 
         private bool _isZoomingActive;
         public bool IsZoomingActive { get => _isZoomingActive; private set => SetProperty(ref _isZoomingActive, value); }
@@ -1136,6 +1144,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             string upperResult = decision.NormalizedValue;
+            // 编码失败后的去抖窗口内，忽略同一单号的摄像头确认，避免连环重扫。
+            if (fromCamera
+                && _cameraStartFailedSuppression.IsSuppressed(
+                    upperResult,
+                    DateTimeOffset.UtcNow,
+                    Config?.CameraBarcodeRearmSeconds ?? 3))
+            {
+                RuntimeLog.Info("CameraBarcode", $"Ignored {upperResult} within failed-start rearm window");
+                return;
+            }
             // 摄像头触发开始/切换录像后，同码消失时间从这一刻起算，
             // 防止启动流程耗时较长时防重复触发提前失效。
             if (fromCamera

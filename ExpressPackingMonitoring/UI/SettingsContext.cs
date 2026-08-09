@@ -64,6 +64,7 @@ public sealed class SettingsContext
     public Action? CopyMobileConnectionUrl { get; init; }
     public Action? OpenUserscriptGuide { get; init; }
     public Action<double?>? SetPreviewZoomScale { get; init; }
+    public Action<CameraBarcodeGuideGeometry?>? SetPreviewGuideGeometry { get; init; }
     public Func<bool>? SuspendCameraForSetupWizard { get; init; }
     public Action? ResumeCameraAfterSetupWizard { get; init; }
     public Action<string, ToastSeverity>? ShowToast { get; init; }
@@ -84,6 +85,7 @@ public sealed class SettingsContext
             CopyMobileConnectionUrl = mainViewModel.CopyMobileConnectionUrl,
             OpenUserscriptGuide = mainViewModel.OpenUserscriptGuide,
             SetPreviewZoomScale = value => mainViewModel.PreviewZoomScale = value,
+            SetPreviewGuideGeometry = value => mainViewModel.PreviewGuideGeometry = value,
             SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
             ResumeCameraAfterSetupWizard = mainViewModel.ResumeCameraAfterSetupWizard,
             ShowToast = mainViewModel.ShowToast,

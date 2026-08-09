@@ -267,6 +267,34 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void StabilityTracker_StartTriggerLockPreventsReconfirmUntilRearm()
+    {
+        var tracker = Confirm(trackingNumber: "YT123456789012");
+        tracker.LockFromStartTrigger("YT123456789012", Start.AddSeconds(1));
+        tracker.Observe(null, Start.AddSeconds(1.1));
+
+        CameraBarcodeObservation withinWindow = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(3.9));
+
+        Assert.Equal("YT123456789012", withinWindow.VisibleCode);
+        Assert.Empty(withinWindow.CandidateCode);
+        Assert.Empty(withinWindow.ConfirmedCode);
+    }
+
+    [Fact]
+    public void FailedStartSuppression_IgnoresSameCodeWithinWindow()
+    {
+        var suppression = new CameraBarcodeFailedStartSuppression();
+        DateTimeOffset now = Start;
+        suppression.RecordFailure("YT123456789012", now);
+
+        Assert.True(suppression.IsSuppressed("yt123456789012", now.AddSeconds(2), rearmSeconds: 3));
+        Assert.False(suppression.IsSuppressed("YT123456789012", now.AddSeconds(3), rearmSeconds: 3));
+        Assert.False(suppression.IsSuppressed("SF123456789012", now.AddSeconds(1), rearmSeconds: 3));
+    }
+
+    [Fact]
     public void StabilityTracker_FirstReappearanceAfterRearmDelayUnlocksSameCode()
     {
         var tracker = Confirm(trackingNumber: "YT123456789012");

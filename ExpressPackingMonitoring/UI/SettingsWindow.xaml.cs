@@ -1405,6 +1405,7 @@ namespace ExpressPackingMonitoring.UI
 
             AutoStartService.Apply(Config.AutoStartOnBoot);
             Context.SetPreviewZoomScale?.Invoke(null);
+            Context.SetPreviewGuideGeometry?.Invoke(null);
             var appliedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
             bool applied = await Context.ApplyAsync(appliedConfig);
             if (applied)
@@ -1732,6 +1733,23 @@ namespace ExpressPackingMonitoring.UI
         internal static bool ShouldPreviewZoomScale(bool isLoaded, SettingsContext context) =>
             isLoaded && context?.Capabilities.CanRecordPcVideo == true;
 
+        private void CameraBarcodeGuideSlider_ValueChanged(
+            object sender,
+            RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!ShouldPreviewGuideGeometry())
+                return;
+
+            Context.SetPreviewGuideGeometry?.Invoke(new CameraBarcodeGuideGeometry(
+                CameraBarcodeGuideWidthSlider?.Value ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
+                CameraBarcodeGuideHeightSlider?.Value ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
+                CameraBarcodeGuideOffsetXSlider?.Value ?? 0,
+                CameraBarcodeGuideOffsetYSlider?.Value ?? 0));
+        }
+
+        private bool ShouldPreviewGuideGeometry() =>
+            IsLoaded && Context?.Capabilities.CanUseCameraBarcode == true;
+
         private void SyncVoiceEngineComboBoxFromConfig()
         {
             if (VoiceEngineComboBox == null) return;
@@ -1821,6 +1839,7 @@ namespace ExpressPackingMonitoring.UI
             var migrationCts = Interlocked.Exchange(ref _migrationCts, null);
             try { migrationCts?.Cancel(); } catch (ObjectDisposedException) { }
             Context.SetPreviewZoomScale?.Invoke(null);
+            Context.SetPreviewGuideGeometry?.Invoke(null);
             _previewSpeechService?.Stop();
             _previewSpeechService?.Dispose();
             _previewSpeechService = null;
