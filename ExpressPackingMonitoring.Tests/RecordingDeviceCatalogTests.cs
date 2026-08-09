@@ -422,8 +422,8 @@ public sealed class RecordingDeviceCatalogTests
                 nodeId: "second",
                 nodeName: "手机1",
                 deploymentPreset: DeploymentPresets.RecordingHost);
-            firstServer.Start();
-            secondServer.Start();
+            StartWebServerWithRetry(firstServer);
+            StartWebServerWithRetry(secondServer);
             var devices = new[]
             {
                 new RecordingDeviceInfo
@@ -582,5 +582,25 @@ public sealed class RecordingDeviceCatalogTests
         int port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+
+    private static void StartWebServerWithRetry(WebServer server)
+    {
+        Exception? lastError = null;
+        for (int attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                server.Start();
+                return;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                Thread.Sleep(200);
+            }
+        }
+
+        throw lastError ?? new InvalidOperationException("WebServer 启动失败");
     }
 }
