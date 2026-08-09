@@ -459,6 +459,51 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void GetGuideRect_FollowsWidthHeightAndOffsets()
+    {
+        Rect centered = CameraBarcodeFrameDecoder.GetGuideRect(
+            1280,
+            720,
+            new CameraBarcodeGuideGeometry(0.5, 0.5, 0, 0));
+        Assert.Equal(new Rect(320, 180, 640, 360), centered);
+
+        Rect right = CameraBarcodeFrameDecoder.GetGuideRect(
+            1280,
+            720,
+            new CameraBarcodeGuideGeometry(0.5, 0.5, 1, 0));
+        Assert.Equal(new Rect(640, 180, 640, 360), right);
+
+        Rect left = CameraBarcodeFrameDecoder.GetGuideRect(
+            1280,
+            720,
+            new CameraBarcodeGuideGeometry(0.5, 0.5, -1, 0));
+        Assert.Equal(new Rect(0, 180, 640, 360), left);
+
+        Rect bottom = CameraBarcodeFrameDecoder.GetGuideRect(
+            1280,
+            720,
+            new CameraBarcodeGuideGeometry(0.5, 0.5, 0, 1));
+        Assert.Equal(new Rect(320, 360, 640, 360), bottom);
+    }
+
+    [Fact]
+    public void Decoder_RespectsCustomGuideGeometry()
+    {
+        using Mat frame = CreateFrameWithBarcode(
+            "YT123456789012",
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        var awayGeometry = new CameraBarcodeGuideGeometry(0.3, 0.3, -1, -1);
+
+        Assert.Null(decoder.DecodeGuideRegion(
+            frame,
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"),
+            awayGeometry));
+        Assert.Equal("YT123456789012", decoder.DecodeGuideRegion(frame));
+    }
+
+    [Fact]
     public void Decoder_GuideRegionRecognizesRotatedBarcode()
     {
         using Mat frame = CreateFrameWithBarcode("JD123456789012", BarcodeFormat.CODE_128, inGuide: true, rotate90: true);
@@ -724,9 +769,33 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.False(config.EnableCameraBarcodeRecognition);
         Assert.Equal(0, config.CameraBarcodeSetupVersion);
         Assert.Equal(CameraBarcodeSpeed.Standard, config.CameraBarcodeRecognitionSpeed);
+        Assert.Equal(0.85, config.CameraBarcodeGuideWidthRatio);
+        Assert.Equal(0.85, config.CameraBarcodeGuideHeightRatio);
+        Assert.Equal(0, config.CameraBarcodeGuideOffsetX);
+        Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
         Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.True(config.EnableGlobalKeyboard);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_ClampsGuideGeometry()
+    {
+        var config = new AppConfig
+        {
+            CameraBarcodeGuideWidthRatio = 1.5,
+            CameraBarcodeGuideHeightRatio = 0.1,
+            CameraBarcodeGuideOffsetX = 2,
+            CameraBarcodeGuideOffsetY = -2
+        };
+
+        bool changed = AppConfig.NormalizeAfterLoad(config);
+
+        Assert.True(changed);
+        Assert.Equal(1.0, config.CameraBarcodeGuideWidthRatio);
+        Assert.Equal(0.3, config.CameraBarcodeGuideHeightRatio);
+        Assert.Equal(1.0, config.CameraBarcodeGuideOffsetX);
+        Assert.Equal(-1.0, config.CameraBarcodeGuideOffsetY);
     }
 
     [Theory]

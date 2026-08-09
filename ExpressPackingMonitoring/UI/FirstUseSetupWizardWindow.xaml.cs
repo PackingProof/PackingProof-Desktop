@@ -61,7 +61,12 @@ public partial class FirstUseSetupWizardWindow : Window
             IsCameraBarcodeCandidate,
             reportVisibleCodes: true,
             guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
-                _config.CameraBarcodeRecognitionSpeed));
+                _config.CameraBarcodeRecognitionSpeed),
+            guideGeometryProvider: () => new CameraBarcodeGuideGeometry(
+                _config.CameraBarcodeGuideWidthRatio,
+                _config.CameraBarcodeGuideHeightRatio,
+                _config.CameraBarcodeGuideOffsetX,
+                _config.CameraBarcodeGuideOffsetY));
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
         {
@@ -1089,9 +1094,21 @@ public partial class FirstUseSetupWizardWindow : Window
         if (source.PixelWidth <= 0 || source.PixelHeight <= 0 || actualW <= 0 || actualH <= 0)
             return;
 
+        var geometry = new CameraBarcodeGuideGeometry(
+            _config.CameraBarcodeGuideWidthRatio,
+            _config.CameraBarcodeGuideHeightRatio,
+            _config.CameraBarcodeGuideOffsetX,
+            _config.CameraBarcodeGuideOffsetY);
         double scale = Math.Min(actualW / source.PixelWidth, actualH / source.PixelHeight);
-        CameraRecognitionGuide.Width = source.PixelWidth * CameraBarcodeFrameDecoder.GuideWidthRatio * scale;
-        CameraRecognitionGuide.Height = source.PixelHeight * CameraBarcodeFrameDecoder.GuideHeightRatio * scale;
+        CameraRecognitionGuide.Width = source.PixelWidth * geometry.WidthRatio * scale;
+        CameraRecognitionGuide.Height = source.PixelHeight * geometry.HeightRatio * scale;
+        double offsetXPx = (source.PixelWidth - source.PixelWidth * geometry.WidthRatio) / 2.0
+            * geometry.OffsetX
+            * scale;
+        double offsetYPx = (source.PixelHeight - source.PixelHeight * geometry.HeightRatio) / 2.0
+            * geometry.OffsetY
+            * scale;
+        CameraRecognitionGuide.RenderTransform = new TranslateTransform(offsetXPx, offsetYPx);
     }
 
     private static Mat BitmapToMat(Bitmap bitmap)

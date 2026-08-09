@@ -2759,6 +2759,118 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别区域宽度" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="取景框宽度占画面宽度的比例"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更小" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=CameraBarcodeGuideWidthSlider, Path=Value, StringFormat={}{0:P0}}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="CameraBarcodeGuideWidthSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="0.3"
+                                                    Maximum="1"
+                                                    TickFrequency="0.05"
+                                                    Value="{Binding Config.CameraBarcodeGuideWidthRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别区域高度" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="取景框高度占画面高度的比例"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更小" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=CameraBarcodeGuideHeightSlider, Path=Value, StringFormat={}{0:P0}}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="CameraBarcodeGuideHeightSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="0.3"
+                                                    Maximum="1"
+                                                    TickFrequency="0.05"
+                                                    Value="{Binding Config.CameraBarcodeGuideHeightRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="左右偏移" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="取景框的左右位置，0 表示居中"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="偏左" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=CameraBarcodeGuideOffsetXSlider, Path=Value, StringFormat={}{0:P0}}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="偏右" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="CameraBarcodeGuideOffsetXSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="-1"
+                                                    Maximum="1"
+                                                    TickFrequency="0.05"
+                                                    Value="{Binding Config.CameraBarcodeGuideOffsetX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="上下偏移" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="取景框的上下位置，0 表示居中"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="偏上" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=CameraBarcodeGuideOffsetYSlider, Path=Value, StringFormat={}{0:P0}}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="偏下" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="CameraBarcodeGuideOffsetYSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="-1"
+                                                    Maximum="1"
+                                                    TickFrequency="0.05"
+                                                    Value="{Binding Config.CameraBarcodeGuideOffsetY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

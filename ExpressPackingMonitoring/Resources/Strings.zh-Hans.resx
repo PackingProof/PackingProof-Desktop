@@ -878,4 +878,18 @@
   <data name="标准识别（默认）" xml:space="preserve"><value>标准识别（默认）</value></data>
   <data name="间歇识别" xml:space="preserve"><value>间歇识别</value></data>
   <data name="触发开始录像后，原单号离开画面多久才允许再次触发" xml:space="preserve"><value>触发开始录像后，原单号离开画面多久才允许再次触发</value></data>
+  <data name="识别区域宽度" xml:space="preserve"><value>识别区域宽度</value></data>
+  <data name="取景框宽度占画面宽度的比例" xml:space="preserve"><value>取景框宽度占画面宽度的比例</value></data>
+  <data name="识别区域高度" xml:space="preserve"><value>识别区域高度</value></data>
+  <data name="取景框高度占画面高度的比例" xml:space="preserve"><value>取景框高度占画面高度的比例</value></data>
+  <data name="左右偏移" xml:space="preserve"><value>左右偏移</value></data>
+  <data name="取景框的左右位置，0 表示居中" xml:space="preserve"><value>取景框的左右位置，0 表示居中</value></data>
+  <data name="上下偏移" xml:space="preserve"><value>上下偏移</value></data>
+  <data name="取景框的上下位置，0 表示居中" xml:space="preserve"><value>取景框的上下位置，0 表示居中</value></data>
+  <data name="更小" xml:space="preserve"><value>更小</value></data>
+  <data name="更大" xml:space="preserve"><value>更大</value></data>
+  <data name="偏左" xml:space="preserve"><value>偏左</value></data>
+  <data name="偏右" xml:space="preserve"><value>偏右</value></data>
+  <data name="偏上" xml:space="preserve"><value>偏上</value></data>
+  <data name="偏下" xml:space="preserve"><value>偏下</value></data>
 </root>

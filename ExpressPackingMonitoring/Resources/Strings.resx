@@ -878,4 +878,18 @@
   <data name="标准识别（默认）" xml:space="preserve"><value>Standard (default)</value></data>
   <data name="间歇识别" xml:space="preserve"><value>Intermittent</value></data>
   <data name="触发开始录像后，原单号离开画面多久才允许再次触发" xml:space="preserve"><value>After recording starts, how long the same code must leave the frame before it can trigger again</value></data>
+  <data name="识别区域宽度" xml:space="preserve"><value>Recognition area width</value></data>
+  <data name="取景框宽度占画面宽度的比例" xml:space="preserve"><value>Guide width as a percentage of the frame width</value></data>
+  <data name="识别区域高度" xml:space="preserve"><value>Recognition area height</value></data>
+  <data name="取景框高度占画面高度的比例" xml:space="preserve"><value>Guide height as a percentage of the frame height</value></data>
+  <data name="左右偏移" xml:space="preserve"><value>Horizontal offset</value></data>
+  <data name="取景框的左右位置，0 表示居中" xml:space="preserve"><value>Guide horizontal position; 0 means centered</value></data>
+  <data name="上下偏移" xml:space="preserve"><value>Vertical offset</value></data>
+  <data name="取景框的上下位置，0 表示居中" xml:space="preserve"><value>Guide vertical position; 0 means centered</value></data>
+  <data name="更小" xml:space="preserve"><value>Smaller</value></data>
+  <data name="更大" xml:space="preserve"><value>Larger</value></data>
+  <data name="偏左" xml:space="preserve"><value>Left</value></data>
+  <data name="偏右" xml:space="preserve"><value>Right</value></data>
+  <data name="偏上" xml:space="preserve"><value>Up</value></data>
+  <data name="偏下" xml:space="preserve"><value>Down</value></data>
 </root>

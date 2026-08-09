@@ -167,6 +167,10 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
         public string CameraBarcodeRecognitionSpeed { get; set; } = CameraBarcodeSpeed.Standard;
+        public double CameraBarcodeGuideWidthRatio { get; set; } = 0.85;
+        public double CameraBarcodeGuideHeightRatio { get; set; } = 0.85;
+        public double CameraBarcodeGuideOffsetX { get; set; } = 0;
+        public double CameraBarcodeGuideOffsetY { get; set; } = 0;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
         public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.0;
         public double CameraIdleMinutes { get; set; } = 5.0;
@@ -587,6 +591,46 @@ namespace ExpressPackingMonitoring.Config
                     StringComparison.Ordinal))
             {
                 config.CameraBarcodeRecognitionSpeed = normalizedCameraBarcodeSpeed;
+                changed = true;
+            }
+
+            double normalizedGuideWidth = System.Math.Clamp(
+                config.CameraBarcodeGuideWidthRatio,
+                0.3,
+                1.0);
+            if (System.Math.Abs(config.CameraBarcodeGuideWidthRatio - normalizedGuideWidth) > 0.001)
+            {
+                config.CameraBarcodeGuideWidthRatio = normalizedGuideWidth;
+                changed = true;
+            }
+
+            double normalizedGuideHeight = System.Math.Clamp(
+                config.CameraBarcodeGuideHeightRatio,
+                0.3,
+                1.0);
+            if (System.Math.Abs(config.CameraBarcodeGuideHeightRatio - normalizedGuideHeight) > 0.001)
+            {
+                config.CameraBarcodeGuideHeightRatio = normalizedGuideHeight;
+                changed = true;
+            }
+
+            double normalizedGuideOffsetX = System.Math.Clamp(
+                config.CameraBarcodeGuideOffsetX,
+                -1.0,
+                1.0);
+            if (System.Math.Abs(config.CameraBarcodeGuideOffsetX - normalizedGuideOffsetX) > 0.001)
+            {
+                config.CameraBarcodeGuideOffsetX = normalizedGuideOffsetX;
+                changed = true;
+            }
+
+            double normalizedGuideOffsetY = System.Math.Clamp(
+                config.CameraBarcodeGuideOffsetY,
+                -1.0,
+                1.0);
+            if (System.Math.Abs(config.CameraBarcodeGuideOffsetY - normalizedGuideOffsetY) > 0.001)
+            {
+                config.CameraBarcodeGuideOffsetY = normalizedGuideOffsetY;
                 changed = true;
             }
 

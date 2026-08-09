@@ -758,7 +758,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         : TimeSpan.Zero,
                 () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds),
                 guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
-                    Config.CameraBarcodeRecognitionSpeed));
+                    Config.CameraBarcodeRecognitionSpeed),
+                guideGeometryProvider: () => new CameraBarcodeGuideGeometry(
+                    Config.CameraBarcodeGuideWidthRatio,
+                    Config.CameraBarcodeGuideHeightRatio,
+                    Config.CameraBarcodeGuideOffsetX,
+                    Config.CameraBarcodeGuideOffsetY));
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;

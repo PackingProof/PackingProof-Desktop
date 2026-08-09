@@ -477,36 +477,52 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         _guideWorkspace.Buffers.AllocationCount + _fullFrameWorkspace.Buffers.AllocationCount;
 
     public string? DecodeGuideRegion(Mat frame)
-    {
-        if (frame == null || frame.IsDisposed || frame.Empty())
-            return null;
-
-        Rect guide = GetGuideRect(frame.Width, frame.Height);
-        if (guide.Width <= 0 || guide.Height <= 0)
-            return null;
-
-        using Mat cropped = new(frame, guide);
-        return DecodeSingle(cropped, _guideWorkspace);
-    }
+        => DecodeGuideRegion(frame, isValid: null, CameraBarcodeGuideGeometry.Default);
 
     public string? DecodeGuideRegion(Mat frame, Func<string, bool>? isValid)
+        => DecodeGuideRegion(frame, isValid, CameraBarcodeGuideGeometry.Default);
+
+    public string? DecodeGuideRegion(
+        Mat frame,
+        Func<string, bool>? isValid,
+        CameraBarcodeGuideGeometry geometry)
     {
         if (frame == null || frame.IsDisposed || frame.Empty())
             return null;
 
-        Rect guide = GetGuideRect(frame.Width, frame.Height);
+        Rect guide = GetGuideRect(frame.Width, frame.Height, geometry);
         if (guide.Width <= 0 || guide.Height <= 0)
             return null;
 
         using Mat cropped = new(frame, guide);
-        return DecodeBest(cropped, _guideWorkspace, isValid, guide);
+        return isValid == null
+            ? DecodeSingle(cropped, _guideWorkspace)
+            : DecodeBest(cropped, _guideWorkspace, isValid, guide);
     }
 
     internal static Rect GetGuideRect(int width, int height)
+        => GetGuideRect(width, height, CameraBarcodeGuideGeometry.Default);
+
+    internal static Rect GetGuideRect(int width, int height, CameraBarcodeGuideGeometry geometry)
     {
-        int guideWidth = Math.Clamp((int)Math.Round(width * GuideWidthRatio), 1, Math.Max(1, width));
-        int guideHeight = Math.Clamp((int)Math.Round(height * GuideHeightRatio), 1, Math.Max(1, height));
-        return new Rect((width - guideWidth) / 2, (height - guideHeight) / 2, guideWidth, guideHeight);
+        double widthRatio = Math.Clamp(geometry.WidthRatio, 0.1, 1.0);
+        double heightRatio = Math.Clamp(geometry.HeightRatio, 0.1, 1.0);
+        double offsetX = Math.Clamp(geometry.OffsetX, -1.0, 1.0);
+        double offsetY = Math.Clamp(geometry.OffsetY, -1.0, 1.0);
+
+        int guideWidth = Math.Clamp((int)Math.Round(width * widthRatio), 1, Math.Max(1, width));
+        int guideHeight = Math.Clamp((int)Math.Round(height * heightRatio), 1, Math.Max(1, height));
+        double marginX = (width - guideWidth) / 2.0;
+        double marginY = (height - guideHeight) / 2.0;
+        int left = Math.Clamp(
+            (int)Math.Round(marginX * (1 + offsetX)),
+            0,
+            Math.Max(0, width - guideWidth));
+        int top = Math.Clamp(
+            (int)Math.Round(marginY * (1 + offsetY)),
+            0,
+            Math.Max(0, height - guideHeight));
+        return new Rect(left, top, guideWidth, guideHeight);
     }
 
     private string? DecodeSingle(Mat frame, DecodeWorkspace workspace)
@@ -836,6 +852,20 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     }
 }
 
+internal readonly record struct CameraBarcodeGuideGeometry(
+    double WidthRatio,
+    double HeightRatio,
+    double OffsetX,
+    double OffsetY)
+{
+    public static CameraBarcodeGuideGeometry Default { get; } =
+        new(
+            CameraBarcodeFrameDecoder.GuideWidthRatio,
+            CameraBarcodeFrameDecoder.GuideHeightRatio,
+            0,
+            0);
+}
+
 internal sealed class CameraPairingQrFrameDecoder : IDisposable
 {
     private readonly BarcodeReaderGeneric _reader = new()
@@ -1145,6 +1175,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<string, TimeSpan>? _intermittentConfirmationWindowProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
     private readonly Func<TimeSpan> _guideIntervalProvider;
+    private readonly Func<CameraBarcodeGuideGeometry> _guideGeometryProvider;
     private readonly bool _reportVisibleCodes;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
     private readonly CameraBarcodeMotionGate _motionGate = new();
@@ -1180,12 +1211,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         bool reportVisibleCodes = false,
         TimeSpan? invalidCandidateThrottle = null,
         Func<DateTimeOffset>? utcNowProvider = null,
-        Func<TimeSpan>? guideIntervalProvider = null)
+        Func<TimeSpan>? guideIntervalProvider = null,
+        Func<CameraBarcodeGuideGeometry>? guideGeometryProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
         _rearmDelayProvider = rearmDelayProvider;
         _guideIntervalProvider = guideIntervalProvider ?? (() => GuideInterval);
+        _guideGeometryProvider = guideGeometryProvider ?? (() => CameraBarcodeGuideGeometry.Default);
         _reportVisibleCodes = reportVisibleCodes;
         _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
         _utcNow = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
@@ -1300,7 +1333,10 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         string? code = null;
         try
         {
-            code = _decoder.DecodeGuideRegion(frame, IsValidCandidate);
+            code = _decoder.DecodeGuideRegion(
+                frame,
+                IsValidCandidate,
+                _guideGeometryProvider());
             DateTimeOffset now = DateTimeOffset.UtcNow;
 
             if (code != null && !IsValidCandidate(code))

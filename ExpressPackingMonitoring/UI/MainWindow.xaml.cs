@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
@@ -309,12 +310,27 @@ namespace ExpressPackingMonitoring.UI
             {
                 CameraBarcodeGuide.Width = 0;
                 CameraBarcodeGuide.Height = 0;
+                CameraBarcodeGuide.RenderTransform = null;
                 return;
             }
 
+            AppConfig config = vm.Config;
+            var geometry = new CameraBarcodeGuideGeometry(
+                config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
+                config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
+                config?.CameraBarcodeGuideOffsetX ?? 0,
+                config?.CameraBarcodeGuideOffsetY ?? 0);
+
             double scale = Math.Min(actualW / sourceW, actualH / sourceH);
-            CameraBarcodeGuide.Width = sourceW * CameraBarcodeFrameDecoder.GuideWidthRatio * scale;
-            CameraBarcodeGuide.Height = sourceH * CameraBarcodeFrameDecoder.GuideHeightRatio * scale;
+            CameraBarcodeGuide.Width = sourceW * geometry.WidthRatio * scale;
+            CameraBarcodeGuide.Height = sourceH * geometry.HeightRatio * scale;
+            double offsetXPx = (sourceW - sourceW * geometry.WidthRatio) / 2.0
+                * geometry.OffsetX
+                * scale;
+            double offsetYPx = (sourceH - sourceH * geometry.HeightRatio) / 2.0
+                * geometry.OffsetY
+                * scale;
+            CameraBarcodeGuide.RenderTransform = new TranslateTransform(offsetXPx, offsetYPx);
         }
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
