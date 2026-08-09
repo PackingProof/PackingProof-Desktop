@@ -213,6 +213,14 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
+      - name: 上传发布信息
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release_info_v${{ env.PACKAGE_VERSION }}.txt
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/release_info_v${{ env.PACKAGE_VERSION }}.txt
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
       - name: 输出工件清单与哈希
         shell: pwsh
         run: |
