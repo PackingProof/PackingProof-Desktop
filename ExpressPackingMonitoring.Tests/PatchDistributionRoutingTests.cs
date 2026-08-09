@@ -60,7 +60,13 @@ public sealed class PatchDistributionRoutingTests
         Assert.True(installerCopyIndex >= 0);
         Assert.True(patchHashIndex > installerCopyIndex);
         Assert.Contains(
-            "$appPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
+            "$appPatchZipName = \"PackingProof_AppPatch_$releaseTag.zip\"",
+            publisher);
+        Assert.Contains(
+            "$legacyAppPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
+            publisher);
+        Assert.Contains(
+            "Copy-Item -LiteralPath $appPatchZipPath -Destination $legacyAppPatchZipPath",
             publisher);
         Assert.Contains(
             "$launcherPackageName = [string]$launcherBaseline.package.file",

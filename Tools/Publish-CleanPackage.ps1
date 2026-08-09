@@ -982,8 +982,10 @@ $normalizedPatchBaselineVersion = Get-NormalizedReleaseVersion $PatchBaselineVer
 $releaseTag = "v$normalizedVersion"
 $packageRoot = $packageArtifactRoot
 $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
-$appPatchZipName = "ExpressPackingMonitoring_AppPatch_$releaseTag.zip"
+$appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
+$legacyAppPatchZipName = "ExpressPackingMonitoring_AppPatch_$releaseTag.zip"
+$legacyAppPatchZipPath = Join-Path $packageRoot $legacyAppPatchZipName
 $legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$releaseTag.zip"
 $launcherPackageName = [string]$launcherBaseline.package.file
 $launcherPackagePath = Join-Path $packageRoot $launcherPackageName
@@ -1029,6 +1031,9 @@ if (Test-Path $legacyAppFullZipPath) {
 }
 if (Test-Path $appPatchZipPath) {
     Remove-Item -LiteralPath $appPatchZipPath -Force
+}
+if (Test-Path $legacyAppPatchZipPath) {
+    Remove-Item -LiteralPath $legacyAppPatchZipPath -Force
 }
 if (Test-Path $legacyManualUpdateZipPath) {
     Remove-Item -LiteralPath $legacyManualUpdateZipPath -Force
@@ -1161,6 +1166,11 @@ else {
 
         $appPatchHash = (Get-FileHash -LiteralPath $appPatchZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $appPatchSize = (Get-Item -LiteralPath $appPatchZipPath).Length
+        Copy-Item -LiteralPath $appPatchZipPath -Destination $legacyAppPatchZipPath -Force
+        $legacyAppPatchHash = (Get-FileHash -LiteralPath $legacyAppPatchZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if (-not [string]::Equals($legacyAppPatchHash, $appPatchHash, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "AppPatch legacy alias validation failed: hash mismatch between $appPatchZipName and $legacyAppPatchZipName"
+        }
         $patchSupported = $true
         $patchReason = "已生成兼容基线精简增量包：$appPatchZipName；$($runtimeCompatibility.Reason)"
     }
@@ -1256,7 +1266,11 @@ $sevenZipSize = (Get-Item -LiteralPath $sevenZipFullPath).Length
 $fullZipHash = (Get-FileHash -LiteralPath $zipFullPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $fullZipSize = (Get-Item -LiteralPath $zipFullPath).Length
 
-$patchReleaseInfo = if ($patchSupported) { $appPatchZipName } else { $patchReason }
+$patchReleaseInfo = if ($patchSupported) {
+    "$appPatchZipName（过渡期兼容别名：$legacyAppPatchZipName，内容一致）"
+} else {
+    $patchReason
+}
 $releaseInfoCheckLine = (ConvertFrom-Utf8Base64 "5LiK5Lyg5ZCO6K+35qOA5p+lIA==") + $updateJsonName + (ConvertFrom-Utf8Base64 "IOmHjOeahCBwYXRjaF9wYWNrYWdlLnVybCDmmK/lkKbkuI4gUmVsZWFzZSDpmYTku7bkuIvovb3lnLDlnYDkuIDoh7TjgII=")
 $patchBaselineInfoLine = (ConvertFrom-Utf8Base64 "UGF0Y2gg5Z+657q/54mI5pys77ya") + $normalizedPatchBaselineVersion
 $releaseInfoLines = @()
@@ -1332,6 +1346,7 @@ if ($patchSupported) {
     $releaseInfoLines += ""
     $releaseInfoLines += "AppPatch size:"
     $releaseInfoLines += "$appPatchSize bytes"
+    $releaseInfoLines += "Legacy alias AppPatch 与主文件字节一致（SHA256 相同）：$legacyAppPatchZipName"
 }
 $releaseInfo = $releaseInfoLines -join [Environment]::NewLine
 $releaseInfo | Set-Content -LiteralPath $releaseInfoPath -Encoding UTF8

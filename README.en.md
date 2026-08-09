@@ -267,7 +267,7 @@ The following files are never removed automatically by cache cleanup:
 | `PackingProof_Setup_vX.Y.Z.exe` | Recommended for most users |
 | `PackingProof+vX.Y.Z.7z` | Smaller portable package |
 | `PackingProof+vX.Y.Z.zip` | Native Windows extraction and recovery |
-| `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip` | Manual main-application update |
+| `PackingProof_AppPatch_vX.Y.Z.zip` | Manual main-application update (legacy-named copy also ships during the transition) |
 | `PackingProof_LauncherPatch_vX.Y.Z.zip` | Manual root-launcher update |
 
 Official packages normally include the required .NET runtime and FFmpeg, so no separate installation is needed.
@@ -291,7 +291,7 @@ The launcher checks for verified incremental updates in the background and insta
 Download and fully extract:
 
 ```text
-ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip
+PackingProof_AppPatch_vX.Y.Z.zip
 ```
 
 Then run:
