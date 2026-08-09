@@ -57,6 +57,7 @@ internal sealed class NetworkCameraSource : IDisposable
     private const int MaxStderrLines = 40;
     private const int MaxStderrDetailLength = 240;
     private static readonly ConcurrentDictionary<string, bool> FpsModeSupportCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> FfmpegVersionCache = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _url;
     private readonly string _transport;
@@ -177,12 +178,9 @@ internal sealed class NetworkCameraSource : IDisposable
                     ? "udp"
                     : "tcp";
                 builder.Append(" -rtsp_transport ").Append(normalizedTransport);
-                builder.Append(" -stimeout 5000000");
             }
-            else if (scheme is "http" or "https")
-            {
-                builder.Append(" -timeout 5000000");
-            }
+            // FFmpeg 8.x 已移除 -stimeout，4.4.x 的 -timeout 在 RTSP 上又会挂起；
+            // 不再传 socket 超时参数，由应用层 15 秒连接超时与断流看门狗兜底。
         }
 
         string escapedUrl = url.Replace("\"", "\\\"", StringComparison.Ordinal);
@@ -408,6 +406,10 @@ internal sealed class NetworkCameraSource : IDisposable
             return null;
         }
 
+        string ffmpegVersion = GetFfmpegVersion(ffmpegPath);
+        if (ffmpegVersion.Length > 0)
+            RuntimeLog.Info("NetworkCamera", $"ffmpeg version: {ffmpegVersion}");
+
         var startInfo = new ProcessStartInfo
         {
             FileName = ffmpegPath,
@@ -431,6 +433,43 @@ internal sealed class NetworkCameraSource : IDisposable
             LastError = "无法启动 ffmpeg 解码进程";
             return null;
         }
+    }
+
+    private static string GetFfmpegVersion(string ffmpegPath)
+    {
+        return FfmpegVersionCache.GetOrAdd(ffmpegPath ?? "", path =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                    return "";
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = path,
+                    Arguments = "-hide_banner -version",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                using Process? process = Process.Start(startInfo);
+                if (process == null)
+                    return "";
+
+                string output = process.StandardOutput.ReadToEnd();
+                if (!process.WaitForExit(2000))
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                }
+                string firstLine = output.Split('\n', 2)[0].Trim();
+                return firstLine.Length > 0 ? firstLine : "";
+            }
+            catch
+            {
+                return "";
+            }
+        });
     }
 
     private bool IsRtspUrl =>

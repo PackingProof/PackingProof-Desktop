@@ -17,7 +17,7 @@ public sealed class NetworkCameraSourceTests
             useFpsMode: false);
 
         Assert.Contains("-rtsp_transport tcp", args);
-        Assert.Contains("-stimeout 5000000", args);
+        Assert.DoesNotContain("-stimeout", args);
         Assert.Contains(" -an ", args);
         Assert.Contains("-vsync passthrough", args);
         Assert.DoesNotContain("-fps_mode", args);
@@ -45,8 +45,8 @@ public sealed class NetworkCameraSourceTests
         Assert.DoesNotContain(
             "-rtsp_transport",
             NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "tcp", useFpsMode: false));
-        Assert.Contains(
-            "-timeout 5000000",
+        Assert.DoesNotContain(
+            "-timeout",
             NetworkCameraSource.BuildArguments("http://10.0.0.8:8080/video.mjpg", "tcp", useFpsMode: false));
         Assert.DoesNotContain(
             "-timeout",
