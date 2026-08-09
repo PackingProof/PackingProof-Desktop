@@ -5,7 +5,7 @@
 
 <完整下载页/网盘链接，取自 .env 的 FULL_DOWNLOAD_PAGE；没有则删除本行>
 
-# 快递打包监控 v<X.Y.Z>
+# PackingProof v<X.Y.Z>
 
 ## 更新内容
 
