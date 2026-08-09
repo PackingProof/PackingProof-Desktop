@@ -252,7 +252,7 @@ public static class WorkstationNetwork
     private const int MaxSubnetDiscoveryHosts = 1022;
     private sealed record PendingRestart(string ExecutablePath, string WorkingDirectory, string Reason);
 
-    private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromMilliseconds(800));
+    private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient TestOrderClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient LoopbackClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly JsonSerializerOptions NetworkJsonOptions = new()
