@@ -346,7 +346,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("Build-Installer.ps1", publishScript);
         Assert.Contains("SmartScreen", publishScript);
         Assert.Contains("GitHub 默认上传", publishScript);
-        Assert.Contains("Gitee 手工上传", publishScript);
+        Assert.Contains("Gitee 命令行上传", publishScript);
         Assert.Contains("Setup、完整 7z 和完整 ZIP 使用 Full download page", publishScript);
         Assert.Contains("SEVEN_ZIP_EXE", publishScript);
         Assert.Contains("winget install --id 7zip.7zip", publishScript);
