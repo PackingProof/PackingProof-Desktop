@@ -1,4 +1,4 @@
-name: 发布包构建（手动触发）
+name: 发布包构建
 
 "on":
   workflow_dispatch:
@@ -22,13 +22,16 @@ name: 发布包构建（手动触发）
         required: false
         default: false
         type: boolean
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
   group: release-package-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-release-package:
@@ -48,21 +51,36 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: 校验输入参数
+      - name: 确定并校验发布版本
         env:
           VERSION: ${{ inputs.version }}
           PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $version = "$env:VERSION".Trim()
-          $baseline = "$env:PATCH_BASELINE_VERSION".Trim()
-          if ($version -notmatch "^v?\d+\.\d+\.\d+$") {
-            throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$version"
+          if (-not $version -and "$env:EVENT" -eq "push") {
+            $version = (& git describe --tags --match "v[0-9]*" --abbrev=0 2>$null).Trim()
+            if (-not $version) {
+              throw "push 触发时未找到 v* 标签，无法自动确定发布版本"
+            }
           }
-          if ($baseline -notmatch "^v?\d+\.\d+\.\d+$") {
+          $version = $version.TrimStart("v")
+          $baseline = "$env:PATCH_BASELINE_VERSION".Trim()
+          if (-not $baseline) {
+            $baseline = "0.0.18"
+          }
+          if ($version -notmatch "^\d+\.\d+\.\d+$") {
+            throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$env:VERSION"
+          }
+          if ($baseline -notmatch "^\d+\.\d+\.\d+$") {
             throw "patch_baseline_version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$baseline"
           }
+          "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PACKAGE_BASELINE_VERSION=$baseline" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "发布版本：$version，AppPatch 基线：$baseline"
 
       - name: 选择大空间临时目录
         shell: pwsh
@@ -97,7 +115,7 @@ jobs:
         if: ${{ ! inputs.disable_patch }}
         env:
           GH_TOKEN: ${{ github.token }}
-          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+          PATCH_BASELINE_VERSION: ${{ env.PACKAGE_BASELINE_VERSION }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -141,8 +159,8 @@ jobs:
 
       - name: 生成发布包（Setup、7z、ZIP、AppPatch、更新清单）
         env:
-          VERSION: ${{ inputs.version }}
-          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
+          VERSION: ${{ env.PACKAGE_VERSION }}
+          PATCH_BASELINE_VERSION: ${{ env.PACKAGE_BASELINE_VERSION }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -168,18 +186,74 @@ jobs:
             throw "Publish-CleanPackage.ps1 失败，退出码 $LASTEXITCODE"
           }
 
-      - name: 上传发布工件
+      - name: 上传 Setup 安装包
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-package-${{ inputs.version }}
-          path: package/PackingProof+${{ inputs.version }}
-          if-no-files-found: error
-          retention-days: 90
+          name: PackingProof_Setup_v${{ env.PACKAGE_VERSION }}
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof_Setup_v${{ env.PACKAGE_VERSION }}.exe
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传完整包 7z
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PackingProof+${{ env.PACKAGE_VERSION }}.7z
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.7z
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传完整包 ZIP
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PackingProof+${{ env.PACKAGE_VERSION }}.zip
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.zip
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传 AppPatch 增量包
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ExpressPackingMonitoring_AppPatch_v${{ env.PACKAGE_VERSION }}
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/ExpressPackingMonitoring_AppPatch_v${{ env.PACKAGE_VERSION }}.zip
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传 LauncherPatch 启动器补丁
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PackingProof_LauncherPatch_v${{ env.PACKAGE_VERSION }}
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof_LauncherPatch_v${{ env.PACKAGE_VERSION }}.zip
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传更新清单
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: update_v${{ env.PACKAGE_VERSION }}.json
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/update_v${{ env.PACKAGE_VERSION }}.json
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传发布信息
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release_info_v${{ env.PACKAGE_VERSION }}.txt
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/release_info_v${{ env.PACKAGE_VERSION }}.txt
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传启动器基线清单
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: launcher_manifest_v${{ env.PACKAGE_VERSION }}.json
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/launcher_manifest_v${{ env.PACKAGE_VERSION }}.json
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 输出工件清单与哈希
         shell: pwsh
         run: |
-          $root = "package\PackingProof+${{ inputs.version }}"
+          $root = "package\PackingProof+${{ env.PACKAGE_VERSION }}"
           Get-ChildItem -LiteralPath $root -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             Write-Host ("{0}  {1,12:N0} bytes  SHA256={2}" -f $_.Name, $_.Length, $hash)
