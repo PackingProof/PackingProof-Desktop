@@ -166,8 +166,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains(
             "href=\"https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest\"",
             html);
-        Assert.Contains(".mobile-app-download{display:flex}", html);
-        Assert.Contains(".mobile-app-download{grid-column:1/-1;grid-row:2}", html);
+        Assert.Contains(".mobile-app-download{display:flex;grid-column:1/-1;grid-row:2}", html);
+        Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
         Assert.Contains(".floating-tools{display:none}", html);
