@@ -186,6 +186,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("fetch('/api/mobile-app-download'", html);
         Assert.Contains("fetch('/api/mobile-app-download'+(location.search||'')", html);
         Assert.Contains("let downloadUrl=open?open.href:''", html);
+        Assert.Contains(".player-close{width:32px;height:32px;border-radius:6px;border:1px solid var(--bad)", html);
         Assert.Contains(".floating-tools{display:none}", html);
         Assert.Contains("if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches)return", html);
     }
