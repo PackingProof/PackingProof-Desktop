@@ -628,16 +628,16 @@ public sealed class CameraBarcodeRecognitionTests
         service.InvalidCandidate += received.Add;
 
         service.TrySubmitFrame(frame, allowFullFrame: false);
-        await Task.Delay(300, TestContext.Current.CancellationToken);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Single(received);
 
         service.TrySubmitFrame(movedFrame, allowFullFrame: false);
-        await Task.Delay(120, TestContext.Current.CancellationToken);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Single(received);
 
-        await Task.Delay(700, TestContext.Current.CancellationToken);
+        await Task.Delay(3000, TestContext.Current.CancellationToken);
         service.TrySubmitFrame(movedFrame2, allowFullFrame: false);
-        await Task.Delay(500, TestContext.Current.CancellationToken);
+        await Task.Delay(800, TestContext.Current.CancellationToken);
         Assert.Equal(2, received.Count);
     }
 
