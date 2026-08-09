@@ -2717,6 +2717,27 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别频率" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="电脑性能好可选“实时识别”，普通电脑保持默认即可"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="2"
+                                                  SelectedValue="{Binding Config.CameraBarcodeRecognitionSpeed}"
+                                                  SelectedValuePath="Tag"
+                                                  Cursor="Hand">
+                                            <ComboBoxItem Content="实时识别" Tag="Realtime"/>
+                                            <ComboBoxItem Content="标准识别（默认）" Tag="Standard"/>
+                                            <ComboBoxItem Content="间歇识别" Tag="Intermittent"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="同码消失时间" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="触发开始录像后，原单号离开画面多久才允许再次触发"
                                                        Style="{StaticResource FieldHintStyle}"/>

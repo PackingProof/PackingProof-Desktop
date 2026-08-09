@@ -1152,6 +1152,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<bool>? _fullFrameAllowed;
     private readonly Func<string, TimeSpan>? _intermittentConfirmationWindowProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
+    private readonly Func<TimeSpan> _guideIntervalProvider;
+    private readonly Func<TimeSpan> _fullFrameIntervalProvider;
     private readonly bool _reportVisibleCodes;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
     private readonly CameraBarcodeMotionGate _motionGate = new();
@@ -1189,12 +1191,16 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         Func<TimeSpan>? rearmDelayProvider = null,
         bool reportVisibleCodes = false,
         TimeSpan? invalidCandidateThrottle = null,
-        Func<DateTimeOffset>? utcNowProvider = null)
+        Func<DateTimeOffset>? utcNowProvider = null,
+        Func<TimeSpan>? guideIntervalProvider = null,
+        Func<TimeSpan>? fullFrameIntervalProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _fullFrameAllowed = fullFrameAllowed;
         _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
         _rearmDelayProvider = rearmDelayProvider;
+        _guideIntervalProvider = guideIntervalProvider ?? (() => GuideInterval);
+        _fullFrameIntervalProvider = fullFrameIntervalProvider ?? (() => FullFrameInterval);
         _reportVisibleCodes = reportVisibleCodes;
         _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
         _utcNow = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
@@ -1212,7 +1218,10 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         lock (_pendingLock)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            if (_disposed || now - _lastAcceptedAt < GuideInterval)
+            TimeSpan guideInterval = _guideIntervalProvider();
+            if (guideInterval <= TimeSpan.Zero)
+                guideInterval = GuideInterval;
+            if (_disposed || now - _lastAcceptedAt < guideInterval)
                 return false;
 
             _lastAcceptedAt = now;
@@ -1311,10 +1320,13 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         {
             code = _decoder.DecodeGuideRegion(frame, IsValidCandidate);
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            TimeSpan fullFrameInterval = _fullFrameIntervalProvider();
+            if (fullFrameInterval <= TimeSpan.Zero)
+                fullFrameInterval = FullFrameInterval;
             if (code == null
                 && allowFullFrame
                 && (_fullFrameAllowed?.Invoke() ?? true)
-                && now - _lastFullFrameAttemptAt >= FullFrameInterval)
+                && now - _lastFullFrameAttemptAt >= fullFrameInterval)
             {
                 _lastFullFrameAttemptAt = now;
                 code = _decoder.DecodeFullFrame(frame, IsValidCandidate);

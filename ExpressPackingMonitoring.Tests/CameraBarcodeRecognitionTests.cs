@@ -739,9 +739,36 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.NotNull(config);
         Assert.False(config.EnableCameraBarcodeRecognition);
         Assert.Equal(0, config.CameraBarcodeSetupVersion);
+        Assert.Equal(CameraBarcodeSpeed.Standard, config.CameraBarcodeRecognitionSpeed);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
         Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.True(config.EnableGlobalKeyboard);
+    }
+
+    [Theory]
+    [InlineData("Realtime", 100, 400)]
+    [InlineData("Standard", 250, 900)]
+    [InlineData("Intermittent", 1000, 3000)]
+    [InlineData("", 250, 900)]
+    [InlineData("Turbo", 250, 900)]
+    public void CameraBarcodeSpeed_IntervalMappingFollowsFriendlyLevel(
+        string speed,
+        int guideMs,
+        int fullMs)
+    {
+        Assert.Equal(TimeSpan.FromMilliseconds(guideMs), CameraBarcodeSpeed.GuideIntervalFor(speed));
+        Assert.Equal(TimeSpan.FromMilliseconds(fullMs), CameraBarcodeSpeed.FullFrameIntervalFor(speed));
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_ResetsInvalidRecognitionSpeedToStandard()
+    {
+        var config = new AppConfig { CameraBarcodeRecognitionSpeed = "Turbo" };
+
+        bool changed = AppConfig.NormalizeAfterLoad(config);
+
+        Assert.True(changed);
+        Assert.Equal(CameraBarcodeSpeed.Standard, config.CameraBarcodeRecognitionSpeed);
     }
 
     [Fact]

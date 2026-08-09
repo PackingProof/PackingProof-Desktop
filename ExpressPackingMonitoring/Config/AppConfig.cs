@@ -166,6 +166,7 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableCameraIdle { get; set; } = false;
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
+        public string CameraBarcodeRecognitionSpeed { get; set; } = CameraBarcodeSpeed.Standard;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
         public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.0;
         public double CameraIdleMinutes { get; set; } = 5.0;
@@ -575,6 +576,17 @@ namespace ExpressPackingMonitoring.Config
             if (config.EnableGlobalKeyboard && config.EnableScannerAutoSubmit)
             {
                 config.EnableGlobalKeyboard = false;
+                changed = true;
+            }
+
+            string normalizedCameraBarcodeSpeed = CameraBarcodeSpeed.Normalize(
+                config.CameraBarcodeRecognitionSpeed);
+            if (!string.Equals(
+                    config.CameraBarcodeRecognitionSpeed,
+                    normalizedCameraBarcodeSpeed,
+                    StringComparison.Ordinal))
+            {
+                config.CameraBarcodeRecognitionSpeed = normalizedCameraBarcodeSpeed;
                 changed = true;
             }
 

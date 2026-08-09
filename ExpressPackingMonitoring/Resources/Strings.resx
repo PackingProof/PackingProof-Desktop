@@ -872,4 +872,10 @@
   <data name="例如：rtsp://账号:密码@192.168.1.64:554/stream" xml:space="preserve"><value>e.g. rtsp://user:password@192.168.1.64:554/stream</value></data>
   <data name="支持 RTSP、RTMP、HTTP 视频流，需手动填写地址" xml:space="preserve"><value>Supports RTSP, RTMP, and HTTP video streams; enter the stream URL manually</value></data>
   <data name="测试连接" xml:space="preserve"><value>Test connection</value></data>
+  <data name="识别频率" xml:space="preserve"><value>Recognition frequency</value></data>
+  <data name="电脑性能好可选“实时识别”，普通电脑保持默认即可" xml:space="preserve"><value>Choose real-time recognition on powerful computers; keep the default otherwise</value></data>
+  <data name="实时识别" xml:space="preserve"><value>Real-time</value></data>
+  <data name="标准识别（默认）" xml:space="preserve"><value>Standard (default)</value></data>
+  <data name="间歇识别" xml:space="preserve"><value>Intermittent</value></data>
+  <data name="触发开始录像后，原单号离开画面多久才允许再次触发" xml:space="preserve"><value>After recording starts, how long the same code must leave the frame before it can trigger again</value></data>
 </root>

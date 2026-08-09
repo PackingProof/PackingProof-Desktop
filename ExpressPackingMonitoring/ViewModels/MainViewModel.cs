@@ -757,7 +757,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(code, _recordingOrderId, IsRecording)
                         ? TimeSpan.FromSeconds(Config.CameraSameBarcodeConfirmationSeconds)
                         : TimeSpan.Zero,
-                () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds));
+                () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds),
+                guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
+                    Config.CameraBarcodeRecognitionSpeed),
+                fullFrameIntervalProvider: () => CameraBarcodeSpeed.FullFrameIntervalFor(
+                    Config.CameraBarcodeRecognitionSpeed));
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;

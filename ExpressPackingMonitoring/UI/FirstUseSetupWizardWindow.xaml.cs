@@ -59,7 +59,11 @@ public partial class FirstUseSetupWizardWindow : Window
         SkipButton.Visibility = allowSkip ? Visibility.Visible : Visibility.Collapsed;
         _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(
             IsCameraBarcodeCandidate,
-            reportVisibleCodes: true);
+            reportVisibleCodes: true,
+            guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
+                _config.CameraBarcodeRecognitionSpeed),
+            fullFrameIntervalProvider: () => CameraBarcodeSpeed.FullFrameIntervalFor(
+                _config.CameraBarcodeRecognitionSpeed));
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
         {
