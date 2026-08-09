@@ -157,6 +157,13 @@ jobs:
           Write-Host "AppPatch 基线目录：$appDir"
           "PATCH_BASELINE_APP_DIR=$appDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: 准备锁定的启动器基线包
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $baseline = Get-Content -Raw -Encoding UTF8 "Tools\launcher-baseline.json" | ConvertFrom-Json
+          pwsh -NoProfile -File "Tools\Publish-LauncherBaseline.ps1" -Version $baseline.version
+
       - name: 生成发布包（Setup、7z、ZIP、AppPatch、更新清单）
         env:
           VERSION: ${{ env.PACKAGE_VERSION }}
