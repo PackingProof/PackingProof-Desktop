@@ -2718,7 +2718,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="识别频率" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="电脑性能好可选“实时识别”，普通电脑保持默认即可"
+                                            <TextBlock Text="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox Grid.Column="2"
@@ -2871,34 +2871,15 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="SameBarcodeStopCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
-                                          IsEnabled="{Binding IsChecked, ElementName=SameBarcodeStopCheckBox, TargetNullValue=False}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="同码确认时间" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="同码重新出现后，在该时间内识别到 3 次即可停录"
+                                            <TextBlock Text="识别确认时间" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
@@ -2916,6 +2897,47 @@
                                                     TickFrequency="0.5"
                                                     Value="{Binding Config.CameraSameBarcodeConfirmationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别确认次数" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="需要识别到几次才触发，次数越少响应越快"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="CameraSameBarcodeConfirmationHitsComboBox"
+                                                  Grid.Column="2"
+                                                  SelectedValue="{Binding Config.CameraSameBarcodeConfirmationHits}"
+                                                  SelectedValuePath="Tag"
+                                                  Cursor="Hand">
+                                            <ComboBoxItem Content="1 次（最快）" Tag="1"/>
+                                            <ComboBoxItem Content="2 次（推荐）" Tag="2"/>
+                                            <ComboBoxItem Content="3 次（更稳）" Tag="3"/>
+                                            <ComboBoxItem Content="4 次（最稳）" Tag="4"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="SameBarcodeStopCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>

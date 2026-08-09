@@ -173,6 +173,7 @@ namespace ExpressPackingMonitoring.Config
         public double CameraBarcodeGuideOffsetY { get; set; } = 0;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
         public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.0;
+        public int CameraSameBarcodeConfirmationHits { get; set; } = 2;
         public double CameraIdleMinutes { get; set; } = 5.0;
         public string CameraIdleNoSleepStart1 { get; set; } = "";
         public string CameraIdleNoSleepEnd1 { get; set; } = "";
@@ -651,6 +652,16 @@ namespace ExpressPackingMonitoring.Config
             if (System.Math.Abs(config.CameraSameBarcodeConfirmationSeconds - normalizedCameraSameBarcodeConfirmationSeconds) > 0.001)
             {
                 config.CameraSameBarcodeConfirmationSeconds = normalizedCameraSameBarcodeConfirmationSeconds;
+                changed = true;
+            }
+
+            int normalizedCameraSameBarcodeConfirmationHits = System.Math.Clamp(
+                config.CameraSameBarcodeConfirmationHits,
+                1,
+                4);
+            if (config.CameraSameBarcodeConfirmationHits != normalizedCameraSameBarcodeConfirmationHits)
+            {
+                config.CameraSameBarcodeConfirmationHits = normalizedCameraSameBarcodeConfirmationHits;
                 changed = true;
             }
 

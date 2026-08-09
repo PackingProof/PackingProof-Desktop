@@ -65,15 +65,17 @@ public sealed class CameraBarcodeRecognitionTests
         var tracker = new CameraBarcodeStabilityTracker();
         TimeSpan confirmationWindow = TimeSpan.FromSeconds(2);
 
-        tracker.Observe("YT123456789012", Start, confirmationWindow);
+        tracker.Observe("YT123456789012", Start, confirmationWindow, requiredHits: 3);
         CameraBarcodeObservation secondHit = tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(0.75),
-            confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
         CameraBarcodeObservation thirdHit = tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(1.5),
-            confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
 
         Assert.Equal("YT123456789012", secondHit.CandidateCode);
         Assert.True(secondHit.KeepDecoding);
@@ -87,20 +89,23 @@ public sealed class CameraBarcodeRecognitionTests
         var tracker = new CameraBarcodeStabilityTracker();
         TimeSpan confirmationWindow = TimeSpan.FromSeconds(2);
 
-        tracker.Observe("YT123456789012", Start, confirmationWindow);
+        tracker.Observe("YT123456789012", Start, confirmationWindow, requiredHits: 3);
         CameraBarcodeObservation missed = tracker.Observe(
             null,
             Start.AddSeconds(0.5),
-            confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
         tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(1),
-            confirmationWindow);
-        tracker.Observe(null, Start.AddSeconds(1.25), confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
+        tracker.Observe(null, Start.AddSeconds(1.25), confirmationWindow, requiredHits: 3);
         CameraBarcodeObservation confirmed = tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(1.75),
-            confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
 
         Assert.Equal("YT123456789012", missed.CandidateCode);
         Assert.True(missed.KeepDecoding);
@@ -113,16 +118,80 @@ public sealed class CameraBarcodeRecognitionTests
         var tracker = new CameraBarcodeStabilityTracker();
         TimeSpan confirmationWindow = TimeSpan.FromSeconds(1.5);
 
-        tracker.Observe("YT123456789012", Start, confirmationWindow);
-        tracker.Observe("YT123456789012", Start.AddSeconds(0.5), confirmationWindow);
+        tracker.Observe("YT123456789012", Start, confirmationWindow, requiredHits: 3);
+        tracker.Observe("YT123456789012", Start.AddSeconds(0.5), confirmationWindow, requiredHits: 3);
         CameraBarcodeObservation restarted = tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(1.6),
-            confirmationWindow);
-        tracker.Observe("YT123456789012", Start.AddSeconds(1.9), confirmationWindow);
+            confirmationWindow,
+            requiredHits: 3);
+        tracker.Observe("YT123456789012", Start.AddSeconds(1.9), confirmationWindow, requiredHits: 3);
         CameraBarcodeObservation confirmed = tracker.Observe(
             "YT123456789012",
             Start.AddSeconds(2.2),
+            confirmationWindow,
+            requiredHits: 3);
+
+        Assert.Equal("YT123456789012", restarted.CandidateCode);
+        Assert.Empty(restarted.ConfirmedCode);
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_OneHitConfirmsImmediately()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start,
+            TimeSpan.FromSeconds(1),
+            requiredHits: 1);
+
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_FourHitsRequiredBeforeConfirmation()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        TimeSpan confirmationWindow = TimeSpan.FromSeconds(2);
+
+        tracker.Observe("YT123456789012", Start, confirmationWindow, requiredHits: 4);
+        CameraBarcodeObservation thirdHit = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(0.5),
+            confirmationWindow,
+            requiredHits: 4);
+        tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(1),
+            confirmationWindow,
+            requiredHits: 4);
+        CameraBarcodeObservation fourthHit = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(1.5),
+            confirmationWindow,
+            requiredHits: 4);
+
+        Assert.Empty(thirdHit.ConfirmedCode);
+        Assert.Equal("YT123456789012", fourthHit.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_TwoHitModeRestartsAfterWindowExpires()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        TimeSpan confirmationWindow = TimeSpan.FromSeconds(1);
+
+        tracker.Observe("YT123456789012", Start, confirmationWindow);
+        CameraBarcodeObservation restarted = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(1.2),
+            confirmationWindow);
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(1.4),
             confirmationWindow);
 
         Assert.Equal("YT123456789012", restarted.CandidateCode);
@@ -775,7 +844,22 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
         Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
+        Assert.Equal(2, config.CameraSameBarcodeConfirmationHits);
         Assert.True(config.EnableGlobalKeyboard);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(3, 3)]
+    [InlineData(5, 4)]
+    public void NormalizeAfterLoad_ClampsConfirmationHits(int input, int expected)
+    {
+        var config = new AppConfig { CameraSameBarcodeConfirmationHits = input };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(expected, config.CameraSameBarcodeConfirmationHits);
     }
 
     [Fact]
@@ -801,12 +885,33 @@ public sealed class CameraBarcodeRecognitionTests
     [Theory]
     [InlineData("Realtime", 100)]
     [InlineData("Standard", 250)]
-    [InlineData("Intermittent", 1000)]
+    [InlineData("Intermittent", 200)]
     [InlineData("", 250)]
     [InlineData("Turbo", 250)]
     public void CameraBarcodeSpeed_IntervalMappingFollowsFriendlyLevel(string speed, int guideMs)
     {
         Assert.Equal(TimeSpan.FromMilliseconds(guideMs), CameraBarcodeSpeed.GuideIntervalFor(speed));
+    }
+
+    [Theory]
+    [InlineData("Realtime", 30, 66.67)]
+    [InlineData("Realtime", 20, 100)]
+    [InlineData("Realtime", 10, 100)]
+    [InlineData("Realtime", 0, 100)]
+    [InlineData("Intermittent", 30, 133.33)]
+    [InlineData("Intermittent", 20, 200)]
+    [InlineData("Intermittent", 10, 200)]
+    [InlineData("Intermittent", 0, 200)]
+    [InlineData("Standard", 30, 250)]
+    [InlineData("Standard", 10, 250)]
+    public void CameraBarcodeSpeed_IntervalFollowsFrameRate(
+        string speed,
+        double fps,
+        double expectedMs)
+    {
+        double actualMs = CameraBarcodeSpeed.GuideIntervalFor(speed, fps).TotalMilliseconds;
+
+        Assert.InRange(actualMs, expectedMs - 0.5, expectedMs + 0.5);
     }
 
     [Fact]

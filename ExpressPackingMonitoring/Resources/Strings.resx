@@ -892,4 +892,13 @@
   <data name="偏右" xml:space="preserve"><value>Right</value></data>
   <data name="偏上" xml:space="preserve"><value>Up</value></data>
   <data name="偏下" xml:space="preserve"><value>Down</value></data>
+  <data name="识别确认时间" xml:space="preserve"><value>Recognition confirmation time</value></data>
+  <data name="识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录" xml:space="preserve"><value>After a code is recognized, reaching the confirmation count within this time triggers start, switch, or stop</value></data>
+  <data name="识别确认次数" xml:space="preserve"><value>Recognition confirmation count</value></data>
+  <data name="需要识别到几次才触发，次数越少响应越快" xml:space="preserve"><value>How many times the code must be recognized before triggering; fewer hits respond faster</value></data>
+  <data name="1 次（最快）" xml:space="preserve"><value>1 hit (fastest)</value></data>
+  <data name="2 次（推荐）" xml:space="preserve"><value>2 hits (recommended)</value></data>
+  <data name="3 次（更稳）" xml:space="preserve"><value>3 hits (more stable)</value></data>
+  <data name="4 次（最稳）" xml:space="preserve"><value>4 hits (most stable)</value></data>
+  <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>Real-time follows the camera frame rate for the fastest response; keep the default on regular computers</value></data>
 </root>

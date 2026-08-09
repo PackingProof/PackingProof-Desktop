@@ -752,18 +752,17 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(
                 IsAutoSubmitScanCandidate,
-                code => Config.EnableSameBarcodeStopRecording
-                    && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(code, _recordingOrderId, IsRecording)
-                        ? TimeSpan.FromSeconds(Config.CameraSameBarcodeConfirmationSeconds)
-                        : TimeSpan.Zero,
+                _ => TimeSpan.FromSeconds(Config.CameraSameBarcodeConfirmationSeconds),
                 () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds),
                 guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
-                    Config.CameraBarcodeRecognitionSpeed),
+                    Config.CameraBarcodeRecognitionSpeed,
+                    _actualCameraFps),
                 guideGeometryProvider: () => new CameraBarcodeGuideGeometry(
                     Config.CameraBarcodeGuideWidthRatio,
                     Config.CameraBarcodeGuideHeightRatio,
                     Config.CameraBarcodeGuideOffsetX,
-                    Config.CameraBarcodeGuideOffsetY));
+                    Config.CameraBarcodeGuideOffsetY),
+                confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits);
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;

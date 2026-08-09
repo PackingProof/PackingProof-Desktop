@@ -299,8 +299,9 @@ internal sealed class CameraBarcodeStabilityTracker
     public CameraBarcodeObservation Observe(
         string? code,
         DateTimeOffset now,
-        TimeSpan intermittentConfirmationWindow = default,
-        TimeSpan rearmDelay = default)
+        TimeSpan confirmationWindow = default,
+        TimeSpan rearmDelay = default,
+        int requiredHits = 2)
     {
         RearmMissingCodes(
             now,
@@ -328,18 +329,26 @@ internal sealed class CameraBarcodeStabilityTracker
             return new CameraBarcodeObservation(VisibleCode: normalized);
         }
 
-        int requiredHits = intermittentConfirmationWindow > TimeSpan.Zero ? 3 : 2;
-        TimeSpan confirmationWindow = intermittentConfirmationWindow > TimeSpan.Zero
-            ? intermittentConfirmationWindow
+        int requiredHitsValue = Math.Clamp(requiredHits, 1, 4);
+        TimeSpan window = confirmationWindow > TimeSpan.Zero
+            ? confirmationWindow
             : ConfirmationWindow;
+        if (requiredHitsValue == 1)
+        {
+            _lockedCodes[normalized] = now;
+            _missingLockedCodesSince.Remove(normalized);
+            ClearCandidate();
+            return new CameraBarcodeObservation(ConfirmedCode: normalized);
+        }
+
         if (!string.Equals(_candidateCode, normalized, StringComparison.Ordinal)
-            || _candidateRequiredHits != requiredHits
+            || _candidateRequiredHits != requiredHitsValue
             || now - _candidateFirstSeen > _candidateConfirmationWindow)
         {
             _candidateCode = normalized;
             _candidateFirstSeen = now;
-            _candidateConfirmationWindow = confirmationWindow;
-            _candidateRequiredHits = requiredHits;
+            _candidateConfirmationWindow = window;
+            _candidateRequiredHits = requiredHitsValue;
             _candidateHits = 1;
             return new CameraBarcodeObservation(
                 _candidateCode,
@@ -1172,7 +1181,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private static readonly TimeSpan SlowDecodeLogInterval = TimeSpan.FromSeconds(30);
 
     private readonly Func<string, bool> _candidateValidator;
-    private readonly Func<string, TimeSpan>? _intermittentConfirmationWindowProvider;
+    private readonly Func<string, TimeSpan>? _confirmationWindowProvider;
+    private readonly Func<int>? _confirmationHitsProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
     private readonly Func<TimeSpan> _guideIntervalProvider;
     private readonly Func<CameraBarcodeGuideGeometry> _guideGeometryProvider;
@@ -1206,16 +1216,18 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
     public CameraBarcodeRecognitionService(
         Func<string, bool> candidateValidator,
-        Func<string, TimeSpan>? intermittentConfirmationWindowProvider = null,
+        Func<string, TimeSpan>? confirmationWindowProvider = null,
         Func<TimeSpan>? rearmDelayProvider = null,
         bool reportVisibleCodes = false,
         TimeSpan? invalidCandidateThrottle = null,
         Func<DateTimeOffset>? utcNowProvider = null,
         Func<TimeSpan>? guideIntervalProvider = null,
-        Func<CameraBarcodeGuideGeometry>? guideGeometryProvider = null)
+        Func<CameraBarcodeGuideGeometry>? guideGeometryProvider = null,
+        Func<int>? confirmationHitsProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
-        _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
+        _confirmationWindowProvider = confirmationWindowProvider;
+        _confirmationHitsProvider = confirmationHitsProvider;
         _rearmDelayProvider = rearmDelayProvider;
         _guideIntervalProvider = guideIntervalProvider ?? (() => GuideInterval);
         _guideGeometryProvider = guideGeometryProvider ?? (() => CameraBarcodeGuideGeometry.Default);
@@ -1349,12 +1361,22 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 return;
 
             CameraBarcodeObservation observation;
-            TimeSpan intermittentConfirmationWindow = code == null
+            TimeSpan confirmationWindow = code == null
                 ? TimeSpan.Zero
-                : _intermittentConfirmationWindowProvider?.Invoke(code) ?? TimeSpan.Zero;
+                : _confirmationWindowProvider?.Invoke(code) ?? TimeSpan.Zero;
+            int confirmationHits = _confirmationHitsProvider?.Invoke() ?? 2;
+            if (confirmationHits < 1)
+                confirmationHits = 1;
+            if (confirmationHits > 4)
+                confirmationHits = 4;
             TimeSpan rearmDelay = _rearmDelayProvider?.Invoke() ?? TimeSpan.Zero;
             lock (_trackerLock)
-                observation = _stabilityTracker.Observe(code, now, intermittentConfirmationWindow, rearmDelay);
+                observation = _stabilityTracker.Observe(
+                    code,
+                    now,
+                    confirmationWindow,
+                    rearmDelay,
+                    confirmationHits);
 
             Volatile.Write(
                 ref _forceDecodeUntilUtcTicks,

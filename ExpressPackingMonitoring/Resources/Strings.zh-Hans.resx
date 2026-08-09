@@ -892,4 +892,13 @@
   <data name="偏右" xml:space="preserve"><value>偏右</value></data>
   <data name="偏上" xml:space="preserve"><value>偏上</value></data>
   <data name="偏下" xml:space="preserve"><value>偏下</value></data>
+  <data name="识别确认时间" xml:space="preserve"><value>识别确认时间</value></data>
+  <data name="识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录" xml:space="preserve"><value>识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录</value></data>
+  <data name="识别确认次数" xml:space="preserve"><value>识别确认次数</value></data>
+  <data name="需要识别到几次才触发，次数越少响应越快" xml:space="preserve"><value>需要识别到几次才触发，次数越少响应越快</value></data>
+  <data name="1 次（最快）" xml:space="preserve"><value>1 次（最快）</value></data>
+  <data name="2 次（推荐）" xml:space="preserve"><value>2 次（推荐）</value></data>
+  <data name="3 次（更稳）" xml:space="preserve"><value>3 次（更稳）</value></data>
+  <data name="4 次（最稳）" xml:space="preserve"><value>4 次（最稳）</value></data>
+  <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可</value></data>
 </root>
