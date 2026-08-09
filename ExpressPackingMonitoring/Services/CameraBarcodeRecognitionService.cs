@@ -502,12 +502,6 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         return DecodeBest(cropped, _guideWorkspace, isValid, guide);
     }
 
-    public string? DecodeFullFrame(Mat frame)
-        => DecodeSingle(frame, _fullFrameWorkspace);
-
-    public string? DecodeFullFrame(Mat frame, Func<string, bool>? isValid)
-        => DecodeBest(frame, _fullFrameWorkspace, isValid, new Rect(0, 0, frame.Width, frame.Height));
-
     internal static Rect GetGuideRect(int width, int height)
     {
         int guideWidth = Math.Clamp((int)Math.Round(width * GuideWidthRatio), 1, Math.Max(1, width));
@@ -1144,16 +1138,13 @@ internal sealed class CameraBarcodeMotionGate : IDisposable
 internal sealed class CameraBarcodeRecognitionService : IDisposable
 {
     private static readonly TimeSpan GuideInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan FullFrameInterval = TimeSpan.FromMilliseconds(900);
     private static readonly TimeSpan SlowDecodeThreshold = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan SlowDecodeLogInterval = TimeSpan.FromSeconds(30);
 
     private readonly Func<string, bool> _candidateValidator;
-    private readonly Func<bool>? _fullFrameAllowed;
     private readonly Func<string, TimeSpan>? _intermittentConfirmationWindowProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
     private readonly Func<TimeSpan> _guideIntervalProvider;
-    private readonly Func<TimeSpan> _fullFrameIntervalProvider;
     private readonly bool _reportVisibleCodes;
     private readonly CameraBarcodeFrameDecoder _decoder = new();
     private readonly CameraBarcodeMotionGate _motionGate = new();
@@ -1164,10 +1155,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _workerTask;
     private Mat? _pendingFrame;
-    private bool _pendingAllowFullFrame;
     private int _pendingGeneration;
     private DateTimeOffset _lastAcceptedAt;
-    private DateTimeOffset _lastFullFrameAttemptAt;
     private DateTimeOffset _lastSlowDecodeLogAt;
     private DateTimeOffset _lastRecognitionErrorLogAt;
     private string _lastInvalidCandidate = "";
@@ -1186,28 +1175,24 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
     public CameraBarcodeRecognitionService(
         Func<string, bool> candidateValidator,
-        Func<bool>? fullFrameAllowed = null,
         Func<string, TimeSpan>? intermittentConfirmationWindowProvider = null,
         Func<TimeSpan>? rearmDelayProvider = null,
         bool reportVisibleCodes = false,
         TimeSpan? invalidCandidateThrottle = null,
         Func<DateTimeOffset>? utcNowProvider = null,
-        Func<TimeSpan>? guideIntervalProvider = null,
-        Func<TimeSpan>? fullFrameIntervalProvider = null)
+        Func<TimeSpan>? guideIntervalProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
-        _fullFrameAllowed = fullFrameAllowed;
         _intermittentConfirmationWindowProvider = intermittentConfirmationWindowProvider;
         _rearmDelayProvider = rearmDelayProvider;
         _guideIntervalProvider = guideIntervalProvider ?? (() => GuideInterval);
-        _fullFrameIntervalProvider = fullFrameIntervalProvider ?? (() => FullFrameInterval);
         _reportVisibleCodes = reportVisibleCodes;
         _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
         _utcNow = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
-    public bool TrySubmitFrame(Mat frame, bool allowFullFrame)
+    public bool TrySubmitFrame(Mat frame)
     {
         if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
             return false;
@@ -1232,7 +1217,6 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             replacement = frame.Clone();
             dropped = _pendingFrame;
             _pendingFrame = replacement;
-            _pendingAllowFullFrame = allowFullFrame;
             _pendingGeneration = _generation;
             if (dropped != null)
                 Interlocked.Increment(ref _droppedFrames);
@@ -1289,12 +1273,10 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 await _pendingSignal.WaitAsync(_cts.Token).ConfigureAwait(false);
 
                 Mat? frame;
-                bool allowFullFrame;
                 int generation;
                 lock (_pendingLock)
                 {
                     frame = _pendingFrame;
-                    allowFullFrame = _pendingAllowFullFrame;
                     generation = _pendingGeneration;
                     _pendingFrame = null;
                 }
@@ -1302,7 +1284,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                     continue;
 
                 using (frame)
-                    ProcessFrame(frame, allowFullFrame, generation);
+                    ProcessFrame(frame, generation);
             }
         }
         catch (OperationCanceledException) { }
@@ -1312,7 +1294,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         }
     }
 
-    private void ProcessFrame(Mat frame, bool allowFullFrame, int generation)
+    private void ProcessFrame(Mat frame, int generation)
     {
         var stopwatch = Stopwatch.StartNew();
         string? code = null;
@@ -1320,17 +1302,6 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         {
             code = _decoder.DecodeGuideRegion(frame, IsValidCandidate);
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            TimeSpan fullFrameInterval = _fullFrameIntervalProvider();
-            if (fullFrameInterval <= TimeSpan.Zero)
-                fullFrameInterval = FullFrameInterval;
-            if (code == null
-                && allowFullFrame
-                && (_fullFrameAllowed?.Invoke() ?? true)
-                && now - _lastFullFrameAttemptAt >= fullFrameInterval)
-            {
-                _lastFullFrameAttemptAt = now;
-                code = _decoder.DecodeFullFrame(frame, IsValidCandidate);
-            }
 
             if (code != null && !IsValidCandidate(code))
             {

@@ -752,15 +752,12 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _cameraBarcodeRecognition = new CameraBarcodeRecognitionService(
                 IsAutoSubmitScanCandidate,
-                () => !IsRecording && CanSubmitCameraBarcode(),
                 code => Config.EnableSameBarcodeStopRecording
                     && CameraBarcodeCandidatePolicy.IsCurrentRecordingCode(code, _recordingOrderId, IsRecording)
                         ? TimeSpan.FromSeconds(Config.CameraSameBarcodeConfirmationSeconds)
                         : TimeSpan.Zero,
                 () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds),
                 guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
-                    Config.CameraBarcodeRecognitionSpeed),
-                fullFrameIntervalProvider: () => CameraBarcodeSpeed.FullFrameIntervalFor(
                     Config.CameraBarcodeRecognitionSpeed));
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
@@ -782,7 +779,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!CanSubmitCameraBarcode())
                 return;
 
-            _cameraBarcodeRecognition?.TrySubmitFrame(frame, allowFullFrame: !IsRecording);
+            _cameraBarcodeRecognition?.TrySubmitFrame(frame);
         }
 
         public async Task<string> ScanHostPairingQrAsync(CancellationToken cancellationToken)

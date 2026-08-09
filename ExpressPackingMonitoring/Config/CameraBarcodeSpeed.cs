@@ -22,12 +22,4 @@ public static class CameraBarcodeSpeed
         Intermittent => TimeSpan.FromMilliseconds(1000),
         _ => TimeSpan.FromMilliseconds(250)
     };
-
-    /// 整帧兜底的间隔：与取景框档位按相同节奏缩放，避免间歇档下整帧比框内更频繁。
-    public static TimeSpan FullFrameIntervalFor(string? speed) => speed switch
-    {
-        Realtime => TimeSpan.FromMilliseconds(400),
-        Intermittent => TimeSpan.FromMilliseconds(3000),
-        _ => TimeSpan.FromMilliseconds(900)
-    };
 }

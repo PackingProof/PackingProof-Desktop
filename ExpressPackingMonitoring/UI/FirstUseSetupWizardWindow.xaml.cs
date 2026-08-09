@@ -61,8 +61,6 @@ public partial class FirstUseSetupWizardWindow : Window
             IsCameraBarcodeCandidate,
             reportVisibleCodes: true,
             guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
-                _config.CameraBarcodeRecognitionSpeed),
-            fullFrameIntervalProvider: () => CameraBarcodeSpeed.FullFrameIntervalFor(
                 _config.CameraBarcodeRecognitionSpeed));
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
@@ -893,8 +891,7 @@ public partial class FirstUseSetupWizardWindow : Window
             if (recognitionPreview)
             {
                 _cameraBarcodeRecognition.TrySubmitFrame(
-                    frame.Clone(),
-                    allowFullFrame: false);
+                    frame.Clone());
             }
 
             int width = frame.Width;
@@ -1016,8 +1013,7 @@ public partial class FirstUseSetupWizardWindow : Window
             {
                 using Mat recognitionFrame = BitmapToMat(bitmap);
                 _cameraBarcodeRecognition.TrySubmitFrame(
-                    recognitionFrame,
-                    allowFullFrame: false);
+                    recognitionFrame);
             }
             BitmapSource source = ConvertBitmapToSource(bitmap);
             source.Freeze();

@@ -459,20 +459,6 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
-    public void Decoder_FullFrameFallbackFindsBarcodeOutsideGuide()
-    {
-        using Mat frame = CreateFrameWithBarcode(
-            "SF123456789012",
-            BarcodeFormat.CODE_128,
-            inGuide: false,
-            rotate90: true);
-        using var decoder = new CameraBarcodeFrameDecoder();
-
-        Assert.Null(decoder.DecodeGuideRegion(frame));
-        Assert.Equal("SF123456789012", decoder.DecodeFullFrame(frame));
-    }
-
-    [Fact]
     public void Decoder_GuideRegionRecognizesRotatedBarcode()
     {
         using Mat frame = CreateFrameWithBarcode("JD123456789012", BarcodeFormat.CODE_128, inGuide: true, rotate90: true);
@@ -531,7 +517,6 @@ public sealed class CameraBarcodeRecognitionTests
         using var decoder = new CameraBarcodeFrameDecoder();
 
         Assert.Null(decoder.DecodeGuideRegion(frame));
-        Assert.Null(decoder.DecodeFullFrame(frame));
     }
 
     [Fact]
@@ -541,7 +526,6 @@ public sealed class CameraBarcodeRecognitionTests
         using var decoder = new CameraBarcodeFrameDecoder();
 
         Assert.Null(decoder.DecodeGuideRegion(frame));
-        Assert.Null(decoder.DecodeFullFrame(frame));
     }
 
     [Fact]
@@ -551,7 +535,6 @@ public sealed class CameraBarcodeRecognitionTests
         using var decoder = new CameraBarcodeFrameDecoder();
 
         Assert.Null(decoder.DecodeGuideRegion(frame));
-        Assert.Null(decoder.DecodeFullFrame(frame));
     }
 
     [Fact]
@@ -655,23 +638,22 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
-    public async Task RecognitionService_RecordingGateBlocksFullFrameFallback()
+    public async Task RecognitionService_OutsideGuideBarcodeNeverConfirms()
     {
         using Mat frame = CreateFrameWithBarcode(
-            "ZT123456789012",
+            "SF123456789012",
             BarcodeFormat.CODE_128,
             inGuide: false,
             rotate90: true);
         using var service = new CameraBarcodeRecognitionService(
-            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"),
-            fullFrameAllowed: () => false);
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
         int confirmedCount = 0;
         service.BarcodeConfirmed += _ => Interlocked.Increment(ref confirmedCount);
 
-        service.TrySubmitFrame(frame, allowFullFrame: true);
-        await Task.Delay(950, TestContext.Current.CancellationToken);
-        service.TrySubmitFrame(frame, allowFullFrame: true);
-        await Task.Delay(350, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
 
         Assert.Equal(0, Volatile.Read(ref confirmedCount));
     }
@@ -690,16 +672,16 @@ public sealed class CameraBarcodeRecognitionTests
             utcNowProvider: () => now);
         service.InvalidCandidate += received.Add;
 
-        service.TrySubmitFrame(frame, allowFullFrame: false);
+        service.TrySubmitFrame(frame);
         await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Single(received);
 
-        service.TrySubmitFrame(movedFrame, allowFullFrame: false);
+        service.TrySubmitFrame(movedFrame);
         await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Single(received); // 同码且注入时钟未推进，节流窗口内不重复
 
         now = now.AddSeconds(4); // 注入时钟越过节流窗口
-        service.TrySubmitFrame(movedFrame2, allowFullFrame: false);
+        service.TrySubmitFrame(movedFrame2);
         await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Equal(2, received.Count);
     }
@@ -713,7 +695,7 @@ public sealed class CameraBarcodeRecognitionTests
             value => CameraBarcodeCandidatePolicy.IsValidForWorkScan(value, "^[a-zA-Z0-9-]{12,25}$"));
         service.InvalidCandidate += received.Add;
 
-        service.TrySubmitFrame(frame, allowFullFrame: false);
+        service.TrySubmitFrame(frame);
         await Task.Delay(600, TestContext.Current.CancellationToken);
 
         Assert.Contains("6901234567892", received);
@@ -748,18 +730,14 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
-    [InlineData("Realtime", 100, 400)]
-    [InlineData("Standard", 250, 900)]
-    [InlineData("Intermittent", 1000, 3000)]
-    [InlineData("", 250, 900)]
-    [InlineData("Turbo", 250, 900)]
-    public void CameraBarcodeSpeed_IntervalMappingFollowsFriendlyLevel(
-        string speed,
-        int guideMs,
-        int fullMs)
+    [InlineData("Realtime", 100)]
+    [InlineData("Standard", 250)]
+    [InlineData("Intermittent", 1000)]
+    [InlineData("", 250)]
+    [InlineData("Turbo", 250)]
+    public void CameraBarcodeSpeed_IntervalMappingFollowsFriendlyLevel(string speed, int guideMs)
     {
         Assert.Equal(TimeSpan.FromMilliseconds(guideMs), CameraBarcodeSpeed.GuideIntervalFor(speed));
-        Assert.Equal(TimeSpan.FromMilliseconds(fullMs), CameraBarcodeSpeed.FullFrameIntervalFor(speed));
     }
 
     [Fact]
