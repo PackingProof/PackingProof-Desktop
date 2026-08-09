@@ -866,6 +866,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private string _lastInvalidCandidate = "";
     private DateTimeOffset _lastInvalidCandidateAt;
     private readonly TimeSpan _invalidCandidateThrottle;
+    private readonly Func<DateTimeOffset> _utcNow;
     private long _droppedFrames;
     private long _forceDecodeUntilUtcTicks;
     private int _generation;
@@ -882,7 +883,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         Func<string, TimeSpan>? intermittentConfirmationWindowProvider = null,
         Func<TimeSpan>? rearmDelayProvider = null,
         bool reportVisibleCodes = false,
-        TimeSpan? invalidCandidateThrottle = null)
+        TimeSpan? invalidCandidateThrottle = null,
+        Func<DateTimeOffset>? utcNowProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
         _fullFrameAllowed = fullFrameAllowed;
@@ -890,6 +892,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         _rearmDelayProvider = rearmDelayProvider;
         _reportVisibleCodes = reportVisibleCodes;
         _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
+        _utcNow = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
@@ -1069,7 +1072,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         if (_disposed || string.IsNullOrEmpty(code))
             return;
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = _utcNow();
         if (string.Equals(code, _lastInvalidCandidate, StringComparison.Ordinal) &&
             now - _lastInvalidCandidateAt < _invalidCandidateThrottle)
         {

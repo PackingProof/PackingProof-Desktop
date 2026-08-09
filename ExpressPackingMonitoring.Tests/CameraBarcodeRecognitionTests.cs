@@ -621,10 +621,12 @@ public sealed class CameraBarcodeRecognitionTests
         using Mat frame = CreateFrameWithBarcode("1234", BarcodeFormat.CODE_128, inGuide: true);
         using Mat movedFrame = MoveBarcodeRegion(frame, 380, 120);
         using Mat movedFrame2 = MoveBarcodeRegion(frame, 380, 520);
+        DateTimeOffset now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var received = new List<string>();
         using var service = new CameraBarcodeRecognitionService(
             _ => false,
-            invalidCandidateThrottle: TimeSpan.FromMilliseconds(600));
+            invalidCandidateThrottle: TimeSpan.FromSeconds(3),
+            utcNowProvider: () => now);
         service.InvalidCandidate += received.Add;
 
         service.TrySubmitFrame(frame, allowFullFrame: false);
@@ -633,11 +635,11 @@ public sealed class CameraBarcodeRecognitionTests
 
         service.TrySubmitFrame(movedFrame, allowFullFrame: false);
         await Task.Delay(400, TestContext.Current.CancellationToken);
-        Assert.Single(received);
+        Assert.Single(received); // 同码且注入时钟未推进，节流窗口内不重复
 
-        await Task.Delay(3000, TestContext.Current.CancellationToken);
+        now = now.AddSeconds(4); // 注入时钟越过节流窗口
         service.TrySubmitFrame(movedFrame2, allowFullFrame: false);
-        await Task.Delay(800, TestContext.Current.CancellationToken);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.Equal(2, received.Count);
     }
 
