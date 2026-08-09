@@ -214,6 +214,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传完整包 ZIP
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PackingProof+${{ env.PACKAGE_VERSION }}.zip
@@ -222,6 +223,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传 AppPatch 增量包
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ExpressPackingMonitoring_AppPatch_v${{ env.PACKAGE_VERSION }}
@@ -230,6 +232,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传 LauncherPatch 启动器补丁
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PackingProof_LauncherPatch_v${{ env.LAUNCHER_VERSION }}
@@ -238,6 +241,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传更新清单
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: update_v${{ env.PACKAGE_VERSION }}.json
@@ -246,6 +250,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传发布信息
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release_info_v${{ env.PACKAGE_VERSION }}.txt
@@ -254,6 +259,7 @@ jobs:
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 上传启动器基线清单
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: launcher_manifest_v${{ env.PACKAGE_VERSION }}.json
