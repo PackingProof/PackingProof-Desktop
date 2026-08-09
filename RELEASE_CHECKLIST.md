@@ -87,7 +87,7 @@
 - 分别使用两个双击脚本从旧版本升级一次，确认文件校验成功、主程序更新失败可回滚、启动器只替换根入口，配置、数据库、录像和 `app/` 中非目标文件均保留
 - `update_vX.Y.Z.json` 的更新内容与最终发布说明一致，合并发布时包含尚未正式发布版本的有效改动
 - GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen
-- Gitee 上传更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页，仅打开新建 Release 页面，由用户手动填写并上传
+- Gitee 用 `gitee` 命令行发布：先确认 `gitee auth status` 已登录，`gitee release create --tag vX.Y.Z --name "..." --notes "..."` 创建 Release，`gitee release upload vX.Y.Z <文件>...` 上传更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页
 - 使用发布包执行一次 AppPatch 自动升级和 LauncherPatch 自动升级，确认配置、数据库和录像保留，启动器可以正常进入应用
 
 完成以上实机检查后，打包时可传入 `-ConfirmManualCoreChecks` 记录确认状态。未传入时打包脚本会给出警告并继续，发布结果需说明尚未验证的实机场景。

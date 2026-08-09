@@ -51,7 +51,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - Keep release notes in `update_vX.Y.Z.json` synchronized with the final release description before uploading.
 - Keep `launcher_manifest_vX.Y.Z.json` and `release_info_vX.Y.Z.txt` as local verification and handoff files; do not upload them to GitHub or Gitee by default.
 - Gitee releases receive the update JSON, optional AppPatch, and a LauncherPatch only for a new launcher baseline, but not the Setup, full package 7z, or full package zip.
-- For Gitee, open the new-release page for the user and let the user complete the form and upload files manually; do not automate submission unless the user explicitly changes this workflow.
+- Gitee 发布改用 `gitee` 命令行完成（不再手动打开页面）：发布前先 `gitee auth status` 确认已登录；`gitee release create --tag vX.Y.Z --name "..." --notes "..."` 创建 Release，再用 `gitee release upload vX.Y.Z <文件>...` 上传 update JSON、AppPatch，以及仅在本版本建立新启动器基线时上传 LauncherPatch；Setup、完整 7z、完整 ZIP 不上传 Gitee。
 - Update the launcher only when necessary; once its logic changes, publish a new launcher baseline and LauncherPatch instead of modifying the locked bytes.
 
 ## Storage, Cache, and Web Video

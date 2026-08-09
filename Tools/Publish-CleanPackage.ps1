@@ -1287,7 +1287,7 @@ else {
     $releaseInfoLines += "5. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
 }
 $releaseInfoLines += ""
-$releaseInfoLines += "Gitee 手工上传："
+$releaseInfoLines += "Gitee 命令行上传："
 if ($patchSupported) {
     $releaseInfoLines += "1. AppPatch（自动/手动主程序更新）：" + $patchReleaseInfo
     if ($launcherPublishedWithRelease) {
