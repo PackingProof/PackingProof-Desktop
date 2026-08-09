@@ -197,7 +197,9 @@ test('Web UI follows browser language and persists an explicit override', { skip
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await assert.doesNotReject(() => page.getByRole('heading', { name: 'Packing Monitor Recordings' }).waitFor());
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
-    await assert.doesNotReject(() => page.locator('#compatModeText').filter({ hasText: 'Non-H.264 videos are automatically transcoded to H.264' }).waitFor());
+    await page.locator('#compatSettingsButton').click();
+    await assert.doesNotReject(() => page.locator('#compatSettingsMenu').filter({ hasText: 'Playback compatibility' }).waitFor());
+    await assert.doesNotReject(() => page.locator('#compatSettingsMenu input[name="compatChoice"][value="transcode"]').waitFor());
 
     const search = page.getByPlaceholder('Search by order number');
     await search.fill('AUTO_WEB_001');
