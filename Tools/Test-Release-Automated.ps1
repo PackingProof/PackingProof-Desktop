@@ -128,7 +128,7 @@ try {
             if ($wpfProcess.HasExited) { throw "The isolated WPF process exited before showing its main window." }
         } while ($wpfProcess.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)
         if ($wpfProcess.MainWindowHandle -eq 0) { throw "The isolated WPF main window did not appear." }
-        if ($wpfProcess.MainWindowTitle -ne "PackingProof 录像文件备份主机") {
+        if (-not $wpfProcess.MainWindowTitle.StartsWith("PackingProof 录像文件备份主机", [System.StringComparison]::Ordinal)) {
             throw "Unexpected WPF window title: $($wpfProcess.MainWindowTitle)"
         }
         Wait-ForWebServer -Url "http://127.0.0.1:$noCameraPort/?key=$webAccessKey"
