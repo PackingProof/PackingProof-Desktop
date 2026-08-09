@@ -2,12 +2,67 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+// FFmpeg 兼容性矩阵（勿凭单一版本推断）：
+// - FFmpeg 4.4.x：支持 -stimeout，不支持 -fps_mode（须用 -vsync passthrough）；
+//   -timeout 用在 RTSP 上会挂起。
+// - FFmpeg 8.x：支持 -fps_mode，已移除 -stimeout。
+// 因此网络摄像头参数不传 socket 超时选项，由应用层超时兜底。
 public sealed class NetworkCameraSourceTests
 {
+    [Fact]
+    public void BuildArguments_DoesNotUseVersionDependentSocketTimeoutOptions()
+    {
+        string[] argumentSets =
+        [
+            NetworkCameraSource.BuildArguments("rtsp://10.0.0.8:554/stream", "tcp", useFpsMode: false),
+            NetworkCameraSource.BuildArguments("rtsp://10.0.0.8:554/stream", "udp", useFpsMode: true),
+            NetworkCameraSource.BuildArguments("http://10.0.0.8:8080/video.mjpg", "tcp", useFpsMode: false),
+            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "udp", useFpsMode: false)
+        ];
+
+        foreach (string args in argumentSets)
+        {
+            Assert.DoesNotContain("-stimeout", args);
+            Assert.DoesNotContain("-timeout", args);
+            Assert.DoesNotContain("-rw_timeout", args);
+        }
+    }
+
+    [Fact]
+    public void BuildArguments_EveryOptionIsRecognizedByPinnedFfmpeg()
+    {
+        string ffmpegPath = AppPaths.FindFFmpeg();
+        Assert.True(File.Exists(ffmpegPath), "ffmpeg.exe 不存在于测试输出目录");
+        string fullHelp = RunFfmpegFullHelp(ffmpegPath);
+
+        string[] argumentSets =
+        [
+            NetworkCameraSource.BuildArguments("rtsp://10.0.0.8:554/stream", "tcp", useFpsMode: false),
+            NetworkCameraSource.BuildArguments("rtsp://10.0.0.8:554/stream", "udp", useFpsMode: false),
+            NetworkCameraSource.BuildArguments("http://10.0.0.8:8080/video.mjpg", "tcp", useFpsMode: false),
+            NetworkCameraSource.BuildArguments("rtmp://10.0.0.8/live/stream", "udp", useFpsMode: false)
+        ];
+
+        foreach (string args in argumentSets)
+        {
+            foreach (string option in ExtractOptionNames(args))
+            {
+                // -nostdin 是命令行别名，不在 -h full 的选项列表中列出。
+                if (option == "nostdin")
+                    continue;
+                Assert.True(
+                    IsRecognizedByFullHelp(fullHelp, option),
+                    $"随包 ffmpeg 不识别参数 -{option}：{args}");
+            }
+        }
+    }
+
     [Fact]
     public void BuildArguments_RtspUsesTcpTransportAndNoAudio()
     {
@@ -185,5 +240,39 @@ public sealed class NetworkCameraSourceTests
             try { server.Kill(entireProcessTree: true); } catch { }
             try { server.WaitForExit(2000); } catch { }
         }
+    }
+
+    private static string RunFfmpegFullHelp(string ffmpegPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = "-hide_banner -h full",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        using Process process = Process.Start(startInfo)!;
+        string output = process.StandardOutput.ReadToEnd();
+        if (!process.WaitForExit(5000))
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+        }
+        return output;
+    }
+
+    private static IEnumerable<string> ExtractOptionNames(string args)
+    {
+        return Regex.Matches(args, "(^|\\s)-([A-Za-z_]+)(?=\\s|<|\")")
+            .Select(match => match.Groups[2].Value)
+            .Distinct(StringComparer.Ordinal);
+    }
+
+    private static bool IsRecognizedByFullHelp(string fullHelp, string option)
+    {
+        return Regex.IsMatch(
+            fullHelp,
+            "(^|\\s)-" + Regex.Escape(option) + "(\\s|<)");
     }
 }
