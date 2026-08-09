@@ -76,6 +76,7 @@
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>` 更新为本次版本，并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
+- 发布前先把最新 `main` 提交推送到 GitHub 与 Gitee，再创建 `vX.Y.Z` 标签并同步推送两个远端，标签必须指向包含全部发布改动的提交
 - 生成 AppPatch 前必须验证固定基线 FFmpeg 的大小和 SHA256 位于兼容白名单，并确认当前保留的每个 LibVLC 必需文件在基线中存在且哈希一致；基线多出的旧 VLC 插件可以保留
 - 兼容基线生成的 AppPatch 不得包含 `tools/ffmpeg.exe`、任何 `libvlc/` 文件或 VLC 删除记录；无法证明兼容时不得生成大型补丁，更新 JSON 必须关闭 Patch、清空补丁信息并引导用户下载完整版本
 - AppPatch 包含 `patch_manifest.json`、`files/`、`双击更新主程序.cmd`、`apply_app_patch.ps1` 和主程序更新说明，不再生成或嵌套 ManualUpdate 包
