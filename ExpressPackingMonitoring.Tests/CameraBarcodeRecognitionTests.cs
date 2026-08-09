@@ -464,6 +464,49 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void Decoder_PrefersValidOrderCodeWhenInvalidCodeAlsoInFrame()
+    {
+        // 横条是短码（不符合单号规则），竖条才是合法单号。
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "1234",
+            rotateA: false,
+            xA: 380,
+            yA: 150,
+            "YT123456789012",
+            rotateB: true,
+            xB: 612,
+            yB: 350);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        string? code = decoder.DecodeGuideRegion(
+            frame,
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
+
+        Assert.Equal("YT123456789012", code);
+    }
+
+    [Fact]
+    public void Decoder_TwoValidCodesPrefersCloserToGuideCenter()
+    {
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "YT123456789012",
+            rotateA: false,
+            xA: 380,
+            yA: 300,
+            "SF123456789012",
+            rotateB: false,
+            xB: 96,
+            yB: 54);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        string? code = decoder.DecodeGuideRegion(
+            frame,
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
+
+        Assert.Equal("YT123456789012", code);
+    }
+
+    [Fact]
     public void Decoder_DoesNotAcceptEanProductBarcode()
     {
         using Mat frame = CreateFrameWithBarcode("6901234567892", BarcodeFormat.EAN_13, inGuide: true);
@@ -869,6 +912,55 @@ public sealed class CameraBarcodeRecognitionTests
         using Mat target = frame.SubMat(new Rect(x, y, oriented.Width, oriented.Height));
         oriented.CopyTo(target);
         return frame;
+    }
+
+    private static Mat CreateFrameWithTwoBarcodes(
+        string valueA,
+        bool rotateA,
+        int xA,
+        int yA,
+        string valueB,
+        bool rotateB,
+        int xB,
+        int yB)
+    {
+        var frame = new Mat(new OpenCvSharp.Size(1280, 720), MatType.CV_8UC3, Scalar.White);
+        using Mat barcodeA = CreateBarcodeMat(valueA, rotateA);
+        using Mat targetA = frame.SubMat(new Rect(xA, yA, barcodeA.Width, barcodeA.Height));
+        barcodeA.CopyTo(targetA);
+        using Mat barcodeB = CreateBarcodeMat(valueB, rotateB);
+        using Mat targetB = frame.SubMat(new Rect(xB, yB, barcodeB.Width, barcodeB.Height));
+        barcodeB.CopyTo(targetB);
+        return frame;
+    }
+
+    private static Mat CreateBarcodeMat(string value, bool rotate90)
+    {
+        var writer = new BarcodeWriterPixelData
+        {
+            Format = BarcodeFormat.CODE_128,
+            Options = new EncodingOptions
+            {
+                Width = rotate90 ? 280 : 520,
+                Height = rotate90 ? 56 : 120,
+                Margin = 16,
+                PureBarcode = true
+            }
+        };
+        var pixels = writer.Write(value);
+        using Mat bgra = Mat.FromPixelData(
+            pixels.Height,
+            pixels.Width,
+            MatType.CV_8UC4,
+            pixels.Pixels).Clone();
+        using Mat barcode = new();
+        Cv2.CvtColor(bgra, barcode, ColorConversionCodes.BGRA2BGR);
+        using Mat oriented = new();
+        if (rotate90)
+            Cv2.Rotate(barcode, oriented, RotateFlags.Rotate90Clockwise);
+        else
+            barcode.CopyTo(oriented);
+        return oriented.Clone();
     }
 
     private static Mat MoveBarcodeRegion(Mat source, int x, int y)

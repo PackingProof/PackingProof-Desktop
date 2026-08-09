@@ -436,6 +436,16 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         BarcodeFormat.CODE_39
     ];
 
+    private readonly BarcodeReaderGeneric _fastReader = new()
+    {
+        AutoRotate = false,
+        Options = new DecodingOptions
+        {
+            TryHarder = false,
+            PossibleFormats = AllowedFormats.ToList()
+        }
+    };
+
     private readonly BarcodeReaderGeneric _reader = new()
     {
         AutoRotate = false,
@@ -462,10 +472,27 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             return null;
 
         using Mat cropped = new(frame, guide);
-        return Decode(cropped, _guideWorkspace);
+        return DecodeSingle(cropped, _guideWorkspace);
     }
 
-    public string? DecodeFullFrame(Mat frame) => Decode(frame, _fullFrameWorkspace);
+    public string? DecodeGuideRegion(Mat frame, Func<string, bool>? isValid)
+    {
+        if (frame == null || frame.IsDisposed || frame.Empty())
+            return null;
+
+        Rect guide = GetGuideRect(frame.Width, frame.Height);
+        if (guide.Width <= 0 || guide.Height <= 0)
+            return null;
+
+        using Mat cropped = new(frame, guide);
+        return DecodeBest(cropped, _guideWorkspace, isValid, guide);
+    }
+
+    public string? DecodeFullFrame(Mat frame)
+        => DecodeSingle(frame, _fullFrameWorkspace);
+
+    public string? DecodeFullFrame(Mat frame, Func<string, bool>? isValid)
+        => DecodeBest(frame, _fullFrameWorkspace, isValid, new Rect(0, 0, frame.Width, frame.Height));
 
     internal static Rect GetGuideRect(int width, int height)
     {
@@ -474,7 +501,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         return new Rect((width - guideWidth) / 2, (height - guideHeight) / 2, guideWidth, guideHeight);
     }
 
-    private string? Decode(Mat frame, DecodeWorkspace workspace)
+    private string? DecodeSingle(Mat frame, DecodeWorkspace workspace)
     {
         if (frame == null || frame.IsDisposed || frame.Empty())
             return null;
@@ -518,14 +545,232 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
                 source.Width,
                 source.Height,
                 orientation);
-            result = _reader.Decode(luminance);
+            result = _fastReader.Decode(luminance) ?? _reader.Decode(luminance);
         }
         if (result == null || !AllowedFormats.Contains(result.BarcodeFormat))
             return null;
 
-        string normalized = (result.Text ?? "").Trim().ToUpperInvariant();
+        string normalized = NormalizeResult(result.Text);
         return normalized.Length == 0 ? null : normalized;
     }
+
+    private string? DecodeBest(
+        Mat frame,
+        DecodeWorkspace workspace,
+        Func<string, bool>? isValid,
+        Rect referenceRect)
+    {
+        if (frame == null || frame.IsDisposed || frame.Empty())
+            return null;
+
+        if (_disposed)
+            return null;
+
+        switch (frame.Channels())
+        {
+            case 1:
+                frame.CopyTo(workspace.Gray);
+                break;
+            case 3:
+                Cv2.CvtColor(frame, workspace.Gray, ColorConversionCodes.BGR2GRAY);
+                break;
+            case 4:
+                Cv2.CvtColor(frame, workspace.Gray, ColorConversionCodes.BGRA2GRAY);
+                break;
+            default:
+                return null;
+        }
+
+        Mat source = PrepareDecodeSize(workspace.Gray, workspace.Scaled);
+        if (!source.IsContinuous())
+        {
+            source.CopyTo(workspace.Continuous);
+            source = workspace.Continuous;
+        }
+
+        int length = checked(source.Width * source.Height);
+        DecodeBuffers buffers = workspace.Buffers;
+        buffers.EnsureSize(length);
+        Marshal.Copy(source.Data, buffers.Pixels, 0, length);
+
+        double centerX = referenceRect.X + referenceRect.Width / 2.0;
+        double centerY = referenceRect.Y + referenceRect.Height / 2.0;
+        var candidates = new List<DecodedCandidate>(4);
+        DecodedCandidate? fallback = null;
+
+        // 快速通道不启用 TryHarder；只有快速通道扫不到时才走慢通道，
+        // 避免每个候选都触发完整的穷举解码。
+        for (int phase = 0; phase < 2; phase++)
+        {
+            BarcodeReaderGeneric reader = phase == 0 ? _fastReader : _reader;
+            candidates.Clear();
+            CollectCandidates(
+                reader,
+                orientation: 0,
+                buffers,
+                source.Width,
+                source.Height,
+                centerX,
+                centerY,
+                candidates);
+            CollectCandidates(
+                reader,
+                orientation: 1,
+                buffers,
+                source.Width,
+                source.Height,
+                centerX,
+                centerY,
+                candidates);
+
+            if (candidates.Count == 0)
+                continue;
+
+            DecodedCandidate? bestValid = SelectBest(candidates, isValid, requireValid: true);
+            if (bestValid != null)
+                return bestValid.Value.Code;
+
+            if (phase == 1)
+                return SelectBest(candidates, null, requireValid: false)?.Code;
+
+            fallback = SelectBest(candidates, null, requireValid: false);
+        }
+
+        return fallback?.Code;
+    }
+
+    private void CollectCandidates(
+        BarcodeReaderGeneric reader,
+        int orientation,
+        DecodeBuffers buffers,
+        int sourceWidth,
+        int sourceHeight,
+        double centerX,
+        double centerY,
+        List<DecodedCandidate> candidates)
+    {
+        var luminance = new ReusableGrayLuminanceSource(
+            buffers.Pixels,
+            buffers.OrientationScratch,
+            sourceWidth,
+            sourceHeight,
+            orientation);
+        Result[]? results = reader.DecodeMultiple(luminance);
+        if (results == null)
+            return;
+
+        foreach (Result result in results)
+        {
+            if (result == null || !AllowedFormats.Contains(result.BarcodeFormat))
+                continue;
+
+            string normalized = NormalizeResult(result.Text);
+            if (normalized.Length == 0)
+                continue;
+
+            double distanceSquared = double.MaxValue;
+            double area = 0;
+            if (TryGetGeometry(
+                    result,
+                    orientation,
+                    sourceWidth,
+                    sourceHeight,
+                    out double barcodeCenterX,
+                    out double barcodeCenterY,
+                    out area))
+            {
+                double dx = barcodeCenterX - centerX;
+                double dy = barcodeCenterY - centerY;
+                distanceSquared = dx * dx + dy * dy;
+            }
+
+            candidates.Add(new DecodedCandidate(normalized, distanceSquared, area));
+        }
+    }
+
+    private static DecodedCandidate? SelectBest(
+        IReadOnlyList<DecodedCandidate> candidates,
+        Func<string, bool>? isValid,
+        bool requireValid)
+    {
+        DecodedCandidate? best = null;
+        foreach (DecodedCandidate candidate in candidates)
+        {
+            if (requireValid && (isValid == null || !isValid(candidate.Code)))
+                continue;
+
+            if (best == null
+                || candidate.DistanceSquared < best.Value.DistanceSquared
+                || (candidate.DistanceSquared == best.Value.DistanceSquared
+                    && candidate.Area > best.Value.Area))
+            {
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    private static bool TryGetGeometry(
+        Result result,
+        int orientation,
+        int sourceWidth,
+        int sourceHeight,
+        out double centerX,
+        out double centerY,
+        out double area)
+    {
+        centerX = 0;
+        centerY = 0;
+        area = 0;
+
+        ResultPoint[]? points = result.ResultPoints;
+        if (points == null || points.Length == 0)
+            return false;
+
+        double minX = double.MaxValue;
+        double minY = double.MaxValue;
+        double maxX = double.MinValue;
+        double maxY = double.MinValue;
+        foreach (ResultPoint point in points)
+        {
+            (double x, double y) = MapToOriginal(
+                point.X,
+                point.Y,
+                orientation,
+                sourceWidth,
+                sourceHeight);
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+        }
+
+        centerX = (minX + maxX) / 2.0;
+        centerY = (minY + maxY) / 2.0;
+        area = Math.Max(0, (maxX - minX) * (maxY - minY));
+        return true;
+    }
+
+    private static (double X, double Y) MapToOriginal(
+        double x,
+        double y,
+        int orientation,
+        int sourceWidth,
+        int sourceHeight) => orientation switch
+        {
+            1 => (sourceWidth - 1 - y, x),
+            2 => (sourceWidth - 1 - x, sourceHeight - 1 - y),
+            3 => (y, sourceHeight - 1 - x),
+            _ => (x, y)
+        };
+
+    private static string NormalizeResult(string? text) =>
+        (text ?? "").Trim().ToUpperInvariant();
+
+    private readonly record struct DecodedCandidate(
+        string Code,
+        double DistanceSquared,
+        double Area);
 
     private Mat PrepareDecodeSize(Mat gray, Mat scaled)
     {
@@ -685,6 +930,8 @@ internal sealed class ReusableGrayLuminanceSource : LuminanceSource
     private readonly int _sourceWidth;
     private readonly int _sourceHeight;
     private readonly int _orientation;
+    private readonly int _cropLeft;
+    private readonly int _cropTop;
 
     public ReusableGrayLuminanceSource(
         byte[] pixels,
@@ -692,15 +939,40 @@ internal sealed class ReusableGrayLuminanceSource : LuminanceSource
         int sourceWidth,
         int sourceHeight,
         int orientation)
+        : this(
+            pixels,
+            orientationScratch,
+            sourceWidth,
+            sourceHeight,
+            orientation,
+            cropLeft: 0,
+            cropTop: 0,
+            width: orientation % 2 == 0 ? sourceWidth : sourceHeight,
+            height: orientation % 2 == 0 ? sourceHeight : sourceWidth)
+    {
+    }
+
+    private ReusableGrayLuminanceSource(
+        byte[] pixels,
+        byte[] orientationScratch,
+        int sourceWidth,
+        int sourceHeight,
+        int orientation,
+        int cropLeft,
+        int cropTop,
+        int width,
+        int height)
         : base(
-            orientation % 2 == 0 ? sourceWidth : sourceHeight,
-            orientation % 2 == 0 ? sourceHeight : sourceWidth)
+            width,
+            height)
     {
         _pixels = pixels;
         _orientationScratch = orientationScratch;
         _sourceWidth = sourceWidth;
         _sourceHeight = sourceHeight;
         _orientation = orientation;
+        _cropLeft = cropLeft;
+        _cropTop = cropTop;
     }
 
     public override byte[] getRow(int y, byte[] row)
@@ -711,7 +983,7 @@ internal sealed class ReusableGrayLuminanceSource : LuminanceSource
             row = new byte[Width];
 
         for (int x = 0; x < Width; x++)
-            row[x] = GetPixel(x, y);
+            row[x] = GetPixel(x + _cropLeft, y + _cropTop);
         return row;
     }
 
@@ -719,17 +991,36 @@ internal sealed class ReusableGrayLuminanceSource : LuminanceSource
     {
         get
         {
-            if (_orientation == 0)
+            if (_orientation == 0 && _cropLeft == 0 && _cropTop == 0)
                 return _pixels;
 
             int index = 0;
             for (int y = 0; y < Height; y++)
             {
                 for (int x = 0; x < Width; x++)
-                    _orientationScratch[index++] = GetPixel(x, y);
+                    _orientationScratch[index++] = GetPixel(x + _cropLeft, y + _cropTop);
             }
             return _orientationScratch;
         }
+    }
+
+    public override LuminanceSource crop(int left, int top, int width, int height)
+    {
+        if (left < 0 || top < 0 || width <= 0 || height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(left));
+        if (left + width > Width || top + height > Height)
+            throw new ArgumentOutOfRangeException(nameof(width));
+
+        return new ReusableGrayLuminanceSource(
+            _pixels,
+            _orientationScratch,
+            _sourceWidth,
+            _sourceHeight,
+            _orientation,
+            _cropLeft + left,
+            _cropTop + top,
+            width,
+            height);
     }
 
     private byte GetPixel(int x, int y)
@@ -994,7 +1285,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         string? code = null;
         try
         {
-            code = _decoder.DecodeGuideRegion(frame);
+            code = _decoder.DecodeGuideRegion(frame, IsValidCandidate);
             DateTimeOffset now = DateTimeOffset.UtcNow;
             if (code == null
                 && allowFullFrame
@@ -1002,7 +1293,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 && now - _lastFullFrameAttemptAt >= FullFrameInterval)
             {
                 _lastFullFrameAttemptAt = now;
-                code = _decoder.DecodeFullFrame(frame);
+                code = _decoder.DecodeFullFrame(frame, IsValidCandidate);
             }
 
             if (code != null && !IsValidCandidate(code))
