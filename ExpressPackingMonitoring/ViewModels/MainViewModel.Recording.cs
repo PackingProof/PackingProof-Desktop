@@ -700,6 +700,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 ShowToast("开始录像", ToastSeverity.Information);
                 Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
+                if (_currentScanRecord != null)
+                {
+                    _currentScanRecord.IsActive = false;
+                    _currentScanRecord.Duration = "失败";
+                }
                 _currentScanRecord = new ScanRecord(_recordingOrderId, "0s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
             }
@@ -767,6 +772,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 _ = Application.Current.Dispatcher.BeginInvoke(() =>
                 {
                     MarkCurrentRecordingFailed("编码失败", errorDetail, filePath, EncodingHelper.GetCodecFromEncoder(encoder), encoder);
+                    if (_currentScanRecord != null)
+                    {
+                        _currentScanRecord.IsActive = false;
+                        _currentScanRecord.Duration = "失败";
+                        _currentScanRecord = null;
+                    }
+                    RefreshTodayStats();
                     _cameraStartFailedSuppression.RecordFailure(
                         CurrentOrderId ?? "",
                         DateTimeOffset.UtcNow);
