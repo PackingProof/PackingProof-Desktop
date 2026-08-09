@@ -216,6 +216,20 @@ begin
     FileExists(AddBackslash(Dir) + 'ExpressPackingMonitoring.exe');
 end;
 
+procedure RemoveRuntimeLeftovers(const Dir: String);
+var
+  LeftoverDir: String;
+begin
+  LeftoverDir := AddBackslash(Dir) + 'app\winrt-disabled';
+  if DirExists(LeftoverDir) then
+  begin
+    if DelTree(LeftoverDir, True, True, True) then
+      Log('Removed runtime leftover: ' + LeftoverDir)
+    else
+      Log('Failed to remove runtime leftover: ' + LeftoverDir);
+  end;
+end;
+
 function RemoveOldInstall(const Dir: String): String;
 var
   OldUninstaller: String;
@@ -241,7 +255,10 @@ begin
       Result := FmtMessage(CustomMessage('OldVersionRemovalFailed'), [Dir]);
     end
     else
+    begin
       Log('Old install removed via uninstaller: ' + Dir);
+      RemoveRuntimeLeftovers(Dir);
+    end;
     Exit;
   end;
 
