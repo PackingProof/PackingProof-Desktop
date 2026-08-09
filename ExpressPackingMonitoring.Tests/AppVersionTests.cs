@@ -25,6 +25,13 @@ public sealed class AppVersionTests
             AppVersion.ResolveCommitId(null, "0.0.31+0123456789abcdef0123456789abcdef01234567"));
     }
 
+    [Fact]
+    public void Current_DoesNotFallBackToPlaceholderVersion()
+    {
+        Assert.NotEqual("v0.0.0", AppVersion.Current);
+        Assert.False(string.IsNullOrWhiteSpace(AppVersion.Current));
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("not-a-commit", "0.0.31")]
