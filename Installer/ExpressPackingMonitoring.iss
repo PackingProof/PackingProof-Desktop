@@ -177,19 +177,25 @@ end;
 function IsDirectoryWritable(const Dir: String): Boolean;
 var
   TestFile: String;
+  CreatedDir: Boolean;
 begin
   Result := False;
+  CreatedDir := False;
   if not DirExists(Dir) then
   begin
     if not ForceDirectories(Dir) then
       Exit;
+    CreatedDir := True;
   end;
 
   TestFile := AddBackslash(Dir) + 'PackingProofSetupWriteTest.tmp';
-  if SaveStringToFile(TestFile, 'x', False) then
-  begin
+  try
+    if SaveStringToFile(TestFile, 'x', False) then
+      Result := True;
+  finally
     DeleteFile(TestFile);
-    Result := True;
+    if CreatedDir then
+      RemoveDir(Dir);
   end;
 end;
 
@@ -258,6 +264,8 @@ begin
     begin
       Log('Old install removed via uninstaller: ' + Dir);
       RemoveRuntimeLeftovers(Dir);
+      RemoveDir(AddBackslash(Dir) + 'app');
+      RemoveDir(Dir);
     end;
     Exit;
   end;
@@ -281,8 +289,8 @@ begin
   DeleteFile(AddBackslash(Dir) + 'unins000.exe');
   DeleteFile(AddBackslash(Dir) + 'unins000.dat');
 
-  if CompareText(Dir, WizardDirValue) <> 0 then
-    RemoveDir(Dir);
+  RemoveDir(AddBackslash(Dir) + 'app');
+  RemoveDir(Dir);
   Log('Old install files removed directly: ' + Dir);
 end;
 
@@ -568,5 +576,10 @@ begin
         mbError, MB_OK);
   end
   else if CurUninstallStep = usPostUninstall then
+  begin
     DeleteFile(CleanupPlanPath);
+    RemoveRuntimeLeftovers(ExpandConstant('{app}'));
+    RemoveDir(AddBackslash(ExpandConstant('{app}')) + 'app');
+    RemoveDir(ExpandConstant('{app}'));
+  end;
 end;

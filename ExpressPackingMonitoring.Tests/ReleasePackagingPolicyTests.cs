@@ -339,6 +339,10 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("DirHasInstalledApp", innoScript);
         Assert.Contains("RemoveRuntimeLeftovers", innoScript);
         Assert.Contains("app\\winrt-disabled", innoScript);
+        Assert.Contains("CreatedDir", innoScript);
+        Assert.Contains("RemoveDir(Dir)", innoScript);
+        Assert.Contains("RemoveRuntimeLeftovers(ExpandConstant('{app}'))", innoScript);
+        Assert.Contains("RemoveDir(ExpandConstant('{app}'))", innoScript);
         Assert.Contains("OldUninstaller := AddBackslash(Dir) + 'unins000.exe'", innoScript);
         Assert.Contains("'/SILENT'", innoScript);
         Assert.Contains("SW_SHOWNORMAL", innoScript);
