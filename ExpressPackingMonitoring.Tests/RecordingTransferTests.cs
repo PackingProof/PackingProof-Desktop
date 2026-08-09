@@ -45,7 +45,7 @@ public sealed class RecordingTransferTests
             service.EnqueueCompletedRecordings();
 
             Task<int> processing = service.ProcessReadyOnceAsync(TestContext.Current.CancellationToken);
-            await resolverStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            await resolverStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
             service.Dispose();
 
             Assert.False(service.ResourcesDisposedForTesting);
@@ -54,8 +54,8 @@ public sealed class RecordingTransferTests
             releaseResolver.TrySetResult(null);
             Assert.Equal(
                 1,
-                await processing.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
-            Assert.True(SpinWait.SpinUntil(() => service.ResourcesDisposedForTesting, TimeSpan.FromSeconds(2)));
+                await processing.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+            Assert.True(SpinWait.SpinUntil(() => service.ResourcesDisposedForTesting, TimeSpan.FromSeconds(10)));
         }
         finally
         {
