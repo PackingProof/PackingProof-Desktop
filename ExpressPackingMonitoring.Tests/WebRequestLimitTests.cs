@@ -177,6 +177,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("id=\"desktopAppDownloadCopy\"", html);
         Assert.Contains(".app-download-actions{display:flex;gap:8px;margin-top:11px}", html);
         Assert.Contains("const target=document.querySelector('.top-actions');", html);
+        Assert.Contains("titleBlock.appendChild(btn)", html);
+        Assert.Contains(".title-block{display:flex;align-items:center;justify-content:space-between", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
