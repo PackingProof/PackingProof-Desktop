@@ -163,6 +163,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           $baseline = Get-Content -Raw -Encoding UTF8 "Tools\launcher-baseline.json" | ConvertFrom-Json
           pwsh -NoProfile -File "Tools\Publish-LauncherBaseline.ps1" -Version $baseline.version
+          "LAUNCHER_VERSION=$($baseline.version)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: 生成发布包（Setup、7z、ZIP、AppPatch、更新清单）
         env:
@@ -231,8 +232,8 @@ jobs:
       - name: 上传 LauncherPatch 启动器补丁
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: PackingProof_LauncherPatch_v${{ env.PACKAGE_VERSION }}
-          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof_LauncherPatch_v${{ env.PACKAGE_VERSION }}.zip
+          name: PackingProof_LauncherPatch_v${{ env.LAUNCHER_VERSION }}
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof_LauncherPatch_v${{ env.LAUNCHER_VERSION }}.zip
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
