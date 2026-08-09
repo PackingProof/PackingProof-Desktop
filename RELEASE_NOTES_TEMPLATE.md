@@ -2,6 +2,7 @@
 
 > 发布前复制本模板并替换全部 `<...>` 占位符；内容必须与 `update_vX.Y.Z.json` 的 `title`、`notes` 保持同步。
 > Release 标题与 `update_vX.Y.Z.json` 的 `title` 固定为：`v<X.Y.Z> <一句话内容>`（版本号开头，不加产品名或“发布”等前缀），例如 `v0.0.42 体验优化与兼容修复`。
+> 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，并在正文首行注明“预览版”。
 
 <完整下载页/网盘链接，取自 .env 的 FULL_DOWNLOAD_PAGE；没有则删除本行>
 
