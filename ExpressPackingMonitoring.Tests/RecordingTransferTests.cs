@@ -29,7 +29,7 @@ public sealed class RecordingTransferTests
             AppConfig config = CreateConfig(directory, targetNodeId);
             var resolverStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var releaseResolver = new TaskCompletionSource<PackingProofNodeInfo?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var store = new RecordingTransferQueueStore(databasePath);
+            using var store = new RecordingTransferQueueStore(databasePath);
             var service = new RecordingTransferService(
                 store,
                 database,
