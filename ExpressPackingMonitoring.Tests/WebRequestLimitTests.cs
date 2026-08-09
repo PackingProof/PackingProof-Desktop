@@ -168,6 +168,7 @@ public sealed class WebRequestLimitTests
             html);
         Assert.Contains(".mobile-app-download{display:flex;grid-column:1/-1;grid-row:2}", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
+        Assert.Contains(".meta-grid{grid-column:2;grid-row:2;justify-content:flex-end}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
         Assert.Contains(".floating-tools{display:none}", html);
@@ -214,6 +215,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("compatChoiceStorageKey='expressPlaybackCompatChoice'", html);
         Assert.Contains("id=\"compatSettingsButton\"", html);
         Assert.Contains("id=\"compatSettingsMenu\"", html);
+        Assert.Contains("<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65", html);
         Assert.Contains("input type=\"radio\" name=\"compatChoice\"", html);
         Assert.Contains("function probeCodecSupport()", html);
         Assert.Contains("canPlayType", html);
