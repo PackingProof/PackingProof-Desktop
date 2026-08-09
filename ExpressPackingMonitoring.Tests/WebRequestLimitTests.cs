@@ -171,6 +171,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
         Assert.Contains(".meta-grid{grid-column:2;grid-row:2;justify-content:flex-end}", html);
         Assert.Contains(".meta-grid{grid-column:1;grid-row:2;justify-content:flex-start}", html);
+        Assert.Contains("@media (max-width:640px){.video-item{grid-template-columns:1fr}", html);
+        Assert.Contains(".video-thumb{display:none}", html);
         Assert.Contains("id=\"desktopAppDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
         Assert.Contains(".floating-tools{display:none}", html);
