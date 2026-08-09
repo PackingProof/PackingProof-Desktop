@@ -369,6 +369,20 @@ internal sealed class CameraBarcodeStabilityTracker
         ClearCandidate();
     }
 
+    /// 摄像头条码触发开始录像后刷新锁定：同码消失时间从触发那一刻起算，
+    /// 避免启动流程耗时较长时防重复触发提前失效。
+    public void LockFromStartTrigger(string code, DateTimeOffset now)
+    {
+        string normalized = (code ?? "").Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+            return;
+
+        _lockedCodes[normalized] = now;
+        _missingLockedCodesSince.Remove(normalized);
+        if (string.Equals(_candidateCode, normalized, StringComparison.Ordinal))
+            ClearCandidate();
+    }
+
     private void RearmMissingCodes(
         DateTimeOffset now,
         string? observedCode,
@@ -1245,6 +1259,16 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         lock (_trackerLock)
             _stabilityTracker.Reset(preserveConfirmedCodes);
         StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle));
+    }
+
+    /// 摄像头条码触发开始录像后调用：让同码消失时间从该时刻起算。
+    public void MarkStartTriggered(string code)
+    {
+        if (_disposed || string.IsNullOrEmpty(code))
+            return;
+
+        lock (_trackerLock)
+            _stabilityTracker.LockFromStartTrigger(code, _utcNow());
     }
 
     private async Task ProcessLoopAsync()

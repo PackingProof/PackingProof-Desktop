@@ -2710,26 +2710,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="SameBarcodeStopCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          IsEnabled="{Binding IsChecked, ElementName=SameBarcodeStopCheckBox, TargetNullValue=False}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2737,7 +2718,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="同码消失时间" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="原单号离开画面多久后，才允许摄像头再次确认"
+                                            <TextBlock Text="触发开始录像后，原单号离开画面多久才允许再次触发"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
@@ -2755,6 +2736,24 @@
                                                     TickFrequency="0.5"
                                                     Value="{Binding Config.CameraBarcodeRearmSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="仅限同码停录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="再次扫描同一单号才停止录像，扫到其他单号不停止" Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="SameBarcodeStopCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableSameBarcodeStopRecording}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"

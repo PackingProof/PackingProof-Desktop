@@ -180,6 +180,22 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void StabilityTracker_StartTriggerRefreshesRearmClockFromTriggerMoment()
+    {
+        var tracker = Confirm(trackingNumber: "YT123456789012");
+
+        tracker.Observe(null, Start.AddSeconds(0.5));
+        tracker.LockFromStartTrigger("YT123456789012", Start.AddSeconds(1.0));
+        tracker.Observe(null, Start.AddSeconds(1.1));
+        tracker.Observe(null, Start.AddSeconds(4.2));
+        CameraBarcodeObservation candidate = tracker.Observe(
+            "YT123456789012",
+            Start.AddSeconds(4.25));
+
+        Assert.Equal("YT123456789012", candidate.CandidateCode);
+    }
+
+    [Fact]
     public void StabilityTracker_FirstReappearanceAfterRearmDelayUnlocksSameCode()
     {
         var tracker = Confirm(trackingNumber: "YT123456789012");

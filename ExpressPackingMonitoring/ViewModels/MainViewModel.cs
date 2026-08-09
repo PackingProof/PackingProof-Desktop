@@ -1131,6 +1131,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             string upperResult = decision.NormalizedValue;
+            // 摄像头触发开始/切换录像后，同码消失时间从这一刻起算，
+            // 防止启动流程耗时较长时防重复触发提前失效。
+            if (fromCamera
+                && _cameraBarcodeRecognition != null
+                && (decision.Action == BarcodeRecordingDecisionAction.Start
+                    || decision.Action == BarcodeRecordingDecisionAction.Switch))
+            {
+                _cameraBarcodeRecognition.MarkStartTriggered(upperResult);
+            }
             // 立即清空扫码框，防止重复触发
             ScanInputText = "";
 
