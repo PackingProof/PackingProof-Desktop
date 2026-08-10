@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Services;
 using System;
@@ -67,33 +68,60 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (fullScan)
                 {
+                    bool hasNetworkLocation = Config.StorageLocations.Any(
+                        location => StorageVolumeInfo.IsNetworkPath(location.Path));
+                    var scannedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var loc in Config.StorageLocations)
                     {
                         if (string.IsNullOrWhiteSpace(loc.Path)) continue;
                         string normalizedPath = Path.IsPathRooted(loc.Path) ? loc.Path : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, loc.Path);
+                        if (StorageVolumeInfo.IsNetworkPath(normalizedPath)) continue;
                         if (!Directory.Exists(normalizedPath)) continue;
-
-                        long locVideoBytes = 0;
-                        foreach (var fi in EnumerateVideoFiles(normalizedPath))
-                            locVideoBytes += fi.Length;
-                        totalCurrentBytes += locVideoBytes;
 
                         long storageCapacity = 0;
                         try
                         {
-                            var driveRoot = Path.GetPathRoot(Path.GetFullPath(normalizedPath));
-                            if (!string.IsNullOrEmpty(driveRoot))
+                            if (StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume)
+                                && scannedRoots.Add(volume.RootPath))
                             {
-                                var driveInfo = new DriveInfo(driveRoot);
-                                if (driveInfo.IsReady)
-                                {
-                                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(loc, driveInfo);
-                                    storageCapacity = Math.Max(0, driveInfo.AvailableFreeSpace - reserveBytes) + locVideoBytes;
-                                }
+                                long locVideoBytes = 0;
+                                foreach (var fi in EnumerateVideoFiles(normalizedPath))
+                                    locVideoBytes += fi.Length;
+                                totalCurrentBytes += locVideoBytes;
+                                long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(loc, volume);
+                                storageCapacity = Math.Max(0, volume.AvailableFreeSpace - reserveBytes) + locVideoBytes;
                             }
                         }
                         catch { }
                         totalCapacityBytes += storageCapacity;
+                    }
+
+                    if (hasNetworkLocation && !string.IsNullOrWhiteSpace(Config.LocalRecordingBufferPath))
+                    {
+                        string bufferPath = Path.IsPathRooted(Config.LocalRecordingBufferPath)
+                            ? Config.LocalRecordingBufferPath
+                            : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Config.LocalRecordingBufferPath);
+                        if (Directory.Exists(bufferPath))
+                        {
+                            long bufferCapacity = 0;
+                            try
+                            {
+                                if (StorageVolumeInfo.TryGet(bufferPath, out StorageVolumeInfo volume)
+                                    && scannedRoots.Add(volume.RootPath))
+                                {
+                                    long bufferVideoBytes = 0;
+                                    foreach (var fi in EnumerateVideoFiles(bufferPath))
+                                        bufferVideoBytes += fi.Length;
+                                    totalCurrentBytes += bufferVideoBytes;
+                                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
+                                        new StorageLocation { Path = bufferPath, ReserveGB = 0 },
+                                        volume);
+                                    bufferCapacity = Math.Max(0, volume.AvailableFreeSpace - reserveBytes) + bufferVideoBytes;
+                                }
+                            }
+                            catch { }
+                            totalCapacityBytes += bufferCapacity;
+                        }
                     }
 
                     _lastFullDiskCleanup = DateTime.Now;
@@ -149,8 +177,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private void CleanupOldVideos(long totalCurrentBytes, long totalCapacityBytes)
         {
             long bytesToRelease = totalCurrentBytes - (long)(totalCapacityBytes * 0.9);
+            if (bytesToRelease <= 0) return;
             long releasedBytes = 0;
             int count = 0;
+            int skippedUnverified = 0;
+            DateTime now = DateTime.Now;
 
             var oldestRecords = _db?.GetOldestVideos(500);
             if (oldestRecords != null)
@@ -159,18 +190,53 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     try
                     {
-                        if (File.Exists(video.FilePath))
-                        {
-                            long size = new FileInfo(video.FilePath).Length;
-                            File.Delete(video.FilePath);
-                            releasedBytes += size;
-                            count++;
-                        }
-                        _db?.MarkVideoDeleted(video.FilePath, "全局配额清理");
                         if (releasedBytes >= bytesToRelease) break;
+
+                        if (!LocalCopyCleanupPolicy.IsEligibleForCapacityCleanup(video, now, out _))
+                        {
+                            if (video.ArchiveStatus is VideoArchiveStatus.LocalOnly
+                                or VideoArchiveStatus.Pending
+                                or VideoArchiveStatus.Copying
+                                or VideoArchiveStatus.Verifying)
+                            {
+                                skippedUnverified++;
+                            }
+                            continue;
+                        }
+
+                        // 远端轻量确认（存在 + 大小一致），带超时，失败跳过本轮并保留本地副本。
+                        if (!RemoteFileProbe.TryProbeFileWithSize(
+                                video.ArchivePath,
+                                video.FileSizeBytes,
+                                TimeSpan.FromSeconds(3)))
+                        {
+                            RuntimeLog.Warn(
+                                "Cleanup",
+                                $"Skip local cleanup because remote unavailable id={video.Id}, path={video.ArchivePath}");
+                            continue;
+                        }
+
+                        long size = new FileInfo(video.FilePath).Length;
+                        using (VideoLifecycleCoordinator.EnterAsync(
+                                   video.Id,
+                                   CancellationToken.None).GetAwaiter().GetResult())
+                        {
+                            if (!File.Exists(video.FilePath)) continue;
+                            File.Delete(video.FilePath);
+                        }
+                        releasedBytes += size;
+                        count++;
+                        _db?.MarkLocalCopyDeleted(video.Id, "全局配额清理");
                     }
                     catch { }
                 }
+            }
+
+            if (skippedUnverified > 0)
+            {
+                RuntimeLog.Warn(
+                    "Cleanup",
+                    $"Capacity cleanup skipped unverified local copies count={skippedUnverified}");
             }
 
             if (count > 0)

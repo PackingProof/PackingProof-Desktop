@@ -2985,11 +2985,18 @@ namespace ExpressPackingMonitoring.ViewModels
 
             IEnumerable<string> managedRoots = preset == DeploymentPresets.RecordingWorkstation
                 ? [activeFolderPath]
-                : Config.StorageLocations.Select(location =>
-                {
-                    try { return StorageLocationResolver.Resolve(location); }
-                    catch { return ""; }
-                });
+                : Config.StorageLocations
+                    .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                    .Select(location =>
+                    {
+                        try { return StorageLocationResolver.Resolve(location); }
+                        catch { return ""; }
+                    })
+                    .Concat(
+                        Config.StorageLocations.Any(
+                            location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                            ? [Config.LocalRecordingBufferPath]
+                            : []);
             return new VideoFolderImportService(
                 _db,
                 managedRoots,

@@ -314,14 +314,15 @@ namespace ExpressPackingMonitoring.UI
                             record.StorageState,
                             "Remote",
                             StringComparison.OrdinalIgnoreCase);
-                        bool missing = !deleted && !storedOnHost && !File.Exists(record.FilePath);
+                        string resolvedPath = VideoFileResolver.ResolvePlaybackPath(record);
+                        bool missing = !deleted && !storedOnHost && string.IsNullOrWhiteSpace(resolvedPath);
                         FileInfo? info = (deleted || missing || storedOnHost)
                             ? null
-                            : new FileInfo(record.FilePath);
+                            : new FileInfo(resolvedPath);
                         videos.Add(new VideoItem
                         {
                             DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
-                            FullPath = record.FilePath,
+                            FullPath = string.IsNullOrWhiteSpace(resolvedPath) ? record.FilePath : resolvedPath,
                             OrderId = record.OrderId,
                             Mode = record.Mode,
                             Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",

@@ -141,6 +141,7 @@
     <Compile Include="Services\FeedbackMailLauncher.cs" />
     <Compile Include="Services\IArchiveProvider.cs" />
     <Compile Include="Services\LanRequestRateLimiter.cs" />
+    <Compile Include="Services\LocalCopyCleanupPolicy.cs" />
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />
@@ -154,6 +155,7 @@
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
     <Compile Include="Services\RecordingProfileDetector.cs" />
     <Compile Include="Services\RecordingWorkstationCachePolicy.cs" />
+    <Compile Include="Services\RemoteFileProbe.cs" />
     <Compile Include="Services\RecordingTransferService.cs" />
     <Compile Include="Services\RootLauncherStartupService.cs" />
     <Compile Include="Services\CompletedVideoSpecificationProbe.cs" />
@@ -165,6 +167,7 @@
     <Compile Include="Services\StorageLocationResolver.cs" />
     <Compile Include="Services\TaskbarIdentityService.cs" />
     <Compile Include="Services\VideoClipService.cs" />
+    <Compile Include="Services\VideoFileResolver.cs" />
     <Compile Include="Services\VideoFolderImportService.cs" />
     <Compile Include="Services\WebServer.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />
