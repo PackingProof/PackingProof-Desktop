@@ -2042,7 +2042,7 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
-                                    <TextBlock Text="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，网络归档位置至少预留 10GB 或 2%；网络归档校验通过后才会清理旧本地副本"
+                                    <TextBlock Text="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，网络归档位置至少预留 10GB 或 2%；网络归档校验通过后才会清理旧本地副本；网络归档满时会提示，程序不会删除 NAS 上的文件"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="{StaticResource SettingInlineTopMargin}">
