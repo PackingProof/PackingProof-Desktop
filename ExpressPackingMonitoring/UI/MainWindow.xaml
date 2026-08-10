@@ -965,6 +965,10 @@
                                                                      Value="上传失败">
                                                             <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RecordingTransferShortStatusText, Mode=OneWay}"
+                                                                     Value="需要重新连接">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>

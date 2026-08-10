@@ -235,17 +235,6 @@ public partial class MainViewModel
     private void ChangeBoundHost(Window? owner = null)
     {
         if (!IsRecordingWorkstation) return;
-        RecordingTransferSummary? summary = _recordingTransferStore?.GetSummary();
-        if (!ShouldPromptRecordingWorkstationHostBinding(Config)
-            && summary != null
-            && summary.PendingCount + summary.UploadingCount + summary.FailedCount > 0)
-        {
-            AppDialog.Warning(
-                null,
-                "仍有录像等待上传。为避免已有任务被静默改到另一台主机，请等待队列完成后再更换主机",
-                "暂时无法更换主机");
-            return;
-        }
 
         var window = new ViewerClientWindow(
             Config,
@@ -389,16 +378,24 @@ public partial class MainViewModel
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
         LastRecordingTransferError = summary.LastError;
+        bool requiresReconnect = IsReconnectRequiredError(summary.LastError);
         RecordingTransferCardState cardState = BuildRecordingTransferCardState(
             summary.PendingCount,
             summary.UploadingCount,
             summary.FailedCount,
             RecordingTransferProgress,
             string.Equals(BoundHostOnlineStatusText, "离线", StringComparison.Ordinal),
-            recentlyUploaded);
+            recentlyUploaded,
+            requiresReconnect);
         RecordingTransferShortStatusText = cardState.ShortStatusText;
         RecordingTransferStatusText = cardState.DetailText;
     }
+
+    internal static bool IsReconnectRequiredError(string? error) =>
+        !string.IsNullOrWhiteSpace(error)
+        && (error.Contains("设备令牌无效", StringComparison.Ordinal)
+            || error.Contains("重新连接保存主机", StringComparison.Ordinal)
+            || error.Contains("未允许本机连接", StringComparison.Ordinal));
 
     internal static RecordingTransferCardState BuildRecordingTransferCardState(
         int pendingCount,
@@ -406,7 +403,8 @@ public partial class MainViewModel
         int failedCount,
         double progress,
         bool hostOffline,
-        bool recentlyUploaded)
+        bool recentlyUploaded,
+        bool requiresReconnect = false)
     {
         int totalCount = Math.Max(0, pendingCount)
             + Math.Max(0, uploadingCount)
@@ -420,6 +418,12 @@ public partial class MainViewModel
 
         if (failedCount > 0)
         {
+            if (requiresReconnect)
+            {
+                return new RecordingTransferCardState(
+                    "需要重新连接",
+                    "需要重新连接保存主机，录像仍保存在本机");
+            }
             return new RecordingTransferCardState(
                 "上传失败",
                 $"{totalCount} 个录像等待重试，录像仍保存在本机");
