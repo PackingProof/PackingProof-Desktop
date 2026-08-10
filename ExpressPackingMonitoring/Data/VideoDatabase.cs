@@ -884,7 +884,16 @@ namespace ExpressPackingMonitoring.Data
                         MkvLastAttemptAt = NULL,
                         MkvFailureCount = 0,
                         MkvLastError = '',
-                        MkvLastNotifiedAt = NULL
+                        MkvLastNotifiedAt = NULL,
+                        ArchivePath = CASE WHEN ArchivePath LIKE '%.mkv' THEN replace(ArchivePath, '.mkv', '.mp4') ELSE ArchivePath END,
+                        ArchiveStatus = CASE
+                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                                THEN 'Pending'
+                            ELSE ArchiveStatus END,
+                        ArchiveError = CASE
+                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                                THEN ''
+                            ELSE ArchiveError END
                     WHERE FilePath = @oldPath;";
                 cmd.Parameters.AddWithValue("@oldPath", oldPath);
                 cmd.Parameters.AddWithValue("@newPath", newPath);

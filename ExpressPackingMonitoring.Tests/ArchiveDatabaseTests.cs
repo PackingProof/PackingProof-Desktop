@@ -178,4 +178,31 @@ public sealed class ArchiveDatabaseTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, oldest.ArchiveStatus);
         Assert.Equal(@"\\nas\share\x.mp4", oldest.ArchivePath);
     }
+
+    [Fact]
+    public void UpdateVideoFilePath_SyncsArchivePathAndRequeuesVerifiedMkv()
+    {
+        DateTime now = DateTime.Now;
+        string mkvPath = Path.Combine(_directory, "single.mkv");
+        string mp4Path = Path.Combine(_directory, "single.mp4");
+        long id = _database.InsertVideoRecord(
+            "单号B",
+            "发货",
+            "h264",
+            "libx264",
+            mkvPath,
+            now.AddMinutes(-5),
+            archivePath: @"\\nas\share\2026-08-11\single.mkv");
+        _database.UpdateVideoRecordOnStop(id, now, 10, 100, "手动");
+        _database.UpdateArchiveState(id, VideoArchiveStatus.Verified, contentSha256: "h", completedAt: now);
+
+        File.WriteAllText(mp4Path, "mp4");
+        _database.UpdateVideoFilePath(mkvPath, mp4Path);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(mp4Path, record.FilePath);
+        Assert.Equal(@"\\nas\share\2026-08-11\single.mp4", record.ArchivePath);
+        Assert.Equal(VideoArchiveStatus.Pending, record.ArchiveStatus);
+        Assert.Equal("", record.ArchiveError);
+    }
 }

@@ -199,6 +199,13 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             mobileBackupComputerName: Environment.MachineName,
             mobileBackupStateDirectory: _stateDirectory,
             mobileBackupRecordingRootResolver: () => StorageLocationResolver.Resolve(_config, allowDefaultFallback: false),
+            mobileBackupArchiveTargetResolver: () =>
+            {
+                RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                    _config,
+                    allowDefaultFallback: false);
+                return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+            },
             nodeId: _config.NodeId,
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,

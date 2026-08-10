@@ -106,6 +106,7 @@ namespace ExpressPackingMonitoring.ViewModels
             var stopReason = _stopReason;
             var scanRecord = _currentScanRecord;
             var recordId = _currentRecordId; 
+            var archiveTarget = _currentArchivePath;
             var audioLogPath = _currentAudioLogPath;
             if (Config.EnableAudioRecording
                 && HasConfiguredAudioDevice()
@@ -125,6 +126,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _currentVideoCodec = null;
             _currentVideoEncoder = null;
             _currentRecordId = 0;
+            _currentArchivePath = "";
             _currentFfmpegProcess = null;
             _recordingOrderId = null;
 
@@ -179,6 +181,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         string durStr = durSec < 60 ? $"{durSec}s" : $"{(int)durSec / 60}m {durSec % 60}s";
 
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
+                        if (!string.IsNullOrWhiteSpace(archiveTarget) && recordId > 0)
+                        {
+                            _db?.MarkArchivePending(recordId);
+                            RuntimeLog.Info("Recording", $"Recording marked for archive id={recordId}, target={archiveTarget}");
+                        }
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
                             _pendingRecordingSpecificationChecks[filePath] =
@@ -229,16 +236,20 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private string ResolveBestStoragePath()
+        private string ResolveBestStoragePath() =>
+            ResolveBestStoragePlan().WorkingRootPath;
+
+        private RecordingStoragePlan ResolveBestStoragePlan()
         {
             if (IsRecordingWorkstation)
             {
                 StorageLocation location =
                     RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
                     ?? throw new IOException("尚未设置本地缓存位置");
-                return StorageLocationResolver.Resolve(location);
+                string resolved = StorageLocationResolver.Resolve(location);
+                return new RecordingStoragePlan(resolved, "", false);
             }
-            return StorageLocationResolver.Resolve(Config, allowDefaultFallback: true);
+            return StorageLocationResolver.ResolveRecordingPlan(Config, allowDefaultFallback: true);
         }
 
         private StorageLocationEvaluation TryEvaluateStorageLocation(StorageLocation loc)
@@ -547,7 +558,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 string baseFolder;
                 try
                 {
-                    baseFolder = ResolveBestStoragePath();
+                    RecordingStoragePlan storagePlan = ResolveBestStoragePlan();
+                    baseFolder = storagePlan.WorkingRootPath;
+                    _currentArchivePath = storagePlan.RequiresNetworkArchive
+                        ? storagePlan.ArchiveTarget
+                        : "";
                     if (!IsDirectoryWritable(baseFolder))
                     {
                         ShowToast("存储路径不可写，请检查磁盘", ToastSeverity.Warning);
@@ -557,6 +572,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 catch (Exception ex)
                 {
+                    _currentArchivePath = "";
                     ShowToast($"存储初始化失败: {ex.Message}", ToastSeverity.Error);
                     return;
                 }
@@ -574,6 +590,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 string fileName = $"{CurrentOrderId}_{DateTime.Now:yyyyMMdd_HHmmss}_{CurrentMode}.mkv";
                 string filePath = Path.Combine(dateFolder, fileName);
+                string archivePath = string.IsNullOrWhiteSpace(_currentArchivePath)
+                    ? ""
+                    : ArchivePathBuilder.BuildLocalRecordingArchivePath(
+                        _currentArchivePath,
+                        DateTime.Now,
+                        fileName);
                 string audioFilePath = Path.ChangeExtension(filePath, ".wav");
                 string audioLogPath = Path.ChangeExtension(filePath, ".audio.log");
                 RuntimeLog.Info("Recording", $"Start requested order={CurrentOrderId}, mode={CurrentMode}, file={fileName}, codec={Config.VideoCodec}");
@@ -695,7 +717,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     _recordStartTime,
                     orderInfoSnapshot,
                     Config.MobileBackupComputerId,
-                    Environment.MachineName) ?? 0;
+                    Environment.MachineName,
+                    archivePath) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");
 
                 ShowToast("开始录像", ToastSeverity.Information);

@@ -126,6 +126,7 @@
     <Compile Include="Services\LauncherUpdateService.cs" />
     <Compile Include="Services\UninstallCleanupService.cs" />
     <Compile Include="Services\AlertService.cs" />
+    <Compile Include="Services\ArchivePathBuilder.cs" />
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\BackupDeviceIdentity.cs" />
     <Compile Include="Services\BackupCompatibilityPolicy.cs" />

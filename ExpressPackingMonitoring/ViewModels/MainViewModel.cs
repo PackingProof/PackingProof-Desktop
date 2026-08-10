@@ -242,6 +242,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private ScanRecord _currentScanRecord;
         private long _currentRecordId; 
         private string _currentVideoFilePath;  // 当前录制文件路径
+        private string _currentArchivePath = ""; // 当前录像对应的网络归档目标根（为空表示无需归档）
         private string _currentVideoCodec;
         private string _currentVideoEncoder;
         private string _stopReason = "手动";     // 停止录制的原因

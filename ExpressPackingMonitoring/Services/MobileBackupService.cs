@@ -22,6 +22,8 @@ internal sealed class MobileBackupService
     private readonly string _stateDirectory;
     private readonly Func<string> _recordingRootResolver;
     private readonly Func<string, OrderInfo?> _orderInfoResolver;
+    private readonly Func<string?>? _archiveTargetResolver;
+    private readonly Action? _archivePendingCallback;
     internal const int UploadLockStripeCount = 256;
     private readonly object[] _uploadLocks = Enumerable.Range(0, UploadLockStripeCount)
         .Select(_ => new object())
@@ -45,7 +47,9 @@ internal sealed class MobileBackupService
         VideoDatabase database,
         string stateDirectory,
         Func<string> recordingRootResolver,
-        Func<string, OrderInfo?>? orderInfoResolver = null)
+        Func<string, OrderInfo?>? orderInfoResolver = null,
+        Func<string?>? archiveTargetResolver = null,
+        Action? archivePendingCallback = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _stateDirectory = string.IsNullOrWhiteSpace(stateDirectory)
@@ -54,6 +58,8 @@ internal sealed class MobileBackupService
         _recordingRootResolver = recordingRootResolver
             ?? throw new ArgumentNullException(nameof(recordingRootResolver));
         _orderInfoResolver = orderInfoResolver ?? (_ => null);
+        _archiveTargetResolver = archiveTargetResolver;
+        _archivePendingCallback = archivePendingCallback;
         Directory.CreateDirectory(_stateDirectory);
         CleanupExpiredUploads();
     }
@@ -251,6 +257,12 @@ internal sealed class MobileBackupService
             }
 
             var recordIds = new List<long>(sessions.Count);
+            string archivePath = BuildUploadArchivePath(
+                sessions,
+                fileSha256,
+                request.SourceDeviceId,
+                request.SourceDeviceName,
+                request.SourceDeviceKind);
             for (int index = 0; index < sessions.Count; index++)
             {
                 MobileBackupSessionRequest session = sessions[index];
@@ -277,13 +289,56 @@ internal sealed class MobileBackupService
                     fileSha256,
                     orderInfo,
                     request.SourceDeviceKind,
-                    session.Mode));
+                    session.Mode,
+                    archivePath,
+                    string.IsNullOrWhiteSpace(archivePath)
+                        ? VideoArchiveStatus.LocalOnly
+                        : VideoArchiveStatus.Pending));
             }
+
+            if (!string.IsNullOrWhiteSpace(archivePath))
+                _archivePendingCallback?.Invoke();
 
             DeleteStateFile(uploadId);
             MarkUploadCompleted(uploadId);
             return new MobileBackupCompleteResult("verified", fileSha256, recordIds[0], recordIds, false);
         }
+    }
+
+    private string BuildUploadArchivePath(
+        IReadOnlyList<MobileBackupSessionRequest> sessions,
+        string fileSha256,
+        string sourceDeviceId,
+        string sourceDeviceName,
+        string sourceDeviceKind)
+    {
+        string? archiveTarget;
+        try
+        {
+            archiveTarget = _archiveTargetResolver?.Invoke();
+        }
+        catch
+        {
+            return "";
+        }
+        if (string.IsNullOrWhiteSpace(archiveTarget))
+            return "";
+
+        MobileBackupSessionRequest earliest = sessions.OrderBy(session => session.StartedAt).First();
+        string trackingNumber = sessions
+            .OrderBy(session => session.StartedAt)
+            .Select(session => session.TrackingNumber?.Trim().ToUpperInvariant() ?? "")
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "未识别面单";
+        DateTime startedAt = earliest.StartedAt.ToLocalTime().DateTime;
+        return ArchivePathBuilder.BuildExternalUploadArchivePath(
+            archiveTarget,
+            sourceDeviceKind,
+            sourceDeviceId,
+            sourceDeviceName,
+            startedAt,
+            trackingNumber,
+            earliest.Mode,
+            fileSha256);
     }
 
     internal static OrderInfo? MergeOrderInfo(OrderInfo? computer, OrderInfo? mobile, string trackingNumber)

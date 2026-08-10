@@ -232,6 +232,7 @@ namespace ExpressPackingMonitoring.Services
             string mobileBackupComputerName = null,
             string mobileBackupStateDirectory = null,
             Func<string> mobileBackupRecordingRootResolver = null,
+            Func<string> mobileBackupArchiveTargetResolver = null,
             string nodeId = null,
             string nodeName = null,
             string deploymentPreset = null,
@@ -284,7 +285,8 @@ namespace ExpressPackingMonitoring.Services
                 _db,
                 resolvedMobileBackupStateDirectory,
                 mobileBackupRecordingRootResolver ?? (() => Path.Combine(AppPaths.UserDataDir, "mobile-backup-recordings")),
-                GetOrderInfo);
+                GetOrderInfo,
+                mobileBackupArchiveTargetResolver);
             _mobileBackupService.ActiveUploadsChanged += hasActive =>
             {
                 try { MobileBackupActivityChanged?.Invoke(hasActive); } catch { }
