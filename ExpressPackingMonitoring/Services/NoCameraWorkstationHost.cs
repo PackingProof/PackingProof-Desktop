@@ -126,7 +126,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                 if (WebServer.IsListenerConflict(lanException))
                 {
                     throw new InvalidOperationException(
-                        $"Web 服务端口 {_config.WebServerPort} 已被其他程序或尚未退出的旧版本占用，请关闭旧程序后重试。",
+                        $"Web 服务端口 {_config.WebServerPort} 已被其他程序或尚未退出的旧版本占用，请关闭旧程序后重试",
                         lanException);
                 }
 

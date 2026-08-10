@@ -306,9 +306,9 @@
   <data name="按日" xml:space="preserve"><value>按日</value></data>
   <data name="按月" xml:space="preserve"><value>按月</value></data>
   <data name="按年" xml:space="preserve"><value>按年</value></data>
-  <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。" xml:space="preserve"><value>按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。</value></data>
+  <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址" xml:space="preserve"><value>按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址</value></data>
   <data name="按周" xml:space="preserve"><value>按周</value></data>
-  <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。" xml:space="preserve"><value>按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。</value></data>
+  <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪" xml:space="preserve"><value>按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪</value></data>
   <data name="本月" xml:space="preserve"><value>本月</value></data>
   <data name="本周" xml:space="preserve"><value>本周</value></data>
   <data name="播放/暂停" xml:space="preserve"><value>播放/暂停</value></data>
@@ -342,7 +342,7 @@
   <data name="连续打包模式（推荐）" xml:space="preserve"><value>连续打包模式（推荐）</value></data>
   <data name="录像日期范围:" xml:space="preserve"><value>录像日期范围:</value></data>
   <data name="录制中" xml:space="preserve"><value>录制中</value></data>
-  <data name="能看到实时画面，就说明摄像头基础配置正常。" xml:space="preserve"><value>能看到实时画面，就说明摄像头基础配置正常。</value></data>
+  <data name="能看到实时画面，就说明摄像头基础配置正常" xml:space="preserve"><value>能看到实时画面，就说明摄像头基础配置正常</value></data>
   <data name="配置完成" xml:space="preserve"><value>配置完成</value></data>
   <data name="平均" xml:space="preserve"><value>平均</value></data>
   <data name="平均:" xml:space="preserve"><value>平均:</value></data>
@@ -350,12 +350,12 @@
   <data name="前往下载" xml:space="preserve"><value>前往下载</value></data>
   <data name="打开更新页面" xml:space="preserve"><value>打开更新页面</value></data>
   <data name="请选择这台电脑的用途" xml:space="preserve"><value>请选择这台电脑的用途</value></data>
-  <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别。" xml:space="preserve"><value>请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别。</value></data>
+  <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别" xml:space="preserve"><value>请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别</value></data>
   <data name="全部" xml:space="preserve"><value>全部</value></data>
   <data name="扫码动态" xml:space="preserve"><value>扫码动态</value></data>
   <data name="本机录制动态" xml:space="preserve"><value>本机录制动态</value></data>
-  <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>摄像头识别面单条码开始录制，再次识别同一条码停止录制。</value></data>
-  <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>摄像头识别下一张面单条码后，自动结束上一单并开始下一单。</value></data>
+  <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>摄像头识别面单条码开始录制，再次识别同一条码停止录制</value></data>
+  <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>摄像头识别下一张面单条码后，自动结束上一单并开始下一单</value></data>
   <data name="稍后再说" xml:space="preserve"><value>稍后再说</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>摄像头已休眠</value></data>
   <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
@@ -369,21 +369,21 @@
   <data name="电脑录像配置向导" xml:space="preserve"><value>电脑录像配置向导</value></data>
   <data name="数据" xml:space="preserve"><value>数据</value></data>
   <data name="数量" xml:space="preserve"><value>数量</value></data>
-  <data name="说话时音量条有跳动，就说明麦克风基础配置正常。" xml:space="preserve"><value>说话时音量条有跳动，就说明麦克风基础配置正常。</value></data>
+  <data name="说话时音量条有跳动，就说明麦克风基础配置正常" xml:space="preserve"><value>说话时音量条有跳动，就说明麦克风基础配置正常</value></data>
   <data name="条码冷却中…" xml:space="preserve"><value>条码冷却中…</value></data>
   <data name="跳过" xml:space="preserve"><value>跳过</value></data>
   <data name="同码停录模式" xml:space="preserve"><value>同码停录模式</value></data>
-  <data name="同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内。" xml:space="preserve"><value>同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内。</value></data>
+  <data name="同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内" xml:space="preserve"><value>同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内</value></data>
   <data name="推荐" xml:space="preserve"><value>推荐</value></data>
-  <data name="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单。" xml:space="preserve"><value>推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单。</value></data>
-  <data name="下面是日常打包流程。" xml:space="preserve"><value>下面是日常打包流程。</value></data>
+  <data name="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单" xml:space="preserve"><value>推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单</value></data>
+  <data name="下面是日常打包流程" xml:space="preserve"><value>下面是日常打包流程</value></data>
   <data name="打包模式" xml:space="preserve"><value>打包模式</value></data>
   <data name="选择打包模式" xml:space="preserve"><value>选择打包模式</value></data>
   <data name="选择麦克风" xml:space="preserve"><value>选择麦克风</value></data>
   <data name="选择摄像头" xml:space="preserve"><value>选择摄像头</value></data>
   <data name="占用存储空间" xml:space="preserve"><value>占用存储空间</value></data>
   <data name="占用空间" xml:space="preserve"><value>占用空间</value></data>
-  <data name="这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单。" xml:space="preserve"><value>这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单。</value></data>
+  <data name="这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单" xml:space="preserve"><value>这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单</value></data>
   <data name="正在检查上次连接..." xml:space="preserve"><value>正在检查上次连接...</value></data>
   <data name="正在准备麦克风..." xml:space="preserve"><value>正在准备麦克风...</value></data>
   <data name="正在准备摄像头预览..." xml:space="preserve"><value>正在准备摄像头预览...</value></data>
@@ -525,7 +525,7 @@
   <data name="时间格式为 HH:mm" xml:space="preserve"><value>时间格式为 HH:mm</value></data>
   <data name="时间格式错误" xml:space="preserve"><value>时间格式错误</value></data>
   <data name="不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空" xml:space="preserve"><value>不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空</value></data>
-  <data name="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。" xml:space="preserve"><value>完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。</value></data>
+  <data name="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面" xml:space="preserve"><value>完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面</value></data>
   <data name="手机/电脑连接" xml:space="preserve"><value>手机/电脑连接</value></data>
   <data name="连接录像网页，或先下载 PackingProof 手机录像 App" xml:space="preserve"><value>连接录像网页，或先下载 PackingProof 手机录像 App</value></data>
   <data name="连接录像网页" xml:space="preserve"><value>连接录像网页</value></data>
@@ -700,9 +700,9 @@
   <data name="5. 选择麦克风" xml:space="preserve"><value>5. 选择麦克风</value></data>
   <data name="6. 扫码枪（可选）" xml:space="preserve"><value>6. 扫码枪（可选）</value></data>
   <data name="7. 完成" xml:space="preserve"><value>7. 完成</value></data>
-  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。" xml:space="preserve"><value>推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。</value></data>
-  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>识别或扫描下一张面单条码后，自动结束上一单并开始下一单。</value></data>
-  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>识别或扫描面单条码开始录制，再次识别同一条码停止录制。</value></data>
+  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单" xml:space="preserve"><value>推荐连续打包模式，识别或扫描下一张面单时自动保存上一单</value></data>
+  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>识别或扫描下一张面单条码后，自动结束上一单并开始下一单</value></data>
+  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>识别或扫描面单条码开始录制，再次识别同一条码停止录制</value></data>
   <data name="选择录像使用的摄像头，并确认实时画面显示正常" xml:space="preserve"><value>选择录像使用的摄像头，并确认实时画面显示正常</value></data>
   <data name="是否使用摄像头识别面单" xml:space="preserve"><value>是否使用摄像头识别面单</value></data>
   <data name="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像" xml:space="preserve"><value>开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像</value></data>

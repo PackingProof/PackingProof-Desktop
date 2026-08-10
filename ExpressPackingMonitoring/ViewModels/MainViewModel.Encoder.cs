@@ -288,7 +288,7 @@ namespace ExpressPackingMonitoring.ViewModels
             return
                 "已检测到 NVIDIA 显卡驱动与当前 FFmpeg 的 NVENC 版本不兼容。\n\n" +
                 detailText + "\n\n" +
-                "程序已自动改用 CPU 软编码，录像仍可继续。请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器。";
+                "程序已自动改用 CPU 软编码，录像仍可继续。请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器";
         }
 
         private static bool WaitForEncoderProbeExit(Process process, int timeoutMs)

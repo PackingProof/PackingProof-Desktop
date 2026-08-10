@@ -801,8 +801,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     ShowToast("录制启动失败", ToastSeverity.Error);
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
                     string fallbackNote = fallbackAttempted
-                        ? $"已自动尝试 CPU 软编码（最终编码器: {EncodingHelper.GetEncoderLabel(encoder)}）；若仍失败，请检查摄像头画面和存储路径。"
-                        : "视频编码中途失败（可能已写出部分画面），视频未保存为有效录像。请检查显卡驱动、编码器可用性和存储空间。";
+                        ? $"已自动尝试 CPU 软编码（最终编码器: {EncodingHelper.GetEncoderLabel(encoder)}）；若仍失败，请检查摄像头画面和存储路径"
+                        : "视频编码中途失败（可能已写出部分画面），视频未保存为有效录像。请检查显卡驱动、编码器可用性和存储空间";
                     AppDialog.Error(
                         null,
                         $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n{fallbackNote}",

@@ -2702,7 +2702,7 @@
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="打包模式" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock x:Name="PackingModeHintText"
-                                                       Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。"
+                                                       Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="PackingModeComboBox"

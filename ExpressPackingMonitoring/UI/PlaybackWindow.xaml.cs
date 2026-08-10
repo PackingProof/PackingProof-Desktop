@@ -631,7 +631,7 @@ namespace ExpressPackingMonitoring.UI
 
                 _awaitingFirstFrame = true;
                 if (!_mediaPlayer!.Play(media))
-                    throw new InvalidOperationException("播放器未能启动该文件。");
+                    throw new InvalidOperationException("播放器未能启动该文件");
 
                 _timer.Start();
                 UpdatePlayState(true);
@@ -672,7 +672,7 @@ namespace ExpressPackingMonitoring.UI
         {
             if (VideoList.SelectedItem is not VideoItem video || video.IsUnavailable || string.IsNullOrWhiteSpace(video.FullPath))
             {
-                AppDialog.Warning(this, "请先选择一个可用视频。", "定位文件");
+                AppDialog.Warning(this, "请先选择一个可用视频", "定位文件");
                 return;
             }
 
@@ -683,12 +683,12 @@ namespace ExpressPackingMonitoring.UI
                 {
                     AppDialog.Information(
                         this,
-                        "已打开文件所在文件夹，但系统未能自动选中录像文件。",
+                        "已打开文件所在文件夹，但系统未能自动选中录像文件",
                         "定位文件");
                 }
                 else if (result != FileLocationResult.Selected)
                 {
-                    AppDialog.Error(this, "录像文件不存在或路径无效。", "定位失败");
+                    AppDialog.Error(this, "录像文件不存在或路径无效", "定位失败");
                 }
             }
             catch (Exception ex)
@@ -742,7 +742,7 @@ namespace ExpressPackingMonitoring.UI
                 ShowPlaybackCover("视频解码失败");
                 _timer.Stop();
                 UpdatePlayState(false);
-                AppDialog.Error(this, "播放器解码失败，请确认视频文件完整。", "播放错误");
+                AppDialog.Error(this, "播放器解码失败，请确认视频文件完整", "播放错误");
             });
         }
 
@@ -845,7 +845,7 @@ namespace ExpressPackingMonitoring.UI
             catch (Exception ex)
             {
                 _playerInitializationFailed = true;
-                AppDialog.Error(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放。", "回放错误");
+                AppDialog.Error(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放", "回放错误");
                 return false;
             }
             finally

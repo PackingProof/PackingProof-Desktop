@@ -162,7 +162,7 @@ public partial class FirstUseSetupWizardWindow : Window
         source.Freeze();
 
         TestBarcodeImage.Source = source;
-        TestBarcodeText.Text = $"可选扫码枪测试条码：{_testBarcodeValue}，也可以扫描任意真实面单条码。";
+        TestBarcodeText.Text = $"可选扫码枪测试条码：{_testBarcodeValue}，也可以扫描任意真实面单条码";
     }
 
     private async void FirstUseSetupWizardWindow_Loaded(object sender, RoutedEventArgs e)
@@ -1318,7 +1318,7 @@ public partial class FirstUseSetupWizardWindow : Window
         ScanStatusText.Text =
             "未检测到扫码枪自动回车，已准备切换为窗口内识别。\n" +
             "这种模式需要软件窗口在前台，避免影响其他输入。\n" +
-            "建议按扫码枪说明书，或联系卖家开启“扫描后自动回车 / Enter 后缀”，体验会更稳定。";
+            "建议按扫码枪说明书，或联系卖家开启“扫描后自动回车 / Enter 后缀”，体验会更稳定";
         ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentOrange");
     }
 
@@ -1327,7 +1327,7 @@ public partial class FirstUseSetupWizardWindow : Window
         if (e.Key == Key.Enter || e.Key == Key.Return)
         {
             _scannerDetectedEnter = true;
-            ScanStatusText.Text = "已检测到自动回车，可支持后台扫码。";
+            ScanStatusText.Text = "已检测到自动回车，可支持后台扫码";
             ScanStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentGreen");
             e.Handled = true;
         }

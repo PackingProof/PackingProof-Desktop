@@ -72,6 +72,32 @@ public sealed class LocalizationTests
     }
 
     [Fact]
+    public void WpfViews_StaticVisibleTextDoesNotEndWithChineseFullStop()
+    {
+        string projectPath = Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring");
+        string[] views = Directory.GetFiles(projectPath, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}Themes{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith($"{Path.DirectorySeparatorChar}App.xaml", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        string[] xamlViolations = views
+            .SelectMany(path => Regex.Matches(File.ReadAllText(path), "(?:Text|Content|Header|Title|ToolTip)=\"([^\"]*)\"")
+                .Select(match => match.Groups[1].Value))
+            .Where(value => value.EndsWith("。", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(xamlViolations.Length == 0, "XAML 可见文案不得以句号结尾: " + string.Join(" | ", xamlViolations));
+
+        string zhResxPath = Path.Combine(projectPath, "Resources", "Strings.zh-Hans.resx");
+        string[] resxViolations = Regex.Matches(File.ReadAllText(zhResxPath), "<value>([^<]*)</value>")
+            .Select(match => match.Groups[1].Value)
+            .Where(value => value.EndsWith("。", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(resxViolations.Length == 0, "zh-Hans 资源值不得以句号结尾: " + string.Join(" | ", resxViolations));
+    }
+
+    [Fact]
     public void ToastLiterals_AllHaveEnglishResources()
     {
         string projectPath = Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring");

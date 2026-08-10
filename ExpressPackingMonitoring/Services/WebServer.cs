@@ -340,7 +340,7 @@ namespace ExpressPackingMonitoring.Services
             if (IsTcpPortInUse(Port))
             {
                 throw new InvalidOperationException(
-                    $"Web 服务端口 {Port} 已被其他程序或尚未退出的旧版本占用，请关闭占用程序后重试。");
+                    $"Web 服务端口 {Port} 已被其他程序或尚未退出的旧版本占用，请关闭占用程序后重试");
             }
 
             bool accessConfigured = false;
@@ -351,12 +351,12 @@ namespace ExpressPackingMonitoring.Services
             catch (HttpListenerException ex)
             {
                 if (ex.ErrorCode != 5)
-                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口是否被占用。", ex);
+                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口是否被占用", ex);
 
                 if (!allowAccessSetup)
                 {
                     throw new InvalidOperationException(
-                        "Web 服务缺少监听权限，需要管理员授权后才能启动。",
+                        "Web 服务缺少监听权限，需要管理员授权后才能启动",
                         ex);
                 }
 
@@ -371,7 +371,7 @@ namespace ExpressPackingMonitoring.Services
                 }
                 catch (HttpListenerException retryException)
                 {
-                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口占用、URL ACL 或防火墙权限。", retryException);
+                    throw new InvalidOperationException($"Web 服务监听 http://+:{Port}/ 失败，请检查端口占用、URL ACL 或防火墙权限", retryException);
                 }
             }
 
@@ -435,7 +435,7 @@ namespace ExpressPackingMonitoring.Services
             using WindowsIdentity identity = WindowsIdentity.GetCurrent();
             string userSid = identity.User?.Value;
             if (string.IsNullOrWhiteSpace(userSid))
-                throw new InvalidOperationException("无法获取当前用户 SID，不能配置局域网服务监听权限。");
+                throw new InvalidOperationException("无法获取当前用户 SID，不能配置局域网服务监听权限");
 
             RunElevatedCmd(BuildAccessSetupCommand(port, userSid, includeUrlAcl), "配置局域网服务访问权限");
         }
@@ -452,7 +452,7 @@ namespace ExpressPackingMonitoring.Services
             if (port <= 0 || port > 65535)
                 throw new ArgumentOutOfRangeException(nameof(port));
             if (string.IsNullOrWhiteSpace(userSid))
-                throw new ArgumentException("用户 SID 不能为空。", nameof(userSid));
+                throw new ArgumentException("用户 SID 不能为空", nameof(userSid));
 
             string url = $"http://+:{port}/";
             string firewallCommand = BuildFirewallSetupCommand(port);
@@ -574,20 +574,20 @@ namespace ExpressPackingMonitoring.Services
                 };
                 using var proc = Process.Start(psi);
                 if (proc == null)
-                    throw new InvalidOperationException($"{actionName}失败：无法启动管理员命令。");
+                    throw new InvalidOperationException($"{actionName}失败：无法启动管理员命令");
 
                 if (!proc.WaitForExit(15000))
                 {
                     try { proc.Kill(entireProcessTree: true); } catch { }
-                    throw new TimeoutException($"{actionName}超时，请手动以管理员身份运行 netsh 或关闭 Web 服务。");
+                    throw new TimeoutException($"{actionName}超时，请手动以管理员身份运行 netsh 或关闭 Web 服务");
                 }
 
                 if (proc.ExitCode != 0)
-                    throw new InvalidOperationException($"{actionName}失败，netsh 退出码：{proc.ExitCode}。");
+                    throw new InvalidOperationException($"{actionName}失败，netsh 退出码：{proc.ExitCode}");
             }
             catch (Exception ex) when (ex is not InvalidOperationException && ex is not TimeoutException)
             {
-                throw new InvalidOperationException($"{actionName}失败，可能是用户取消了管理员授权或系统拒绝执行。", ex);
+                throw new InvalidOperationException($"{actionName}失败，可能是用户取消了管理员授权或系统拒绝执行", ex);
             }
         }
 
@@ -3184,7 +3184,7 @@ namespace ExpressPackingMonitoring.Services
                 SendJson(ctx, 409, new
                 {
                     recordingInProgress = true,
-                    message = "视频正在录制，录制结束后可播放。"
+                    message = "视频正在录制，录制结束后可播放"
                 });
                 return "";
             }

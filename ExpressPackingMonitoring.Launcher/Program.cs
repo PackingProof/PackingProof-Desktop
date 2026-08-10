@@ -810,7 +810,7 @@ internal static class Program
         {
             WriteLog("未找到主程序，无法启动：" + appPath);
             ShowMessage(_useChinese ? "启动失败" : "Startup failed", _useChinese
-                ? $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录。"
+                ? $"未找到主程序：{AppRelativePath}\n\n请确认 app 文件夹与本启动程序放在同一目录"
                 : $"Application not found: {AppRelativePath}\n\nMake sure the app folder is next to this launcher.", ErrorIcon);
             return 2;
         }
@@ -1062,10 +1062,10 @@ internal static class Program
     {
         string reasonText = _useChinese ? reason switch
         {
-            ManualUpdateReason.PatchNotSupported => "本版本未提供可用的主程序增量包，需要下载完整包后解压覆盖安装。",
-            ManualUpdateReason.VersionBelowBaseline => "当前版本过旧，不能直接使用本次增量更新，需要下载完整包后解压覆盖安装。",
-            ManualUpdateReason.PatchDescriptorUnavailable => "本版本需要完整更新，需要下载完整包后解压覆盖安装。",
-            _ => "本版本需要完整更新，需要下载完整包后解压覆盖安装。"
+            ManualUpdateReason.PatchNotSupported => "本版本未提供可用的主程序增量包，需要下载完整包后解压覆盖安装",
+            ManualUpdateReason.VersionBelowBaseline => "当前版本过旧，不能直接使用本次增量更新，需要下载完整包后解压覆盖安装",
+            ManualUpdateReason.PatchDescriptorUnavailable => "本版本需要完整更新，需要下载完整包后解压覆盖安装",
+            _ => "本版本需要完整更新，需要下载完整包后解压覆盖安装"
         } : reason switch
         {
             ManualUpdateReason.PatchNotSupported => "No compatible main-app patch is available for this release. Download and extract the full package.",

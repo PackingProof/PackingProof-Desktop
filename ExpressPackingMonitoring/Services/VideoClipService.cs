@@ -464,7 +464,7 @@ namespace ExpressPackingMonitoring.Services
                 return record;
 
             if (record.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("视频还未完成音频合并，请稍后再剪辑。");
+                throw new InvalidOperationException("视频还未完成音频合并，请稍后再剪辑");
 
             if (!File.Exists(record.FilePath))
                 throw new InvalidOperationException("文件不存在");
@@ -476,7 +476,7 @@ namespace ExpressPackingMonitoring.Services
         {
             string filePath = record.FilePath;
             if (_isCurrentRecordingFile(filePath))
-                throw new InvalidOperationException("视频正在录制或音频合并中，请稍后再剪辑。");
+                throw new InvalidOperationException("视频正在录制或音频合并中，请稍后再剪辑");
 
             if (_mkvConverter != null)
             {
@@ -489,7 +489,7 @@ namespace ExpressPackingMonitoring.Services
 
                 if (filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.ErrorMessage)
-                        ? "视频音频合并失败，暂时无法剪辑。"
+                        ? "视频音频合并失败，暂时无法剪辑"
                         : result.ErrorMessage);
             }
 
@@ -504,7 +504,7 @@ namespace ExpressPackingMonitoring.Services
                 return mp4Path;
             }
 
-            throw new InvalidOperationException("视频还未完成音频合并，请稍后再剪辑。");
+            throw new InvalidOperationException("视频还未完成音频合并，请稍后再剪辑");
         }
 
         private bool TryPromoteExistingMp4(VideoRecord record, out string mp4Path)

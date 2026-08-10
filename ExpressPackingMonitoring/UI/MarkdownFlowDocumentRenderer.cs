@@ -20,7 +20,7 @@ namespace ExpressPackingMonitoring.UI
 
             if (string.IsNullOrWhiteSpace(markdown))
             {
-                document.Blocks.Add(CreateParagraph("暂无更新说明。"));
+                document.Blocks.Add(CreateParagraph("暂无更新说明"));
                 return document;
             }
 

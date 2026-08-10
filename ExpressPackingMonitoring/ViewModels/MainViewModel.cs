@@ -2793,7 +2793,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     MonitorAccessAddress = "";
                     WorkstationPrintStatusText = "未连接";
-                    WorkstationStatusToolTip = "开启局域网查看后，可点击手机/电脑连接查看二维码或复制网址。";
+                    WorkstationStatusToolTip = "开启局域网查看后，可点击手机/电脑连接查看二维码或复制网址";
                     SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                     return true;
                 }
@@ -2892,7 +2892,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 WorkstationPrintStatusText = IsRecordingWorkstation
                     ? "订单联动接收：未连接"
                     : "未连接";
-                WorkstationStatusToolTip = "其他设备暂时无法连接这台电脑。";
+                WorkstationStatusToolTip = "其他设备暂时无法连接这台电脑";
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceDisabled"), AppLanguage.Get("Main.ConnectionEmptyTip"));
                 return;
             }
@@ -2901,7 +2901,7 @@ namespace ExpressPackingMonitoring.ViewModels
             WorkstationPrintStatusText = IsRecordingWorkstation
                 ? "订单联动接收：等待连接"
                 : "启动中";
-            WorkstationStatusToolTip = "正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内。";
+            WorkstationStatusToolTip = "正在准备给其他电脑浏览器使用的网址。两台电脑需要在同一局域网内";
             SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceStarting"), AppLanguage.Get("Main.ConnectionEmptyTip"));
 
             string verifiedAddress;
@@ -2921,14 +2921,14 @@ namespace ExpressPackingMonitoring.ViewModels
             if (IsRecordingWorkstation)
             {
                 WorkstationPrintStatusText = $"订单联动接收 · {verifiedAddress}";
-                WorkstationStatusToolTip = "此地址仅用于接收订单联动，不提供本机录像浏览或备份主机服务。";
+                WorkstationStatusToolTip = "此地址仅用于接收订单联动，不提供本机录像浏览或备份主机服务";
             }
             else
             {
                 WorkstationPrintStatusText = "已就绪";
                 WorkstationStatusToolTip = Config.RequireWebAccessKey
-                    ? "访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备。"
-                    : $"其他电脑在浏览器输入 http://{MonitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙。";
+                    ? "访问保护已开启。请点击手机/电脑连接查看二维码或复制完整访问链接，再发送到需要查看录像的设备"
+                    : $"其他电脑在浏览器输入 http://{MonitorAccessAddress}，即可搜索、下载和播放视频。若打不开，请确认两台电脑在同一局域网，并检查防火墙";
             }
             UpdateConnectedClients(_webServer.GetConnectedClients());
             RefreshMobileBackupStatuses();
@@ -3567,7 +3567,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
                         {
                             RuntimeLog.Warn("Camera", $"Camera reconnect failed {_consecutiveRestartFailures} times after interrupted recording");
-                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，录制已停止。请重新插拔后在设置中手动重启。", ToastSeverity.Error);
+                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，录制已停止。请重新插拔后在设置中手动重启", ToastSeverity.Error);
                             SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
                             Debug.WriteLine($"[Camera] 录制中连续 {_consecutiveRestartFailures} 次重连失败，停止录制和自动重连");
                         }
@@ -3599,7 +3599,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         RuntimeLog.Warn("Camera", $"Camera reconnect failed while idle, failures={_consecutiveRestartFailures}");
                         if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
                         {
-                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，已停止自动重连。请重新插拔后在设置中手动重启。", ToastSeverity.Error);
+                            ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次重连失败，已停止自动重连。请重新插拔后在设置中手动重启", ToastSeverity.Error);
                             SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
                             Debug.WriteLine($"[Camera] 连续 {_consecutiveRestartFailures} 次重连失败，停止自动重连");
                         }

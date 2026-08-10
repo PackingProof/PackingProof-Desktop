@@ -173,7 +173,7 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。"
+                            <TextBlock Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单"
                                        Margin="0,8,0,22"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -194,7 +194,7 @@
                                             <TextBlock Text="推荐" Foreground="{StaticResource TextOnAccent}" FontSize="12" FontWeight="Bold"/>
                                         </Border>
                                     </DockPanel>
-                                    <TextBlock Text="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。"
+                                    <TextBlock Text="识别或扫描下一张面单条码后，自动结束上一单并开始下一单"
                                                Margin="0,7,0,0"
                                                FontSize="14"
                                                TextWrapping="Wrap"
@@ -209,7 +209,7 @@
                                                FontSize="18"
                                                FontWeight="Black"
                                                Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="识别或扫描面单条码开始录制，再次识别同一条码停止录制。"
+                                    <TextBlock Text="识别或扫描面单条码开始录制，再次识别同一条码停止录制"
                                                Margin="0,7,0,0"
                                                FontSize="14"
                                                TextWrapping="Wrap"
@@ -531,7 +531,7 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="说话时音量条有跳动，就说明麦克风基础配置正常。"
+                            <TextBlock Text="说话时音量条有跳动，就说明麦克风基础配置正常"
                                        Margin="0,8,0,20"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -626,7 +626,7 @@
                                        FontSize="22"
                                        FontWeight="Black"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="下面是日常打包流程。"
+                            <TextBlock Text="下面是日常打包流程"
                                        Margin="0,8,0,20"
                                        FontSize="14"
                                        Foreground="{DynamicResource TextSecondary}"/>
@@ -652,7 +652,7 @@
                                                FontSize="15"
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。"
+                                    <TextBlock Text="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面"
                                                Margin="0,7,0,0"
                                                FontSize="13"
                                                LineHeight="20"

@@ -44,7 +44,7 @@ namespace ExpressPackingMonitoring.UI
 
             var hint = new TextBlock
             {
-                Text = "程序会自动使用所选磁盘下的“快递打包视频”目录。",
+                Text = "程序会自动使用所选磁盘下的“快递打包视频”目录",
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 12)

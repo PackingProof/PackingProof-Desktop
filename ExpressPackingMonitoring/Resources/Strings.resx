@@ -306,9 +306,9 @@
   <data name="按日" xml:space="preserve"><value>Daily</value></data>
   <data name="按月" xml:space="preserve"><value>Monthly</value></data>
   <data name="按年" xml:space="preserve"><value>Yearly</value></data>
-  <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址。" xml:space="preserve"><value>Select the hardware this computer is connected to. For ordinary computers that view videos, you can directly access the monitoring address using a browser.</value></data>
+  <data name="按这台电脑连接的硬件选择。普通查看视频的电脑，可直接用浏览器访问监控地址" xml:space="preserve"><value>Select the hardware this computer is connected to. For ordinary computers that view videos, you can directly access the monitoring address using a browser.</value></data>
   <data name="按周" xml:space="preserve"><value>Weekly</value></data>
-  <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪。" xml:space="preserve"><value>Follow the most basic steps to confirm the packaging mode, camera, microphone and code scanner.</value></data>
+  <data name="按最基础的步骤确认打包模式、摄像头、麦克风和扫码枪" xml:space="preserve"><value>Follow the most basic steps to confirm the packaging mode, camera, microphone and code scanner.</value></data>
   <data name="本月" xml:space="preserve"><value>This month</value></data>
   <data name="本周" xml:space="preserve"><value>This week</value></data>
   <data name="播放/暂停" xml:space="preserve"><value>play/pause</value></data>
@@ -342,7 +342,7 @@
   <data name="连续打包模式（推荐）" xml:space="preserve"><value>Continuous packing mode (recommended)</value></data>
   <data name="录像日期范围:" xml:space="preserve"><value>Recording date range:</value></data>
   <data name="录制中" xml:space="preserve"><value>Recording</value></data>
-  <data name="能看到实时画面，就说明摄像头基础配置正常。" xml:space="preserve"><value>If you can see the real-time picture, it means that the basic configuration of the camera is normal.</value></data>
+  <data name="能看到实时画面，就说明摄像头基础配置正常" xml:space="preserve"><value>If you can see the real-time picture, it means that the basic configuration of the camera is normal.</value></data>
   <data name="配置完成" xml:space="preserve"><value>Configuration completed</value></data>
   <data name="平均" xml:space="preserve"><value>Average</value></data>
   <data name="平均:" xml:space="preserve"><value>Average:</value></data>
@@ -350,12 +350,12 @@
   <data name="前往下载" xml:space="preserve"><value>Download</value></data>
   <data name="打开更新页面" xml:space="preserve"><value>Open update page</value></data>
   <data name="请选择这台电脑的用途" xml:space="preserve"><value>Please select what you want to use this computer for</value></data>
-  <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别。" xml:space="preserve"><value>Please use a code scanner to scan the barcode of an express delivery receipt. When an automatic carriage return is detected, the code can be scanned in the background; when there is no automatic carriage return, the code will be switched to the window for identification.</value></data>
+  <data name="请用扫码枪扫描一个快递面单条码。检测到自动回车时可后台扫码；没有自动回车时会切到窗口内识别" xml:space="preserve"><value>Please use a code scanner to scan the barcode of an express delivery receipt. When an automatic carriage return is detected, the code can be scanned in the background; when there is no automatic carriage return, the code will be switched to the window for identification.</value></data>
   <data name="全部" xml:space="preserve"><value>All</value></data>
   <data name="扫码动态" xml:space="preserve"><value>Scan activity</value></data>
   <data name="本机录制动态" xml:space="preserve"><value>Local recording activity</value></data>
-  <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>Camera recognition of a shipping-label barcode starts recording; recognizing the same barcode again stops recording.</value></data>
-  <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>When the camera recognizes the next shipping-label barcode, it ends the previous recording and starts the next one.</value></data>
+  <data name="摄像头识别面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>Camera recognition of a shipping-label barcode starts recording; recognizing the same barcode again stops recording.</value></data>
+  <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>When the camera recognizes the next shipping-label barcode, it ends the previous recording and starts the next one.</value></data>
   <data name="稍后再说" xml:space="preserve"><value>Later</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>The camera has gone to sleep</value></data>
   <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>The camera slept after {0} idle minutes. To disable this, enable Advanced mode at the left of Settings, then turn off Close the camera when unused under Recording controls</value></data>
@@ -369,21 +369,21 @@
   <data name="电脑录像配置向导" xml:space="preserve"><value>Computer recording setup</value></data>
   <data name="数据" xml:space="preserve"><value>Statistics</value></data>
   <data name="数量" xml:space="preserve"><value>quantity</value></data>
-  <data name="说话时音量条有跳动，就说明麦克风基础配置正常。" xml:space="preserve"><value>If the volume bar jumps when speaking, it means that the basic configuration of the microphone is normal.</value></data>
+  <data name="说话时音量条有跳动，就说明麦克风基础配置正常" xml:space="preserve"><value>If the volume bar jumps when speaking, it means that the basic configuration of the microphone is normal.</value></data>
   <data name="条码冷却中…" xml:space="preserve"><value>Scan cooldown…</value></data>
   <data name="跳过" xml:space="preserve"><value>jump over</value></data>
   <data name="同码停录模式" xml:space="preserve"><value>Same-code stop mode</value></data>
-  <data name="同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内。" xml:space="preserve"><value>Computers, mobile phones and other devices within the same LAN can open the packaged video and playback page through the LAN access address displayed at the bottom of the main interface. Please make sure these devices are connected to the same LAN.</value></data>
+  <data name="同一局域网内的电脑、手机等设备，可以通过主界面底部显示的局域网访问地址，打开打包视频和回放页面。请确认这些设备连接在同一个局域网内" xml:space="preserve"><value>Computers, mobile phones and other devices within the same LAN can open the packaged video and playback page through the LAN access address displayed at the bottom of the main interface. Please make sure these devices are connected to the same LAN.</value></data>
   <data name="推荐" xml:space="preserve"><value>recommend</value></data>
-  <data name="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单。" xml:space="preserve"><value>Continuous packing is recommended; the previous recording is saved when the camera recognizes the next shipping label.</value></data>
-  <data name="下面是日常打包流程。" xml:space="preserve"><value>The following is the daily packaging process.</value></data>
+  <data name="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单" xml:space="preserve"><value>Continuous packing is recommended; the previous recording is saved when the camera recognizes the next shipping label.</value></data>
+  <data name="下面是日常打包流程" xml:space="preserve"><value>The following is the daily packaging process.</value></data>
   <data name="打包模式" xml:space="preserve"><value>Packing mode</value></data>
   <data name="选择打包模式" xml:space="preserve"><value>Select packaging mode</value></data>
   <data name="选择麦克风" xml:space="preserve"><value>Select microphone</value></data>
   <data name="选择摄像头" xml:space="preserve"><value>Select camera</value></data>
   <data name="占用存储空间" xml:space="preserve"><value>Taking up storage space</value></data>
   <data name="占用空间" xml:space="preserve"><value>Taking up space</value></data>
-  <data name="这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单。" xml:space="preserve"><value>This computer is connected to the camera and is responsible for real-time monitoring, scanning code recording, voice broadcasting and receiving orders.</value></data>
+  <data name="这台电脑接摄像头，负责实时监控、扫码录像、语音播报和接收订单" xml:space="preserve"><value>This computer is connected to the camera and is responsible for real-time monitoring, scanning code recording, voice broadcasting and receiving orders.</value></data>
   <data name="正在检查上次连接..." xml:space="preserve"><value>Checking last connection...</value></data>
   <data name="正在准备麦克风..." xml:space="preserve"><value>Preparing microphone...</value></data>
   <data name="正在准备摄像头预览..." xml:space="preserve"><value>Preparing camera preview...</value></data>
@@ -525,7 +525,7 @@
   <data name="时间格式为 HH:mm" xml:space="preserve"><value>Time format: HH:mm</value></data>
   <data name="时间格式错误" xml:space="preserve"><value>Invalid time format</value></data>
   <data name="不休眠时段 {0} 请填写完整的 HH:mm 开始和结束时间，或全部留空" xml:space="preserve"><value>Enter both the HH:mm start and end times for no-sleep period {0}, or leave both empty</value></data>
-  <data name="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面。" xml:space="preserve"><value>A phone connection QR code will appear after the wizard. Connect the phone to the same LAN as this computer and scan it to open recordings and playback.</value></data>
+  <data name="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面" xml:space="preserve"><value>A phone connection QR code will appear after the wizard. Connect the phone to the same LAN as this computer and scan it to open recordings and playback.</value></data>
   <data name="手机/电脑连接" xml:space="preserve"><value>Connect devices</value></data>
   <data name="连接录像网页，或先下载 PackingProof 手机录像 App" xml:space="preserve"><value>Connect to the recordings page or download the PackingProof mobile recording app first</value></data>
   <data name="连接录像网页" xml:space="preserve"><value>Connect to recordings</value></data>
@@ -700,9 +700,9 @@
   <data name="5. 选择麦克风" xml:space="preserve"><value>5. Select microphone</value></data>
   <data name="6. 扫码枪（可选）" xml:space="preserve"><value>6. Barcode scanner (optional)</value></data>
   <data name="7. 完成" xml:space="preserve"><value>7. Finish</value></data>
-  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。" xml:space="preserve"><value>Continuous packing mode is recommended. Recognizing or scanning the next waybill automatically saves the previous recording.</value></data>
-  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单。" xml:space="preserve"><value>Recognizing or scanning the next waybill barcode ends the previous recording and starts the next one.</value></data>
-  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制。" xml:space="preserve"><value>Recognize or scan a waybill barcode to start recording, then recognize the same barcode again to stop.</value></data>
+  <data name="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单" xml:space="preserve"><value>Continuous packing mode is recommended. Recognizing or scanning the next waybill automatically saves the previous recording.</value></data>
+  <data name="识别或扫描下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>Recognizing or scanning the next waybill barcode ends the previous recording and starts the next one.</value></data>
+  <data name="识别或扫描面单条码开始录制，再次识别同一条码停止录制" xml:space="preserve"><value>Recognize or scan a waybill barcode to start recording, then recognize the same barcode again to stop.</value></data>
   <data name="选择录像使用的摄像头，并确认实时画面显示正常" xml:space="preserve"><value>Select the camera used for recording and confirm that its live preview works correctly</value></data>
   <data name="是否使用摄像头识别面单" xml:space="preserve"><value>Use the camera to recognize waybills?</value></data>
   <data name="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像" xml:space="preserve"><value>When enabled, place a waybill barcode in view to automatically start or switch recordings after recognition</value></data>

@@ -79,7 +79,7 @@ namespace ExpressPackingMonitoring.UI
                     bool isRecording = _isRecordingProvider();
                     string restartMessage = isRecording
                         ? preparation.Message
-                            + "\n\n当前正在录像。立即重启会先结束并保存当前录像，确认保存完成后再安装更新。"
+                            + "\n\n当前正在录像。立即重启会先结束并保存当前录像，确认保存完成后再安装更新"
                         : preparation.Message
                             + "\n\n是否立即退出程序，并通过根目录启动器安装更新？";
                     RestartRequested = AppDialog.Confirm(

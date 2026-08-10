@@ -304,7 +304,7 @@ internal sealed class FeedbackPackageService
                 builder.AppendLine($"- {warning}");
         }
         builder.AppendLine();
-        builder.AppendLine("注意：本压缩包包含完整订单数据库与本地配置，请勿转发给无关人员。");
+        builder.AppendLine("注意：本压缩包包含完整订单数据库与本地配置，请勿转发给无关人员");
         File.WriteAllText(
             Path.Combine(stagingDir, "feedback-info.txt"),
             builder.ToString(),

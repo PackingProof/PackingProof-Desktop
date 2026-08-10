@@ -1046,7 +1046,7 @@ namespace ExpressPackingMonitoring.UI
 
             if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
             {
-                AppDialog.Information(this, "该路径已在列表中。", "提示");
+                AppDialog.Information(this, "该路径已在列表中", "提示");
                 return;
             }
 
@@ -1058,7 +1058,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 AppDialog.Information(
                     this,
-                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序。",
+                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序",
                     "磁盘已存在");
                 return;
             }
@@ -1119,13 +1119,13 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (Config.StorageLocations.Count <= 1)
                 {
-                    AppDialog.Warning(this, "至少需要保留一个存储路径。", "警告");
+                    AppDialog.Warning(this, "至少需要保留一个存储路径", "警告");
                     return;
                 }
 
                 bool shouldRemove = AppDialog.Confirm(
                     this,
-                    $"确定要移除路径: {selected.Path} 吗？\n注意：此操作不会删除物理文件，但系统将不再管理该目录。",
+                    $"确定要移除路径: {selected.Path} 吗？\n注意：此操作不会删除物理文件，但系统将不再管理该目录",
                     "确认移除",
                     AppDialogSeverity.Warning,
                     confirmText: "移除",
@@ -1146,7 +1146,7 @@ namespace ExpressPackingMonitoring.UI
             }
             else
             {
-                AppDialog.Warning(this, "请先在列表中选中要移除的行。", "提示");
+                AppDialog.Warning(this, "请先在列表中选中要移除的行", "提示");
             }
         }
 
@@ -1802,8 +1802,8 @@ namespace ExpressPackingMonitoring.UI
             if (PackingModeHintText != null)
             {
                 PackingModeHintText.Text = sameCodeStop
-                    ? "识别或扫描面单条码开始录制，再次识别同一条码停止录制。"
-                    : "推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。";
+                    ? "识别或扫描面单条码开始录制，再次识别同一条码停止录制"
+                    : "推荐连续打包模式，识别或扫描下一张面单时自动保存上一单";
             }
         }
 
@@ -1923,7 +1923,7 @@ namespace ExpressPackingMonitoring.UI
                 this,
                 $"当前选择的 {requestedLabel} 不可用。\n\n" +
                 $"保存后实际会回退到: {fallbackLabel}\n\n" +
-                $"设置将按可用方案保存。",
+                $"设置将按可用方案保存",
                 "编码器将自动回退");
 
             EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
@@ -1957,7 +1957,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 bool confirmed = AppDialog.Confirm(
                     this,
-                    $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}。",
+                    $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}",
                     "反馈问题",
                     AppDialogSeverity.Warning,
                     confirmText: "开始打包");
@@ -1991,7 +1991,7 @@ namespace ExpressPackingMonitoring.UI
                     $"大小：{FormatBytes(info.Length)}\n" +
                     "已复制路径并打开所在文件夹。\n\n" +
                     $"点击“发送邮件”会尝试直接打开一封已带反馈模板和压缩包附件的新邮件（收件人 {FeedbackEmail}），填写问题后发送即可；若本机没有经典 Outlook，会退回邮件草稿或普通邮件（可能需要手动添加附件）。\n\n" +
-                    "注意：包内含完整订单数据库与本地配置，请勿转发给无关人员。";
+                    "注意：包内含完整订单数据库与本地配置，请勿转发给无关人员";
                 if (warnings.Count > 0)
                     message += "\n\n提示：\n" + string.Join("\n", warnings.Take(10));
 
@@ -2020,7 +2020,7 @@ namespace ExpressPackingMonitoring.UI
                     {
                         AppDialog.Error(
                             this,
-                            $"未能打开邮件客户端，请手动发送到 {FeedbackEmail}（压缩包路径已复制到剪贴板，请作为附件添加）。",
+                            $"未能打开邮件客户端，请手动发送到 {FeedbackEmail}（压缩包路径已复制到剪贴板，请作为附件添加）",
                             "反馈问题");
                     }
                 }
