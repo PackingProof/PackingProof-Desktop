@@ -339,6 +339,7 @@
   <data name="历史录像检索与回放" xml:space="preserve"><value>Historical video retrieval and playback</value></data>
   <data name="连接" xml:space="preserve"><value>connect</value></data>
   <data name="连续打包模式" xml:space="preserve"><value>Continuous packing mode</value></data>
+  <data name="连续打包模式（推荐）" xml:space="preserve"><value>Continuous packing mode (recommended)</value></data>
   <data name="录像日期范围:" xml:space="preserve"><value>Recording date range:</value></data>
   <data name="录制中" xml:space="preserve"><value>Recording</value></data>
   <data name="能看到实时画面，就说明摄像头基础配置正常。" xml:space="preserve"><value>If you can see the real-time picture, it means that the basic configuration of the camera is normal.</value></data>
@@ -376,6 +377,7 @@
   <data name="推荐" xml:space="preserve"><value>recommend</value></data>
   <data name="推荐连续打包模式，摄像头识别下一张面单条码时自动保存上一单。" xml:space="preserve"><value>Continuous packing is recommended; the previous recording is saved when the camera recognizes the next shipping label.</value></data>
   <data name="下面是日常打包流程。" xml:space="preserve"><value>The following is the daily packaging process.</value></data>
+  <data name="打包模式" xml:space="preserve"><value>Packing mode</value></data>
   <data name="选择打包模式" xml:space="preserve"><value>Select packaging mode</value></data>
   <data name="选择麦克风" xml:space="preserve"><value>Select microphone</value></data>
   <data name="选择摄像头" xml:space="preserve"><value>Select camera</value></data>

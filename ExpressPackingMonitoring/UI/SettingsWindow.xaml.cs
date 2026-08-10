@@ -187,6 +187,8 @@ namespace ExpressPackingMonitoring.UI
             this.DataContext = this;
             if (Capabilities.IsRecordingDevice)
                 SyncVoiceEngineComboBoxFromConfig();
+            if (Capabilities.CanUseScanner)
+                SyncPackingModeComboBoxFromConfig();
 
             if (Capabilities.CanRecordPcVideo)
             {
@@ -1779,6 +1781,30 @@ namespace ExpressPackingMonitoring.UI
         private static string NormalizeVoiceEngine(string engine)
         {
             return string.Equals(engine, "Kokoro", StringComparison.OrdinalIgnoreCase) ? "Kokoro" : "Edge";
+        }
+
+        private void SyncPackingModeComboBoxFromConfig()
+        {
+            if (PackingModeComboBox == null) return;
+
+            string tag = Config.EnableSameBarcodeStopRecording ? "SameCode" : "Continuous";
+            PackingModeComboBox.SelectedItem = PackingModeComboBox.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), tag, StringComparison.Ordinal));
+        }
+
+        private void PackingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (Config == null || PackingModeComboBox.SelectedItem is not ComboBoxItem item) return;
+
+            bool sameCodeStop = string.Equals(item.Tag?.ToString(), "SameCode", StringComparison.Ordinal);
+            Config.EnableSameBarcodeStopRecording = sameCodeStop;
+            if (PackingModeHintText != null)
+            {
+                PackingModeHintText.Text = sameCodeStop
+                    ? "识别或扫描面单条码开始录制，再次识别同一条码停止录制。"
+                    : "推荐连续打包模式，识别或扫描下一张面单时自动保存上一单。";
+            }
         }
 
         private void InstallTool_Click(object sender, RoutedEventArgs e)
