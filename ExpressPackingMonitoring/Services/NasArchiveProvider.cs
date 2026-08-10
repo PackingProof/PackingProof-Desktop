@@ -93,19 +93,6 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         return Task.CompletedTask;
     }
 
-    public Task DeleteAsync(string path, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
-        catch
-        {
-        }
-        return Task.CompletedTask;
-    }
-
     internal static Task<string> ComputeSha256FileAsync(string path, CancellationToken cancellationToken) =>
         ComputeSha256CoreAsync(path, cancellationToken);
 

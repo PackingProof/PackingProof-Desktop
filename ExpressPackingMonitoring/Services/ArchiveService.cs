@@ -42,20 +42,10 @@ internal sealed class ArchiveService : IDisposable
         }
     }
 
-    /// <summary>处理一轮待删除与待归档记录（供测试与手动触发使用）。</summary>
+    /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
         int completed = 0;
-        foreach (VideoRecord pendingDelete in _database.GetPendingArchiveDeletes(DateTime.Now))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            using IDisposable ownership = await VideoLifecycleCoordinator.EnterAsync(
-                pendingDelete.Id,
-                cancellationToken);
-            if (await TryCompleteDeleteAsync(pendingDelete, cancellationToken).ConfigureAwait(false))
-                completed++;
-        }
-
         foreach (VideoRecord record in _database.GetPendingArchives(
                      _options.BatchSize,
                      DateTime.Now))
@@ -225,32 +215,6 @@ internal sealed class ArchiveService : IDisposable
                 incrementRetry: true,
                 nextRetryAt: ComputeNextRetryAt(record.ArchiveRetryCount + 1));
             RuntimeLog.Warn("Archive", $"Archive failed id={record.Id}, target={networkPath}, error={ex.Message}");
-            return false;
-        }
-    }
-
-    private async Task<bool> TryCompleteDeleteAsync(
-        VideoRecord record,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(record.ArchivePath))
-            {
-                await WithTimeoutAsync(
-                    token => _provider.DeleteAsync(record.ArchivePath, token),
-                    cancellationToken).ConfigureAwait(false);
-            }
-            _database.MarkRecordDeletedById(
-                record.Id,
-                string.IsNullOrWhiteSpace(record.DeleteReason) ? "用户删除" : record.DeleteReason,
-                RecordingDeletionReasonCode.UserRequested);
-            RuntimeLog.Info("Archive", $"Archive delete completed id={record.Id}, target={record.ArchivePath}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Warn("Archive", $"Archive delete pending id={record.Id}, target={record.ArchivePath}, error={ex.Message}");
             return false;
         }
     }

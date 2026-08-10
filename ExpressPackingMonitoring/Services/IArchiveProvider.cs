@@ -12,6 +12,9 @@ internal enum RemoteProbeResult
 
 /// <summary>
 /// 归档传输抽象：本版只有 NAS（文件系统）实现，未来可扩展云存储 Provider。
+/// Provider 只提供发布、校验与存在探测能力，不提供删除能力——
+/// NAS 是纯归档目标，程序只上传、永不删除 NAS 文件。
+/// RenameAsync 仅用于把本次刚上传的损坏目标改名 .corrupt（自己的不完整文件，不是删除既有文件）。
 /// </summary>
 internal interface IArchiveProvider
 {
@@ -38,8 +41,6 @@ internal interface IArchiveProvider
         string sourcePath,
         string destinationPath,
         CancellationToken cancellationToken);
-
-    Task DeleteAsync(string path, CancellationToken cancellationToken);
 }
 
 internal sealed class ArchiveConflictException(string message) : IOException(message);

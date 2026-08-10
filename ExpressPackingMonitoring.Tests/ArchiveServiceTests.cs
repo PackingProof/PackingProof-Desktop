@@ -43,8 +43,6 @@ public sealed class ArchiveServiceTests : IDisposable
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
 
-        public Task DeleteAsync(string path, CancellationToken cancellationToken) =>
-            _inner.DeleteAsync(path, cancellationToken);
     }
 
     private readonly string _directory = Path.Combine(
@@ -192,20 +190,19 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PendingDelete_DeletesRemoteAndMarksRecordDeleted()
+    public async Task UserDelete_KeepsNasArchiveFile()
     {
-        long id = InsertPendingRecord("delete-me.mp4", "to-be-deleted");
-        DateTime now = DateTime.Now;
+        long id = InsertPendingRecord("keep-on-nas.mp4", "archive-kept");
         VideoRecord record = _database.GetVideoById(id)!;
-        _database.UpdateArchiveState(id, VideoArchiveStatus.Verified, contentSha256: "h", completedAt: now);
-        _database.SetPendingArchiveDelete(id, now.AddMinutes(-1));
         using ArchiveService service = CreateService();
 
         await service.ProcessPendingOnceAsync(CancellationToken.None);
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
+
+        _database.MarkRecordDeletedById(id, "用户删除", RecordingDeletionReasonCode.UserRequested);
 
         Assert.Null(_database.GetVideoById(id));
-        Assert.False(File.Exists(record.ArchivePath));
-        Assert.True(File.Exists(record.FilePath), "本地文件由上层删除流程负责移除，归档服务只删除远端");
+        Assert.True(File.Exists(record.ArchivePath), "NAS 归档文件必须保留，程序只上传不删除");
     }
 
     [Fact]

@@ -125,21 +125,6 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
-    public void PendingDelete_Flow()
-    {
-        DateTime now = DateTime.Now;
-        long id = InsertLocal(@"\\nas\share\x.mp4", now.AddMinutes(-5), now);
-        _database.UpdateArchiveState(id, VideoArchiveStatus.Verified, contentSha256: "h", completedAt: now);
-
-        _database.SetPendingArchiveDelete(id, now.AddMinutes(-1));
-
-        VideoRecord record = _database.GetVideoById(id)!;
-        Assert.Equal(VideoArchiveStatus.Deleting, record.ArchiveStatus);
-        Assert.NotNull(record.PendingDeleteAt);
-        Assert.Equal(id, Assert.Single(_database.GetPendingArchiveDeletes(now)).Id);
-    }
-
-    [Fact]
     public void MarkLocalCopyDeleted_KeepsRecordPlayableViaArchive()
     {
         DateTime now = DateTime.Now;
