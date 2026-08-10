@@ -40,6 +40,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly string _configFilePath = AppPaths.ConfigPath;
         private readonly string _dbFilePath = AppPaths.VideoDatabasePath;
         private VideoDatabase _db;
+        private ArchiveService _archiveService;
 
         /// <summary>启动时缓存的可用 GPU 编码器列表</summary>
         public static List<GpuEncoderOption> CachedEncoderOptions { get; private set; }
@@ -979,9 +980,12 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 _db = new VideoDatabase(_dbFilePath);
+                _archiveService?.Dispose();
+                _archiveService = new ArchiveService(_db, new NasArchiveProvider());
             }
             catch (Exception ex)
             {
+                _archiveService = null;
                 AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
             }
         }
@@ -2825,6 +2829,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         mobileBackupComputerName: Config.NodeName,
                         mobileBackupStateDirectory: AppPaths.MobileBackupStateDir,
                         mobileBackupRecordingRootResolver: ResolveBestStoragePath,
+                        mobileBackupArchiveTargetResolver: () =>
+                        {
+                            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                                Config,
+                                allowDefaultFallback: false);
+                            return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+                        },
+                        mobileBackupArchivePendingCallback: () => _archiveService?.Wake(),
                         nodeId: Config.NodeId,
                         nodeName: Config.NodeName,
                         deploymentPreset: Config.DeploymentPreset,
@@ -4869,6 +4881,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try { _globalKeyHook?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
             DisposeRecordingTransfers();
+            try { _archiveService?.Dispose(); } catch { }
             try { _db?.Dispose(); } catch { }
         }
     }

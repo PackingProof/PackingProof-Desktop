@@ -13,6 +13,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private readonly Action<int> _repairLanAccess;
     private VideoDatabase? _database;
     private WebServer? _server;
+    private ArchiveService? _archiveService;
     private bool _disposed;
 
     public NoCameraWorkstationHost(
@@ -88,6 +89,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         {
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
+            _archiveService?.Dispose();
+            _archiveService = new ArchiveService(_database, new NasArchiveProvider());
             LocalPlaybackUrl = MobileConnectionService.BuildAccessUrl(
                 $"127.0.0.1:{_config.WebServerPort}",
                 _config.RequireWebAccessKey,
@@ -206,6 +209,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                     allowDefaultFallback: false);
                 return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
             },
+            mobileBackupArchivePendingCallback: () => _archiveService?.Wake(),
             nodeId: _config.NodeId,
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
@@ -259,6 +263,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         if (_disposed) return;
         _disposed = true;
         StopServer();
+        try { _archiveService?.Dispose(); } catch { }
+        _archiveService = null;
         try { _database?.Dispose(); } catch { }
         _database = null;
     }

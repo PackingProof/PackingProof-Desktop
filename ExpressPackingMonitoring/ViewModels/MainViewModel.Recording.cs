@@ -184,6 +184,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (!string.IsNullOrWhiteSpace(archiveTarget) && recordId > 0)
                         {
                             _db?.MarkArchivePending(recordId);
+                            _archiveService?.Wake();
                             RuntimeLog.Info("Recording", $"Recording marked for archive id={recordId}, target={archiveTarget}");
                         }
                         if (!string.IsNullOrWhiteSpace(filePath))

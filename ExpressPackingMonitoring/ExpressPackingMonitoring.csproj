@@ -126,7 +126,9 @@
     <Compile Include="Services\LauncherUpdateService.cs" />
     <Compile Include="Services\UninstallCleanupService.cs" />
     <Compile Include="Services\AlertService.cs" />
+    <Compile Include="Services\ArchiveService.cs" />
     <Compile Include="Services\ArchivePathBuilder.cs" />
+    <Compile Include="Services\ArchiveWorkerOptions.cs" />
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\BackupDeviceIdentity.cs" />
     <Compile Include="Services\BackupCompatibilityPolicy.cs" />
@@ -137,11 +139,13 @@
     <Compile Include="Services\ConnectedClientRegistry.cs" />
     <Compile Include="Services\FfmpegWorkLimiter.cs" />
     <Compile Include="Services\FeedbackMailLauncher.cs" />
+    <Compile Include="Services\IArchiveProvider.cs" />
     <Compile Include="Services\LanRequestRateLimiter.cs" />
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />
     <Compile Include="Services\MobileOrderReceiverRegistry.cs" />
+    <Compile Include="Services\NasArchiveProvider.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
     <Compile Include="Services\NetworkCameraUrlPolicy.cs" />
     <Compile Include="Services\NetworkCameraSource.cs" />
@@ -156,6 +160,7 @@
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\UserscriptGuideNavigation.cs" />
     <Compile Include="Services\UserscriptTargetState.cs" />
+    <Compile Include="Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="Services\ShortLivedSnapshotCache.cs" />
     <Compile Include="Services\StorageLocationResolver.cs" />
     <Compile Include="Services\TaskbarIdentityService.cs" />
