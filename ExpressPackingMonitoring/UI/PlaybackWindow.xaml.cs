@@ -32,6 +32,8 @@ namespace ExpressPackingMonitoring.UI
         public bool IsStoredOnHost { get; set; }
         public bool IsMissing { get; set; }
         public bool IsDeleted { get; set; }
+        public bool IsArchiveWarning { get; set; }
+        public string ArchiveStatusText { get; set; } = "";
         public string DeleteReason { get; set; } = "";
         public DateTime? DeletedAt { get; set; }
         public FileInfo? File { get; set; }
@@ -61,6 +63,8 @@ namespace ExpressPackingMonitoring.UI
 
                 if (IsStoredOnHost)
                     return "已保存到主机";
+                if (IsArchiveWarning)
+                    return ArchiveStatusText;
                 return IsMissing ? "文件已丢失" : "";
             }
         }
@@ -316,6 +320,15 @@ namespace ExpressPackingMonitoring.UI
                             StringComparison.OrdinalIgnoreCase);
                         string resolvedPath = VideoFileResolver.ResolvePlaybackPath(record);
                         bool missing = !deleted && !storedOnHost && string.IsNullOrWhiteSpace(resolvedPath);
+                        bool archiveWarning = record.ArchiveStatus == VideoArchiveStatus.Conflict
+                            || record.ArchiveStatus == VideoArchiveStatus.Failed;
+                        string archiveStatusText = record.ArchiveStatus switch
+                        {
+                            VideoArchiveStatus.Conflict => "归档冲突：网络端存在同名但内容不同的文件",
+                            VideoArchiveStatus.Failed => "归档失败，等待自动重试",
+                            VideoArchiveStatus.LocalDeleted => "已归档（本地副本已清理）",
+                            _ => ""
+                        };
                         FileInfo? info = (deleted || missing || storedOnHost)
                             ? null
                             : new FileInfo(resolvedPath);
@@ -340,6 +353,8 @@ namespace ExpressPackingMonitoring.UI
                             IsStoredOnHost = storedOnHost,
                             IsMissing = missing,
                             IsDeleted = deleted,
+                            IsArchiveWarning = archiveWarning,
+                            ArchiveStatusText = archiveStatusText,
                             DeleteReason = record.DeleteReason,
                             DeletedAt = record.DeletedAt,
                             File = info

@@ -199,6 +199,7 @@
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsContext.cs" />
     <Compile Include="UI\StatisticsWindow.xaml.cs" />
+    <Compile Include="UI\StoragePathSelectionDialog.cs" />
     <Compile Include="UI\UpdateAvailableDialog.xaml.cs" />
     <Compile Include="Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="Workstations\WorkstationInstanceCoordinator.cs" />

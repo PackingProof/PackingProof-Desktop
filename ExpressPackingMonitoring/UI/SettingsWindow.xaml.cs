@@ -1082,6 +1082,73 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
+        private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new StoragePathSelectionDialog { Owner = this };
+            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
+                return;
+
+            string selectedPath = dialog.SelectedPath;
+            if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                AppDialog.Information(this, "该路径已在列表中。", "提示");
+                return;
+            }
+
+            string selectedRoot = GetStorageRoot(selectedPath);
+            StorageLocation sameDisk = Config.StorageLocations.FirstOrDefault(x =>
+                !string.IsNullOrWhiteSpace(x.Path) &&
+                string.Equals(GetStorageRoot(x.Path), selectedRoot, StringComparison.OrdinalIgnoreCase));
+            if (sameDisk != null)
+            {
+                AppDialog.Information(
+                    this,
+                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序。",
+                    "磁盘已存在");
+                return;
+            }
+
+            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            {
+                AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
+                return;
+            }
+
+            var location = new StorageLocation
+            {
+                Path = selectedPath,
+                ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
+                Priority = Config.StorageLocations.Count
+            };
+            StorageLocationMetadata.RefreshVolumeId(location);
+            Config.StorageLocations.Add(location);
+
+            RefreshStoragePriorities();
+            StorageDataGrid.Items.Refresh();
+            StorageDataGrid.SelectedIndex = Config.StorageLocations.Count - 1;
+            UpdateStorageButtonStates();
+        }
+
+        private void BtnChangeRecordingBuffer_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new StoragePathSelectionDialog(Config.LocalRecordingBufferPath) { Owner = this };
+            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
+                return;
+
+            if (!StorageLocationResolver.IsValidLocalBufferPath(dialog.SelectedPath, out string reason))
+            {
+                AppDialog.Error(
+                    this,
+                    $"本地录像缓冲目录不可用：\n{dialog.SelectedPath}\n\n原因：{reason}",
+                    "缓冲目录错误");
+                return;
+            }
+
+            Config.LocalRecordingBufferPath = dialog.SelectedPath;
+            if (RecordingBufferPathText != null)
+                RecordingBufferPathText.Text = dialog.SelectedPath;
+        }
+
         private string SelectDefaultStoragePathFromDrive()
         {
             var dialog = new DriveSelectionDialog(Config.StorageLocations.Select(location => location.Path))

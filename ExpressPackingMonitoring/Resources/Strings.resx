@@ -903,4 +903,10 @@
   <data name="3 次（更稳）" xml:space="preserve"><value>3 hits (more stable)</value></data>
   <data name="4 次（最稳）" xml:space="preserve"><value>4 hits (most stable)</value></data>
   <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>Real-time follows the camera frame rate for the fastest response; keep the default on regular computers</value></data>
+  <data name="本地录像缓冲" xml:space="preserve"><value>Local recording buffer</value></data>
+  <data name="网络位置只保存归档副本；录像先写入本机固定盘缓冲，校验成功后再复制到网络位置" xml:space="preserve"><value>Network locations store archived copies only; recordings are written to the local fixed-disk buffer first and copied after verification</value></data>
+  <data name="网络归档时录像先写入的本地目录，必须位于本机固定磁盘" xml:space="preserve"><value>Local directory used before archiving to a network location; must be on a fixed local disk</value></data>
+  <data name="添加网络位置" xml:space="preserve"><value>Add network location</value></data>
+  <data name="更改" xml:space="preserve"><value>Change</value></data>
+  <data name="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，网络位置至少预留 10GB 或 2%；网络归档校验通过后才会清理旧本地副本" xml:space="preserve"><value>Recordings are saved in list order and switch to the next disk when only the reserve remains; system disk reserves at least 30 GB or 10%, other disks 20 GB or 5%, network locations 10 GB or 2%; old local copies are cleaned only after archive verification</value></data>
 </root>
