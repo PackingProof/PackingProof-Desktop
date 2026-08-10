@@ -63,6 +63,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 
 - Storage settings are expressed as reserved free space for the system and other apps, not as a recording quota. Keep `StorageSpacePolicy` as the single source of truth for minimum reserve rules.
 - Cache-like Web artifacts, including transcode cache, clip previews, and clipped downloads, live under `%LOCALAPPDATA%\ExpressPackingMonitoring\cache` and are cleaned by the Web cache limit.
+- 持久化运行时状态（设备凭据、根密钥、订单接收方注册、电脑昵称、备份上传状态等）不得放在 `cache` 目录，统一存放于 `%LOCALAPPDATA%\ExpressPackingMonitoring\mobile-backup-state\`；`cache` 只存放可重建、可清理的临时产物。
 - Web clipping is named “剪辑” / “剪辑并下载”. Do not call it “导出视频”, which can be confused with original video download.
 
 ## Destructive File Operation Safety

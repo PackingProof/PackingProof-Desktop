@@ -276,7 +276,7 @@ namespace ExpressPackingMonitoring.Services
             MigrateLegacyOrderInfoCache();
             LoadOrderInfoCacheFromDatabase();
             string resolvedMobileBackupStateDirectory = mobileBackupStateDirectory
-                ?? Path.Combine(AppPaths.CacheDir, "mobile-backup");
+                ?? AppPaths.MobileBackupStateDir;
             _backupPairingTokens = new BackupPairingTokenService(
                 resolvedMobileBackupStateDirectory,
                 _accessKey);

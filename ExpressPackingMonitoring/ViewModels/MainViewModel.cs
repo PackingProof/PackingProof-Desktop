@@ -2818,7 +2818,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         mobileConnectionUrlProvider: BuildMonitorAccessUrl,
                         mobileBackupComputerId: Config.MobileBackupComputerId,
                         mobileBackupComputerName: Config.NodeName,
-                        mobileBackupStateDirectory: Path.Combine(AppPaths.CacheDir, "mobile-backup"),
+                        mobileBackupStateDirectory: AppPaths.MobileBackupStateDir,
                         mobileBackupRecordingRootResolver: ResolveBestStoragePath,
                         nodeId: Config.NodeId,
                         nodeName: Config.NodeName,

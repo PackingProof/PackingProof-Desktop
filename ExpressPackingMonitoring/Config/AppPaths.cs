@@ -15,6 +15,8 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string LogDir = Path.Combine(UserDataDir, "log");
         public static readonly string CacheDir = Path.Combine(UserDataDir, "cache");
         public static readonly string BackupsDir = Path.Combine(UserDataDir, "backups");
+        // 手机/电脑备份与配对的持久化状态目录：不得放在 cache 中，避免被缓存清理或上传状态清理误删。
+        public static readonly string MobileBackupStateDir = Path.Combine(UserDataDir, "mobile-backup-state");
         public static readonly string ClipPreviewDir = Path.Combine(CacheDir, "clip_previews");
         public static readonly string ClipsDir = Path.Combine(CacheDir, "clips");
         public static readonly string TranscodeCacheDir = Path.Combine(CacheDir, "transcode");
@@ -36,6 +38,7 @@ namespace ExpressPackingMonitoring.Config
         {
             EnsureUserDataDirectories();
             MigrateLegacyRuntimeData();
+            MigrateMobileBackupState();
         }
 
         public static void EnsureUserDataDirectories()
@@ -44,11 +47,23 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(LogDir);
             Directory.CreateDirectory(CacheDir);
             Directory.CreateDirectory(BackupsDir);
+            Directory.CreateDirectory(MobileBackupStateDir);
             Directory.CreateDirectory(ClipPreviewDir);
             Directory.CreateDirectory(ClipsDir);
             Directory.CreateDirectory(TranscodeCacheDir);
             Directory.CreateDirectory(TtsCacheDir);
             Directory.CreateDirectory(GuideCacheDir);
+        }
+
+        private static void MigrateMobileBackupState()
+        {
+            // 旧版本把备份状态放在 cache\mobile-backup；持久化状态与上传分块统一迁移到持久状态目录。
+            MigrateMobileBackupState(Path.Combine(CacheDir, "mobile-backup"), MobileBackupStateDir);
+        }
+
+        internal static void MigrateMobileBackupState(string legacyDirectory, string destinationDirectory)
+        {
+            MoveDirectoryContents(legacyDirectory, destinationDirectory);
         }
 
         private static string GetLocalAppDataRoot()

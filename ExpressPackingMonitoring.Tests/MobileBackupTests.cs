@@ -79,6 +79,146 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public void CleanupExpiredUploads_DoesNotDeleteNonUploadStateJson()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string stateDirectory = Path.Combine(directory, "state");
+            Directory.CreateDirectory(stateDirectory);
+
+            string credentialPath = Path.Combine(stateDirectory, "backup-device-credentials.json");
+            File.WriteAllText(credentialPath, "[]");
+            File.SetLastWriteTimeUtc(credentialPath, DateTime.UtcNow.AddDays(-10));
+
+            string receiversPath = Path.Combine(stateDirectory, "order-receivers.json");
+            File.WriteAllText(receiversPath, "[]");
+            File.SetLastWriteTimeUtc(receiversPath, DateTime.UtcNow.AddDays(-10));
+
+            string uploadStatePath = Path.Combine(stateDirectory, new string('a', 64) + ".json");
+            File.WriteAllText(
+                uploadStatePath,
+                JsonSerializer.Serialize(new MobileBackupUploadState
+                {
+                    UploadId = new string('a', 64),
+                    UpdatedAtUtc = DateTime.UtcNow.AddDays(-10)
+                }));
+            File.SetLastWriteTimeUtc(uploadStatePath, DateTime.UtcNow.AddDays(-10));
+
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            new MobileBackupService(
+                database,
+                stateDirectory,
+                () => Path.Combine(directory, "recordings"),
+                _ => null);
+            // 构造函数内执行过期上传清理。
+
+            Assert.True(File.Exists(credentialPath), "设备凭据文件不应被上传状态清理误删");
+            Assert.True(File.Exists(receiversPath), "订单接收器状态文件不应被上传状态清理误删");
+            Assert.False(File.Exists(uploadStatePath), "过期的真实上传状态文件应被清理");
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void DeviceCredentialsSurviveExpiredUploadCleanupAcrossRestart()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string stateDirectory = Path.Combine(directory, "state");
+            var tokenService = new BackupPairingTokenService(stateDirectory, AccessKey);
+            BackupDeviceEnrollment enrolled = tokenService.Enroll("pc-node-restart", "pc");
+
+            string credentialPath = Path.Combine(stateDirectory, "backup-device-credentials.json");
+            File.SetLastWriteTimeUtc(credentialPath, DateTime.UtcNow.AddDays(-10));
+            File.SetLastWriteTimeUtc(
+                Path.Combine(stateDirectory, "backup-device-root.key"),
+                DateTime.UtcNow.AddDays(-10));
+
+            string uploadStatePath = Path.Combine(stateDirectory, new string('b', 64) + ".json");
+            File.WriteAllText(
+                uploadStatePath,
+                JsonSerializer.Serialize(new MobileBackupUploadState
+                {
+                    UploadId = new string('b', 64),
+                    UpdatedAtUtc = DateTime.UtcNow.AddDays(-10)
+                }));
+            File.SetLastWriteTimeUtc(uploadStatePath, DateTime.UtcNow.AddDays(-10));
+
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            new MobileBackupService(
+                database,
+                stateDirectory,
+                () => Path.Combine(directory, "recordings"),
+                _ => null);
+            // 构造函数内执行过期上传清理。
+
+            Assert.True(File.Exists(credentialPath), "设备凭据文件不应被上传状态清理误删");
+            var restarted = new BackupPairingTokenService(stateDirectory, AccessKey);
+            Assert.True(restarted.TryGetDeviceCredential("pc-node-restart", out string credential));
+            Assert.Equal(enrolled.DeviceCredential, credential);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void LegacyCacheMobileBackupStateMigratesToDurableStateDirectory()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string legacyDirectory = Path.Combine(directory, "cache", "mobile-backup");
+            string destinationDirectory = Path.Combine(directory, "mobile-backup-state");
+            Directory.CreateDirectory(legacyDirectory);
+
+            var tokenService = new BackupPairingTokenService(legacyDirectory, AccessKey);
+            BackupDeviceEnrollment enrolled = tokenService.Enroll("pc-node-migrate", "pc");
+            File.WriteAllText(Path.Combine(legacyDirectory, "order-receivers.json"), "[]");
+            string revisionDirectory = Path.Combine(legacyDirectory, "userscript-config");
+            Directory.CreateDirectory(revisionDirectory);
+            File.WriteAllText(
+                Path.Combine(revisionDirectory, "revision.json"),
+                "{\"Fingerprint\":\"fp\",\"Revision\":3}");
+            string uploadStatePath = Path.Combine(legacyDirectory, new string('c', 64) + ".json");
+            File.WriteAllText(
+                uploadStatePath,
+                JsonSerializer.Serialize(new MobileBackupUploadState
+                {
+                    UploadId = new string('c', 64),
+                    UpdatedAtUtc = DateTime.UtcNow
+                }));
+
+            AppPaths.MigrateMobileBackupState(legacyDirectory, destinationDirectory);
+
+            Assert.False(
+                File.Exists(Path.Combine(legacyDirectory, "backup-device-credentials.json")),
+                "迁移后旧 cache 目录不应再保留凭据文件");
+            Assert.True(
+                File.Exists(Path.Combine(destinationDirectory, "backup-device-credentials.json")));
+            Assert.True(File.Exists(Path.Combine(destinationDirectory, "backup-device-root.key")));
+            Assert.True(File.Exists(Path.Combine(destinationDirectory, "order-receivers.json")));
+            Assert.True(
+                File.Exists(Path.Combine(destinationDirectory, "userscript-config", "revision.json")));
+            Assert.True(File.Exists(Path.Combine(destinationDirectory, new string('c', 64) + ".json")));
+
+            var restarted = new BackupPairingTokenService(destinationDirectory, AccessKey);
+            Assert.True(restarted.TryGetDeviceCredential("pc-node-migrate", out string credential));
+            Assert.Equal(enrolled.DeviceCredential, credential);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task IncompatibleEnrollmentIsRejectedBeforeHostApproval()
     {
         string directory = CreateTempDirectory();

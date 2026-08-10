@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using ExpressPackingMonitoring.Logging;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -97,8 +98,16 @@ internal sealed class BackupPairingTokenService
             {
                 byte[] existing = Convert.FromBase64String(File.ReadAllText(path, Encoding.UTF8).Trim());
                 if (existing.Length == 32) return existing;
+                RuntimeLog.Warn("BackupPairing", $"备份设备根密钥内容无效，将重新生成 path={path}");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("BackupPairing", $"备份设备根密钥无法读取，将重新生成 path={path}, error={ex.Message}");
+            }
+        }
+        else
+        {
+            RuntimeLog.Warn("BackupPairing", $"备份设备根密钥文件不存在，将新建 path={path}");
         }
         byte[] created = RandomNumberGenerator.GetBytes(32);
         string temporary = path + ".tmp";
@@ -118,7 +127,11 @@ internal sealed class BackupPairingTokenService
 
     private void Load()
     {
-        if (!File.Exists(_path)) return;
+        if (!File.Exists(_path))
+        {
+            RuntimeLog.Warn("BackupPairing", $"备份设备凭据文件不存在，已连接设备需重新配对 path={_path}");
+            return;
+        }
         try
         {
             StoredCredential[] items = JsonSerializer.Deserialize<StoredCredential[]>(
@@ -130,10 +143,11 @@ internal sealed class BackupPairingTokenService
                     _deviceCredentials[item.DeviceId] = (value, item.DeviceKind);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // 损坏的凭据文件不得阻止主机启动；既有设备需重新扫码。
+            RuntimeLog.Warn("BackupPairing", $"备份设备凭据文件无法加载，已连接设备需重新配对 path={_path}, error={ex.Message}");
         }
+        RuntimeLog.Info("BackupPairing", $"备份设备凭据已加载 count={_deviceCredentials.Count}");
     }
 
     private StoredCredential Encrypt(string deviceId, string value, string deviceKind)

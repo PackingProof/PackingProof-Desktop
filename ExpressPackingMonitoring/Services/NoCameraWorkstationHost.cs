@@ -23,7 +23,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _databasePath = databasePath ?? AppPaths.VideoDatabasePath;
-        _stateDirectory = stateDirectory ?? Path.Combine(AppPaths.CacheDir, "mobile-backup");
+        _stateDirectory = stateDirectory ?? AppPaths.MobileBackupStateDir;
         _repairLanAccess = repairLanAccess ?? WebServer.RepairLanAccess;
     }
 

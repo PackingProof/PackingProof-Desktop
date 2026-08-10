@@ -170,7 +170,7 @@ internal sealed class MobileOrderReceiverRegistry
         port is > 0 and <= 65535 ? port : OrderReceiverPort;
 
     internal static string GetDefaultPath() =>
-        Path.Combine(AppPaths.CacheDir, "mobile-backup", "order-receivers.json");
+        Path.Combine(AppPaths.MobileBackupStateDir, "order-receivers.json");
 
     private static string? NormalizePrivateIpv4(IPAddress? address)
     {

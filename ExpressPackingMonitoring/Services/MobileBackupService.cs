@@ -317,6 +317,9 @@ internal sealed class MobileBackupService
         DateTime cutoff = DateTime.UtcNow - UploadRetention;
         foreach (string statePath in Directory.EnumerateFiles(_stateDirectory, "*.json", SearchOption.TopDirectoryOnly))
         {
+            // 只有本服务写入的上传状态文件（64 位十六进制 SHA-256 + .json）才参与清理；
+            // 同目录下的设备凭据、接收器、昵称等持久状态文件不得被误删。
+            if (!IsUploadStateFileName(statePath)) continue;
             try
             {
                 MobileBackupUploadState? state = JsonSerializer.Deserialize<MobileBackupUploadState>(File.ReadAllText(statePath), JsonOptions);
@@ -333,6 +336,21 @@ internal sealed class MobileBackupService
                 }
             }
         }
+    }
+
+    private static bool IsUploadStateFileName(string statePath)
+    {
+        string fileName = Path.GetFileName(statePath);
+        if (fileName.Length != 64 + 5
+            || !fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        foreach (char character in fileName.AsSpan(0, 64))
+        {
+            if (!Uri.IsHexDigit(character)) return false;
+        }
+        return true;
     }
 
     private object GetUploadLock(string uploadId) => _uploadLocks[GetUploadLockStripeIndex(uploadId)];
