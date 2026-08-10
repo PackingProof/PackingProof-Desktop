@@ -106,7 +106,6 @@ namespace ExpressPackingMonitoring.ViewModels
             var stopReason = _stopReason;
             var scanRecord = _currentScanRecord;
             var recordId = _currentRecordId; 
-            var archiveTarget = _currentArchivePath;
             var audioLogPath = _currentAudioLogPath;
             if (Config.EnableAudioRecording
                 && HasConfiguredAudioDevice()
@@ -181,12 +180,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         string durStr = durSec < 60 ? $"{durSec}s" : $"{(int)durSec / 60}m {durSec % 60}s";
 
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, stopReason, videoCodec, videoEncoder);
-                        if (!string.IsNullOrWhiteSpace(archiveTarget) && recordId > 0)
-                        {
-                            _db?.MarkArchivePending(recordId);
-                            _archiveService?.Wake();
-                            RuntimeLog.Info("Recording", $"Recording marked for archive id={recordId}, target={archiveTarget}");
-                        }
                         if (!string.IsNullOrWhiteSpace(filePath))
                         {
                             _pendingRecordingSpecificationChecks[filePath] =

@@ -205,4 +205,56 @@ public sealed class ArchiveDatabaseTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Pending, record.ArchiveStatus);
         Assert.Equal("", record.ArchiveError);
     }
+
+    [Fact]
+    public void UpdateVideoFilePath_LocalOnlyMkvBecomesPendingMp4()
+    {
+        DateTime now = DateTime.Now;
+        string mkvPath = Path.Combine(_directory, "local-only.mkv");
+        string mp4Path = Path.Combine(_directory, "local-only.mp4");
+        long id = _database.InsertVideoRecord(
+            "单号C",
+            "发货",
+            "h264",
+            "libx264",
+            mkvPath,
+            now.AddMinutes(-5),
+            archivePath: @"\\nas\share\2026-08-11\local-only.mkv");
+        _database.UpdateVideoRecordOnStop(id, now, 10, 100, "手动");
+        Assert.Equal(VideoArchiveStatus.LocalOnly, _database.GetVideoById(id)!.ArchiveStatus);
+
+        File.WriteAllText(mp4Path, "mp4");
+        _database.UpdateVideoFilePath(mkvPath, mp4Path);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(@"\\nas\share\2026-08-11\local-only.mp4", record.ArchivePath);
+        Assert.Equal(VideoArchiveStatus.Pending, record.ArchiveStatus);
+    }
+
+    [Fact]
+    public void LocalOnlyRecords_AreNotPickedByArchiveQueue()
+    {
+        DateTime now = DateTime.Now;
+        InsertLocal(@"\\nas\share\2026-08-11\not-ready.mp4", now.AddMinutes(-5), now);
+
+        Assert.Empty(_database.GetPendingArchives(20, now));
+    }
+
+    [Fact]
+    public void MarkArchivePendingByFilePath_OnlyAdvancesLocalOnly()
+    {
+        DateTime now = DateTime.Now;
+        long pendingId = InsertLocal(@"\\nas\share\a.mp4", now.AddMinutes(-5), now);
+        long conflictId = InsertLocal(@"\\nas\share\b.mp4", now.AddMinutes(-5), now);
+        _database.MarkArchivePending(pendingId);
+        _database.UpdateArchiveState(conflictId, VideoArchiveStatus.Conflict, error: "冲突");
+
+        VideoRecord pending = _database.GetVideoById(pendingId)!;
+        VideoRecord conflict = _database.GetVideoById(conflictId)!;
+        _database.MarkArchivePendingByFilePath(pending.FilePath);
+        _database.MarkArchivePendingByFilePath(conflict.FilePath);
+
+        Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(pendingId)!.ArchiveStatus);
+        Assert.Equal(VideoArchiveStatus.Conflict, _database.GetVideoById(conflictId)!.ArchiveStatus);
+    }
 }

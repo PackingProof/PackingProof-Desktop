@@ -2431,6 +2431,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     batchResult.SuppressedCount++;
                     if (File.Exists(mkvPath))
                         batchResult.AddFinalFile(mkvPath, mkvPath);
+                    _db.MarkArchivePendingByFilePath(mkvPath);
+                    _archiveService?.Wake();
                     progress?.Report($"[{i + 1}/{total}] 已停止自动重试，可在维护工具中手动合并: {fileName}");
                     continue;
                 }
@@ -2451,6 +2453,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _archiveService?.Wake();
                         batchResult.SuccessCount++;
                         batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] 已更新数据库: {fileName}");
@@ -2476,6 +2479,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         try { File.Delete(mkvPath); } catch { }
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _archiveService?.Wake();
                         batchResult.SuccessCount++;
                         batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
@@ -2498,6 +2502,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     try { File.Delete(mkvPath); } catch { }
                     _db.ClearMkvConversionFailure(mkvPath);
                     _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                    _archiveService?.Wake();
                     batchResult.SuccessCount++;
                     batchResult.AddFinalFile(
                         mkvPath,
@@ -2523,6 +2528,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             failedAt) == MkvAutomaticRetryDecision.Suppressed)
                     {
                         batchResult.SuppressedCount++;
+                        _db.MarkArchivePendingByFilePath(mkvPath);
+                        _archiveService?.Wake();
                     }
                     progress?.Report($"[{i + 1}/{total}] 转换失败: {fileName}");
                 }

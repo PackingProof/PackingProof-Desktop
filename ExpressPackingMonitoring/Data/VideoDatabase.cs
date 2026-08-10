@@ -887,11 +887,11 @@ namespace ExpressPackingMonitoring.Data
                         MkvLastNotifiedAt = NULL,
                         ArchivePath = CASE WHEN ArchivePath LIKE '%.mkv' THEN replace(ArchivePath, '.mkv', '.mp4') ELSE ArchivePath END,
                         ArchiveStatus = CASE
-                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus NOT IN ('Conflict', 'Deleting')
                                 THEN 'Pending'
                             ELSE ArchiveStatus END,
                         ArchiveError = CASE
-                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                            WHEN ArchivePath LIKE '%.mkv' AND ArchiveStatus NOT IN ('Conflict', 'Deleting')
                                 THEN ''
                             ELSE ArchiveError END
                     WHERE FilePath = @oldPath;";
@@ -902,6 +902,34 @@ namespace ExpressPackingMonitoring.Data
                 RemoveLocalVideoFileCore(oldPath);
                 if (fileSizeBytes > 0)
                     UpsertLocalVideoFileCore(newPath, fileSizeBytes);
+            }
+        }
+
+        /// <summary>
+        /// MKV 被判定为最终文件（转换已放弃）后，按本地路径把仅本地的记录置为等待归档。
+        /// 只处理 LocalOnly，避免打断进行中的删除/冲突状态。
+        /// </summary>
+        public void MarkArchivePendingByFilePath(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords
+                    SET ArchiveStatus = @status,
+                        ArchiveError = '',
+                        ArchiveRetryCount = 0,
+                        NextRetryAt = NULL,
+                        PendingDeleteAt = NULL
+                    WHERE IsDeleted = 0
+                      AND FilePath = @filePath
+                      AND ArchivePath <> ''
+                      AND ArchiveStatus = 'LocalOnly';";
+                cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.Pending);
+                cmd.Parameters.AddWithValue("@filePath", filePath);
+                cmd.ExecuteNonQuery();
             }
         }
 
