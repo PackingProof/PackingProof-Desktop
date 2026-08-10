@@ -1089,6 +1089,11 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             string selectedPath = dialog.SelectedPath;
+            if (StorageVolumeInfo.IsNetworkPath(selectedPath)
+                && StorageVolumeInfo.TryResolveUncPath(selectedPath, out string uncPath))
+            {
+                selectedPath = uncPath;
+            }
             if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
             {
                 AppDialog.Information(this, "该路径已在列表中。", "提示");

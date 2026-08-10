@@ -98,6 +98,74 @@ namespace ExpressPackingMonitoring.Config
             }
         }
 
+        /// <summary>
+        /// 把映射盘路径（Z:\folder）解析为 UNC（\\NAS\share\folder），避免盘符变化导致配置失效。
+        /// UNC 原样返回；本地路径或解析失败返回 false 并保留原路径。
+        /// </summary>
+        public static bool TryResolveUncPath(string path, out string uncPath) =>
+            TryResolveUncPath(path, out uncPath, ResolveMappedRootWithWNet);
+
+        internal static bool TryResolveUncPath(
+            string path,
+            out string uncPath,
+            Func<string, string?>? mappedRootResolver)
+        {
+            uncPath = "";
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+
+            try
+            {
+                string trimmed = path.Trim().Trim('"');
+                if (trimmed.StartsWith(@"\\", StringComparison.Ordinal))
+                {
+                    uncPath = Path.GetFullPath(trimmed);
+                    return true;
+                }
+
+                string fullPath = Path.GetFullPath(trimmed);
+                string? root = Path.GetPathRoot(fullPath);
+                if (string.IsNullOrWhiteSpace(root))
+                    return false;
+
+                string? remote = mappedRootResolver?.Invoke(root.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar));
+                if (string.IsNullOrWhiteSpace(remote)
+                    || !remote.StartsWith(@"\\", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                string relative = fullPath[root.Length..].TrimStart(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                uncPath = string.IsNullOrWhiteSpace(relative)
+                    ? remote
+                    : Path.Combine(remote, relative);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static string? ResolveMappedRootWithWNet(string rootPath)
+        {
+            try
+            {
+                var buffer = new StringBuilder(512);
+                int length = buffer.Capacity;
+                uint result = WNetGetConnection(rootPath, buffer, ref length);
+                return result == 0 ? buffer.ToString() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private static long ClampToInt64(ulong value) =>
             value > long.MaxValue ? long.MaxValue : (long)value;
 
@@ -115,5 +183,11 @@ namespace ExpressPackingMonitoring.Config
             string lpszVolumeMountPoint,
             StringBuilder lpszVolumeName,
             uint cchBufferLength);
+
+        [DllImport("mpr.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint WNetGetConnection(
+            string lpLocalName,
+            StringBuilder lpRemoteName,
+            ref int lpnLength);
     }
 }

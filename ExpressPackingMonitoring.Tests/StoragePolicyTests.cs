@@ -123,4 +123,48 @@ public sealed class StoragePolicyTests
         Assert.StartsWith(@"\\?\Volume{", config.StorageLocations[0].VolumeId);
         Assert.NotNull(config.StorageLocations[0].LastVerifiedAt);
     }
+
+    [Fact]
+    public void TryResolveUncPath_UncPassthrough()
+    {
+        Assert.True(StorageVolumeInfo.TryResolveUncPath(
+            @"\\NAS\share\folder",
+            out string uncPath));
+        Assert.Equal(@"\\NAS\share\folder", uncPath);
+    }
+
+    [Fact]
+    public void TryResolveUncPath_LocalPathFails()
+    {
+        Assert.False(StorageVolumeInfo.TryResolveUncPath(Path.GetTempPath(), out _));
+    }
+
+    [Fact]
+    public void TryResolveUncPath_MappedDriveJoinsWithoutDoubleSeparator()
+    {
+        Assert.True(StorageVolumeInfo.TryResolveUncPath(
+            @"Z:\folder",
+            out string uncPath,
+            root => @"\\NAS\share"));
+        Assert.Equal(@"\\NAS\share\folder", uncPath);
+
+        Assert.True(StorageVolumeInfo.TryResolveUncPath(
+            @"Z:\",
+            out string rootOnly,
+            root => @"\\NAS\share"));
+        Assert.Equal(@"\\NAS\share", rootOnly);
+    }
+
+    [Fact]
+    public void TryResolveUncPath_UnresolvableRootKeepsOriginal()
+    {
+        Assert.False(StorageVolumeInfo.TryResolveUncPath(
+            @"Z:\folder",
+            out _,
+            root => null));
+        Assert.False(StorageVolumeInfo.TryResolveUncPath(
+            @"Z:\folder",
+            out _,
+            root => @"C:\not-a-remote"));
+    }
 }
