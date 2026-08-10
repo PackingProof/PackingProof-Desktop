@@ -167,7 +167,7 @@
     <Compile Include="Services\StorageLocationResolver.cs" />
     <Compile Include="Services\TaskbarIdentityService.cs" />
     <Compile Include="Services\VideoClipService.cs" />
-    <Compile Include="Services\VideoFileResolver.cs" />
+    <Compile Include="Services\PlaybackFileResolver.cs" />
     <Compile Include="Services\VideoFolderImportService.cs" />
     <Compile Include="Services\WebServer.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />

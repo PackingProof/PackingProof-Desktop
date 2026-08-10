@@ -8,7 +8,7 @@ namespace ExpressPackingMonitoring.Services;
 /// 回放/下载/剪辑统一路径解析：本地完整文件优先，否则已归档且可达的网络副本兜底。
 /// 可达性带短 TTL 缓存，NAS 离线时历史界面保持响应。
 /// </summary>
-internal static class VideoFileResolver
+internal static class PlaybackFileResolver
 {
     private static readonly ConcurrentDictionary<string, AvailabilityEntry> AvailabilityCache = new();
     private static readonly TimeSpan AvailableTtl = TimeSpan.FromSeconds(15);

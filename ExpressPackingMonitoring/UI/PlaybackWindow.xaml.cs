@@ -318,14 +318,14 @@ namespace ExpressPackingMonitoring.UI
                             record.StorageState,
                             "Remote",
                             StringComparison.OrdinalIgnoreCase);
-                        string resolvedPath = VideoFileResolver.ResolvePlaybackPath(record);
+                        string resolvedPath = PlaybackFileResolver.ResolvePlaybackPath(record);
                         bool missing = !deleted && !storedOnHost && string.IsNullOrWhiteSpace(resolvedPath);
                         bool archiveWarning = record.ArchiveStatus == VideoArchiveStatus.Conflict
                             || record.ArchiveStatus == VideoArchiveStatus.Failed;
                         string archiveStatusText = record.ArchiveStatus switch
                         {
-                            VideoArchiveStatus.Conflict => "归档冲突：网络端存在同名但内容不同的文件",
-                            VideoArchiveStatus.Failed => "归档失败，等待自动重试",
+                            VideoArchiveStatus.Conflict => $"归档冲突：网络端已有不同版本，请检查 {record.ArchivePath}",
+                            VideoArchiveStatus.Failed => $"归档失败，等待自动重试：{record.ArchivePath}",
                             VideoArchiveStatus.LocalDeleted => "已归档（本地副本已清理）",
                             _ => ""
                         };

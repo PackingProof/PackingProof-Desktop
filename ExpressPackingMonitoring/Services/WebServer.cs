@@ -1609,7 +1609,7 @@ namespace ExpressPackingMonitoring.Services
                     fileSizeBytes = verifiedRecord?.FileSizeBytes ?? 0;
                     string resolvedVerifiedPath = verifiedRecord == null
                         ? ""
-                        : VideoFileResolver.ResolvePlaybackPath(verifiedRecord);
+                        : PlaybackFileResolver.ResolvePlaybackPath(verifiedRecord);
                     if (fileSizeBytes <= 0 && !string.IsNullOrWhiteSpace(resolvedVerifiedPath))
                         fileSizeBytes = new FileInfo(resolvedVerifiedPath).Length;
                     verifiedAtUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -1658,7 +1658,7 @@ namespace ExpressPackingMonitoring.Services
             string sourceDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
             string resolvedAttestationPath = record == null
                 ? ""
-                : VideoFileResolver.ResolvePlaybackPath(record);
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
             if (record == null || record.IsDeleted || string.IsNullOrWhiteSpace(resolvedAttestationPath)
                 || !string.Equals(record.SourceDeviceId, sourceDeviceId, StringComparison.OrdinalIgnoreCase))
             {
@@ -1786,7 +1786,7 @@ namespace ExpressPackingMonitoring.Services
                     startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                     durationSec = Math.Round(record.DurationSeconds, 0),
                     duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
-                    exists = !string.IsNullOrWhiteSpace(VideoFileResolver.ResolvePlaybackPath(record)),
+                    exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)),
                     playUrl = $"/api/mobile-backup/videos/{record.Id}/play?ticket={ticket}",
                     thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail?ticket={ticket}",
                     remote = true
@@ -1811,7 +1811,7 @@ namespace ExpressPackingMonitoring.Services
                 VideoRecord record = _db.GetVideoById(id);
                 bool authorized = CanAccessDeviceVideo(record, deviceId, hostLibrary, includeDeleted: true);
                 bool exists = authorized && !record!.IsDeleted
-                    && !string.IsNullOrWhiteSpace(VideoFileResolver.ResolvePlaybackPath(record));
+                    && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record));
                 string status = !authorized || (!record!.IsDeleted && !exists)
                     ? "missing"
                     : record.IsDeleted ? "deleted" : "available";
@@ -2999,7 +2999,7 @@ namespace ExpressPackingMonitoring.Services
                 startTime = r.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                 durationSec = Math.Round(r.DurationSeconds, 0),
                 duration = TimeSpan.FromSeconds(r.DurationSeconds).ToString(@"mm\:ss"),
-                exists = !string.IsNullOrWhiteSpace(VideoFileResolver.ResolvePlaybackPath(r)),
+                exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)),
                 playUrl = $"/api/videos/{r.Id}/play?compat=0",
                 thumbnailUrl = $"/api/videos/{r.Id}/thumbnail",
                 remote = true
@@ -3104,7 +3104,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 records.TryGetValue(id, out VideoRecord record);
                 bool exists = record != null
-                    && !string.IsNullOrWhiteSpace(VideoFileResolver.ResolvePlaybackPath(record));
+                    && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record));
                 string status = record == null || (!record.IsDeleted && !exists)
                     ? "missing"
                     : record.IsDeleted ? "deleted" : "available";
@@ -3125,7 +3125,7 @@ namespace ExpressPackingMonitoring.Services
             Log($"HandlePlay: path={path}, record={(record != null ? $"Id={record.Id}, OrderId={record.OrderId}, VideoCodec='{record.VideoCodec}', FilePath='{record.FilePath}'" : "null")}");
             string resolvedPlayPath = record == null
                 ? ""
-                : VideoFileResolver.ResolvePlaybackPath(record);
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
             if (record == null || string.IsNullOrWhiteSpace(resolvedPlayPath))
             {
                 Log($"HandlePlay: 文件不存在 filePath={record?.FilePath}");
@@ -3180,7 +3180,7 @@ namespace ExpressPackingMonitoring.Services
 
         private string EnsureMp4ContainerForPlayback(HttpListenerContext ctx, VideoRecord record)
         {
-            string filePath = VideoFileResolver.ResolvePlaybackPath(record);
+            string filePath = PlaybackFileResolver.ResolvePlaybackPath(record);
             if (string.IsNullOrWhiteSpace(filePath))
                 return "";
             if (!filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
@@ -3791,7 +3791,7 @@ namespace ExpressPackingMonitoring.Services
             var record = FindRecordFromPath(path, "/download");
             string resolvedDownloadPath = record == null
                 ? ""
-                : VideoFileResolver.ResolvePlaybackPath(record);
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
             if (record == null || string.IsNullOrWhiteSpace(resolvedDownloadPath))
             {
                 SendJson(ctx, 404, new { error = "文件不存在" });

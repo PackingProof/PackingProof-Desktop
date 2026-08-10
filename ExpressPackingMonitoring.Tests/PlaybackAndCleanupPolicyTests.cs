@@ -74,10 +74,10 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
     public void Resolver_PrefersLocalThenArchive()
     {
         VideoRecord withLocal = VerifiedRecord("g.mp4", DateTime.Now.AddDays(-3), createLocal: true, createArchive: true);
-        Assert.Equal(withLocal.FilePath, VideoFileResolver.ResolvePlaybackPath(withLocal));
+        Assert.Equal(withLocal.FilePath, PlaybackFileResolver.ResolvePlaybackPath(withLocal));
 
         VideoRecord archiveOnly = VerifiedRecord("h.mp4", DateTime.Now.AddDays(-3), createLocal: false, createArchive: true);
-        Assert.Equal(archiveOnly.ArchivePath, VideoFileResolver.ResolvePlaybackPath(archiveOnly));
+        Assert.Equal(archiveOnly.ArchivePath, PlaybackFileResolver.ResolvePlaybackPath(archiveOnly));
     }
 
     [Fact]
@@ -85,20 +85,20 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
     {
         VideoRecord pending = VerifiedRecord("i.mp4", DateTime.Now.AddDays(-3), createLocal: false, createArchive: true);
         pending.ArchiveStatus = VideoArchiveStatus.Pending;
-        Assert.Equal("", VideoFileResolver.ResolvePlaybackPath(pending));
+        Assert.Equal("", PlaybackFileResolver.ResolvePlaybackPath(pending));
 
         VideoRecord missingArchive = VerifiedRecord("j.mp4", DateTime.Now.AddDays(-3), createLocal: false, createArchive: false);
-        Assert.Equal("", VideoFileResolver.ResolvePlaybackPath(missingArchive));
+        Assert.Equal("", PlaybackFileResolver.ResolvePlaybackPath(missingArchive));
     }
 
     [Fact]
     public void Resolver_MarkUnavailableInvalidatesArchiveCache()
     {
         VideoRecord archiveOnly = VerifiedRecord("k.mp4", DateTime.Now.AddDays(-3), createLocal: false, createArchive: true);
-        Assert.Equal(archiveOnly.ArchivePath, VideoFileResolver.ResolvePlaybackPath(archiveOnly));
+        Assert.Equal(archiveOnly.ArchivePath, PlaybackFileResolver.ResolvePlaybackPath(archiveOnly));
 
-        VideoFileResolver.MarkUnavailable(archiveOnly.ArchivePath);
-        Assert.Equal("", VideoFileResolver.ResolvePlaybackPath(archiveOnly));
+        PlaybackFileResolver.MarkUnavailable(archiveOnly.ArchivePath);
+        Assert.Equal("", PlaybackFileResolver.ResolvePlaybackPath(archiveOnly));
     }
 
     [Fact]

@@ -457,7 +457,7 @@ namespace ExpressPackingMonitoring.Services
             if (record == null || string.IsNullOrWhiteSpace(record.FilePath))
                 throw new InvalidOperationException("文件不存在");
 
-            if (!string.IsNullOrWhiteSpace(VideoFileResolver.ResolvePlaybackPath(record)))
+            if (!string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)))
                 return record;
 
             if (TryPromoteExistingMp4(record, out _))
@@ -471,7 +471,7 @@ namespace ExpressPackingMonitoring.Services
 
         private string ResolveClipSourcePath(VideoRecord record)
         {
-            string filePath = VideoFileResolver.ResolvePlaybackPath(record);
+            string filePath = PlaybackFileResolver.ResolvePlaybackPath(record);
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new InvalidOperationException("文件不存在");
             if (_isCurrentRecordingFile(filePath))
