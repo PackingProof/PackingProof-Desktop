@@ -109,3 +109,7 @@ Do not commit generated configs, databases, logs, caches, recordings, `.env` fil
 ## UI 字体规范
 
 - 默认禁止使用与现有 UI 不同的字体（`FontFamily`），新界面一律复用项目默认字体（`Microsoft YaHei UI, Segoe UI`）和现有字号/字重风格；确需使用其他字体时必须显式设置并说明原因。
+
+## UI 文案规范
+
+- 所有用户可见文本的最后一句话不允许以句号（。）结尾；多句文案只移除末尾句号，中间句号可保留。
