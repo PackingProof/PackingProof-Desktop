@@ -16,13 +16,15 @@ internal enum RemoteProbeResult
 internal interface IArchiveProvider
 {
     /// <summary>
-    /// 把本地文件复制为网络目标：临时文件 + 长度/SHA-256 校验 + 同目录改名发布。
-    /// 返回已校验的源文件 SHA-256；目标存在且内容不同时抛出 ArchiveConflictException。
+    /// 把本地文件发布为网络目标：复制中只做长度校验，临时文件 + 同目录改名发布；
+    /// 目标已存在时先比大小、同大小才哈希（一致视为已完成，不同抛 ArchiveConflictException）。
+    /// 发布后的 SHA-256 校验由调用方在 Verifying 阶段执行。
     /// </summary>
-    Task<string> CopyVerifiedAsync(
+    Task PublishFileAsync(
         string sourcePath,
         string destinationPath,
         long recordId,
+        string expectedSha256,
         CancellationToken cancellationToken);
 
     Task<RemoteProbeResult> ProbeAsync(
@@ -31,6 +33,11 @@ internal interface IArchiveProvider
         CancellationToken cancellationToken);
 
     Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken);
+
+    Task RenameAsync(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken);
 
     Task DeleteAsync(string path, CancellationToken cancellationToken);
 }

@@ -11,6 +11,42 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ArchiveServiceTests : IDisposable
 {
+    private sealed class CorruptVerifyProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            CancellationToken cancellationToken) =>
+            _inner.PublishFileAsync(
+                sourcePath,
+                destinationPath,
+                recordId,
+                expectedSha256,
+                cancellationToken);
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            Task.FromResult(new string('0', 64));
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task DeleteAsync(string path, CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, cancellationToken);
+    }
+
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(),
         "epm-archive-service-" + Guid.NewGuid().ToString("N"));
@@ -206,5 +242,25 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
         Assert.False(File.Exists(tempPath));
         Assert.True(File.Exists(record.ArchivePath));
+    }
+
+    [Fact]
+    public async Task HashMismatch_RenamesCorruptTargetAndMarksFailed()
+    {
+        long id = InsertPendingRecord("corrupt.mp4", "corrupt-content");
+        VideoRecord record = _database.GetVideoById(id)!;
+        using var service = new ArchiveService(
+            _database,
+            new CorruptVerifyProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        await service.ProcessPendingOnceAsync(CancellationToken.None);
+
+        VideoRecord failed = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.Failed, failed.ArchiveStatus);
+        Assert.Contains("HashMismatch", failed.ArchiveError);
+        Assert.False(File.Exists(record.ArchivePath));
+        Assert.True(File.Exists(record.ArchivePath + ".corrupt"));
+        Assert.True(File.Exists(record.FilePath), "本地源必须保留");
     }
 }

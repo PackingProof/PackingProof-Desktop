@@ -137,7 +137,12 @@ internal sealed class ArchiveService : IDisposable
             }
 
             await WithTimeoutAsync(
-                token => _provider.CopyVerifiedAsync(localPath, networkPath, record.Id, token),
+                token => _provider.PublishFileAsync(
+                    localPath,
+                    networkPath,
+                    record.Id,
+                    sourceHash,
+                    token),
                 cancellationToken).ConfigureAwait(false);
 
             _database.UpdateArchiveState(record.Id, VideoArchiveStatus.Verifying, attemptedAt: attemptedAt);
@@ -146,9 +151,29 @@ internal sealed class ArchiveService : IDisposable
                 cancellationToken).ConfigureAwait(false);
             if (!string.Equals(publishedHash, sourceHash, StringComparison.OrdinalIgnoreCase))
             {
-                // 发布后校验失败：本地源仍保留，删除损坏目标以便下次重试。
-                try { await _provider.DeleteAsync(networkPath, cancellationToken).ConfigureAwait(false); } catch { }
-                throw new IOException("网络归档文件 SHA-256 校验失败");
+                // 发布后校验失败：本地源仍保留，先把损坏目标改名 .corrupt（失败则仅记录），
+                // 置 Failed(HashMismatch) 以便重试，不留下状态不明的文件。
+                try
+                {
+                    await _provider.RenameAsync(
+                        networkPath,
+                        networkPath + ".corrupt",
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception renameEx)
+                {
+                    RuntimeLog.Warn(
+                        "Archive",
+                        $"Archive hash mismatch rename failed id={record.Id}, target={networkPath}, error={renameEx.Message}");
+                }
+                _database.UpdateArchiveState(
+                    record.Id,
+                    VideoArchiveStatus.Failed,
+                    error: "HashMismatch：网络归档文件 SHA-256 校验失败",
+                    attemptedAt: attemptedAt,
+                    incrementRetry: true,
+                    nextRetryAt: ComputeNextRetryAt(record.ArchiveRetryCount + 1));
+                return false;
             }
 
             _database.UpdateArchiveState(

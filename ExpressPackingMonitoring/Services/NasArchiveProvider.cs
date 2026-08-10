@@ -8,10 +8,11 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal sealed class NasArchiveProvider : IArchiveProvider
 {
-    public async Task<string> CopyVerifiedAsync(
+    public async Task PublishFileAsync(
         string sourcePath,
         string destinationPath,
         long recordId,
+        string expectedSha256,
         CancellationToken cancellationToken)
     {
         string? destinationDirectory = Path.GetDirectoryName(destinationPath);
@@ -19,12 +20,14 @@ internal sealed class NasArchiveProvider : IArchiveProvider
             throw new IOException("网络归档目标目录无效");
         Directory.CreateDirectory(destinationDirectory);
 
-        string sourceHash = await ComputeSha256Async(sourcePath, cancellationToken).ConfigureAwait(false);
+        long sourceLength = new FileInfo(sourcePath).Length;
         if (File.Exists(destinationPath))
         {
+            if (new FileInfo(destinationPath).Length != sourceLength)
+                throw new ArchiveConflictException("网络目标已存在同名但大小不同的文件，已禁止覆盖");
             string existingHash = await ComputeSha256Async(destinationPath, cancellationToken).ConfigureAwait(false);
-            if (string.Equals(sourceHash, existingHash, StringComparison.OrdinalIgnoreCase))
-                return sourceHash;
+            if (string.Equals(expectedSha256, existingHash, StringComparison.OrdinalIgnoreCase))
+                return;
             throw new ArchiveConflictException("网络目标已存在同名但内容不同的文件，已禁止覆盖");
         }
 
@@ -36,21 +39,17 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         try
         {
             await CopyFileAsync(sourcePath, temporaryPath, cancellationToken).ConfigureAwait(false);
-            string temporaryHash = await ComputeSha256Async(temporaryPath, cancellationToken).ConfigureAwait(false);
-            if (!string.Equals(sourceHash, temporaryHash, StringComparison.OrdinalIgnoreCase))
-                throw new IOException("网络临时文件 SHA-256 校验失败");
 
             if (File.Exists(destinationPath))
             {
                 string concurrentHash = await ComputeSha256Async(destinationPath, cancellationToken).ConfigureAwait(false);
-                if (!string.Equals(sourceHash, concurrentHash, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(expectedSha256, concurrentHash, StringComparison.OrdinalIgnoreCase))
                     throw new ArchiveConflictException("发布时发现同名文件冲突，已禁止覆盖");
                 File.Delete(temporaryPath);
-                return sourceHash;
+                return;
             }
 
             File.Move(temporaryPath, destinationPath, overwrite: false);
-            return sourceHash;
         }
         catch
         {
@@ -84,6 +83,15 @@ internal sealed class NasArchiveProvider : IArchiveProvider
 
     public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
         ComputeSha256CoreAsync(path, cancellationToken);
+
+    public Task RenameAsync(
+        string sourcePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        File.Move(sourcePath, destinationPath, overwrite: true);
+        return Task.CompletedTask;
+    }
 
     public Task DeleteAsync(string path, CancellationToken cancellationToken)
     {
