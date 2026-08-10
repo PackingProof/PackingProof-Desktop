@@ -142,12 +142,133 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (fullScan && totalCapacityBytes > 0 && totalCurrentBytes > totalCapacityBytes)
                     CleanupOldVideos(totalCurrentBytes, totalCapacityBytes);
 
+                TryEmergencyUnarchivedCleanup(totalCurrentBytes, totalCapacityBytes);
+
                 UpdateDiskUsageText(totalCurrentBytes, totalCapacityBytes);
             }
             catch { }
             finally
             {
                 Interlocked.Exchange(ref _diskCleanupRunning, 0);
+            }
+        }
+
+        /// <summary>
+        /// 硬循环兜底（最后降级策略）：正常 GC 后仍无法满足保留要求、
+        /// 缓冲可用空间低于保护线、且 NAS 不可达时，删除超过保护期的最旧未归档录像。
+        /// Conflict 不参与；NAS 可达时仅唤醒归档并跳过本轮。
+        /// </summary>
+        private void TryEmergencyUnarchivedCleanup(
+            long totalCurrentBytes,
+            long totalCapacityBytes)
+        {
+            try
+            {
+                if (Config.StorageLocations == null
+                    || !Config.StorageLocations.Any(
+                        location => StorageVolumeInfo.IsNetworkPath(location.Path)))
+                {
+                    return;
+                }
+
+                string workingRoot = Path.IsPathRooted(Config.LocalRecordingBufferPath)
+                    ? Config.LocalRecordingBufferPath
+                    : Path.Combine(
+                        AppDomain.CurrentDomain.BaseDirectory,
+                        Config.LocalRecordingBufferPath);
+                if (!StorageVolumeInfo.TryGet(workingRoot, out StorageVolumeInfo volume))
+                    return;
+
+                long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
+                    new StorageLocation { Path = workingRoot, ReserveGB = 0 },
+                    volume);
+                if (volume.AvailableFreeSpace >= reserveBytes)
+                    return; // 仍满足存储空间策略保留要求
+                if (volume.AvailableFreeSpace
+                    >= LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes)
+                {
+                    return; // 未触及 5GiB 保护线
+                }
+
+                string? archiveRoot = Config.StorageLocations
+                    .Where(location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                    .Select(location => Path.IsPathRooted(location.Path)
+                        ? location.Path
+                        : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path))
+                    .FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(archiveRoot))
+                    return;
+
+                if (RemoteFileProbe.TryProbeFile(archiveRoot, TimeSpan.FromSeconds(3)))
+                {
+                    _archiveService?.Wake(); // NAS 可达：优先归档而不是删除
+                    return;
+                }
+
+                EmergencyCleanupUnarchived(
+                    Math.Max(0, totalCurrentBytes - (long)(totalCapacityBytes * 0.9)));
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Cleanup", $"Emergency cleanup check failed: {ex.Message}");
+            }
+        }
+
+        private void EmergencyCleanupUnarchived(long bytesToRelease)
+        {
+            if (bytesToRelease <= 0 || _db == null)
+                return;
+
+            DateTime cutoff = DateTime.Now - LocalCopyCleanupPolicy.EmergencyDeleteGracePeriod;
+            long releasedBytes = 0;
+            int count = 0;
+            foreach (VideoRecord record in _db.GetEmergencyCleanupCandidates(cutoff, 200))
+            {
+                try
+                {
+                    if (releasedBytes >= bytesToRelease)
+                        break;
+                    if (!LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(
+                            record,
+                            DateTime.Now,
+                            out _))
+                    {
+                        continue;
+                    }
+
+                    long size = new FileInfo(record.FilePath).Length;
+                    using (VideoLifecycleCoordinator.EnterAsync(
+                               record.Id,
+                               CancellationToken.None).GetAwaiter().GetResult())
+                    {
+                        if (!File.Exists(record.FilePath))
+                            continue;
+                        File.Delete(record.FilePath);
+                    }
+                    releasedBytes += size;
+                    count++;
+                    _db.MarkVideoDeleted(
+                        record.FilePath,
+                        "硬循环清理（NAS 不可用）",
+                        RecordingDeletionReasonCode.CapacityEmergencyCleanupUnarchived);
+                }
+                catch { }
+            }
+
+            if (count > 0)
+            {
+                _lastKnownDiskTotalBytes = Math.Max(0, _lastKnownDiskTotalBytes - releasedBytes);
+                RuntimeLog.Warn(
+                    "Cleanup",
+                    $"Emergency cleanup deleted unarchived count={count}, bytes={releasedBytes}");
+                _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    if (_isDisposed)
+                        return;
+                    ShowToast(
+                        $"NAS 不可用，已删除最旧未归档录像 {count} 条",
+                        ToastSeverity.Warning);
+                });
             }
         }
 
@@ -226,7 +347,10 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         releasedBytes += size;
                         count++;
-                        _db?.MarkLocalCopyDeleted(video.Id, "全局配额清理");
+                        _db?.MarkLocalCopyDeleted(
+                            video.Id,
+                            "全局配额清理",
+                            RecordingDeletionReasonCode.CapacityCleanupVerified);
                     }
                     catch { }
                 }

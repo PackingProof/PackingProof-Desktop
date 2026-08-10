@@ -11,6 +11,16 @@ using Microsoft.Data.Sqlite;
 namespace ExpressPackingMonitoring.Data
 {
     /// <summary>
+    /// 录像删除原因代码：区分用户删除、已归档容量清理、硬循环未归档清理，供售后/排查按代码定位。
+    /// </summary>
+    public static class RecordingDeletionReasonCode
+    {
+        public const string UserRequested = "UserRequested";
+        public const string CapacityCleanupVerified = "CapacityCleanupVerified";
+        public const string CapacityEmergencyCleanupUnarchived = "CapacityEmergencyCleanupUnarchived";
+    }
+
+    /// <summary>
     /// 网络归档状态机：
     /// LocalOnly(仅本地) → Pending(等待归档) → Copying(复制中) → Verifying(后台校验) → Verified(已归档)
     /// 失败 → Failed(可重试)；同名异内容 → Conflict(人工处理)；用户删除 → Deleting(含 PendingDeleteAt 等待恢复) → LocalDeleted(本地已删/归档保留)。
@@ -63,6 +73,7 @@ namespace ExpressPackingMonitoring.Data
         public bool IsDeleted { get; set; }
         public DateTime? DeletedAt { get; set; }
         public string DeleteReason { get; set; } = ""; // 磁盘清理/手动删除
+        public string DeleteReasonCode { get; set; } = "";
 
         // 网络归档元数据
         public string ArchivePath { get; set; } = "";
@@ -199,6 +210,7 @@ namespace ExpressPackingMonitoring.Data
                     IsDeleted INTEGER DEFAULT 0,
                     DeletedAt TEXT,
                     DeleteReason TEXT DEFAULT '',
+                    DeleteReasonCode TEXT DEFAULT '',
                     ArchivePath TEXT DEFAULT '',
                     ArchiveStatus TEXT NOT NULL DEFAULT 'LocalOnly',
                     PendingDeleteAt TEXT,
@@ -293,6 +305,7 @@ namespace ExpressPackingMonitoring.Data
             EnsureColumnExists("VideoRecords", "MkvFailureCount", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumnExists("VideoRecords", "MkvLastError", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "MkvLastNotifiedAt", "TEXT");
+            EnsureColumnExists("VideoRecords", "DeleteReasonCode", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "ArchivePath", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "ArchiveStatus", "TEXT NOT NULL DEFAULT 'LocalOnly'");
             EnsureColumnExists("VideoRecords", "PendingDeleteAt", "TEXT");
@@ -552,7 +565,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE SourceType = 'external' AND SourceDeviceId = @sourceDeviceId AND SourceSessionId = @sourceSessionId
                     LIMIT 1;";
@@ -578,7 +592,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE ContentSha256 = @contentSha256 AND IsDeleted = 0
                     ORDER BY Id LIMIT 1;";
@@ -1228,7 +1243,7 @@ namespace ExpressPackingMonitoring.Data
         /// <summary>
         /// 标记视频为已删除并写入删除日志
         /// </summary>
-        public void MarkVideoDeleted(string filePath, string reason)
+        public void MarkVideoDeleted(string filePath, string reason, string reasonCode = "")
         {
             lock (_lock)
             {
@@ -1241,11 +1256,12 @@ namespace ExpressPackingMonitoring.Data
                         cmd.Transaction = transaction;
                         cmd.CommandText = @"
                             UPDATE VideoRecords SET 
-                                IsDeleted = 1, DeletedAt = @deletedAt, DeleteReason = @reason
+                                IsDeleted = 1, DeletedAt = @deletedAt, DeleteReason = @reason, DeleteReasonCode = @reasonCode
                             WHERE FilePath = @filePath AND IsDeleted = 0;";
                         cmd.Parameters.AddWithValue("@filePath", filePath);
                         cmd.Parameters.AddWithValue("@deletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                         cmd.Parameters.AddWithValue("@reason", reason ?? "");
+                        cmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
                         cmd.ExecuteNonQuery();
                     }
 
@@ -1357,7 +1373,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords WHERE Id = @id AND IsDeleted = 0;";
                 cmd.Parameters.AddWithValue("@id", id);
                 using var reader = cmd.ExecuteReader();
@@ -1403,7 +1420,8 @@ namespace ExpressPackingMonitoring.Data
                         ArchiveCompletedAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
                         ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
                         LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
-                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                        DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
                     };
                 }
                 return null;
@@ -1429,7 +1447,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords 
                     WHERE 1 = 1";
 
@@ -1499,7 +1518,8 @@ namespace ExpressPackingMonitoring.Data
                         ArchiveCompletedAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
                         ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
                         LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
-                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                        DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
                     });
                 }
                 return results;
@@ -1548,7 +1568,8 @@ namespace ExpressPackingMonitoring.Data
                 ArchiveCompletedAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
                 ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
                 LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
-                LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
             };
         }
 
@@ -1594,7 +1615,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE SourceType = 'pc'
                       AND IsDeleted = 0
@@ -1751,7 +1773,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason "
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode "
                     + whereSql + @"
                     ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit OFFSET @offset;";
@@ -1869,7 +1892,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE Id IN (" + string.Join(",", parameters) + ");";
                 var result = new Dictionary<long, VideoRecord>();
@@ -1916,7 +1940,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords " + whereSql + @"
                     ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit;";
@@ -2109,7 +2134,8 @@ namespace ExpressPackingMonitoring.Data
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
                     SELECT MIN(Id), MIN(OrderId), FilePath, MAX(FileSizeBytes), MIN(StartTime),
-                           MAX(ArchivePath), MAX(ArchiveStatus), MAX(ArchiveCompletedAt), MAX(LocalCopyDeletedAt)
+                           MAX(ArchivePath), MAX(ArchiveStatus), MAX(ArchiveCompletedAt), MAX(LocalCopyDeletedAt),
+                           MAX(DeleteReasonCode)
                     FROM VideoRecords 
                     WHERE IsDeleted = 0
                     GROUP BY FilePath
@@ -2130,9 +2156,50 @@ namespace ExpressPackingMonitoring.Data
                         ArchivePath = reader.IsDBNull(5) ? "" : reader.GetString(5),
                         ArchiveStatus = reader.IsDBNull(6) ? VideoArchiveStatus.LocalOnly : reader.GetString(6),
                         ArchiveCompletedAt = reader.IsDBNull(7) ? null : DateTime.Parse(reader.GetString(7)),
-                        LocalCopyDeletedAt = reader.IsDBNull(8) ? null : DateTime.Parse(reader.GetString(8))
+                        LocalCopyDeletedAt = reader.IsDBNull(8) ? null : DateTime.Parse(reader.GetString(8)),
+                        DeleteReasonCode = reader.IsDBNull(9) ? "" : reader.GetString(9)
                     });
                 }
+                return results;
+            }
+        }
+
+        /// <summary>
+        /// 硬循环清理候选：已结束且超过保护期、状态为仅本地/等待归档/失败，
+        /// 按结束时间最旧优先；Conflict 不进入硬循环（保留供人工比对）。
+        /// </summary>
+        public IReadOnlyList<VideoRecord> GetEmergencyCleanupCandidates(
+            DateTime cutoff,
+            int limit = 200)
+        {
+            limit = Math.Clamp(limit, 1, 500);
+            lock (_lock)
+            {
+                var results = new List<VideoRecord>();
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind,
+                           ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
+                           NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason, DeleteReasonCode
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND EndTime IS NOT NULL
+                      AND EndTime <= @cutoff
+                      AND FilePath <> ''
+                      AND ArchiveStatus IN ('LocalOnly', 'Pending', 'Failed')
+                    ORDER BY EndTime ASC, Id ASC
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@limit", limit);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    results.Add(ReadVideoRecord(reader));
                 return results;
             }
         }
@@ -2222,7 +2289,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE IsDeleted = 0
                       AND EndTime IS NOT NULL
@@ -2264,7 +2332,8 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, PendingDeleteAt, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
-                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
                     FROM VideoRecords
                     WHERE IsDeleted = 0
                       AND ArchiveStatus = 'Deleting'
@@ -2306,7 +2375,7 @@ namespace ExpressPackingMonitoring.Data
         /// <summary>
         /// 归档已验证后标记本地副本已删除（记录保留，回放走网络副本）。
         /// </summary>
-        public void MarkLocalCopyDeleted(long recordId, string reason)
+        public void MarkLocalCopyDeleted(long recordId, string reason, string reasonCode = "")
         {
             lock (_lock)
             {
@@ -2315,11 +2384,13 @@ namespace ExpressPackingMonitoring.Data
                     UPDATE VideoRecords SET
                         ArchiveStatus = @status,
                         LocalCopyDeletedAt = @deletedAt,
-                        LocalDeleteReason = @reason
+                        LocalDeleteReason = @reason,
+                        DeleteReasonCode = @reasonCode
                     WHERE Id = @id AND IsDeleted = 0;";
                 cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.LocalDeleted);
                 cmd.Parameters.AddWithValue("@deletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@reason", reason ?? "");
+                cmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@id", recordId);
                 cmd.ExecuteNonQuery();
             }
@@ -2328,7 +2399,7 @@ namespace ExpressPackingMonitoring.Data
         /// <summary>
         /// 用户删除完成（本地与网络端均已删除或无需删除）后标记记录删除并写入删除日志。
         /// </summary>
-        public void MarkRecordDeletedById(long recordId, string reason)
+        public void MarkRecordDeletedById(long recordId, string reason, string reasonCode = "")
         {
             lock (_lock)
             {
@@ -2343,11 +2414,13 @@ namespace ExpressPackingMonitoring.Data
                                 IsDeleted = 1,
                                 DeletedAt = @deletedAt,
                                 DeleteReason = @reason,
+                                DeleteReasonCode = @reasonCode,
                                 ArchiveStatus = @archiveStatus,
                                 PendingDeleteAt = NULL
                             WHERE Id = @id AND IsDeleted = 0;";
                         cmd.Parameters.AddWithValue("@deletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                         cmd.Parameters.AddWithValue("@reason", reason ?? "");
+                        cmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
                         cmd.Parameters.AddWithValue("@archiveStatus", VideoArchiveStatus.LocalDeleted);
                         cmd.Parameters.AddWithValue("@id", recordId);
                         cmd.ExecuteNonQuery();

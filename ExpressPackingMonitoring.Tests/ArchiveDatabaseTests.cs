@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Services;
 using System;
 using System.IO;
 using System.Linq;
@@ -256,5 +257,74 @@ public sealed class ArchiveDatabaseTests : IDisposable
 
         Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(pendingId)!.ArchiveStatus);
         Assert.Equal(VideoArchiveStatus.Conflict, _database.GetVideoById(conflictId)!.ArchiveStatus);
+    }
+
+    [Fact]
+    public void MarkVideoDeleted_WritesReasonCode()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\x.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+        string filePath = _database.GetVideoById(id)!.FilePath;
+
+        _database.MarkVideoDeleted(
+            filePath,
+            "硬循环清理（NAS 不可用）",
+            RecordingDeletionReasonCode.CapacityEmergencyCleanupUnarchived);
+
+        VideoRecord deleted = _database.QueryVideos(null, null).Single(record => record.Id == id);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityEmergencyCleanupUnarchived,
+            deleted.DeleteReasonCode);
+        Assert.Equal("硬循环清理（NAS 不可用）", deleted.DeleteReason);
+    }
+
+    [Fact]
+    public void MarkLocalCopyDeleted_WritesReasonCode()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\x.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+        _database.UpdateArchiveState(id, VideoArchiveStatus.Verified, contentSha256: "h", completedAt: now);
+
+        _database.MarkLocalCopyDeleted(
+            id,
+            "全局配额清理",
+            RecordingDeletionReasonCode.CapacityCleanupVerified);
+
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupVerified,
+            _database.GetVideoById(id)!.DeleteReasonCode);
+    }
+
+    [Fact]
+    public void MarkRecordDeletedById_WritesReasonCode()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\x.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+
+        _database.MarkRecordDeletedById(id, "用户删除", RecordingDeletionReasonCode.UserRequested);
+
+        VideoRecord deleted = _database.QueryVideos(null, null).Single(record => record.Id == id);
+        Assert.Equal(RecordingDeletionReasonCode.UserRequested, deleted.DeleteReasonCode);
+    }
+
+    [Fact]
+    public void GetEmergencyCleanupCandidates_FiltersConflictAndRecentAndOrdersOldestFirst()
+    {
+        DateTime now = DateTime.Now;
+        long oldLocal = InsertLocal(@"\\nas\a.mp4", now.AddHours(-3), now.AddHours(-2));
+        long recent = InsertLocal(@"\\nas\b.mp4", now.AddMinutes(-40), now.AddMinutes(-10));
+        long oldFailed = InsertLocal(@"\\nas\c.mp4", now.AddHours(-4), now.AddHours(-3));
+        long oldConflict = InsertLocal(@"\\nas\d.mp4", now.AddHours(-3), now.AddHours(-2));
+        long oldPending = InsertLocal(@"\\nas\e.mp4", now.AddHours(-2), now.AddHours(-1));
+        _database.UpdateArchiveState(oldFailed, VideoArchiveStatus.Failed, error: "离线", incrementRetry: true);
+        _database.UpdateArchiveState(oldConflict, VideoArchiveStatus.Conflict, error: "冲突");
+        _database.MarkArchivePending(oldPending);
+
+        IReadOnlyList<VideoRecord> candidates = _database.GetEmergencyCleanupCandidates(
+            now - LocalCopyCleanupPolicy.EmergencyDeleteGracePeriod);
+
+        Assert.Equal(
+            [oldFailed, oldLocal, oldPending],
+            candidates.Select(record => record.Id));
     }
 }

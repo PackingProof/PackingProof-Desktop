@@ -111,4 +111,36 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
         Assert.False(RemoteFileProbe.TryProbeFileWithSize(file, 4, TimeSpan.FromSeconds(2)));
         Assert.False(RemoteFileProbe.TryProbeFile(Path.Combine(_directory, "missing.bin"), TimeSpan.FromSeconds(2)));
     }
+
+    [Fact]
+    public void EmergencyCleanupPolicy_RequiresEndedOldUnarchivedNonConflict()
+    {
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        VideoRecord eligible = VerifiedRecord("m.mp4", now.AddDays(-3), createLocal: true, createArchive: true);
+        eligible.ArchiveStatus = VideoArchiveStatus.LocalOnly;
+        eligible.EndTime = now.AddHours(-2);
+        Assert.True(LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(eligible, now, out _));
+
+        VideoRecord recent = VerifiedRecord("n.mp4", now.AddDays(-3), createLocal: true, createArchive: true);
+        recent.ArchiveStatus = VideoArchiveStatus.Pending;
+        recent.EndTime = now.AddMinutes(-10);
+        Assert.False(LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(recent, now, out _));
+
+        VideoRecord conflict = VerifiedRecord("o.mp4", now.AddDays(-3), createLocal: true, createArchive: true);
+        conflict.ArchiveStatus = VideoArchiveStatus.Conflict;
+        conflict.EndTime = now.AddHours(-2);
+        Assert.False(LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(conflict, now, out _));
+
+        VideoRecord missing = VerifiedRecord("p.mp4", now.AddDays(-3), createLocal: false, createArchive: true);
+        missing.ArchiveStatus = VideoArchiveStatus.Failed;
+        missing.EndTime = now.AddHours(-2);
+        Assert.False(LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(missing, now, out _));
+    }
+
+    [Fact]
+    public void EmergencyCleanupPolicy_ConstantsMatchPlan()
+    {
+        Assert.Equal(5L * 1024 * 1024 * 1024, LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes);
+        Assert.Equal(TimeSpan.FromMinutes(30), LocalCopyCleanupPolicy.EmergencyDeleteGracePeriod);
+    }
 }

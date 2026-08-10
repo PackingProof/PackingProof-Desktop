@@ -241,7 +241,10 @@ internal sealed class ArchiveService : IDisposable
                     token => _provider.DeleteAsync(record.ArchivePath, token),
                     cancellationToken).ConfigureAwait(false);
             }
-            _database.MarkRecordDeletedById(record.Id, string.IsNullOrWhiteSpace(record.DeleteReason) ? "用户删除" : record.DeleteReason);
+            _database.MarkRecordDeletedById(
+                record.Id,
+                string.IsNullOrWhiteSpace(record.DeleteReason) ? "用户删除" : record.DeleteReason,
+                RecordingDeletionReasonCode.UserRequested);
             RuntimeLog.Info("Archive", $"Archive delete completed id={record.Id}, target={record.ArchivePath}");
             return true;
         }
