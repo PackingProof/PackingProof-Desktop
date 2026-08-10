@@ -2294,7 +2294,7 @@ namespace ExpressPackingMonitoring.Data
                       AND (ArchiveStatus <> 'Failed' OR NextRetryAt IS NULL OR NextRetryAt <= @now)
                     ORDER BY
                         CASE ArchiveStatus WHEN 'Copying' THEN 0 WHEN 'Verifying' THEN 1 WHEN 'Pending' THEN 2 ELSE 3 END,
-                        CASE WHEN ArchiveStatus = 'Pending' THEN EndTime END DESC,
+                        CASE WHEN ArchiveStatus = 'Pending' THEN EndTime END ASC,
                         CASE WHEN ArchiveStatus = 'Failed' THEN COALESCE(NextRetryAt, '') END ASC,
                         Id ASC
                     LIMIT @limit;";

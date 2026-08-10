@@ -94,7 +94,7 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
-    public void GetPendingArchives_OrdersPendingNewestFirstThenDueFailed()
+    public void GetPendingArchives_OrdersPendingOldestFirstThenDueFailed()
     {
         DateTime now = DateTime.Now;
         long olderPending = InsertLocal(@"\\nas\a.mp4", now.AddMinutes(-30), now.AddMinutes(-30));
@@ -120,7 +120,7 @@ public sealed class ArchiveDatabaseTests : IDisposable
         IReadOnlyList<VideoRecord> pending = _database.GetPendingArchives(20, now);
 
         Assert.Equal(
-            [newerPending, olderPending, dueFailed],
+            [olderPending, newerPending, dueFailed],
             pending.Select(record => record.Id));
     }
 

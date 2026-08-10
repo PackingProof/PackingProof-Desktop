@@ -32,6 +32,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private int _diskCleanupRunning;
         private DateTime _lastFullDiskCleanup = DateTime.MinValue;
+        private DateTime _lastNetworkArchiveSpaceWarnAt = DateTime.MinValue;
         private long _lastKnownDiskTotalBytes;
         private long _lastKnownDiskCapacityBytes;
 
@@ -143,6 +144,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     CleanupOldVideos(totalCurrentBytes, totalCapacityBytes);
 
                 TryEmergencyUnarchivedCleanup(totalCurrentBytes, totalCapacityBytes);
+                WarnIfNetworkArchiveFull();
 
                 UpdateDiskUsageText(totalCurrentBytes, totalCapacityBytes);
             }
@@ -150,6 +152,64 @@ namespace ExpressPackingMonitoring.ViewModels
             finally
             {
                 Interlocked.Exchange(ref _diskCleanupRunning, 0);
+            }
+        }
+
+        /// <summary>
+        /// NAS 满提示：网络归档卷可用空间 ≤ 该位置预留值时限频提示。
+        /// NAS 卷状态只影响归档任务，不参与本地录像路径选择、本地 GC 与硬循环触发。
+        /// </summary>
+        private void WarnIfNetworkArchiveFull()
+        {
+            try
+            {
+                if (Config.StorageLocations == null)
+                    return;
+
+                foreach (StorageLocation location in Config.StorageLocations)
+                {
+                    string normalizedPath = Path.IsPathRooted(location.Path)
+                        ? location.Path
+                        : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
+                    if (!StorageVolumeInfo.IsNetworkPath(normalizedPath))
+                        continue;
+                    if (!StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume))
+                        continue; // NAS 离线不提示，由归档重试机制处理
+
+                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);
+                    if (!NetworkArchiveSpacePolicy.IsBelowReserve(
+                            volume.AvailableFreeSpace,
+                            reserveBytes))
+                    {
+                        continue;
+                    }
+
+                    DateTime now = DateTime.Now;
+                    if (!NetworkArchiveSpacePolicy.ShouldWarn(
+                            _lastNetworkArchiveSpaceWarnAt,
+                            now))
+                    {
+                        return;
+                    }
+
+                    _lastNetworkArchiveSpaceWarnAt = now;
+                    RuntimeLog.Warn(
+                        "Cleanup",
+                        $"Network archive space below reserve path={normalizedPath}, free={volume.AvailableFreeSpace / (double)StorageSpacePolicy.BytesPerGiB:F1}GB, reserve={reserveBytes / (double)StorageSpacePolicy.BytesPerGiB:F1}GB");
+                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_isDisposed)
+                            return;
+                        ShowToast(
+                            "NAS 空间不足，录像仍保存在本地，归档已暂停；请清理 NAS 或调整归档位置",
+                            ToastSeverity.Warning);
+                    });
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Cleanup", $"Network archive space check failed: {ex.Message}");
             }
         }
 

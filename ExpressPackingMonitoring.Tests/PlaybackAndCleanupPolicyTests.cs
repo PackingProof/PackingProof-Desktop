@@ -143,4 +143,17 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
         Assert.Equal(5L * 1024 * 1024 * 1024, LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes);
         Assert.Equal(TimeSpan.FromMinutes(30), LocalCopyCleanupPolicy.EmergencyDeleteGracePeriod);
     }
+
+    [Fact]
+    public void NetworkArchiveSpacePolicy_ReserveAndCooldown()
+    {
+        Assert.True(NetworkArchiveSpacePolicy.IsBelowReserve(100, 100));
+        Assert.True(NetworkArchiveSpacePolicy.IsBelowReserve(99, 100));
+        Assert.False(NetworkArchiveSpacePolicy.IsBelowReserve(101, 100));
+
+        Assert.Equal(TimeSpan.FromMinutes(60), NetworkArchiveSpacePolicy.WarningCooldown);
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        Assert.True(NetworkArchiveSpacePolicy.ShouldWarn(now.AddMinutes(-61), now));
+        Assert.False(NetworkArchiveSpacePolicy.ShouldWarn(now.AddMinutes(-1), now));
+    }
 }

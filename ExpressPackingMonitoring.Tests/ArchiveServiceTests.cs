@@ -11,6 +11,43 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ArchiveServiceTests : IDisposable
 {
+    private sealed class RecordingProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+        public List<string> PublishedPaths { get; } = new();
+
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            PublishedPaths.Add(destinationPath);
+            return _inner.PublishFileAsync(
+                sourcePath,
+                destinationPath,
+                recordId,
+                expectedSha256,
+                cancellationToken);
+        }
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+    }
+
     private sealed class CorruptVerifyProvider : IArchiveProvider
     {
         private readonly NasArchiveProvider _inner = new();
@@ -259,5 +296,29 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.False(File.Exists(record.ArchivePath));
         Assert.True(File.Exists(record.ArchivePath + ".corrupt"));
         Assert.True(File.Exists(record.FilePath), "本地源必须保留");
+    }
+
+    [Fact]
+    public async Task OfflineAccumulation_RecoversOldestFirst()
+    {
+        DateTime now = DateTime.Now;
+        long idA = InsertPendingRecord("a.mp4", "aaa");
+        long idB = InsertPendingRecord("b.mp4", "bbb");
+        _database.UpdateVideoRecordOnStop(idA, now.AddMinutes(-30), 10, 3, "手动");
+        _database.MarkArchivePending(idA);
+
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        await service.ProcessPendingOnceAsync(CancellationToken.None);
+
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(idA)!.ArchiveStatus);
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(idB)!.ArchiveStatus);
+        Assert.Equal(2, provider.PublishedPaths.Count);
+        Assert.Equal(_database.GetVideoById(idA)!.ArchivePath, provider.PublishedPaths[0]);
+        Assert.Equal(_database.GetVideoById(idB)!.ArchivePath, provider.PublishedPaths[1]);
     }
 }
