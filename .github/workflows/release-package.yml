@@ -7,16 +7,6 @@ name: 发布包构建
         description: 发布版本，例如 v0.0.41 或 0.0.41
         required: true
         type: string
-      patch_baseline_version:
-        description: AppPatch 基线版本，默认 0.0.18
-        required: false
-        default: "0.0.18"
-        type: string
-      disable_patch:
-        description: 不生成 AppPatch 增量包
-        required: false
-        default: false
-        type: boolean
       skip_tts_cache:
         description: 跳过默认 Edge TTS 语音缓存生成
         required: false
@@ -54,33 +44,26 @@ jobs:
       - name: 确定并校验发布版本
         env:
           VERSION: ${{ inputs.version }}
-          PATCH_BASELINE_VERSION: ${{ inputs.patch_baseline_version }}
           EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $version = "$env:VERSION".Trim()
           if (-not $version -and "$env:EVENT" -eq "push") {
-            $version = (& git describe --tags --match "v[0-9]*" --abbrev=0 2>$null).Trim()
-            if (-not $version) {
-              throw "push 触发时未找到 v* 标签，无法自动确定发布版本"
+            $csprojPath = "ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
+            $csprojContent = Get-Content -Raw -Encoding UTF8 $csprojPath
+            $versionMatch = [regex]::Match($csprojContent, "<Version>\s*(.+?)\s*</Version>")
+            if (-not $versionMatch.Success) {
+              throw "无法从 $csprojPath 读取 <Version>，无法确定发布版本"
             }
+            $version = $versionMatch.Groups[1].Value.Trim()
           }
           $version = $version.TrimStart("v")
-          $baseline = "$env:PATCH_BASELINE_VERSION".Trim()
-          if (-not $baseline) {
-            $baseline = "0.0.18"
-          }
           if ($version -notmatch "^\d+\.\d+\.\d+$") {
-            throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$env:VERSION"
-          }
-          if ($baseline -notmatch "^\d+\.\d+\.\d+$") {
-            throw "patch_baseline_version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$baseline"
+            throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$version"
           }
           "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PACKAGE_BASELINE_VERSION=$baseline" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "发布版本：$version，AppPatch 基线：$baseline"
+          Write-Host "发布版本：$version"
 
       - name: 选择大空间临时目录
         shell: pwsh
@@ -111,52 +94,6 @@ jobs:
         shell: pwsh
         run: pwsh -NoProfile -File Tools\Test-Release-Automated.ps1 -Configuration Release
 
-      - name: 准备 AppPatch 基线
-        if: ${{ ! inputs.disable_patch }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PATCH_BASELINE_VERSION: ${{ env.PACKAGE_BASELINE_VERSION }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $baseline = "$env:PATCH_BASELINE_VERSION".Trim().TrimStart("v")
-          $tag = "v$baseline"
-          $headers = @{
-            "User-Agent" = "PackingProof-CI"
-            Authorization = "Bearer $env:GH_TOKEN"
-          }
-          Write-Host "查询基线发布资产：$tag"
-          $release = Invoke-RestMethod `
-            -Uri "https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases/tags/$tag" `
-            -Headers $headers
-          $zipAsset = @($release.assets | Where-Object {
-            $_.name -like "*.zip" -and
-            $_.name -notlike "*AppPatch*" -and
-            $_.name -notlike "*LauncherPatch*"
-          } | Sort-Object @{ Expression = {
-            if ($_.name -like "PackingProof+*") { 0 }
-            elseif ($_.name -like "ExpressPackingMonitoring+*") { 1 }
-            else { 2 }
-          } } | Select-Object -First 1)
-          if (-not $zipAsset) {
-            throw "未在 $tag 的 GitHub Release 中找到完整 ZIP 资产，无法生成 AppPatch；如确需跳过增量包请勾选 disable_patch"
-          }
-          $extractRoot = Join-Path $env:RUNNER_TEMP "apppatch-baseline"
-          $zipPath = Join-Path $env:RUNNER_TEMP $zipAsset.name
-          Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
-          Write-Host "下载基线完整包：$($zipAsset.name)（$([Math]::Round($zipAsset.size / 1MB, 1)) MiB）"
-          Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $zipPath -Headers $headers -MaximumRedirection 5
-          Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
-          $appDir = Get-ChildItem -LiteralPath $extractRoot -Recurse -Filter "ExpressPackingMonitoring.dll" -Depth 4 -ErrorAction SilentlyContinue |
-            Where-Object { $_.DirectoryName.EndsWith("\app", [System.StringComparison]::OrdinalIgnoreCase) } |
-            Select-Object -First 1 -ExpandProperty DirectoryName
-          if (-not $appDir -or -not (Test-Path -LiteralPath (Join-Path $appDir "ExpressPackingMonitoring.exe"))) {
-            throw "基线完整包中未找到 app\ExpressPackingMonitoring.exe"
-          }
-          Write-Host "AppPatch 基线目录：$appDir"
-          "PATCH_BASELINE_APP_DIR=$appDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
       - name: 准备锁定的启动器基线包
         shell: pwsh
         run: |
@@ -165,10 +102,9 @@ jobs:
           pwsh -NoProfile -File "Tools\Publish-LauncherBaseline.ps1" -Version $baseline.version
           "LAUNCHER_VERSION=$($baseline.version)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: 生成发布包（Setup、7z、ZIP、AppPatch、更新清单）
+      - name: 生成发布包（Setup、7z、ZIP、更新清单）
         env:
           VERSION: ${{ env.PACKAGE_VERSION }}
-          PATCH_BASELINE_VERSION: ${{ env.PACKAGE_BASELINE_VERSION }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -178,14 +114,8 @@ jobs:
             "Tools\Publish-CleanPackage.ps1",
             "-Configuration", "Release",
             "-Version", "$env:VERSION",
-            "-PatchBaselineVersion", "$env:PATCH_BASELINE_VERSION"
+            "-DisablePatch"
           )
-          if ("$env:PATCH_BASELINE_APP_DIR") {
-            $arguments += @("-BaselineAppDir", "$env:PATCH_BASELINE_APP_DIR")
-          }
-          if ("${{ inputs.disable_patch }}" -eq "true") {
-            $arguments += "-DisablePatch"
-          }
           if ("${{ github.event_name }}" -eq "push") {
             $arguments += "-SkipTtsCacheGeneration"
           }
@@ -210,6 +140,14 @@ jobs:
         with:
           name: PackingProof+${{ env.PACKAGE_VERSION }}.7z
           path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.7z
+          if-no-files-found: warn
+          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
+
+      - name: 上传完整包 ZIP
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: PackingProof+${{ env.PACKAGE_VERSION }}.zip
+          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.zip
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
