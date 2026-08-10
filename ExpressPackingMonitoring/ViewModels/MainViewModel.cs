@@ -863,7 +863,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 if (CanSubmitCameraBarcode())
+                {
+                    // 独立叠加播放的识别反馈音，不打断正在播放的语音/音乐。
+                    _speechService?.PlayShortBeep();
                     HandleScan(code, fromCamera: true);
+                }
             }));
         }
 

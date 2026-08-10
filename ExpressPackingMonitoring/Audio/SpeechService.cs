@@ -1201,6 +1201,68 @@ namespace ExpressPackingMonitoring.Audio
         private static byte[]? _warningAlertToneWav;
         private static byte[]? _industrialAlarmWav;
         private static byte[]? _remarkToneWav;
+        private static byte[]? _shortBeepWav;
+
+        /// <summary>识别成功反馈音：极短、独立叠加播放，不打断正在播放的其它声音。</summary>
+        public void PlayShortBeep()
+        {
+            if (_isDisposed || !EnableSoundPrompt)
+                return;
+
+            ObserveFault(Task.Run(PlayShortBeepOverlay));
+        }
+
+        private void PlayShortBeepOverlay()
+        {
+            byte[] wav = GetShortBeepWav();
+            if (wav.Length < 44)
+                return;
+
+            WaveOutEvent? waveOut = null;
+            WaveFileReader? reader = null;
+            try
+            {
+                using var stream = new MemoryStream(wav, writable: false);
+                reader = new WaveFileReader(stream);
+                waveOut = new WaveOutEvent();
+                waveOut.Init(reader);
+                waveOut.Play();
+                while (waveOut.PlaybackState == PlaybackState.Playing && !_isDisposed)
+                    Thread.Sleep(10);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SpeechService] Short beep playback error: {ex.Message}");
+            }
+            finally
+            {
+                try { waveOut?.Stop(); } catch { }
+                try { waveOut?.Dispose(); } catch { }
+                try { reader?.Dispose(); } catch { }
+            }
+        }
+
+        private static byte[] GetShortBeepWav() =>
+            _shortBeepWav ??= BuildShortBeepWav();
+
+        internal static byte[] BuildShortBeepWav()
+        {
+            const int sampleRate = 22050;
+            const int toneMs = 80;
+            const int frequency = 1200;
+            const float volume = 0.55f;
+
+            int toneSamples = sampleRate * toneMs / 1000;
+            var samples = new float[toneSamples];
+            for (int i = 0; i < toneSamples; i++)
+            {
+                double t = i / (double)sampleRate;
+                double envelope = BuildToneEnvelope(i, toneSamples);
+                samples[i] = (float)(Math.Sin(2.0 * Math.PI * frequency * t) * volume * envelope);
+            }
+
+            return BuildWav16(samples, sampleRate);
+        }
 
         private void PlayWavBlocking(byte[] wavData)
         {
