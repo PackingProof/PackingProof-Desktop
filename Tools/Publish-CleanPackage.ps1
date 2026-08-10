@@ -1176,7 +1176,7 @@ else {
     }
 }
 
-if ($launcherPublishedWithRelease -and -not $patchSupported) {
+if ($launcherPublishedWithRelease -and -not $patchSupported -and -not $DisablePatch) {
     throw "A new launcher baseline requires a compatible AppPatch bridge in the same release."
 }
 

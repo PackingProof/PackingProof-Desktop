@@ -160,6 +160,9 @@ public sealed class ReleasePackagingPolicyTests
             "AppPatch bridge validation failed: launcher changed but updated app assembly is missing",
             publishScript);
         Assert.Contains("A new launcher baseline requires a compatible AppPatch bridge", publishScript);
+        Assert.Contains(
+            "if ($launcherPublishedWithRelease -and -not $patchSupported -and -not $DisablePatch)",
+            publishScript);
         Assert.Contains("[switch]$ReuseExistingLauncherBaseline", publishScript);
         Assert.Contains("ReuseExistingLauncherBaseline requires an existing app release tag", publishScript);
         Assert.Contains("本版本不要重复上传 LauncherPatch", publishScript);
