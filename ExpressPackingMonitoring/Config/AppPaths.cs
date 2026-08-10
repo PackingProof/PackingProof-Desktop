@@ -15,6 +15,7 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string LogDir = Path.Combine(UserDataDir, "log");
         public static readonly string CacheDir = Path.Combine(UserDataDir, "cache");
         public static readonly string BackupsDir = Path.Combine(UserDataDir, "backups");
+        public static readonly string RecordingBufferDir = Path.Combine(UserDataDir, "RecordingBuffer");
         // 手机/电脑备份与配对的持久化状态目录：不得放在 cache 中，避免被缓存清理或上传状态清理误删。
         public static readonly string MobileBackupStateDir = Path.Combine(UserDataDir, "mobile-backup-state");
         public static readonly string ClipPreviewDir = Path.Combine(CacheDir, "clip_previews");
@@ -47,6 +48,7 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(LogDir);
             Directory.CreateDirectory(CacheDir);
             Directory.CreateDirectory(BackupsDir);
+            Directory.CreateDirectory(RecordingBufferDir);
             Directory.CreateDirectory(MobileBackupStateDir);
             Directory.CreateDirectory(ClipPreviewDir);
             Directory.CreateDirectory(ClipsDir);

@@ -49,6 +49,9 @@ namespace ExpressPackingMonitoring.Config
         public string Path { get; set; } = "D:\\快递打包视频";
         public double ReserveGB { get; set; } = 0.0;
         public int Priority { get; set; } = 1; // 数字越小越优先
+        // 卷标识与最后验证时间，为未来盘符变化自动重定位预留数据（本版本不实现重映射）。
+        public string VolumeId { get; set; } = "";
+        public DateTime? LastVerifiedAt { get; set; }
 
         [JsonIgnore]
         public double EffectiveReserveGB
@@ -136,6 +139,9 @@ namespace ExpressPackingMonitoring.Config
 
         // 核心：多磁盘配置列表
         public List<StorageLocation> StorageLocations { get; set; } = CreateDefaultStorageLocations();
+
+        // 网络归档时的本机录像缓冲目录；必须位于本机固定磁盘。
+        public string LocalRecordingBufferPath { get; set; } = AppPaths.RecordingBufferDir;
 
         public string CameraMonikerString { get; set; } = "";
         public int CameraIndex { get; set; } = 0; // 保留作为回退
@@ -576,6 +582,15 @@ namespace ExpressPackingMonitoring.Config
                     location.ReserveGB = normalizedReserveGB;
                     changed = true;
                 }
+
+                if (StorageLocationMetadata.RefreshVolumeId(location))
+                    changed = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(config.LocalRecordingBufferPath))
+            {
+                config.LocalRecordingBufferPath = AppPaths.RecordingBufferDir;
+                changed = true;
             }
 
             if (config.EnableGlobalKeyboard && config.EnableScannerAutoSubmit)

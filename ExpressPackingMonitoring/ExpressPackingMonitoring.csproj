@@ -105,7 +105,9 @@
     <Compile Include="Config\AppVersion.cs" />
     <Compile Include="Config\CameraBarcodeSpeed.cs" />
     <Compile Include="Config\DeploymentPreset.cs" />
+    <Compile Include="Config\StorageLocationMetadata.cs" />
     <Compile Include="Config\StorageSpacePolicy.cs" />
+    <Compile Include="Config\StorageVolumeInfo.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\RecordingTransferQueueStore.cs" />
