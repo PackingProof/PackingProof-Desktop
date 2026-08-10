@@ -1084,7 +1084,12 @@ namespace ExpressPackingMonitoring.UI
 
         private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new StoragePathSelectionDialog { Owner = this };
+            var dialog = new StoragePathSelectionDialog(
+                title: "选择网络归档文件夹",
+                hint: "录像先写入本地缓冲，校验成功后再复制到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
+            {
+                Owner = this
+            };
             if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
                 return;
 
@@ -1136,7 +1141,13 @@ namespace ExpressPackingMonitoring.UI
 
         private void BtnChangeRecordingBuffer_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new StoragePathSelectionDialog(Config.LocalRecordingBufferPath) { Owner = this };
+            var dialog = new StoragePathSelectionDialog(
+                Config.LocalRecordingBufferPath,
+                title: "选择本地录像缓冲目录",
+                hint: "网络归档时录像先写入的本地目录，必须位于本机固定磁盘")
+            {
+                Owner = this
+            };
             if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
                 return;
 

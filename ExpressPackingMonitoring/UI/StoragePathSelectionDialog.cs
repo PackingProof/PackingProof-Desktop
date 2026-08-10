@@ -15,9 +15,12 @@ namespace ExpressPackingMonitoring.UI
 
         public string? SelectedPath { get; private set; }
 
-        public StoragePathSelectionDialog(string? initialPath = null)
+        public StoragePathSelectionDialog(
+            string? initialPath = null,
+            string? title = null,
+            string? hint = null)
         {
-            Title = "选择录像保存文件夹";
+            Title = title ?? "选择录像保存文件夹";
             Width = 580;
             SizeToContent = SizeToContent.Height;
             WindowStyle = WindowStyle.ToolWindow;
@@ -28,25 +31,26 @@ namespace ExpressPackingMonitoring.UI
 
             var root = new StackPanel { Margin = new Thickness(24) };
 
-            var title = new TextBlock
+            var titleText = new TextBlock
             {
                 Text = "选择用于保存录像的文件夹",
                 FontSize = 15,
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 0, 0, 6)
             };
-            title.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
-            root.Children.Add(title);
+            titleText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+            root.Children.Add(titleText);
 
-            var hint = new TextBlock
+            var hintText = new TextBlock
             {
-                Text = "可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\\\192.168.1.100\\共享目录\\快递打包视频",
+                Text = hint
+                    ?? "可以选择本地磁盘中的任意文件夹，也可以输入网络共享路径，例如：\\\\192.168.1.100\\共享目录\\快递打包视频",
                 FontSize = 12,
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 14)
             };
-            hint.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondary");
-            root.Children.Add(hint);
+            hintText.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondary");
+            root.Children.Add(hintText);
 
             var pathGrid = new Grid();
             pathGrid.ColumnDefinitions.Add(new ColumnDefinition());
