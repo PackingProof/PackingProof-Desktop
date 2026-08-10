@@ -3412,15 +3412,16 @@
                                             <ColumnDefinition Width="16"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="72"
-                                                Height="72"
+                                        <Border Width="84"
+                                                Height="84"
                                                 CornerRadius="14"
+                                                VerticalAlignment="Center"
                                                 Background="{DynamicResource ControlBackground}"
                                                 BorderBrush="{DynamicResource BorderLight}"
                                                 BorderThickness="1">
                                             <Image Source="{Binding AppIconImage, Mode=OneWay}"
-                                                   Width="72"
-                                                   Height="72"
+                                                   Width="84"
+                                                   Height="84"
                                                    Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality"/>
                                         </Border>
