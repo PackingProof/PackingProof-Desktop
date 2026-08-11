@@ -151,8 +151,7 @@ PackingProof 将**快递单号、订单信息和打包录像关联起来**：
 ### 1. 准备设备
 
 * Windows 10 或 Windows 11 x64 电脑
-* USB 摄像头
-* 网络摄像头（可选）：支持 RTSP/RTMP/HTTP 视频流
+* 摄像头：支持 USB 或网络摄像头（RTSP/RTMP/HTTP 视频流）
 * 麦克风，可选
 * 键盘模式扫码枪，可选但推荐保留
 

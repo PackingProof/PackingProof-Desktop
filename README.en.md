@@ -132,8 +132,7 @@ Completed videos remain in a local cache and upload automatically after connecti
 ### 1. Prepare the Hardware
 
 * A Windows 10 or Windows 11 x64 computer
-* A USB camera
-* A network/IP camera, optional (RTSP/RTMP/HTTP streams are supported)
+* A camera: USB or network/IP (RTSP/RTMP/HTTP streams are supported)
 * A microphone, optional
 * A keyboard-mode barcode scanner, optional but recommended
 
