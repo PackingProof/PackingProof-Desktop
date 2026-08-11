@@ -898,6 +898,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 string message = string.IsNullOrEmpty(hint)
                     ? $"识别到非面单条码：{code}，已忽略"
                     : $"条码长度不符：实际 {code.Length} 位（{hint}），已忽略";
+                RuntimeLog.Warn("CameraBarcode", $"Invalid candidate ignored: {code}");
                 ShowToast(message, ToastSeverity.Warning);
             }));
         }
@@ -1218,6 +1219,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     SpeakWarning(DefaultSpeechCatalog.OrderNumberMismatch);
                     return;
                 case BarcodeRecordingDecisionReason.InvalidOrderNumber:
+                    RuntimeLog.Info(
+                        "Scan",
+                        $"Invalid order number blocked, source={(fromCamera ? "camera" : "scanner/manual")}: {upperResult}");
                     PublishScannerAlert(
                         $"invalid-order-number:{upperResult}",
                         "非法单号，已拦截",
