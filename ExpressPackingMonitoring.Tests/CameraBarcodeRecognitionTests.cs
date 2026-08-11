@@ -370,6 +370,38 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(expected, CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
     }
 
+    [Fact]
+    public void CandidatePolicy_InvalidRegexIsNotCompilable()
+    {
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern("^[a-zA-Z0-9-]{12,25}$"));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern(""));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern(null));
+        Assert.False(CameraBarcodeCandidatePolicy.IsValidPattern("^[a-z0-9"));
+    }
+
+    [Fact]
+    public void CandidatePolicy_InvalidRegexAllowsAllLikeEmpty()
+    {
+        Assert.True(CameraBarcodeCandidatePolicy.IsValid("1234", "^[a-z0-9"));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValid("YT123456789012", "^[a-z0-9"));
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_InvalidRegexAllowsAllLikeEmpty()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "1234",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: false,
+            recordingOrderId: "",
+            sameBarcodeStopEnabled: false,
+            inputOnCooldown: false,
+            orderIdRegex: "^[a-z0-9");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Start, decision.Action);
+    }
+
     [Theory]
     [InlineData("6901234567892", true)]
     [InlineData("6901234567890", false)]

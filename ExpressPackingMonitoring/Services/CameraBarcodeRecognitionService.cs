@@ -158,6 +158,8 @@ internal static class BarcodeRecordingDecisionPolicy
 
     private static bool IsOrderScan(string value, string? orderIdRegex)
     {
+        if (!CameraBarcodeCandidatePolicy.IsValidPattern(orderIdRegex))
+            return true;
         try { return Regex.IsMatch(value, orderIdRegex ?? ""); }
         catch { return true; }
     }
@@ -206,7 +208,19 @@ internal static class CameraBarcodeCandidatePolicy
         if (normalized.Contains("START") || normalized.Contains("开始录制")) return false;
         if (normalized.Contains("STOP") || normalized.Contains("停止录制")) return false;
 
+        if (!IsValidPattern(orderIdRegex))
+            return true;
         try { return Regex.IsMatch(normalized, orderIdRegex ?? ""); }
+        catch { return true; }
+    }
+
+    /// 正则表达式是否可编译；空表示不限制，视为可解析。
+    public static bool IsValidPattern(string? orderIdRegex)
+    {
+        string pattern = (orderIdRegex ?? "").Trim();
+        if (pattern.Length == 0)
+            return true;
+        try { _ = new Regex(pattern); return true; }
         catch { return false; }
     }
 
