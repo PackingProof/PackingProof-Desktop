@@ -156,4 +156,25 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
         Assert.True(NetworkArchiveSpacePolicy.ShouldWarn(now.AddMinutes(-61), now));
         Assert.False(NetworkArchiveSpacePolicy.ShouldWarn(now.AddMinutes(-1), now));
     }
+
+    [Fact]
+    public void ProbeCacheWindow_Within24HoursSkipsRepeatedProbe()
+    {
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        Assert.Equal(TimeSpan.FromHours(24), LocalCopyCleanupPolicy.ProbeCacheWindow);
+
+        var fresh = VerifiedRecord("q.mp4", now.AddDays(-3), createLocal: true, createArchive: true);
+        fresh.ArchiveStatus = VideoArchiveStatus.Verified;
+        fresh.ArchiveCompletedAt = now.AddHours(-1);
+        fresh.LastArchiveProbeAt = now.AddHours(-1);
+        Assert.True(LocalCopyCleanupPolicy.IsProbeFresh(fresh, now));
+        Assert.False(LocalCopyCleanupPolicy.ShouldProbeBeforeLocalCleanup(fresh, now));
+
+        fresh.LastArchiveProbeAt = now.AddHours(-25);
+        Assert.False(LocalCopyCleanupPolicy.IsProbeFresh(fresh, now));
+        Assert.True(LocalCopyCleanupPolicy.ShouldProbeBeforeLocalCleanup(fresh, now));
+
+        fresh.LastArchiveProbeAt = null;
+        Assert.True(LocalCopyCleanupPolicy.ShouldProbeBeforeLocalCleanup(fresh, now));
+    }
 }

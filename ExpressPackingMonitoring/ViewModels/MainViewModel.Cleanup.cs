@@ -361,8 +361,12 @@ namespace ExpressPackingMonitoring.ViewModels
                             continue;
                         }
 
-                        // 远端轻量确认（存在 + 大小一致），带超时，失败跳过本轮并保留本地副本。
-                        if (!RemoteFileProbe.TryProbeFileWithSize(
+                        // 远端轻量确认（存在 + 大小一致），带超时；24 小时内已探测过则直接删除。
+                        bool needProbe = LocalCopyCleanupPolicy.ShouldProbeBeforeLocalCleanup(
+                            video,
+                            now);
+                        if (needProbe
+                            && !RemoteFileProbe.TryProbeFileWithSize(
                                 video.ArchivePath,
                                 video.FileSizeBytes,
                                 TimeSpan.FromSeconds(3)))
@@ -383,6 +387,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         releasedBytes += size;
                         count++;
+                        if (needProbe)
+                            _db?.UpdateLastArchiveProbeAt(video.Id, DateTime.Now);
                         _db?.MarkLocalCopyDeleted(
                             video.Id,
                             "全局配额清理",

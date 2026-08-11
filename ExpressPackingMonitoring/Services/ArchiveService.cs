@@ -116,7 +116,8 @@ internal sealed class ArchiveService : IDisposable
                             VideoArchiveStatus.Verified,
                             contentSha256: sourceHash,
                             attemptedAt: attemptedAt,
-                            completedAt: DateTime.Now);
+                            completedAt: DateTime.Now,
+                            lastProbeAt: DateTime.Now);
                         return true;
                     }
                     throw new ArchiveConflictException("网络目标已存在同名但内容不同的文件，已禁止覆盖");
@@ -171,7 +172,8 @@ internal sealed class ArchiveService : IDisposable
                 VideoArchiveStatus.Verified,
                 contentSha256: sourceHash,
                 attemptedAt: attemptedAt,
-                completedAt: DateTime.Now);
+                completedAt: DateTime.Now,
+                lastProbeAt: DateTime.Now);
             RuntimeLog.Info("Archive", $"Archive verified id={record.Id}, target={networkPath}");
             return true;
         }

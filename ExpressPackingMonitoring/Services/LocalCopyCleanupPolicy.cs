@@ -15,6 +15,9 @@ internal static class LocalCopyCleanupPolicy
     /// <summary>硬循环删除未归档录像的最小保护期（固定内部常量）。</summary>
     public static readonly TimeSpan EmergencyDeleteGracePeriod = TimeSpan.FromMinutes(30);
 
+    /// <summary>GC 远端探测缓存窗口：24 小时内已成功探测则不重复探测。</summary>
+    public static readonly TimeSpan ProbeCacheWindow = TimeSpan.FromHours(24);
+
     public static bool IsEligibleForCapacityCleanup(
         VideoRecord record,
         DateTime now,
@@ -89,4 +92,13 @@ internal static class LocalCopyCleanupPolicy
         }
         return true;
     }
+
+    /// <summary>LastArchiveProbeAt 是否在探测缓存窗口内（24 小时内免重复探测）。</summary>
+    public static bool IsProbeFresh(VideoRecord record, DateTime now) =>
+        record?.LastArchiveProbeAt != null
+        && now - record.LastArchiveProbeAt.Value < ProbeCacheWindow;
+
+    /// <summary>GC 删除本地录像文件前是否需要实时探测归档目标。</summary>
+    public static bool ShouldProbeBeforeLocalCleanup(VideoRecord record, DateTime now) =>
+        !IsProbeFresh(record, now);
 }

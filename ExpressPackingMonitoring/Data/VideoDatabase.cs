@@ -84,6 +84,7 @@ namespace ExpressPackingMonitoring.Data
         public DateTime? NextRetryAt { get; set; }
         public DateTime? LastArchiveAttemptAt { get; set; }
         public DateTime? ArchiveCompletedAt { get; set; }
+        public DateTime? LastArchiveProbeAt { get; set; }
         public string ArchiveError { get; set; } = "";
         public DateTime? LocalCopyDeletedAt { get; set; }
         public string LocalDeleteReason { get; set; } = "";
@@ -218,6 +219,7 @@ namespace ExpressPackingMonitoring.Data
                     NextRetryAt TEXT,
                     LastArchiveAttemptAt TEXT,
                     ArchiveCompletedAt TEXT,
+                    LastArchiveProbeAt TEXT,
                     ArchiveError TEXT DEFAULT '',
                     LocalCopyDeletedAt TEXT,
                     LocalDeleteReason TEXT DEFAULT ''
@@ -312,6 +314,7 @@ namespace ExpressPackingMonitoring.Data
             EnsureColumnExists("VideoRecords", "NextRetryAt", "TEXT");
             EnsureColumnExists("VideoRecords", "LastArchiveAttemptAt", "TEXT");
             EnsureColumnExists("VideoRecords", "ArchiveCompletedAt", "TEXT");
+            EnsureColumnExists("VideoRecords", "LastArchiveProbeAt", "TEXT");
             EnsureColumnExists("VideoRecords", "ArchiveError", "TEXT DEFAULT ''");
             EnsureColumnExists("VideoRecords", "LocalCopyDeletedAt", "TEXT");
             EnsureColumnExists("VideoRecords", "LocalDeleteReason", "TEXT DEFAULT ''");
@@ -564,6 +567,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords
@@ -591,6 +595,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords
@@ -1371,6 +1376,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords WHERE Id = @id AND IsDeleted = 0;";
@@ -1415,10 +1421,11 @@ namespace ExpressPackingMonitoring.Data
                         NextRetryAt = reader.IsDBNull(32) ? null : DateTime.Parse(reader.GetString(32)),
                         LastArchiveAttemptAt = reader.IsDBNull(33) ? null : DateTime.Parse(reader.GetString(33)),
                         ArchiveCompletedAt = reader.IsDBNull(34) ? null : DateTime.Parse(reader.GetString(34)),
-                        ArchiveError = reader.IsDBNull(35) ? "" : reader.GetString(35),
-                        LocalCopyDeletedAt = reader.IsDBNull(36) ? null : DateTime.Parse(reader.GetString(36)),
-                        LocalDeleteReason = reader.IsDBNull(37) ? "" : reader.GetString(37),
-                        DeleteReasonCode = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                        LastArchiveProbeAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
+                        ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
+                        LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
+                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                        DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
                     };
                 }
                 return null;
@@ -1444,6 +1451,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords 
@@ -1512,10 +1520,11 @@ namespace ExpressPackingMonitoring.Data
                         NextRetryAt = reader.IsDBNull(32) ? null : DateTime.Parse(reader.GetString(32)),
                         LastArchiveAttemptAt = reader.IsDBNull(33) ? null : DateTime.Parse(reader.GetString(33)),
                         ArchiveCompletedAt = reader.IsDBNull(34) ? null : DateTime.Parse(reader.GetString(34)),
-                        ArchiveError = reader.IsDBNull(35) ? "" : reader.GetString(35),
-                        LocalCopyDeletedAt = reader.IsDBNull(36) ? null : DateTime.Parse(reader.GetString(36)),
-                        LocalDeleteReason = reader.IsDBNull(37) ? "" : reader.GetString(37),
-                        DeleteReasonCode = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                        LastArchiveProbeAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
+                        ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
+                        LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
+                        LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                        DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
                     });
                 }
                 return results;
@@ -1561,10 +1570,11 @@ namespace ExpressPackingMonitoring.Data
                 NextRetryAt = reader.IsDBNull(32) ? null : DateTime.Parse(reader.GetString(32)),
                 LastArchiveAttemptAt = reader.IsDBNull(33) ? null : DateTime.Parse(reader.GetString(33)),
                 ArchiveCompletedAt = reader.IsDBNull(34) ? null : DateTime.Parse(reader.GetString(34)),
-                ArchiveError = reader.IsDBNull(35) ? "" : reader.GetString(35),
-                LocalCopyDeletedAt = reader.IsDBNull(36) ? null : DateTime.Parse(reader.GetString(36)),
-                LocalDeleteReason = reader.IsDBNull(37) ? "" : reader.GetString(37),
-                DeleteReasonCode = reader.IsDBNull(38) ? "" : reader.GetString(38)
+                LastArchiveProbeAt = reader.IsDBNull(35) ? null : DateTime.Parse(reader.GetString(35)),
+                ArchiveError = reader.IsDBNull(36) ? "" : reader.GetString(36),
+                LocalCopyDeletedAt = reader.IsDBNull(37) ? null : DateTime.Parse(reader.GetString(37)),
+                LocalDeleteReason = reader.IsDBNull(38) ? "" : reader.GetString(38),
+                DeleteReasonCode = reader.IsDBNull(39) ? "" : reader.GetString(39)
             };
         }
 
@@ -1610,6 +1620,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords
@@ -1768,6 +1779,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode "
                     + whereSql + @"
@@ -1887,6 +1899,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords
@@ -1935,6 +1948,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords " + whereSql + @"
@@ -2181,6 +2195,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason, DeleteReasonCode
                     FROM VideoRecords
                     WHERE IsDeleted = 0
@@ -2231,7 +2246,8 @@ namespace ExpressPackingMonitoring.Data
             DateTime? attemptedAt = null,
             DateTime? completedAt = null,
             bool incrementRetry = false,
-            DateTime? nextRetryAt = null)
+            DateTime? nextRetryAt = null,
+            DateTime? lastProbeAt = null)
         {
             lock (_lock)
             {
@@ -2242,6 +2258,7 @@ namespace ExpressPackingMonitoring.Data
                         ArchiveError = @error,
                         LastArchiveAttemptAt = COALESCE(@attemptedAt, LastArchiveAttemptAt),
                         ArchiveCompletedAt = COALESCE(@completedAt, ArchiveCompletedAt),
+                        LastArchiveProbeAt = COALESCE(@lastProbeAt, LastArchiveProbeAt),
                         ArchiveRetryCount = CASE WHEN @incrementRetry = 1 THEN ArchiveRetryCount + 1 ELSE ArchiveRetryCount END,
                         NextRetryAt = @nextRetryAt,
                         ContentSha256 = CASE WHEN @contentSha256 = '' THEN ContentSha256 ELSE @contentSha256 END
@@ -2258,7 +2275,26 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue(
                     "@nextRetryAt",
                     nextRetryAt.HasValue ? (object)nextRetryAt.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
+                cmd.Parameters.AddWithValue(
+                    "@lastProbeAt",
+                    lastProbeAt.HasValue ? (object)lastProbeAt.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
                 cmd.Parameters.AddWithValue("@contentSha256", contentSha256?.Trim().ToLowerInvariant() ?? "");
+                cmd.Parameters.AddWithValue("@id", recordId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>记录 GC 最近一次成功探测归档目标的时间（24 小时内免重复探测）。</summary>
+        public void UpdateLastArchiveProbeAt(long recordId, DateTime probedAt)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords
+                    SET LastArchiveProbeAt = @probedAt
+                    WHERE Id = @id AND IsDeleted = 0;";
+                cmd.Parameters.AddWithValue("@probedAt", probedAt.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@id", recordId);
                 cmd.ExecuteNonQuery();
             }
@@ -2283,6 +2319,7 @@ namespace ExpressPackingMonitoring.Data
                            StorageState, RemoteVideoRecordId, SourceDeviceKind,
                            ArchivePath, ArchiveStatus, ArchiveRetryCount,
                            NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
                            DeleteReasonCode
                     FROM VideoRecords

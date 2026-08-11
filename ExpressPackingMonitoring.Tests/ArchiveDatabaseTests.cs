@@ -312,4 +312,22 @@ public sealed class ArchiveDatabaseTests : IDisposable
             [oldFailed, oldLocal, oldPending],
             candidates.Select(record => record.Id));
     }
+
+    [Fact]
+    public void LastArchiveProbeAt_IsStoredAndRead()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\x.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now,
+            lastProbeAt: now);
+        Assert.NotNull(_database.GetVideoById(id)!.LastArchiveProbeAt);
+
+        _database.UpdateLastArchiveProbeAt(id, now.AddMinutes(1));
+        Assert.NotNull(_database.GetVideoById(id)!.LastArchiveProbeAt);
+    }
 }

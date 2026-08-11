@@ -148,6 +148,7 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, record.ArchiveStatus);
         Assert.Equal(64, record.ContentSha256.Length);
         Assert.NotNull(record.ArchiveCompletedAt);
+        Assert.NotNull(record.LastArchiveProbeAt);
         Assert.True(File.Exists(record.ArchivePath));
         Assert.Equal("hello-archive", File.ReadAllText(record.ArchivePath));
     }
