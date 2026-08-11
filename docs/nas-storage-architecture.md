@@ -63,10 +63,10 @@ stateDiagram-v2
 | `ArchiveCompletedAt` | 归档验证完成时间 |
 | `LocalCopyDeletedAt` / `LocalDeleteReason` | 本地录像文件清理时间与原因 |
 | `LastArchiveProbeAt` | GC 最近一次成功探测归档目标的时间；24 小时内免重复探测 |
-| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityEmergencyCleanupUnarchived` |
+| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityCleanupUnarchived` / `CapacityEmergencyCleanupUnarchived` |
 | `ContentSha256` | 归档校验哈希（发布后写入） |
 
-队列查询：`GetPendingArchives` 按 Copying → Verifying → Pending（**EndTime 升序，旧任务优先**）→ Failed（到期优先）排序；`NASFull` 不进入队列，由空间检查恢复后重新入队；队列为空时完成即唤醒可秒级归档刚结束的录像。
+队列查询：`GetPendingArchives` 按 Copying → Verifying → Pending（**EndTime 降序，新录像优先**）→ Failed（到期优先）排序；`NASFull` 不进入队列，由空间检查恢复后重新入队；队列为空时完成即唤醒可秒级归档刚结束的录像。NAS 恢复后新录像先归档，历史积压按批次上限自然限速补传。
 
 `PendingDeleteAt` 列仅为旧数据库兼容保留，新代码完全不读写；`UserRequested` 仅表示用户请求删除本地记录，不代表删除 NAS 归档。
 
@@ -95,7 +95,8 @@ flowchart TD
 
 - **录像中 NAS 离线**：录像继续写入本地主存储，不受影响；最终文件确定后进入 Pending，等待 Worker 重试。
 - **归档中断/程序重启**：状态保留在 DB，重启后从 Copying/Verifying/Pending 继续；残留 `.uploading` 在本地源仍存在且超过 24 小时时清理，正在写入的临时文件不会被删除。
-- **NAS 长时间离线**：记录进入 Failed 退避重试；本地主存储满时先只删已成功归档的本地录像文件。
+- **NAS 长时间离线**：记录进入 Failed 退避重试；正常容量 GC 在没有网络归档目标或归档根探测不可达且释放目标未满足时，按 `Verified → Failed → Pending → LocalOnly` 分档删除未归档录像（档内最旧优先，沿用 30 分钟保护期），写 `DeleteReasonCode = CapacityCleanupUnarchived`，UI 警告受 6 小时节流；5 GiB 硬循环同样按分档删除。
+- **无网络归档目标暂停重试**：`ArchiveService` 通过归档目标解析器判断当前配置；没有网络归档目标或解析失败时本轮直接跳过，`Pending/Failed/Copying/Verifying` 状态原样保留，重新添加 NAS 后自动恢复。
 - **正常 GC 的远端探测缓存**：只删已成功归档的本地录像文件；若 `LastArchiveProbeAt` 在 24 小时内则直接删除（不重复探测），否则通过 Archive Provider 实时验证目标存在且大小一致（3 秒超时）成功后才删除并更新 `LastArchiveProbeAt`；探测失败跳过本轮。
 - **Conflict 处理**：目标已存在且 Hash 不同 → Conflict，禁止覆盖、删除、重命名 NAS 旧文件（任何“改名旧文件再传新文件”都视为改变归档历史）；本地录像文件保留，等待人工处理。
 - **硬循环兜底（最后降级策略，不是正常 GC）**：同时满足以下条件才触发——
@@ -103,7 +104,7 @@ flowchart TD
   2. 当前本地主存储卷可用空间低于 5 GiB（内部常量 `LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes`）；
   3. 没有配置网络归档目标，或以 3 秒超时探测网络归档目标根不可达（可达则只唤醒归档，不删除）。
 
-  触发后只删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）且状态为 `LocalOnly/Pending/Failed` 的本地录像文件，按结束时间最旧优先；每次删除取所有权锁，删除后写 `DeleteReasonCode = CapacityEmergencyCleanupUnarchived` 并弹提示。**Conflict 永不进入硬循环**。
+  触发后按 `Failed → Pending → LocalOnly` 分档删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）的本地录像文件，档内最旧优先；每次删除取所有权锁，删除后写 `DeleteReasonCode = CapacityEmergencyCleanupUnarchived` 并弹提示（受 6 小时节流）。**Conflict 永不进入硬循环**。
 
 - **用户删除**：只删本地文件并标记记录删除（`DeleteReasonCode=UserRequested`）；NAS 归档保留，不做远端删除。
 - **NAS 满**：复制/写入抛出磁盘满异常时记录进入 `NASFull`（不增加重试次数、不进入队列）；周期检查发现网络归档卷可用空间 ≤ 预留值时，60 分钟冷却内提示“NAS 空间不足，录像仍保存在本地，归档已暂停；请清理 NAS 或调整归档位置”并写日志；空间恢复到预留值以上后，`NASFull` 记录批量回到 `Pending` 并唤醒 Worker。NAS 卷状态不影响本地录像、本地 GC 与硬循环。
@@ -135,6 +136,8 @@ sequenceDiagram
 - 本地主存储卷保护线：5 GiB、删除保护期 30 分钟（`LocalCopyCleanupPolicy`，不提供 UI 配置）。
 - MKV 放弃转换阈值：沿用 `MkvConversionRetryPolicy`（首次失败超过 7 天）。
 - 远端探测/哈希超时：3 秒（`RemoteFileProbe`、`ArchiveWorkerOptions.RemoteTimeout`）；**复制不套 3 秒短超时**，慢 NAS 大文件由后台 Worker 持续完成。
+- 探测并发门禁：`RemoteFileProbe` 与 `NasArchiveProvider.ProbeAsync` 共用单槽信号量，同一时间最多一个 SMB 探测；拿不到门禁按不可用处理，避免挂死时线程池堆积。
 - NAS 满提示冷却：60 分钟（`NetworkArchiveSpacePolicy.WarningCooldown`）。
+- 未归档删除提示冷却：6 小时（`LocalCopyCleanupPolicy.UnarchivedCleanupWarningCooldown`），日志全量记录。
 - 数据库 schema 版本：`VideoDatabase` 用 `PRAGMA user_version`（当前 `SchemaVersion=1`）做迁移保护，低版本启动时补齐字段并写版本，高版本只告警不降级。
 - Provider 边界：`IArchiveProvider` 只提供发布（Publish）、校验（Verify/ComputeSha256）、存在与元数据探测（Probe）；**不提供删除能力**。`RenameAsync` 仅用于把本次刚上传的损坏目标改名 `.corrupt`（自己的不完整文件，不是删除既有文件）。
