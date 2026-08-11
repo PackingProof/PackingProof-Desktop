@@ -424,6 +424,67 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task BackfillHistoricalArchives_FillsPathAndArchives()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_localRoot, "historical.mp4");
+        File.WriteAllText(localPath, "historical-content");
+        long id = _database.InsertVideoRecord(
+            "单号历史",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddMinutes(-120),
+            archivePath: "");
+        _database.UpdateVideoRecordOnStop(id, now.AddMinutes(-60), 10, localPath.Length, "手动");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () => _nasRoot);
+
+        int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(1, completed);
+        Assert.Equal(VideoArchiveStatus.Verified, record.ArchiveStatus);
+        string expected = ArchivePathBuilder.BuildLocalRecordingArchivePath(
+            _nasRoot,
+            record.StartTime,
+            Path.GetFileName(record.FilePath));
+        Assert.Equal(expected, record.ArchivePath);
+        Assert.True(File.Exists(record.ArchivePath));
+    }
+
+    [Fact]
+    public async Task BackfillHistoricalArchives_SkipsMissingLocalFile()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_localRoot, "missing-historical.mp4");
+        long id = _database.InsertVideoRecord(
+            "单号历史缺失",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddMinutes(-120),
+            archivePath: "");
+        _database.UpdateVideoRecordOnStop(id, now.AddMinutes(-60), 10, 100, "手动");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () => _nasRoot);
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.LocalOnly, record.ArchiveStatus);
+        Assert.Equal("", record.ArchivePath);
+    }
+
+    [Fact]
     public async Task HashMismatch_RenamesCorruptTargetAndMarksFailed()
     {
         long id = InsertPendingRecord("corrupt.mp4", "corrupt-content");

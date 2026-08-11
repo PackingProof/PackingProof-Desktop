@@ -17,6 +17,8 @@ internal sealed class ArchiveService : IDisposable
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
+    private static readonly TimeSpan BackfillInterval = TimeSpan.FromMinutes(5);
+    private DateTime _lastBackfillAt = DateTime.MinValue;
 
     public ArchiveService(
         VideoDatabase database,
@@ -37,6 +39,7 @@ internal sealed class ArchiveService : IDisposable
     {
         try
         {
+            _lastBackfillAt = DateTime.MinValue; // 唤醒后立即允许历史回填扫描
             if (_wakeSignal.CurrentCount == 0)
                 _wakeSignal.Release();
         }
@@ -48,8 +51,18 @@ internal sealed class ArchiveService : IDisposable
     /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
-        if (!HasArchiveTarget())
-            return 0;
+        string? archiveTarget = ResolveArchiveTarget();
+        if (archiveTarget == null)
+            return 0; // 解析失败：跳过本轮
+        if (string.IsNullOrWhiteSpace(archiveTarget))
+        {
+            if (_archiveTargetResolver != null)
+                return 0; // 明确未配置网络归档目标
+        }
+        else
+        {
+            BackfillHistoricalArchives(archiveTarget);
+        }
 
         int completed = 0;
         foreach (VideoRecord record in _database.GetPendingArchives(
@@ -67,22 +80,54 @@ internal sealed class ArchiveService : IDisposable
     }
 
     /// <summary>
-    /// 当前是否配置了网络归档目标；未配置或解析失败时本轮跳过，
-    /// 状态原样保留，重新添加 NAS 后自动恢复。
+    /// 解析当前网络归档目标：未注入解析器返回空串（保持旧行为不限制目标）；
+    /// 未配置网络归档目标返回空串；解析失败返回 null（本轮跳过，状态保留）。
     /// </summary>
-    private bool HasArchiveTarget()
+    private string? ResolveArchiveTarget()
     {
         if (_archiveTargetResolver == null)
-            return true;
+            return "";
         try
         {
-            return !string.IsNullOrWhiteSpace(_archiveTargetResolver());
+            return _archiveTargetResolver();
         }
         catch (Exception ex)
         {
             RuntimeLog.Warn("Archive", $"Archive target resolution failed: {ex.Message}");
-            return false;
+            return null;
         }
+    }
+
+    /// <summary>
+    /// 历史回填：为 NAS 配置前已定稿的 MP4 记录补设归档路径并置 Pending，
+    /// 受 5 分钟间隔限制，Wake 时立即允许重扫；本地文件已不存在的记录跳过。
+    /// </summary>
+    private void BackfillHistoricalArchives(string archiveTarget)
+    {
+        if (DateTime.UtcNow - _lastBackfillAt < BackfillInterval)
+            return;
+        _lastBackfillAt = DateTime.UtcNow;
+
+        int updated = 0;
+        foreach (VideoRecord record in _database.GetBackfillCandidates(200))
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(record.FilePath) || !File.Exists(record.FilePath))
+                    continue;
+                string archivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
+                    archiveTarget,
+                    record.StartTime,
+                    Path.GetFileName(record.FilePath));
+                updated += _database.SetArchiveTarget(record.Id, archivePath);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Archive", $"Backfill failed id={record.Id}, error={ex.Message}");
+            }
+        }
+        if (updated > 0)
+            RuntimeLog.Info("Archive", $"Backfilled historical archive paths count={updated}");
     }
 
     internal Task<bool> ArchiveRecordAsync(long recordId, CancellationToken cancellationToken)

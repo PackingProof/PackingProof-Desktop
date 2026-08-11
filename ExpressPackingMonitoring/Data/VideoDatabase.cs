@@ -2227,6 +2227,72 @@ namespace ExpressPackingMonitoring.Data
         }
 
         /// <summary>
+        /// 历史回填候选：已定稿为 MP4、从未设置归档路径且仍为仅本地的未删除记录，
+        /// 供“添加 NAS 后把历史录像补进归档队列”使用，按开始时间最旧优先。
+        /// </summary>
+        public IReadOnlyList<VideoRecord> GetBackfillCandidates(int limit = 200)
+        {
+            limit = Math.Clamp(limit, 1, 500);
+            lock (_lock)
+            {
+                var results = new List<VideoRecord>();
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind,
+                           ArchivePath, ArchiveStatus, ArchiveRetryCount,
+                           NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason, DeleteReasonCode
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND ArchivePath = ''
+                      AND ArchiveStatus = 'LocalOnly'
+                      AND FilePath <> ''
+                      AND FilePath LIKE '%.mp4'
+                    ORDER BY StartTime ASC, Id ASC
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@limit", limit);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    results.Add(ReadVideoRecord(reader));
+                return results;
+            }
+        }
+
+        /// <summary>
+        /// 为历史记录补设归档路径并置为等待归档；只更新仍为空路径的仅本地记录，
+        /// 不覆盖已有路径、进行中的状态或冲突记录。
+        /// </summary>
+        public int SetArchiveTarget(long recordId, string archivePath)
+        {
+            if (string.IsNullOrWhiteSpace(archivePath))
+                return 0;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        ArchivePath = @archivePath,
+                        ArchiveStatus = @status,
+                        ArchiveError = '',
+                        ArchiveRetryCount = 0,
+                        NextRetryAt = NULL
+                    WHERE Id = @id AND IsDeleted = 0
+                      AND ArchivePath = ''
+                      AND ArchiveStatus = 'LocalOnly';";
+                cmd.Parameters.AddWithValue("@archivePath", archivePath.Trim());
+                cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.Pending);
+                cmd.Parameters.AddWithValue("@id", recordId);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
         /// 录像完成后标记为等待网络归档（重置错误与重试计数）。
         /// </summary>
         public void MarkArchivePending(long recordId)

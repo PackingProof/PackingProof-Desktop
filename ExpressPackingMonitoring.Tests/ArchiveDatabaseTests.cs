@@ -313,6 +313,49 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void GetBackfillCandidates_OnlyReturnsLocalOnlyMp4WithoutArchivePath()
+    {
+        DateTime now = DateTime.Now;
+        long eligible = InsertLocal("", now.AddHours(-3), now.AddHours(-2));
+        long alreadyTargeted = InsertLocal(@"\\nas\share\a.mp4", now.AddHours(-2), now.AddHours(-1));
+        long pendingNoPath = InsertLocal("", now.AddHours(-1), now.AddMinutes(-50));
+        _database.MarkArchivePending(pendingNoPath);
+
+        IReadOnlyList<VideoRecord> candidates = _database.GetBackfillCandidates(200);
+
+        Assert.Contains(candidates, record => record.Id == eligible);
+        Assert.DoesNotContain(candidates, record => record.Id == alreadyTargeted);
+        Assert.DoesNotContain(candidates, record => record.Id == pendingNoPath);
+    }
+
+    [Fact]
+    public void SetArchiveTarget_OnlyUpdatesEmptyLocalOnlyRecord()
+    {
+        DateTime now = DateTime.Now;
+        long eligible = InsertLocal("", now.AddHours(-3), now.AddHours(-2));
+        long targeted = InsertLocal(@"\\nas\share\old.mp4", now.AddHours(-2), now.AddHours(-1));
+        _database.UpdateArchiveState(
+            targeted,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now);
+
+        Assert.Equal(
+            1,
+            _database.SetArchiveTarget(eligible, @"\\nas\share\2026-08-08\单号A.mp4"));
+        Assert.Equal(
+            0,
+            _database.SetArchiveTarget(targeted, @"\\nas\share\other.mp4"));
+
+        VideoRecord updated = _database.GetVideoById(eligible)!;
+        Assert.Equal(@"\\nas\share\2026-08-08\单号A.mp4", updated.ArchivePath);
+        Assert.Equal(VideoArchiveStatus.Pending, updated.ArchiveStatus);
+        Assert.Equal(
+            @"\\nas\share\old.mp4",
+            _database.GetVideoById(targeted)!.ArchivePath);
+    }
+
+    [Fact]
     public void MarkLocalCopyDeleted_WritesReasonCode()
     {
         DateTime now = DateTime.Now;
