@@ -41,8 +41,11 @@ internal sealed class ArchiveService : IDisposable
         try
         {
             _lastBackfillAt = DateTime.MinValue; // 唤醒后立即允许历史回填扫描
-            if (_wakeSignal.CurrentCount == 0)
-                _wakeSignal.Release();
+            _wakeSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // 信号已置位：并发唤醒时忽略，避免检查后再释放的竞态。
         }
         catch (ObjectDisposedException)
         {

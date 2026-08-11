@@ -525,6 +525,28 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public void Wake_ConcurrentCallsDoNotThrow()
+    {
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        Parallel.For(0, 20, _ => service.Wake());
+    }
+
+    [Fact]
+    public void Wake_AfterDisposeIsSafe()
+    {
+        var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+        service.Dispose();
+        service.Wake();
+    }
+
+    [Fact]
     public async Task BackfillHistoricalArchives_FillsPathAndArchives()
     {
         DateTime now = DateTime.Now;
