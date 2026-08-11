@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Helpers;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.UI;
 using Xunit;
 
@@ -205,6 +206,107 @@ public sealed class PlaybackWindowTests
         {
             Directory.Delete(folder, recursive: true);
         }
+    }
+
+    [Fact]
+    public void CreateVideoItem_ArchivedLocalDeleted_UsesArchivePath()
+    {
+        var record = new VideoRecord
+        {
+            FilePath = Path.Combine(Path.GetTempPath(), "packingproof-missing-local.mp4"),
+            ArchivePath = @"\\NAS\share\2026-08-11\SF123.mp4",
+            ArchiveStatus = VideoArchiveStatus.LocalDeleted,
+            ArchiveCompletedAt = DateTime.Now,
+            StorageState = "Local",
+            FileSizeBytes = 2048,
+            TrackingNumber = "SF123"
+        };
+
+        VideoItem item = PlaybackWindow.CreateVideoItem(record);
+
+        Assert.False(item.IsMissing);
+        Assert.False(item.IsDeleted);
+        Assert.Equal(@"\\NAS\share\2026-08-11\SF123.mp4", item.FullPath);
+        Assert.True(item.IsArchiveWarning);
+        Assert.Equal("已归档（本地副本已清理）", item.StatusText);
+        Assert.Null(item.File);
+    }
+
+    [Fact]
+    public void CreateVideoItem_LocalFileExists_UsesLocalPath()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "packingproof-playback-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string file = Path.Combine(directory, "local.mp4");
+        File.WriteAllBytes(file, new byte[64]);
+        try
+        {
+            var record = new VideoRecord
+            {
+                FilePath = file,
+                ArchiveStatus = VideoArchiveStatus.LocalOnly,
+                StorageState = "Local",
+                FileSizeBytes = 1
+            };
+
+            VideoItem item = PlaybackWindow.CreateVideoItem(record);
+
+            Assert.False(item.IsMissing);
+            Assert.Equal(file, item.FullPath);
+            Assert.NotNull(item.File);
+            Assert.Equal(64L, item.File!.Length);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CreateVideoItem_NoLocalNoArchive_IsMissing()
+    {
+        var record = new VideoRecord
+        {
+            FilePath = Path.Combine(Path.GetTempPath(), "packingproof-missing-never-archived.mp4"),
+            ArchivePath = "",
+            ArchiveStatus = VideoArchiveStatus.LocalOnly,
+            StorageState = "Local"
+        };
+
+        VideoItem item = PlaybackWindow.CreateVideoItem(record);
+
+        Assert.True(item.IsMissing);
+        Assert.Equal(record.FilePath, item.FullPath);
+        Assert.Null(item.File);
+    }
+
+    [Fact]
+    public void CreateVideoItem_UnverifiedArchiveWithoutLocalCopy_IsMissing()
+    {
+        var record = new VideoRecord
+        {
+            FilePath = Path.Combine(Path.GetTempPath(), "packingproof-missing-pending.mp4"),
+            ArchivePath = @"\\NAS\share\2026-08-11\SF123.mp4",
+            ArchiveStatus = VideoArchiveStatus.Pending,
+            StorageState = "Local"
+        };
+
+        VideoItem item = PlaybackWindow.CreateVideoItem(record);
+
+        Assert.True(item.IsMissing);
+    }
+
+    [Fact]
+    public void PlaybackListUsesSingleCreateVideoItemFactory()
+    {
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("videos.Add(CreateVideoItem(record));", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("VideoItem item = CreateVideoItem(record);", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaybackFileResolver.ResolvePlaybackPath", codeBehind, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryFile(params string[] relativeParts)
