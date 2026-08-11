@@ -311,13 +311,12 @@ internal sealed class CameraBarcodeStabilityTracker
         string normalized = (code ?? "").Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
-            if (_candidateRequiredHits == 2)
-                ClearCandidate();
-            else
-                ExpireCandidate(now);
+            // 空帧（没识别到条码）不重置计数，只按确认时间窗口过期才清空候选；
+            // 候选仍存活时保持续扫，保证条码短暂离开后重新出现能继续累计。
+            ExpireCandidate(now);
             return new CameraBarcodeObservation(
                 _candidateCode,
-                KeepDecoding: _candidateRequiredHits >= 3);
+                KeepDecoding: _candidateCode.Length > 0);
         }
 
         if (_lockedCodes.ContainsKey(normalized))

@@ -41,21 +41,43 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
-    public void StabilityTracker_StartConfirmationRestartsAfterMissedDetection()
+    public void StabilityTracker_MissedDetectionDoesNotResetConfirmationCount()
     {
         var tracker = new CameraBarcodeStabilityTracker();
 
         tracker.Observe("YT123456789012", Start);
-        tracker.Observe(null, Start.AddMilliseconds(100));
-        CameraBarcodeObservation restarted = tracker.Observe(
+        CameraBarcodeObservation missed = tracker.Observe(null, Start.AddMilliseconds(100));
+        CameraBarcodeObservation confirmed = tracker.Observe(
             "YT123456789012",
             Start.AddMilliseconds(250));
-        CameraBarcodeObservation confirmed = tracker.Observe(
+
+        Assert.Equal("YT123456789012", missed.CandidateCode);
+        Assert.True(missed.KeepDecoding);
+        Assert.Empty(missed.ConfirmedCode);
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_DifferentCodeResetsConsecutiveCount()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+
+        tracker.Observe("YT123456789012", Start);
+        CameraBarcodeObservation switched = tracker.Observe(
+            "SF123456789012",
+            Start.AddMilliseconds(250));
+        CameraBarcodeObservation backToFirst = tracker.Observe(
             "YT123456789012",
             Start.AddMilliseconds(500));
 
-        Assert.Equal("YT123456789012", restarted.CandidateCode);
-        Assert.Empty(restarted.ConfirmedCode);
+        Assert.Equal("SF123456789012", switched.CandidateCode);
+        Assert.Empty(switched.ConfirmedCode);
+        Assert.Equal("YT123456789012", backToFirst.CandidateCode);
+        Assert.Empty(backToFirst.ConfirmedCode);
+
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start.AddMilliseconds(750));
         Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
     }
 
@@ -899,7 +921,7 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(0, config.CameraBarcodeGuideOffsetX);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
-        Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
+        Assert.Equal(2.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.Equal(2, config.CameraSameBarcodeConfirmationHits);
         Assert.True(config.EnableGlobalKeyboard);
     }

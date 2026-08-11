@@ -172,7 +172,7 @@ namespace ExpressPackingMonitoring.Config
         public double CameraBarcodeGuideOffsetX { get; set; } = 0;
         public double CameraBarcodeGuideOffsetY { get; set; } = 0;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
-        public double CameraSameBarcodeConfirmationSeconds { get; set; } = 1.0;
+        public double CameraSameBarcodeConfirmationSeconds { get; set; } = 2.0;
         public int CameraSameBarcodeConfirmationHits { get; set; } = 2;
         public double CameraIdleMinutes { get; set; } = 5.0;
         public string CameraIdleNoSleepStart1 { get; set; } = "";
