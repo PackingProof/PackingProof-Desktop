@@ -1229,12 +1229,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<DateTimeOffset> _utcNow;
     private long _droppedFrames;
     private long _forceDecodeUntilUtcTicks;
+    private string _lastRecognizedCode = "";
     private int _generation;
     private volatile bool _disposed;
     private int _workerResourcesDisposed;
 
     public event Action<CameraBarcodeRecognitionStatus>? StatusChanged;
     public event Action<string>? BarcodeConfirmed;
+    public event Action<string>? BarcodeRecognized;
     public event Action<string>? InvalidCandidate;
 
     public CameraBarcodeRecognitionService(
@@ -1383,6 +1385,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             if (generation != Volatile.Read(ref _generation) || _disposed)
                 return;
 
+            NotifyRecognizedIfNew(code);
+
             CameraBarcodeObservation observation;
             TimeSpan confirmationWindow = code == null
                 ? TimeSpan.Zero
@@ -1444,6 +1448,24 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     {
         try { return _candidateValidator(code); }
         catch { return false; }
+    }
+
+    /// 解码到合法条码即触发独立反馈事件：同码连续可见只触发一次，
+    /// 码离开画面后清空记录，再次出现会重新触发。
+    private void NotifyRecognizedIfNew(string? code)
+    {
+        string normalized = (code ?? "").Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+        {
+            _lastRecognizedCode = "";
+            return;
+        }
+
+        if (string.Equals(normalized, _lastRecognizedCode, StringComparison.Ordinal))
+            return;
+
+        _lastRecognizedCode = normalized;
+        BarcodeRecognized?.Invoke(normalized);
     }
 
     private void NotifyInvalidCandidate(string code)

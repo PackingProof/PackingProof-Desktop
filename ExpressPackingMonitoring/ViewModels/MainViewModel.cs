@@ -774,6 +774,8 @@ namespace ExpressPackingMonitoring.ViewModels
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;
+            // 解码到合法条码立即响的独立反馈音，不依赖候选/确认状态。
+            _cameraBarcodeRecognition.BarcodeRecognized += _ => _speechService?.PlayShortBeep();
         }
 
         private bool CanSubmitCameraBarcode()
@@ -864,8 +866,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (CanSubmitCameraBarcode())
                 {
-                    // 独立叠加播放的识别反馈音，不打断正在播放的语音/音乐。
-                    _speechService?.PlayShortBeep();
                     HandleScan(code, fromCamera: true);
                 }
             }));

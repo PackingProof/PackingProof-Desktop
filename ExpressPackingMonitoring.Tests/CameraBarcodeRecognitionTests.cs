@@ -801,6 +801,34 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public async Task RecognitionService_BarcodeRecognizedFiresOncePerEpisode()
+    {
+        using Mat frame = CreateFrameWithBarcode(
+            "YT123456789012",
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+        using Mat blank = CreateSolidFrame(255);
+        var recognized = new List<string>();
+        using var service = new CameraBarcodeRecognitionService(
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
+        service.BarcodeRecognized += recognized.Add;
+
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Single(recognized);
+
+        service.TrySubmitFrame(blank);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, recognized.Count);
+    }
+
+    [Fact]
     public async Task InvalidCandidateEvent_FiresForRejectedCodeAndThrottlesSameCode()
     {
         using Mat frame = CreateFrameWithBarcode("1234", BarcodeFormat.CODE_128, inGuide: true);
