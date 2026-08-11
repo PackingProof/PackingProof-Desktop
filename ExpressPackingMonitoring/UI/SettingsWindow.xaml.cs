@@ -1086,7 +1086,7 @@ namespace ExpressPackingMonitoring.UI
         {
             var dialog = new StoragePathSelectionDialog(
                 title: "选择网络归档文件夹",
-                hint: "录像先写入本地缓冲，校验成功后再复制到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
+                hint: "录像先保存在本地主存储，校验成功后再复制到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
             {
                 Owner = this
             };
