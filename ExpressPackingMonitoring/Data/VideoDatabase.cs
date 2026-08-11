@@ -18,6 +18,7 @@ namespace ExpressPackingMonitoring.Data
         /// <summary>仅表示用户请求删除本地记录，不影响 NAS 归档生命周期（NAS 只上传、永不删除）。</summary>
         public const string UserRequested = "UserRequested";
         public const string CapacityCleanupVerified = "CapacityCleanupVerified";
+        public const string CapacityCleanupUnarchived = "CapacityCleanupUnarchived";
         public const string CapacityEmergencyCleanupUnarchived = "CapacityEmergencyCleanupUnarchived";
     }
 
@@ -2180,10 +2181,12 @@ namespace ExpressPackingMonitoring.Data
         /// <summary>
         /// 硬循环清理候选：已结束且超过保护期、状态为仅本地/等待归档/失败，
         /// 按结束时间最旧优先；Conflict 不进入硬循环（保留供人工比对）。
+        /// archiveStatus 非空时只返回该状态的候选，供调用方按分档顺序逐档清理。
         /// </summary>
         public IReadOnlyList<VideoRecord> GetEmergencyCleanupCandidates(
             DateTime cutoff,
-            int limit = 200)
+            int limit = 200,
+            string archiveStatus = null)
         {
             limit = Math.Clamp(limit, 1, 500);
             lock (_lock)
@@ -2207,10 +2210,15 @@ namespace ExpressPackingMonitoring.Data
                       AND EndTime <= @cutoff
                       AND FilePath <> ''
                       AND ArchiveStatus IN ('LocalOnly', 'Pending', 'Failed')
+                      " + (string.IsNullOrWhiteSpace(archiveStatus)
+                            ? ""
+                            : "AND ArchiveStatus = @archiveStatus") + @"
                     ORDER BY EndTime ASC, Id ASC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@limit", limit);
+                if (!string.IsNullOrWhiteSpace(archiveStatus))
+                    cmd.Parameters.AddWithValue("@archiveStatus", archiveStatus);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                     results.Add(ReadVideoRecord(reader));

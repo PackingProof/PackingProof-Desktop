@@ -264,6 +264,55 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void MarkVideoDeleted_WritesCapacityCleanupUnarchivedCode()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\z.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+        string filePath = _database.GetVideoById(id)!.FilePath;
+
+        _database.MarkVideoDeleted(
+            filePath,
+            "容量清理（NAS 不可用或未配置）",
+            RecordingDeletionReasonCode.CapacityCleanupUnarchived);
+
+        VideoRecord deleted = _database.QueryVideos(null, null).Single(record => record.Id == id);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupUnarchived,
+            deleted.DeleteReasonCode);
+    }
+
+    [Fact]
+    public void GetEmergencyCleanupCandidates_FiltersByArchiveStatus()
+    {
+        DateTime now = DateTime.Now;
+        long failedId = InsertLocal(@"\\nas\share\f.mp4", now.AddHours(-3), now.AddHours(-2));
+        long pendingId = InsertLocal(@"\\nas\share\p.mp4", now.AddHours(-2), now.AddHours(-1));
+        long localId = InsertLocal(@"\\nas\share\l.mp4", now.AddHours(-1), now.AddMinutes(-50));
+        _database.UpdateArchiveState(failedId, VideoArchiveStatus.Failed, attemptedAt: now);
+        _database.UpdateArchiveState(pendingId, VideoArchiveStatus.Pending, attemptedAt: now);
+        DateTime cutoff = now.AddMinutes(-30);
+
+        Assert.Equal(
+            failedId,
+            Assert.Single(_database.GetEmergencyCleanupCandidates(
+                cutoff,
+                200,
+                VideoArchiveStatus.Failed)).Id);
+        Assert.Equal(
+            pendingId,
+            Assert.Single(_database.GetEmergencyCleanupCandidates(
+                cutoff,
+                200,
+                VideoArchiveStatus.Pending)).Id);
+        Assert.Equal(
+            localId,
+            Assert.Single(_database.GetEmergencyCleanupCandidates(
+                cutoff,
+                200,
+                VideoArchiveStatus.LocalOnly)).Id);
+    }
+
+    [Fact]
     public void MarkLocalCopyDeleted_WritesReasonCode()
     {
         DateTime now = DateTime.Now;

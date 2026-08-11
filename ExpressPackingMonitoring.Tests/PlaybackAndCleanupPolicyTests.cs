@@ -224,4 +224,19 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
         Assert.False(NetworkArchiveSpacePolicy.IsDiskFullException(
             new InvalidOperationException("网络连接失败")));
     }
+
+    [Fact]
+    public void UnarchivedCleanupPolicy_TiersAndWarningCooldown()
+    {
+        Assert.Equal(
+            TimeSpan.FromHours(6),
+            LocalCopyCleanupPolicy.UnarchivedCleanupWarningCooldown);
+        Assert.Equal(
+            [
+                VideoArchiveStatus.Failed,
+                VideoArchiveStatus.Pending,
+                VideoArchiveStatus.LocalOnly
+            ],
+            LocalCopyCleanupPolicy.UnarchivedCleanupTiers);
+    }
 }

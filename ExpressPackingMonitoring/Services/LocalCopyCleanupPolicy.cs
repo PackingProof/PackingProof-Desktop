@@ -15,6 +15,20 @@ internal static class LocalCopyCleanupPolicy
     /// <summary>硬循环删除未归档录像的最小保护期（固定内部常量）。</summary>
     public static readonly TimeSpan EmergencyDeleteGracePeriod = TimeSpan.FromMinutes(30);
 
+    /// <summary>未归档录像被容量清理删除时，同一提示的最小间隔（UI 节流，日志不受限）。</summary>
+    public static readonly TimeSpan UnarchivedCleanupWarningCooldown = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// 未归档录像删除分档顺序：先删已尝试失败（占用空间且短期无意义），
+    /// 再删等待归档，最后删从未备份过的 LocalOnly；档内由查询按结束时间最旧优先。
+    /// </summary>
+    public static readonly string[] UnarchivedCleanupTiers =
+    [
+        VideoArchiveStatus.Failed,
+        VideoArchiveStatus.Pending,
+        VideoArchiveStatus.LocalOnly
+    ];
+
     /// <summary>GC 远端探测缓存窗口：24 小时内已成功探测则不重复探测。</summary>
     public static readonly TimeSpan ProbeCacheWindow = TimeSpan.FromHours(24);
 
