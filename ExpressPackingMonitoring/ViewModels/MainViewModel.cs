@@ -986,6 +986,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
                         StorageLocationResolver.GetOrderedNetworkLocations(Config));
+                RefreshArchiveBackupSummary();
             }
             catch (Exception ex)
             {
@@ -2032,6 +2033,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!SaveConfig(nextConfig, notifyUser: true))
                         return false;
                     Config = nextConfig;
+                    RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);
                     if (cameraBarcodeChanged)

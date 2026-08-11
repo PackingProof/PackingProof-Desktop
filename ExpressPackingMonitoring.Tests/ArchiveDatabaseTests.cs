@@ -371,6 +371,42 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void GetArchiveQueueSummary_CountsRemainingStatusesOnly()
+    {
+        DateTime now = DateTime.Now;
+        long pending = InsertLocal(@"\\nas\p.mp4", now.AddHours(-6), now.AddHours(-5), orderId: "单号P");
+        long copying = InsertLocal(@"\\nas\c.mp4", now.AddHours(-5), now.AddHours(-4), orderId: "单号C");
+        long verifying = InsertLocal(@"\\nas\v.mp4", now.AddHours(-4), now.AddHours(-3), orderId: "单号V");
+        long failed = InsertLocal(@"\\nas\f.mp4", now.AddHours(-3), now.AddHours(-2), orderId: "单号F");
+        long nasFull = InsertLocal(@"\\nas\n.mp4", now.AddHours(-2), now.AddHours(-1), orderId: "单号N");
+        long verified = InsertLocal(@"\\nas\ok.mp4", now.AddHours(-1), now, orderId: "单号OK");
+        long conflict = InsertLocal(@"\\nas\x.mp4", now.AddHours(-7), now.AddHours(-6), orderId: "单号X");
+        long deleted = InsertLocal(@"\\nas\d.mp4", now.AddHours(-8), now.AddHours(-7), orderId: "单号D");
+
+        _database.UpdateArchiveState(pending, VideoArchiveStatus.Pending, attemptedAt: now);
+        _database.UpdateArchiveState(copying, VideoArchiveStatus.Copying, attemptedAt: now);
+        _database.UpdateArchiveState(verifying, VideoArchiveStatus.Verifying, attemptedAt: now);
+        _database.UpdateArchiveState(failed, VideoArchiveStatus.Failed, attemptedAt: now);
+        _database.UpdateArchiveState(nasFull, VideoArchiveStatus.NASFull, attemptedAt: now);
+        _database.UpdateArchiveState(
+            verified,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now);
+        _database.UpdateArchiveState(conflict, VideoArchiveStatus.Conflict, attemptedAt: now);
+        string deletedPath = _database.GetVideoById(deleted)!.FilePath;
+        _database.MarkVideoDeleted(deletedPath, "测试删除");
+
+        ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
+
+        Assert.Equal(1, summary.PendingCount);
+        Assert.Equal(2, summary.UploadingCount);
+        Assert.Equal(1, summary.FailedCount);
+        Assert.Equal(1, summary.NasFullCount);
+        Assert.Equal(5, summary.RemainingCount);
+    }
+
+    [Fact]
     public void GetManualCleanupCandidates_FiltersCutoffRootsStatusAndOrdersTiers()
     {
         DateTime now = DateTime.Now;

@@ -124,6 +124,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     totalCapacityBytes,
                     releasedByNormalCleanup);
                 CheckNetworkArchiveSpace();
+                RefreshArchiveBackupSummary();
 
                 UpdateDiskUsageText(totalCurrentBytes, totalCapacityBytes);
             }

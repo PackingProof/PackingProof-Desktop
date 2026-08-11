@@ -30,6 +30,17 @@ namespace ExpressPackingMonitoring.Data
         long Bytes,
         int UnarchivedCount);
 
+    /// <summary>归档队列统计：未完成备份的各类状态计数。</summary>
+    public sealed record ArchiveQueueSummary(
+        int PendingCount,
+        int UploadingCount,
+        int FailedCount,
+        int NasFullCount)
+    {
+        public int RemainingCount =>
+            PendingCount + UploadingCount + FailedCount + NasFullCount;
+    }
+
     /// <summary>
     /// 网络归档状态机：
     /// LocalOnly(仅本地) → Pending(等待归档) → Copying(复制中) → Verifying(后台校验) → Verified(已归档)
@@ -2416,6 +2427,40 @@ namespace ExpressPackingMonitoring.Data
                     Convert.ToInt32(reader.GetInt64(0)),
                     reader.GetInt64(1),
                     Convert.ToInt32(reader.GetInt64(2)));
+            }
+        }
+
+        /// <summary>
+        /// 归档队列统计：剩余待备份 = Pending + Copying/Verifying + Failed + NASFull，
+        /// 排除已删除、无归档路径以及 Verified/LocalDeleted/Conflict 的记录。
+        /// </summary>
+        public ArchiveQueueSummary GetArchiveQueueSummary()
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT
+                        SUM(CASE WHEN ArchiveStatus = 'Pending' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN ArchiveStatus IN ('Copying', 'Verifying') THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN ArchiveStatus = 'Failed' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN ArchiveStatus = 'NASFull' THEN 1 ELSE 0 END)
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND ArchivePath <> ''
+                      AND FilePath <> ''
+                      AND ArchiveStatus IN ('Pending', 'Copying', 'Verifying', 'Failed', 'NASFull');";
+                using var reader = cmd.ExecuteReader();
+                reader.Read();
+                int ReadCount(int index) =>
+                    reader.IsDBNull(index)
+                        ? 0
+                        : Convert.ToInt32(reader.GetInt64(index));
+                return new ArchiveQueueSummary(
+                    ReadCount(0),
+                    ReadCount(1),
+                    ReadCount(2),
+                    ReadCount(3));
             }
         }
 

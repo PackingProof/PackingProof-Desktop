@@ -835,6 +835,79 @@
                                 </StackPanel>
                             </Border>
 
+                            <StackPanel Grid.Row="2"
+                                        Visibility="{Binding IsArchiveBackupCardVisible, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                <Border Background="{DynamicResource ControlBackground}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        Padding="10,8">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="18"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Path Data="{StaticResource FluentDataIcon}"
+                                              Width="14"
+                                              Height="14"
+                                              Stretch="Uniform"
+                                              Fill="{DynamicResource AccentBlue}"
+                                              VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="录像备份"
+                                                   Margin="6,0,0,0"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                                     Value="备份中">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                                     Value="已同步">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                                     Value="待备份">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                                     Value="备份失败">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding ArchiveBackupShortStatusText, Mode=OneWay}"
+                                                                     Value="备份暂停">
+                                                            <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Grid.Row="1"
+                                                   Grid.Column="1"
+                                                   Grid.ColumnSpan="2"
+                                                   Text="{Binding ArchiveBackupStatusText, Mode=OneWay}"
+                                                   Margin="6,4,0,0"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
                             <StackPanel x:Name="RecordingWorkstationCompactStatus"
                                         Grid.Row="2">
                                 <StackPanel.Style>
