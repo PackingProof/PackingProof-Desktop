@@ -59,8 +59,14 @@ namespace ExpressPackingMonitoring.UI
             _pathTextBox.Text = initialPath?.Trim() ?? "";
             _pathTextBox.MinHeight = 36;
             _pathTextBox.VerticalContentAlignment = VerticalAlignment.Center;
+            _pathTextBox.FontSize = 13;
+            _pathTextBox.Padding = new Thickness(8, 0, 8, 0);
+            _pathTextBox.BorderThickness = new Thickness(1);
             _pathTextBox.Margin = new Thickness(0, 0, 10, 0);
             _pathTextBox.ToolTip = "本地文件夹或 UNC 网络路径";
+            _pathTextBox.SetResourceReference(TextBox.BackgroundProperty, "ControlBackground");
+            _pathTextBox.SetResourceReference(TextBox.BorderBrushProperty, "BorderStrong");
+            _pathTextBox.SetResourceReference(TextBox.ForegroundProperty, "TextPrimary");
             pathGrid.Children.Add(_pathTextBox);
 
             var browseButton = new Button
