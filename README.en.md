@@ -82,6 +82,8 @@ One computer can act as a recording storage host and receive:
 
 The resulting library can be searched and played across the LAN.
 
+The recording file backup host can also archive recordings to a NAS or network share and switches automatically when a NAS is full.
+
 ## Workflow
 
 <div align="center">
@@ -131,6 +133,7 @@ Completed videos remain in a local cache and upload automatically after connecti
 
 * A Windows 10 or Windows 11 x64 computer
 * A USB camera
+* A network/IP camera, optional (RTSP/RTMP/HTTP streams are supported)
 * A microphone, optional
 * A keyboard-mode barcode scanner, optional but recommended
 
@@ -225,6 +228,13 @@ When the userscript connects to a new monitor address for the first time, the br
 ## Recording Storage and Cache
 
 Long-term local recording can use multiple storage locations.
+
+The **recording file backup host** role can also add a NAS or network share as a backup location:
+
+* Local disks store recordings directly; network locations keep verified copies only
+* Backup locations are used in list order and switch automatically when a NAS is full
+* Files on the NAS are never deleted by the program
+* When the NAS is unavailable and local space is low, verified archived copies are cleaned first, then the oldest unarchived recordings after the protection period
 
 When a drive falls below its configured free-space reserve, PackingProof can:
 
