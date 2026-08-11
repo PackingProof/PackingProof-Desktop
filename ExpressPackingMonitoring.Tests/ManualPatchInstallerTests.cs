@@ -368,8 +368,19 @@ public sealed class ManualPatchInstallerTests
             }
             Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
             Task<string> stderrTask = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
-            await process.WaitForExitAsync(TestContext.Current.CancellationToken)
-                .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            try
+            {
+                await process.WaitForExitAsync(TestContext.Current.CancellationToken)
+                    .WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                // 超时后必须结束整个进程树，否则孤儿进程会一直持有补丁安装互斥锁，连累后续用例。
+                try { process.Kill(entireProcessTree: true); } catch { }
+                await process.WaitForExitAsync(CancellationToken.None)
+                    .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+                throw;
+            }
             return new ProcessResult(process.ExitCode, await stdoutTask, await stderrTask);
         }
 
