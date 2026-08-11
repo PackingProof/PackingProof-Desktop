@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         Title="PackingProof 录像文件备份主机"
         Width="760"
-        MinWidth="680"
+        MinWidth="760"
         MaxHeight="720"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
