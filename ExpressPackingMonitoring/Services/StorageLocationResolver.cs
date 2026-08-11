@@ -57,7 +57,7 @@ internal static class StorageLocationResolver
         }
 
         var failures = new List<string>();
-        string? archiveTarget = null;
+        string? firstNetworkRoot = null;
         StorageLocationEvaluation? localChoice = null;
 
         foreach (StorageLocation location in locations)
@@ -65,14 +65,9 @@ internal static class StorageLocationResolver
             string configuredPath = NormalizePath(location.Path);
             if (StorageVolumeInfo.IsNetworkPath(configuredPath))
             {
-                // 网络归档目标不参与本地轮换，只取优先级最高的一个。
-                if (archiveTarget == null)
-                {
-                    archiveTarget = configuredPath;
-                    RuntimeLog.Info(
-                        "Storage",
-                        $"Selected network archive={configuredPath}, priority={location.Priority}");
-                }
+                // 网络备份目标不参与本地轮换；优先选当前可用（可达且空间充足）的，
+                // 全部不可用时回退到优先级最高的一个。
+                firstNetworkRoot ??= configuredPath;
                 continue;
             }
 
@@ -96,6 +91,7 @@ internal static class StorageLocationResolver
 
         if (localChoice is { CanUse: true } usable)
         {
+            string? archiveTarget = SelectUsableArchiveRoot(config) ?? firstNetworkRoot;
             return new RecordingStoragePlan(
                 usable.Path,
                 archiveTarget ?? "",
@@ -113,6 +109,74 @@ internal static class StorageLocationResolver
         RuntimeLog.Warn("Storage", $"No local storage path is safe for recording, fallback default path={defaultPath}");
         EnsureDirectoryWritable(defaultPath);
         return new RecordingStoragePlan(defaultPath, "", false);
+    }
+
+    /// <summary>
+    /// 按优先级返回全部网络备份位置（不做可用性检查），供归档 Worker 与 UI 使用。
+    /// </summary>
+    public static IReadOnlyList<StorageLocation> GetOrderedNetworkLocations(
+        AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return (config.StorageLocations ?? [])
+            .Where(location => !string.IsNullOrWhiteSpace(location.Path))
+            .OrderBy(location => location.Priority)
+            .Where(location => StorageVolumeInfo.IsNetworkPath(
+                NormalizePath(location.Path)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// 按优先级选择第一个当前可用（可达且可用空间高于预留值）的网络备份位置；
+    /// excludePath 非空时跳过该路径及其子路径（用于“NAS 满后切换到下一个”）。
+    /// 全部不可用返回 null。
+    /// </summary>
+    public static string? SelectUsableArchiveRoot(
+        IReadOnlyList<StorageLocation> locations,
+        string? excludePath = null)
+    {
+        foreach (StorageLocation location in locations)
+        {
+            if (string.IsNullOrWhiteSpace(location.Path))
+                continue;
+            string root = NormalizePath(location.Path);
+            if (excludePath != null && IsPathUnderRoot(root, excludePath))
+                continue;
+            if (!StorageVolumeInfo.TryGet(root, out StorageVolumeInfo volume))
+                continue; // 离线/不可达
+            long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);
+            if (!NetworkArchiveSpacePolicy.IsBelowReserve(
+                    volume.AvailableFreeSpace,
+                    reserveBytes))
+            {
+                return root;
+            }
+        }
+        return null;
+    }
+
+    public static string? SelectUsableArchiveRoot(
+        AppConfig config,
+        string? excludePath = null) =>
+        SelectUsableArchiveRoot(GetOrderedNetworkLocations(config), excludePath);
+
+    private static bool IsPathUnderRoot(string root, string path)
+    {
+        try
+        {
+            string normalizedRoot = NormalizePath(root);
+            string normalizedPath = NormalizePath(path);
+            if (string.Equals(normalizedRoot, normalizedPath, StringComparison.OrdinalIgnoreCase))
+                return true;
+            string prefix = normalizedRoot.EndsWith(Path.DirectorySeparatorChar)
+                ? normalizedRoot
+                : normalizedRoot + Path.DirectorySeparatorChar;
+            return normalizedPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static StorageLocationEvaluation Evaluate(StorageLocation location)

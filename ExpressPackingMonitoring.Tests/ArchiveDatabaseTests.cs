@@ -356,6 +356,21 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void RerouteArchivePath_UpdatesExistingArchivePath()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\old.mp4", now.AddHours(-3), now.AddHours(-2));
+
+        Assert.Equal(
+            1,
+            _database.RerouteArchivePath(id, @"\\nas2\share\new.mp4"));
+
+        Assert.Equal(
+            @"\\nas2\share\new.mp4",
+            _database.GetVideoById(id)!.ArchivePath);
+    }
+
+    [Fact]
     public void GetManualCleanupCandidates_FiltersCutoffRootsStatusAndOrdersTiers()
     {
         DateTime now = DateTime.Now;

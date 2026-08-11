@@ -2039,7 +2039,7 @@
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
                                     <TextBlock Text="录像备份位置" Style="{StaticResource FieldLabelStyle}"/>
-                                    <TextBlock Text="录像会异步备份到这些位置；NAS 中已备份的文件不会被程序删除"
+                                    <TextBlock Text="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除"
                                                Style="{StaticResource FieldHintStyle}"/>
                                     <Border BorderBrush="{DynamicResource BorderLight}"
                                             BorderThickness="1"
@@ -2072,7 +2072,7 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
-                                    <TextBlock Text="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时会提示，程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像"
+                                    <TextBlock Text="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
                                     <StackPanel Orientation="Horizontal"

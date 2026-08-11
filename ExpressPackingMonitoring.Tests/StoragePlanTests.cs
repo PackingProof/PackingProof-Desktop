@@ -9,6 +9,48 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class StoragePlanTests
 {
     [Fact]
+    public void SelectUsableArchiveRoot_PrefersPriorityAndSkipsUnavailable()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string usable1 = Path.Combine(directory, "nas1");
+            string usable2 = Path.Combine(directory, "nas2");
+            string missingDriveRoot = Enumerable.Range('A', 26)
+                .Select(letter => ((char)letter).ToString() + ":\\")
+                .First(root => !Directory.Exists(root));
+            string offline = Path.Combine(missingDriveRoot, "offline");
+            Directory.CreateDirectory(usable1);
+            Directory.CreateDirectory(usable2);
+
+            var locations = new List<StorageLocation>
+            {
+                new() { Path = offline, Priority = 0 },
+                new() { Path = usable1, Priority = 1 },
+                new() { Path = usable2, Priority = 2 }
+            };
+
+            Assert.Equal(
+                Path.GetFullPath(usable1),
+                StorageLocationResolver.SelectUsableArchiveRoot(locations));
+            Assert.Equal(
+                Path.GetFullPath(usable2),
+                StorageLocationResolver.SelectUsableArchiveRoot(
+                    locations,
+                    excludePath: usable1));
+            Assert.Null(StorageLocationResolver.SelectUsableArchiveRoot(
+                new List<StorageLocation>
+                {
+                    new() { Path = offline, Priority = 0 }
+                }));
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public void ResolveRecordingPlan_LocalLocationReturnsSameRoot()
     {
         string directory = CreateTempDirectory();

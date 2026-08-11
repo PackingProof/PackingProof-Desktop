@@ -985,12 +985,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _db,
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
-                    {
-                        RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
-                            Config,
-                            allowDefaultFallback: false);
-                        return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
-                    });
+                        StorageLocationResolver.GetOrderedNetworkLocations(Config));
             }
             catch (Exception ex)
             {

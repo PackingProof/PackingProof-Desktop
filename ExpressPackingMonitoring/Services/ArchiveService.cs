@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
 using System.IO;
@@ -13,7 +14,7 @@ internal sealed class ArchiveService : IDisposable
     private readonly VideoDatabase _database;
     private readonly IArchiveProvider _provider;
     private readonly ArchiveWorkerOptions _options;
-    private readonly Func<string?>? _archiveTargetResolver;
+    private readonly Func<IReadOnlyList<StorageLocation>>? _archiveTargetResolver;
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
@@ -24,7 +25,7 @@ internal sealed class ArchiveService : IDisposable
         VideoDatabase database,
         IArchiveProvider provider,
         ArchiveWorkerOptions? options = null,
-        Func<string?>? archiveTargetResolver = null,
+        Func<IReadOnlyList<StorageLocation>>? archiveTargetResolver = null,
         CancellationToken cancellationToken = default)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
@@ -80,13 +81,30 @@ internal sealed class ArchiveService : IDisposable
     }
 
     /// <summary>
-    /// 解析当前网络归档目标：未注入解析器返回空串（保持旧行为不限制目标）；
+    /// 解析当前网络归档目标：优先选择当前可用（可达且空间充足）的备份位置，
+    /// 全部不可用时回退到优先级最高的一个；未注入解析器返回空串（保持旧行为不限制目标）；
     /// 未配置网络归档目标返回空串；解析失败返回 null（本轮跳过，状态保留）。
     /// </summary>
     private string? ResolveArchiveTarget()
     {
         if (_archiveTargetResolver == null)
             return "";
+        IReadOnlyList<StorageLocation>? locations = GetArchiveCandidates();
+        if (locations == null)
+            return null;
+        if (locations.Count == 0)
+            return "";
+        return StorageLocationResolver.SelectUsableArchiveRoot(locations)
+            ?? locations[0].Path;
+    }
+
+    /// <summary>
+    /// 获取按优先级排序的网络备份位置列表；解析失败返回 null。
+    /// </summary>
+    private IReadOnlyList<StorageLocation>? GetArchiveCandidates()
+    {
+        if (_archiveTargetResolver == null)
+            return null;
         try
         {
             return _archiveTargetResolver();
@@ -96,6 +114,17 @@ internal sealed class ArchiveService : IDisposable
             RuntimeLog.Warn("Archive", $"Archive target resolution failed: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// 选择当前可用的下一个备份位置；排除当前目标（NAS 满后切换到下一个）。
+    /// </summary>
+    private string? SelectUsableArchiveRoot(string? excludePath)
+    {
+        IReadOnlyList<StorageLocation>? locations = GetArchiveCandidates();
+        return locations == null
+            ? null
+            : StorageLocationResolver.SelectUsableArchiveRoot(locations, excludePath);
     }
 
     /// <summary>
@@ -284,10 +313,29 @@ internal sealed class ArchiveService : IDisposable
         {
             if (NetworkArchiveSpacePolicy.IsDiskFullException(ex))
             {
+                string? alternateRoot = SelectUsableArchiveRoot(networkPath);
+                if (alternateRoot != null)
+                {
+                    string newArchivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
+                        alternateRoot,
+                        record.StartTime,
+                        Path.GetFileName(networkPath));
+                    _database.RerouteArchivePath(record.Id, newArchivePath);
+                    _database.UpdateArchiveState(
+                        record.Id,
+                        VideoArchiveStatus.Pending,
+                        error: "NAS 空间不足，已切换到下一个备份位置",
+                        attemptedAt: attemptedAt);
+                    RuntimeLog.Warn(
+                        "Archive",
+                        $"Archive rerouted id={record.Id}, target={alternateRoot}, error={ex.Message}");
+                    return false;
+                }
+
                 _database.UpdateArchiveState(
                     record.Id,
                     VideoArchiveStatus.NASFull,
-                    error: "NAS 空间不足，归档暂停，等待空间恢复",
+                    error: "所有备份位置空间不足，归档暂停，等待空间恢复",
                     attemptedAt: attemptedAt);
                 RuntimeLog.Warn("Archive", $"Archive NAS full id={record.Id}, target={networkPath}, error={ex.Message}");
                 return false;

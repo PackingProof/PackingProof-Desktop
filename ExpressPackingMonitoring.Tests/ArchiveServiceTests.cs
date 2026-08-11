@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using System;
@@ -151,6 +152,57 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class SelectiveDiskFullProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+        private readonly string _fullRoot;
+
+        public SelectiveDiskFullProvider(string fullRoot)
+        {
+            _fullRoot = fullRoot;
+        }
+
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            string attemptToken,
+            CancellationToken cancellationToken) =>
+            IsUnderRoot(_fullRoot, destinationPath)
+                ? Task.FromException(new IOException("磁盘空间不足，无法写入归档目标", 112))
+                : _inner.PublishFileAsync(
+                    sourcePath,
+                    destinationPath,
+                    recordId,
+                    expectedSha256,
+                    attemptToken,
+                    cancellationToken);
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(
+            string path,
+            CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        private static bool IsUnderRoot(string root, string path) =>
+            string.Equals(root, path, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(
+                root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private readonly string _directory = Path.Combine(
@@ -375,6 +427,54 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DiskFull_ReRoutesToNextAvailableTarget()
+    {
+        DateTime now = DateTime.Now;
+        string nasRoot1 = Path.Combine(_directory, "nas1");
+        string nasRoot2 = Path.Combine(_directory, "nas2");
+        Directory.CreateDirectory(nasRoot1);
+        Directory.CreateDirectory(nasRoot2);
+
+        string localPath = Path.Combine(_localRoot, "reroute.mp4");
+        File.WriteAllText(localPath, "reroute-content");
+        long id = _database.InsertVideoRecord(
+            "单号切换",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddMinutes(-120),
+            archivePath: Path.Combine(nasRoot1, now.ToString("yyyy-MM-dd"), "reroute.mp4"));
+        _database.UpdateVideoRecordOnStop(id, now.AddMinutes(-60), 10, localPath.Length, "手动");
+        _database.MarkArchivePending(id);
+
+        using var service = new ArchiveService(
+            _database,
+            new SelectiveDiskFullProvider(nasRoot1),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                new List<StorageLocation>
+                {
+                    new() { Path = nasRoot1, Priority = 0 },
+                    new() { Path = nasRoot2, Priority = 1 }
+                });
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord rerouted = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.Pending, rerouted.ArchiveStatus);
+        Assert.StartsWith(nasRoot2, rerouted.ArchivePath);
+        Assert.Contains("切换", rerouted.ArchiveError);
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord verified = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.Verified, verified.ArchiveStatus);
+        Assert.StartsWith(nasRoot2, verified.ArchivePath);
+        Assert.True(File.Exists(verified.ArchivePath));
+    }
+
+    [Fact]
     public async Task NoArchiveTarget_SkipsProcessingAndKeepsStatus()
     {
         long id = InsertPendingRecord("skip-no-target.mp4", "skip-content");
@@ -382,7 +482,7 @@ public sealed class ArchiveServiceTests : IDisposable
             _database,
             new NasArchiveProvider(),
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
-            archiveTargetResolver: () => "");
+            archiveTargetResolver: () => Array.Empty<StorageLocation>());
 
         int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
 
@@ -399,7 +499,8 @@ public sealed class ArchiveServiceTests : IDisposable
             _database,
             new NasArchiveProvider(),
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
-            archiveTargetResolver: () => @"\\nas\share");
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = @"\\nas\share" } });
 
         int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
 
@@ -442,7 +543,8 @@ public sealed class ArchiveServiceTests : IDisposable
             _database,
             new NasArchiveProvider(),
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
-            archiveTargetResolver: () => _nasRoot);
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = _nasRoot } });
 
         int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
 
@@ -475,7 +577,8 @@ public sealed class ArchiveServiceTests : IDisposable
             _database,
             new NasArchiveProvider(),
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
-            archiveTargetResolver: () => _nasRoot);
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = _nasRoot } });
 
         await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
 

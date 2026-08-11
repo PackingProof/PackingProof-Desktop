@@ -2301,6 +2301,28 @@ namespace ExpressPackingMonitoring.Data
         }
 
         /// <summary>
+        /// 把记录的归档目标改路到新的备份位置（NAS 满时自动切换到下一个）。
+        /// 只更新未删除且已有归档路径的记录。
+        /// </summary>
+        public int RerouteArchivePath(long recordId, string newArchivePath)
+        {
+            if (string.IsNullOrWhiteSpace(newArchivePath))
+                return 0;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        ArchivePath = @archivePath
+                    WHERE Id = @id AND IsDeleted = 0
+                      AND ArchivePath <> '';";
+                cmd.Parameters.AddWithValue("@archivePath", newArchivePath.Trim());
+                cmd.Parameters.AddWithValue("@id", recordId);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
         /// 手动清理候选：本地录像已定稿、未删除、结束时间早于截止时间、
         /// 状态为已备份/失败/等待归档/仅本地，且文件位于任一托管本地根目录下。
         /// 按 Verified → Failed → Pending → LocalOnly 分档、档内最旧优先；

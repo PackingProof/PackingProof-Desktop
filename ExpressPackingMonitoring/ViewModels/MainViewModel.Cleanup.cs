@@ -145,33 +145,36 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.StorageLocations == null)
                     return;
 
-                string? networkPath = null;
-                StorageLocation? networkLocation = null;
+                string? firstNetworkPath = null;
+                bool anyUsable = false;
                 foreach (StorageLocation location in Config.StorageLocations)
                 {
+                    if (string.IsNullOrWhiteSpace(location.Path))
+                        continue;
                     string normalizedPath = Path.IsPathRooted(location.Path)
                         ? location.Path
                         : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
                     if (!StorageVolumeInfo.IsNetworkPath(normalizedPath))
                         continue;
-                    networkPath = normalizedPath;
-                    networkLocation = location;
-                    break;
+                    firstNetworkPath ??= normalizedPath;
+                    if (!StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume))
+                        continue; // 离线/不可达：继续看下一个
+                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
+                        location,
+                        volume);
+                    if (!NetworkArchiveSpacePolicy.IsBelowReserve(
+                            volume.AvailableFreeSpace,
+                            reserveBytes))
+                    {
+                        anyUsable = true;
+                        break;
+                    }
                 }
-                if (string.IsNullOrWhiteSpace(networkPath) || networkLocation == null)
+                if (string.IsNullOrWhiteSpace(firstNetworkPath))
                     return;
 
-                if (!StorageVolumeInfo.TryGet(networkPath, out StorageVolumeInfo volume))
-                    return; // NAS 离线不提示，由归档重试机制处理
-
-                long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
-                    networkLocation,
-                    volume);
-                if (NetworkArchiveSpacePolicy.IsBelowReserve(
-                        volume.AvailableFreeSpace,
-                        reserveBytes))
+                if (!anyUsable)
                 {
-
                     DateTime now = DateTime.Now;
                     if (!NetworkArchiveSpacePolicy.ShouldWarn(
                             _lastNetworkArchiveSpaceWarnAt,
@@ -183,7 +186,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _lastNetworkArchiveSpaceWarnAt = now;
                     RuntimeLog.Warn(
                         "Cleanup",
-                        $"Network archive space below reserve path={networkPath}, free={volume.AvailableFreeSpace / (double)StorageSpacePolicy.BytesPerGiB:F1}GB, reserve={reserveBytes / (double)StorageSpacePolicy.BytesPerGiB:F1}GB");
+                        $"All network archive locations below reserve path={firstNetworkPath}");
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (_isDisposed)
