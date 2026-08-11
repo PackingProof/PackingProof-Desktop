@@ -1096,7 +1096,7 @@ namespace ExpressPackingMonitoring.UI
         private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new StoragePathSelectionDialog(
-                title: "添加录像备份位置",
+                title: "添加网络位置",
                 hint: "录像会异步备份到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
             {
                 Owner = this
@@ -1122,6 +1122,29 @@ namespace ExpressPackingMonitoring.UI
             {
                 AppDialog.Information(this, "该路径已在列表中。", "提示");
                 return;
+            }
+
+            if (StorageVolumeInfo.TryGetNetworkShareIdentity(
+                    selectedPath,
+                    out string selectedIdentity))
+            {
+                StorageLocation sameShare = Config.StorageLocations.FirstOrDefault(location =>
+                    !string.IsNullOrWhiteSpace(location.Path)
+                    && StorageVolumeInfo.TryGetNetworkShareIdentity(
+                        location.Path,
+                        out string existingIdentity)
+                    && string.Equals(
+                        selectedIdentity,
+                        existingIdentity,
+                        StringComparison.OrdinalIgnoreCase));
+                if (sameShare != null)
+                {
+                    AppDialog.Information(
+                        this,
+                        $"该位置与已添加的网络位置属于同一磁盘/共享：\n{sameShare.Path}\n\n请换一个共享，或直接调整已有路径的容量和列表顺序。",
+                        "网络位置已存在");
+                    return;
+                }
             }
 
             string selectedRoot = GetStorageRoot(selectedPath);
@@ -1489,8 +1512,59 @@ namespace ExpressPackingMonitoring.UI
         {
             if (BackupRemoveButton == null)
                 return;
-            BackupRemoveButton.IsEnabled =
-                BackupStorageDataGrid?.SelectedItem is StorageLocation;
+            bool hasSelection = BackupStorageDataGrid?.SelectedItem is StorageLocation;
+            int selectedIndex = BackupStorageDataGrid?.SelectedIndex ?? -1;
+            int networkCount = Config.StorageLocations?.Count(
+                location => StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+
+            BackupRemoveButton.IsEnabled = hasSelection;
+            if (BackupMoveUpButton != null)
+                BackupMoveUpButton.IsEnabled = hasSelection && selectedIndex > 0;
+            if (BackupMoveDownButton != null)
+            {
+                BackupMoveDownButton.IsEnabled =
+                    hasSelection && selectedIndex >= 0 && selectedIndex < networkCount - 1;
+            }
+        }
+
+        private void BtnBackupMoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedBackupStorage(-1);
+        }
+
+        private void BtnBackupMoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedBackupStorage(1);
+        }
+
+        private void MoveSelectedBackupStorage(int direction)
+        {
+            if (BackupStorageDataGrid?.SelectedItem is not StorageLocation selected)
+                return;
+
+            var networks = Config.StorageLocations
+                .Where(location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                .ToList();
+            int networkIndex = networks.IndexOf(selected);
+            int newNetworkIndex = networkIndex + direction;
+            if (networkIndex < 0
+                || newNetworkIndex < 0
+                || newNetworkIndex >= networks.Count)
+            {
+                return;
+            }
+
+            int from = Config.StorageLocations.IndexOf(selected);
+            int to = Config.StorageLocations.IndexOf(networks[newNetworkIndex]);
+            if (from < 0 || to < 0 || from == to)
+                return;
+
+            Config.StorageLocations.RemoveAt(from);
+            Config.StorageLocations.Insert(to, selected);
+            RefreshStoragePriorities();
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = selected;
+            UpdateBackupStorageButtonStates();
         }
 
         private void BtnRemoveBackupStorage_Click(object sender, RoutedEventArgs e)

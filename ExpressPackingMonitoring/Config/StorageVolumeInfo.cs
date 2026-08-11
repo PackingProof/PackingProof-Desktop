@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -151,6 +152,63 @@ namespace ExpressPackingMonitoring.Config
             }
         }
 
+        /// <summary>
+        /// 归一化网络位置的“共享标识”（\\服务器\共享，小写，忽略子目录），
+        /// 用于识别同一磁盘通过 UNC、映射盘、主机名/IP 等不同写法重复添加。
+        /// </summary>
+        public static bool TryGetNetworkShareIdentity(
+            string path,
+            out string identity) =>
+            TryGetNetworkShareIdentity(
+                path,
+                out identity,
+                mappedRootResolver: null,
+                hostResolver: null);
+
+        internal static bool TryGetNetworkShareIdentity(
+            string path,
+            out string identity,
+            Func<string, string?>? mappedRootResolver,
+            Func<string, string?>? hostResolver)
+        {
+            identity = "";
+            try
+            {
+                string normalized = path?.Trim().Trim('"') ?? "";
+                if (string.IsNullOrWhiteSpace(normalized))
+                    return false;
+                if (!normalized.StartsWith(@"\\", StringComparison.Ordinal))
+                {
+                    if (!IsNetworkPath(normalized))
+                        return false;
+                    if (!TryResolveUncPath(normalized, out string unc, mappedRootResolver))
+                        return false;
+                    normalized = unc;
+                }
+
+                string trimmed = normalized.TrimStart('\\');
+                int firstSeparator = trimmed.IndexOf('\\');
+                if (firstSeparator <= 0)
+                    return false; // 需要“服务器\共享”两层
+                string server = trimmed[..firstSeparator];
+                string rest = trimmed[(firstSeparator + 1)..];
+                int shareEnd = rest.IndexOf('\\');
+                string share = shareEnd < 0 ? rest : rest[..shareEnd];
+                if (string.IsNullOrWhiteSpace(share))
+                    return false;
+
+                identity = @"\\"
+                    + NormalizeServerHost(server, hostResolver)
+                    + @"\"
+                    + share.ToLowerInvariant();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static string? ResolveMappedRootWithWNet(string rootPath)
         {
             try
@@ -163,6 +221,53 @@ namespace ExpressPackingMonitoring.Config
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// 归一化服务器主机：IP 原样保留，localhost/127.0.0.1/::1 统一为 localhost；
+        /// 主机名尽力解析为 IP（2 秒超时，失败回退文本），多 IP 取第一个。
+        /// </summary>
+        private static string NormalizeServerHost(
+            string server,
+            Func<string, string?>? hostResolver)
+        {
+            string host = server.Trim().ToLowerInvariant();
+            if (host.Length == 0)
+                return host;
+            if (host is "localhost" or "127.0.0.1" or "::1")
+                return "localhost";
+            if (IPAddress.TryParse(host, out _))
+                return host;
+
+            try
+            {
+                string resolved;
+                if (hostResolver != null)
+                {
+                    string? custom = hostResolver(host);
+                    if (string.IsNullOrWhiteSpace(custom))
+                        return host;
+                    resolved = custom.Trim().ToLowerInvariant();
+                }
+                else
+                {
+                    Task<IPAddress[]> lookup = Task.Run(
+                        () => Dns.GetHostAddresses(host));
+                    if (!lookup.Wait(TimeSpan.FromSeconds(2))
+                        || lookup.Result.Length == 0)
+                    {
+                        return host;
+                    }
+                    resolved = lookup.Result[0].ToString().ToLowerInvariant();
+                }
+                return resolved is "127.0.0.1" or "::1"
+                    ? "localhost"
+                    : resolved;
+            }
+            catch
+            {
+                return host;
             }
         }
 

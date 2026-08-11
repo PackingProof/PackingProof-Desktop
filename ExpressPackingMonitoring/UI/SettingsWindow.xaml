@@ -2110,13 +2110,25 @@
                                                 HorizontalAlignment="Right"
                                                 Margin="{StaticResource SettingInlineTopMargin}">
                                         <Button x:Name="BtnAddBackupStorage"
-                                                Content="添加录像备份位置"
+                                                Content="添加网络位置"
                                                 Click="BtnAddNetworkStorage_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Margin="0,0,10,0"/>
                                         <Button x:Name="BackupRemoveButton"
                                                 Content="移除选中"
                                                 Click="BtnRemoveBackupStorage_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="BackupMoveUpButton"
+                                                Content="上移"
+                                                Click="BtnBackupMoveUp_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="BackupMoveDownButton"
+                                                Content="下移"
+                                                Click="BtnBackupMoveDown_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 IsEnabled="False"/>
                                     </StackPanel>

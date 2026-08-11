@@ -165,4 +165,70 @@ public sealed class StoragePolicyTests
             out _,
             root => @"C:\not-a-remote"));
     }
+
+    [Fact]
+    public void TryGetNetworkShareIdentity_UncIgnoresSubdirectoryAndCase()
+    {
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\192.168.1.100\Share\SubA",
+            out string identityA));
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\192.168.1.100\SHARE\SubB",
+            out string identityB));
+
+        Assert.Equal(@"\\192.168.1.100\share", identityA);
+        Assert.Equal(identityA, identityB);
+    }
+
+    [Fact]
+    public void TryGetNetworkShareIdentity_MappedDriveResolvesToSameShare()
+    {
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"Z:\快递打包视频",
+            out string mappedIdentity,
+            mappedRootResolver: _ => @"\\192.168.1.100\NASSim",
+            hostResolver: null));
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\192.168.1.100\NASSim\其他目录",
+            out string uncIdentity,
+            mappedRootResolver: null,
+            hostResolver: null));
+
+        Assert.Equal(mappedIdentity, uncIdentity);
+    }
+
+    [Fact]
+    public void TryGetNetworkShareIdentity_HostnameAndIpNormalizeToSameShare()
+    {
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\mycomputer\Share",
+            out string hostIdentity,
+            mappedRootResolver: null,
+            hostResolver: _ => "192.168.1.100"));
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\192.168.1.100\Share",
+            out string ipIdentity,
+            mappedRootResolver: null,
+            hostResolver: null));
+
+        Assert.Equal(hostIdentity, ipIdentity);
+    }
+
+    [Fact]
+    public void TryGetNetworkShareIdentity_LoopbackAliasesNormalizeToLocalhost()
+    {
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\127.0.0.1\Share",
+            out string loopbackIdentity,
+            mappedRootResolver: null,
+            hostResolver: null));
+        Assert.True(StorageVolumeInfo.TryGetNetworkShareIdentity(
+            @"\\localhost\Share",
+            out string localhostIdentity,
+            mappedRootResolver: null,
+            hostResolver: null));
+
+        Assert.Equal(@"\\localhost\share", loopbackIdentity);
+        Assert.Equal(loopbackIdentity, localhostIdentity);
+    }
 }

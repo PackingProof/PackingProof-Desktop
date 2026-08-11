@@ -905,7 +905,7 @@
   <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可</value></data>
   <data name="录像备份位置" xml:space="preserve"><value>录像备份位置</value></data>
   <data name="录像备份" xml:space="preserve"><value>录像备份</value></data>
-  <data name="添加录像备份位置" xml:space="preserve"><value>添加录像备份位置</value></data>
+  <data name="添加网络位置" xml:space="preserve"><value>添加网络位置</value></data>
   <data name="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除" xml:space="preserve"><value>录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除</value></data>
   <data name="本地磁盘直接保存录像，空间不足时按保护期自动循环清理" xml:space="preserve"><value>本地磁盘直接保存录像，空间不足时按保护期自动循环清理</value></data>
   <data name="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像" xml:space="preserve"><value>备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像</value></data>
