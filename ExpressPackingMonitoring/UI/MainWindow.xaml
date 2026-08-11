@@ -852,7 +852,7 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Path Data="{StaticResource FluentDataIcon}"
+                                        <Path Data="{StaticResource FluentDatabaseIcon}"
                                               Width="14"
                                               Height="14"
                                               Stretch="Uniform"
