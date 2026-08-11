@@ -179,7 +179,17 @@ namespace ExpressPackingMonitoring.Config
                     return false;
                 if (!normalized.StartsWith(@"\\", StringComparison.Ordinal))
                 {
-                    if (!IsNetworkPath(normalized))
+                    bool isNetwork = IsNetworkPath(normalized);
+                    if (!isNetwork && mappedRootResolver != null)
+                    {
+                        // 测试注入的解析器能把盘符根解析为 UNC 时，同样按网络路径处理，
+                        // 避免测试依赖真实机器上是否映射了网络盘。
+                        isNetwork = TryResolveUncPath(
+                            normalized,
+                            out _,
+                            mappedRootResolver);
+                    }
+                    if (!isNetwork)
                         return false;
                     if (!TryResolveUncPath(normalized, out string unc, mappedRootResolver))
                         return false;
