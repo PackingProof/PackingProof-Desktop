@@ -109,6 +109,47 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
+    public void ResolveRecordingPlan_UsesFirstConfiguredNetworkRootWithoutProbe()
+    {
+        string local = CreateTempDirectory();
+        try
+        {
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = @"\\192.168.1.100\NASSim\快递打包视频", Priority = 0 },
+                    new StorageLocation { Path = Path.Combine(local, "快递打包视频"), Priority = 1 }
+                ]
+            };
+
+            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false);
+
+            Assert.True(plan.RequiresNetworkArchive);
+            Assert.Equal(@"\\192.168.1.100\NASSim\快递打包视频", plan.ArchiveTarget);
+            Assert.StartsWith(local, plan.WorkingRootPath);
+        }
+        finally
+        {
+            TryDeleteDirectory(local);
+        }
+    }
+
+    [Fact]
+    public void UiArchiveTargetResolution_DoesNotProbeNetworkStorage()
+    {
+        string resolverSource = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "Services", "StorageLocationResolver.cs"));
+        string cardSource = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "Services", "ArchiveBackupCardModel.cs"));
+
+        Assert.DoesNotContain("SelectUsableArchiveRoot(config)", resolverSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectUsableArchiveRoot", cardSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ResolveRecordingPlan_NetworkOnlyFallsBackOrThrows()
     {
         var config = new AppConfig
@@ -239,5 +280,22 @@ public sealed class StoragePlanTests
     private static void TryDeleteDirectory(string directory)
     {
         try { Directory.Delete(directory, recursive: true); } catch { }
+    }
+
+    private static string FindRepositoryFile(params string[] relativeParts)
+    {
+        foreach (string startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            DirectoryInfo? directory = new(startPath);
+            while (directory != null)
+            {
+                string candidate = Path.Combine([directory.FullName, .. relativeParts]);
+                if (File.Exists(candidate))
+                    return candidate;
+                directory = directory.Parent;
+            }
+        }
+
+        throw new FileNotFoundException($"无法定位仓库文件：{Path.Combine(relativeParts)}");
     }
 }

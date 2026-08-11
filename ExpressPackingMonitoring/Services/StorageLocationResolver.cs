@@ -65,8 +65,8 @@ internal static class StorageLocationResolver
             string configuredPath = NormalizePath(location.Path);
             if (StorageVolumeInfo.IsNetworkPath(configuredPath))
             {
-                // 网络备份目标不参与本地轮换；优先选当前可用（可达且空间充足）的，
-                // 全部不可用时回退到优先级最高的一个。
+                // 网络备份目标不参与本地轮换；归档目标直接取优先级最高的一个，
+                // 可达性与空间检查由归档 Worker 在后台完成，避免 UI 路径阻塞探测。
                 firstNetworkRoot ??= configuredPath;
                 continue;
             }
@@ -91,7 +91,7 @@ internal static class StorageLocationResolver
 
         if (localChoice is { CanUse: true } usable)
         {
-            string? archiveTarget = SelectUsableArchiveRoot(config) ?? firstNetworkRoot;
+            string? archiveTarget = firstNetworkRoot;
             return new RecordingStoragePlan(
                 usable.Path,
                 archiveTarget ?? "",
@@ -154,11 +154,6 @@ internal static class StorageLocationResolver
         }
         return null;
     }
-
-    public static string? SelectUsableArchiveRoot(
-        AppConfig config,
-        string? excludePath = null) =>
-        SelectUsableArchiveRoot(GetOrderedNetworkLocations(config), excludePath);
 
     private static bool IsPathUnderRoot(string root, string path)
     {

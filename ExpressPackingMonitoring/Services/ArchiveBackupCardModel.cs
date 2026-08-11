@@ -22,8 +22,7 @@ internal static class ArchiveBackupCardModel
         && StorageLocationResolver.GetOrderedNetworkLocations(config).Count > 0;
 
     internal static string ResolveCurrentArchiveTarget(AppConfig config) =>
-        StorageLocationResolver.SelectUsableArchiveRoot(config)
-        ?? StorageLocationResolver.GetOrderedNetworkLocations(config)
+        StorageLocationResolver.GetOrderedNetworkLocations(config)
             .Select(location => location.Path)
             .FirstOrDefault()
         ?? "";
