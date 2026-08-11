@@ -356,4 +356,29 @@ public sealed class ArchiveDatabaseTests : IDisposable
             _database.GetPendingArchives(20, now),
             record => record.Id == id);
     }
+
+    [Fact]
+    public void NasFull_IsExcludedFromQueueAndReleased()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertLocal(@"\\nas\share\y.mp4", now.AddMinutes(-60), now.AddMinutes(-50));
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.NASFull,
+            error: "NAS 空间不足",
+            attemptedAt: now);
+
+        Assert.Empty(_database.GetPendingArchives(20, now));
+        Assert.Equal(VideoArchiveStatus.NASFull, _database.GetVideoById(id)!.ArchiveStatus);
+
+        int released = _database.ReleaseNasFullRecords();
+        Assert.Equal(1, released);
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.Pending, record.ArchiveStatus);
+        Assert.Equal(0, record.ArchiveRetryCount);
+        Assert.Contains(
+            _database.GetPendingArchives(20, now),
+            candidate => candidate.Id == id);
+    }
+
 }

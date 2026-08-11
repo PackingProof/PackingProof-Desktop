@@ -8,17 +8,25 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal sealed class NasArchiveProvider : IArchiveProvider
 {
+    /// <summary>残留上传临时文件超过该年龄且本地源仍存在时，发布前清理。</summary>
+    private static readonly TimeSpan StaleTempCleanupAge = TimeSpan.FromHours(24);
+
     public async Task PublishFileAsync(
         string sourcePath,
         string destinationPath,
         long recordId,
         string expectedSha256,
+        string attemptToken,
         CancellationToken cancellationToken)
     {
         string? destinationDirectory = Path.GetDirectoryName(destinationPath);
         if (string.IsNullOrWhiteSpace(destinationDirectory))
             throw new IOException("网络归档目标目录无效");
         Directory.CreateDirectory(destinationDirectory);
+        CleanupStaleTemporaryFiles(
+            destinationDirectory,
+            Path.GetFileName(destinationPath),
+            sourcePath);
 
         long sourceLength = new FileInfo(sourcePath).Length;
         if (File.Exists(destinationPath))
@@ -31,10 +39,10 @@ internal sealed class NasArchiveProvider : IArchiveProvider
             throw new ArchiveConflictException("网络目标已存在同名但内容不同的文件，已禁止覆盖");
         }
 
-        string temporaryPath = destinationPath + $".{recordId}.uploading";
-        // 该操作拥有此唯一临时名；仅在完整本地源仍存在时清理此前的不完整副本。
-        if (File.Exists(temporaryPath) && File.Exists(sourcePath))
-            File.Delete(temporaryPath);
+        string attemptSuffix = string.IsNullOrWhiteSpace(attemptToken)
+            ? Guid.NewGuid().ToString("N")[..8]
+            : attemptToken;
+        string temporaryPath = destinationPath + $".{recordId}.{attemptSuffix}.uploading";
 
         try
         {
@@ -95,6 +103,50 @@ internal sealed class NasArchiveProvider : IArchiveProvider
 
     internal static Task<string> ComputeSha256FileAsync(string path, CancellationToken cancellationToken) =>
         ComputeSha256CoreAsync(path, cancellationToken);
+
+    /// <summary>
+    /// 清理同一目标下超过 24 小时的残留上传临时文件；只清理本地源仍存在的目标，
+    /// 不删除可能仍在写入的本次尝试临时文件。
+    /// </summary>
+    private static void CleanupStaleTemporaryFiles(
+        string directory,
+        string destinationFileName,
+        string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(destinationFileName) || !File.Exists(sourcePath))
+            return;
+        try
+        {
+            foreach (string candidate in Directory.EnumerateFiles(
+                         directory,
+                         "*.uploading",
+                         SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    string name = Path.GetFileName(candidate);
+                    if (!name.StartsWith(
+                            destinationFileName + ".",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (DateTime.UtcNow - File.GetLastWriteTimeUtc(candidate)
+                        < StaleTempCleanupAge)
+                    {
+                        continue;
+                    }
+                    File.Delete(candidate);
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
 
     private static async Task<string> ComputeSha256CoreAsync(
         string path,

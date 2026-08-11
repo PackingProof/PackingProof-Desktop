@@ -20,9 +20,24 @@ internal static class RemoteFileProbe
         return probe.Wait(timeout) && probe.Result;
     }
 
+    /// <summary>
+    /// 对网络目录根做带超时的可达性探测（Directory.Exists，File.Exists 对目录恒返回 false）。
+    /// </summary>
+    public static bool TryProbeDirectory(string path, TimeSpan timeout)
+    {
+        Task<bool> probe = Task.Run(() => SafeDirectoryExists(path));
+        return probe.Wait(timeout) && probe.Result;
+    }
+
     private static bool SafeFileExists(string path)
     {
         try { return File.Exists(path); }
+        catch { return false; }
+    }
+
+    private static bool SafeDirectoryExists(string path)
+    {
+        try { return Directory.Exists(path); }
         catch { return false; }
     }
 

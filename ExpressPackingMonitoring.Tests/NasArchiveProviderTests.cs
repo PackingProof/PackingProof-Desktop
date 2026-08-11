@@ -37,7 +37,13 @@ public sealed class NasArchiveProviderTests : IDisposable
         (string source, string dest) = Prepare("hello-publish", "ignored");
         var provider = new NasArchiveProvider();
 
-        await provider.PublishFileAsync(source, dest, 1, "ignored", CancellationToken.None);
+        await provider.PublishFileAsync(
+            source,
+            dest,
+            1,
+            "ignored",
+            "1-attempt",
+            CancellationToken.None);
 
         Assert.True(File.Exists(dest));
         Assert.Equal("hello-publish", File.ReadAllText(dest));
@@ -58,6 +64,7 @@ public sealed class NasArchiveProviderTests : IDisposable
             dest,
             1,
             expectedSha256,
+            "1-attempt",
             CancellationToken.None);
 
         Assert.Equal("same", File.ReadAllText(dest));
@@ -71,7 +78,13 @@ public sealed class NasArchiveProviderTests : IDisposable
         var provider = new NasArchiveProvider();
 
         await Assert.ThrowsAsync<ArchiveConflictException>(() =>
-            provider.PublishFileAsync(source, dest, 1, "ignored", CancellationToken.None));
+            provider.PublishFileAsync(
+                source,
+                dest,
+                1,
+                "ignored",
+                "1-attempt",
+                CancellationToken.None));
     }
 
     [Fact]
@@ -82,7 +95,13 @@ public sealed class NasArchiveProviderTests : IDisposable
         var provider = new NasArchiveProvider();
 
         await Assert.ThrowsAsync<ArchiveConflictException>(() =>
-            provider.PublishFileAsync(source, dest, 1, "ignored", CancellationToken.None));
+            provider.PublishFileAsync(
+                source,
+                dest,
+                1,
+                "ignored",
+                "1-attempt",
+                CancellationToken.None));
         Assert.Equal("abd", File.ReadAllText(dest));
     }
 
@@ -90,13 +109,47 @@ public sealed class NasArchiveProviderTests : IDisposable
     public async Task PublishFileAsync_CleansLeftoverTempWhenSourceExists()
     {
         (string source, string dest) = Prepare("recover", "ignored");
-        string temp = dest + ".7.uploading";
+        string temp = dest + ".7.1-stale.uploading";
         File.WriteAllText(temp, "incomplete");
+        File.SetLastWriteTimeUtc(temp, DateTime.UtcNow.AddHours(-25));
         var provider = new NasArchiveProvider();
 
-        await provider.PublishFileAsync(source, dest, 7, "ignored", CancellationToken.None);
+        await provider.PublishFileAsync(
+            source,
+            dest,
+            7,
+            "ignored",
+            "2-new",
+            CancellationToken.None);
 
         Assert.False(File.Exists(temp));
         Assert.True(File.Exists(dest));
+    }
+
+    [Fact]
+    public async Task PublishFileAsync_DoesNotDeleteRecentInUseTemp()
+    {
+        (string source, string dest) = Prepare("in-use", "ignored");
+        string temp = dest + ".7.1-current.uploading";
+        Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
+        File.WriteAllText(temp, "partial");
+        using var hold = new FileStream(
+            temp,
+            FileMode.Open,
+            FileAccess.Write,
+            FileShare.None);
+        var provider = new NasArchiveProvider();
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            provider.PublishFileAsync(
+                source,
+                dest,
+                7,
+                "ignored",
+                "1-current",
+                CancellationToken.None));
+
+        Assert.True(File.Exists(temp));
+        Assert.False(File.Exists(dest));
     }
 }

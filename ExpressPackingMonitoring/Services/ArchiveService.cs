@@ -95,8 +95,8 @@ internal sealed class ArchiveService : IDisposable
         {
             long localSize = new FileInfo(localPath).Length;
             string sourceHash = string.IsNullOrWhiteSpace(record.ContentSha256)
-                ? await WithTimeoutAsync(
-                    token => NasArchiveProvider.ComputeSha256FileAsync(localPath, token),
+                ? await NasArchiveProvider.ComputeSha256FileAsync(
+                    localPath,
                     cancellationToken).ConfigureAwait(false)
                 : record.ContentSha256;
 
@@ -127,18 +127,21 @@ internal sealed class ArchiveService : IDisposable
                     throw new IOException("无法探测网络目标状态");
             }
 
-            await WithTimeoutAsync(
-                token => _provider.PublishFileAsync(
+            // 复制是主要网络负载，不套 3 秒短超时：慢 NAS 大文件会持续在后台完成，
+            // 超时误判会引发重复复制；探测与哈希仍走 WithTimeoutAsync。
+            string attemptToken = $"{record.ArchiveRetryCount + 1}-"
+                + Guid.NewGuid().ToString("N")[..8];
+            await _provider.PublishFileAsync(
                     localPath,
                     networkPath,
                     record.Id,
                     sourceHash,
-                    token),
-                cancellationToken).ConfigureAwait(false);
+                    attemptToken,
+                    cancellationToken).ConfigureAwait(false);
 
             _database.UpdateArchiveState(record.Id, VideoArchiveStatus.Verifying, attemptedAt: attemptedAt);
-            string publishedHash = await WithTimeoutAsync(
-                token => _provider.ComputeSha256Async(networkPath, token),
+            string publishedHash = await _provider.ComputeSha256Async(
+                networkPath,
                 cancellationToken).ConfigureAwait(false);
             if (!string.Equals(publishedHash, sourceHash, StringComparison.OrdinalIgnoreCase))
             {
@@ -209,6 +212,17 @@ internal sealed class ArchiveService : IDisposable
         }
         catch (Exception ex)
         {
+            if (NetworkArchiveSpacePolicy.IsDiskFullException(ex))
+            {
+                _database.UpdateArchiveState(
+                    record.Id,
+                    VideoArchiveStatus.NASFull,
+                    error: "NAS 空间不足，归档暂停，等待空间恢复",
+                    attemptedAt: attemptedAt);
+                RuntimeLog.Warn("Archive", $"Archive NAS full id={record.Id}, target={networkPath}, error={ex.Message}");
+                return false;
+            }
+
             _database.UpdateArchiveState(
                 record.Id,
                 VideoArchiveStatus.Failed,
@@ -270,18 +284,6 @@ internal sealed class ArchiveService : IDisposable
         if (completed != task)
             throw new TimeoutException($"超过 {_options.RemoteTimeout.TotalSeconds:F0} 秒");
         return await task.ConfigureAwait(false);
-    }
-
-    private async Task WithTimeoutAsync(
-        Func<CancellationToken, Task> action,
-        CancellationToken cancellationToken)
-    {
-        Task task = action(cancellationToken);
-        Task completed = await Task.WhenAny(task, Task.Delay(_options.RemoteTimeout, cancellationToken))
-            .ConfigureAwait(false);
-        if (completed != task)
-            throw new TimeoutException($"超过 {_options.RemoteTimeout.TotalSeconds:F0} 秒");
-        await task.ConfigureAwait(false);
     }
 
     private static DateTime ComputeNextRetryAt(int retryCount)

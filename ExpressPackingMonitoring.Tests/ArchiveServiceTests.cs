@@ -22,6 +22,7 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             long recordId,
             string expectedSha256,
+            string attemptToken,
             CancellationToken cancellationToken)
         {
             await Gate.Task;
@@ -30,6 +31,7 @@ public sealed class ArchiveServiceTests : IDisposable
                 destinationPath,
                 recordId,
                 expectedSha256,
+                attemptToken,
                 cancellationToken);
         }
 
@@ -59,6 +61,7 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             long recordId,
             string expectedSha256,
+            string attemptToken,
             CancellationToken cancellationToken)
         {
             PublishedPaths.Add(destinationPath);
@@ -67,6 +70,7 @@ public sealed class ArchiveServiceTests : IDisposable
                 destinationPath,
                 recordId,
                 expectedSha256,
+                attemptToken,
                 cancellationToken);
         }
 
@@ -95,12 +99,14 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             long recordId,
             string expectedSha256,
+            string attemptToken,
             CancellationToken cancellationToken) =>
             _inner.PublishFileAsync(
                 sourcePath,
                 destinationPath,
                 recordId,
                 expectedSha256,
+                attemptToken,
                 cancellationToken);
 
         public Task<RemoteProbeResult> ProbeAsync(
@@ -118,6 +124,33 @@ public sealed class ArchiveServiceTests : IDisposable
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
 
+    }
+
+    private sealed class DiskFullProvider : IArchiveProvider
+    {
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            string attemptToken,
+            CancellationToken cancellationToken) =>
+            Task.FromException(new IOException("磁盘空间不足，无法写入归档目标", 112));
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(RemoteProbeResult.NotExists);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            Task.FromResult(new string('0', 64));
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     private readonly string _directory = Path.Combine(
@@ -309,9 +342,10 @@ public sealed class ArchiveServiceTests : IDisposable
         long id = InsertPendingRecord("recover.mp4", "recover-content");
         DateTime now = DateTime.Now;
         VideoRecord record = _database.GetVideoById(id)!;
-        string tempPath = record.ArchivePath + $".{id}.uploading";
+        string tempPath = record.ArchivePath + $".{id}.1-stale.uploading";
         Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
         File.WriteAllText(tempPath, "incomplete");
+        File.SetLastWriteTimeUtc(tempPath, DateTime.UtcNow.AddHours(-25));
         _database.UpdateArchiveState(id, VideoArchiveStatus.Copying, attemptedAt: now);
         using ArchiveService service = CreateService();
 
@@ -320,6 +354,24 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
         Assert.False(File.Exists(tempPath));
         Assert.True(File.Exists(record.ArchivePath));
+    }
+
+    [Fact]
+    public async Task DiskFull_MarksNasFullWithoutRetry()
+    {
+        long id = InsertPendingRecord("nas-full.mp4", "nas-full-content");
+        using var service = new ArchiveService(
+            _database,
+            new DiskFullProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        await service.ProcessPendingOnceAsync(CancellationToken.None);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.NASFull, record.ArchiveStatus);
+        Assert.Equal(0, record.ArchiveRetryCount);
+        Assert.Null(record.NextRetryAt);
+        Assert.Empty(_database.GetPendingArchives(20, DateTime.Now));
     }
 
     [Fact]

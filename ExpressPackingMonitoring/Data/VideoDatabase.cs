@@ -25,7 +25,7 @@ namespace ExpressPackingMonitoring.Data
     /// 网络归档状态机：
     /// LocalOnly(仅本地) → Pending(等待归档) → Copying(复制中) → Verifying(后台校验) → Verified(已归档)
     /// 失败 → Failed(可重试)；同名异内容 → Conflict(人工处理)；用户删除仅删除本地记录，NAS 归档保留；
-    /// Deleting 为旧版本遗留状态，新代码不再写入。
+    /// NAS 空间不足 → NASFull（暂停，空间恢复后回到 Pending）；Deleting 为旧版本遗留状态，新代码不再写入。
     /// </summary>
     public static class VideoArchiveStatus
     {
@@ -36,6 +36,7 @@ namespace ExpressPackingMonitoring.Data
         public const string Verified = "Verified";
         public const string Failed = "Failed";
         public const string Conflict = "Conflict";
+        public const string NASFull = "NASFull";
         public const string Deleting = "Deleting";
         public const string LocalDeleted = "LocalDeleted";
     }
@@ -2365,6 +2366,34 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@id", recordId);
                 cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
+        /// NAS 空间恢复后，把 NASFull 记录重新置为等待归档并重置重试计数。
+        /// </summary>
+        public int ReleaseNasFullRecords(int limit = 200)
+        {
+            limit = Math.Clamp(limit, 1, 500);
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        ArchiveStatus = @status,
+                        ArchiveError = '',
+                        ArchiveRetryCount = 0,
+                        NextRetryAt = NULL
+                    WHERE Id IN (
+                        SELECT Id FROM VideoRecords
+                        WHERE IsDeleted = 0
+                          AND ArchiveStatus = 'NASFull'
+                          AND ArchivePath <> ''
+                        ORDER BY Id ASC
+                        LIMIT @limit);";
+                cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.Pending);
+                cmd.Parameters.AddWithValue("@limit", limit);
+                return cmd.ExecuteNonQuery();
             }
         }
 

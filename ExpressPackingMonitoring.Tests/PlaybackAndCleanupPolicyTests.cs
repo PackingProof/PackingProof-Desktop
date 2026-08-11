@@ -177,4 +177,51 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
         fresh.LastArchiveProbeAt = null;
         Assert.True(LocalCopyCleanupPolicy.ShouldProbeBeforeLocalCleanup(fresh, now));
     }
+
+    [Fact]
+    public void RemoteProbe_TryProbeDirectoryDistinguishesDirectoryFromFile()
+    {
+        string dir = Path.Combine(_directory, "probe-dir");
+        Directory.CreateDirectory(dir);
+
+        Assert.True(RemoteFileProbe.TryProbeDirectory(dir, TimeSpan.FromSeconds(2)));
+        Assert.False(RemoteFileProbe.TryProbeDirectory(
+            Path.Combine(_directory, "missing-dir"),
+            TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public void EmergencyCleanupPolicy_ShouldTriggerWithoutArchiveOrWhenUnreachable()
+    {
+        Assert.True(LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup("", false));
+        Assert.True(LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup(null, true));
+        Assert.True(LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup(@"\\nas\share", false));
+        Assert.False(LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup(@"\\nas\share", true));
+    }
+
+    [Fact]
+    public void EmergencyCleanupPolicy_ReleaseTargetSubtractsNormalCleanup()
+    {
+        Assert.Equal(100, LocalCopyCleanupPolicy.ComputeEmergencyReleaseTarget(1000, 1000, 0));
+        Assert.Equal(0, LocalCopyCleanupPolicy.ComputeEmergencyReleaseTarget(1000, 1000, 150));
+        Assert.Equal(0, LocalCopyCleanupPolicy.ComputeEmergencyReleaseTarget(100, 1000, 0));
+        Assert.Equal(0, LocalCopyCleanupPolicy.ComputeEmergencyReleaseTarget(1000, 1000, 1000));
+    }
+
+    [Fact]
+    public void NetworkArchiveSpacePolicy_ClassifiesDiskFullErrors()
+    {
+        Assert.True(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new IOException("磁盘空间不足", 112)));
+        Assert.True(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new IOException("磁盘空间不足", unchecked((int)0x80070070))));
+        Assert.True(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new IOException("no space left on device")));
+        Assert.True(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new IOException("disk full")));
+        Assert.False(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new IOException("网络连接失败", 64)));
+        Assert.False(NetworkArchiveSpacePolicy.IsDiskFullException(
+            new InvalidOperationException("网络连接失败")));
+    }
 }

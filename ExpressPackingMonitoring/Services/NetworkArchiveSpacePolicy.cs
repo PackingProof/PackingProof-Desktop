@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
@@ -13,4 +15,37 @@ internal static class NetworkArchiveSpacePolicy
 
     public static bool ShouldWarn(DateTime lastWarnedAt, DateTime now) =>
         now - lastWarnedAt >= WarningCooldown;
+
+    /// <summary>
+    /// 判断异常是否由目标磁盘/共享空间不足引起，用于进入 NASFull 状态而非普通失败重试。
+    /// </summary>
+    public static bool IsDiskFullException(Exception ex)
+    {
+        for (Exception? current = ex;
+             current != null;
+             current = current.InnerException)
+        {
+            if (current is IOException
+                && (IsDiskFullHResult(current.HResult)))
+            {
+                return true;
+            }
+
+            string message = current.Message ?? "";
+            if (message.Contains("磁盘空间不足", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("空间不足", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("no space left", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("disk full", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsDiskFullHResult(int hresult)
+    {
+        int code = hresult & 0xFFFF;
+        return code is 112 or 39; // ERROR_DISK_FULL / ERROR_HANDLE_DISK_FULL
+    }
 }

@@ -101,4 +101,27 @@ internal static class LocalCopyCleanupPolicy
     /// <summary>GC 删除本地录像文件前是否需要实时探测归档目标。</summary>
     public static bool ShouldProbeBeforeLocalCleanup(VideoRecord record, DateTime now) =>
         !IsProbeFresh(record, now);
+
+    /// <summary>
+    /// 硬循环是否应删除未归档录像：没有归档目标或归档目标不可达时执行删除；
+    /// 归档目标可达时优先唤醒归档，不删除。
+    /// </summary>
+    public static bool ShouldTriggerEmergencyCleanup(
+        string? archiveRoot,
+        bool archiveRootReachable) =>
+        string.IsNullOrWhiteSpace(archiveRoot) || !archiveRootReachable;
+
+    /// <summary>正常 GC 已释放部分空间后，紧急清理仍需释放的目标字节数。</summary>
+    public static long ComputeEmergencyReleaseTarget(
+        long totalCurrentBytes,
+        long totalCapacityBytes,
+        long releasedByNormalCleanup)
+    {
+        long remainingCurrentBytes = Math.Max(
+            0,
+            totalCurrentBytes - Math.Max(0, releasedByNormalCleanup));
+        return Math.Max(
+            0,
+            remainingCurrentBytes - (long)(Math.Max(0, totalCapacityBytes) * 0.9));
+    }
 }
