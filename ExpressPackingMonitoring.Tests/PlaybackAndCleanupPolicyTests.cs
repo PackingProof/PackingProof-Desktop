@@ -239,4 +239,40 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
             ],
             LocalCopyCleanupPolicy.UnarchivedCleanupTiers);
     }
+
+    [Fact]
+    public void RemoteProbe_TryProbeDirectoryStateDistinguishesReachableUnreachable()
+    {
+        string dir = Path.Combine(_directory, "probe-state-dir");
+        Directory.CreateDirectory(dir);
+
+        Assert.Equal(
+            RemoteFileProbe.DirectoryProbeState.Reachable,
+            RemoteFileProbe.TryProbeDirectoryState(dir, TimeSpan.FromSeconds(2)));
+        Assert.Equal(
+            RemoteFileProbe.DirectoryProbeState.Unreachable,
+            RemoteFileProbe.TryProbeDirectoryState(
+                Path.Combine(_directory, "missing-state-dir"),
+                TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public void FallbackCleanupPolicy_OnlyDeletesWhenConfirmedUnreachable()
+    {
+        Assert.True(LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
+            null,
+            RemoteFileProbe.DirectoryProbeState.Busy));
+        Assert.True(LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
+            "",
+            RemoteFileProbe.DirectoryProbeState.Unreachable));
+        Assert.True(LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
+            @"\\nas\share",
+            RemoteFileProbe.DirectoryProbeState.Unreachable));
+        Assert.False(LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
+            @"\\nas\share",
+            RemoteFileProbe.DirectoryProbeState.Busy));
+        Assert.False(LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
+            @"\\nas\share",
+            RemoteFileProbe.DirectoryProbeState.Reachable));
+    }
 }

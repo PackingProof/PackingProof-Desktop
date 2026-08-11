@@ -256,9 +256,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                bool archiveReachable = RemoteFileProbe.TryProbeDirectory(
-                    archiveRoot,
-                    TimeSpan.FromSeconds(3));
+                bool archiveReachable =
+                    RemoteFileProbe.TryProbeDirectoryState(
+                        archiveRoot,
+                        TimeSpan.FromSeconds(3))
+                    == RemoteFileProbe.DirectoryProbeState.Reachable;
                 if (!LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup(
                         archiveRoot,
                         archiveReachable))
@@ -499,13 +501,15 @@ namespace ExpressPackingMonitoring.ViewModels
             if (releasedBytes < bytesToRelease)
             {
                 string? archiveRoot = GetConfiguredArchiveRoot();
-                bool archiveReachable = !string.IsNullOrWhiteSpace(archiveRoot)
-                    && RemoteFileProbe.TryProbeDirectory(
+                RemoteFileProbe.DirectoryProbeState archiveState =
+                    string.IsNullOrWhiteSpace(archiveRoot)
+                        ? RemoteFileProbe.DirectoryProbeState.Unreachable
+                        : RemoteFileProbe.TryProbeDirectoryState(
+                            archiveRoot,
+                            TimeSpan.FromSeconds(3));
+                if (LocalCopyCleanupPolicy.ShouldFallbackToUnarchivedCleanup(
                         archiveRoot,
-                        TimeSpan.FromSeconds(3));
-                if (LocalCopyCleanupPolicy.ShouldTriggerEmergencyCleanup(
-                        archiveRoot,
-                        archiveReachable))
+                        archiveState))
                 {
                     unarchivedCount = DeleteUnarchivedForCapacity(
                         bytesToRelease,
@@ -536,7 +540,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     });
                 }
                 if (unarchivedCount > 0)
+                {
+                    RuntimeLog.Warn(
+                        "Cleanup",
+                        $"Capacity cleanup deleted unarchived count={unarchivedCount}");
                     ShowUnarchivedCleanupWarning(unarchivedCount);
+                }
             }
             return releasedBytes;
         }

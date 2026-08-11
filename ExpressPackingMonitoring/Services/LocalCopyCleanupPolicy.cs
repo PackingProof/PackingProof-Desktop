@@ -125,6 +125,16 @@ internal static class LocalCopyCleanupPolicy
         bool archiveRootReachable) =>
         string.IsNullOrWhiteSpace(archiveRoot) || !archiveRootReachable;
 
+    /// <summary>
+    /// 正常容量 GC 是否允许回退删除未归档录像：没有归档目标或确认探测不可达时允许；
+    /// 门禁忙（无法确认）时跳过本轮，避免把探测拥挤误判为 NAS 不可用。
+    /// </summary>
+    public static bool ShouldFallbackToUnarchivedCleanup(
+        string? archiveRoot,
+        RemoteFileProbe.DirectoryProbeState archiveState) =>
+        string.IsNullOrWhiteSpace(archiveRoot)
+        || archiveState == RemoteFileProbe.DirectoryProbeState.Unreachable;
+
     /// <summary>正常 GC 已释放部分空间后，紧急清理仍需释放的目标字节数。</summary>
     public static long ComputeEmergencyReleaseTarget(
         long totalCurrentBytes,

@@ -9,6 +9,14 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal static class RemoteFileProbe
 {
+    /// <summary>目录根探测结果：可达 / 不可达 / 门禁忙（本轮无法确认）。</summary>
+    internal enum DirectoryProbeState
+    {
+        Reachable,
+        Unreachable,
+        Busy
+    }
+
     /// <summary>探测默认超时（也用于 ProbeAsync 等待门禁）。</summary>
     internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
 
@@ -73,6 +81,30 @@ internal static class RemoteFileProbe
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
         return false;
+    }
+
+    /// <summary>
+    /// 目录根可达性三态探测：门禁忙或探测超时返回 Busy，
+    /// 调用方按需决定是跳过本轮还是按不可达处理。
+    /// </summary>
+    public static DirectoryProbeState TryProbeDirectoryState(string path, TimeSpan timeout)
+    {
+        if (!ProbeGate.Wait(timeout))
+            return DirectoryProbeState.Busy;
+        Task<bool> probe = Task.Run(() => SafeDirectoryExists(path));
+        if (probe.Wait(timeout))
+        {
+            ProbeGate.Release();
+            return probe.Result
+                ? DirectoryProbeState.Reachable
+                : DirectoryProbeState.Unreachable;
+        }
+        _ = probe.ContinueWith(
+            _ => ProbeGate.Release(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return DirectoryProbeState.Busy;
     }
 
     private static bool SafeFileExists(string path)
