@@ -40,6 +40,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly string _configFilePath = AppPaths.ConfigPath;
         private readonly string _dbFilePath = AppPaths.VideoDatabasePath;
         private VideoDatabase _db;
+        private ArchiveService _archiveService;
 
         /// <summary>启动时缓存的可用 GPU 编码器列表</summary>
         public static List<GpuEncoderOption> CachedEncoderOptions { get; private set; }
@@ -242,6 +243,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private ScanRecord _currentScanRecord;
         private long _currentRecordId; 
         private string _currentVideoFilePath;  // 当前录制文件路径
+        private string _currentArchivePath = ""; // 当前录像对应的网络归档目标根（为空表示无需归档）
         private string _currentVideoCodec;
         private string _currentVideoEncoder;
         private string _stopReason = "手动";     // 停止录制的原因
@@ -979,9 +981,17 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 _db = new VideoDatabase(_dbFilePath);
+                _archiveService?.Dispose();
+                _archiveService = new ArchiveService(
+                    _db,
+                    new NasArchiveProvider(),
+                    archiveTargetResolver: () =>
+                        StorageLocationResolver.GetOrderedNetworkLocations(Config));
+                RefreshArchiveBackupSummary();
             }
             catch (Exception ex)
             {
+                _archiveService = null;
                 AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
             }
         }
@@ -2027,6 +2037,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!SaveConfig(nextConfig, notifyUser: true))
                         return false;
                     Config = nextConfig;
+                    RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);
                     if (cameraBarcodeChanged)
@@ -2430,6 +2441,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     batchResult.SuppressedCount++;
                     if (File.Exists(mkvPath))
                         batchResult.AddFinalFile(mkvPath, mkvPath);
+                    _db.MarkArchivePendingByFilePath(mkvPath);
+                    _archiveService?.Wake();
                     progress?.Report($"[{i + 1}/{total}] 已停止自动重试，可在维护工具中手动合并: {fileName}");
                     continue;
                 }
@@ -2450,6 +2463,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _archiveService?.Wake();
                         batchResult.SuccessCount++;
                         batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] 已更新数据库: {fileName}");
@@ -2475,6 +2489,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         try { File.Delete(mkvPath); } catch { }
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                        _archiveService?.Wake();
                         batchResult.SuccessCount++;
                         batchResult.AddFinalFile(mkvPath, mp4Path);
                         progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
@@ -2497,6 +2512,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     try { File.Delete(mkvPath); } catch { }
                     _db.ClearMkvConversionFailure(mkvPath);
                     _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                    _archiveService?.Wake();
                     batchResult.SuccessCount++;
                     batchResult.AddFinalFile(
                         mkvPath,
@@ -2522,6 +2538,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             failedAt) == MkvAutomaticRetryDecision.Suppressed)
                     {
                         batchResult.SuppressedCount++;
+                        _db.MarkArchivePendingByFilePath(mkvPath);
+                        _archiveService?.Wake();
                     }
                     progress?.Report($"[{i + 1}/{total}] 转换失败: {fileName}");
                 }
@@ -2828,6 +2846,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         mobileBackupComputerName: Config.NodeName,
                         mobileBackupStateDirectory: AppPaths.MobileBackupStateDir,
                         mobileBackupRecordingRootResolver: ResolveBestStoragePath,
+                        mobileBackupArchiveTargetResolver: () =>
+                        {
+                            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                                Config,
+                                allowDefaultFallback: false);
+                            return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+                        },
+                        mobileBackupArchivePendingCallback: () => _archiveService?.Wake(),
                         nodeId: Config.NodeId,
                         nodeName: Config.NodeName,
                         deploymentPreset: Config.DeploymentPreset,
@@ -2976,11 +3002,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
             IEnumerable<string> managedRoots = preset == DeploymentPresets.RecordingWorkstation
                 ? [activeFolderPath]
-                : Config.StorageLocations.Select(location =>
-                {
-                    try { return StorageLocationResolver.Resolve(location); }
-                    catch { return ""; }
-                });
+                : Config.StorageLocations
+                    .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                    .Select(location =>
+                    {
+                        try { return StorageLocationResolver.Resolve(location); }
+                        catch { return ""; }
+                    });
             return new VideoFolderImportService(
                 _db,
                 managedRoots,
@@ -3114,14 +3142,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 MonitorAccessAddress,
                 includeKnown: true) ?? [];
             UserscriptTargetStatus status = UserscriptTargetState.GetStatus(Config, devices);
-            UserscriptSetupStatusText = AppLanguage.Get(status.StatusText);
-            string shortStatus = status.StatusText switch
-            {
-                "订单联动已就绪" => "已就绪",
-                "需要更新订单联动" => "需更新",
-                "暂无订单接收设备" => "暂无设备",
-                _ => "未配置"
-            };
+            (string shortStatus, string detailText) =
+                UserscriptStatusCardModel.GetCardTexts(status);
+            UserscriptSetupStatusText = AppLanguage.Get(detailText);
             UserscriptSetupShortStatusText = AppLanguage.Get(shortStatus);
             UserscriptButtonText = AppLanguage.Get(status.ButtonText);
         }
@@ -4872,6 +4895,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try { _globalKeyHook?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
             DisposeRecordingTransfers();
+            try { _archiveService?.Dispose(); } catch { }
             try { _db?.Dispose(); } catch { }
         }
     }

@@ -300,6 +300,10 @@
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsArchiveWarning}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource AccentRed}"/>
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>

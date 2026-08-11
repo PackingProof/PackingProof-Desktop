@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PackingProof 查看客户端"
         Width="820"
-        MinWidth="720"
+        MinWidth="760"
         MaxHeight="680"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"

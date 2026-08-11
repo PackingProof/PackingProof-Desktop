@@ -430,6 +430,82 @@
         <Thickness x:Key="SettingInlineTopMargin">0,12,0,0</Thickness>
         <Thickness x:Key="SectionDividerMargin">0,14,0,14</Thickness>
 
+        <DataTemplate x:Key="StoragePathCellTemplate">
+            <TextBlock Text="{Binding Path}"
+                       Foreground="{DynamicResource TextPrimary}"
+                       VerticalAlignment="Center"
+                       Margin="12,0"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}"/>
+        </DataTemplate>
+
+        <DataTemplate x:Key="StorageReserveCellTemplate">
+            <xctk:DoubleUpDown ToolTip="磁盘至少保留多少 GB 不给录像使用。低于安全值时会自动恢复，避免系统或其他软件没空间"
+                               Tag="GB"
+                               Value="{Binding EffectiveReserveGB, UpdateSourceTrigger=PropertyChanged}"
+                               LostFocus="StorageReserveEditor_LostFocus"
+                               Increment="1"
+                               FormatString="F0"
+                               Minimum="1"
+                               Maximum="10000"
+                               Margin="5"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Width="96"
+                               MinWidth="96"
+                               MaxWidth="96"
+                               Height="36"/>
+        </DataTemplate>
+
+        <Style x:Key="StorageGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+        </Style>
+
+        <Style x:Key="StorageGridRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Style.Triggers>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="IsSelected" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                </MultiTrigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StorageGridCellStyle" TargetType="DataGridCell">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="6,0"/>
+            <Style.Triggers>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="IsSelected" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                </MultiTrigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="SectionCardStyle" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
             <Setter Property="CornerRadius" Value="12"/>
@@ -1885,6 +1961,37 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="录像清理"
+                                                   Style="{StaticResource FieldLabelStyle}"/>
+                                        <TextBlock Text="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响"
+                                                   Style="{StaticResource FieldHintStyle}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center">
+                                        <Button x:Name="BtnManualCleanupByTime"
+                                                Content="按时间清理…"
+                                                Click="BtnManualCleanupByTime_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"/>
+                                        <Button x:Name="BtnManualCleanupBySpace"
+                                                Content="按空间释放…"
+                                                Click="BtnManualCleanupBySpace_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}">
@@ -1895,7 +2002,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="录像保存位置" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间"
+                                            <TextBlock Text="本地磁盘直接保存录像，空间不足时按保护期自动循环清理"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                     </Grid>
@@ -1905,7 +2012,6 @@
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid x:Name="StorageDataGrid"
-                                                  ItemsSource="{Binding Config.StorageLocations}"
                                                   AutoGenerateColumns="False"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
@@ -1918,95 +2024,17 @@
                                                   FontSize="13"
                                                   SelectionMode="Single"
                                                   SelectionChanged="StorageDataGrid_SelectionChanged"
-                                                  CanUserSortColumns="False">
-                                            <DataGrid.ColumnHeaderStyle>
-                                                <Style TargetType="DataGridColumnHeader">
-                                                    <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-                                                    <Setter Property="Padding" Value="12,10"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
-                                                </Style>
-                                            </DataGrid.ColumnHeaderStyle>
-                                            <DataGrid.RowStyle>
-                                                <Style TargetType="DataGridRow">
-                                                    <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                                    <Style.Triggers>
-                                                        <MultiTrigger>
-                                                            <MultiTrigger.Conditions>
-                                                                <Condition Property="IsMouseOver" Value="True"/>
-                                                                <Condition Property="IsSelected" Value="False"/>
-                                                            </MultiTrigger.Conditions>
-                                                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                                        </MultiTrigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
-                                                            <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </DataGrid.RowStyle>
-                                            <DataGrid.CellStyle>
-                                                <Style TargetType="DataGridCell">
-                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-                                                    <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
-                                                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                                    <Setter Property="Padding" Value="6,0"/>
-                                                    <Style.Triggers>
-                                                        <MultiTrigger>
-                                                            <MultiTrigger.Conditions>
-                                                                <Condition Property="IsMouseOver" Value="True"/>
-                                                                <Condition Property="IsSelected" Value="False"/>
-                                                            </MultiTrigger.Conditions>
-                                                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                                        </MultiTrigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
-                                                            <Setter Property="Foreground" Value="{DynamicResource BadgePackText}"/>
-                                                            <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </DataGrid.CellStyle>
-
+                                                  CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}"
+                                                  CellStyle="{StaticResource StorageGridCellStyle}">
                                             <DataGrid.Columns>
-                                                <DataGridTemplateColumn Header="存储路径" Width="*">
-                                                    <DataGridTemplateColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Path}"
-                                                                       Foreground="{DynamicResource TextPrimary}"
-                                                                       VerticalAlignment="Center"
-                                                                       Margin="12,0"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding Path}"/>
-                                                        </DataTemplate>
-                                                    </DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
-
-                                                <DataGridTemplateColumn Header="预留空间" Width="150">
-                                                    <DataGridTemplateColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <xctk:DoubleUpDown ToolTip="磁盘至少保留多少 GB 不给录像使用。低于安全值时会自动恢复，避免系统或其他软件没空间"
-                                                                               Tag="GB"
-                                                                               Value="{Binding EffectiveReserveGB, UpdateSourceTrigger=PropertyChanged}"
-                                                                               LostFocus="StorageReserveEditor_LostFocus"
-                                                                               Increment="1"
-                                                                               FormatString="F0"
-                                                                               Minimum="1"
-                                                                               Maximum="10000"
-                                                                               Margin="5"
-                                                                               VerticalAlignment="Center"
-                                                                               HorizontalAlignment="Center"
-                                                                               Width="96"
-                                                                               MinWidth="96"
-                                                                               MaxWidth="96"
-                                                                               Height="36"/>
-                                                        </DataTemplate>
-                                                    </DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="存储路径"
+                                                                        Width="*"
+                                                                        CellTemplate="{StaticResource StoragePathCellTemplate}"/>
+                                                <DataGridTemplateColumn Header="预留空间"
+                                                                        Width="150"
+                                                                        CellTemplate="{StaticResource StorageReserveCellTemplate}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
@@ -2033,6 +2061,74 @@
                                         <Button x:Name="MoveStorageDownButton"
                                                 Content="下移"
                                                 Click="BtnMoveStorageDown_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                IsEnabled="False"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="录像备份位置" Style="{StaticResource FieldLabelStyle}"/>
+                                    <TextBlock Text="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除"
+                                               Style="{StaticResource FieldHintStyle}"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource ControlBackground}">
+                                        <DataGrid x:Name="BackupStorageDataGrid"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  BorderThickness="0"
+                                                  Background="{StaticResource TransparentBrush}"
+                                                  Foreground="{DynamicResource TextPrimary}"
+                                                  RowHeight="50"
+                                                  FontSize="13"
+                                                  SelectionMode="Single"
+                                                  SelectionChanged="BackupStorageDataGrid_SelectionChanged"
+                                                  CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}"
+                                                  CellStyle="{StaticResource StorageGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Header="存储路径"
+                                                                        Width="*"
+                                                                        CellTemplate="{StaticResource StoragePathCellTemplate}"/>
+                                                <DataGridTemplateColumn Header="预留空间"
+                                                                        Width="150"
+                                                                        CellTemplate="{StaticResource StorageReserveCellTemplate}"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                    <TextBlock Text="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Margin="0,10,0,0"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Margin="{StaticResource SettingInlineTopMargin}">
+                                        <Button x:Name="BtnAddBackupStorage"
+                                                Content="添加网络位置"
+                                                Click="BtnAddNetworkStorage_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"/>
+                                        <Button x:Name="BackupRemoveButton"
+                                                Content="移除选中"
+                                                Click="BtnRemoveBackupStorage_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="BackupMoveUpButton"
+                                                Content="上移"
+                                                Click="BtnBackupMoveUp_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"
+                                                IsEnabled="False"/>
+                                        <Button x:Name="BackupMoveDownButton"
+                                                Content="下移"
+                                                Click="BtnBackupMoveDown_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 IsEnabled="False"/>
                                     </StackPanel>

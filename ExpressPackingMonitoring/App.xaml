@@ -10,6 +10,7 @@
                 <ResourceDictionary Source="Themes/ComboBoxTheme.xaml" />
                 <ResourceDictionary Source="Themes/DatePickerTheme.xaml" />
                 <ResourceDictionary Source="Themes/SpinBoxTheme.xaml" />
+                <ResourceDictionary Source="Themes/TextBoxTheme.xaml" />
                 <ResourceDictionary Source="Themes/ButtonTheme.xaml" />
                 <ResourceDictionary Source="Themes/ScrollBarTheme.xaml" />
                 <ResourceDictionary Source="Themes/FluentIcons.xaml" />

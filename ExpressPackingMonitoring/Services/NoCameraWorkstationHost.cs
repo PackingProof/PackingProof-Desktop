@@ -13,6 +13,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private readonly Action<int> _repairLanAccess;
     private VideoDatabase? _database;
     private WebServer? _server;
+    private ArchiveService? _archiveService;
     private bool _disposed;
 
     public NoCameraWorkstationHost(
@@ -33,6 +34,25 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public bool IsLanAvailable { get; private set; }
     public string StoragePath { get; private set; } = "";
     public string LocalPlaybackUrl { get; private set; } = "";
+
+    /// <summary>备份主机窗口的“录像备份”卡片状态：是否可见 + 短状态/详情。</summary>
+    internal (bool IsVisible, ArchiveBackupCardState State) GetArchiveBackupCardState()
+    {
+        bool visible = ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
+            _config,
+            isRecordingWorkstation: false);
+        if (!visible || _database == null)
+            return (false, new ArchiveBackupCardState("", ""));
+
+        ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
+        ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            summary.PendingCount,
+            summary.UploadingCount,
+            summary.FailedCount,
+            summary.NasFullCount,
+            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(_config));
+        return (true, state);
+    }
     public string LanAccessUrl { get; private set; } = "";
     public string ErrorMessage { get; private set; } = "";
     public VideoDatabase Database =>
@@ -88,6 +108,12 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         {
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
+            _archiveService?.Dispose();
+            _archiveService = new ArchiveService(
+                _database,
+                new NasArchiveProvider(),
+                archiveTargetResolver: () =>
+                    StorageLocationResolver.GetOrderedNetworkLocations(_config));
             LocalPlaybackUrl = MobileConnectionService.BuildAccessUrl(
                 $"127.0.0.1:{_config.WebServerPort}",
                 _config.RequireWebAccessKey,
@@ -199,6 +225,14 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             mobileBackupComputerName: Environment.MachineName,
             mobileBackupStateDirectory: _stateDirectory,
             mobileBackupRecordingRootResolver: () => StorageLocationResolver.Resolve(_config, allowDefaultFallback: false),
+            mobileBackupArchiveTargetResolver: () =>
+            {
+                RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                    _config,
+                    allowDefaultFallback: false);
+                return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+            },
+            mobileBackupArchivePendingCallback: () => _archiveService?.Wake(),
             nodeId: _config.NodeId,
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
@@ -252,6 +286,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         if (_disposed) return;
         _disposed = true;
         StopServer();
+        try { _archiveService?.Dispose(); } catch { }
+        _archiveService = null;
         try { _database?.Dispose(); } catch { }
         _database = null;
     }

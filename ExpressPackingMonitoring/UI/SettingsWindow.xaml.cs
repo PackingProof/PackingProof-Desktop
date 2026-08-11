@@ -157,6 +157,8 @@ namespace ExpressPackingMonitoring.UI
         }
         private string _originalNodeName;
         private bool _isRecording;
+        private CollectionViewSource _localStorageView;
+        private CollectionViewSource _backupStorageView;
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
         private bool _isSyncingScannerModes;
@@ -209,6 +211,14 @@ namespace ExpressPackingMonitoring.UI
                 SortStorageLocationsByPriority();
                 RefreshStoragePriorities();
                 UpdateStorageButtonStates();
+                _localStorageView = new CollectionViewSource { Source = Config.StorageLocations };
+                _localStorageView.Filter += LocalStorageView_Filter;
+                StorageDataGrid.ItemsSource = _localStorageView.View;
+                _backupStorageView = new CollectionViewSource { Source = Config.StorageLocations };
+                _backupStorageView.Filter += BackupStorageView_Filter;
+                BackupStorageDataGrid.ItemsSource = _backupStorageView.View;
+                RefreshStorageViews();
+                UpdateBackupStorageButtonStates();
             }
             if (Capabilities.CanConfigureRecordingCache)
             {
@@ -1069,17 +1079,233 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            Config.StorageLocations.Add(new StorageLocation
+            var newLocation = new StorageLocation
             {
                 Path = selectedPath,
                 ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
                 Priority = Config.StorageLocations.Count
-            });
+            };
+            Config.StorageLocations.Add(newLocation);
 
             RefreshStoragePriorities();
-            StorageDataGrid.Items.Refresh();
-            StorageDataGrid.SelectedIndex = Config.StorageLocations.Count - 1;
+            RefreshStorageViews();
+            StorageDataGrid.SelectedItem = newLocation;
             UpdateStorageButtonStates();
+        }
+
+        private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new StoragePathSelectionDialog(
+                title: "添加网络位置",
+                hint: "录像会异步备份到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
+            {
+                Owner = this
+            };
+            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
+                return;
+
+            string selectedPath = dialog.SelectedPath;
+            if (StorageVolumeInfo.IsNetworkPath(selectedPath)
+                && StorageVolumeInfo.TryResolveUncPath(selectedPath, out string uncPath))
+            {
+                selectedPath = uncPath;
+            }
+            if (!StorageVolumeInfo.IsNetworkPath(selectedPath))
+            {
+                AppDialog.Error(
+                    this,
+                    "备份位置必须是网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频；本地磁盘请添加到录像保存位置",
+                    "备份位置无效");
+                return;
+            }
+            if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                AppDialog.Information(this, "该路径已在列表中。", "提示");
+                return;
+            }
+
+            if (StorageVolumeInfo.TryGetNetworkShareIdentity(
+                    selectedPath,
+                    out string selectedIdentity))
+            {
+                StorageLocation sameShare = Config.StorageLocations.FirstOrDefault(location =>
+                    !string.IsNullOrWhiteSpace(location.Path)
+                    && StorageVolumeInfo.TryGetNetworkShareIdentity(
+                        location.Path,
+                        out string existingIdentity)
+                    && string.Equals(
+                        selectedIdentity,
+                        existingIdentity,
+                        StringComparison.OrdinalIgnoreCase));
+                if (sameShare != null)
+                {
+                    AppDialog.Information(
+                        this,
+                        $"该位置与已添加的网络位置属于同一磁盘/共享：\n{sameShare.Path}\n\n请换一个共享，或直接调整已有路径的容量和列表顺序。",
+                        "网络位置已存在");
+                    return;
+                }
+            }
+
+            string selectedRoot = GetStorageRoot(selectedPath);
+            StorageLocation sameDisk = Config.StorageLocations.FirstOrDefault(x =>
+                !string.IsNullOrWhiteSpace(x.Path) &&
+                string.Equals(GetStorageRoot(x.Path), selectedRoot, StringComparison.OrdinalIgnoreCase));
+            if (sameDisk != null)
+            {
+                AppDialog.Information(
+                    this,
+                    $"同一个磁盘已经添加过：\n{sameDisk.Path}\n\n请换一个磁盘，或直接调整已有路径的容量和列表顺序。",
+                    "磁盘已存在");
+                return;
+            }
+
+            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            {
+                AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
+                return;
+            }
+
+            var location = new StorageLocation
+            {
+                Path = selectedPath,
+                ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
+                Priority = Config.StorageLocations.Count
+            };
+            StorageLocationMetadata.RefreshVolumeId(location);
+            Config.StorageLocations.Add(location);
+
+            RefreshStoragePriorities();
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = location;
+            UpdateStorageButtonStates();
+            UpdateBackupStorageButtonStates();
+        }
+
+        private bool _manualCleanupRunning;
+
+        private async void BtnManualCleanupByTime_Click(object sender, RoutedEventArgs e)
+        {
+            if (_manualCleanupRunning || Context.RunManualCleanupAsync == null)
+                return;
+            var dialog = new ManualCleanupDialog(ManualCleanupKind.ByTime) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.SelectedOptions == null)
+                return;
+            await RunManualCleanupAsync(dialog.SelectedOptions);
+        }
+
+        private async void BtnManualCleanupBySpace_Click(object sender, RoutedEventArgs e)
+        {
+            if (_manualCleanupRunning || Context.RunManualCleanupAsync == null)
+                return;
+            var dialog = new ManualCleanupDialog(ManualCleanupKind.BySpace) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.SelectedOptions == null)
+                return;
+            await RunManualCleanupAsync(dialog.SelectedOptions);
+        }
+
+        private async Task RunManualCleanupAsync(ManualCleanupOptions options)
+        {
+            if (_manualCleanupRunning
+                || Context.PreviewManualCleanupAsync == null
+                || Context.RunManualCleanupAsync == null)
+            {
+                return;
+            }
+            _manualCleanupRunning = true;
+            UpdateManualCleanupButtons();
+            try
+            {
+                ManualCleanupPreview preview =
+                    await Context.PreviewManualCleanupAsync(options);
+                if (preview.Count <= 0)
+                {
+                    AppDialog.Information(this, "没有符合条件的本地录像需要清理", "录像清理");
+                    return;
+                }
+                if (options.Kind == ManualCleanupKind.BySpace
+                    && options.TargetBytes > 0
+                    && options.TargetBytes > preview.Bytes)
+                {
+                    AppDialog.Warning(
+                        this,
+                        $"输入的空间大于当前可清理总量（约 {FormatManualCleanupBytes(preview.Bytes)}），请调整后再试",
+                        "录像清理");
+                    return;
+                }
+
+                string confirmText =
+                    $"将清理约 {preview.Count} 条本地录像（约 {FormatManualCleanupBytes(preview.Bytes)}）。仅清理电脑本地录像，NAS 中已备份的文件不会受到影响";
+                if (preview.UnarchivedCount > 0)
+                {
+                    confirmText +=
+                        $"\n其中 {preview.UnarchivedCount} 条尚未备份到 NAS，是否需要继续清理会在执行时再次询问";
+                }
+                if (!AppDialog.Confirm(
+                        this,
+                        confirmText,
+                        "录像清理",
+                        AppDialogSeverity.Warning,
+                        confirmText: "开始清理",
+                        cancelText: "取消",
+                        isDangerous: true))
+                {
+                    return;
+                }
+
+                ManualCleanupResult result = await Context.RunManualCleanupAsync(
+                    options,
+                    prompt =>
+                    {
+                        bool confirmed = false;
+                        Dispatcher.Invoke(() =>
+                        {
+                            confirmed = AppDialog.Confirm(
+                                this,
+                                $"有 {prompt.UnarchivedCount} 条录像尚未备份到 NAS，继续清理可能导致录像无法恢复。是否继续清理未备份的本地录像？",
+                                "未备份录像",
+                                AppDialogSeverity.Warning,
+                                confirmText: "继续清理",
+                                cancelText: "取消",
+                                isDangerous: true);
+                        });
+                        return confirmed;
+                    });
+
+                string toast =
+                    $"已清理 {result.CleanedCount} 条本地录像，释放 {FormatManualCleanupBytes(result.CleanedBytes)}";
+                if (result.RepairedCount > 0)
+                    toast += $"，修复 {result.RepairedCount} 条缺失文件记录";
+                if (result.SkippedCount > 0)
+                    toast += $"，跳过 {result.SkippedCount} 条";
+                if (result.UnarchivedRemainingCount > 0)
+                    toast += $"，仍有 {result.UnarchivedRemainingCount} 条未备份录像未处理";
+                Context.ShowToast?.Invoke(toast, ToastSeverity.Information);
+            }
+            catch (Exception ex)
+            {
+                AppDialog.Error(this, ex.Message, "清理失败");
+            }
+            finally
+            {
+                _manualCleanupRunning = false;
+                UpdateManualCleanupButtons();
+            }
+        }
+
+        private void UpdateManualCleanupButtons()
+        {
+            if (BtnManualCleanupByTime == null || BtnManualCleanupBySpace == null)
+                return;
+            BtnManualCleanupByTime.IsEnabled = !_manualCleanupRunning;
+            BtnManualCleanupBySpace.IsEnabled = !_manualCleanupRunning;
+        }
+
+        private static string FormatManualCleanupBytes(long bytes)
+        {
+            if (bytes <= 0)
+                return "0 GB";
+            return $"{bytes / (double)StorageSpacePolicy.BytesPerGiB:F1} GB";
         }
 
         private string SelectDefaultStoragePathFromDrive()
@@ -1117,7 +1343,9 @@ namespace ExpressPackingMonitoring.UI
         {
             if (StorageDataGrid.SelectedItem is StorageLocation selected)
             {
-                if (Config.StorageLocations.Count <= 1)
+                int localCount = Config.StorageLocations.Count(
+                    location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                if (localCount <= 1)
                 {
                     AppDialog.Warning(this, "至少需要保留一个存储路径", "警告");
                     return;
@@ -1133,13 +1361,26 @@ namespace ExpressPackingMonitoring.UI
                     isDangerous: true);
                 if (shouldRemove)
                 {
+                    bool keepsLocalPath = Config.StorageLocations
+                        .Where(location => !ReferenceEquals(location, selected))
+                        .Any(location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                    if (!keepsLocalPath)
+                    {
+                        AppDialog.Warning(this, "至少需要一个本地保存位置，请先添加本地磁盘", "警告");
+                        return;
+                    }
+
                     int selectedIndex = StorageDataGrid.SelectedIndex;
                     Config.StorageLocations.Remove(selected);
                     RefreshStoragePriorities();
-                    StorageDataGrid.Items.Refresh();
-                    if (Config.StorageLocations.Count > 0)
+                    RefreshStorageViews();
+                    int remainingLocalCount = Config.StorageLocations.Count(
+                        location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                    if (remainingLocalCount > 0)
                     {
-                        StorageDataGrid.SelectedIndex = Math.Min(selectedIndex, Config.StorageLocations.Count - 1);
+                        StorageDataGrid.SelectedIndex = Math.Min(
+                            selectedIndex,
+                            remainingLocalCount - 1);
                     }
                     UpdateStorageButtonStates();
                 }
@@ -1160,7 +1401,7 @@ namespace ExpressPackingMonitoring.UI
             if (sender is FrameworkElement { DataContext: StorageLocation location })
             {
                 location.EffectiveReserveGB = location.EffectiveReserveGB;
-                StorageDataGrid.Items.Refresh();
+                RefreshStorageViews();
             }
         }
 
@@ -1178,15 +1419,22 @@ namespace ExpressPackingMonitoring.UI
         {
             if (StorageDataGrid?.SelectedItem is not StorageLocation selected) return;
 
-            int oldIndex = Config.StorageLocations.IndexOf(selected);
-            int newIndex = oldIndex + direction;
-            if (oldIndex < 0 || newIndex < 0 || newIndex >= Config.StorageLocations.Count) return;
+            var locals = Config.StorageLocations
+                .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                .ToList();
+            int localIndex = locals.IndexOf(selected);
+            int newLocalIndex = localIndex + direction;
+            if (localIndex < 0 || newLocalIndex < 0 || newLocalIndex >= locals.Count) return;
 
-            Config.StorageLocations.RemoveAt(oldIndex);
-            Config.StorageLocations.Insert(newIndex, selected);
+            int from = Config.StorageLocations.IndexOf(selected);
+            int to = Config.StorageLocations.IndexOf(locals[newLocalIndex]);
+            if (from < 0 || to < 0 || from == to) return;
+
+            Config.StorageLocations.RemoveAt(from);
+            Config.StorageLocations.Insert(to, selected);
             RefreshStoragePriorities();
-            StorageDataGrid.Items.Refresh();
-            StorageDataGrid.SelectedIndex = newIndex;
+            RefreshStorageViews();
+            StorageDataGrid.SelectedItem = selected;
             UpdateStorageButtonStates();
         }
 
@@ -1221,11 +1469,128 @@ namespace ExpressPackingMonitoring.UI
 
             bool hasSelection = StorageDataGrid?.SelectedItem is StorageLocation;
             int selectedIndex = StorageDataGrid?.SelectedIndex ?? -1;
-            int count = Config.StorageLocations?.Count ?? 0;
+            int localCount = Config.StorageLocations?
+                .Count(location => !StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
 
             RemoveStorageButton.IsEnabled = hasSelection;
             if (MoveStorageUpButton != null) MoveStorageUpButton.IsEnabled = hasSelection && selectedIndex > 0;
-            if (MoveStorageDownButton != null) MoveStorageDownButton.IsEnabled = hasSelection && selectedIndex >= 0 && selectedIndex < count - 1;
+            if (MoveStorageDownButton != null)
+            {
+                MoveStorageDownButton.IsEnabled =
+                    hasSelection && selectedIndex >= 0 && selectedIndex < localCount - 1;
+            }
+        }
+
+        private void LocalStorageView_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is StorageLocation location
+                && !string.IsNullOrWhiteSpace(location.Path)
+                && !StorageVolumeInfo.IsNetworkPath(location.Path);
+        }
+
+        private void BackupStorageView_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is StorageLocation location
+                && !string.IsNullOrWhiteSpace(location.Path)
+                && StorageVolumeInfo.IsNetworkPath(location.Path);
+        }
+
+        private void RefreshStorageViews()
+        {
+            _localStorageView?.View.Refresh();
+            _backupStorageView?.View.Refresh();
+        }
+
+        private void BackupStorageDataGrid_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            UpdateBackupStorageButtonStates();
+        }
+
+        private void UpdateBackupStorageButtonStates()
+        {
+            if (BackupRemoveButton == null)
+                return;
+            bool hasSelection = BackupStorageDataGrid?.SelectedItem is StorageLocation;
+            int selectedIndex = BackupStorageDataGrid?.SelectedIndex ?? -1;
+            int networkCount = Config.StorageLocations?.Count(
+                location => StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+
+            BackupRemoveButton.IsEnabled = hasSelection;
+            if (BackupMoveUpButton != null)
+                BackupMoveUpButton.IsEnabled = hasSelection && selectedIndex > 0;
+            if (BackupMoveDownButton != null)
+            {
+                BackupMoveDownButton.IsEnabled =
+                    hasSelection && selectedIndex >= 0 && selectedIndex < networkCount - 1;
+            }
+        }
+
+        private void BtnBackupMoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedBackupStorage(-1);
+        }
+
+        private void BtnBackupMoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            MoveSelectedBackupStorage(1);
+        }
+
+        private void MoveSelectedBackupStorage(int direction)
+        {
+            if (BackupStorageDataGrid?.SelectedItem is not StorageLocation selected)
+                return;
+
+            var networks = Config.StorageLocations
+                .Where(location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                .ToList();
+            int networkIndex = networks.IndexOf(selected);
+            int newNetworkIndex = networkIndex + direction;
+            if (networkIndex < 0
+                || newNetworkIndex < 0
+                || newNetworkIndex >= networks.Count)
+            {
+                return;
+            }
+
+            int from = Config.StorageLocations.IndexOf(selected);
+            int to = Config.StorageLocations.IndexOf(networks[newNetworkIndex]);
+            if (from < 0 || to < 0 || from == to)
+                return;
+
+            Config.StorageLocations.RemoveAt(from);
+            Config.StorageLocations.Insert(to, selected);
+            RefreshStoragePriorities();
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = selected;
+            UpdateBackupStorageButtonStates();
+        }
+
+        private void BtnRemoveBackupStorage_Click(object sender, RoutedEventArgs e)
+        {
+            if (BackupStorageDataGrid.SelectedItem is not StorageLocation selected)
+            {
+                AppDialog.Warning(this, "请先在列表中选中要移除的行", "提示");
+                return;
+            }
+
+            bool shouldRemove = AppDialog.Confirm(
+                this,
+                $"确定要移除备份位置: {selected.Path} 吗？\n注意：此操作不会删除 NAS 上已备份的文件，程序也不再向该位置备份新录像",
+                "确认移除",
+                AppDialogSeverity.Warning,
+                confirmText: "移除",
+                cancelText: "取消",
+                isDangerous: true);
+            if (!shouldRemove)
+                return;
+
+            Config.StorageLocations.Remove(selected);
+            RefreshStoragePriorities();
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = null;
+            UpdateBackupStorageButtonStates();
         }
 
         private async void BtnOk_Click(object sender, RoutedEventArgs e)

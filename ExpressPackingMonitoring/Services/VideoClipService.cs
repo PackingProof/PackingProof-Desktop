@@ -457,7 +457,7 @@ namespace ExpressPackingMonitoring.Services
             if (record == null || string.IsNullOrWhiteSpace(record.FilePath))
                 throw new InvalidOperationException("文件不存在");
 
-            if (File.Exists(record.FilePath))
+            if (!string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)))
                 return record;
 
             if (TryPromoteExistingMp4(record, out _))
@@ -466,17 +466,23 @@ namespace ExpressPackingMonitoring.Services
             if (record.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("视频还未完成音频合并，请稍后再剪辑");
 
-            if (!File.Exists(record.FilePath))
-                throw new InvalidOperationException("文件不存在");
-
-            return record;
+            throw new InvalidOperationException("文件不存在");
         }
 
         private string ResolveClipSourcePath(VideoRecord record)
         {
-            string filePath = record.FilePath;
+            string filePath = PlaybackFileResolver.ResolvePlaybackPath(record);
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new InvalidOperationException("文件不存在");
             if (_isCurrentRecordingFile(filePath))
                 throw new InvalidOperationException("视频正在录制或音频合并中，请稍后再剪辑");
+
+            // 本地副本已清理时无法转换，直接使用归档 MKV 作为剪辑源。
+            if (filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase)
+                && !File.Exists(record.FilePath))
+            {
+                return filePath;
+            }
 
             if (_mkvConverter != null)
             {

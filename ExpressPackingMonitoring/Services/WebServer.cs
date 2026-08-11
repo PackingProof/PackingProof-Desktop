@@ -232,6 +232,8 @@ namespace ExpressPackingMonitoring.Services
             string mobileBackupComputerName = null,
             string mobileBackupStateDirectory = null,
             Func<string> mobileBackupRecordingRootResolver = null,
+            Func<string> mobileBackupArchiveTargetResolver = null,
+            Action mobileBackupArchivePendingCallback = null,
             string nodeId = null,
             string nodeName = null,
             string deploymentPreset = null,
@@ -284,7 +286,9 @@ namespace ExpressPackingMonitoring.Services
                 _db,
                 resolvedMobileBackupStateDirectory,
                 mobileBackupRecordingRootResolver ?? (() => Path.Combine(AppPaths.UserDataDir, "mobile-backup-recordings")),
-                GetOrderInfo);
+                GetOrderInfo,
+                mobileBackupArchiveTargetResolver,
+                mobileBackupArchivePendingCallback);
             _mobileBackupService.ActiveUploadsChanged += hasActive =>
             {
                 try { MobileBackupActivityChanged?.Invoke(hasActive); } catch { }
@@ -1603,8 +1607,11 @@ namespace ExpressPackingMonitoring.Services
                 {
                     VideoRecord verifiedRecord = _db.GetVideoById(result.RecordId);
                     fileSizeBytes = verifiedRecord?.FileSizeBytes ?? 0;
-                    if (fileSizeBytes <= 0 && verifiedRecord != null && File.Exists(verifiedRecord.FilePath))
-                        fileSizeBytes = new FileInfo(verifiedRecord.FilePath).Length;
+                    string resolvedVerifiedPath = verifiedRecord == null
+                        ? ""
+                        : PlaybackFileResolver.ResolvePlaybackPath(verifiedRecord);
+                    if (fileSizeBytes <= 0 && !string.IsNullOrWhiteSpace(resolvedVerifiedPath))
+                        fileSizeBytes = new FileInfo(resolvedVerifiedPath).Length;
                     verifiedAtUnixSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                     authVersion = BackupRequestAuthentication.CurrentVersion;
                     receiptSignature = BackupRequestAuthentication.CreateReceiptSignature(
@@ -1649,13 +1656,16 @@ namespace ExpressPackingMonitoring.Services
             }
             VideoRecord record = _db.GetVideoById(recordId);
             string sourceDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
-            if (record == null || record.IsDeleted || !File.Exists(record.FilePath)
+            string resolvedAttestationPath = record == null
+                ? ""
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
+            if (record == null || record.IsDeleted || string.IsNullOrWhiteSpace(resolvedAttestationPath)
                 || !string.Equals(record.SourceDeviceId, sourceDeviceId, StringComparison.OrdinalIgnoreCase))
             {
                 SendJson(ctx, 404, new { errorCode = "verified_record_missing", error = "保存主机未找到完整录像" });
                 return;
             }
-            long fileSizeBytes = new FileInfo(record.FilePath).Length;
+            long fileSizeBytes = new FileInfo(resolvedAttestationPath).Length;
             if (fileSizeBytes <= 0 || string.IsNullOrWhiteSpace(record.ContentSha256))
             {
                 SendJson(ctx, 409, new { errorCode = "verified_record_invalid", error = "保存主机录像尚未完成校验" });
@@ -1776,7 +1786,7 @@ namespace ExpressPackingMonitoring.Services
                     startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                     durationSec = Math.Round(record.DurationSeconds, 0),
                     duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
-                    exists = File.Exists(record.FilePath),
+                    exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)),
                     playUrl = $"/api/mobile-backup/videos/{record.Id}/play?ticket={ticket}",
                     thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail?ticket={ticket}",
                     remote = true
@@ -1800,7 +1810,8 @@ namespace ExpressPackingMonitoring.Services
             {
                 VideoRecord record = _db.GetVideoById(id);
                 bool authorized = CanAccessDeviceVideo(record, deviceId, hostLibrary, includeDeleted: true);
-                bool exists = authorized && !record!.IsDeleted && File.Exists(record.FilePath);
+                bool exists = authorized && !record!.IsDeleted
+                    && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record));
                 string status = !authorized || (!record!.IsDeleted && !exists)
                     ? "missing"
                     : record.IsDeleted ? "deleted" : "available";
@@ -2833,20 +2844,12 @@ namespace ExpressPackingMonitoring.Services
             bool available = false;
             try
             {
-                if (Directory.Exists(normalizedPath))
+                if (StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume))
                 {
-                    string root = Path.GetPathRoot(Path.GetFullPath(normalizedPath));
-                    if (!string.IsNullOrEmpty(root))
-                    {
-                        var drive = new DriveInfo(root);
-                        available = drive.IsReady;
-                        if (available)
-                        {
-                            long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(loc, drive);
-                            capacityBytes = Math.Max(0, drive.AvailableFreeSpace - reserveBytes)
-                                + GetDirectoryVideoBytes(normalizedPath);
-                        }
-                    }
+                    available = true;
+                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(loc, volume);
+                    capacityBytes = Math.Max(0, volume.AvailableFreeSpace - reserveBytes)
+                        + GetDirectoryVideoBytes(normalizedPath);
                 }
             }
             catch { }
@@ -2996,7 +2999,7 @@ namespace ExpressPackingMonitoring.Services
                 startTime = r.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                 durationSec = Math.Round(r.DurationSeconds, 0),
                 duration = TimeSpan.FromSeconds(r.DurationSeconds).ToString(@"mm\:ss"),
-                exists = File.Exists(r.FilePath),
+                exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)),
                 playUrl = $"/api/videos/{r.Id}/play?compat=0",
                 thumbnailUrl = $"/api/videos/{r.Id}/thumbnail",
                 remote = true
@@ -3100,7 +3103,8 @@ namespace ExpressPackingMonitoring.Services
             var data = ids.Select(id =>
             {
                 records.TryGetValue(id, out VideoRecord record);
-                bool exists = record != null && File.Exists(record.FilePath);
+                bool exists = record != null
+                    && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record));
                 string status = record == null || (!record.IsDeleted && !exists)
                     ? "missing"
                     : record.IsDeleted ? "deleted" : "available";
@@ -3119,7 +3123,10 @@ namespace ExpressPackingMonitoring.Services
         {
             var record = FindRecordFromPath(path, "/play");
             Log($"HandlePlay: path={path}, record={(record != null ? $"Id={record.Id}, OrderId={record.OrderId}, VideoCodec='{record.VideoCodec}', FilePath='{record.FilePath}'" : "null")}");
-            if (record == null || !File.Exists(record.FilePath))
+            string resolvedPlayPath = record == null
+                ? ""
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
+            if (record == null || string.IsNullOrWhiteSpace(resolvedPlayPath))
             {
                 Log($"HandlePlay: 文件不存在 filePath={record?.FilePath}");
                 SendJson(ctx, 404, new { errorCode = "file_not_found", error = "文件不存在" });
@@ -3173,7 +3180,9 @@ namespace ExpressPackingMonitoring.Services
 
         private string EnsureMp4ContainerForPlayback(HttpListenerContext ctx, VideoRecord record)
         {
-            string filePath = record.FilePath;
+            string filePath = PlaybackFileResolver.ResolvePlaybackPath(record);
+            if (string.IsNullOrWhiteSpace(filePath))
+                return "";
             if (!filePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
                 return filePath;
 
@@ -3188,6 +3197,10 @@ namespace ExpressPackingMonitoring.Services
                 });
                 return "";
             }
+
+            // 本地副本已清理时无法转换，只能直传归档 MKV。
+            if (!File.Exists(record.FilePath))
+                return filePath;
 
             string mp4Path = Path.ChangeExtension(filePath, ".mp4");
             if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
@@ -3776,13 +3789,16 @@ namespace ExpressPackingMonitoring.Services
         private void HandleDownload(HttpListenerContext ctx, string path)
         {
             var record = FindRecordFromPath(path, "/download");
-            if (record == null || !File.Exists(record.FilePath))
+            string resolvedDownloadPath = record == null
+                ? ""
+                : PlaybackFileResolver.ResolvePlaybackPath(record);
+            if (record == null || string.IsNullOrWhiteSpace(resolvedDownloadPath))
             {
                 SendJson(ctx, 404, new { error = "文件不存在" });
                 return;
             }
 
-            ServeFileWithRange(ctx, record.FilePath, inline: false);
+            ServeFileWithRange(ctx, resolvedDownloadPath, inline: false);
         }
 
         // ───── 文件传输 (支持 Range 请求实现拖拽播放) ─────

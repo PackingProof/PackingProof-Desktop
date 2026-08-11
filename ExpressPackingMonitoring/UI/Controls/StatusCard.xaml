@@ -1,0 +1,156 @@
+<UserControl x:Class="ExpressPackingMonitoring.UI.Controls.StatusCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             Background="{StaticResource TransparentBrush}">
+    <Border Background="{DynamicResource ControlBackground}"
+            BorderBrush="{DynamicResource BorderDefault}"
+            BorderThickness="1"
+            CornerRadius="7"
+            Padding="10,8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Path Data="{Binding CardIcon, ElementName=Root}"
+                  Width="14"
+                  Height="14"
+                  Stretch="Uniform"
+                  Fill="{DynamicResource AccentBlue}"
+                  VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding CardTitle, ElementName=Root}"
+                       Margin="6,0,0,0"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimary}"/>
+            <TextBlock x:Name="ShortStatusTextBlock"
+                       Grid.Column="2"
+                       Text="{Binding ShortStatusText, ElementName=Root}"
+                       FontSize="11"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding ShortStatusToolTip, ElementName=Root}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="上传中">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份中">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="检查中">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="启动中">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="已完成">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="已同步">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="在线">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="已就绪">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="待上传">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="上传失败">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="需要重新连接">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="待备份">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份失败">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份暂停">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="离线">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="仅本机">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="暂无设备">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="未配置">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="启动失败">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="需更新">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock x:Name="DetailTextBlock"
+                       Grid.Row="1"
+                       Grid.Column="1"
+                       Grid.ColumnSpan="2"
+                       Text="{Binding DetailText, ElementName=Root}"
+                       Margin="6,4,0,0"
+                       FontSize="11"
+                       Foreground="{DynamicResource TextMuted}"
+                       TextTrimming="CharacterEllipsis"
+                       Visibility="Collapsed"/>
+            <ContentPresenter x:Name="ContentHost"
+                              Grid.Row="1"
+                              Grid.Column="1"
+                              Grid.ColumnSpan="2"
+                              Margin="6,4,0,0"
+                              Visibility="Collapsed"/>
+            <ItemsControl x:Name="DeviceItemsControl"
+                          Grid.Row="1"
+                          Grid.Column="1"
+                          Grid.ColumnSpan="2"
+                          Margin="6,4,0,0"
+                          MaxHeight="52"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          Visibility="Collapsed">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="0,1">
+                            <Ellipse Width="7" Height="7" Margin="1,0,7,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource TextMuted}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsOnline}" Value="True">
+                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="{Binding DisplayText}"
+                                       FontSize="12"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextMuted}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </Border>
+</UserControl>

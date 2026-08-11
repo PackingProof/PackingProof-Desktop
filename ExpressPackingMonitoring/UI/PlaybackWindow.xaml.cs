@@ -32,6 +32,8 @@ namespace ExpressPackingMonitoring.UI
         public bool IsStoredOnHost { get; set; }
         public bool IsMissing { get; set; }
         public bool IsDeleted { get; set; }
+        public bool IsArchiveWarning { get; set; }
+        public string ArchiveStatusText { get; set; } = "";
         public string DeleteReason { get; set; } = "";
         public DateTime? DeletedAt { get; set; }
         public FileInfo? File { get; set; }
@@ -61,6 +63,8 @@ namespace ExpressPackingMonitoring.UI
 
                 if (IsStoredOnHost)
                     return "已保存到主机";
+                if (IsArchiveWarning)
+                    return ArchiveStatusText;
                 return IsMissing ? "文件已丢失" : "";
             }
         }
@@ -347,11 +351,64 @@ namespace ExpressPackingMonitoring.UI
                             PageSize,
                             includeDeleted: _showDeletedVideos,
                             searchMode: VideoSearchMode.OrderIdentifierContains);
+                     }
+                     foreach (var record in result.Records)
+                    {
+                        bool deleted = record.IsDeleted;
+                        bool storedOnHost = string.Equals(
+                            record.StorageState,
+                            "Remote",
+                            StringComparison.OrdinalIgnoreCase);
+                        string resolvedPath = PlaybackFileResolver.ResolvePlaybackPath(record);
+                        bool missing = !deleted && !storedOnHost && string.IsNullOrWhiteSpace(resolvedPath);
+                        bool archiveWarning = record.ArchiveStatus is
+                            VideoArchiveStatus.Conflict
+                            or VideoArchiveStatus.Failed
+                            or VideoArchiveStatus.NASFull
+                            or VideoArchiveStatus.LocalDeleted;
+                        string archiveStatusText = record.ArchiveStatus switch
+                        {
+                            VideoArchiveStatus.Conflict => $"归档冲突：网络端已有不同版本，请检查 {record.ArchivePath}",
+                            VideoArchiveStatus.Failed => $"归档失败，等待自动重试：{record.ArchivePath}",
+                            VideoArchiveStatus.NASFull => $"归档暂停：NAS 空间不足，请清理 {record.ArchivePath}",
+                            VideoArchiveStatus.LocalDeleted => record.ArchiveCompletedAt != null
+                                ? "已归档（本地副本已清理）"
+                                : "本地录像已清理，未备份到 NAS",
+                            _ => ""
+                        };
+                        FileInfo? info = (deleted || missing || storedOnHost)
+                            ? null
+                            : new FileInfo(resolvedPath);
+                        videos.Add(new VideoItem
+                        {
+                            DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
+                            FullPath = string.IsNullOrWhiteSpace(resolvedPath) ? record.FilePath : resolvedPath,
+                            OrderId = record.OrderId,
+                            Mode = record.Mode,
+                            Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
+                            FileSize = (deleted || missing || storedOnHost)
+                                ? FormatFileSize(record.FileSizeBytes)
+                                : FormatFileSize(info!.Length),
+                            StopReason = GetStopReasonDisplay(record.SourceType, record.StopReason),
+                            VideoCodec = record.VideoCodec,
+                            VideoEncoder = record.VideoEncoder,
+                            SourceDisplay = GetSourceDisplay(
+                                record.SourceType,
+                                record.SourceDeviceId,
+                                record.SourceDeviceName,
+                                record.SourceDeviceKind),
+                            IsStoredOnHost = storedOnHost,
+                            IsMissing = missing,
+                            IsDeleted = deleted,
+                            IsArchiveWarning = archiveWarning,
+                            ArchiveStatusText = archiveStatusText,
+                            DeleteReason = record.DeleteReason,
+                            DeletedAt = record.DeletedAt,
+                            File = info
+                        });
                     }
-                    foreach (var record in result.Records)
-                        videos.Add(CreateVideoItem(record));
                     return (videos, result.Total, 0);
-                }
+                 }
                 catch
                 {
                     videos = new List<VideoItem>();
