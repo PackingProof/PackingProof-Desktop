@@ -11,6 +11,7 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+[Collection("Web server tests")]
 public sealed class ConnectedClientTests
 {
     [Theory]

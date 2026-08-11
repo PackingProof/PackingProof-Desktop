@@ -14,6 +14,7 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+[Collection("Web server tests")]
 public sealed class MobileBackupTests
 {
     private const string AccessKey = "0123456789abcdef0123456789abcdef";
