@@ -356,6 +356,148 @@ public sealed class ArchiveDatabaseTests : IDisposable
     }
 
     [Fact]
+    public void GetManualCleanupCandidates_FiltersCutoffRootsStatusAndOrdersTiers()
+    {
+        DateTime now = DateTime.Now;
+        string rootA = Path.Combine(_directory, "rootA");
+        string rootB = Path.Combine(_directory, "rootB");
+        Directory.CreateDirectory(rootA);
+        Directory.CreateDirectory(rootB);
+
+        long verifiedId = InsertRecordAt(
+            Path.Combine(rootA, "verified.mp4"),
+            now.AddDays(-40),
+            now.AddDays(-39));
+        long failedId = InsertRecordAt(
+            Path.Combine(rootA, "failed.mp4"),
+            now.AddDays(-20),
+            now.AddDays(-19));
+        long pendingId = InsertRecordAt(
+            Path.Combine(rootB, "pending.mp4"),
+            now.AddDays(-10),
+            now.AddDays(-9));
+        long outsideId = InsertRecordAt(
+            Path.Combine(_directory, "outside.mp4"),
+            now.AddDays(-5),
+            now.AddDays(-4));
+        long recentId = InsertRecordAt(
+            Path.Combine(rootA, "recent.mp4"),
+            now.AddDays(-2),
+            now.AddDays(-1));
+        _database.UpdateArchiveState(
+            verifiedId,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddDays(-39));
+        _database.UpdateArchiveState(failedId, VideoArchiveStatus.Failed, attemptedAt: now);
+        _database.UpdateArchiveState(pendingId, VideoArchiveStatus.Pending, attemptedAt: now);
+
+        DateTime cutoff = now.AddDays(-3);
+        IReadOnlyList<string> roots = [rootA, rootB];
+        IReadOnlyList<VideoRecord> candidates =
+            _database.GetManualCleanupCandidates(cutoff, roots, 200);
+
+        Assert.Equal(
+            [verifiedId, failedId, pendingId],
+            candidates.Select(record => record.Id));
+        Assert.DoesNotContain(candidates, record => record.Id == outsideId);
+        Assert.DoesNotContain(candidates, record => record.Id == recentId);
+
+        IReadOnlyList<VideoRecord> verifiedOnly =
+            _database.GetManualCleanupCandidates(
+                cutoff,
+                roots,
+                200,
+                VideoArchiveStatus.Verified);
+        Assert.Equal(verifiedId, Assert.Single(verifiedOnly).Id);
+    }
+
+    [Fact]
+    public void GetManualCleanupPreview_CountsBytesAndUnarchived()
+    {
+        DateTime now = DateTime.Now;
+        string rootA = Path.Combine(_directory, "rootA");
+        Directory.CreateDirectory(rootA);
+        long verifiedId = InsertRecordAt(
+            Path.Combine(rootA, "v.mp4"),
+            now.AddDays(-40),
+            now.AddDays(-39));
+        long pendingId = InsertRecordAt(
+            Path.Combine(rootA, "p.mp4"),
+            now.AddDays(-20),
+            now.AddDays(-19));
+        long localId = InsertRecordAt(
+            Path.Combine(rootA, "l.mp4"),
+            now.AddDays(-10),
+            now.AddDays(-9));
+        _database.UpdateArchiveState(
+            verifiedId,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddDays(-39));
+        _database.UpdateArchiveState(pendingId, VideoArchiveStatus.Pending, attemptedAt: now);
+
+        ManualCleanupPreview preview =
+            _database.GetManualCleanupPreview(now.AddDays(-3), new[] { rootA });
+
+        Assert.Equal(3, preview.Count);
+        Assert.Equal(300, preview.Bytes);
+        Assert.Equal(2, preview.UnarchivedCount);
+    }
+
+    [Fact]
+    public void ReconcileMissingLocalFile_OnlyFixesCleanableStates()
+    {
+        DateTime now = DateTime.Now;
+        long verifiedId = InsertLocal(@"\\nas\share\rv.mp4", now.AddHours(-3), now.AddHours(-2));
+        long copyingId = InsertLocal(@"\\nas\share\rc.mp4", now.AddHours(-2), now.AddHours(-1));
+        _database.UpdateArchiveState(
+            verifiedId,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+        _database.UpdateArchiveState(copyingId, VideoArchiveStatus.Copying, attemptedAt: now);
+
+        Assert.Equal(
+            1,
+            _database.ReconcileMissingLocalFile(
+                verifiedId,
+                "本地文件已缺失，状态自动修复",
+                RecordingDeletionReasonCode.ManualCleanup));
+        Assert.Equal(
+            0,
+            _database.ReconcileMissingLocalFile(
+                copyingId,
+                "不应修复",
+                RecordingDeletionReasonCode.ManualCleanup));
+
+        VideoRecord repaired = _database.GetVideoById(verifiedId)!;
+        Assert.Equal(VideoArchiveStatus.LocalDeleted, repaired.ArchiveStatus);
+        Assert.Equal(RecordingDeletionReasonCode.ManualCleanup, repaired.DeleteReasonCode);
+        Assert.NotNull(repaired.LocalCopyDeletedAt);
+        Assert.Equal(
+            VideoArchiveStatus.Copying,
+            _database.GetVideoById(copyingId)!.ArchiveStatus);
+    }
+
+    private long InsertRecordAt(
+        string filePath,
+        DateTime startTime,
+        DateTime endTime)
+    {
+        long id = _database.InsertVideoRecord(
+            "单号M",
+            "发货",
+            "h264",
+            "libx264",
+            filePath,
+            startTime,
+            archivePath: "");
+        _database.UpdateVideoRecordOnStop(id, endTime, 10, 100, "手动");
+        return id;
+    }
+
+    [Fact]
     public void MarkLocalCopyDeleted_WritesReasonCode()
     {
         DateTime now = DateTime.Now;

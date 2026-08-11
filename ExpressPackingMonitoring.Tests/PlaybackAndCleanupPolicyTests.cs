@@ -102,6 +102,21 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
     }
 
     [Fact]
+    public void Resolver_UnarchivedLocalDeletedReturnsEmpty()
+    {
+        VideoRecord record = VerifiedRecord(
+            "u.mp4",
+            DateTime.Now.AddDays(-3),
+            createLocal: false,
+            createArchive: false);
+        record.ArchiveStatus = VideoArchiveStatus.LocalDeleted;
+        record.ArchivePath = "";
+        record.ArchiveCompletedAt = null;
+
+        Assert.Equal("", PlaybackFileResolver.ResolvePlaybackPath(record));
+    }
+
+    [Fact]
     public void RemoteProbe_ChecksFileAndSize()
     {
         string file = Path.Combine(_directory, "probe.bin");

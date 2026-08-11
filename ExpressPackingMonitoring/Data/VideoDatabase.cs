@@ -20,7 +20,15 @@ namespace ExpressPackingMonitoring.Data
         public const string CapacityCleanupVerified = "CapacityCleanupVerified";
         public const string CapacityCleanupUnarchived = "CapacityCleanupUnarchived";
         public const string CapacityEmergencyCleanupUnarchived = "CapacityEmergencyCleanupUnarchived";
+        /// <summary>设置页“录像清理”手动清理本地录像，NAS 归档不受影响。</summary>
+        public const string ManualCleanup = "ManualCleanup";
     }
+
+    /// <summary>手动清理预览统计：符合条件的本地录像条数、字节数与未备份条数。</summary>
+    public sealed record ManualCleanupPreview(
+        int Count,
+        long Bytes,
+        int UnarchivedCount);
 
     /// <summary>
     /// 网络归档状态机：
@@ -2291,6 +2299,175 @@ namespace ExpressPackingMonitoring.Data
                 return cmd.ExecuteNonQuery();
             }
         }
+
+        /// <summary>
+        /// 手动清理候选：本地录像已定稿、未删除、结束时间早于截止时间、
+        /// 状态为已备份/失败/等待归档/仅本地，且文件位于任一托管本地根目录下。
+        /// 按 Verified → Failed → Pending → LocalOnly 分档、档内最旧优先；
+        /// archiveStatus 非空时只返回该状态，供分阶段清理。
+        /// </summary>
+        public IReadOnlyList<VideoRecord> GetManualCleanupCandidates(
+            DateTime cutoff,
+            IReadOnlyList<string> rootPrefixes,
+            int limit = 200,
+            string archiveStatus = null)
+        {
+            limit = Math.Clamp(limit, 1, 500);
+            lock (_lock)
+            {
+                var results = new List<VideoRecord>();
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind,
+                           ArchivePath, ArchiveStatus, ArchiveRetryCount,
+                           NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason, DeleteReasonCode
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND EndTime IS NOT NULL
+                      AND EndTime < @cutoff
+                      AND FilePath <> ''
+                      AND ArchiveStatus IN ('Verified', 'Failed', 'Pending', 'LocalOnly')
+                      AND (ArchiveStatus <> 'Verified' OR ArchiveCompletedAt IS NOT NULL)
+                      " + BuildRootPrefixFilter(rootPrefixes) + @"
+                      " + (string.IsNullOrWhiteSpace(archiveStatus)
+                            ? ""
+                            : "AND ArchiveStatus = @archiveStatus") + @"
+                    ORDER BY
+                        CASE ArchiveStatus
+                            WHEN 'Verified' THEN 0
+                            WHEN 'Failed' THEN 1
+                            WHEN 'Pending' THEN 2
+                            ELSE 3
+                        END,
+                        EndTime ASC,
+                        Id ASC
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@limit", limit);
+                if (!string.IsNullOrWhiteSpace(archiveStatus))
+                    cmd.Parameters.AddWithValue("@archiveStatus", archiveStatus);
+                AddRootPrefixParameters(cmd, rootPrefixes);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    results.Add(ReadVideoRecord(reader));
+                return results;
+            }
+        }
+
+        /// <summary>
+        /// 手动清理预览统计：条数、字节数（按数据库记录大小）与未备份条数。
+        /// </summary>
+        public ManualCleanupPreview GetManualCleanupPreview(
+            DateTime cutoff,
+            IReadOnlyList<string> rootPrefixes)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT COUNT(1),
+                           COALESCE(SUM(FileSizeBytes), 0),
+                           COALESCE(SUM(CASE
+                               WHEN ArchiveStatus IN ('Failed', 'Pending', 'LocalOnly') THEN 1
+                               ELSE 0
+                           END), 0)
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0
+                      AND EndTime IS NOT NULL
+                      AND EndTime < @cutoff
+                      AND FilePath <> ''
+                      AND ArchiveStatus IN ('Verified', 'Failed', 'Pending', 'LocalOnly')
+                      AND (ArchiveStatus <> 'Verified' OR ArchiveCompletedAt IS NOT NULL)
+                      " + BuildRootPrefixFilter(rootPrefixes) + ";";
+                cmd.Parameters.AddWithValue("@cutoff", cutoff.ToString("yyyy-MM-dd HH:mm:ss"));
+                AddRootPrefixParameters(cmd, rootPrefixes);
+                using var reader = cmd.ExecuteReader();
+                reader.Read();
+                return new ManualCleanupPreview(
+                    Convert.ToInt32(reader.GetInt64(0)),
+                    reader.GetInt64(1),
+                    Convert.ToInt32(reader.GetInt64(2)));
+            }
+        }
+
+        /// <summary>
+        /// 修复“本地文件已缺失但记录仍为可清理状态”的记录：置 LocalDeleted 并保留清理痕迹，
+        /// 避免归档 Worker 对缺失文件无限重试；只处理 Verified/LocalOnly/Pending/Failed。
+        /// </summary>
+        public int ReconcileMissingLocalFile(
+            long recordId,
+            string reason,
+            string reasonCode = "")
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        ArchiveStatus = @status,
+                        LocalCopyDeletedAt = @deletedAt,
+                        LocalDeleteReason = @reason,
+                        DeleteReasonCode = @reasonCode
+                    WHERE Id = @id AND IsDeleted = 0
+                      AND FilePath <> ''
+                      AND ArchiveStatus IN ('Verified', 'LocalOnly', 'Pending', 'Failed');";
+                cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.LocalDeleted);
+                cmd.Parameters.AddWithValue("@deletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@reason", reason ?? "");
+                cmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
+                cmd.Parameters.AddWithValue("@id", recordId);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static string BuildRootPrefixFilter(IReadOnlyList<string> rootPrefixes)
+        {
+            int count = 0;
+            foreach (string prefix in rootPrefixes)
+            {
+                if (!string.IsNullOrWhiteSpace(prefix))
+                    count++;
+            }
+            if (count == 0)
+                return "AND 0";
+
+            var conditions = new List<string>();
+            for (int i = 0; i < rootPrefixes.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(rootPrefixes[i]))
+                    continue;
+                conditions.Add($"FilePath LIKE @root{i} ESCAPE '\\'");
+            }
+            return "AND (" + string.Join(" OR ", conditions) + ")";
+        }
+
+        private static void AddRootPrefixParameters(
+            SqliteCommand cmd,
+            IReadOnlyList<string> rootPrefixes)
+        {
+            for (int i = 0; i < rootPrefixes.Count; i++)
+            {
+                string prefix = rootPrefixes[i];
+                if (string.IsNullOrWhiteSpace(prefix))
+                    continue;
+                cmd.Parameters.AddWithValue(
+                    $"@root{i}",
+                    EscapeLikePattern(prefix) + "%");
+            }
+        }
+
+        private static string EscapeLikePattern(string value) =>
+            value
+                .Replace(@"\", @"\\")
+                .Replace("%", @"\%")
+                .Replace("_", @"\_");
 
         /// <summary>
         /// 录像完成后标记为等待网络归档（重置错误与重试计数）。
