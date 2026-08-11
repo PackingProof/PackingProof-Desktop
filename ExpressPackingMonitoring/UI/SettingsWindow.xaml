@@ -2043,6 +2043,35 @@
                                 </StackPanel>
                             </Border>
 
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="录像清理"
+                                                   Style="{StaticResource FieldLabelStyle}"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal">
+                                            <Button x:Name="BtnManualCleanupByTime"
+                                                    Content="按时间清理…"
+                                                    Click="BtnManualCleanupByTime_Click"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Margin="0,0,10,0"/>
+                                            <Button x:Name="BtnManualCleanupBySpace"
+                                                    Content="按空间释放…"
+                                                    Click="BtnManualCleanupBySpace_Click"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource SectionCardStyle}"
                                     Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>

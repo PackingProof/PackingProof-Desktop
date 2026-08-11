@@ -195,6 +195,7 @@
     <Compile Include="UI\MobileAppUpdatePrompt.cs" />
     <Compile Include="UI\MobileAppUpdatePromptWindow.xaml.cs" />
     <Compile Include="UI\MobileConnectionWindow.xaml.cs" />
+    <Compile Include="UI\ManualCleanupDialog.cs" />
     <Compile Include="UI\NotificationVisuals.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />

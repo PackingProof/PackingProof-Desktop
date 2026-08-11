@@ -1139,6 +1139,132 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
+        private bool _manualCleanupRunning;
+
+        private async void BtnManualCleanupByTime_Click(object sender, RoutedEventArgs e)
+        {
+            if (_manualCleanupRunning || Context.RunManualCleanupAsync == null)
+                return;
+            var dialog = new ManualCleanupDialog(ManualCleanupKind.ByTime) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.SelectedOptions == null)
+                return;
+            await RunManualCleanupAsync(dialog.SelectedOptions);
+        }
+
+        private async void BtnManualCleanupBySpace_Click(object sender, RoutedEventArgs e)
+        {
+            if (_manualCleanupRunning || Context.RunManualCleanupAsync == null)
+                return;
+            var dialog = new ManualCleanupDialog(ManualCleanupKind.BySpace) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.SelectedOptions == null)
+                return;
+            await RunManualCleanupAsync(dialog.SelectedOptions);
+        }
+
+        private async Task RunManualCleanupAsync(ManualCleanupOptions options)
+        {
+            if (_manualCleanupRunning
+                || Context.PreviewManualCleanupAsync == null
+                || Context.RunManualCleanupAsync == null)
+            {
+                return;
+            }
+            _manualCleanupRunning = true;
+            UpdateManualCleanupButtons();
+            try
+            {
+                ManualCleanupPreview preview =
+                    await Context.PreviewManualCleanupAsync(options);
+                if (preview.Count <= 0)
+                {
+                    AppDialog.Information(this, "没有符合条件的本地录像需要清理", "录像清理");
+                    return;
+                }
+                if (options.Kind == ManualCleanupKind.BySpace
+                    && options.TargetBytes > 0
+                    && options.TargetBytes > preview.Bytes)
+                {
+                    AppDialog.Warning(
+                        this,
+                        $"输入的空间大于当前可清理总量（约 {FormatManualCleanupBytes(preview.Bytes)}），请调整后再试",
+                        "录像清理");
+                    return;
+                }
+
+                string confirmText =
+                    $"将清理约 {preview.Count} 条本地录像（约 {FormatManualCleanupBytes(preview.Bytes)}）。仅清理电脑本地录像，NAS 中已备份的文件不会受到影响";
+                if (preview.UnarchivedCount > 0)
+                {
+                    confirmText +=
+                        $"\n其中 {preview.UnarchivedCount} 条尚未备份到 NAS，是否需要继续清理会在执行时再次询问";
+                }
+                if (!AppDialog.Confirm(
+                        this,
+                        confirmText,
+                        "录像清理",
+                        AppDialogSeverity.Warning,
+                        confirmText: "开始清理",
+                        cancelText: "取消",
+                        isDangerous: true))
+                {
+                    return;
+                }
+
+                ManualCleanupResult result = await Context.RunManualCleanupAsync(
+                    options,
+                    prompt =>
+                    {
+                        bool confirmed = false;
+                        Dispatcher.Invoke(() =>
+                        {
+                            confirmed = AppDialog.Confirm(
+                                this,
+                                $"有 {prompt.UnarchivedCount} 条录像尚未备份到 NAS，继续清理可能导致录像无法恢复。是否继续清理未备份的本地录像？",
+                                "未备份录像",
+                                AppDialogSeverity.Warning,
+                                confirmText: "继续清理",
+                                cancelText: "取消",
+                                isDangerous: true);
+                        });
+                        return confirmed;
+                    });
+
+                string toast =
+                    $"已清理 {result.CleanedCount} 条本地录像，释放 {FormatManualCleanupBytes(result.CleanedBytes)}";
+                if (result.RepairedCount > 0)
+                    toast += $"，修复 {result.RepairedCount} 条缺失文件记录";
+                if (result.SkippedCount > 0)
+                    toast += $"，跳过 {result.SkippedCount} 条";
+                if (result.UnarchivedRemainingCount > 0)
+                    toast += $"，仍有 {result.UnarchivedRemainingCount} 条未备份录像未处理";
+                Context.ShowToast?.Invoke(toast, ToastSeverity.Information);
+            }
+            catch (Exception ex)
+            {
+                AppDialog.Error(this, ex.Message, "清理失败");
+            }
+            finally
+            {
+                _manualCleanupRunning = false;
+                UpdateManualCleanupButtons();
+            }
+        }
+
+        private void UpdateManualCleanupButtons()
+        {
+            if (BtnManualCleanupByTime == null || BtnManualCleanupBySpace == null)
+                return;
+            BtnManualCleanupByTime.IsEnabled = !_manualCleanupRunning;
+            BtnManualCleanupBySpace.IsEnabled = !_manualCleanupRunning;
+        }
+
+        private static string FormatManualCleanupBytes(long bytes)
+        {
+            if (bytes <= 0)
+                return "0 GB";
+            return $"{bytes / (double)StorageSpacePolicy.BytesPerGiB:F1} GB";
+        }
+
         private string SelectDefaultStoragePathFromDrive()
         {
             var dialog = new DriveSelectionDialog(Config.StorageLocations.Select(location => location.Path))

@@ -320,15 +320,19 @@ namespace ExpressPackingMonitoring.UI
                             StringComparison.OrdinalIgnoreCase);
                         string resolvedPath = PlaybackFileResolver.ResolvePlaybackPath(record);
                         bool missing = !deleted && !storedOnHost && string.IsNullOrWhiteSpace(resolvedPath);
-                        bool archiveWarning = record.ArchiveStatus == VideoArchiveStatus.Conflict
-                            || record.ArchiveStatus == VideoArchiveStatus.Failed
-                            || record.ArchiveStatus == VideoArchiveStatus.NASFull;
+                        bool archiveWarning = record.ArchiveStatus is
+                            VideoArchiveStatus.Conflict
+                            or VideoArchiveStatus.Failed
+                            or VideoArchiveStatus.NASFull
+                            or VideoArchiveStatus.LocalDeleted;
                         string archiveStatusText = record.ArchiveStatus switch
                         {
                             VideoArchiveStatus.Conflict => $"归档冲突：网络端已有不同版本，请检查 {record.ArchivePath}",
                             VideoArchiveStatus.Failed => $"归档失败，等待自动重试：{record.ArchivePath}",
                             VideoArchiveStatus.NASFull => $"归档暂停：NAS 空间不足，请清理 {record.ArchivePath}",
-                            VideoArchiveStatus.LocalDeleted => "已归档（本地副本已清理）",
+                            VideoArchiveStatus.LocalDeleted => record.ArchiveCompletedAt != null
+                                ? "已归档（本地副本已清理）"
+                                : "本地录像已清理，未备份到 NAS",
                             _ => ""
                         };
                         FileInfo? info = (deleted || missing || storedOnHost)

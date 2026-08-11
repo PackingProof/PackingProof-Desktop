@@ -31,6 +31,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private int _diskCleanupRunning;
+        private int _manualCleanupRunning;
         private DateTime _lastFullDiskCleanup = DateTime.MinValue;
         private DateTime _lastNetworkArchiveSpaceWarnAt = DateTime.MinValue;
         private DateTime _lastUnarchivedCleanupWarnAt = DateTime.MinValue;
@@ -42,6 +43,9 @@ namespace ExpressPackingMonitoring.ViewModels
             if (Interlocked.Exchange(ref _diskCleanupRunning, 1) == 1) return;
             try
             {
+                if (Volatile.Read(ref _manualCleanupRunning) != 0)
+                    return; // 手动清理期间暂停自动 GC
+
                 if (IsRecordingWorkstation)
                 {
                     RecordingCacheMaintenanceResult result =
@@ -204,6 +208,74 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Warn("Cleanup", $"Network archive space check failed: {ex.Message}");
             }
+        }
+
+        /// <summary>设置页手动清理预览：按当前配置的全部本地存储位置统计。</summary>
+        public Task<ManualCleanupPreview> PreviewManualCleanupAsync(
+            ManualCleanupOptions options)
+        {
+            if (_db == null)
+            {
+                return Task.FromException<ManualCleanupPreview>(
+                    new InvalidOperationException("数据库不可用，无法清理"));
+            }
+            var service = new ManualCleanupService(_db);
+            IReadOnlyList<string> roots = GetManagedLocalRoots();
+            return Task.Run(() => service.Preview(options, roots));
+        }
+
+        /// <summary>
+        /// 设置页手动清理：两阶段执行（先已备份副本，再按确认清理未备份录像），
+        /// 执行期间暂停自动 GC。
+        /// </summary>
+        public Task<ManualCleanupResult> RunManualCleanupAsync(
+            ManualCleanupOptions options,
+            Func<ManualCleanupPrompt, bool> unarchivedDecider)
+        {
+            if (_db == null)
+            {
+                return Task.FromException<ManualCleanupResult>(
+                    new InvalidOperationException("数据库不可用，无法清理"));
+            }
+            if (Interlocked.CompareExchange(ref _manualCleanupRunning, 1, 0) != 0)
+            {
+                return Task.FromException<ManualCleanupResult>(
+                    new InvalidOperationException("手动清理正在进行，请稍后再试"));
+            }
+
+            var service = new ManualCleanupService(_db);
+            IReadOnlyList<string> roots = GetManagedLocalRoots();
+            return Task.Run(() =>
+            {
+                try
+                {
+                    return service.Run(options, roots, unarchivedDecider);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _manualCleanupRunning, 0);
+                    ForceCheckDiskAndCleanup();
+                }
+            });
+        }
+
+        private IReadOnlyList<string> GetManagedLocalRoots()
+        {
+            var roots = new List<string>();
+            if (Config.StorageLocations == null)
+                return roots;
+            foreach (StorageLocation location in Config.StorageLocations)
+            {
+                if (string.IsNullOrWhiteSpace(location.Path))
+                    continue;
+                string normalized = Path.IsPathRooted(location.Path)
+                    ? location.Path
+                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
+                if (StorageVolumeInfo.IsNetworkPath(normalized))
+                    continue;
+                roots.Add(normalized);
+            }
+            return roots;
         }
 
         /// <summary>

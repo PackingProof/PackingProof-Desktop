@@ -69,6 +69,8 @@ public sealed class SettingsContext
     public Action? ResumeCameraAfterSetupWizard { get; init; }
     public Action<string, ToastSeverity>? ShowToast { get; init; }
     public Func<IProgress<string>, CancellationToken, Task<MkvBatchConversionResult>>? BatchConvertMkvToMp4Async { get; init; }
+    public Func<ManualCleanupOptions, Task<ManualCleanupPreview>>? PreviewManualCleanupAsync { get; init; }
+    public Func<ManualCleanupOptions, Func<ManualCleanupPrompt, bool>, Task<ManualCleanupResult>>? RunManualCleanupAsync { get; init; }
     public ICommand? ResetEncoderDetectCommand { get; init; }
     internal Func<AppConfig, IReadOnlyList<NativeCameraMode>, Task<RecordingProfileRecommendation?>>? DetectRecordingProfileAsync { get; init; }
     public object? ToastSource { get; init; }
@@ -91,6 +93,8 @@ public sealed class SettingsContext
             ShowToast = mainViewModel.ShowToast,
             BatchConvertMkvToMp4Async = (progress, token) =>
                 mainViewModel.BatchConvertMkvToMp4Async(progress, token, forceRetry: true),
+            PreviewManualCleanupAsync = mainViewModel.PreviewManualCleanupAsync,
+            RunManualCleanupAsync = mainViewModel.RunManualCleanupAsync,
             ResetEncoderDetectCommand = mainViewModel.ResetEncoderDetectCommand,
             DetectRecordingProfileAsync = mainViewModel.DetectAndRecommendRecordingProfileAsync,
             ToastSource = mainViewModel
