@@ -157,6 +157,8 @@ namespace ExpressPackingMonitoring.UI
         }
         private string _originalNodeName;
         private bool _isRecording;
+        private CollectionViewSource _localStorageView;
+        private CollectionViewSource _backupStorageView;
         private bool _isLoadingDevices;
         private bool _isSyncingVoiceEngine;
         private bool _isSyncingScannerModes;
@@ -209,6 +211,14 @@ namespace ExpressPackingMonitoring.UI
                 SortStorageLocationsByPriority();
                 RefreshStoragePriorities();
                 UpdateStorageButtonStates();
+                _localStorageView = new CollectionViewSource { Source = Config.StorageLocations };
+                _localStorageView.Filter += LocalStorageView_Filter;
+                StorageDataGrid.ItemsSource = _localStorageView.View;
+                _backupStorageView = new CollectionViewSource { Source = Config.StorageLocations };
+                _backupStorageView.Filter += BackupStorageView_Filter;
+                BackupStorageDataGrid.ItemsSource = _backupStorageView.View;
+                RefreshStorageViews();
+                UpdateBackupStorageButtonStates();
             }
             if (Capabilities.CanConfigureRecordingCache)
             {
@@ -1069,24 +1079,25 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            Config.StorageLocations.Add(new StorageLocation
+            var newLocation = new StorageLocation
             {
                 Path = selectedPath,
                 ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
                 Priority = Config.StorageLocations.Count
-            });
+            };
+            Config.StorageLocations.Add(newLocation);
 
             RefreshStoragePriorities();
-            StorageDataGrid.Items.Refresh();
-            StorageDataGrid.SelectedIndex = Config.StorageLocations.Count - 1;
+            RefreshStorageViews();
+            StorageDataGrid.SelectedItem = newLocation;
             UpdateStorageButtonStates();
         }
 
         private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new StoragePathSelectionDialog(
-                title: "选择网络归档文件夹",
-                hint: "录像先保存在本地主存储，校验成功后再复制到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
+                title: "添加录像备份位置",
+                hint: "录像会异步备份到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
             {
                 Owner = this
             };
@@ -1134,9 +1145,10 @@ namespace ExpressPackingMonitoring.UI
             Config.StorageLocations.Add(location);
 
             RefreshStoragePriorities();
-            StorageDataGrid.Items.Refresh();
-            StorageDataGrid.SelectedIndex = Config.StorageLocations.Count - 1;
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = location;
             UpdateStorageButtonStates();
+            UpdateBackupStorageButtonStates();
         }
 
         private bool _manualCleanupRunning;
@@ -1300,7 +1312,9 @@ namespace ExpressPackingMonitoring.UI
         {
             if (StorageDataGrid.SelectedItem is StorageLocation selected)
             {
-                if (Config.StorageLocations.Count <= 1)
+                int localCount = Config.StorageLocations.Count(
+                    location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                if (localCount <= 1)
                 {
                     AppDialog.Warning(this, "至少需要保留一个存储路径", "警告");
                     return;
@@ -1328,10 +1342,14 @@ namespace ExpressPackingMonitoring.UI
                     int selectedIndex = StorageDataGrid.SelectedIndex;
                     Config.StorageLocations.Remove(selected);
                     RefreshStoragePriorities();
-                    StorageDataGrid.Items.Refresh();
-                    if (Config.StorageLocations.Count > 0)
+                    RefreshStorageViews();
+                    int remainingLocalCount = Config.StorageLocations.Count(
+                        location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                    if (remainingLocalCount > 0)
                     {
-                        StorageDataGrid.SelectedIndex = Math.Min(selectedIndex, Config.StorageLocations.Count - 1);
+                        StorageDataGrid.SelectedIndex = Math.Min(
+                            selectedIndex,
+                            remainingLocalCount - 1);
                     }
                     UpdateStorageButtonStates();
                 }
@@ -1352,7 +1370,7 @@ namespace ExpressPackingMonitoring.UI
             if (sender is FrameworkElement { DataContext: StorageLocation location })
             {
                 location.EffectiveReserveGB = location.EffectiveReserveGB;
-                StorageDataGrid.Items.Refresh();
+                RefreshStorageViews();
             }
         }
 
@@ -1370,15 +1388,22 @@ namespace ExpressPackingMonitoring.UI
         {
             if (StorageDataGrid?.SelectedItem is not StorageLocation selected) return;
 
-            int oldIndex = Config.StorageLocations.IndexOf(selected);
-            int newIndex = oldIndex + direction;
-            if (oldIndex < 0 || newIndex < 0 || newIndex >= Config.StorageLocations.Count) return;
+            var locals = Config.StorageLocations
+                .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                .ToList();
+            int localIndex = locals.IndexOf(selected);
+            int newLocalIndex = localIndex + direction;
+            if (localIndex < 0 || newLocalIndex < 0 || newLocalIndex >= locals.Count) return;
 
-            Config.StorageLocations.RemoveAt(oldIndex);
-            Config.StorageLocations.Insert(newIndex, selected);
+            int from = Config.StorageLocations.IndexOf(selected);
+            int to = Config.StorageLocations.IndexOf(locals[newLocalIndex]);
+            if (from < 0 || to < 0 || from == to) return;
+
+            Config.StorageLocations.RemoveAt(from);
+            Config.StorageLocations.Insert(to, selected);
             RefreshStoragePriorities();
-            StorageDataGrid.Items.Refresh();
-            StorageDataGrid.SelectedIndex = newIndex;
+            RefreshStorageViews();
+            StorageDataGrid.SelectedItem = selected;
             UpdateStorageButtonStates();
         }
 
@@ -1413,11 +1438,77 @@ namespace ExpressPackingMonitoring.UI
 
             bool hasSelection = StorageDataGrid?.SelectedItem is StorageLocation;
             int selectedIndex = StorageDataGrid?.SelectedIndex ?? -1;
-            int count = Config.StorageLocations?.Count ?? 0;
+            int localCount = Config.StorageLocations?
+                .Count(location => !StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
 
             RemoveStorageButton.IsEnabled = hasSelection;
             if (MoveStorageUpButton != null) MoveStorageUpButton.IsEnabled = hasSelection && selectedIndex > 0;
-            if (MoveStorageDownButton != null) MoveStorageDownButton.IsEnabled = hasSelection && selectedIndex >= 0 && selectedIndex < count - 1;
+            if (MoveStorageDownButton != null)
+            {
+                MoveStorageDownButton.IsEnabled =
+                    hasSelection && selectedIndex >= 0 && selectedIndex < localCount - 1;
+            }
+        }
+
+        private void LocalStorageView_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is StorageLocation location
+                && !string.IsNullOrWhiteSpace(location.Path)
+                && !StorageVolumeInfo.IsNetworkPath(location.Path);
+        }
+
+        private void BackupStorageView_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is StorageLocation location
+                && !string.IsNullOrWhiteSpace(location.Path)
+                && StorageVolumeInfo.IsNetworkPath(location.Path);
+        }
+
+        private void RefreshStorageViews()
+        {
+            _localStorageView?.View.Refresh();
+            _backupStorageView?.View.Refresh();
+        }
+
+        private void BackupStorageDataGrid_SelectionChanged(
+            object sender,
+            SelectionChangedEventArgs e)
+        {
+            UpdateBackupStorageButtonStates();
+        }
+
+        private void UpdateBackupStorageButtonStates()
+        {
+            if (BackupRemoveButton == null)
+                return;
+            BackupRemoveButton.IsEnabled =
+                BackupStorageDataGrid?.SelectedItem is StorageLocation;
+        }
+
+        private void BtnRemoveBackupStorage_Click(object sender, RoutedEventArgs e)
+        {
+            if (BackupStorageDataGrid.SelectedItem is not StorageLocation selected)
+            {
+                AppDialog.Warning(this, "请先在列表中选中要移除的行", "提示");
+                return;
+            }
+
+            bool shouldRemove = AppDialog.Confirm(
+                this,
+                $"确定要移除备份位置: {selected.Path} 吗？\n注意：此操作不会删除 NAS 上已备份的文件，程序也不再向该位置备份新录像",
+                "确认移除",
+                AppDialogSeverity.Warning,
+                confirmText: "移除",
+                cancelText: "取消",
+                isDangerous: true);
+            if (!shouldRemove)
+                return;
+
+            Config.StorageLocations.Remove(selected);
+            RefreshStoragePriorities();
+            RefreshStorageViews();
+            BackupStorageDataGrid.SelectedItem = null;
+            UpdateBackupStorageButtonStates();
         }
 
         private async void BtnOk_Click(object sender, RoutedEventArgs e)
