@@ -100,6 +100,73 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void QueryVideoRecords_ReturnsAllMatchingInDescendingOrderAndRespectsDeletedFlag()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            DateTime baseTime = DateTime.Now.AddHours(-3);
+            string firstPath = Path.Combine(tempDirectory, "first.mp4");
+            string secondPath = Path.Combine(tempDirectory, "second.mp4");
+            string deletedPath = Path.Combine(tempDirectory, "deleted.mp4");
+            File.WriteAllBytes(firstPath, new byte[] { 1 });
+            File.WriteAllBytes(secondPath, new byte[] { 2 });
+            File.WriteAllBytes(deletedPath, new byte[] { 3 });
+            database.InsertVideoRecord("ORDER-A", "发货", "", "", firstPath, baseTime.AddMinutes(2));
+            database.InsertVideoRecord("ORDER-B", "发货", "", "", secondPath, baseTime.AddMinutes(1));
+            database.InsertVideoRecord("ORDER-C", "发货", "", "", deletedPath, baseTime.AddMinutes(3));
+            database.MarkVideoDeleted(deletedPath, "容量清理");
+
+            List<VideoRecord> all = database.QueryVideoRecords(
+                null, null, "", includeDeleted: true, VideoSearchMode.ExactOrderIdentifiers);
+            Assert.Equal(new[] { "ORDER-C", "ORDER-A", "ORDER-B" }, all.Select(r => r.OrderId));
+
+            List<VideoRecord> active = database.QueryVideoRecords(
+                null, null, "", includeDeleted: false, VideoSearchMode.ExactOrderIdentifiers);
+            Assert.Equal(new[] { "ORDER-A", "ORDER-B" }, active.Select(r => r.OrderId));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public void QueryVideoRecords_AppliesKeywordAndDateFilterAndMatchesPagedTotal()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            string firstPath = Path.Combine(tempDirectory, "first.mp4");
+            string secondPath = Path.Combine(tempDirectory, "second.mp4");
+            File.WriteAllBytes(firstPath, new byte[] { 1 });
+            File.WriteAllBytes(secondPath, new byte[] { 2 });
+            database.InsertVideoRecord("ORDER-KEY-1", "发货", "", "", firstPath, DateTime.Today.AddHours(8));
+            database.InsertVideoRecord("ORDER-OLD", "发货", "", "", secondPath, DateTime.Today.AddDays(-3).AddHours(8));
+
+            List<VideoRecord> byKeyword = database.QueryVideoRecords(
+                null, null, "KEY", includeDeleted: false, VideoSearchMode.OrderIdentifierContains);
+            Assert.Equal(new[] { "ORDER-KEY-1" }, byKeyword.Select(r => r.OrderId));
+
+            List<VideoRecord> byDate = database.QueryVideoRecords(
+                DateTime.Today.AddDays(-2), DateTime.Today, "", includeDeleted: false, VideoSearchMode.ExactOrderIdentifiers);
+            Assert.Equal(new[] { "ORDER-KEY-1" }, byDate.Select(r => r.OrderId));
+
+            PagedVideoResult paged = database.QueryVideosPaged(
+                null, null, "", 1, 20, includeDeleted: false, VideoSearchMode.ExactOrderIdentifiers);
+            List<VideoRecord> all = database.QueryVideoRecords(
+                null, null, "", includeDeleted: false, VideoSearchMode.ExactOrderIdentifiers);
+            Assert.Equal(paged.Total, all.Count);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void MobileHistory_CountsDeviceDuplicatesAndReturnsDeletedStatuses()
     {
         string tempDirectory = CreateTempDirectory();

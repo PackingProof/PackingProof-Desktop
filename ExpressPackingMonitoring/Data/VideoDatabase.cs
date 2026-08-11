@@ -1514,6 +1514,95 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        private const string VideoRecordSelectColumns = @"
+            SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                   StartTime, EndTime, DurationSeconds, StopReason,
+                   IsDeleted, DeletedAt, DeleteReason,
+                   TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                   SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                   StorageState, RemoteVideoRecordId, SourceDeviceKind ";
+
+        private static (string WhereSql, List<(string Name, object Value)> Parameters) BuildVideoQueryWhere(
+            DateTime? startDate,
+            DateTime? endDate,
+            string keyword,
+            bool includeDeleted,
+            VideoSearchMode searchMode,
+            string sourceType,
+            string deviceId,
+            string sourceDeviceName)
+        {
+            string normalizedKeyword = keyword?.Trim() ?? "";
+            string normalizedSourceType = sourceType?.Trim().ToLowerInvariant() ?? "";
+            string normalizedDeviceId = deviceId?.Trim() ?? "";
+            string normalizedSourceDeviceName = sourceDeviceName?.Trim() ?? "";
+            if (normalizedSourceType.Length == 0 && normalizedDeviceId.Length > 0)
+                normalizedSourceType = "external";
+
+            string whereSql = @"
+                FROM VideoRecords
+                WHERE 1 = 1";
+            var parameters = new List<(string Name, object Value)>();
+
+            if (startDate.HasValue)
+                whereSql += " AND StartTime >= @startDate";
+
+            if (endDate.HasValue)
+                whereSql += " AND StartTime < @endDate";
+
+            if (!includeDeleted)
+                whereSql += " AND IsDeleted = 0";
+
+            if (normalizedSourceType is "pc" or "external")
+            {
+                whereSql += " AND SourceType = @sourceType";
+                parameters.Add(("sourceType", normalizedSourceType));
+            }
+
+            if (normalizedSourceType == "external" && normalizedDeviceId.Length > 0)
+            {
+                whereSql += " AND SourceDeviceId = @deviceId";
+                parameters.Add(("deviceId", normalizedDeviceId));
+            }
+            else if (normalizedSourceType == "external" && normalizedSourceDeviceName.Length > 0)
+            {
+                whereSql += " AND SourceDeviceName = @sourceDeviceName";
+                parameters.Add(("sourceDeviceName", normalizedSourceDeviceName));
+            }
+
+            if (normalizedKeyword.Length > 0)
+            {
+                if (searchMode == VideoSearchMode.ExactOrderIdentifiers)
+                {
+                    whereSql += @" AND (
+                        OrderId = @keyword OR TrackingNumber = @keyword OR SourceOrderId = @keyword)";
+                    parameters.Add(("keyword", normalizedKeyword));
+                }
+                else if (searchMode == VideoSearchMode.OrderIdentifierContains)
+                {
+                    whereSql += @" AND (
+                        OrderId LIKE @keyword OR TrackingNumber LIKE @keyword OR SourceOrderId LIKE @keyword)";
+                    parameters.Add(("keyword", $"%{normalizedKeyword}%"));
+                }
+                else
+                {
+                    whereSql += @" AND (
+                        OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
+                        OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
+                        OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
+                        OR SourceDeviceName LIKE @keyword)";
+                    parameters.Add(("keyword", $"%{normalizedKeyword}%"));
+                }
+            }
+
+            if (startDate.HasValue)
+                parameters.Add(("startDate", startDate.Value.ToString("yyyy-MM-dd 00:00:00")));
+            if (endDate.HasValue)
+                parameters.Add(("endDate", endDate.Value.AddDays(1).ToString("yyyy-MM-dd 00:00:00")));
+
+            return (whereSql, parameters);
+        }
+
         internal PagedVideoResult QueryVideosPaged(
             DateTime? startDate,
             DateTime? endDate,
@@ -1529,108 +1618,27 @@ namespace ExpressPackingMonitoring.Data
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
             int offset = (page - 1) * pageSize;
-            string normalizedKeyword = keyword?.Trim() ?? "";
-            string normalizedSourceType = sourceType?.Trim().ToLowerInvariant() ?? "";
-            string normalizedDeviceId = deviceId?.Trim() ?? "";
-            string normalizedSourceDeviceName = sourceDeviceName?.Trim() ?? "";
-            if (normalizedSourceType.Length == 0 && normalizedDeviceId.Length > 0)
-                normalizedSourceType = "external";
 
             lock (_lock)
             {
+                (string whereSql, List<(string Name, object Value)> parameters) =
+                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, sourceType, deviceId, sourceDeviceName);
+
                 using var countCmd = _connection.CreateCommand();
-                string whereSql = @"
-                    FROM VideoRecords
-                    WHERE 1 = 1";
-
-                if (startDate.HasValue)
-                    whereSql += " AND StartTime >= @startDate";
-
-                if (endDate.HasValue)
-                    whereSql += " AND StartTime < @endDate";
-
-                if (!includeDeleted)
-                    whereSql += " AND IsDeleted = 0";
-
-                if (normalizedSourceType is "pc" or "external")
-                {
-                    whereSql += " AND SourceType = @sourceType";
-                    countCmd.Parameters.AddWithValue("@sourceType", normalizedSourceType);
-                }
-
-                if (normalizedSourceType == "external" && normalizedDeviceId.Length > 0)
-                {
-                    whereSql += " AND SourceDeviceId = @deviceId";
-                    countCmd.Parameters.AddWithValue("@deviceId", normalizedDeviceId);
-                }
-                else if (normalizedSourceType == "external" && normalizedSourceDeviceName.Length > 0)
-                {
-                    whereSql += " AND SourceDeviceName = @sourceDeviceName";
-                    countCmd.Parameters.AddWithValue("@sourceDeviceName", normalizedSourceDeviceName);
-                }
-
-                if (normalizedKeyword.Length > 0)
-                {
-                    if (searchMode == VideoSearchMode.ExactOrderIdentifiers)
-                    {
-                        whereSql += @" AND (
-                            OrderId = @keyword OR TrackingNumber = @keyword OR SourceOrderId = @keyword)";
-                        countCmd.Parameters.AddWithValue("@keyword", normalizedKeyword);
-                    }
-                    else if (searchMode == VideoSearchMode.OrderIdentifierContains)
-                    {
-                        whereSql += @" AND (
-                            OrderId LIKE @keyword OR TrackingNumber LIKE @keyword OR SourceOrderId LIKE @keyword)";
-                        countCmd.Parameters.AddWithValue("@keyword", $"%{normalizedKeyword}%");
-                    }
-                    else
-                    {
-                        whereSql += @" AND (
-                            OrderId LIKE @keyword OR FilePath LIKE @keyword OR TrackingNumber LIKE @keyword
-                            OR SourceOrderId LIKE @keyword OR BuyerMessage LIKE @keyword
-                            OR SellerMemo LIKE @keyword OR ProductInfo LIKE @keyword
-                            OR SourceDeviceName LIKE @keyword)";
-                        countCmd.Parameters.AddWithValue("@keyword", $"%{normalizedKeyword}%");
-                    }
-                }
-
                 countCmd.CommandText = "SELECT COUNT(1) " + whereSql + ";";
-                if (startDate.HasValue)
-                    countCmd.Parameters.AddWithValue("@startDate", startDate.Value.ToString("yyyy-MM-dd 00:00:00"));
-                if (endDate.HasValue)
-                    countCmd.Parameters.AddWithValue("@endDate", endDate.Value.AddDays(1).ToString("yyyy-MM-dd 00:00:00"));
+                foreach ((string name, object value) in parameters)
+                    countCmd.Parameters.AddWithValue("@" + name, value);
                 int total = Convert.ToInt32(countCmd.ExecuteScalar());
 
                 using var cmd = _connection.CreateCommand();
-                cmd.CommandText = @"
-                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
-                           StartTime, EndTime, DurationSeconds, StopReason,
-                           IsDeleted, DeletedAt, DeleteReason,
-                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
-                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
-                           StorageState, RemoteVideoRecordId, SourceDeviceKind "
+                cmd.CommandText = VideoRecordSelectColumns
                     + whereSql + @"
                     ORDER BY StartTime DESC, Id DESC
                     LIMIT @limit OFFSET @offset;";
-                if (startDate.HasValue)
-                    cmd.Parameters.AddWithValue("@startDate", startDate.Value.ToString("yyyy-MM-dd 00:00:00"));
-                if (endDate.HasValue)
-                    cmd.Parameters.AddWithValue("@endDate", endDate.Value.AddDays(1).ToString("yyyy-MM-dd 00:00:00"));
+                foreach ((string name, object value) in parameters)
+                    cmd.Parameters.AddWithValue("@" + name, value);
                 cmd.Parameters.AddWithValue("@limit", pageSize);
                 cmd.Parameters.AddWithValue("@offset", offset);
-                if (normalizedKeyword.Length > 0)
-                {
-                    string keywordParameter = searchMode == VideoSearchMode.ExactOrderIdentifiers
-                        ? normalizedKeyword
-                        : $"%{normalizedKeyword}%";
-                    cmd.Parameters.AddWithValue("@keyword", keywordParameter);
-                }
-                if (normalizedSourceType is "pc" or "external")
-                    cmd.Parameters.AddWithValue("@sourceType", normalizedSourceType);
-                if (normalizedSourceType == "external" && normalizedDeviceId.Length > 0)
-                    cmd.Parameters.AddWithValue("@deviceId", normalizedDeviceId);
-                else if (normalizedSourceType == "external" && normalizedSourceDeviceName.Length > 0)
-                    cmd.Parameters.AddWithValue("@sourceDeviceName", normalizedSourceDeviceName);
 
                 var records = new List<VideoRecord>(pageSize);
                 using var reader = cmd.ExecuteReader();
@@ -1638,6 +1646,36 @@ namespace ExpressPackingMonitoring.Data
                     records.Add(ReadVideoRecord(reader));
 
                 return new PagedVideoResult { Total = total, Records = records };
+            }
+        }
+
+        internal List<VideoRecord> QueryVideoRecords(
+            DateTime? startDate,
+            DateTime? endDate,
+            string keyword,
+            bool includeDeleted,
+            VideoSearchMode searchMode,
+            string sourceType = "",
+            string deviceId = "",
+            string sourceDeviceName = "")
+        {
+            lock (_lock)
+            {
+                (string whereSql, List<(string Name, object Value)> parameters) =
+                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, sourceType, deviceId, sourceDeviceName);
+
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = VideoRecordSelectColumns
+                    + whereSql + @"
+                    ORDER BY StartTime DESC, Id DESC;";
+                foreach ((string name, object value) in parameters)
+                    cmd.Parameters.AddWithValue("@" + name, value);
+
+                var records = new List<VideoRecord>();
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    records.Add(ReadVideoRecord(reader));
+                return records;
             }
         }
 

@@ -45,6 +45,44 @@ public sealed class PlaybackWindowTests
         Assert.DoesNotContain("CalculateAspectFitSize", codeBehind, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PlaybackLayout_HasHideUnavailableToggleAndSecondRowHiddenHint()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml"));
+
+        Assert.Contains("x:Name=\"HideUnavailableButton\"", xaml);
+        Assert.Contains("x:Name=\"HideUnavailableButtonText\"", xaml);
+        Assert.Contains("x:Name=\"HideUnavailableButtonIcon\"", xaml);
+        Assert.Contains("FluentEyeOffIcon", xaml);
+        Assert.Contains("Click=\"HideUnavailableButton_Click\"", xaml);
+        Assert.Contains("Text=\"显示异常记录\"", xaml);
+        Assert.DoesNotContain("HideUnavailableCheckBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ScrollViewer Grid.Row=\"0\"", xaml);
+        Assert.DoesNotContain("仅本次回放生效", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"HiddenHintPanel\"", xaml);
+        Assert.Contains("x:Name=\"HiddenHintText\"", xaml);
+
+        string icons = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "Themes", "FluentIcons.xaml"));
+        Assert.Contains("x:Key=\"FluentEyeIcon\"", icons);
+        Assert.Contains("x:Key=\"FluentEyeOffIcon\"", icons);
+
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        Assert.Contains("_hideUnavailable = true", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("HideUnavailableButton_Click", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("\"FluentEyeOffIcon\"", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("\"FluentEyeIcon\"", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildHiddenHintText_IncludesHiddenCountAndReason()
+    {
+        Assert.Equal("已隐藏 3 条异常记录（文件丢失或已清理）", PlaybackWindow.BuildHiddenHintText(3));
+    }
+
     [Theory]
     [InlineData(3, 3, false, true)]
     [InlineData(2, 3, false, false)]

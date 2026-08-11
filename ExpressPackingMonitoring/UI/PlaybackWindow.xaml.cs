@@ -73,6 +73,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly string _folderPath;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
+        private bool _hideUnavailable = true;
         private readonly VideoFolderImportService? _videoImportService;
         private readonly Action<string>? _saveImportFolder;
         private readonly Action? _videosImported;
@@ -130,6 +131,7 @@ namespace ExpressPackingMonitoring.UI
             BtnTogglePlay.IsEnabled = false;
             TimelineSlider.IsEnabled = false;
             TimeLabel.Text = "正在加载列表...";
+            UpdateHideUnavailableButtonText();
             Loaded += PlaybackWindow_Loaded;
             BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
@@ -204,6 +206,34 @@ namespace ExpressPackingMonitoring.UI
             SearchBox.Text = "";
         }
 
+        private void HideUnavailableButton_Click(object sender, RoutedEventArgs e)
+        {
+            _hideUnavailable = !_hideUnavailable;
+            UpdateHideUnavailableButtonText();
+            RequestVideoLoad(1);
+        }
+
+        private void UpdateHideUnavailableButtonText()
+        {
+            if (HideUnavailableButtonText != null)
+                HideUnavailableButtonText.Text = _hideUnavailable ? "显示异常记录" : "隐藏异常记录";
+            if (HideUnavailableButtonIcon != null)
+                HideUnavailableButtonIcon.Data = (Geometry)FindResource(
+                    _hideUnavailable ? "FluentEyeOffIcon" : "FluentEyeIcon");
+        }
+
+        internal static string BuildHiddenHintText(int hiddenCount) =>
+            $"已隐藏 {hiddenCount} 条异常记录（文件丢失或已清理）";
+
+        private void UpdateHiddenHint(int hiddenCount)
+        {
+            bool show = _hideUnavailable && hiddenCount > 0;
+            if (HiddenHintPanel != null)
+                HiddenHintPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (HiddenHintText != null)
+                HiddenHintText.Text = BuildHiddenHintText(hiddenCount);
+        }
+
         private void RequestVideoLoad(int? requestedPage = null)
         {
             if (!IsLoaded || _isClosing)
@@ -233,7 +263,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _pendingVideoLoad = null;
                     int requestVersion = _videoLoadRequestVersion;
-                    (List<VideoItem> Items, int Total) result;
+                    (List<VideoItem> Items, int Total, int HiddenCount) result;
                     try
                     {
                         result = await Task.Run(() =>
@@ -262,6 +292,7 @@ namespace ExpressPackingMonitoring.UI
                         _totalVideos = 0;
                         _currentPage = 1;
                         ShowCurrentPage();
+                        UpdateHiddenHint(0);
                         AppDialog.Error(this, $"加载回放列表失败：{ex.Message}", "回放错误");
                         continue;
                     }
@@ -269,6 +300,7 @@ namespace ExpressPackingMonitoring.UI
                     _allVideos = result.Items;
                     _totalVideos = result.Total;
                     ShowCurrentPage();
+                    UpdateHiddenHint(result.HiddenCount);
                 }
             }
             finally
@@ -281,13 +313,22 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private (List<VideoItem> Items, int Total) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
+        private (List<VideoItem> Items, int Total, int HiddenCount) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
         {
             var videos = new List<VideoItem>();
+            int hiddenCount = 0;
             if (_db != null)
             {
                 try
                 {
+                    if (_hideUnavailable)
+                    {
+                        hiddenCount = LoadAllVideoItems(start, end, keyword, videos);
+                        videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
+                        int total = videos.Count;
+                        return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), total, hiddenCount);
+                    }
+
                     var result = _db.QueryVideosPaged(
                         start,
                         end,
@@ -308,46 +349,12 @@ namespace ExpressPackingMonitoring.UI
                             searchMode: VideoSearchMode.OrderIdentifierContains);
                     }
                     foreach (var record in result.Records)
-                    {
-                        bool deleted = record.IsDeleted;
-                        bool storedOnHost = string.Equals(
-                            record.StorageState,
-                            "Remote",
-                            StringComparison.OrdinalIgnoreCase);
-                        bool missing = !deleted && !storedOnHost && !File.Exists(record.FilePath);
-                        FileInfo? info = (deleted || missing || storedOnHost)
-                            ? null
-                            : new FileInfo(record.FilePath);
-                        videos.Add(new VideoItem
-                        {
-                            DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
-                            FullPath = record.FilePath,
-                            OrderId = record.OrderId,
-                            Mode = record.Mode,
-                            Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
-                            FileSize = (deleted || missing || storedOnHost)
-                                ? FormatFileSize(record.FileSizeBytes)
-                                : FormatFileSize(info!.Length),
-                            StopReason = GetStopReasonDisplay(record.SourceType, record.StopReason),
-                            VideoCodec = record.VideoCodec,
-                            VideoEncoder = record.VideoEncoder,
-                            SourceDisplay = GetSourceDisplay(
-                                record.SourceType,
-                                record.SourceDeviceId,
-                                record.SourceDeviceName,
-                                record.SourceDeviceKind),
-                            IsStoredOnHost = storedOnHost,
-                            IsMissing = missing,
-                            IsDeleted = deleted,
-                            DeleteReason = record.DeleteReason,
-                            DeletedAt = record.DeletedAt,
-                            File = info
-                        });
-                    }
-                    return (videos, result.Total);
+                        videos.Add(CreateVideoItem(record));
+                    return (videos, result.Total, 0);
                 }
                 catch
                 {
+                    videos = new List<VideoItem>();
                     LoadVideosFromFileSystem(videos, start, end);
                 }
             }
@@ -356,8 +363,16 @@ namespace ExpressPackingMonitoring.UI
                 LoadVideosFromFileSystem(videos, start, end);
             }
 
-            if (!_showDeletedVideos)
+            if (_hideUnavailable)
+            {
+                int before = videos.Count;
                 videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
+                hiddenCount = before - videos.Count;
+            }
+            else if (!_showDeletedVideos)
+            {
+                videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
+            }
             if (!string.IsNullOrWhiteSpace(keyword))
             {
                 string normalized = keyword.Trim();
@@ -365,8 +380,76 @@ namespace ExpressPackingMonitoring.UI
                     v.DisplayName.Contains(normalized, StringComparison.OrdinalIgnoreCase) ||
                     (v.OrderId?.Contains(normalized, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
             }
-            int total = videos.Count;
-            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), total);
+            int totalVisible = videos.Count;
+            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), totalVisible, hiddenCount);
+        }
+
+        private int LoadAllVideoItems(DateTime? start, DateTime? end, string? keyword, List<VideoItem> videos)
+        {
+            string searchKeyword = keyword?.Trim() ?? "";
+            var records = _db!.QueryVideoRecords(
+                start,
+                end,
+                searchKeyword,
+                includeDeleted: true,
+                searchMode: VideoSearchMode.ExactOrderIdentifiers);
+            if (records.Count == 0 && searchKeyword.Length > 0)
+            {
+                records = _db.QueryVideoRecords(
+                    start,
+                    end,
+                    searchKeyword,
+                    includeDeleted: true,
+                    searchMode: VideoSearchMode.OrderIdentifierContains);
+            }
+
+            int hidden = 0;
+            foreach (var record in records)
+            {
+                VideoItem item = CreateVideoItem(record);
+                videos.Add(item);
+                if (item.IsDeleted || item.IsMissing)
+                    hidden++;
+            }
+            return hidden;
+        }
+
+        private static VideoItem CreateVideoItem(VideoRecord record)
+        {
+            bool deleted = record.IsDeleted;
+            bool storedOnHost = string.Equals(
+                record.StorageState,
+                "Remote",
+                StringComparison.OrdinalIgnoreCase);
+            bool missing = !deleted && !storedOnHost && !File.Exists(record.FilePath);
+            FileInfo? info = (deleted || missing || storedOnHost)
+                ? null
+                : new FileInfo(record.FilePath);
+            return new VideoItem
+            {
+                DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
+                FullPath = record.FilePath,
+                OrderId = record.OrderId,
+                Mode = record.Mode,
+                Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
+                FileSize = (deleted || missing || storedOnHost)
+                    ? FormatFileSize(record.FileSizeBytes)
+                    : FormatFileSize(info!.Length),
+                StopReason = GetStopReasonDisplay(record.SourceType, record.StopReason),
+                VideoCodec = record.VideoCodec,
+                VideoEncoder = record.VideoEncoder,
+                SourceDisplay = GetSourceDisplay(
+                    record.SourceType,
+                    record.SourceDeviceId,
+                    record.SourceDeviceName,
+                    record.SourceDeviceKind),
+                IsStoredOnHost = storedOnHost,
+                IsMissing = missing,
+                IsDeleted = deleted,
+                DeleteReason = record.DeleteReason,
+                DeletedAt = record.DeletedAt,
+                File = info
+            };
         }
 
         private void LoadVideosFromFileSystem(List<VideoItem> videos, DateTime? start, DateTime? end)

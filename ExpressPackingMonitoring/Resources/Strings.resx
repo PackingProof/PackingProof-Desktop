@@ -903,4 +903,5 @@
   <data name="3 次（更稳）" xml:space="preserve"><value>3 hits (more stable)</value></data>
   <data name="4 次（最稳）" xml:space="preserve"><value>4 hits (most stable)</value></data>
   <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>Real-time follows the camera frame rate for the fastest response; keep the default on regular computers</value></data>
+  <data name="显示异常记录" xml:space="preserve"><value>Show unavailable recordings</value></data>
 </root>

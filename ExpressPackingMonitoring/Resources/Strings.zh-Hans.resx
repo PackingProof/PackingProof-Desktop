@@ -903,4 +903,5 @@
   <data name="3 次（更稳）" xml:space="preserve"><value>3 次（更稳）</value></data>
   <data name="4 次（最稳）" xml:space="preserve"><value>4 次（最稳）</value></data>
   <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可</value></data>
+  <data name="显示异常记录" xml:space="preserve"><value>显示异常记录</value></data>
 </root>
