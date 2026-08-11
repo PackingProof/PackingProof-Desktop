@@ -17,7 +17,7 @@ $requiredCoreTests = @(
     "CameraLifecycleTests.CameraFrameReadySignal_RecordingStartTimesOutWithoutFrame",
     "CameraBarcodeRecognitionTests.StabilityTracker_FirstReappearanceAfterRearmDelayUnlocksSameCode",
     "CameraBarcodeRecognitionTests.StabilityTracker_TwoHitsWithinWindowConfirmOnce",
-    "CameraBarcodeRecognitionTests.StabilityTracker_StartConfirmationRestartsAfterMissedDetection",
+    "CameraBarcodeRecognitionTests.StabilityTracker_MissedDetectionDoesNotResetConfirmationCount",
     "CameraBarcodeRecognitionTests.StabilityTracker_IntermittentWindowConfirmsOnThirdHit",
     "CameraBarcodeRecognitionTests.StabilityTracker_IntermittentWindowKeepsHitsAcrossMissedDetections",
     "CameraBarcodeRecognitionTests.StabilityTracker_IntermittentWindowRestartsAfterWindowExpires",
