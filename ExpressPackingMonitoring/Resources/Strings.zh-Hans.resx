@@ -905,6 +905,7 @@
   <data name="实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可" xml:space="preserve"><value>实时识别跟随摄像头帧率，响应最快；普通电脑保持默认即可</value></data>
   <data name="录像备份位置" xml:space="preserve"><value>录像备份位置</value></data>
   <data name="录像备份" xml:space="preserve"><value>录像备份</value></data>
+  <data name="录像文件备份主机 · 集中保存手机/电脑上传的录像，并提供局域网回放和订单联动" xml:space="preserve"><value>录像文件备份主机 · 集中保存手机/电脑上传的录像，并提供局域网回放和订单联动</value></data>
   <data name="添加网络位置" xml:space="preserve"><value>添加网络位置</value></data>
   <data name="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除" xml:space="preserve"><value>录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除</value></data>
   <data name="本地磁盘直接保存录像，空间不足时按保护期自动循环清理" xml:space="preserve"><value>本地磁盘直接保存录像，空间不足时按保护期自动循环清理</value></data>

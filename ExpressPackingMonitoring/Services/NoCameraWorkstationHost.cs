@@ -34,6 +34,25 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     public bool IsLanAvailable { get; private set; }
     public string StoragePath { get; private set; } = "";
     public string LocalPlaybackUrl { get; private set; } = "";
+
+    /// <summary>备份主机窗口的“录像备份”卡片状态：是否可见 + 短状态/详情。</summary>
+    internal (bool IsVisible, ArchiveBackupCardState State) GetArchiveBackupCardState()
+    {
+        bool visible = ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
+            _config,
+            isRecordingWorkstation: false);
+        if (!visible || _database == null)
+            return (false, new ArchiveBackupCardState("", ""));
+
+        ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
+        ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            summary.PendingCount,
+            summary.UploadingCount,
+            summary.FailedCount,
+            summary.NasFullCount,
+            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(_config));
+        return (true, state);
+    }
     public string LanAccessUrl { get; private set; } = "";
     public string ErrorMessage { get; private set; } = "";
     public VideoDatabase Database =>

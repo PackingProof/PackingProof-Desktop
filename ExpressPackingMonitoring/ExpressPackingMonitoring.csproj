@@ -127,6 +127,7 @@
     <Compile Include="Services\UninstallCleanupService.cs" />
     <Compile Include="Services\AlertService.cs" />
     <Compile Include="Services\ArchiveService.cs" />
+    <Compile Include="Services\ArchiveBackupCardModel.cs" />
     <Compile Include="Services\ArchivePathBuilder.cs" />
     <Compile Include="Services\ArchiveWorkerOptions.cs" />
     <Compile Include="Services\AutoStartService.cs" />
@@ -163,6 +164,7 @@
     <Compile Include="Services\CompletedVideoSpecificationProbe.cs" />
     <Compile Include="Services\TrayIconService.cs" />
     <Compile Include="Services\UserscriptGuideNavigation.cs" />
+    <Compile Include="Services\UserscriptStatusCardModel.cs" />
     <Compile Include="Services\UserscriptTargetState.cs" />
     <Compile Include="Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="Services\ShortLivedSnapshotCache.cs" />
@@ -204,6 +206,7 @@
     <Compile Include="UI\SettingsContext.cs" />
     <Compile Include="UI\StatisticsWindow.xaml.cs" />
     <Compile Include="UI\StoragePathSelectionDialog.xaml.cs" />
+    <Compile Include="UI\Controls\StatusCard.xaml.cs" />
     <Compile Include="UI\UpdateAvailableDialog.xaml.cs" />
     <Compile Include="Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="Workstations\WorkstationInstanceCoordinator.cs" />

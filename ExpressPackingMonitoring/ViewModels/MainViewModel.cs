@@ -3138,14 +3138,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 MonitorAccessAddress,
                 includeKnown: true) ?? [];
             UserscriptTargetStatus status = UserscriptTargetState.GetStatus(Config, devices);
-            UserscriptSetupStatusText = AppLanguage.Get(status.StatusText);
-            string shortStatus = status.StatusText switch
-            {
-                "订单联动已就绪" => "已就绪",
-                "需要更新订单联动" => "需更新",
-                "暂无订单接收设备" => "暂无设备",
-                _ => "未配置"
-            };
+            (string shortStatus, string detailText) =
+                UserscriptStatusCardModel.GetCardTexts(status);
+            UserscriptSetupStatusText = AppLanguage.Get(detailText);
             UserscriptSetupShortStatusText = AppLanguage.Get(shortStatus);
             UserscriptButtonText = AppLanguage.Get(status.ButtonText);
         }

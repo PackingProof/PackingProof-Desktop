@@ -623,6 +623,11 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.cs");
+        string statusCard = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "Controls",
+            "StatusCard.xaml");
 
         Assert.Contains(
             "x:Name=\"RecordingWorkstationCompactStatus\"",
@@ -668,15 +673,15 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"",
+            "DetailText=\"{Binding BoundHostNameDisplay, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding BoundHostOnlineStatusText, Mode=OneWay}\"",
+            "ShortStatusText=\"{Binding BoundHostOnlineStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding RecordingTransferShortStatusText, Mode=OneWay}\"",
+            "ShortStatusText=\"{Binding RecordingTransferShortStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -684,7 +689,7 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding RecordingTransferStatusText, Mode=OneWay}\"",
+            "DetailText=\"{Binding RecordingTransferStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -716,11 +721,11 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("Command=\"{Binding ChangeBoundHostCommand", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Command=\"{Binding OpenBoundHostCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding OrderIntegrationStatusText, Mode=OneWay}\"",
+            "DetailText=\"{Binding OrderIntegrationStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Text=\"{Binding UserscriptSetupShortStatusText, Mode=OneWay}\"",
+            "ShortStatusText=\"{Binding UserscriptSetupShortStatusText, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -728,7 +733,7 @@ public sealed class DeploymentStartupTests
             mainWindow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+            "DeviceItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
             mainWindow,
             StringComparison.Ordinal);
         int backupCard = mainWindow.IndexOf(
@@ -740,18 +745,18 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         string backupCardMarkup = mainWindow[backupCard..backupCardEnd];
         Assert.Matches(
-            "Grid\\.Column=\"2\"\\s+Text=\"\\{Binding WorkstationPrintStatusText, Mode=OneWay\\}\"",
+            "ShortStatusText=\"\\{Binding WorkstationPrintStatusText, Mode=OneWay\\}\"",
             backupCardMarkup);
         Assert.True(
             backupCardMarkup.IndexOf(
-                "Text=\"{Binding WorkstationPrintStatusText, Mode=OneWay}\"",
+                "ShortStatusText=\"{Binding WorkstationPrintStatusText, Mode=OneWay}\"",
                 StringComparison.Ordinal)
             < backupCardMarkup.IndexOf(
-                "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+                "DeviceItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
                 StringComparison.Ordinal));
-        Assert.Contains("Value=\"已就绪\"", backupCardMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"启动中\"", backupCardMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"启动失败\"", backupCardMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已就绪\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"启动中\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"启动失败\"", statusCard, StringComparison.Ordinal);
         Assert.Contains("_workstationPrintStatusText = \"未连接\"", mainSource, StringComparison.Ordinal);
         Assert.Contains(": \"启动中\";", mainSource, StringComparison.Ordinal);
         Assert.Contains(": \"启动失败\";", mainSource, StringComparison.Ordinal);
@@ -807,31 +812,31 @@ public sealed class DeploymentStartupTests
         Assert.Contains("FontSize=\"18\"", nicknameMarkup, StringComparison.Ordinal);
         Assert.Contains("FontWeight=\"Black\"", nicknameMarkup, StringComparison.Ordinal);
         Assert.Contains("<ColumnDefinition Width=\"Auto\"/>", nicknameMarkup, StringComparison.Ordinal);
-        Assert.Contains("Data=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("Text=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("CardIcon=\"{StaticResource FluentPrinterIcon}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("CardTitle=\"手机/电脑备份\"", mainWindow, StringComparison.Ordinal);
         string orderMarkup = mainWindow[orderCard..existingButtons];
         string hostMarkup = mainWindow[hostCard..uploadCard];
         string uploadMarkup = mainWindow[uploadCard..orderCard];
-        Assert.Contains("Value=\"检查中\"", hostMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"在线\"", hostMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"离线\"", hostMarkup, StringComparison.Ordinal);
-        Assert.Contains("DynamicResource AccentBlue", hostMarkup, StringComparison.Ordinal);
-        Assert.Contains("DynamicResource AccentGreen", hostMarkup, StringComparison.Ordinal);
-        Assert.Contains("DynamicResource AccentOrange", hostMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"检查中\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"在线\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"离线\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentBlue", statusCard, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentGreen", statusCard, StringComparison.Ordinal);
+        Assert.Contains("DynamicResource AccentOrange", statusCard, StringComparison.Ordinal);
         Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"上传中\"", uploadMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"已完成\"", uploadMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"待上传\"", uploadMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"上传失败\"", uploadMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"上传中\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已完成\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"待上传\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"上传失败\"", statusCard, StringComparison.Ordinal);
         Assert.DoesNotContain("PendingRecordingTransferCount, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
-        Assert.Equal(2, hostMarkup.Split("FontSize=\"11\"", StringSplitOptions.None).Length - 1);
-        Assert.Equal(2, uploadMarkup.Split("FontSize=\"11\"", StringSplitOptions.None).Length - 1);
-        Assert.Contains("Text=\"订单联动\"", orderMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"已就绪\"", orderMarkup, StringComparison.Ordinal);
-        Assert.Contains("Value=\"需更新\"", orderMarkup, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"11\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"12\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("CardTitle=\"订单联动\"", orderMarkup, StringComparison.Ordinal);
+        Assert.Contains("Value=\"已就绪\"", statusCard, StringComparison.Ordinal);
+        Assert.Contains("Value=\"需更新\"", statusCard, StringComparison.Ordinal);
         Match orderRows = Regex.Match(
-            orderMarkup,
+            statusCard,
             "<Grid.RowDefinitions>(?<rows>[\\s\\S]*?)</Grid.RowDefinitions>");
         Assert.True(orderRows.Success);
         Assert.Equal(
@@ -1538,7 +1543,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("public void OpenUserscriptGuide()", source, StringComparison.Ordinal);
         Assert.Contains("UserscriptGuideNavigation.TryOpen", source, StringComparison.Ordinal);
         Assert.Contains(
-            "ItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
+            "DeviceItemsSource=\"{Binding MobileBackupDeviceStatuses, Mode=OneWay}\"",
             xaml,
             StringComparison.Ordinal);
         Assert.Contains(

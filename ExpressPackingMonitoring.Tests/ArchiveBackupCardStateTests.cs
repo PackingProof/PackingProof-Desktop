@@ -1,5 +1,5 @@
 using ExpressPackingMonitoring.Config;
-using ExpressPackingMonitoring.ViewModels;
+using ExpressPackingMonitoring.Services;
 using System.Collections.Generic;
 using Xunit;
 
@@ -10,7 +10,7 @@ public sealed class ArchiveBackupCardStateTests
     [Fact]
     public void BuildArchiveBackupCardState_PrecedenceAndTexts()
     {
-        ArchiveBackupCardState uploading = MainViewModel.BuildArchiveBackupCardState(
+        ArchiveBackupCardState uploading = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             pendingCount: 1,
             uploadingCount: 2,
             failedCount: 1,
@@ -19,7 +19,7 @@ public sealed class ArchiveBackupCardStateTests
         Assert.Equal("备份中", uploading.ShortStatusText);
         Assert.Contains("共 5 个待备份", uploading.DetailText);
 
-        ArchiveBackupCardState failed = MainViewModel.BuildArchiveBackupCardState(
+        ArchiveBackupCardState failed = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             1,
             0,
             2,
@@ -28,7 +28,7 @@ public sealed class ArchiveBackupCardStateTests
         Assert.Equal("备份失败", failed.ShortStatusText);
         Assert.Contains("等待重试", failed.DetailText);
 
-        ArchiveBackupCardState paused = MainViewModel.BuildArchiveBackupCardState(
+        ArchiveBackupCardState paused = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             1,
             0,
             0,
@@ -37,7 +37,7 @@ public sealed class ArchiveBackupCardStateTests
         Assert.Equal("备份暂停", paused.ShortStatusText);
         Assert.Contains("等待空间恢复", paused.DetailText);
 
-        ArchiveBackupCardState pending = MainViewModel.BuildArchiveBackupCardState(
+        ArchiveBackupCardState pending = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             4,
             0,
             0,
@@ -46,7 +46,7 @@ public sealed class ArchiveBackupCardStateTests
         Assert.Equal("待备份", pending.ShortStatusText);
         Assert.Contains("4 个录像等待备份到 NAS", pending.DetailText);
 
-        ArchiveBackupCardState synced = MainViewModel.BuildArchiveBackupCardState(
+        ArchiveBackupCardState synced = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             0,
             0,
             0,
@@ -63,14 +63,14 @@ public sealed class ArchiveBackupCardStateTests
     {
         Assert.Equal(
             @"\\192.168.1.100",
-            MainViewModel.CompactArchiveTarget(
+            ArchiveBackupCardModel.CompactArchiveTarget(
                 @"\\192.168.1.100\NASSim\快递打包视频"));
         Assert.Equal(
             @"\\nas",
-            MainViewModel.CompactArchiveTarget(@"\\nas\share"));
+            ArchiveBackupCardModel.CompactArchiveTarget(@"\\nas\share"));
         Assert.Equal(
             @"D:\local\path",
-            MainViewModel.CompactArchiveTarget(@"D:\local\path"));
+            ArchiveBackupCardModel.CompactArchiveTarget(@"D:\local\path"));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class ArchiveBackupCardStateTests
             StorageLocations = new List<StorageLocation>()
         };
 
-        Assert.False(MainViewModel.ShouldShowArchiveBackupCard(
+        Assert.False(ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
             config,
             isRecordingWorkstation: false));
 
@@ -90,10 +90,10 @@ public sealed class ArchiveBackupCardStateTests
             Path = @"\\nas\share",
             Priority = 0
         });
-        Assert.True(MainViewModel.ShouldShowArchiveBackupCard(
+        Assert.True(ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
             config,
             isRecordingWorkstation: false));
-        Assert.False(MainViewModel.ShouldShowArchiveBackupCard(
+        Assert.False(ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
             config,
             isRecordingWorkstation: true));
     }

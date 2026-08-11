@@ -99,7 +99,12 @@ public partial class PrintWorkstationWindow : Window
             RequestExitFromTray,
             enableCloseBehaviorPrompt);
         _deviceRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-        _deviceRefreshTimer.Tick += (_, _) => RefreshDeviceSummary();
+        _deviceRefreshTimer.Tick += (_, _) =>
+        {
+            RefreshDeviceSummary();
+            RefreshArchiveBackupSummary();
+            UpdateHeaderIdentity();
+        };
         _toastTimer = new DispatcherTimer();
         _toastTimer.Tick += (_, _) =>
         {
@@ -188,6 +193,8 @@ public partial class PrintWorkstationWindow : Window
     private void RefreshServiceDisplay()
     {
         RefreshDeviceSummary();
+        RefreshArchiveBackupSummary();
+        UpdateHeaderIdentity();
         if (_host.IsLanAvailable)
         {
             SetStatus("设备备份服务已启动", "手机或其他录制电脑可将录像备份到本机，本机和局域网设备均可回放", StatusVisual.Success);
@@ -216,27 +223,15 @@ public partial class PrintWorkstationWindow : Window
 
     private void SetStatus(string title, string _, StatusVisual visual = StatusVisual.Neutral)
     {
-        StatusTextBlock.Text = GetHostName();
-        StatusHintTextBlock.Text = title;
-
-        string iconKey = visual switch
+        MobileBackupStatusCard.ShortStatusText = visual switch
         {
-            StatusVisual.Success => "FluentDatabaseIcon",
-            StatusVisual.Warning => "FluentWarningIcon",
-            StatusVisual.Error => "FluentDismissIcon",
-            _ => "FluentDatabaseIcon"
+            StatusVisual.Success => "已就绪",
+            StatusVisual.Error
+                when title.Contains("仅本机可用", StringComparison.Ordinal) => "仅本机",
+            StatusVisual.Error => "启动失败",
+            _ => "启动中"
         };
-        string brushKey = visual switch
-        {
-            StatusVisual.Success => "AccentGreen",
-            StatusVisual.Warning => "AccentOrange",
-            StatusVisual.Error => "AccentRed",
-            _ => "AccentBlue"
-        };
-        if (TryFindResource(iconKey) is Geometry icon)
-            StatusIconPath.Data = icon;
-        if (TryFindResource(brushKey) is Brush brush)
-            StatusIconPath.Fill = brush;
+        MobileBackupStatusCard.ShortStatusToolTip = title;
     }
 
     private void ShowToast(string message, ToastSeverity severity = ToastSeverity.Success)
@@ -360,7 +355,10 @@ public partial class PrintWorkstationWindow : Window
         UserscriptTargetStatus userscriptStatus = UserscriptTargetState.GetStatus(
             _config,
             _host.GetRecordingDevices(includeKnown: true));
-        UserscriptStatusTextBlock.Text = userscriptStatus.StatusText;
+        (string shortStatus, string detailText) =
+            UserscriptStatusCardModel.GetCardTexts(userscriptStatus);
+        UserscriptStatusCard.ShortStatusText = AppLanguage.Get(shortStatus);
+        UserscriptStatusCard.DetailText = AppLanguage.Get(detailText);
         InstallUserscriptButtonText.Text = AppLanguage.Get(userscriptStatus.ButtonText);
         InstallUserscriptButton.IsEnabled = userscriptStatus.CurrentSignature.Length > 0;
 
@@ -384,6 +382,37 @@ public partial class PrintWorkstationWindow : Window
 
         TodayBackupCountTextBlock.Text = overview.TodayCount.ToString();
         TotalBackupCountTextBlock.Text = overview.TotalCount.ToString();
+    }
+
+    private void UpdateHeaderIdentity()
+    {
+        HeaderComputerNameText.Text = GetHostName();
+        string address = _host.IsLanAvailable
+            ? _host.LanAccessUrl
+            : _host.LocalPlaybackUrl;
+        HeaderComputerIpText.Text = ExtractHostFromUrl(address);
+    }
+
+    private static string ExtractHostFromUrl(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+            return "";
+        if (Uri.TryCreate(address, UriKind.Absolute, out Uri? uri))
+            return uri?.Host ?? "";
+        int separator = address.LastIndexOf(':');
+        return separator > 0 ? address[..separator] : address;
+    }
+
+    private void RefreshArchiveBackupSummary()
+    {
+        (bool isVisible, ArchiveBackupCardState state) = _host.GetArchiveBackupCardState();
+        ArchiveBackupStatusCard.Visibility = isVisible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        if (!isVisible)
+            return;
+        ArchiveBackupStatusCard.ShortStatusText = state.ShortStatusText;
+        ArchiveBackupStatusCard.DetailText = state.DetailText;
     }
 
     internal static IReadOnlyList<MobileBackupStatusItem> BuildMobileBackupStatuses(

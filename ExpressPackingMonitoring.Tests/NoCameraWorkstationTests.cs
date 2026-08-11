@@ -58,8 +58,10 @@ public sealed class NoCameraWorkstationTests
         Assert.DoesNotContain("手机备份主机", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("集中保存手机录像", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"HostIdentityTextBlock\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("StatusTextBlock.Text = GetHostName();", source, StringComparison.Ordinal);
-        Assert.Contains("StatusHintTextBlock.Text = title;", source, StringComparison.Ordinal);
+        Assert.Contains("HeaderComputerNameText.Text = GetHostName();", source, StringComparison.Ordinal);
+        Assert.Contains("MobileBackupStatusCard.ShortStatusText = visual switch", source, StringComparison.Ordinal);
+        Assert.Contains("\"已就绪\"", source, StringComparison.Ordinal);
+        Assert.Contains("\"启动失败\"", source, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"TodayBackupCountTextBlock\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"TotalBackupCountTextBlock\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"LanAddressTextBlock\"", xaml, StringComparison.Ordinal);
