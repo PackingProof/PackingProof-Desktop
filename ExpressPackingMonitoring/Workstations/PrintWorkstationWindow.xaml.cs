@@ -280,7 +280,27 @@ public partial class PrintWorkstationWindow : Window
             return;
         }
 
-        _playbackWindow = new PlaybackWindow(_host.StoragePath, _host.Database, showDeletedVideos: true)
+        VideoFolderImportService? importService = _host.HasDatabase && !string.IsNullOrWhiteSpace(_host.StoragePath)
+            ? new VideoFolderImportService(
+                _host.Database,
+                [_host.StoragePath],
+                _config.NodeId,
+                _config.NodeName)
+            : null;
+        _playbackWindow = new PlaybackWindow(
+            _host.StoragePath,
+            _host.Database,
+            showDeletedVideos: true,
+            importService,
+            lastImportFolder: _config.LastVideoImportFolder,
+            saveImportFolder: path =>
+            {
+                _config.LastVideoImportFolder = path;
+                WorkstationConfigStore.TryUpdate(
+                    config => config.LastVideoImportFolder = path,
+                    out _,
+                    out _);
+            })
         {
             Owner = this
         };

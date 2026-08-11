@@ -158,6 +158,8 @@ internal static class BarcodeRecordingDecisionPolicy
 
     private static bool IsOrderScan(string value, string? orderIdRegex)
     {
+        if (!CameraBarcodeCandidatePolicy.IsValidPattern(orderIdRegex))
+            return true;
         try { return Regex.IsMatch(value, orderIdRegex ?? ""); }
         catch { return true; }
     }
@@ -206,7 +208,19 @@ internal static class CameraBarcodeCandidatePolicy
         if (normalized.Contains("START") || normalized.Contains("开始录制")) return false;
         if (normalized.Contains("STOP") || normalized.Contains("停止录制")) return false;
 
+        if (!IsValidPattern(orderIdRegex))
+            return true;
         try { return Regex.IsMatch(normalized, orderIdRegex ?? ""); }
+        catch { return true; }
+    }
+
+    /// 正则表达式是否可编译；空表示不限制，视为可解析。
+    public static bool IsValidPattern(string? orderIdRegex)
+    {
+        string pattern = (orderIdRegex ?? "").Trim();
+        if (pattern.Length == 0)
+            return true;
+        try { _ = new Regex(pattern); return true; }
         catch { return false; }
     }
 
@@ -311,13 +325,12 @@ internal sealed class CameraBarcodeStabilityTracker
         string normalized = (code ?? "").Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
-            if (_candidateRequiredHits == 2)
-                ClearCandidate();
-            else
-                ExpireCandidate(now);
+            // 空帧（没识别到条码）不重置计数，只按确认时间窗口过期才清空候选；
+            // 候选仍存活时保持续扫，保证条码短暂离开后重新出现能继续累计。
+            ExpireCandidate(now);
             return new CameraBarcodeObservation(
                 _candidateCode,
-                KeepDecoding: _candidateRequiredHits >= 3);
+                KeepDecoding: _candidateCode.Length > 0);
         }
 
         if (_lockedCodes.ContainsKey(normalized))
@@ -1229,12 +1242,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<DateTimeOffset> _utcNow;
     private long _droppedFrames;
     private long _forceDecodeUntilUtcTicks;
+    private string _lastRecognizedCode = "";
     private int _generation;
     private volatile bool _disposed;
     private int _workerResourcesDisposed;
 
     public event Action<CameraBarcodeRecognitionStatus>? StatusChanged;
     public event Action<string>? BarcodeConfirmed;
+    public event Action<string>? BarcodeRecognized;
     public event Action<string>? InvalidCandidate;
 
     public CameraBarcodeRecognitionService(
@@ -1383,6 +1398,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             if (generation != Volatile.Read(ref _generation) || _disposed)
                 return;
 
+            NotifyRecognizedIfNew(code);
+
             CameraBarcodeObservation observation;
             TimeSpan confirmationWindow = code == null
                 ? TimeSpan.Zero
@@ -1444,6 +1461,24 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     {
         try { return _candidateValidator(code); }
         catch { return false; }
+    }
+
+    /// 解码到合法条码即触发独立反馈事件：同码连续可见只触发一次，
+    /// 码离开画面后清空记录，再次出现会重新触发。
+    private void NotifyRecognizedIfNew(string? code)
+    {
+        string normalized = (code ?? "").Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+        {
+            _lastRecognizedCode = "";
+            return;
+        }
+
+        if (string.Equals(normalized, _lastRecognizedCode, StringComparison.Ordinal))
+            return;
+
+        _lastRecognizedCode = normalized;
+        BarcodeRecognized?.Invoke(normalized);
     }
 
     private void NotifyInvalidCandidate(string code)

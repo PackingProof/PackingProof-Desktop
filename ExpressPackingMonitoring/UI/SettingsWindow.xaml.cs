@@ -1770,6 +1770,9 @@ namespace ExpressPackingMonitoring.UI
             if (Capabilities.CanRecordPcVideo && !ValidateEncoderSelectionBeforeSave())
                 return false;
 
+            if (!ValidateOrderIdRegexBeforeSave())
+                return false;
+
             AutoStartService.Apply(Config.AutoStartOnBoot);
             Context.SetPreviewZoomScale?.Invoke(null);
             Context.SetPreviewGuideGeometry?.Invoke(null);
@@ -2294,6 +2297,18 @@ namespace ExpressPackingMonitoring.UI
             EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
             SyncEncoderComboboxes(fallbackEncoder);
             return true;
+        }
+
+        private bool ValidateOrderIdRegexBeforeSave()
+        {
+            if (CameraBarcodeCandidatePolicy.IsValidPattern(Config.OrderIdRegex))
+                return true;
+
+            AppDialog.Error(
+                this,
+                "单号判断规则写错了，无法保存，请检查后重试",
+                "单号判断规则错误");
+            return false;
         }
 
         private void SyncEncoderComboboxes(string encoder)

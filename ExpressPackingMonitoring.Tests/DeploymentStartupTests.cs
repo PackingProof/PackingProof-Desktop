@@ -1638,6 +1638,20 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void BackupHostPlaybackCreatesImportServiceForImportButton()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml.cs");
+
+        Assert.Contains("new VideoFolderImportService(", source, StringComparison.Ordinal);
+        Assert.Contains("new PlaybackWindow(", source, StringComparison.Ordinal);
+        Assert.Contains("_host.StoragePath", source, StringComparison.Ordinal);
+        Assert.Contains("saveImportFolder:", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryOrderIntegrationEntryUsesUnifiedPluginCopy()
     {
         string mainWindow = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");

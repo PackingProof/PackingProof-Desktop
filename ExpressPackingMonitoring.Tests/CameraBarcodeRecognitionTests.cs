@@ -41,21 +41,43 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
-    public void StabilityTracker_StartConfirmationRestartsAfterMissedDetection()
+    public void StabilityTracker_MissedDetectionDoesNotResetConfirmationCount()
     {
         var tracker = new CameraBarcodeStabilityTracker();
 
         tracker.Observe("YT123456789012", Start);
-        tracker.Observe(null, Start.AddMilliseconds(100));
-        CameraBarcodeObservation restarted = tracker.Observe(
+        CameraBarcodeObservation missed = tracker.Observe(null, Start.AddMilliseconds(100));
+        CameraBarcodeObservation confirmed = tracker.Observe(
             "YT123456789012",
             Start.AddMilliseconds(250));
-        CameraBarcodeObservation confirmed = tracker.Observe(
+
+        Assert.Equal("YT123456789012", missed.CandidateCode);
+        Assert.True(missed.KeepDecoding);
+        Assert.Empty(missed.ConfirmedCode);
+        Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
+    }
+
+    [Fact]
+    public void StabilityTracker_DifferentCodeResetsConsecutiveCount()
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+
+        tracker.Observe("YT123456789012", Start);
+        CameraBarcodeObservation switched = tracker.Observe(
+            "SF123456789012",
+            Start.AddMilliseconds(250));
+        CameraBarcodeObservation backToFirst = tracker.Observe(
             "YT123456789012",
             Start.AddMilliseconds(500));
 
-        Assert.Equal("YT123456789012", restarted.CandidateCode);
-        Assert.Empty(restarted.ConfirmedCode);
+        Assert.Equal("SF123456789012", switched.CandidateCode);
+        Assert.Empty(switched.ConfirmedCode);
+        Assert.Equal("YT123456789012", backToFirst.CandidateCode);
+        Assert.Empty(backToFirst.ConfirmedCode);
+
+        CameraBarcodeObservation confirmed = tracker.Observe(
+            "YT123456789012",
+            Start.AddMilliseconds(750));
         Assert.Equal("YT123456789012", confirmed.ConfirmedCode);
     }
 
@@ -346,6 +368,38 @@ public sealed class CameraBarcodeRecognitionTests
     public void CandidatePolicy_RejectsCommandsAndInvalidOrderNumbers(string value, bool expected)
     {
         Assert.Equal(expected, CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
+    }
+
+    [Fact]
+    public void CandidatePolicy_InvalidRegexIsNotCompilable()
+    {
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern("^[a-zA-Z0-9-]{12,25}$"));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern(""));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValidPattern(null));
+        Assert.False(CameraBarcodeCandidatePolicy.IsValidPattern("^[a-z0-9"));
+    }
+
+    [Fact]
+    public void CandidatePolicy_InvalidRegexAllowsAllLikeEmpty()
+    {
+        Assert.True(CameraBarcodeCandidatePolicy.IsValid("1234", "^[a-z0-9"));
+        Assert.True(CameraBarcodeCandidatePolicy.IsValid("YT123456789012", "^[a-z0-9"));
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_InvalidRegexAllowsAllLikeEmpty()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "1234",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: false,
+            recordingOrderId: "",
+            sameBarcodeStopEnabled: false,
+            inputOnCooldown: false,
+            orderIdRegex: "^[a-z0-9");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Start, decision.Action);
     }
 
     [Theory]
@@ -801,6 +855,34 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public async Task RecognitionService_BarcodeRecognizedFiresOncePerEpisode()
+    {
+        using Mat frame = CreateFrameWithBarcode(
+            "YT123456789012",
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+        using Mat blank = CreateSolidFrame(255);
+        var recognized = new List<string>();
+        using var service = new CameraBarcodeRecognitionService(
+            value => CameraBarcodeCandidatePolicy.IsValid(value, "^[a-zA-Z0-9-]{12,25}$"));
+        service.BarcodeRecognized += recognized.Add;
+
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Single(recognized);
+
+        service.TrySubmitFrame(blank);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, recognized.Count);
+    }
+
+    [Fact]
     public async Task InvalidCandidateEvent_FiresForRejectedCodeAndThrottlesSameCode()
     {
         using Mat frame = CreateFrameWithBarcode("1234", BarcodeFormat.CODE_128, inGuide: true);
@@ -871,7 +953,7 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(0, config.CameraBarcodeGuideOffsetX);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
-        Assert.Equal(1.0, config.CameraSameBarcodeConfirmationSeconds);
+        Assert.Equal(2.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.Equal(2, config.CameraSameBarcodeConfirmationHits);
         Assert.True(config.EnableGlobalKeyboard);
     }

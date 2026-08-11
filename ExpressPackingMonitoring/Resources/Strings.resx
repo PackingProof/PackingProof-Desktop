@@ -914,7 +914,8 @@
   <data name="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响" xml:space="preserve"><value>Cleanup only affects local recordings on this computer; files already backed up to the NAS are not affected</value></data>
   <data name="按时间清理…" xml:space="preserve"><value>Clean up by time…</value></data>
   <data name="按空间释放…" xml:space="preserve"><value>Free up space…</value></data>
-  <data name="开始清理" xml:space="preserve"><value>Start cleanup</value></data>
-  <data name="选择录像保存文件夹" xml:space="preserve"><value>Choose a recording folder</value></data>
-  <data name="本地文件夹或 UNC 网络路径" xml:space="preserve"><value>Local folder or UNC network path</value></data>
-</root>
+   <data name="开始清理" xml:space="preserve"><value>Start cleanup</value></data>
+   <data name="选择录像保存文件夹" xml:space="preserve"><value>Choose a recording folder</value></data>
+   <data name="本地文件夹或 UNC 网络路径" xml:space="preserve"><value>Local folder or UNC network path</value></data>
+   <data name="显示异常记录" xml:space="preserve"><value>Show unavailable recordings</value></data>
+ </root>
