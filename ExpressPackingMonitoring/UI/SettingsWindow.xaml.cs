@@ -1110,6 +1110,14 @@ namespace ExpressPackingMonitoring.UI
             {
                 selectedPath = uncPath;
             }
+            if (!StorageVolumeInfo.IsNetworkPath(selectedPath))
+            {
+                AppDialog.Error(
+                    this,
+                    "备份位置必须是网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频；本地磁盘请添加到录像保存位置",
+                    "备份位置无效");
+                return;
+            }
             if (Config.StorageLocations.Any(x => string.Equals(x.Path, selectedPath, StringComparison.OrdinalIgnoreCase)))
             {
                 AppDialog.Information(this, "该路径已在列表中。", "提示");
