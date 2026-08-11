@@ -444,7 +444,7 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task OfflineAccumulation_RecoversOldestFirst()
+    public async Task OfflineAccumulation_RecoversNewestFirst()
     {
         DateTime now = DateTime.Now;
         long idA = InsertPendingRecord("a.mp4", "aaa");
@@ -463,8 +463,8 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(idA)!.ArchiveStatus);
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(idB)!.ArchiveStatus);
         Assert.Equal(2, provider.PublishedPaths.Count);
-        Assert.Equal(_database.GetVideoById(idA)!.ArchivePath, provider.PublishedPaths[0]);
-        Assert.Equal(_database.GetVideoById(idB)!.ArchivePath, provider.PublishedPaths[1]);
+        Assert.Equal(_database.GetVideoById(idB)!.ArchivePath, provider.PublishedPaths[0]);
+        Assert.Equal(_database.GetVideoById(idA)!.ArchivePath, provider.PublishedPaths[1]);
     }
 
     [Fact]
