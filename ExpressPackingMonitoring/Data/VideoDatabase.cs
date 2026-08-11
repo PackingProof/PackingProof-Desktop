@@ -156,6 +156,8 @@ namespace ExpressPackingMonitoring.Data
         public static readonly TimeSpan OrderInfoRetention = TimeSpan.FromDays(90);
         public static readonly TimeSpan DuplicateOrderLookback = TimeSpan.FromDays(30);
         public const int MaxOrderInfoRecords = 50000;
+        /// <summary>数据库 schema 版本，配合 PRAGMA user_version 做迁移保护；新增字段时递增。</summary>
+        private const int SchemaVersion = 1;
 
         private readonly string _dbPath;
         private SqliteConnection _connection;
@@ -321,6 +323,7 @@ namespace ExpressPackingMonitoring.Data
             EnsureColumnExists("VideoRecords", "LocalDeleteReason", "TEXT DEFAULT ''");
             EnsureColumnExists("RecordingTransferQueue", "NextAttemptAt", "TEXT");
             EnsureColumnExists("RecordingTransferQueue", "CacheDeletedAt", "TEXT");
+            EnsureSchemaVersion();
             ExecuteNonQuery(@"
                 UPDATE VideoRecords
                 SET BackupCompletedAt = COALESCE(EndTime, StartTime)
@@ -2698,6 +2701,33 @@ namespace ExpressPackingMonitoring.Data
             }
 
             ExecuteNonQuery($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};");
+        }
+
+        /// <summary>
+        /// 迁移版本保护：低于当前版本时执行幂等迁移并写入 user_version；
+        /// 高于当前版本时仅记录警告，不降版本、不修改结构。
+        /// </summary>
+        private void EnsureSchemaVersion()
+        {
+            int currentVersion = ReadUserVersion();
+            if (currentVersion < SchemaVersion)
+            {
+                // 所有迁移步骤均为幂等 EnsureColumnExists，已在上方执行完；
+                // 这里只负责写入版本，供后续增量迁移判断。
+                ExecuteNonQuery($"PRAGMA user_version = {SchemaVersion};");
+            }
+            else if (currentVersion > SchemaVersion)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"VideoDatabase schema version {currentVersion} is newer than supported {SchemaVersion}");
+            }
+        }
+
+        private int ReadUserVersion()
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "PRAGMA user_version;";
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
         public void Dispose()
