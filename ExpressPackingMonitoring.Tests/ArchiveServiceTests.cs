@@ -375,6 +375,55 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task NoArchiveTarget_SkipsProcessingAndKeepsStatus()
+    {
+        long id = InsertPendingRecord("skip-no-target.mp4", "skip-content");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () => "");
+
+        int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, completed);
+        Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(id)!.ArchiveStatus);
+        Assert.False(File.Exists(_database.GetVideoById(id)!.ArchivePath));
+    }
+
+    [Fact]
+    public async Task ValidArchiveTarget_ResolverAllowsProcessing()
+    {
+        long id = InsertPendingRecord("resume-target.mp4", "resume-content");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () => @"\\nas\share");
+
+        int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, completed);
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
+    }
+
+    [Fact]
+    public async Task ArchiveTargetResolverThrows_SkipsRound()
+    {
+        long id = InsertPendingRecord("resolver-throws.mp4", "resolver-content");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () => throw new InvalidOperationException("配置无效"));
+
+        int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, completed);
+        Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(id)!.ArchiveStatus);
+    }
+
+    [Fact]
     public async Task HashMismatch_RenamesCorruptTargetAndMarksFailed()
     {
         long id = InsertPendingRecord("corrupt.mp4", "corrupt-content");

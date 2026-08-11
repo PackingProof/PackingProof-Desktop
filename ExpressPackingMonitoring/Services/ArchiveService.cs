@@ -13,6 +13,7 @@ internal sealed class ArchiveService : IDisposable
     private readonly VideoDatabase _database;
     private readonly IArchiveProvider _provider;
     private readonly ArchiveWorkerOptions _options;
+    private readonly Func<string?>? _archiveTargetResolver;
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
@@ -21,11 +22,13 @@ internal sealed class ArchiveService : IDisposable
         VideoDatabase database,
         IArchiveProvider provider,
         ArchiveWorkerOptions? options = null,
+        Func<string?>? archiveTargetResolver = null,
         CancellationToken cancellationToken = default)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _options = options ?? new ArchiveWorkerOptions();
+        _archiveTargetResolver = archiveTargetResolver;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
@@ -45,6 +48,9 @@ internal sealed class ArchiveService : IDisposable
     /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
+        if (!HasArchiveTarget())
+            return 0;
+
         int completed = 0;
         foreach (VideoRecord record in _database.GetPendingArchives(
                      _options.BatchSize,
@@ -58,6 +64,25 @@ internal sealed class ArchiveService : IDisposable
                 completed++;
         }
         return completed;
+    }
+
+    /// <summary>
+    /// 当前是否配置了网络归档目标；未配置或解析失败时本轮跳过，
+    /// 状态原样保留，重新添加 NAS 后自动恢复。
+    /// </summary>
+    private bool HasArchiveTarget()
+    {
+        if (_archiveTargetResolver == null)
+            return true;
+        try
+        {
+            return !string.IsNullOrWhiteSpace(_archiveTargetResolver());
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Archive", $"Archive target resolution failed: {ex.Message}");
+            return false;
+        }
     }
 
     internal Task<bool> ArchiveRecordAsync(long recordId, CancellationToken cancellationToken)

@@ -90,7 +90,16 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
             _archiveService?.Dispose();
-            _archiveService = new ArchiveService(_database, new NasArchiveProvider());
+            _archiveService = new ArchiveService(
+                _database,
+                new NasArchiveProvider(),
+                archiveTargetResolver: () =>
+                {
+                    RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                        _config,
+                        allowDefaultFallback: false);
+                    return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+                });
             LocalPlaybackUrl = MobileConnectionService.BuildAccessUrl(
                 $"127.0.0.1:{_config.WebServerPort}",
                 _config.RequireWebAccessKey,

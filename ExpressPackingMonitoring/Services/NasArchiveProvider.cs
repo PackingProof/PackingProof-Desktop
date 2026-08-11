@@ -69,23 +69,44 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         }
     }
 
-    public Task<RemoteProbeResult> ProbeAsync(
+    public async Task<RemoteProbeResult> ProbeAsync(
         string path,
         long expectedSize,
         CancellationToken cancellationToken)
     {
+        // 与 RemoteFileProbe 共用全局门禁：同一时间最多一个 SMB 探测，
+        // 挂死时拿不到门禁按 Error 处理，避免线程池被放弃的探测堆积。
+        if (!await RemoteFileProbe.ProbeGate.WaitAsync(
+                RemoteFileProbe.ProbeTimeout,
+                cancellationToken).ConfigureAwait(false))
+        {
+            return RemoteProbeResult.Error;
+        }
+        try
+        {
+            return await Task.Run(
+                () => ProbeCore(path, expectedSize),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            RemoteFileProbe.ProbeGate.Release();
+        }
+    }
+
+    private static RemoteProbeResult ProbeCore(string path, long expectedSize)
+    {
         try
         {
             if (!File.Exists(path))
-                return Task.FromResult(RemoteProbeResult.NotExists);
-            return Task.FromResult(
-                new FileInfo(path).Length == expectedSize
-                    ? RemoteProbeResult.ExistsSameSize
-                    : RemoteProbeResult.ExistsDifferentSize);
+                return RemoteProbeResult.NotExists;
+            return new FileInfo(path).Length == expectedSize
+                ? RemoteProbeResult.ExistsSameSize
+                : RemoteProbeResult.ExistsDifferentSize;
         }
         catch
         {
-            return Task.FromResult(RemoteProbeResult.Error);
+            return RemoteProbeResult.Error;
         }
     }
 

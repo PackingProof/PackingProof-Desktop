@@ -152,4 +152,31 @@ public sealed class NasArchiveProviderTests : IDisposable
         Assert.True(File.Exists(temp));
         Assert.False(File.Exists(dest));
     }
+
+    [Fact]
+    public async Task ProbeAsync_ReportsNotExistsSameAndDifferentSize()
+    {
+        (string source, string dest) = Prepare("probe-content", "ignored");
+        File.WriteAllText(dest, "probe-content");
+        var provider = new NasArchiveProvider();
+
+        Assert.Equal(
+            RemoteProbeResult.NotExists,
+            await provider.ProbeAsync(
+                Path.Combine(_directory, "missing.bin"),
+                5,
+                TestContext.Current.CancellationToken));
+        Assert.Equal(
+            RemoteProbeResult.ExistsSameSize,
+            await provider.ProbeAsync(
+                dest,
+                "probe-content".Length,
+                TestContext.Current.CancellationToken));
+        Assert.Equal(
+            RemoteProbeResult.ExistsDifferentSize,
+            await provider.ProbeAsync(
+                dest,
+                4,
+                TestContext.Current.CancellationToken));
+    }
 }

@@ -981,7 +981,16 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _db = new VideoDatabase(_dbFilePath);
                 _archiveService?.Dispose();
-                _archiveService = new ArchiveService(_db, new NasArchiveProvider());
+                _archiveService = new ArchiveService(
+                    _db,
+                    new NasArchiveProvider(),
+                    archiveTargetResolver: () =>
+                    {
+                        RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                            Config,
+                            allowDefaultFallback: false);
+                        return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
+                    });
             }
             catch (Exception ex)
             {
