@@ -493,7 +493,7 @@ public sealed class RecordingWorkstationCacheTests
 
     private static void DeleteTempDirectory(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(path);
         if (Directory.Exists(path))
             Directory.Delete(path, recursive: true);
     }

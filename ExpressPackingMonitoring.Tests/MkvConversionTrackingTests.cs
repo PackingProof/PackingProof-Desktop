@@ -209,7 +209,7 @@ public sealed class MkvConversionTrackingTests
 
     private static void DeleteTemporaryDirectory(string directory)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(directory);
         Directory.Delete(directory, recursive: true);
     }
 }

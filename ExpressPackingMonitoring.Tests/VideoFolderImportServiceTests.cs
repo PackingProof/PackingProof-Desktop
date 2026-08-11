@@ -60,7 +60,7 @@ public sealed class VideoFolderImportServiceTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(root);
             Directory.Delete(root, recursive: true);
         }
     }
@@ -126,7 +126,7 @@ public sealed class VideoFolderImportServiceTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(parent);
             Directory.Delete(parent, recursive: true);
         }
     }
@@ -160,7 +160,7 @@ public sealed class VideoFolderImportServiceTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(root);
             Directory.Delete(root, recursive: true);
         }
     }

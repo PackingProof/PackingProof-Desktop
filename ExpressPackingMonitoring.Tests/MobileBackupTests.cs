@@ -1655,7 +1655,7 @@ public sealed class MobileBackupTests
 
     private static void DeleteTempDirectory(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(path);
         try { Directory.Delete(path, recursive: true); } catch { }
     }
 

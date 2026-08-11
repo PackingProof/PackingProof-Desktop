@@ -149,7 +149,7 @@ public sealed class RecordingComputerNicknameTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(directory);
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }

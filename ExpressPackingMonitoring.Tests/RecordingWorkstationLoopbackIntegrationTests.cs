@@ -328,7 +328,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
 
     private static async Task DeleteTempDirectoryAsync(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(path);
         for (int attempt = 1; attempt <= 4; attempt++)
         {
             try

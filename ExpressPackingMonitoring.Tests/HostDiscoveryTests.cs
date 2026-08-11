@@ -59,7 +59,7 @@ public sealed class HostDiscoveryTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(directory);
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }
@@ -99,7 +99,7 @@ public sealed class HostDiscoveryTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(directory);
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }

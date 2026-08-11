@@ -281,7 +281,7 @@ public sealed class VideoDatabaseTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(tempDirectory);
             Directory.Delete(tempDirectory, recursive: true);
         }
     }
@@ -509,7 +509,7 @@ public sealed class VideoDatabaseTests
 
     private static void DeleteTempDirectory(string path)
     {
-        SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(path);
         Directory.Delete(path, recursive: true);
     }
 }

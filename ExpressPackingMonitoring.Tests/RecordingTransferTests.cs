@@ -580,7 +580,7 @@ public sealed class RecordingTransferTests
 
     private static void DeleteTempDirectory(string path)
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        SqliteTestPool.ClearPoolFor(path);
         if (Directory.Exists(path))
             Directory.Delete(path, recursive: true);
     }

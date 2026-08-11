@@ -190,7 +190,7 @@ public sealed class ConnectedClientTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(directory);
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }
@@ -228,7 +228,7 @@ public sealed class ConnectedClientTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPool.ClearPoolFor(directory);
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }
