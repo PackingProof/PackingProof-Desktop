@@ -1,26 +1,27 @@
-# NAS 双层存储架构说明
+# NAS 单向归档架构说明
 
-本文档描述“本地缓冲 + 网络归档”双层存储的实现边界、状态机与异常流程，供后续维护与贡献者参考。
+本文档描述“本地主录像存储 + NAS 单向归档”的存储模型、状态机与异常流程，供后续维护与贡献者参考。
 
 ## 1. 总体模型
 
 ```mermaid
 flowchart LR
     Camera --> RecordingService
-    RecordingService -->|写入| LocalBuffer
-    LocalBuffer -->|MP4 转换完成或 MKV 已放弃转换| ArchiveQueue
+    RecordingService -->|写入| LocalStorage
+    LocalStorage -->|MP4 转换完成或 MKV 已放弃转换| ArchiveQueue
     ArchiveQueue --> ArchiveWorker
-    ArchiveWorker -->|PublishFileAsync| NAS
+    ArchiveWorker -->|异步单向复制| NAS
     Playback --> PlaybackFileResolver
-    PlaybackFileResolver -->|本地存在优先| LocalBuffer
+    PlaybackFileResolver -->|本地存在优先| LocalStorage
     PlaybackFileResolver -->|本地已清理| NAS
 ```
 
-- 录像进程只写本机固定盘缓冲（`LocalRecordingBufferPath`），网络路径绝不直接交给录像进程。
-- NAS 只作为归档目标；从机/手机上传仍走 HTTP 到主机缓冲，再由归档 Worker 异步复制。
+- 录像进程直接写入现有存储管理选择的本地主存储目录（`WorkingRootPath`，当前录像主存储路径，非缓存）；网络路径绝不直接交给录像进程。
+- NAS 只作为单向归档目标；从机/手机上传仍走 HTTP 到主机本地主存储，再由归档 Worker 异步复制。
 - 默认存储列表只含本地固定磁盘；网络位置必须由用户在“存储管理”手动添加（映射盘保存前归一化为 UNC）。
-- **NAS 只上传、永不删除**：本地循环清理只删本地副本；用户删除录像也只删本地记录，NAS 归档文件生命周期独立于本地记录，由管理员通过 NAS 管理工具维护。程序不保证 NAS 文件与本地数据库永久一一对应（单向归档的设计行为，不是异常）。
+- **NAS 只上传、永不删除**：本地循环清理只删本地录像文件；用户删除录像也只删本地记录，NAS 归档文件生命周期独立于本地记录，由管理员通过 NAS 管理工具维护。程序不保证 NAS 文件与本地数据库永久一一对应（单向归档的设计行为，不是异常）。
 - **NAS 空间状态只影响归档任务**：NAS 满时限频提示（60 分钟冷却），不影响本地录像、本地 GC 与硬循环保护机制。
+- **NAS 采用单向归档模型**：NAS 文件仅由归档流程写入；所有归档状态（Pending/Verified/Conflict 等）由本地数据库维护，NAS 文件本身没有状态；ArchiveStatus 为弱一致状态，允许与 NAS 实际状态短暂或永久不一致。
 
 ## 2. 归档状态流转
 
@@ -36,7 +37,7 @@ stateDiagram-v2
     Failed --> Pending: 退避重试到期
     Pending --> Conflict: 网络端已有同名不同内容
     Conflict --> [*]: 人工处理 NAS 端后重试（暂无自动入口）
-    Verified --> LocalDeleted: 本地副本被容量清理
+    Verified --> LocalDeleted: 本地录像文件被容量清理
     note right of Verified: 用户删除仅删除本地记录与本地文件，NAS 归档保留
 ```
 
@@ -44,7 +45,7 @@ stateDiagram-v2
 - `Pending`：最终文件已确定（MP4 转换成功，或 MKV 被 `MkvConversionRetryPolicy` 判定 Suppressed），等待归档。
 - `Copying`/`Verifying`：断点续传优先；`Verifying` 是发布后的后台 SHA-256 校验状态。
 - `Conflict`：NAS 已有同名但内容不同的文件，绝不覆盖；本地文件保留供人工比对，硬循环不删除 Conflict。
-- `Deleting`：旧版本遗留状态，新代码不再写入；`LocalDeleted` 表示本地副本已清理、记录仍可通过 NAS 回放。
+- `Deleting`：旧版本遗留状态，新代码不再写入；`LocalDeleted` 表示本地录像文件已清理、记录仍可通过 NAS 回放。
 
 ## 3. 数据库字段与队列语义
 
@@ -57,7 +58,8 @@ stateDiagram-v2
 | `ArchiveRetryCount` / `NextRetryAt` | 失败退避（30s×2^n，上限 30 分钟） |
 | `ArchiveError` | 最近一次错误（哈希失败为 `HashMismatch`） |
 | `ArchiveCompletedAt` | 归档验证完成时间 |
-| `LocalCopyDeletedAt` / `LocalDeleteReason` | 本地副本清理时间与原因 |
+| `LocalCopyDeletedAt` / `LocalDeleteReason` | 本地录像文件清理时间与原因 |
+| `LastArchiveProbeAt` | GC 最近一次成功探测归档目标的时间；24 小时内免重复探测 |
 | `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityEmergencyCleanupUnarchived` |
 | `ContentSha256` | 归档校验哈希（发布后写入） |
 
@@ -88,15 +90,17 @@ flowchart TD
 
 ## 5. NAS 异常流程
 
-- **录像中 NAS 离线**：录像继续写入本地缓冲，不受影响；最终文件确定后进入 Pending，等待 Worker 重试。
+- **录像中 NAS 离线**：录像继续写入本地主存储，不受影响；最终文件确定后进入 Pending，等待 Worker 重试。
 - **归档中断/程序重启**：状态保留在 DB，重启后从 Copying/Verifying/Pending 继续；残留 `.uploading` 在本地源仍存在时清理。
-- **NAS 长时间离线**：记录进入 Failed 退避重试；本地缓冲满时先只删已归档本地副本。
+- **NAS 长时间离线**：记录进入 Failed 退避重试；本地主存储满时先只删已成功归档的本地录像文件。
+- **正常 GC 的远端探测缓存**：只删已成功归档的本地录像文件；若 `LastArchiveProbeAt` 在 24 小时内则直接删除（不重复探测），否则通过 Archive Provider 实时验证目标存在且大小一致（3 秒超时）成功后才删除并更新 `LastArchiveProbeAt`；探测失败跳过本轮。
+- **Conflict 处理**：目标已存在且 Hash 不同 → Conflict，禁止覆盖、删除、重命名 NAS 旧文件（任何“改名旧文件再传新文件”都视为改变归档历史）；本地录像文件保留，等待人工处理。
 - **硬循环兜底（最后降级策略，不是正常 GC）**：同时满足以下条件才触发——
   1. 一轮正常 GC 后仍无法满足 `StorageSpacePolicy` 保留要求（可用空间低于该卷安全预留值）；
-  2. 工作缓冲卷可用空间低于 5 GiB（内部常量 `LocalBufferEmergencyThreshold`）；
+  2. 当前本地主存储卷可用空间低于 5 GiB（内部常量 `LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes`）；
   3. 以 3 秒超时探测网络归档目标根不可达（可达则只唤醒归档，不删除）。
 
-  触发后只删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）且状态为 `LocalOnly/Pending/Failed` 的本地副本，按结束时间最旧优先；每次删除取所有权锁，删除后写 `DeleteReasonCode = CapacityEmergencyCleanupUnarchived` 并弹提示。**Conflict 永不进入硬循环**。
+  触发后只删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）且状态为 `LocalOnly/Pending/Failed` 的本地录像文件，按结束时间最旧优先；每次删除取所有权锁，删除后写 `DeleteReasonCode = CapacityEmergencyCleanupUnarchived` 并弹提示。**Conflict 永不进入硬循环**。
 
 - **用户删除**：只删本地文件并标记记录删除（`DeleteReasonCode=UserRequested`）；NAS 归档保留，不做远端删除。
 - **NAS 满**：周期检查发现网络归档卷可用空间 ≤ 预留值时，60 分钟冷却内提示“NAS 空间不足，录像仍保存在本地，归档已暂停；请清理 NAS 或调整归档位置”并写日志；NAS 卷状态不影响本地录像、本地 GC 与硬循环。
@@ -125,7 +129,7 @@ sequenceDiagram
 ## 7. 关键常量与配置
 
 - 网络位置预留：至少 10 GB 或总容量 2%（`StorageSpacePolicy`）。
-- 本地缓冲保护线：5 GiB、删除保护期 30 分钟（`LocalCopyCleanupPolicy`，不提供 UI 配置）。
+- 本地主存储卷保护线：5 GiB、删除保护期 30 分钟（`LocalCopyCleanupPolicy`，不提供 UI 配置）。
 - MKV 放弃转换阈值：沿用 `MkvConversionRetryPolicy`（首次失败超过 7 天）。
 - 远端探测/操作超时：3 秒（`RemoteFileProbe`、`ArchiveWorkerOptions.RemoteTimeout`）。
 - NAS 满提示冷却：60 分钟（`NetworkArchiveSpacePolicy.WarningCooldown`）。

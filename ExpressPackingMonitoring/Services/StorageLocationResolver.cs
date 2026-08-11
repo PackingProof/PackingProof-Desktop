@@ -5,8 +5,11 @@ using System.IO;
 namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
-/// 录像存储计划：录像进程只写 WorkingRootPath；
-/// 当选择网络位置时，WorkingRootPath 为本地缓冲，ArchiveTarget 为网络归档目标。
+/// 录像存储计划：
+/// WorkingRootPath = 当前录像主存储路径，录像直接写入此目录（非临时目录）；
+/// ArchiveTarget = 网络归档目标，NAS 仅为异步复制目标（单向归档模型）。
+/// NOT a cache/buffer directory.
+/// 未来大版本建议将 WorkingRootPath 更名为 RecordingRootPath 或 PrimaryStoragePath。
 /// </summary>
 internal readonly record struct RecordingStoragePlan(
     string WorkingRootPath,
@@ -21,12 +24,16 @@ internal static class StorageLocationResolver
         StorageLocationEvaluation result = Evaluate(location);
         if (result.CanUse)
             return result.Path;
-        throw new IOException($"本地缓存位置不可用。{result.Path}：{result.Reason}");
+        throw new IOException($"本地录像保存位置不可用。{result.Path}：{result.Reason}");
     }
 
     public static string Resolve(AppConfig config, bool allowDefaultFallback) =>
         ResolveRecordingPlan(config, allowDefaultFallback).WorkingRootPath;
 
+    /// <summary>
+    /// 解析当前录像保存计划：本地存储列表按优先级/空间选出主存储（WorkingRootPath）；
+    /// 网络位置仅作为归档目标，不参与本地轮换。RequiresNetworkArchive 表示“存在归档目标”。
+    /// </summary>
     public static RecordingStoragePlan ResolveRecordingPlan(
         AppConfig config,
         bool allowDefaultFallback)
@@ -50,98 +57,62 @@ internal static class StorageLocationResolver
         }
 
         var failures = new List<string>();
+        string? archiveTarget = null;
+        StorageLocationEvaluation? localChoice = null;
+
         foreach (StorageLocation location in locations)
         {
             string configuredPath = NormalizePath(location.Path);
             if (StorageVolumeInfo.IsNetworkPath(configuredPath))
             {
-                StorageLocationEvaluation buffer = EvaluateLocalBuffer(config.LocalRecordingBufferPath);
-                if (!buffer.CanUse)
+                // 网络归档目标不参与本地轮换，只取优先级最高的一个。
+                if (archiveTarget == null)
                 {
-                    failures.Add($"{configuredPath}：本地录像缓冲不可用：{buffer.Reason}");
-                    RuntimeLog.Warn("Storage", $"Skip network storage path={configuredPath}, priority={location.Priority}, reason={buffer.Reason}");
-                    continue;
+                    archiveTarget = configuredPath;
+                    RuntimeLog.Info(
+                        "Storage",
+                        $"Selected network archive={configuredPath}, priority={location.Priority}");
                 }
-
-                RuntimeLog.Info(
-                    "Storage",
-                    $"Selected network archive={configuredPath}, localBuffer={buffer.Path}, priority={location.Priority}");
-                return new RecordingStoragePlan(buffer.Path, configuredPath, true);
+                continue;
             }
+
+            if (localChoice.HasValue)
+                continue;
 
             StorageLocationEvaluation result = Evaluate(location);
             if (result.CanUse)
             {
+                localChoice = result;
                 RuntimeLog.Info(
                     "Storage",
                     $"Selected storage path={result.Path}, priority={location.Priority}, free={FormatBytes(result.AvailableBytes)}, reserve={FormatBytes(result.ReserveBytes)}");
-                return new RecordingStoragePlan(result.Path, result.Path, false);
             }
+            else
+            {
+                failures.Add($"{result.Path}：{result.Reason}");
+                RuntimeLog.Warn("Storage", $"Skip storage path={result.Path}, priority={location.Priority}, reason={result.Reason}");
+            }
+        }
 
-            failures.Add($"{result.Path}：{result.Reason}");
-            RuntimeLog.Warn("Storage", $"Skip storage path={result.Path}, priority={location.Priority}, reason={result.Reason}");
+        if (localChoice is { CanUse: true } usable)
+        {
+            return new RecordingStoragePlan(
+                usable.Path,
+                archiveTarget ?? "",
+                !string.IsNullOrWhiteSpace(archiveTarget));
         }
 
         if (!allowDefaultFallback)
-            throw new IOException($"没有可用的录像存储位置。{string.Join("；", failures)}");
+        {
+            string detail = failures.Count > 0
+                ? $"。{string.Join("；", failures)}"
+                : "";
+            throw new IOException($"没有可用的本地录像保存位置（至少需要一个本地保存位置）{detail}");
+        }
 
-        RuntimeLog.Warn("Storage", $"No configured storage path is safe for recording, fallback default path={defaultPath}");
+        RuntimeLog.Warn("Storage", $"No local storage path is safe for recording, fallback default path={defaultPath}");
         EnsureDirectoryWritable(defaultPath);
         return new RecordingStoragePlan(defaultPath, "", false);
-    }
-
-    public static bool IsValidLocalBufferPath(string path, out string reason)
-    {
-        reason = "";
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            reason = "请选择本地录像缓冲目录";
-            return false;
-        }
-
-        if (StorageVolumeInfo.IsNetworkPath(path))
-        {
-            reason = "本地录像缓冲目录必须位于本机固定磁盘";
-            return false;
-        }
-
-        try
-        {
-            string fullPath = NormalizePath(path);
-            string root = Path.GetPathRoot(fullPath) ?? "";
-            if (root.Length == 0 || new DriveInfo(root).DriveType != DriveType.Fixed)
-            {
-                reason = "本地录像缓冲目录必须位于本机固定磁盘";
-                return false;
-            }
-            EnsureDirectoryWritable(fullPath);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            reason = ex.Message;
-            return false;
-        }
-    }
-
-    private static StorageLocationEvaluation EvaluateLocalBuffer(string path)
-    {
-        if (!IsValidLocalBufferPath(path, out string reason))
-            return StorageLocationEvaluation.Skip(NormalizePathOrOriginal(path), reason);
-
-        string normalized = NormalizePath(path);
-        if (!StorageVolumeInfo.TryGet(normalized, out StorageVolumeInfo volume))
-            return StorageLocationEvaluation.Skip(normalized, "无法读取本地缓冲磁盘的可用空间");
-
-        var location = new StorageLocation { Path = normalized, ReserveGB = 0 };
-        long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);
-        if (volume.AvailableFreeSpace <= reserveBytes)
-        {
-            return StorageLocationEvaluation.Skip(
-                normalized,
-                $"剩余空间低于安全预留值（可用 {FormatBytes(volume.AvailableFreeSpace)}，需预留 {FormatBytes(reserveBytes)}）");
-        }
-        return StorageLocationEvaluation.Use(normalized, volume.AvailableFreeSpace, reserveBytes);
     }
 
     private static StorageLocationEvaluation Evaluate(StorageLocation location)
@@ -178,12 +149,6 @@ internal static class StorageLocationResolver
             ? path
             : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
         return Path.GetFullPath(combined);
-    }
-
-    private static string NormalizePathOrOriginal(string path)
-    {
-        try { return NormalizePath(path); }
-        catch { return path?.Trim() ?? ""; }
     }
 
     private static void EnsureDirectoryWritable(string path)

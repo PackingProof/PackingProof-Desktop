@@ -2998,12 +2998,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         try { return StorageLocationResolver.Resolve(location); }
                         catch { return ""; }
-                    })
-                    .Concat(
-                        Config.StorageLocations.Any(
-                            location => StorageVolumeInfo.IsNetworkPath(location.Path))
-                            ? [Config.LocalRecordingBufferPath]
-                            : []);
+                    });
             return new VideoFolderImportService(
                 _db,
                 managedRoots,

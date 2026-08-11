@@ -105,7 +105,7 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
-    public void NormalizeAfterLoad_FillsBufferAndVolumeMetadata()
+    public void NormalizeAfterLoad_FillsVolumeMetadata()
     {
         string root = Path.GetPathRoot(Path.GetFullPath(Path.GetTempPath()))!;
         var config = new AppConfig
@@ -113,13 +113,11 @@ public sealed class StoragePolicyTests
             StorageLocations =
             [
                 new StorageLocation { Path = Path.Combine(root, "epm-normalize-meta") }
-            ],
-            LocalRecordingBufferPath = ""
+            ]
         };
 
         AppConfig.NormalizeAfterLoad(config);
 
-        Assert.False(string.IsNullOrWhiteSpace(config.LocalRecordingBufferPath));
         Assert.StartsWith(@"\\?\Volume{", config.StorageLocations[0].VolumeId);
         Assert.NotNull(config.StorageLocations[0].LastVerifiedAt);
     }

@@ -74,4 +74,41 @@ public sealed class ArchiveArchitectureGuardTests
             offenders.Length == 0,
             "PendingDeleteAt 已弃用，新代码不得引用: " + string.Join(" | ", offenders));
     }
+
+    [Fact]
+    public void CacheConcept_IsFullyRemoved()
+    {
+        string[] forbiddenTokens =
+        [
+            "LocalRecordingBufferPath",
+            "RecordingBufferDir",
+            "本地录像缓冲"
+        ];
+        string[] offenders = ProjectSourceFiles()
+            .Where(path =>
+            {
+                string source = File.ReadAllText(path);
+                return forbiddenTokens.Any(token =>
+                    source.Contains(token, StringComparison.Ordinal));
+            })
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            "录像缓存概念已移除，新代码不得引用: " + string.Join(" | ", offenders));
+    }
+
+    [Fact]
+    public void StorageResolverComments_DoNotUseCacheWording()
+    {
+        string resolverFile = Path.Combine(
+            FindRepositoryRoot(),
+            "ExpressPackingMonitoring",
+            "Services",
+            "StorageLocationResolver.cs");
+        string source = File.ReadAllText(resolverFile);
+
+        Assert.DoesNotContain("缓存", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("缓冲", source, StringComparison.Ordinal);
+    }
 }

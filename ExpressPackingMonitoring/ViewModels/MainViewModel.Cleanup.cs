@@ -69,8 +69,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (fullScan)
                 {
-                    bool hasNetworkLocation = Config.StorageLocations.Any(
-                        location => StorageVolumeInfo.IsNetworkPath(location.Path));
                     var scannedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var loc in Config.StorageLocations)
                     {
@@ -95,34 +93,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         catch { }
                         totalCapacityBytes += storageCapacity;
-                    }
-
-                    if (hasNetworkLocation && !string.IsNullOrWhiteSpace(Config.LocalRecordingBufferPath))
-                    {
-                        string bufferPath = Path.IsPathRooted(Config.LocalRecordingBufferPath)
-                            ? Config.LocalRecordingBufferPath
-                            : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Config.LocalRecordingBufferPath);
-                        if (Directory.Exists(bufferPath))
-                        {
-                            long bufferCapacity = 0;
-                            try
-                            {
-                                if (StorageVolumeInfo.TryGet(bufferPath, out StorageVolumeInfo volume)
-                                    && scannedRoots.Add(volume.RootPath))
-                                {
-                                    long bufferVideoBytes = 0;
-                                    foreach (var fi in EnumerateVideoFiles(bufferPath))
-                                        bufferVideoBytes += fi.Length;
-                                    totalCurrentBytes += bufferVideoBytes;
-                                    long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(
-                                        new StorageLocation { Path = bufferPath, ReserveGB = 0 },
-                                        volume);
-                                    bufferCapacity = Math.Max(0, volume.AvailableFreeSpace - reserveBytes) + bufferVideoBytes;
-                                }
-                            }
-                            catch { }
-                            totalCapacityBytes += bufferCapacity;
-                        }
                     }
 
                     _lastFullDiskCleanup = DateTime.Now;
@@ -231,11 +201,17 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                string workingRoot = Path.IsPathRooted(Config.LocalRecordingBufferPath)
-                    ? Config.LocalRecordingBufferPath
-                    : Path.Combine(
-                        AppDomain.CurrentDomain.BaseDirectory,
-                        Config.LocalRecordingBufferPath);
+                string workingRoot;
+                try
+                {
+                    workingRoot = StorageLocationResolver.Resolve(
+                        Config,
+                        allowDefaultFallback: false);
+                }
+                catch
+                {
+                    return;
+                }
                 if (!StorageVolumeInfo.TryGet(workingRoot, out StorageVolumeInfo volume))
                     return;
 

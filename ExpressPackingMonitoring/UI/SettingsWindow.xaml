@@ -1900,38 +1900,6 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="本地录像缓冲" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="网络位置只保存归档副本；录像先写入本机固定盘缓冲，校验成功后再复制到网络位置"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <Grid Grid.Column="2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox x:Name="RecordingBufferPathText"
-                                                     Text="{Binding Config.LocalRecordingBufferPath, Mode=OneWay}"
-                                                     Height="36"
-                                                     IsReadOnly="True"
-                                                     VerticalContentAlignment="Center"
-                                                     ToolTip="网络归档时录像先写入的本地目录，必须位于本机固定磁盘"/>
-                                            <Button Grid.Column="1"
-                                                    Content="更改"
-                                                    Height="36"
-                                                    Padding="12,0"
-                                                    Margin="8,0,0,0"
-                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                    Click="BtnChangeRecordingBuffer_Click"/>
-                                        </Grid>
-                                    </Grid>
-
                                     <Border BorderBrush="{DynamicResource BorderLight}"
                                             BorderThickness="1"
                                             CornerRadius="8"

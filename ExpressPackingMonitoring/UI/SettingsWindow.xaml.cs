@@ -1139,32 +1139,6 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
-        private void BtnChangeRecordingBuffer_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new StoragePathSelectionDialog(
-                Config.LocalRecordingBufferPath,
-                title: "选择本地录像缓冲目录",
-                hint: "网络归档时录像先写入的本地目录，必须位于本机固定磁盘")
-            {
-                Owner = this
-            };
-            if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.SelectedPath))
-                return;
-
-            if (!StorageLocationResolver.IsValidLocalBufferPath(dialog.SelectedPath, out string reason))
-            {
-                AppDialog.Error(
-                    this,
-                    $"本地录像缓冲目录不可用：\n{dialog.SelectedPath}\n\n原因：{reason}",
-                    "缓冲目录错误");
-                return;
-            }
-
-            Config.LocalRecordingBufferPath = dialog.SelectedPath;
-            if (RecordingBufferPathText != null)
-                RecordingBufferPathText.Text = dialog.SelectedPath;
-        }
-
         private string SelectDefaultStoragePathFromDrive()
         {
             var dialog = new DriveSelectionDialog(Config.StorageLocations.Select(location => location.Path))
@@ -1216,6 +1190,15 @@ namespace ExpressPackingMonitoring.UI
                     isDangerous: true);
                 if (shouldRemove)
                 {
+                    bool keepsLocalPath = Config.StorageLocations
+                        .Where(location => !ReferenceEquals(location, selected))
+                        .Any(location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                    if (!keepsLocalPath)
+                    {
+                        AppDialog.Warning(this, "至少需要一个本地保存位置，请先添加本地磁盘", "警告");
+                        return;
+                    }
+
                     int selectedIndex = StorageDataGrid.SelectedIndex;
                     Config.StorageLocations.Remove(selected);
                     RefreshStoragePriorities();

@@ -27,7 +27,7 @@ public sealed class StoragePlanTests
                 allowDefaultFallback: false);
 
             Assert.False(plan.RequiresNetworkArchive);
-            Assert.Equal(plan.WorkingRootPath, plan.ArchiveTarget);
+            Assert.Equal("", plan.ArchiveTarget);
             Assert.StartsWith(directory, plan.WorkingRootPath);
         }
         finally
@@ -37,18 +37,19 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
-    public void ResolveRecordingPlan_NetworkLocationUsesLocalBuffer()
+    public void ResolveRecordingPlan_NetworkLocationSelectsLocalWorkingRoot()
     {
-        string buffer = CreateTempDirectory();
+        string local = CreateTempDirectory();
         try
         {
             var config = new AppConfig
             {
                 StorageLocations =
                 [
-                    new StorageLocation { Path = @"\\nas\share\快递打包视频", Priority = 0 }
-                ],
-                LocalRecordingBufferPath = buffer
+                    // 网络位置排首位也不影响本地主存储选择
+                    new StorageLocation { Path = @"\\nas\share\快递打包视频", Priority = 0 },
+                    new StorageLocation { Path = Path.Combine(local, "快递打包视频"), Priority = 1 }
+                ]
             };
 
             RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
@@ -56,25 +57,24 @@ public sealed class StoragePlanTests
                 allowDefaultFallback: false);
 
             Assert.True(plan.RequiresNetworkArchive);
-            Assert.Equal(Path.GetFullPath(buffer), plan.WorkingRootPath);
+            Assert.Equal(Path.GetFullPath(Path.Combine(local, "快递打包视频")), plan.WorkingRootPath);
             Assert.Equal(@"\\nas\share\快递打包视频", plan.ArchiveTarget);
         }
         finally
         {
-            TryDeleteDirectory(buffer);
+            TryDeleteDirectory(local);
         }
     }
 
     [Fact]
-    public void ResolveRecordingPlan_InvalidBufferSkipsNetworkAndFallsBack()
+    public void ResolveRecordingPlan_NetworkOnlyFallsBackOrThrows()
     {
         var config = new AppConfig
         {
             StorageLocations =
             [
                 new StorageLocation { Path = @"\\nas\share\快递打包视频", Priority = 0 }
-            ],
-            LocalRecordingBufferPath = @"\\nas\share\invalid-buffer"
+            ]
         };
 
         RecordingStoragePlan fallback = StorageLocationResolver.ResolveRecordingPlan(
@@ -88,42 +88,27 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
-    public void Resolve_ReturnsWorkingRoot()
+    public void Resolve_ReturnsLocalWorkingRoot()
     {
-        string buffer = CreateTempDirectory();
+        string local = CreateTempDirectory();
         try
         {
             var config = new AppConfig
             {
                 StorageLocations =
                 [
+                    new StorageLocation { Path = Path.Combine(local, "快递打包视频"), Priority = 1 },
                     new StorageLocation { Path = @"\\nas\share\快递打包视频", Priority = 0 }
-                ],
-                LocalRecordingBufferPath = buffer
+                ]
             };
 
             Assert.Equal(
-                Path.GetFullPath(buffer),
+                Path.GetFullPath(Path.Combine(local, "快递打包视频")),
                 StorageLocationResolver.Resolve(config, allowDefaultFallback: false));
         }
         finally
         {
-            TryDeleteDirectory(buffer);
-        }
-    }
-
-    [Fact]
-    public void IsValidLocalBufferPath_RejectsNetworkAndAcceptsFixedDrive()
-    {
-        Assert.False(StorageLocationResolver.IsValidLocalBufferPath(@"\\nas\share\dir", out _));
-        string buffer = CreateTempDirectory();
-        try
-        {
-            Assert.True(StorageLocationResolver.IsValidLocalBufferPath(buffer, out _));
-        }
-        finally
-        {
-            TryDeleteDirectory(buffer);
+            TryDeleteDirectory(local);
         }
     }
 
