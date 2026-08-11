@@ -113,6 +113,37 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
+    public void ResolveRecordingPlan_UnusableFirstLocalFallsBackToNextLocal()
+    {
+        string secondDir = CreateTempDirectory();
+        try
+        {
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    // 非法路径模拟“D 盘不可用”，应自动切到下一个本地盘
+                    new StorageLocation { Path = @"C:\bad<dir>\录像", Priority = 0 },
+                    new StorageLocation { Path = Path.Combine(secondDir, "录像"), Priority = 1 }
+                ]
+            };
+
+            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false);
+
+            Assert.False(plan.RequiresNetworkArchive);
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(secondDir, "录像")),
+                plan.WorkingRootPath);
+        }
+        finally
+        {
+            TryDeleteDirectory(secondDir);
+        }
+    }
+
+    [Fact]
     public void ArchivePathBuilder_LocalRecordingLayout()
     {
         string path = ArchivePathBuilder.BuildLocalRecordingArchivePath(

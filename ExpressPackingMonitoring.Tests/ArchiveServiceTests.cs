@@ -11,6 +11,44 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ArchiveServiceTests : IDisposable
 {
+    private sealed class GatedProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+        public TaskCompletionSource<bool> Gate { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            CancellationToken cancellationToken)
+        {
+            await Gate.Task;
+            await _inner.PublishFileAsync(
+                sourcePath,
+                destinationPath,
+                recordId,
+                expectedSha256,
+                cancellationToken);
+        }
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+    }
+
     private sealed class RecordingProvider : IArchiveProvider
     {
         private readonly NasArchiveProvider _inner = new();
@@ -185,6 +223,8 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Conflict, record.ArchiveStatus);
         Assert.Contains("禁止覆盖", record.ArchiveError);
         Assert.True(File.Exists(record.FilePath), "本地源必须保留");
+        Assert.True(File.Exists(dest), "NAS 原文件必须保留");
+        Assert.False(File.Exists(dest + ".corrupt"), "冲突不得重命名/覆盖 NAS 旧文件");
     }
 
     [Fact]
@@ -199,7 +239,10 @@ public sealed class ArchiveServiceTests : IDisposable
 
         await service.ProcessPendingOnceAsync(CancellationToken.None);
 
-        Assert.Equal(VideoArchiveStatus.Conflict, _database.GetVideoById(id)!.ArchiveStatus);
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.Conflict, record.ArchiveStatus);
+        Assert.Equal("abd", File.ReadAllText(record.ArchivePath));
+        Assert.False(File.Exists(record.ArchivePath + ".corrupt"), "冲突不得重命名/覆盖 NAS 旧文件");
     }
 
     [Fact]
@@ -321,5 +364,38 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(2, provider.PublishedPaths.Count);
         Assert.Equal(_database.GetVideoById(idA)!.ArchivePath, provider.PublishedPaths[0]);
         Assert.Equal(_database.GetVideoById(idB)!.ArchivePath, provider.PublishedPaths[1]);
+    }
+
+    [Fact]
+    public async Task SlowArchiveWorker_DoesNotBlockRecordingPath()
+    {
+        long id = InsertPendingRecord("slow.mp4", "slow-content");
+        var provider = new GatedProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        Task<int> processing = service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(200);
+        Assert.False(processing.IsCompleted, "Worker 阻塞在慢 Provider 时不影响其他流程");
+
+        // 模拟录像完成：新记录走完本地定稿流程，不经过 Provider
+        DateTime now = DateTime.Now;
+        long secondId = _database.InsertVideoRecord(
+            "单号B",
+            "发货",
+            "h264",
+            "libx264",
+            Path.Combine(_localRoot, "second.mp4"),
+            now.AddMinutes(-5),
+            archivePath: Path.Combine(_nasRoot, now.ToString("yyyy-MM-dd"), "second.mp4"));
+        _database.UpdateVideoRecordOnStop(secondId, now, 10, 3, "手动");
+        _database.MarkArchivePending(secondId);
+        Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(secondId)!.ArchiveStatus);
+
+        provider.Gate.TrySetResult(true);
+        await processing;
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
     }
 }

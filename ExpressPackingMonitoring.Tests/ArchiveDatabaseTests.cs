@@ -330,4 +330,30 @@ public sealed class ArchiveDatabaseTests : IDisposable
         _database.UpdateLastArchiveProbeAt(id, now.AddMinutes(1));
         Assert.NotNull(_database.GetVideoById(id)!.LastArchiveProbeAt);
     }
+
+    [Fact]
+    public void UnfinalizedRecord_IsExcludedUntilCompleted()
+    {
+        DateTime now = DateTime.Now;
+        string path = Path.Combine(_directory, "crash.mkv");
+        long id = _database.InsertVideoRecord(
+            "单号C",
+            "发货",
+            "h264",
+            "libx264",
+            path,
+            now.AddMinutes(-5),
+            archivePath: @"\\nas\share\2026-08-11\crash.mkv");
+
+        // 未 UpdateVideoRecordOnStop（模拟崩溃后未定稿）
+        Assert.Equal(VideoArchiveStatus.LocalOnly, _database.GetVideoById(id)!.ArchiveStatus);
+        Assert.Empty(_database.GetPendingArchives(20, now));
+
+        _database.UpdateVideoRecordOnStop(id, now, 10, 100, "程序退出");
+        _database.MarkArchivePending(id);
+
+        Assert.Contains(
+            _database.GetPendingArchives(20, now),
+            record => record.Id == id);
+    }
 }
