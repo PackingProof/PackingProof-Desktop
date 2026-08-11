@@ -24,7 +24,7 @@
     <SatelliteResourceLanguages>en-US;zh-Hans</SatelliteResourceLanguages>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- 发布版本默认值：每次发布前手动改为新版本号，发布脚本会用 -p:InformationalVersion 覆盖。 -->
-    <Version>0.0.44</Version>
+    <Version>0.0.45</Version>
     <GitCommitId Condition="'$(GitCommitId)' == ''">$(SourceRevisionId)</GitCommitId>
   </PropertyGroup>
 
