@@ -231,6 +231,98 @@ function Test-IsStrictDescendantPath {
     return $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function Get-NormalizedReleaseVersion {
+    param([string]$RawVersion)
+
+    $value = $RawVersion.Trim()
+    if ($value.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+        $value = $value.Substring(1)
+    }
+
+    $suffixIndex = $value.IndexOfAny(@('+', '-'))
+    if ($suffixIndex -ge 0) {
+        $value = $value.Substring(0, $suffixIndex)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return "0.0.0"
+    }
+
+    return $value
+}
+
+function Get-BaselineVersionFromPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return @()
+    }
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $versions = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($match in [regex]::Matches($fullPath, '[+\\/](v?\d+\.\d+\.\d+)')) {
+        $null = $versions.Add((Get-NormalizedReleaseVersion $match.Groups[1].Value))
+    }
+
+    return ,@($versions)
+}
+
+function Resolve-EffectivePatchBaseline {
+    param(
+        [string]$BaselineAppDir,
+        [string]$PatchBaselineVersion,
+        [switch]$Explicit
+    )
+
+    $versions = Get-BaselineVersionFromPath -Path $BaselineAppDir
+    $explicitVersion = if ($Explicit) {
+        Get-NormalizedReleaseVersion $PatchBaselineVersion
+    }
+    else {
+        ""
+    }
+
+    if ($versions.Count -eq 0) {
+        if ($Explicit) {
+            return @{
+                EffectiveVersion = $explicitVersion
+                FromPath = $false
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($BaselineAppDir)) {
+            return @{
+                EffectiveVersion = (Get-NormalizedReleaseVersion $PatchBaselineVersion)
+                FromPath = $false
+            }
+        }
+        throw "无法从 -BaselineAppDir 识别基线版本号，且未显式指定 -PatchBaselineVersion；为避免声明基线与实际差异基线不一致，必须显式指定。"
+    }
+
+    if ($versions.Count -eq 1) {
+        $effectiveVersion = @($versions)[0]
+        if ($Explicit -and -not [string]::Equals(
+                $explicitVersion,
+                $effectiveVersion,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "实际基线目录版本 $effectiveVersion 与 -PatchBaselineVersion $explicitVersion 不一致；AppPatch 的 patch_baseline_version 必须与实际差异基线一致。"
+        }
+        return @{
+            EffectiveVersion = $effectiveVersion
+            FromPath = $true
+        }
+    }
+
+    if ($Explicit -and $versions -contains $explicitVersion) {
+        return @{
+            EffectiveVersion = $explicitVersion
+            FromPath = $true
+        }
+    }
+
+    throw "基线目录包含多个版本号（$($versions -join ', ')），无法自动确定实际基线；请显式指定与目录一致的 -PatchBaselineVersion。"
+}
+
 $packageVersion = Get-PackageVersion
 $packageName = ConvertTo-SafePathName "PackingProof+$packageVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
@@ -258,6 +350,13 @@ if ([string]::Equals($packageArtifactRoot, $outputFullPath, [System.StringCompar
     $packageArtifactRoot.StartsWith(($outputFullPath.TrimEnd('\') + '\'), [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "ZipPath must not be inside OutputDir, otherwise the package may include itself: $zipFullPath"
 }
+
+$patchBaselineExplicit = $PSBoundParameters.ContainsKey("PatchBaselineVersion")
+$patchBaselineResolution = Resolve-EffectivePatchBaseline `
+    -BaselineAppDir $BaselineAppDir `
+    -PatchBaselineVersion $PatchBaselineVersion `
+    -Explicit:$patchBaselineExplicit
+$normalizedPatchBaselineVersion = $patchBaselineResolution.EffectiveVersion
 
 Invoke-CoreRegressionTests
 if (-not $ConfirmManualCoreChecks) {
@@ -477,24 +576,96 @@ function Test-SevenZipContainsEntry {
     return $listing -contains $expectedLine
 }
 
-function Get-NormalizedReleaseVersion {
-    param([string]$RawVersion)
+function Get-ZipEntryText {
+    param(
+        [string]$ZipFile,
+        [string]$EntryName
+    )
 
-    $value = $RawVersion.Trim()
-    if ($value.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-        $value = $value.Substring(1)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipFile)
+    try {
+        $entry = $zip.Entries |
+            Where-Object {
+                [string]::Equals(
+                    $_.FullName.Replace('\', '/'),
+                    $EntryName,
+                    [System.StringComparison]::OrdinalIgnoreCase)
+            } |
+            Select-Object -First 1
+        if ($null -eq $entry) {
+            return $null
+        }
+
+        $reader = [System.IO.StreamReader]::new($entry.Open(), [System.Text.Encoding]::UTF8)
+        try {
+            return $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
+}
+
+function Assert-PatchMetadataConsistency {
+    param(
+        [string]$PatchZipPath,
+        [string]$LegacyPatchZipPath,
+        [string]$UpdateJsonPath,
+        [string]$ExpectedBaseline,
+        [string]$ExpectedLatest,
+        [string]$ExpectedSha256,
+        [long]$ExpectedSize
+    )
+
+    $patchJson = Get-ZipEntryText -ZipFile $PatchZipPath -EntryName "patch_manifest.json"
+    if ([string]::IsNullOrWhiteSpace($patchJson)) {
+        throw "AppPatch 元数据校验失败：包内缺少 patch_manifest.json"
     }
 
-    $suffixIndex = $value.IndexOfAny(@('+', '-'))
-    if ($suffixIndex -ge 0) {
-        $value = $value.Substring(0, $suffixIndex)
+    $patchManifest = $patchJson | ConvertFrom-Json
+    $problems = @()
+    if (-not [string]::Equals(
+            [string]$patchManifest.patch_baseline_version,
+            $ExpectedBaseline,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $problems += "patch_manifest.json 基线 $($patchManifest.patch_baseline_version) 与实际基线 $ExpectedBaseline 不一致"
+    }
+    if (-not [string]::Equals(
+            [string]$patchManifest.latest_version,
+            $ExpectedLatest,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $problems += "patch_manifest.json 版本 $($patchManifest.latest_version) 与 $ExpectedLatest 不一致"
     }
 
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return "0.0.0"
+    $updateJson = Get-Content -Raw -Encoding UTF8 $UpdateJsonPath | ConvertFrom-Json
+    if (-not [string]::Equals(
+            [string]$updateJson.patch_baseline_version,
+            $ExpectedBaseline,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $problems += "update JSON 基线 $($updateJson.patch_baseline_version) 与实际基线 $ExpectedBaseline 不一致"
+    }
+    if (-not [string]::Equals(
+            [string]$updateJson.patch_package.sha256,
+            $ExpectedSha256,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $problems += "update JSON 的 sha256 与 AppPatch 实际哈希不一致"
+    }
+    if ([long]$updateJson.patch_package.size -ne $ExpectedSize) {
+        $problems += "update JSON 的 size 与 AppPatch 实际大小不一致"
     }
 
-    return $value
+    if ($problems.Count -gt 0) {
+        foreach ($path in @($PatchZipPath, $LegacyPatchZipPath, $UpdateJsonPath)) {
+            if (Test-Path -LiteralPath $path) {
+                Remove-Item -LiteralPath $path -Force
+            }
+        }
+        throw "AppPatch 元数据一致性校验失败，已删除产物：" + [Environment]::NewLine + ($problems -join [Environment]::NewLine)
+    }
 }
 
 function Test-ZipContainsEntry {
@@ -978,7 +1149,6 @@ foreach ($runtimeFile in $requiredAppRuntimeFiles) {
 }
 
 $normalizedVersion = Get-NormalizedReleaseVersion $packageVersion
-$normalizedPatchBaselineVersion = Get-NormalizedReleaseVersion $PatchBaselineVersion
 $releaseTag = "v$normalizedVersion"
 $packageRoot = $packageArtifactRoot
 $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
@@ -1226,6 +1396,17 @@ $updateManifest["full_download_fallback_page"] = $fullDownloadFallbackPage
 $updateManifest |
     ConvertTo-Json -Depth 6 |
     Set-Content -LiteralPath $updateJsonPath -Encoding UTF8
+
+if ($patchSupported) {
+    Assert-PatchMetadataConsistency `
+        -PatchZipPath $appPatchZipPath `
+        -LegacyPatchZipPath $legacyAppPatchZipPath `
+        -UpdateJsonPath $updateJsonPath `
+        -ExpectedBaseline $normalizedPatchBaselineVersion `
+        -ExpectedLatest $normalizedVersion `
+        -ExpectedSha256 $appPatchHash `
+        -ExpectedSize $appPatchSize
+}
 
 $zipParent = Split-Path -Parent $zipFullPath
 if (-not [string]::IsNullOrWhiteSpace($zipParent)) {
