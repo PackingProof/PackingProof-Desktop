@@ -1285,6 +1285,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private long _droppedFrames;
     private long _forceDecodeUntilUtcTicks;
     private string _lastRecognizedCode = "";
+    private string _lastConfirmedCommandCode = "";
     private int _generation;
     private volatile bool _disposed;
     private int _workerResourcesDisposed;
@@ -1442,9 +1443,33 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             // 解码到任意非空条码即触发独立滴声（含 CLEAR/SHIP 等指令码）；
             // 确认/状态/指令处理仍只使用通过校验的码。
             NotifyRecognizedIfNew(decoded);
-            code = decoded != null && IsValidCandidate(decoded)
-                ? decoded
-                : null;
+            if (decoded != null &&
+                CameraBarcodeCandidatePolicy.IsKnownCommandCode(decoded))
+            {
+                // 指令码一次识别即触发，不依赖稳定性确认；同码保持可见不重复。
+                if (!string.Equals(
+                    decoded,
+                    _lastConfirmedCommandCode,
+                    StringComparison.Ordinal))
+                {
+                    _lastConfirmedCommandCode = decoded;
+                    RuntimeLog.Info(
+                        "CameraBarcode",
+                        $"Confirmed command {decoded} immediately");
+                    BarcodeConfirmed?.Invoke(decoded);
+                }
+                code = null;
+            }
+            else
+            {
+                if (decoded == null)
+                {
+                    _lastConfirmedCommandCode = "";
+                }
+                code = decoded != null && IsValidCandidate(decoded)
+                    ? decoded
+                    : null;
+            }
 
             CameraBarcodeObservation observation;
             TimeSpan confirmationWindow = code == null

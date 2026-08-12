@@ -914,27 +914,37 @@ public sealed class CameraBarcodeRecognitionTests
     [InlineData("BACK")]
     [InlineData("START")]
     [InlineData("STOP")]
-    public async Task RecognitionService_CommandCodeFiresRecognizedButNotConfirmed(
+    public async Task RecognitionService_CommandCodeConfirmsImmediatelyOncePerEpisode(
         string command)
     {
         using Mat frame = CreateFrameWithBarcode(
             command,
             BarcodeFormat.CODE_128,
             inGuide: true);
+        using Mat blank = CreateSolidFrame(255);
         var recognized = new List<string>();
-        int confirmedCount = 0;
+        var confirmed = new List<string>();
         using var service = new CameraBarcodeRecognitionService(
             value => CameraBarcodeCandidatePolicy.IsValid(
                 value,
                 "^[a-zA-Z0-9-]{12,25}$"));
         service.BarcodeRecognized += recognized.Add;
-        service.BarcodeConfirmed += _ => Interlocked.Increment(ref confirmedCount);
+        service.BarcodeConfirmed += confirmed.Add;
 
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
         service.TrySubmitFrame(frame);
         await Task.Delay(400, TestContext.Current.CancellationToken);
 
         Assert.Contains(command, recognized);
-        Assert.Equal(0, Volatile.Read(ref confirmedCount));
+        Assert.Single(confirmed); // 第一帧立即确认，同码保持可见不重复
+
+        service.TrySubmitFrame(blank);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, confirmed.Count); // 离开画面后再次出现重新确认
     }
 
     [Theory]
