@@ -524,6 +524,32 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
+    [InlineData("CLEAR", true)]
+    [InlineData("清除", true)]
+    [InlineData("clear", true)]
+    [InlineData("SHIP", true)]
+    [InlineData("发货", true)]
+    [InlineData("FAHUO", true)]
+    [InlineData("BACK", true)]
+    [InlineData("退货", true)]
+    [InlineData("TUIHUO", true)]
+    [InlineData("START", true)]
+    [InlineData("开始录制", true)]
+    [InlineData("STOP", true)]
+    [InlineData("停止录制", true)]
+    [InlineData("YT123456789012", false)]
+    [InlineData("1234", false)]
+    [InlineData("6901234567892", false)]
+    [InlineData("", false)]
+    [InlineData("SF123456789012", false)]
+    public void CameraBarcodeCandidatePolicy_IsKnownCommandCode(
+        string value,
+        bool expected)
+    {
+        Assert.Equal(expected, CameraBarcodeCandidatePolicy.IsKnownCommandCode(value));
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -909,6 +935,38 @@ public sealed class CameraBarcodeRecognitionTests
 
         Assert.Contains(command, recognized);
         Assert.Equal(0, Volatile.Read(ref confirmedCount));
+    }
+
+    [Theory]
+    [InlineData("CLEAR")]
+    [InlineData("SHIP")]
+    [InlineData("BACK")]
+    [InlineData("START")]
+    [InlineData("STOP")]
+    public async Task RecognitionService_CommandCodeConfirmedWhenCameraValidatorAllowsCommands(
+        string command)
+    {
+        using Mat frame = CreateFrameWithBarcode(
+            command,
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+        var recognized = new List<string>();
+        int confirmedCount = 0;
+        using var service = new CameraBarcodeRecognitionService(
+            value => CameraBarcodeCandidatePolicy.IsValidForWorkScan(
+                    value,
+                    "^[a-zA-Z0-9-]{12,25}$")
+                || CameraBarcodeCandidatePolicy.IsKnownCommandCode(value));
+        service.BarcodeRecognized += recognized.Add;
+        service.BarcodeConfirmed += _ => Interlocked.Increment(ref confirmedCount);
+
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Contains(command, recognized);
+        Assert.Equal(1, Volatile.Read(ref confirmedCount));
     }
 
     [Fact]

@@ -101,16 +101,8 @@ internal static class BarcodeRecordingDecisionPolicy
                 : Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.CooldownIgnored, normalized);
         }
 
-        if (normalized.Contains("CLEAR") || normalized.Contains("清除"))
-            return Create(BarcodeRecordingDecisionAction.ClearInput, BarcodeRecordingDecisionReason.ClearCommand, normalized);
-        if (normalized.Contains("SHIP") || normalized.Contains("发货") || normalized.Contains("FAHUO"))
-            return Create(BarcodeRecordingDecisionAction.SwitchToShipping, BarcodeRecordingDecisionReason.ShippingCommand, normalized);
-        if (normalized.Contains("BACK") || normalized.Contains("退货") || normalized.Contains("TUIHUO"))
-            return Create(BarcodeRecordingDecisionAction.SwitchToReturn, BarcodeRecordingDecisionReason.ReturnCommand, normalized);
-        if (normalized.Contains("START") || normalized.Contains("开始录制"))
-            return Create(BarcodeRecordingDecisionAction.ToggleRecording, BarcodeRecordingDecisionReason.StartCommand, normalized);
-        if (normalized.Contains("STOP") || normalized.Contains("停止录制"))
-            return Create(BarcodeRecordingDecisionAction.Stop, BarcodeRecordingDecisionReason.StopCommand, normalized);
+        if (TryGetCommandDecision(normalized, out BarcodeRecordingDecision commandDecision))
+            return commandDecision;
 
         if (isRecording && sameBarcodeStopEnabled)
         {
@@ -129,6 +121,43 @@ internal static class BarcodeRecordingDecisionPolicy
         return isRecording
             ? Create(BarcodeRecordingDecisionAction.Switch, BarcodeRecordingDecisionReason.Ready, normalized)
             : Create(BarcodeRecordingDecisionAction.Start, BarcodeRecordingDecisionReason.Ready, normalized);
+    }
+
+    /// <summary>
+    /// 识别已知指令码（清除/切发货/切退货/开始录制/停止录制）。
+    /// 摄像头候选校验与扫码枪决策共用同一份定义，避免两处规则漂移。
+    /// </summary>
+    internal static bool TryGetCommandDecision(
+        string normalized,
+        out BarcodeRecordingDecision decision)
+    {
+        if (normalized.Contains("CLEAR") || normalized.Contains("清除"))
+        {
+            decision = Create(BarcodeRecordingDecisionAction.ClearInput, BarcodeRecordingDecisionReason.ClearCommand, normalized);
+            return true;
+        }
+        if (normalized.Contains("SHIP") || normalized.Contains("发货") || normalized.Contains("FAHUO"))
+        {
+            decision = Create(BarcodeRecordingDecisionAction.SwitchToShipping, BarcodeRecordingDecisionReason.ShippingCommand, normalized);
+            return true;
+        }
+        if (normalized.Contains("BACK") || normalized.Contains("退货") || normalized.Contains("TUIHUO"))
+        {
+            decision = Create(BarcodeRecordingDecisionAction.SwitchToReturn, BarcodeRecordingDecisionReason.ReturnCommand, normalized);
+            return true;
+        }
+        if (normalized.Contains("START") || normalized.Contains("开始录制"))
+        {
+            decision = Create(BarcodeRecordingDecisionAction.ToggleRecording, BarcodeRecordingDecisionReason.StartCommand, normalized);
+            return true;
+        }
+        if (normalized.Contains("STOP") || normalized.Contains("停止录制"))
+        {
+            decision = Create(BarcodeRecordingDecisionAction.Stop, BarcodeRecordingDecisionReason.StopCommand, normalized);
+            return true;
+        }
+        decision = default;
+        return false;
     }
 
     internal static string GetReasonText(BarcodeRecordingDecisionReason reason) => reason switch
@@ -230,6 +259,19 @@ internal static class CameraBarcodeCandidatePolicy
     {
         string normalized = (value ?? "").Trim().ToUpperInvariant();
         return IsValid(normalized, orderIdRegex) && !IsProductEan13(normalized);
+    }
+
+    /// <summary>
+    /// 是否为已知指令码（与扫码枪决策共用同一份定义）。
+    /// 用于摄像头候选校验：放宽为“订单号 或 指令码”，让摄像头也能触发
+    /// 清除/切发货/切退货/开始录制/停止录制。
+    /// </summary>
+    public static bool IsKnownCommandCode(string? value)
+    {
+        string normalized = (value ?? "").Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+            return false;
+        return BarcodeRecordingDecisionPolicy.TryGetCommandDecision(normalized, out _);
     }
 
     /// 判断是否为 EAN-13 商品条码：13 位数字、690-699 前缀且校验位合法。

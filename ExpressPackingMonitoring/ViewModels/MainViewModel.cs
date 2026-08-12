@@ -1617,7 +1617,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public bool IsAutoSubmitScanCandidate(string scanText)
         {
-            return IsOrderScan((scanText ?? "").ToUpper().Trim());
+            return IsOrderScan((scanText ?? "").ToUpper().Trim())
+                || CameraBarcodeCandidatePolicy.IsKnownCommandCode(scanText);
         }
 
         private void QueuePostStopMux(string reason)
