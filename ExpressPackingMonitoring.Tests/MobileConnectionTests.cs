@@ -220,6 +220,80 @@ public sealed class MobileConnectionTests
         Assert.True(WebServer.RequiresAccessKey("/API/MOBILE-CONNECTION"));
     }
 
+    [Fact]
+    public void StorageOverviewRequiresAccessKeyWhenProtectionIsEnabled()
+    {
+        Assert.True(WebServer.RequiresAccessKey("/api/storage"));
+        Assert.True(WebServer.RequiresAccessKey("/API/STORAGE/OVERVIEW"));
+    }
+
+    [Fact]
+    public async Task StorageOverviewRejectsMissingAndWrongKeyAndAcceptsValidKey()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"epm-storage-auth-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        int port = GetFreeTcpPort();
+        const string accessKey = "0123456789abcdef0123456789abcdef";
+
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: accessKey,
+                listenerHost: "127.0.0.1",
+                mobileConnectionUrlProvider: () => $"http://192.168.1.20:{port}/?key={accessKey}");
+            server.Start();
+
+            using var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                UseCookies = true,
+                CookieContainer = new CookieContainer()
+            };
+            using var client = new HttpClient(handler) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+            using HttpResponseMessage missing = await client.GetAsync("/api/storage", cancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+
+            using (var wrongHeaderRequest = new HttpRequestMessage(HttpMethod.Get, "/api/storage"))
+            {
+                wrongHeaderRequest.Headers.Add("X-EPM-Access-Key", "wrong-key");
+                using HttpResponseMessage wrongHeader = await client.SendAsync(wrongHeaderRequest, cancellationToken);
+                Assert.Equal(HttpStatusCode.Unauthorized, wrongHeader.StatusCode);
+            }
+
+            using HttpResponseMessage wrongQuery = await client.GetAsync(
+                "/api/storage?key=wrong-key",
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, wrongQuery.StatusCode);
+
+            // 有效密钥只验证鉴权边界：存储概览可能受本机真实配置影响返回 500，
+            // 只要不是 401 就证明请求已通过访问密钥保护。
+            using (var validRequest = new HttpRequestMessage(HttpMethod.Get, "/api/storage"))
+            {
+                validRequest.Headers.Add("X-EPM-Access-Key", accessKey);
+                using HttpResponseMessage validHeader = await client.SendAsync(validRequest, cancellationToken);
+                Assert.NotEqual(HttpStatusCode.Unauthorized, validHeader.StatusCode);
+            }
+
+            using HttpResponseMessage queryAuthorized = await client.GetAsync(
+                $"/api/storage?key={accessKey}",
+                cancellationToken);
+            Assert.NotEqual(HttpStatusCode.Unauthorized, queryAuthorized.StatusCode);
+
+            using HttpResponseMessage cookieAuthorized = await client.GetAsync("/api/storage", cancellationToken);
+            Assert.NotEqual(HttpStatusCode.Unauthorized, cookieAuthorized.StatusCode);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDirectory, recursive: true); } catch { }
+        }
+    }
+
     private static int GetFreeTcpPort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

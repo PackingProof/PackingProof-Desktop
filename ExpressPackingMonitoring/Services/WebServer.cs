@@ -916,6 +916,7 @@ namespace ExpressPackingMonitoring.Services
             return path == ""
                 || path.StartsWith("/api/videos", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/video-sources", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/api/storage", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/clip", StringComparison.OrdinalIgnoreCase)
                 || path.Equals("/api/mobile-connection", StringComparison.OrdinalIgnoreCase);
         }
