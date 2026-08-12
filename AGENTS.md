@@ -48,9 +48,10 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - AppPatch packages are fixed-baseline cumulative patches. The AppPatch baseline is specified by `-PatchBaselineVersion` and defaults to `0.0.18`, but scripts may allow overriding it when a new formal baseline is chosen. It is independent from the launcher baseline.
 - Keep update URLs configurable through environment variables or `.env`. The default update check URL is GitHub releases latest API; `.env` may point to another release provider.
 - 主程序默认版本号维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`：每次发布前手动更新为本次版本，并与 `vX.Y.Z` 标签一致；`Publish-CleanPackage.ps1` 仍通过 `-p:InformationalVersion` 注入发布版本，本地与 CI 普通构建显示该默认版本。
-- 发布打包命令（每次发布按此执行）：
-  - `pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -BaselineAppDir "package\PackingProof+v<上一正式版>\PackingProof+v<上一正式版>\app"`
-  - `-BaselineAppDir` 必须指向上一个完整包的 `app` 子目录（内含 `tools\ffmpeg.exe`）；指到包根目录会导致 AppPatch 不生成
+- 发布打包命令（每次发布按此执行，推荐直接运行仓库根目录 `打包脚本-增量.bat v<X.Y.Z>`，脚本默认固定 AppPatch 基线 0.0.18）：
+  - 直接调用脚本时：`pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBaselineVersion 0.0.18 -BaselineAppDir "package\ExpressPackingMonitoring+v0.0.18\ExpressPackingMonitoring+v0.0.18\app"`
+  - `-BaselineAppDir` 必须指向固定 AppPatch 基线（当前 0.0.18）完整包的 `app` 子目录（内含 `tools\ffmpeg.exe`）；指到包根目录会导致 AppPatch 不生成
+  - 实际差异基线以 `-BaselineAppDir` 路径中的版本号为准，`update_vX.Y.Z.json` 的 `patch_baseline_version` 与 AppPatch 内 `patch_manifest.json` 基线由脚本从该目录解析并强制保持一致；禁止手工把基线改写为与基线目录不符的版本，否则脚本会在生成后校验失败
   - `-ReuseExistingLauncherBaseline` 仅当本次发布标签与锁定启动器基线标签相同（同版本重发）时使用；普通新版本不要传该参数，脚本会自动复用锁定基线启动器且不生成 LauncherPatch
 - 正式发布流程顺序：先在本地完成 Release 构建、全量测试与发布包生成并确认成功，再推送最新 `main` 提交到 GitHub、Gitee（PackingProof/PackingProof-Desktop）与旧 Gitee（chenjjian/ExpressPackingMonitoring）三个远端，最后创建 `vX.Y.Z` 标签并同步推送各远端；标签必须指向编译验证通过的最终提交，禁止先推标签再编译。三个远端缺一不可，旧 Gitee 仓库同样必须创建 Release 并上传资产，禁止遗漏或等用户提醒。
 - 发布笔记必须使用仓库根目录的 `RELEASE_NOTES_TEMPLATE.md` 模板：编写前先执行 `git log --oneline <上一正式版标签>..HEAD` 逐条核对全部提交，笔记必须覆盖所有用户可见变更（功能、设置、界面、启动器、发布流程等），禁止凭印象编写或遗漏提交。更新内容按“功能与体验 / 问题修复 / 兼容与工程”三类填写，并包含下载与更新说明、未验证事项；禁止自创格式。Release 标题固定为“`v<X.Y.Z> <一句话内容>`”（版本号开头，不加产品名或“发布”等前缀）。预览版本必须在 GitHub 与 Gitee 标记 prerelease 并在正文注明。更新日志范围：预览版只写本预览版增量内容，正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容。`update_vX.Y.Z.json` 的 `title` 必须与 Release 标题一致，`notes` 只保留简洁更新摘要（分类要点加一句下载提示即可），完整发布笔记以 Release 页面为准，不要重复粘贴完整说明。
