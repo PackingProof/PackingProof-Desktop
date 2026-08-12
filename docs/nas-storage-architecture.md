@@ -21,6 +21,8 @@ flowchart LR
 - **支持多个网络备份位置**：按优先级选择当前可用（可达且空间高于预留值）的第一个作为归档目标；NAS 满时该记录自动改路到下一个可用位置，全部不可用时才进入 `NASFull` 暂停。
 - **网络位置判重与排序**：添加网络位置时按“共享标识”（`\\服务器\共享`，小写、忽略子目录）判重：映射盘先转 UNC，主机名/IP 尽力解析（2 秒超时，失败回退文本，`localhost/127.0.0.1` 归一），同一共享不允许重复添加；备份位置列表支持上移/下移调整相对优先级。
 - **主界面“录像备份”状态卡片**：配置了网络备份位置即常驻显示在主页右下角（录像工作站角色不显示），短状态区分 备份中/备份失败/备份暂停/待备份/已同步，详情行显示剩余待备份数（`Pending + Copying/Verifying + Failed + NASFull`）与当前备份目标路径；移除全部备份位置后卡片隐藏。
+- **“是否待备份”三层判定**：由 `ArchiveBackupStatePolicy` 统一计算——待备份 = 已定稿 + 未删除 +（状态 ∈ LocalOnly/Pending/Copying/Verifying/Failed/NASFull/Conflict/LocalMissingUnverified/BackupLost，或 `LocalDeleted + CapacityCleanupUnconfirmedRemote`）；`HasCompletedArchiveEvidence` 只是“历史归档完成证据”（ArchiveCompletedAt 或 ContentSha256+ArchivePath），不代表当前 NAS 副本仍存在；当前可信副本 = 历史证据 + 三态探测 Exists（存在且大小一致）。`LocalDeleted + ManualCleanup` 不计入待备份且不作为 NAS 存在证据；RemainingCount=0 时若存在“已清理且从未备份”（`IsCleanedUnbacked`）记录，卡片显示“已清理/无待备份”而非“已同步”。
+- **LocalMissingUnverified / BackupLost**：本地缺失统一走历史证据 + 三态探测判定——Exists+证据 → LocalDeleted（确认）；Exists 无证据 / Unavailable → LocalMissingUnverified（计入、人工核实）；ConfirmedMissing → BackupLost（计入、最高级异常、不自动恢复）；Conflict 本地缺失 → BackupLost（`ConflictLocalMissing`）；NasDeleted 本地缺失按策略删除证据分流（有 → 策略终态，无 → BackupLost）。两者都不进回填/上传队列、不递增重试。
 - **状态卡片公共控件**：主界面（手机/电脑备份、录像备份、订单联动、从机保存主机/录像上传）与录像文件备份主机窗口共用 `StatusCard` 控件（图标 + 标题 + 短状态 + 详情/内容区），短状态颜色规则集中维护；备份主机窗口头部显示电脑昵称 + IP，并在左侧展示“手机/电脑备份、录像备份、订单联动”三张卡片，右侧操作按钮不变。
 - 默认存储列表只含本地固定磁盘；网络位置必须由用户在“存储管理”手动添加（映射盘保存前归一化为 UNC）。
 - **NAS 滚动归档**：NAS 用于扩展本地录像的保存周期；NAS 空间不足时按最旧优先循环清理已确认归档的副本（候选含 `Verified` 与已成功归档的 `LocalDeleted`），记录保留可查；用户删除仍只删本地记录，不主动删 NAS。
@@ -67,13 +69,13 @@ stateDiagram-v2
 | 字段 | 语义 |
 | --- | --- |
 | `ArchivePath` | 网络归档目标完整路径（UNC 优先） |
-| `ArchiveStatus` | LocalOnly / Pending / Copying / Verifying / Verified / Failed / Conflict / NASFull / Deleting / LocalDeleted / NasDeleted |
+| `ArchiveStatus` | LocalOnly / Pending / Copying / Verifying / Verified / Failed / Conflict / NASFull / Deleting / LocalDeleted / NasDeleted / LocalMissingUnverified / BackupLost |
 | `ArchiveRetryCount` / `NextRetryAt` | 失败退避（30s×2^n，上限 30 分钟） |
 | `ArchiveError` | 最近一次错误（哈希失败为 `HashMismatch`） |
 | `ArchiveCompletedAt` | 归档验证完成时间 |
 | `LocalCopyDeletedAt` / `LocalDeleteReason` | 本地录像文件清理时间与原因 |
 | `LastArchiveProbeAt` | GC 最近一次成功探测归档目标的时间；24 小时内免重复探测 |
-| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityCleanupUnconfirmedRemote` / `CapacityCleanupUnarchived` / `CapacityEmergencyCleanupUnarchived` / `NasCapacityCleanup` / `NasCopyMissingReconcile` |
+| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityCleanupUnconfirmedRemote` / `CapacityCleanupUnarchived` / `CapacityEmergencyCleanupUnarchived` / `NasCapacityCleanup` / `NasCopyMissingReconcile` / `ConflictLocalMissing` / `BackupLost` |
 | `ContentSha256` | 归档校验哈希（发布后写入） |
 
 队列查询：`GetPendingArchives` 按 Copying → Verifying → Pending（**EndTime 降序，新录像优先**）→ Failed（到期优先）排序；`NASFull` 不进入队列，由空间检查恢复后重新入队；队列为空时完成即唤醒可秒级归档刚结束的录像。NAS 恢复后新录像先归档，历史积压按批次上限自然限速补传。
@@ -156,5 +158,6 @@ sequenceDiagram
 - NAS 满提示冷却：60 分钟（`NetworkArchiveSpacePolicy.WarningCooldown`）。
 - 未归档删除提示冷却：6 小时（`LocalCopyCleanupPolicy.UnarchivedCleanupWarningCooldown`），日志全量记录。
 - 远端确认过期窗口：24 小时（`LocalCopyCleanupPolicy.UnconfirmedRemoteCleanupGrace`，与探测缓存一致）；NAS 清理单轮 200 条（`NasCircularCleanupService.BatchLimit`），同根清理互斥（每根 `SemaphoreSlim(1,1)`）；对账频率：启动后首次 GC + 每日一次。
+- 历史回填追赶：单轮最多 2000 条（`ArchiveService.BackfillCatchUpBatchSize`），本轮正常完成后进入 5 分钟节流，`Wake()` 立即追赶；显示层计数不依赖回填进度。
 - 数据库 schema 版本：`VideoDatabase` 用 `PRAGMA user_version`（当前 `SchemaVersion=1`）做迁移保护，低版本启动时补齐字段并写版本，高版本只告警不降级。
 - Provider 边界：`IArchiveProvider` 提供发布（Publish）、校验（Verify/ComputeSha256）、存在与元数据探测（Probe）与删除（`DeleteAsync`，返回 Deleted/NotFound，网络/权限异常一律抛出）；删除前 Provider 内部校验目标路径属于调用方允许的根目录（防御式设计）。`RenameAsync` 仅用于把本次刚上传的损坏目标改名 `.corrupt`（自己的不完整文件，不是删除既有文件）。
