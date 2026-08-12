@@ -379,6 +379,7 @@ public sealed class ArchiveDatabaseTests : IDisposable
         long verifying = InsertLocal(@"\\nas\v.mp4", now.AddHours(-4), now.AddHours(-3), orderId: "单号V");
         long failed = InsertLocal(@"\\nas\f.mp4", now.AddHours(-3), now.AddHours(-2), orderId: "单号F");
         long nasFull = InsertLocal(@"\\nas\n.mp4", now.AddHours(-2), now.AddHours(-1), orderId: "单号N");
+        long localOnly = InsertLocal(@"\\nas\lo.mp4", now.AddHours(-9), now.AddHours(-8), orderId: "单号LO");
         long verified = InsertLocal(@"\\nas\ok.mp4", now.AddHours(-1), now, orderId: "单号OK");
         long conflict = InsertLocal(@"\\nas\x.mp4", now.AddHours(-7), now.AddHours(-6), orderId: "单号X");
         long deleted = InsertLocal(@"\\nas\d.mp4", now.AddHours(-8), now.AddHours(-7), orderId: "单号D");
@@ -403,7 +404,12 @@ public sealed class ArchiveDatabaseTests : IDisposable
         Assert.Equal(2, summary.UploadingCount);
         Assert.Equal(1, summary.FailedCount);
         Assert.Equal(1, summary.NasFullCount);
-        Assert.Equal(5, summary.RemainingCount);
+        Assert.Equal(1, summary.LocalOnlyCount);
+        Assert.Equal(1, summary.ConflictCount);
+        Assert.Equal(0, summary.PendingVerificationCount);
+        Assert.Equal(0, summary.LostCount);
+        Assert.Equal(0, summary.CleanedUnbackedCount);
+        Assert.Equal(7, summary.RemainingCount);
     }
 
     [Fact]
@@ -1018,6 +1024,325 @@ public sealed class ArchiveDatabaseTests : IDisposable
         Assert.Equal(
             [staleLocalDeleted, staleVerified],
             candidates.Select(record => record.Id));
+    }
+
+    [Fact]
+    public void MarkLocalMissingUnverified_KeepsRetryFieldsAndWritesLog()
+    {
+        DateTime now = DateTime.Now;
+        string archivePath = @"\\nas\share\2026-08-11\nu.mp4";
+        long id = InsertLocal(archivePath, now.AddHours(-3), now.AddHours(-2));
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2),
+            incrementRetry: true,
+            nextRetryAt: now.AddHours(1));
+        int retryBefore = _database.GetVideoById(id)!.ArchiveRetryCount;
+
+        _database.MarkLocalMissingUnverified(
+            id,
+            archivePath,
+            "本地副本缺失，等待确认 NAS 归档",
+            "");
+        _database.MarkLocalMissingUnverified(
+            id,
+            archivePath,
+            "本地副本缺失，等待确认 NAS 归档",
+            "");
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.LocalMissingUnverified, record.ArchiveStatus);
+        Assert.Equal(retryBefore, record.ArchiveRetryCount);
+        Assert.NotNull(record.NextRetryAt); // 重试字段保持原值
+        Assert.Equal(archivePath, record.FilePath == null ? "" : record.ArchivePath);
+        Assert.Equal(
+            1,
+            _database.GetDeleteLogs(10)
+                .Count(log => log.FilePath == archivePath));
+        Assert.False(record.IsDeleted);
+        Assert.NotEqual("", record.FilePath); // FilePath 是历史元数据，永不清空
+    }
+
+    [Fact]
+    public void MarkBackupLost_KeepsRetryFieldsAndPreservesFilePath()
+    {
+        DateTime now = DateTime.Now;
+        string archivePath = @"\\nas\share\2026-08-11\bl.mp4";
+        long id = InsertLocal(archivePath, now.AddHours(-3), now.AddHours(-2));
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2),
+            incrementRetry: true,
+            nextRetryAt: now.AddHours(1));
+        string filePath = _database.GetVideoById(id)!.FilePath;
+
+        _database.MarkBackupLost(
+            id,
+            archivePath,
+            "本地与 NAS 均无可信副本",
+            RecordingDeletionReasonCode.BackupLost);
+        _database.MarkBackupLost(
+            id,
+            archivePath,
+            "本地与 NAS 均无可信副本",
+            RecordingDeletionReasonCode.BackupLost);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.BackupLost, record.ArchiveStatus);
+        Assert.Equal(filePath, record.FilePath);
+        Assert.Equal(1, record.ArchiveRetryCount); // 重试字段保持原值
+        Assert.Equal(
+            1,
+            _database.GetDeleteLogs(10)
+                .Count(log => log.FilePath == archivePath));
+    }
+
+    [Fact]
+    public void MarkLocalCleanupConfirmed_UpgradesUnconfirmedReason()
+    {
+        DateTime now = DateTime.Now;
+        string archivePath = @"\\nas\share\2026-08-11\lc.mp4";
+        long id = InsertLocal(archivePath, now.AddHours(-3), now.AddHours(-2));
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+        _database.MarkLocalCopyDeleted(
+            id,
+            "容量清理（NAS 不可达，未确认）",
+            RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote);
+
+        _database.MarkLocalCleanupConfirmed(id, now);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.LocalDeleted, record.ArchiveStatus);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupVerified,
+            record.DeleteReasonCode);
+        Assert.NotNull(record.LastArchiveProbeAt);
+    }
+
+    [Fact]
+    public void GetArchiveQueueSummary_FullMixedStatusCounts()
+    {
+        DateTime now = DateTime.Now;
+        long localOnly = InsertLocal(@"\\nas\1.mp4", now.AddHours(-20), now.AddHours(-19), orderId: "单号1");
+        long pending = InsertLocal(@"\\nas\2.mp4", now.AddHours(-19), now.AddHours(-18), orderId: "单号2");
+        long copying = InsertLocal(@"\\nas\3.mp4", now.AddHours(-18), now.AddHours(-17), orderId: "单号3");
+        long failed = InsertLocal(@"\\nas\4.mp4", now.AddHours(-17), now.AddHours(-16), orderId: "单号4");
+        long nasFull = InsertLocal(@"\\nas\5.mp4", now.AddHours(-16), now.AddHours(-15), orderId: "单号5");
+        long conflict = InsertLocal(@"\\nas\6.mp4", now.AddHours(-15), now.AddHours(-14), orderId: "单号6");
+        long unconfirmed = InsertLocal(@"\\nas\7.mp4", now.AddHours(-14), now.AddHours(-13), orderId: "单号7");
+        long pendingVerification = InsertLocal(@"\\nas\8.mp4", now.AddHours(-13), now.AddHours(-12), orderId: "单号8");
+        long backupLost = InsertLocal(@"\\nas\9.mp4", now.AddHours(-12), now.AddHours(-11), orderId: "单号9");
+        long manualCleaned = InsertLocal(@"\\nas\10.mp4", now.AddHours(-11), now.AddHours(-10), orderId: "单号10");
+        long verified = InsertLocal(@"\\nas\11.mp4", now.AddHours(-10), now.AddHours(-9), orderId: "单号11");
+        long nasDeleted = InsertLocal(@"\\nas\12.mp4", now.AddHours(-9), now.AddHours(-8), orderId: "单号12");
+        long deleted = InsertLocal(@"\\nas\13.mp4", now.AddHours(-8), now.AddHours(-7), orderId: "单号13");
+        long recording = _database.InsertVideoRecord(
+            "单号rec",
+            "发货",
+            "h264",
+            "libx264",
+            Path.Combine(_directory, "rec.mp4"),
+            now.AddHours(-7),
+            archivePath: @"\\nas\14.mp4");
+
+        // 先为需要“历史完成证据”的记录统一置 Verified
+        foreach (long id in new[]
+                 {
+                     unconfirmed, verified, nasDeleted, deleted
+                 })
+        {
+            _database.UpdateArchiveState(
+                id,
+                VideoArchiveStatus.Verified,
+                contentSha256: "h",
+                completedAt: now.AddHours(-6));
+        }
+        _database.MarkArchivePending(pending);
+        _database.UpdateArchiveState(copying, VideoArchiveStatus.Copying, attemptedAt: now);
+        _database.UpdateArchiveState(failed, VideoArchiveStatus.Failed, attemptedAt: now);
+        _database.UpdateArchiveState(nasFull, VideoArchiveStatus.NASFull, attemptedAt: now);
+        _database.UpdateArchiveState(conflict, VideoArchiveStatus.Conflict, attemptedAt: now);
+        _database.MarkLocalCopyDeleted(
+            unconfirmed,
+            "容量清理（未确认）",
+            RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote);
+        _database.MarkLocalMissingUnverified(
+            pendingVerification,
+            @"\\nas\8.mp4",
+            "待核实",
+            "");
+        _database.MarkBackupLost(
+            backupLost,
+            @"\\nas\9.mp4",
+            "丢失",
+            RecordingDeletionReasonCode.BackupLost);
+        _database.MarkLocalCopyDeleted(
+            manualCleaned,
+            "手动清理",
+            RecordingDeletionReasonCode.ManualCleanup);
+        // verified 保持 Verified；nasDeleted 转 NasDeleted（本地仍在）
+        _database.MarkNasCopyDeleted(
+            nasDeleted,
+            @"\\nas\12.mp4",
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+        _database.MarkVideoDeleted(
+            _database.GetVideoById(deleted)!.FilePath,
+            "测试删除");
+        // recording：EndTime 为空 → 不计入
+
+        ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
+
+        Assert.Equal(1, summary.PendingCount);
+        Assert.Equal(1, summary.UploadingCount);
+        Assert.Equal(1, summary.FailedCount);
+        Assert.Equal(1, summary.NasFullCount);
+        Assert.Equal(1, summary.LocalOnlyCount);
+        Assert.Equal(1, summary.ConflictCount);
+        Assert.Equal(2, summary.PendingVerificationCount); // LocalMissingUnverified + LocalDeleted/Unconfirmed
+        Assert.Equal(1, summary.LostCount);
+        Assert.Equal(1, summary.CleanedUnbackedCount);
+        Assert.Equal(9, summary.RemainingCount);
+    }
+
+    [Fact]
+    public void LocalDeletedUnconfirmed_FullLifecycle_ConfirmMissingUnavailable()
+    {
+        DateTime now = DateTime.Now;
+        string archivePath = Path.Combine(_directory, "nas-confirm", "old.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        File.WriteAllText(archivePath, new string('x', 100));
+        long id = InsertLocal(archivePath, now.AddHours(-5), now.AddHours(-4));
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-4));
+        _database.MarkLocalCopyDeleted(
+            id,
+            "容量清理（未确认）",
+            RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote);
+
+        // 不可达：保持原状态，仍计入
+        VideoRecord unavailable = _database.GetVideoById(id)!;
+        LocalMissingRepair.Apply(
+            _database,
+            unavailable,
+            RemoteFileProbe.FileProbeState.Unavailable);
+        Assert.Equal(VideoArchiveStatus.LocalDeleted, _database.GetVideoById(id)!.ArchiveStatus);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote,
+            _database.GetVideoById(id)!.DeleteReasonCode);
+        Assert.Equal(1, _database.GetArchiveQueueSummary().PendingVerificationCount);
+
+        // NAS 恢复 + 历史证据 + Exists → 升级为已确认，不再计入，可回放
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(id)!,
+            RemoteFileProbe.FileProbeState.Exists);
+        VideoRecord confirmed = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.LocalDeleted, confirmed.ArchiveStatus);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupVerified,
+            confirmed.DeleteReasonCode);
+        Assert.Equal(0, _database.GetArchiveQueueSummary().PendingVerificationCount);
+        Assert.Equal(
+            archivePath,
+            PlaybackFileResolver.ResolvePlaybackPath(confirmed));
+
+        // NAS 永久消失 → BackupLost
+        long lostId = InsertLocal(archivePath + ".lost", now.AddHours(-5), now.AddHours(-4));
+        _database.UpdateArchiveState(
+            lostId,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-4));
+        _database.MarkLocalCopyDeleted(
+            lostId,
+            "容量清理（未确认）",
+            RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote);
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(lostId)!,
+            RemoteFileProbe.FileProbeState.ConfirmedMissing);
+        Assert.Equal(
+            VideoArchiveStatus.BackupLost,
+            _database.GetVideoById(lostId)!.ArchiveStatus);
+        Assert.Equal(1, _database.GetArchiveQueueSummary().LostCount);
+    }
+
+    [Fact]
+    public void LocalMissingUnverified_ThreeExits()
+    {
+        DateTime now = DateTime.Now;
+        string archivePath = Path.Combine(_directory, "nas-exit", "old.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        File.WriteAllText(archivePath, new string('x', 100));
+        long confirmedExit = InsertLocal(archivePath, now.AddHours(-5), now.AddHours(-4));
+        _database.UpdateArchiveState(
+            confirmedExit,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-4));
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(confirmedExit)!,
+            RemoteFileProbe.FileProbeState.Unavailable);
+        Assert.Equal(
+            VideoArchiveStatus.LocalMissingUnverified,
+            _database.GetVideoById(confirmedExit)!.ArchiveStatus);
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(confirmedExit)!,
+            RemoteFileProbe.FileProbeState.Exists);
+        Assert.Equal(
+            VideoArchiveStatus.LocalDeleted,
+            _database.GetVideoById(confirmedExit)!.ArchiveStatus);
+        Assert.Equal(
+            RecordingDeletionReasonCode.CapacityCleanupVerified,
+            _database.GetVideoById(confirmedExit)!.DeleteReasonCode);
+
+        long lostExit = InsertLocal(@"\\nas\exit2.mp4", now.AddHours(-5), now.AddHours(-4));
+        _database.UpdateArchiveState(
+            lostExit,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-4));
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(lostExit)!,
+            RemoteFileProbe.FileProbeState.Unavailable);
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(lostExit)!,
+            RemoteFileProbe.FileProbeState.ConfirmedMissing);
+        Assert.Equal(
+            VideoArchiveStatus.BackupLost,
+            _database.GetVideoById(lostExit)!.ArchiveStatus);
+
+        long userExit = InsertLocal(@"\\nas\exit3.mp4", now.AddHours(-5), now.AddHours(-4));
+        _database.UpdateArchiveState(
+            userExit,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-4));
+        LocalMissingRepair.Apply(
+            _database,
+            _database.GetVideoById(userExit)!,
+            RemoteFileProbe.FileProbeState.Unavailable);
+        _database.MarkRecordDeletedById(
+            userExit,
+            "用户删除",
+            RecordingDeletionReasonCode.UserRequested);
+        Assert.Null(_database.GetVideoById(userExit));
     }
 
 }

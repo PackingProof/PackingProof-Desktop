@@ -19,6 +19,7 @@ internal sealed class ArchiveService : IDisposable
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
     private static readonly TimeSpan BackfillInterval = TimeSpan.FromMinutes(5);
+    private const int BackfillCatchUpBatchSize = 2000;
     private DateTime _lastBackfillAt = DateTime.MinValue;
 
     public ArchiveService(
@@ -138,26 +139,38 @@ internal sealed class ArchiveService : IDisposable
     {
         if (DateTime.UtcNow - _lastBackfillAt < BackfillInterval)
             return;
-        _lastBackfillAt = DateTime.UtcNow;
 
         int updated = 0;
-        foreach (VideoRecord record in _database.GetBackfillCandidates(200))
+        int processed = 0;
+        while (processed < BackfillCatchUpBatchSize)
         {
-            try
+            IReadOnlyList<VideoRecord> candidates =
+                _database.GetBackfillCandidates(200);
+            if (candidates.Count == 0)
+                break;
+            processed += candidates.Count;
+            foreach (VideoRecord record in candidates)
             {
-                if (string.IsNullOrWhiteSpace(record.FilePath) || !File.Exists(record.FilePath))
-                    continue;
-                string archivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
-                    archiveTarget,
-                    record.StartTime,
-                    Path.GetFileName(record.FilePath));
-                updated += _database.SetArchiveTarget(record.Id, archivePath);
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(record.FilePath) || !File.Exists(record.FilePath))
+                        continue;
+                    string archivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
+                        archiveTarget,
+                        record.StartTime,
+                        Path.GetFileName(record.FilePath));
+                    updated += _database.SetArchiveTarget(record.Id, archivePath);
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Archive", $"Backfill failed id={record.Id}, error={ex.Message}");
+                }
             }
-            catch (Exception ex)
-            {
-                RuntimeLog.Warn("Archive", $"Backfill failed id={record.Id}, error={ex.Message}");
-            }
+            if (candidates.Count < 200)
+                break;
         }
+        // 本轮正常完成后才记录节流时间；异常中断不占用 5 分钟窗口
+        _lastBackfillAt = DateTime.UtcNow;
         if (updated > 0)
             RuntimeLog.Info("Archive", $"Backfilled historical archive paths count={updated}");
     }
@@ -182,13 +195,16 @@ internal sealed class ArchiveService : IDisposable
         DateTime attemptedAt = DateTime.Now;
         if (!File.Exists(localPath))
         {
-            _database.UpdateArchiveState(
-                record.Id,
-                VideoArchiveStatus.Failed,
-                error: "本地录像文件不存在，无法归档",
-                attemptedAt: attemptedAt,
-                incrementRetry: true,
-                nextRetryAt: ComputeNextRetryAt(record.ArchiveRetryCount + 1));
+            // 本地缺失：统一判定（BackupLost / LocalMissingUnverified / 已确认 LocalDeleted），
+            // 立即结束本轮，不进入 Provider 与重试逻辑。
+            RemoteFileProbe.FileProbeState probe =
+                string.IsNullOrWhiteSpace(networkPath)
+                    ? RemoteFileProbe.FileProbeState.ConfirmedMissing
+                    : RemoteFileProbe.TryProbeFileState(
+                        networkPath,
+                        record.FileSizeBytes,
+                        TimeSpan.FromSeconds(3));
+            LocalMissingRepair.Apply(_database, record, probe);
             return false;
         }
 

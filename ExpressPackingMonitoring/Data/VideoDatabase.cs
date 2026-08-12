@@ -26,6 +26,10 @@ namespace ExpressPackingMonitoring.Data
         public const string NasCapacityCleanup = "NasCapacityCleanup";
         /// <summary>对账发现 NAS 归档文件已不存在（外部删除或崩溃残留，非本程序删除）。</summary>
         public const string NasCopyMissingReconcile = "NasCopyMissingReconcile";
+        /// <summary>Conflict 记录的本地文件也丢失，双副本均不可信。</summary>
+        public const string ConflictLocalMissing = "ConflictLocalMissing";
+        /// <summary>任何可信副本都不存在（数据丢失），用户可见异常终态。</summary>
+        public const string BackupLost = "BackupLost";
         /// <summary>设置页“录像清理”手动清理本地录像，NAS 归档不受影响。</summary>
         public const string ManualCleanup = "ManualCleanup";
     }
@@ -36,15 +40,31 @@ namespace ExpressPackingMonitoring.Data
         long Bytes,
         int UnarchivedCount);
 
-    /// <summary>归档队列统计：未完成备份的各类状态计数。</summary>
+    /// <summary>
+    /// 归档队列统计：未完成可信备份的各类状态计数。
+    /// RemainingCount 包含 LocalOnly/Pending/上传中/失败/暂停/冲突/待核实/丢失，
+    /// 不含已清理且从未备份（CleanedUnbackedCount）与已完成归档。
+    /// </summary>
     public sealed record ArchiveQueueSummary(
         int PendingCount,
         int UploadingCount,
         int FailedCount,
-        int NasFullCount)
+        int NasFullCount,
+        int LocalOnlyCount,
+        int ConflictCount,
+        int PendingVerificationCount,
+        int LostCount,
+        int CleanedUnbackedCount)
     {
         public int RemainingCount =>
-            PendingCount + UploadingCount + FailedCount + NasFullCount;
+            PendingCount
+            + UploadingCount
+            + FailedCount
+            + NasFullCount
+            + LocalOnlyCount
+            + ConflictCount
+            + PendingVerificationCount
+            + LostCount;
     }
 
     /// <summary>
@@ -67,6 +87,10 @@ namespace ExpressPackingMonitoring.Data
         public const string Deleting = "Deleting";
         public const string LocalDeleted = "LocalDeleted";
         public const string NasDeleted = "NasDeleted";
+        /// <summary>本地缺失待核实：NAS 是否仍有可信副本暂无法确认，计入待备份，等待明确出口。</summary>
+        public const string LocalMissingUnverified = "LocalMissingUnverified";
+        /// <summary>备份丢失：任何可信副本都不存在，用户可见异常终态，计入待备份。</summary>
+        public const string BackupLost = "BackupLost";
     }
 
     /// <summary>
@@ -2361,7 +2385,7 @@ namespace ExpressPackingMonitoring.Data
                     WHERE IsDeleted = 0
                       AND ArchivePath <> ''
                       AND ArchiveCompletedAt IS NOT NULL
-                      AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                      AND ArchiveStatus IN ('Verified', 'LocalDeleted', 'LocalMissingUnverified')
                       AND (LastArchiveProbeAt IS NULL OR LastArchiveProbeAt < @staleBefore)
                     ORDER BY EndTime ASC, Id ASC
                     LIMIT @limit;";
@@ -2561,25 +2585,46 @@ namespace ExpressPackingMonitoring.Data
         }
 
         /// <summary>
-        /// 归档队列统计：剩余待备份 = Pending + Copying/Verifying + Failed + NASFull，
-        /// 排除已删除、无归档路径以及 Verified/LocalDeleted/Conflict 的记录。
+        /// 归档队列统计：由 ArchiveBackupStatePolicy 统一生成计入口径。
+        /// RemainingCount = Pending + 上传中 + Failed + NASFull + LocalOnly + Conflict
+        /// + 待核实（LocalMissingUnverified + LocalDeleted/UnconfirmedRemote）+ 丢失（BackupLost）；
+        /// CleanedUnbackedCount（已清理且从未备份）单独返回、不计入 RemainingCount。
         /// </summary>
         public ArchiveQueueSummary GetArchiveQueueSummary()
         {
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
+                string remainingIn =
+                    ArchiveBackupStatePolicy.BuildRemainingStatusInClause();
+                string cleanupIn =
+                    ArchiveBackupStatePolicy.BuildActiveCleanupReasonInClause();
                 cmd.CommandText = @"
                     SELECT
                         SUM(CASE WHEN ArchiveStatus = 'Pending' THEN 1 ELSE 0 END),
                         SUM(CASE WHEN ArchiveStatus IN ('Copying', 'Verifying') THEN 1 ELSE 0 END),
                         SUM(CASE WHEN ArchiveStatus = 'Failed' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus = 'NASFull' THEN 1 ELSE 0 END)
+                        SUM(CASE WHEN ArchiveStatus = 'NASFull' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN ArchiveStatus = 'LocalOnly' THEN 1 ELSE 0 END),
+                        SUM(CASE WHEN ArchiveStatus = 'Conflict' THEN 1 ELSE 0 END),
+                        SUM(CASE
+                            WHEN ArchiveStatus = 'LocalMissingUnverified' THEN 1
+                            WHEN ArchiveStatus = 'LocalDeleted'
+                                AND DeleteReasonCode = 'CapacityCleanupUnconfirmedRemote' THEN 1
+                            ELSE 0
+                        END),
+                        SUM(CASE WHEN ArchiveStatus = 'BackupLost' THEN 1 ELSE 0 END),
+                        SUM(CASE
+                            WHEN ArchiveStatus = 'LocalDeleted'
+                                AND DeleteReasonCode IN " + cleanupIn + @"
+                                AND NOT (ArchiveCompletedAt IS NOT NULL
+                                    OR (ContentSha256 <> '' AND ArchivePath <> ''))
+                            THEN 1 ELSE 0
+                        END)
                     FROM VideoRecords
                     WHERE IsDeleted = 0
-                      AND ArchivePath <> ''
-                      AND FilePath <> ''
-                      AND ArchiveStatus IN ('Pending', 'Copying', 'Verifying', 'Failed', 'NASFull');";
+                      AND EndTime IS NOT NULL
+                      AND FilePath <> '';";
                 using var reader = cmd.ExecuteReader();
                 reader.Read();
                 int ReadCount(int index) =>
@@ -2590,7 +2635,12 @@ namespace ExpressPackingMonitoring.Data
                     ReadCount(0),
                     ReadCount(1),
                     ReadCount(2),
-                    ReadCount(3));
+                    ReadCount(3),
+                    ReadCount(4),
+                    ReadCount(5),
+                    ReadCount(6),
+                    ReadCount(7),
+                    ReadCount(8));
             }
         }
 
@@ -3019,6 +3069,199 @@ namespace ExpressPackingMonitoring.Data
                     throw;
                 }
             }
+        }
+
+        /// <summary>
+        /// 本地缺失待核实：置 LocalMissingUnverified（计入待备份、不进队列/回填），
+        /// 不动重试字段，写审计日志；幂等。
+        /// </summary>
+        public void MarkLocalMissingUnverified(
+            long recordId,
+            string archivePath,
+            string reason,
+            string reasonCode)
+        {
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                try
+                {
+                    string orderId = "";
+                    long fileSizeBytes = 0;
+                    using (var selectCmd = _connection.CreateCommand())
+                    {
+                        selectCmd.Transaction = transaction;
+                        selectCmd.CommandText = @"
+                            SELECT OrderId, FileSizeBytes
+                            FROM VideoRecords
+                            WHERE Id = @id AND IsDeleted = 0;";
+                        selectCmd.Parameters.AddWithValue("@id", recordId);
+                        using var reader = selectCmd.ExecuteReader();
+                        if (!reader.Read())
+                        {
+                            transaction.Rollback();
+                            return;
+                        }
+                        orderId = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        fileSizeBytes = reader.GetInt64(1);
+                    }
+
+                    using (var updateCmd = _connection.CreateCommand())
+                    {
+                        updateCmd.Transaction = transaction;
+                        updateCmd.CommandText = @"
+                            UPDATE VideoRecords SET
+                                ArchiveStatus = @status,
+                                ArchiveError = @error,
+                                DeleteReasonCode = @reasonCode
+                            WHERE Id = @id AND IsDeleted = 0
+                              AND ArchiveStatus NOT IN (
+                                  'BackupLost',
+                                  'NasDeleted',
+                                  'LocalMissingUnverified');";
+                        updateCmd.Parameters.AddWithValue("@status", VideoArchiveStatus.LocalMissingUnverified);
+                        updateCmd.Parameters.AddWithValue("@error", reason ?? "");
+                        updateCmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
+                        updateCmd.Parameters.AddWithValue("@id", recordId);
+                        if (updateCmd.ExecuteNonQuery() == 0)
+                        {
+                            transaction.Rollback();
+                            return;
+                        }
+                    }
+
+                    InsertDeleteLog(
+                        transaction,
+                        archivePath ?? "",
+                        orderId,
+                        fileSizeBytes,
+                        reason ?? "");
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 备份丢失：任何可信副本都不存在，置 BackupLost（计入待备份、用户可见异常终态），
+        /// 不动重试字段，写审计日志；幂等。
+        /// </summary>
+        public void MarkBackupLost(
+            long recordId,
+            string archivePath,
+            string reason,
+            string reasonCode)
+        {
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                try
+                {
+                    string orderId = "";
+                    long fileSizeBytes = 0;
+                    using (var selectCmd = _connection.CreateCommand())
+                    {
+                        selectCmd.Transaction = transaction;
+                        selectCmd.CommandText = @"
+                            SELECT OrderId, FileSizeBytes
+                            FROM VideoRecords
+                            WHERE Id = @id AND IsDeleted = 0;";
+                        selectCmd.Parameters.AddWithValue("@id", recordId);
+                        using var reader = selectCmd.ExecuteReader();
+                        if (!reader.Read())
+                        {
+                            transaction.Rollback();
+                            return;
+                        }
+                        orderId = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        fileSizeBytes = reader.GetInt64(1);
+                    }
+
+                    using (var updateCmd = _connection.CreateCommand())
+                    {
+                        updateCmd.Transaction = transaction;
+                        updateCmd.CommandText = @"
+                            UPDATE VideoRecords SET
+                                ArchiveStatus = @status,
+                                ArchiveError = @error,
+                                DeleteReasonCode = @reasonCode
+                            WHERE Id = @id AND IsDeleted = 0
+                              AND ArchiveStatus <> 'BackupLost';";
+                        updateCmd.Parameters.AddWithValue("@status", VideoArchiveStatus.BackupLost);
+                        updateCmd.Parameters.AddWithValue("@error", reason ?? "");
+                        updateCmd.Parameters.AddWithValue("@reasonCode", reasonCode?.Trim() ?? "");
+                        updateCmd.Parameters.AddWithValue("@id", recordId);
+                        if (updateCmd.ExecuteNonQuery() == 0)
+                        {
+                            transaction.Rollback();
+                            return;
+                        }
+                    }
+
+                    InsertDeleteLog(
+                        transaction,
+                        archivePath ?? "",
+                        orderId,
+                        fileSizeBytes,
+                        reason ?? "");
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 本地副本已删且 NAS 历史证据 + 当前探测确认存在时，把 LocalDeleted 标记为
+        /// “已确认远端”（仅更新 ReasonCode 与探测时间，不改 ArchiveStatus）。
+        /// </summary>
+        public void MarkLocalCleanupConfirmed(long recordId, DateTime probedAt)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        DeleteReasonCode = @reasonCode,
+                        LastArchiveProbeAt = @probedAt
+                    WHERE Id = @id AND IsDeleted = 0
+                      AND ArchiveStatus = 'LocalDeleted'
+                      AND ArchiveCompletedAt IS NOT NULL;";
+                cmd.Parameters.AddWithValue("@reasonCode",
+                    RecordingDeletionReasonCode.CapacityCleanupVerified);
+                cmd.Parameters.AddWithValue("@probedAt",
+                    probedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+                cmd.Parameters.AddWithValue("@id", recordId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void InsertDeleteLog(
+            SqliteTransaction transaction,
+            string path,
+            string orderId,
+            long fileSizeBytes,
+            string reason)
+        {
+            using var logCmd = _connection.CreateCommand();
+            logCmd.Transaction = transaction;
+            logCmd.CommandText = @"
+                INSERT INTO DeleteLogs (FilePath, OrderId, FileSizeBytes, DeletedAt, Reason)
+                VALUES (@path, @orderId, @size, @deletedAt, @reason);";
+            logCmd.Parameters.AddWithValue("@path", path ?? "");
+            logCmd.Parameters.AddWithValue("@orderId", orderId ?? "");
+            logCmd.Parameters.AddWithValue("@size", fileSizeBytes);
+            logCmd.Parameters.AddWithValue("@deletedAt",
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            logCmd.Parameters.AddWithValue("@reason", reason ?? "");
+            logCmd.ExecuteNonQuery();
         }
 
         /// <summary>

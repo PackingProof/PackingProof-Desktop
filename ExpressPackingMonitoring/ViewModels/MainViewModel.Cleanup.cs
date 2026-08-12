@@ -506,6 +506,19 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         if (releasedBytes >= bytesToRelease)
                             return count;
+                        if (string.IsNullOrWhiteSpace(record.FilePath)
+                            || !File.Exists(record.FilePath))
+                        {
+                            RemoteFileProbe.FileProbeState probe =
+                                string.IsNullOrWhiteSpace(record.ArchivePath)
+                                    ? RemoteFileProbe.FileProbeState.ConfirmedMissing
+                                    : RemoteFileProbe.TryProbeFileState(
+                                        record.ArchivePath,
+                                        record.FileSizeBytes,
+                                        TimeSpan.FromSeconds(3));
+                            LocalMissingRepair.Apply(_db, record, probe);
+                            continue;
+                        }
                         if (!LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(
                                 record,
                                 DateTime.Now,

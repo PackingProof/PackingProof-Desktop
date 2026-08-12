@@ -361,10 +361,11 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MissingLocalSource_MarksFailedWithRetry()
+    public async Task MissingLocalSource_EntersUnifiedDispositionWithoutRetry()
     {
         string localPath = Path.Combine(_localRoot, "missing.mp4");
         DateTime now = DateTime.Now;
+        string archivePath = Path.Combine(_nasRoot, now.ToString("yyyy-MM-dd"), "missing.mp4");
         long id = _database.InsertVideoRecord(
             "单号missing",
             "发货",
@@ -372,17 +373,42 @@ public sealed class ArchiveServiceTests : IDisposable
             "libx264",
             localPath,
             now.AddMinutes(-5),
-            archivePath: Path.Combine(_nasRoot, now.ToString("yyyy-MM-dd"), "missing.mp4"));
+            archivePath: archivePath);
         _database.UpdateVideoRecordOnStop(id, now, 10, 100, "手动");
         _database.MarkArchivePending(id);
         using ArchiveService service = CreateService();
 
-        await service.ProcessPendingOnceAsync(CancellationToken.None);
+        int completed = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
 
         VideoRecord record = _database.GetVideoById(id)!;
-        Assert.Equal(VideoArchiveStatus.Failed, record.ArchiveStatus);
-        Assert.Equal(1, record.ArchiveRetryCount);
-        Assert.NotNull(record.NextRetryAt);
+        Assert.Equal(0, completed);
+        Assert.Equal(VideoArchiveStatus.BackupLost, record.ArchiveStatus);
+        Assert.Equal(0, record.ArchiveRetryCount);
+        Assert.Null(record.NextRetryAt);
+
+        // NAS 上存在候选文件但无完成证据 → 待核实，同样不重试
+        string pendingPath = Path.Combine(_localRoot, "pending-missing.mp4");
+        string pendingArchive = Path.Combine(_nasRoot, now.ToString("yyyy-MM-dd"), "pending-missing.mp4");
+        Directory.CreateDirectory(Path.GetDirectoryName(pendingArchive)!);
+        File.WriteAllText(pendingArchive, new string('x', 100));
+        long pendingId = _database.InsertVideoRecord(
+            "单号pending-missing",
+            "发货",
+            "h264",
+            "libx264",
+            pendingPath,
+            now.AddMinutes(-4),
+            archivePath: pendingArchive);
+        _database.UpdateVideoRecordOnStop(pendingId, now, 10, 100, "手动");
+        _database.MarkArchivePending(pendingId);
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord pendingRecord = _database.GetVideoById(pendingId)!;
+        Assert.Equal(VideoArchiveStatus.LocalMissingUnverified, pendingRecord.ArchiveStatus);
+        Assert.Equal(0, pendingRecord.ArchiveRetryCount);
+        Assert.Null(pendingRecord.NextRetryAt);
     }
 
     [Fact]
@@ -715,4 +741,100 @@ public sealed class ArchiveServiceTests : IDisposable
         await processing;
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
     }
+
+    [Fact]
+    public async Task Backfill_CatchesUpTo2000ThenThrottlesUntilWake()
+    {
+        const int total = 3000;
+        for (int i = 0; i < total; i++)
+            InsertBackfillCandidate($"bf-{i:D4}.mp4");
+
+        using var service = new ArchiveService(
+            _database,
+            new DiskFullProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = _nasRoot, Priority = 0 } });
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2000, CountBackfilled());
+
+        // 距上次不足 5 分钟：不再回填
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2000, CountBackfilled());
+
+        // Wake 后立即追赶剩余 1000
+        service.Wake();
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(total, CountBackfilled());
+    }
+
+    [Fact]
+    public async Task Backfill_Exactly2000_CompletesInOneRound()
+    {
+        const int total = 2000;
+        for (int i = 0; i < total; i++)
+            InsertBackfillCandidate($"bfx-{i:D4}.mp4");
+
+        using var service = new ArchiveService(
+            _database,
+            new DiskFullProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = _nasRoot, Priority = 0 } });
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(total, CountBackfilled());
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(total, CountBackfilled());
+    }
+
+    [Fact]
+    public async Task Conflict_NeverAutoRetried()
+    {
+        long id = InsertPendingRecord("conflict.mp4", "conflict-content");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Conflict,
+            error: "NAS 已有同名不同内容");
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+
+        int completed = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(0, completed);
+        Assert.Equal(VideoArchiveStatus.Conflict, record.ArchiveStatus);
+        Assert.Equal(0, record.ArchiveRetryCount);
+        Assert.Empty(provider.PublishedPaths);
+        Assert.DoesNotContain(
+            _database.GetPendingArchives(20, DateTime.Now),
+            candidate => candidate.Id == id);
+    }
+
+    private long InsertBackfillCandidate(string fileName)
+    {
+        string localPath = Path.Combine(_localRoot, fileName);
+        File.WriteAllText(localPath, "x");
+        DateTime now = DateTime.Now;
+        long id = _database.InsertVideoRecord(
+            "单号" + fileName,
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddMinutes(-120),
+            archivePath: "");
+        _database.UpdateVideoRecordOnStop(id, now.AddMinutes(-60), 10, 1, "手动");
+        return id;
+    }
+
+    private int CountBackfilled() =>
+        _database.QueryVideos(null, null)
+            .Count(record => !string.IsNullOrWhiteSpace(record.ArchivePath));
 }

@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using System.Collections.Generic;
 using Xunit;
@@ -7,55 +8,116 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ArchiveBackupCardStateTests
 {
+    private static ArchiveQueueSummary Summary(
+        int pending = 0,
+        int uploading = 0,
+        int failed = 0,
+        int nasFull = 0,
+        int localOnly = 0,
+        int conflict = 0,
+        int pendingVerification = 0,
+        int lost = 0,
+        int cleanedUnbacked = 0) =>
+        new(pending, uploading, failed, nasFull, localOnly, conflict,
+            pendingVerification, lost, cleanedUnbacked);
+
     [Fact]
     public void BuildArchiveBackupCardState_PrecedenceAndTexts()
     {
         ArchiveBackupCardState uploading = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            pendingCount: 1,
-            uploadingCount: 2,
-            failedCount: 1,
-            pausedCount: 1,
+            Summary(pending: 1, uploading: 2, failed: 1, nasFull: 1, localOnly: 1),
             currentTarget: @"\\nas\share");
         Assert.Equal("备份中", uploading.ShortStatusText);
-        Assert.Contains("共 5 个待备份", uploading.DetailText);
+        Assert.Contains("共 6 个待备份", uploading.DetailText);
 
         ArchiveBackupCardState failed = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            1,
-            0,
-            2,
-            0,
+            Summary(pending: 1, failed: 2),
             @"\\nas\share");
         Assert.Equal("备份失败", failed.ShortStatusText);
         Assert.Contains("等待重试", failed.DetailText);
 
         ArchiveBackupCardState paused = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            1,
-            0,
-            0,
-            3,
+            Summary(pending: 1, nasFull: 3),
             @"\\nas\share");
         Assert.Equal("备份暂停", paused.ShortStatusText);
         Assert.Contains("等待空间恢复", paused.DetailText);
 
         ArchiveBackupCardState pending = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            4,
-            0,
-            0,
-            0,
+            Summary(pending: 4),
             @"\\nas\share");
         Assert.Equal("待备份", pending.ShortStatusText);
         Assert.Contains("4 个录像等待备份到 NAS", pending.DetailText);
 
         ArchiveBackupCardState synced = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            0,
-            0,
-            0,
-            0,
+            Summary(),
             @"\\nas\share\sub\dir");
         Assert.Equal("已同步", synced.ShortStatusText);
         Assert.Contains("全部已备份 · \\\\nas", synced.DetailText);
         Assert.DoesNotContain("当前目标", synced.DetailText);
         Assert.DoesNotContain("sub\\dir", synced.DetailText);
+    }
+
+    [Fact]
+    public void BuildArchiveBackupCardState_FullPriorityMatrix()
+    {
+        ArchiveBackupCardState lost = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(lost: 2, uploading: 1),
+            @"\\nas\share");
+        Assert.Equal("备份丢失", lost.ShortStatusText);
+        Assert.Contains("2 个录像本地与 NAS 均无可信副本", lost.DetailText);
+
+        ArchiveBackupCardState conflict = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(pending: 1, conflict: 2, nasFull: 3),
+            @"\\nas\share");
+        Assert.Equal("备份异常", conflict.ShortStatusText);
+        Assert.Contains("归档冲突", conflict.DetailText);
+
+        ArchiveBackupCardState pendingVerification = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(localOnly: 1, pendingVerification: 2),
+            @"\\nas\share");
+        Assert.Equal("待核实", pendingVerification.ShortStatusText);
+        Assert.Contains("本地副本缺失", pendingVerification.DetailText);
+
+        ArchiveBackupCardState localOnly = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(localOnly: 5),
+            @"\\nas\share");
+        Assert.Equal("待备份", localOnly.ShortStatusText);
+        Assert.Contains("5 个录像等待备份到 NAS", localOnly.DetailText);
+
+        // 混合计数时 remaining 为总数
+        ArchiveBackupCardState mixed = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(
+                pending: 1,
+                uploading: 2,
+                failed: 1,
+                nasFull: 1,
+                localOnly: 1,
+                conflict: 1,
+                pendingVerification: 1,
+                lost: 1),
+            @"\\nas\share");
+        Assert.Equal("备份丢失", mixed.ShortStatusText);
+    }
+
+    [Fact]
+    public void BuildArchiveBackupCardState_CleanedUnbackedIsNotSynced()
+    {
+        ArchiveBackupCardState cleaned = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(cleanedUnbacked: 3),
+            @"\\nas\share");
+        Assert.Equal("已清理", cleaned.ShortStatusText);
+        Assert.Contains("3 个录像已清理且未备份到 NAS", cleaned.DetailText);
+
+        ArchiveBackupCardState synced = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(),
+            @"\\nas\share");
+        Assert.Equal("已同步", synced.ShortStatusText);
+
+        // 有真正剩余时按优先级显示，不因清理记录降到“已清理”
+        ArchiveBackupCardState withRemaining = ArchiveBackupCardModel.BuildArchiveBackupCardState(
+            Summary(pending: 1, cleanedUnbacked: 3),
+            @"\\nas\share");
+        Assert.Equal("待备份", withRemaining.ShortStatusText);
     }
 
     [Fact]

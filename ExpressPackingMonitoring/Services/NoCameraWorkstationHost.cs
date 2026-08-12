@@ -46,10 +46,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
 
         ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
         ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            summary.PendingCount,
-            summary.UploadingCount,
-            summary.FailedCount,
-            summary.NasFullCount,
+            summary,
             ArchiveBackupCardModel.ResolveCurrentArchiveTarget(_config));
         return (true, state);
     }

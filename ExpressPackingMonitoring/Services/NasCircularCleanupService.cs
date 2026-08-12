@@ -212,7 +212,18 @@ internal sealed class NasCircularCleanupService
                             TimeSpan.FromSeconds(3)))
                 {
                     case RemoteFileProbe.FileProbeState.Exists:
-                        _database.UpdateLastArchiveProbeAt(record.Id, DateTime.Now);
+                        if (string.IsNullOrWhiteSpace(record.FilePath)
+                            || !File.Exists(record.FilePath))
+                        {
+                            LocalMissingRepair.Apply(
+                                _database,
+                                record,
+                                RemoteFileProbe.FileProbeState.Exists);
+                        }
+                        else
+                        {
+                            _database.UpdateLastArchiveProbeAt(record.Id, DateTime.Now);
+                        }
                         break;
                     case RemoteFileProbe.FileProbeState.ConfirmedMissing:
                         if (ReconcileRecordWithLock(record.Id))
@@ -261,11 +272,22 @@ internal sealed class NasCircularCleanupService
             return false;
         }
 
-        _database.MarkNasCopyDeleted(
-            record.Id,
-            record.ArchivePath,
-            ReconcileReason,
-            RecordingDeletionReasonCode.NasCopyMissingReconcile);
+        if (!string.IsNullOrWhiteSpace(record.FilePath)
+            && File.Exists(record.FilePath))
+        {
+            _database.MarkNasCopyDeleted(
+                record.Id,
+                record.ArchivePath,
+                ReconcileReason,
+                RecordingDeletionReasonCode.NasCopyMissingReconcile);
+        }
+        else
+        {
+            LocalMissingRepair.Apply(
+                _database,
+                record,
+                RemoteFileProbe.FileProbeState.ConfirmedMissing);
+        }
         return true;
     }
 

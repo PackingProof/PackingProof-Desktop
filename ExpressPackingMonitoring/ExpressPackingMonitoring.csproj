@@ -110,6 +110,7 @@
     <Compile Include="Config\StorageVolumeInfo.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
+    <Compile Include="Data\ArchiveBackupStatePolicy.cs" />
     <Compile Include="Data\RecordingTransferQueueStore.cs" />
     <Compile Include="Data\VideoDatabase.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
@@ -143,6 +144,7 @@
     <Compile Include="Services\IArchiveProvider.cs" />
     <Compile Include="Services\LanRequestRateLimiter.cs" />
     <Compile Include="Services\LocalCopyCleanupPolicy.cs" />
+    <Compile Include="Services\LocalMissingRepair.cs" />
     <Compile Include="Services\ManualCleanupService.cs" />
     <Compile Include="Services\NasCircularCleanupService.cs" />
     <Compile Include="Services\MobileConnectionService.cs" />

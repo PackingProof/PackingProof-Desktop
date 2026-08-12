@@ -60,13 +60,10 @@ public partial class MainViewModel
             return;
 
         ArchiveQueueSummary summary = _db?.GetArchiveQueueSummary()
-            ?? new ArchiveQueueSummary(0, 0, 0, 0);
+            ?? new ArchiveQueueSummary(0, 0, 0, 0, 0, 0, 0, 0, 0);
         RemainingArchiveBackupCount = summary.RemainingCount;
         ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            summary.PendingCount,
-            summary.UploadingCount,
-            summary.FailedCount,
-            summary.NasFullCount,
+            summary,
             ArchiveBackupCardModel.ResolveCurrentArchiveTarget(Config));
         ArchiveBackupShortStatusText = state.ShortStatusText;
         ArchiveBackupStatusText = state.DetailText;

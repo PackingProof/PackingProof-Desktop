@@ -199,20 +199,7 @@ internal sealed class ManualCleanupService
             }
             if (!File.Exists(record.FilePath))
             {
-                if (record.ArchiveStatus == VideoArchiveStatus.NasDeleted)
-                {
-                    _database.MarkNasCleanedRecordDeleted(
-                        record.Id,
-                        record.ArchivePath,
-                        "本地文件已缺失，NAS 副本已循环清理",
-                        RecordingDeletionReasonCode.NasCapacityCleanup);
-                    repaired = true;
-                    return false;
-                }
-                _database.ReconcileMissingLocalFile(
-                    record.Id,
-                    MissingFileRepairReason,
-                    RecordingDeletionReasonCode.ManualCleanup);
+                RepairMissingLocal(record);
                 repaired = true;
                 return false;
             }
@@ -230,10 +217,7 @@ internal sealed class ManualCleanupService
             {
                 if (!File.Exists(record.FilePath))
                 {
-                    _database.ReconcileMissingLocalFile(
-                        record.Id,
-                        MissingFileRepairReason,
-                        RecordingDeletionReasonCode.ManualCleanup);
+                    RepairMissingLocal(record);
                     repaired = true;
                     return false;
                 }
@@ -254,6 +238,19 @@ internal sealed class ManualCleanupService
             skipped = true;
             return false;
         }
+    }
+
+    /// <summary>本地文件缺失时走统一判定（历史证据 + 三态探测）。</summary>
+    private void RepairMissingLocal(VideoRecord record)
+    {
+        RemoteFileProbe.FileProbeState probe =
+            string.IsNullOrWhiteSpace(record.ArchivePath)
+                ? RemoteFileProbe.FileProbeState.ConfirmedMissing
+                : RemoteFileProbe.TryProbeFileState(
+                    record.ArchivePath,
+                    record.FileSizeBytes,
+                    TimeSpan.FromSeconds(3));
+        LocalMissingRepair.Apply(_database, record, probe);
     }
 
     private bool IsRemoteConfirmed(VideoRecord record)

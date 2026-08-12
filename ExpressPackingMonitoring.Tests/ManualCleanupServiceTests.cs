@@ -281,8 +281,7 @@ public sealed class ManualCleanupServiceTests : IDisposable
             _ => true);
 
         VideoRecord repaired = _database.GetVideoById(missing)!;
-        Assert.Equal(VideoArchiveStatus.LocalDeleted, repaired.ArchiveStatus);
-        Assert.Equal(RecordingDeletionReasonCode.ManualCleanup, repaired.DeleteReasonCode);
+        Assert.Equal(VideoArchiveStatus.BackupLost, repaired.ArchiveStatus);
         Assert.Equal(1, result.RepairedCount);
         Assert.Equal(
             VideoArchiveStatus.LocalDeleted,
@@ -290,6 +289,9 @@ public sealed class ManualCleanupServiceTests : IDisposable
         Assert.Equal(
             VideoArchiveStatus.LocalDeleted,
             _database.GetVideoById(local)!.ArchiveStatus);
+        Assert.Equal(
+            RecordingDeletionReasonCode.ManualCleanup,
+            _database.GetVideoById(local)!.DeleteReasonCode);
         Assert.Equal(2, result.CleanedCount);
     }
 
