@@ -92,6 +92,14 @@ jobs:
           path: package/dependency-cache/ffmpeg
           key: ffmpeg-${{ hashFiles('Tools/ffmpeg-baseline.json') }}
 
+      - name: 缓存 NuGet 包
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: 准备钉死的 FFmpeg 依赖
         shell: pwsh
         run: pwsh -NoProfile -File Tools\Prepare-PinnedFFmpeg.ps1
