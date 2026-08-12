@@ -2595,36 +2595,13 @@ namespace ExpressPackingMonitoring.Data
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
-                string remainingIn =
-                    ArchiveBackupStatePolicy.BuildRemainingStatusInClause();
-                string cleanupIn =
-                    ArchiveBackupStatePolicy.BuildActiveCleanupReasonInClause();
                 cmd.CommandText = @"
-                    SELECT
-                        SUM(CASE WHEN ArchiveStatus = 'Pending' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus IN ('Copying', 'Verifying') THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus = 'Failed' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus = 'NASFull' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus = 'LocalOnly' THEN 1 ELSE 0 END),
-                        SUM(CASE WHEN ArchiveStatus = 'Conflict' THEN 1 ELSE 0 END),
-                        SUM(CASE
-                            WHEN ArchiveStatus = 'LocalMissingUnverified' THEN 1
-                            WHEN ArchiveStatus = 'LocalDeleted'
-                                AND DeleteReasonCode = 'CapacityCleanupUnconfirmedRemote' THEN 1
-                            ELSE 0
-                        END),
-                        SUM(CASE WHEN ArchiveStatus = 'BackupLost' THEN 1 ELSE 0 END),
-                        SUM(CASE
-                            WHEN ArchiveStatus = 'LocalDeleted'
-                                AND DeleteReasonCode IN " + cleanupIn + @"
-                                AND NOT (ArchiveCompletedAt IS NOT NULL
-                                    OR (ContentSha256 <> '' AND ArchivePath <> ''))
-                            THEN 1 ELSE 0
-                        END)
+                    SELECT " + ArchiveBackupStatePolicy.BuildArchiveQueueSummarySelectSql() + @"
                     FROM VideoRecords
                     WHERE IsDeleted = 0
                       AND EndTime IS NOT NULL
-                      AND FilePath <> '';";
+                      AND FilePath <> ''
+                      AND (" + ArchiveBackupStatePolicy.BuildSummaryRowFilterSql() + ");";
                 using var reader = cmd.ExecuteReader();
                 reader.Read();
                 int ReadCount(int index) =>

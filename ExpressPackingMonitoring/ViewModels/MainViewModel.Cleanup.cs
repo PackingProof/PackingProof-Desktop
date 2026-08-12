@@ -770,13 +770,18 @@ namespace ExpressPackingMonitoring.ViewModels
                         record.FileSizeBytes,
                         TimeSpan.FromSeconds(3)))
             {
-                case RemoteFileProbe.FileProbeState.Exists:
+                case RemoteFileProbe.FileProbeState.Exists
+                    when ArchiveBackupStatePolicy.HasCurrentTrustedRemoteCopy(
+                        record,
+                        RemoteFileProbe.FileProbeState.Exists):
                     _db?.UpdateLastArchiveProbeAt(record.Id, DateTime.Now);
                     return DeleteVerifiedLocalCopy(
                         record,
                         "全局配额清理",
                         RecordingDeletionReasonCode.CapacityCleanupVerified,
                         out releasedBytes);
+                case RemoteFileProbe.FileProbeState.Exists:
+                    return false; // 存在但无完成证据：不可进入已确认删除语义
                 case RemoteFileProbe.FileProbeState.ConfirmedMissing:
                     // 明确不存在：先对账（调用方已持锁），本地仍在 → NasDeleted，本轮继续清理本地副本
                     if (_nasCircularCleanup?.ReconcileRecordCore(record) == true)

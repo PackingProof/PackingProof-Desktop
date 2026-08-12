@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ExpressPackingMonitoring.Services;
 
 namespace ExpressPackingMonitoring.Data;
 
@@ -27,6 +28,23 @@ public static class ArchiveBackupStatePolicy
         VideoArchiveStatus.BackupLost
     ];
 
+    internal static readonly string[] PendingStatuses =
+        [VideoArchiveStatus.Pending];
+    internal static readonly string[] UploadingStatuses =
+        [VideoArchiveStatus.Copying, VideoArchiveStatus.Verifying];
+    internal static readonly string[] FailedStatuses =
+        [VideoArchiveStatus.Failed];
+    internal static readonly string[] NasFullStatuses =
+        [VideoArchiveStatus.NASFull];
+    internal static readonly string[] LocalOnlyStatuses =
+        [VideoArchiveStatus.LocalOnly];
+    internal static readonly string[] ConflictStatuses =
+        [VideoArchiveStatus.Conflict];
+    internal static readonly string[] PendingVerificationStatuses =
+        [VideoArchiveStatus.LocalMissingUnverified];
+    internal static readonly string[] LostStatuses =
+        [VideoArchiveStatus.BackupLost];
+
     /// <summary>明确“用户/策略主动清理”的原因码集合；新增主动清理原因只改这里。</summary>
     public static readonly string[] ActiveCleanupReasonCodes =
     [
@@ -42,6 +60,16 @@ public static class ArchiveBackupStatePolicy
         && (record.ArchiveCompletedAt != null
             || (!string.IsNullOrWhiteSpace(record.ContentSha256)
                 && !string.IsNullOrWhiteSpace(record.ArchivePath)));
+
+    /// <summary>
+    /// 当前是否存在可信远端副本（统一判定，唯一允许进入“LocalDeleted 已确认语义”的门槛）：
+    /// 历史完成归档证据 + 当前三态探测为 Exists（存在且大小一致）。
+    /// </summary>
+    internal static bool HasCurrentTrustedRemoteCopy(
+        VideoRecord? record,
+        RemoteFileProbe.FileProbeState probeState) =>
+        HasCompletedArchiveEvidence(record)
+        && probeState == RemoteFileProbe.FileProbeState.Exists;
 
     /// <summary>LocalDeleted 且原因码为“容量清理时远端未确认”的记录。</summary>
     public static bool IsLocalDeletedUnconfirmed(VideoRecord? record) =>
@@ -82,6 +110,45 @@ public static class ArchiveBackupStatePolicy
     /// <summary>生成主动清理原因码的 SQL IN 子句。</summary>
     internal static string BuildActiveCleanupReasonInClause() =>
         BuildInClause(ActiveCleanupReasonCodes);
+
+    /// <summary>“无历史完成证据”的 SQL 条件，与 C# 判定共用同一语义。</summary>
+    internal static string BuildNoCompletedEvidenceSql() =>
+        "NOT (ArchiveCompletedAt IS NOT NULL "
+        + "OR (ContentSha256 <> '' AND ArchivePath <> ''))";
+
+    /// <summary>LocalDeleted + 未确认远端原因码的 SQL 条件。</summary>
+    internal static string BuildLocalDeletedUnconfirmedSql() =>
+        "ArchiveStatus = 'LocalDeleted' AND DeleteReasonCode = '"
+        + RecordingDeletionReasonCode.CapacityCleanupUnconfirmedRemote
+        + "'";
+
+    /// <summary>
+    /// 生成归档队列统计的 SELECT 计数表达式；所有状态集合都来自策略常量，禁止手写状态。
+    /// </summary>
+    internal static string BuildArchiveQueueSummarySelectSql() =>
+        "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(PendingStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(UploadingStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(FailedStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(NasFullStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(LocalOnlyStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(ConflictStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(PendingVerificationStatuses) + " THEN 1 "
+        + "     WHEN " + BuildLocalDeletedUnconfirmedSql() + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus IN " + BuildInClause(LostStatuses) + " THEN 1 ELSE 0 END), "
+        + "SUM(CASE WHEN ArchiveStatus = 'LocalDeleted' AND DeleteReasonCode IN "
+        + BuildInClause(ActiveCleanupReasonCodes) + " AND "
+        + BuildNoCompletedEvidenceSql() + " THEN 1 ELSE 0 END)";
+
+    /// <summary>
+    /// 生成统计行的过滤条件：只统计策略认定“计入待备份”或“已清理且从未备份”的记录，
+    /// 状态集合只能来自 RemainingStatuses / ActiveCleanupReasonCodes。
+    /// </summary>
+    internal static string BuildSummaryRowFilterSql() =>
+        "(ArchiveStatus IN " + BuildRemainingStatusInClause() + ") OR "
+        + BuildLocalDeletedUnconfirmedSql() + " OR "
+        + "(ArchiveStatus = 'LocalDeleted' AND DeleteReasonCode IN "
+        + BuildInClause(ActiveCleanupReasonCodes) + " AND "
+        + BuildNoCompletedEvidenceSql() + ")";
 
     private static string BuildInClause(IEnumerable<string> values)
     {

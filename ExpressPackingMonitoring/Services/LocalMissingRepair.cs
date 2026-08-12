@@ -64,7 +64,9 @@ internal static class LocalMissingRepair
             return probe switch
             {
                 RemoteFileProbe.FileProbeState.Exists
-                    when ArchiveBackupStatePolicy.HasCompletedArchiveEvidence(record) =>
+                    when ArchiveBackupStatePolicy.HasCurrentTrustedRemoteCopy(
+                        record,
+                        RemoteFileProbe.FileProbeState.Exists) =>
                     Disposition.LocalDeletedConfirmed,
                 RemoteFileProbe.FileProbeState.ConfirmedMissing =>
                     Disposition.BackupLost,
@@ -78,7 +80,9 @@ internal static class LocalMissingRepair
             RemoteFileProbe.FileProbeState.ConfirmedMissing =>
                 Disposition.BackupLost,
             RemoteFileProbe.FileProbeState.Exists
-                when ArchiveBackupStatePolicy.HasCompletedArchiveEvidence(record) =>
+                when ArchiveBackupStatePolicy.HasCurrentTrustedRemoteCopy(
+                    record,
+                    RemoteFileProbe.FileProbeState.Exists) =>
                 Disposition.LocalDeletedConfirmed,
             _ => Disposition.LocalMissingUnverified
         };
