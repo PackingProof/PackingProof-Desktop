@@ -100,6 +100,15 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      - name: 缓存默认 TTS 语音缓存
+        if: ${{ !inputs.skip_tts_cache && github.event_name != 'push' }}
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: package/tts_cache
+          key: tts-${{ hashFiles('Tools/ExpressPackingMonitoring.TtsCacheBuilder/**', 'ExpressPackingMonitoring/Audio/**', 'ExpressPackingMonitoring/Localization/**', 'ExpressPackingMonitoring/Resources/**', 'ExpressPackingMonitoring/Config/**') }}
+          restore-keys: |
+            tts-
+
       - name: 准备钉死的 FFmpeg 依赖
         shell: pwsh
         run: pwsh -NoProfile -File Tools\Prepare-PinnedFFmpeg.ps1
