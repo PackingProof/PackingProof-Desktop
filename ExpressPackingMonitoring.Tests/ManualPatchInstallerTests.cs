@@ -132,6 +132,7 @@ public sealed class ManualPatchInstallerTests
         private readonly string _scriptPath;
         private readonly string _installedRoot;
         private readonly string _appRoot;
+        private readonly string _mutexName;
 
         public string TargetFilePath { get; private set; }
 
@@ -141,6 +142,7 @@ public sealed class ManualPatchInstallerTests
             _patchRoot = Path.Combine(_root, "patch");
             _installedRoot = Path.Combine(_root, "installed package");
             _appRoot = Path.Combine(_installedRoot, "app");
+            _mutexName = @"Local\EPM_ManualPatch_Test_" + Guid.NewGuid().ToString("N");
             string userDataRoot = Path.Combine(_root, "user-data");
             _configPath = Path.Combine(userDataRoot, "config.json");
             TargetFilePath = Path.Combine(_appRoot, "Web", "index.html");
@@ -348,12 +350,13 @@ public sealed class ManualPatchInstallerTests
             startInfo.Environment["EPM_TEST_PATCH_ROOT"] = _patchRoot;
             startInfo.Environment["EPM_TEST_CONFIG_PATH"] = _configPath;
             startInfo.Environment["EPM_TEST_APP_ROOT_PATH"] = appRootPath;
+            startInfo.Environment["EPM_TEST_MUTEX_NAME"] = _mutexName;
             foreach (string argument in new[]
             {
                 "-NoProfile",
                 "-ExecutionPolicy", "Bypass",
                 "-Command",
-                "$scriptText=[System.IO.File]::ReadAllText($env:EPM_TEST_PATCH_SCRIPT,[System.Text.Encoding]::UTF8); & ([ScriptBlock]::Create($scriptText)) -PatchRoot $env:EPM_TEST_PATCH_ROOT -ConfigPath $env:EPM_TEST_CONFIG_PATH -AppRootPath $env:EPM_TEST_APP_ROOT_PATH -SkipProcessCheck -SkipVersionCheck"
+                "$scriptText=[System.IO.File]::ReadAllText($env:EPM_TEST_PATCH_SCRIPT,[System.Text.Encoding]::UTF8); & ([ScriptBlock]::Create($scriptText)) -PatchRoot $env:EPM_TEST_PATCH_ROOT -ConfigPath $env:EPM_TEST_CONFIG_PATH -AppRootPath $env:EPM_TEST_APP_ROOT_PATH -SkipProcessCheck -SkipVersionCheck -MutexName $env:EPM_TEST_MUTEX_NAME"
             })
             {
                 startInfo.ArgumentList.Add(argument);

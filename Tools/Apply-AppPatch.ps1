@@ -4,7 +4,8 @@ param(
     [string]$ConfigPath = "",
     [string]$AppRootPath = "",
     [switch]$SkipProcessCheck,
-    [switch]$SkipVersionCheck
+    [switch]$SkipVersionCheck,
+    [string]$MutexName = "Local\ExpressPackingMonitoring.ManualPatch"
 )
 
 $ErrorActionPreference = "Stop"
@@ -358,7 +359,7 @@ $ConfigPath = [System.IO.Path]::GetFullPath($ConfigPath)
 $PatchRoot = [System.IO.Path]::GetFullPath($PatchRoot)
 $userDataDirectory = Split-Path -Parent $ConfigPath
 $logPath = Join-Path $userDataDirectory "log\manual_update.log"
-$mutex = New-Object System.Threading.Mutex($false, "Local\ExpressPackingMonitoring.ManualPatch")
+$mutex = New-Object System.Threading.Mutex($false, $MutexName)
 $ownsMutex = $false
 $exitCode = 0
 $appliedFiles = New-Object System.Collections.Generic.List[object]
