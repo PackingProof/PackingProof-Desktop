@@ -2362,7 +2362,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         _recordingTransferService?.EnqueueCompletedRecordings();
                         RefreshRecordingTransferSummary();
                         RunRecordingCacheCleanup();
-                    });
+                    },
+                    localComputerName: Config.NodeName);
                 _playbackWindow = playbackWindow;
                 playbackWindow.Closed += (_, _) =>
                 {

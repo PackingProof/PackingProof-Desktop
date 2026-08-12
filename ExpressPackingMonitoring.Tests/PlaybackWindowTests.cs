@@ -57,7 +57,8 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"HideUnavailableButtonIcon\"", xaml);
         Assert.Contains("FluentEyeOffIcon", xaml);
         Assert.Contains("Click=\"HideUnavailableButton_Click\"", xaml);
-        Assert.Contains("Text=\"显示异常记录\"", xaml);
+        Assert.Contains("Text=\"显示丢失记录\"", xaml);
+        Assert.DoesNotContain("异常记录", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailableCheckBox", xaml, StringComparison.Ordinal);
         Assert.Contains("<ScrollViewer Grid.Row=\"0\"", xaml);
         Assert.DoesNotContain("仅本次回放生效", xaml, StringComparison.Ordinal);
@@ -75,13 +76,14 @@ public sealed class PlaybackWindowTests
         Assert.Contains("HideUnavailableButton_Click", codeBehind, StringComparison.Ordinal);
         Assert.Contains("\"FluentEyeOffIcon\"", codeBehind, StringComparison.Ordinal);
         Assert.Contains("\"FluentEyeIcon\"", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("异常记录", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]
     public void BuildHiddenHintText_IncludesHiddenCountAndReason()
     {
-        Assert.Equal("已隐藏 3 条异常记录（文件丢失或已清理）", PlaybackWindow.BuildHiddenHintText(3));
+        Assert.Equal("已隐藏 3 条丢失或已清理记录", PlaybackWindow.BuildHiddenHintText(3));
     }
 
     [Theory]
@@ -129,11 +131,11 @@ public sealed class PlaybackWindowTests
     }
 
     [Theory]
-    [InlineData("external", "android-1234567890a1b2c3", "手机1", "来源：手机1")]
-    [InlineData("EXTERNAL", "", "", "来源：手机设备")]
-    [InlineData("external", "", "一号打包手机", "来源：一号打包手机")]
-    [InlineData("pc", "pc-1", "一号电脑", "来源：电脑")]
-    [InlineData("", "", "", "来源：电脑")]
+    [InlineData("external", "android-1234567890a1b2c3", "手机1", "手机1")]
+    [InlineData("EXTERNAL", "", "", "手机设备")]
+    [InlineData("external", "", "一号打包手机", "一号打包手机")]
+    [InlineData("pc", "pc-1", "一号电脑", "电脑")]
+    [InlineData("", "", "", "电脑")]
     public void GetSourceDisplay_UsesBackupDeviceIdentity(
         string sourceType,
         string sourceDeviceId,
@@ -143,6 +145,63 @@ public sealed class PlaybackWindowTests
         Assert.Equal(
             expected,
             PlaybackWindow.GetSourceDisplay(sourceType, sourceDeviceId, sourceDeviceName));
+    }
+
+    [Theory]
+    [InlineData("", "", "", null, "打包电脑", "打包电脑")]
+    [InlineData("pc", "pc-1", "DESKTOP-ABC", null, "一号电脑", "一号电脑")]
+    [InlineData("", "", "", null, "", "电脑")]
+    [InlineData("external", "android-1", "手机1", null, "打包电脑", "手机1")]
+    public void GetSourceDisplay_UsesLocalComputerNickname(
+        string sourceType,
+        string sourceDeviceId,
+        string sourceDeviceName,
+        string? sourceDeviceKind,
+        string localComputerName,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            PlaybackWindow.GetSourceDisplay(
+                sourceType,
+                sourceDeviceId,
+                sourceDeviceName,
+                sourceDeviceKind,
+                localComputerName));
+    }
+
+    [Fact]
+    public void CreateVideoItem_PcRecordUsesComputerNickname()
+    {
+        var record = new VideoRecord
+        {
+            FilePath = Path.Combine(Path.GetTempPath(), "packingproof-pc-nickname.mp4"),
+            SourceType = "pc",
+            SourceDeviceId = "pc-1",
+            SourceDeviceName = "DESKTOP-ABC",
+            StorageState = "Local",
+            FileSizeBytes = 1
+        };
+
+        VideoItem item = PlaybackWindow.CreateVideoItem(record, "打包电脑");
+
+        Assert.Equal("打包电脑", item.SourceDisplay);
+    }
+
+    [Fact]
+    public void PlaybackLayout_HasModeColorStripWithoutSourcePrefix()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"ModeStrip\"", xaml);
+        Assert.Contains("TargetName=\"ModeStrip\"", xaml);
+        Assert.Contains("{DynamicResource AccentOrange}", xaml);
+        Assert.Contains("Binding Mode", xaml);
+        Assert.Contains("Value=\"退货\"", xaml);
+        Assert.DoesNotContain("来源：", codeBehind, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -336,8 +395,8 @@ public sealed class PlaybackWindowTests
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
 
-        Assert.Contains("videos.Add(CreateVideoItem(record));", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("VideoItem item = CreateVideoItem(record);", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("videos.Add(CreateVideoItem(record, _computerName));", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("VideoItem item = CreateVideoItem(record, _computerName);", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("PlaybackFileResolver.ResolvePlaybackPath", codeBehind, StringComparison.Ordinal);
     }
 

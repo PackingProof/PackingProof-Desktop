@@ -300,7 +300,8 @@ public partial class PrintWorkstationWindow : Window
                     config => config.LastVideoImportFolder = path,
                     out _,
                     out _);
-            })
+            },
+            localComputerName: _config.NodeName)
         {
             Owner = this
         };

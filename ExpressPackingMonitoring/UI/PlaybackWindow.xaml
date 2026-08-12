@@ -182,7 +182,7 @@
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
                                       Margin="0,0,7,0"/>
-                                <TextBlock x:Name="HideUnavailableButtonText" Text="显示异常记录"/>
+                                <TextBlock x:Name="HideUnavailableButtonText" Text="显示丢失记录"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="BtnImportVideos"
@@ -238,7 +238,14 @@
                                             <Border.Effect>
                                                 <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.05" Direction="270"/>
                                             </Border.Effect>
-                                            <ContentPresenter Margin="12,10"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="4"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Border x:Name="ModeStrip" Grid.Column="0" Margin="0,10,0,10" CornerRadius="0,4,4,0" Background="{DynamicResource AccentBlue}"/>
+                                                <ContentPresenter Grid.Column="1" Margin="12,10"/>
+                                            </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
@@ -249,6 +256,12 @@
                                                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                                                 <Setter Property="Background" Value="{DynamicResource BadgePackBg}"/>
                                             </Trigger>
+                                            <DataTrigger Binding="{Binding Mode}" Value="退货">
+                                                <Setter TargetName="ModeStrip" Property="Background" Value="{DynamicResource AccentOrange}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsUnavailable}" Value="True">
+                                                <Setter TargetName="ModeStrip" Property="Opacity" Value="0.45"/>
+                                            </DataTrigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Setter.Value>

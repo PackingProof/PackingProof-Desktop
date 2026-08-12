@@ -75,6 +75,7 @@ namespace ExpressPackingMonitoring.UI
     public partial class PlaybackWindow : Window
     {
         private readonly string _folderPath;
+        private readonly string _computerName;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
         private bool _hideUnavailable = true;
@@ -104,8 +105,12 @@ namespace ExpressPackingMonitoring.UI
         private long _currentMediaLengthMs;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
 
-        public PlaybackWindow(string folderPath, VideoDatabase? db = null, bool showDeletedVideos = true)
-            : this(folderPath, db, showDeletedVideos, null)
+        public PlaybackWindow(
+            string folderPath,
+            VideoDatabase? db = null,
+            bool showDeletedVideos = true,
+            string localComputerName = "")
+            : this(folderPath, db, showDeletedVideos, null, localComputerName: localComputerName)
         {
         }
 
@@ -116,10 +121,12 @@ namespace ExpressPackingMonitoring.UI
             VideoFolderImportService? videoImportService,
             string lastImportFolder = "",
             Action<string>? saveImportFolder = null,
-            Action? videosImported = null)
+            Action? videosImported = null,
+            string localComputerName = "")
         {
             InitializeComponent();
             _folderPath = folderPath;
+            _computerName = localComputerName ?? "";
             _db = db;
             _showDeletedVideos = showDeletedVideos;
             _videoImportService = videoImportService;
@@ -220,14 +227,14 @@ namespace ExpressPackingMonitoring.UI
         private void UpdateHideUnavailableButtonText()
         {
             if (HideUnavailableButtonText != null)
-                HideUnavailableButtonText.Text = _hideUnavailable ? "显示异常记录" : "隐藏异常记录";
+                HideUnavailableButtonText.Text = _hideUnavailable ? "显示丢失记录" : "隐藏丢失记录";
             if (HideUnavailableButtonIcon != null)
                 HideUnavailableButtonIcon.Data = (Geometry)FindResource(
                     _hideUnavailable ? "FluentEyeOffIcon" : "FluentEyeIcon");
         }
 
         internal static string BuildHiddenHintText(int hiddenCount) =>
-            $"已隐藏 {hiddenCount} 条异常记录（文件丢失或已清理）";
+            $"已隐藏 {hiddenCount} 条丢失或已清理记录";
 
         private void UpdateHiddenHint(int hiddenCount)
         {
@@ -354,7 +361,7 @@ namespace ExpressPackingMonitoring.UI
                      }
                      foreach (var record in result.Records)
                     {
-                        videos.Add(CreateVideoItem(record));
+                        videos.Add(CreateVideoItem(record, _computerName));
                     }
                     return (videos, result.Total, 0);
                  }
@@ -412,7 +419,7 @@ namespace ExpressPackingMonitoring.UI
             int hidden = 0;
             foreach (var record in records)
             {
-                VideoItem item = CreateVideoItem(record);
+                VideoItem item = CreateVideoItem(record, _computerName);
                 videos.Add(item);
                 if (item.IsDeleted || item.IsMissing)
                     hidden++;
@@ -420,7 +427,7 @@ namespace ExpressPackingMonitoring.UI
             return hidden;
         }
 
-        internal static VideoItem CreateVideoItem(VideoRecord record)
+        internal static VideoItem CreateVideoItem(VideoRecord record, string? localComputerName = null)
         {
             bool deleted = record.IsDeleted;
             bool storedOnHost = string.Equals(
@@ -479,7 +486,8 @@ namespace ExpressPackingMonitoring.UI
                     record.SourceType,
                     record.SourceDeviceId,
                     record.SourceDeviceName,
-                    record.SourceDeviceKind),
+                    record.SourceDeviceKind,
+                    localComputerName),
                 IsStoredOnHost = storedOnHost,
                 IsMissing = missing,
                 IsDeleted = deleted,
@@ -539,15 +547,16 @@ namespace ExpressPackingMonitoring.UI
             string? sourceType,
             string? sourceDeviceId,
             string? sourceDeviceName,
-            string? sourceDeviceKind = null)
+            string? sourceDeviceKind = null,
+            string? localComputerName = null)
         {
             if (!string.Equals(sourceType, "external", StringComparison.OrdinalIgnoreCase))
-                return "来源：电脑";
+                return string.IsNullOrWhiteSpace(localComputerName) ? "电脑" : localComputerName.Trim();
 
             string name = GetSourceDeviceDisplayName(sourceDeviceId, sourceDeviceName);
             return string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                ? $"来源：电脑工位 · {name}"
-                : $"来源：{name}";
+                ? $"电脑工位 · {name}"
+                : name;
         }
 
         internal static string GetSourceDeviceDisplayName(string? sourceDeviceId, string? sourceDeviceName)
