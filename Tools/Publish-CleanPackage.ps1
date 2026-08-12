@@ -276,6 +276,9 @@ function Resolve-EffectivePatchBaseline {
     )
 
     $versions = Get-BaselineVersionFromPath -Path $BaselineAppDir
+    if ($null -eq $versions) {
+        $versions = @()
+    }
     $explicitVersion = if ($Explicit) {
         Get-NormalizedReleaseVersion $PatchBaselineVersion
     }
