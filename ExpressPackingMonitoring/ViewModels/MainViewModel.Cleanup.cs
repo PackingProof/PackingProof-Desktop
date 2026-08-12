@@ -315,7 +315,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 string normalized = Path.IsPathRooted(location.Path)
                     ? location.Path
                     : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
-                if (StorageVolumeInfo.IsNetworkPath(normalized))
+                if (!StorageVolumeInfo.IsConfirmedLocal(normalized))
                     continue;
                 roots.Add(normalized);
             }

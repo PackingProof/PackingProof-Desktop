@@ -7,6 +7,98 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class StoragePolicyTests
 {
+    [Fact]
+    public void ClassifyStorageLocation_UncShortCircuitsToNetwork()
+    {
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Network,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                @"\\server\share\folder",
+                _ => "ignored"));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_NormalizesFinalPathPrefixes()
+    {
+        string localInput = Path.Combine(Path.GetTempPath(), "epm-classify");
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => @"\\?\C:\Recordings"));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => @"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\Recordings"));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Network,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => @"\\?\UNC\NAS\share\Recordings"));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Network,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => @"\\server\share\Recordings"));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_ParseFailureIsUnknown()
+    {
+        string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-unknown");
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation(localInput, _ => null));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => throw new IOException("网络挂载断开")));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation("", _ => @"\\NAS\share"));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_DoesNotCacheResult()
+    {
+        string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-nocache");
+        int calls = 0;
+        Func<string, string?> resolver = _ =>
+            calls++ == 0
+                ? @"\\?\UNC\NAS\share\Recordings"
+                : @"\\?\C:\Recordings";
+
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Network,
+            StorageVolumeInfo.ClassifyStorageLocation(localInput, resolver));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(localInput, resolver));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_RealLocalTempDirectoryIsLocal()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "epm-classify-real-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            Assert.Equal(
+                StorageVolumeInfo.StorageLocationKind.Local,
+                StorageVolumeInfo.ClassifyStorageLocation(directory));
+            Assert.True(StorageVolumeInfo.IsConfirmedLocal(directory));
+            Assert.False(StorageVolumeInfo.IsNetworkPath(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     public static TheoryData<long, long, Func<long, long>> ReserveCases => new()
     {
         { 100L * StorageSpacePolicy.BytesPerGiB, 30L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: true) },

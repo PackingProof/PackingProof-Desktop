@@ -3005,7 +3005,7 @@ namespace ExpressPackingMonitoring.ViewModels
             IEnumerable<string> managedRoots = preset == DeploymentPresets.RecordingWorkstation
                 ? [activeFolderPath]
                 : Config.StorageLocations
-                    .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                    .Where(location => StorageVolumeInfo.IsConfirmedLocal(location.Path))
                     .Select(location =>
                     {
                         try { return StorageLocationResolver.Resolve(location); }

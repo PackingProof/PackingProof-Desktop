@@ -227,6 +227,54 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
+    public void ResolveRecordingPlan_UnknownLocalPathIsSkippedFailClosed()
+    {
+        string realLocal = CreateTempDirectory();
+        try
+        {
+            string missingDriveRoot = Enumerable.Range('A', 26)
+                .Select(letter => ((char)letter).ToString() + ":\\")
+                .First(root => !Directory.Exists(root));
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = missingDriveRoot + "录像", Priority = 0 },
+                    new StorageLocation { Path = Path.Combine(realLocal, "录像"), Priority = 1 }
+                ]
+            };
+
+            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false);
+
+            Assert.False(plan.RequiresNetworkArchive);
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(realLocal, "录像")),
+                plan.WorkingRootPath);
+        }
+        finally
+        {
+            TryDeleteDirectory(realLocal);
+        }
+    }
+
+    [Fact]
+    public void LocalStorageGates_AreFailClosed()
+    {
+        string driveDialog = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "DriveSelectionDialog.cs"));
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml.cs"));
+
+        Assert.Contains("ClassifyStorageLocation", driveDialog, StringComparison.Ordinal);
+        Assert.Contains("StorageLocationKind.Local", driveDialog, StringComparison.Ordinal);
+        Assert.Contains("不能作为本地录像保存位置", settings, StringComparison.Ordinal);
+        Assert.Contains("无法确认存储位置类型", settings, StringComparison.Ordinal);
+        Assert.Contains("无法确认该路径是否为网络位置", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ArchivePathBuilder_LocalRecordingLayout()
     {
         string path = ArchivePathBuilder.BuildLocalRecordingArchivePath(

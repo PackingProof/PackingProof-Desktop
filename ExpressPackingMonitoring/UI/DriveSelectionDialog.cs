@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using ExpressPackingMonitoring.Config;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -134,6 +135,10 @@ namespace ExpressPackingMonitoring.UI
                 .Where(drive => fixedDrivesOnly
                     ? drive.DriveType == DriveType.Fixed
                     : drive.DriveType is DriveType.Fixed or DriveType.Removable)
+                .Where(drive =>
+                    StorageVolumeInfo.ClassifyStorageLocation(
+                        drive.RootDirectory.FullName)
+                    == StorageVolumeInfo.StorageLocationKind.Local)
                 .Select(drive => new DriveOption(drive, usedRoots.Contains(GetDriveRoot(drive.RootDirectory.FullName))))
                 .OrderBy(option => option.RootPath, StringComparer.OrdinalIgnoreCase)
                 .ToList();

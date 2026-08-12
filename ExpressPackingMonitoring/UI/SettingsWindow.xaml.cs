@@ -859,6 +859,11 @@ namespace ExpressPackingMonitoring.UI
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
+            if (!TryConfirmLocalStoragePath(selectedPath, out string localError))
+            {
+                AppDialog.Error(this, localError, "存储位置无效");
+                return;
+            }
 
             primary.Path = selectedPath;
         }
@@ -1078,6 +1083,11 @@ namespace ExpressPackingMonitoring.UI
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
+            if (!TryConfirmLocalStoragePath(selectedPath, out string localError))
+            {
+                AppDialog.Error(this, localError, "存储位置无效");
+                return;
+            }
 
             var newLocation = new StorageLocation
             {
@@ -1105,12 +1115,26 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             string selectedPath = dialog.SelectedPath;
-            if (StorageVolumeInfo.IsNetworkPath(selectedPath)
-                && StorageVolumeInfo.TryResolveUncPath(selectedPath, out string uncPath))
+            StorageVolumeInfo.StorageLocationKind kind =
+                StorageVolumeInfo.ClassifyStorageLocation(selectedPath);
+            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
             {
-                selectedPath = uncPath;
+                if (StorageVolumeInfo.TryResolveUncPath(
+                        selectedPath,
+                        out string uncPath))
+                {
+                    selectedPath = uncPath;
+                }
             }
-            if (!StorageVolumeInfo.IsNetworkPath(selectedPath))
+            else if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)
+            {
+                AppDialog.Error(
+                    this,
+                    "无法确认该路径是否为网络位置，请确认网络共享可访问后重试",
+                    "备份位置无效");
+                return;
+            }
+            else
             {
                 AppDialog.Error(
                     this,
@@ -1344,7 +1368,7 @@ namespace ExpressPackingMonitoring.UI
             if (StorageDataGrid.SelectedItem is StorageLocation selected)
             {
                 int localCount = Config.StorageLocations.Count(
-                    location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                    location => StorageVolumeInfo.IsConfirmedLocal(location.Path));
                 if (localCount <= 1)
                 {
                     AppDialog.Warning(this, "至少需要保留一个存储路径", "警告");
@@ -1363,7 +1387,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     bool keepsLocalPath = Config.StorageLocations
                         .Where(location => !ReferenceEquals(location, selected))
-                        .Any(location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                        .Any(location => StorageVolumeInfo.IsConfirmedLocal(location.Path));
                     if (!keepsLocalPath)
                     {
                         AppDialog.Warning(this, "至少需要一个本地保存位置，请先添加本地磁盘", "警告");
@@ -1375,7 +1399,7 @@ namespace ExpressPackingMonitoring.UI
                     RefreshStoragePriorities();
                     RefreshStorageViews();
                     int remainingLocalCount = Config.StorageLocations.Count(
-                        location => !StorageVolumeInfo.IsNetworkPath(location.Path));
+                        location => StorageVolumeInfo.IsConfirmedLocal(location.Path));
                     if (remainingLocalCount > 0)
                     {
                         StorageDataGrid.SelectedIndex = Math.Min(
@@ -1420,7 +1444,7 @@ namespace ExpressPackingMonitoring.UI
             if (StorageDataGrid?.SelectedItem is not StorageLocation selected) return;
 
             var locals = Config.StorageLocations
-                .Where(location => !StorageVolumeInfo.IsNetworkPath(location.Path))
+                .Where(location => StorageVolumeInfo.IsConfirmedLocal(location.Path))
                 .ToList();
             int localIndex = locals.IndexOf(selected);
             int newLocalIndex = localIndex + direction;
@@ -1470,7 +1494,7 @@ namespace ExpressPackingMonitoring.UI
             bool hasSelection = StorageDataGrid?.SelectedItem is StorageLocation;
             int selectedIndex = StorageDataGrid?.SelectedIndex ?? -1;
             int localCount = Config.StorageLocations?
-                .Count(location => !StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+                .Count(location => StorageVolumeInfo.IsConfirmedLocal(location.Path)) ?? 0;
 
             RemoveStorageButton.IsEnabled = hasSelection;
             if (MoveStorageUpButton != null) MoveStorageUpButton.IsEnabled = hasSelection && selectedIndex > 0;
@@ -1485,7 +1509,7 @@ namespace ExpressPackingMonitoring.UI
         {
             e.Accepted = e.Item is StorageLocation location
                 && !string.IsNullOrWhiteSpace(location.Path)
-                && !StorageVolumeInfo.IsNetworkPath(location.Path);
+                && StorageVolumeInfo.IsConfirmedLocal(location.Path);
         }
 
         private void BackupStorageView_Filter(object sender, FilterEventArgs e)
@@ -1499,6 +1523,15 @@ namespace ExpressPackingMonitoring.UI
         {
             _localStorageView?.View.Refresh();
             _backupStorageView?.View.Refresh();
+            if (BackupEmptyHint != null)
+            {
+                int networkCount = Config.StorageLocations?
+                    .Count(location =>
+                        StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+                BackupEmptyHint.Visibility = networkCount == 0
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
         }
 
         private void BackupStorageDataGrid_SelectionChanged(
@@ -1864,6 +1897,26 @@ namespace ExpressPackingMonitoring.UI
             Config.CameraIdleNoSleepEnd1 = end1;
             Config.CameraIdleNoSleepStart2 = start2;
             Config.CameraIdleNoSleepEnd2 = end2;
+            return true;
+        }
+
+        /// <summary>本地主存储 fail-closed：只有明确本地才放行，网络/未知一律拒绝。</summary>
+        private bool TryConfirmLocalStoragePath(string path, out string errorMessage)
+        {
+            StorageVolumeInfo.StorageLocationKind kind =
+                StorageVolumeInfo.ClassifyStorageLocation(path);
+            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
+            {
+                errorMessage =
+                    "该路径是网络位置（含映射盘/网络挂载），不能作为本地录像保存位置；如需备份到该共享，请添加到备份位置";
+                return false;
+            }
+            if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)
+            {
+                errorMessage = "无法确认存储位置类型，请确认该路径是本地磁盘后重试";
+                return false;
+            }
+            errorMessage = "";
             return true;
         }
 

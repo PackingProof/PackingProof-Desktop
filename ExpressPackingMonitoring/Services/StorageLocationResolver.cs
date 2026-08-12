@@ -63,11 +63,21 @@ internal static class StorageLocationResolver
         foreach (StorageLocation location in locations)
         {
             string configuredPath = NormalizePath(location.Path);
-            if (StorageVolumeInfo.IsNetworkPath(configuredPath))
+            StorageVolumeInfo.StorageLocationKind kind =
+                StorageVolumeInfo.ClassifyStorageLocation(configuredPath);
+            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
             {
                 // 网络备份目标不参与本地轮换；归档目标直接取优先级最高的一个，
                 // 可达性与空间检查由归档 Worker 在后台完成，避免 UI 路径阻塞探测。
                 firstNetworkRoot ??= configuredPath;
+                continue;
+            }
+            if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)
+            {
+                failures.Add($"{configuredPath}：无法确认存储位置类型");
+                RuntimeLog.Warn(
+                    "Storage",
+                    $"Skip unknown storage path={configuredPath}");
                 continue;
             }
 

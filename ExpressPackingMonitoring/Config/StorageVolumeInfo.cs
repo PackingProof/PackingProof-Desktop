@@ -3,6 +3,7 @@ using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace ExpressPackingMonitoring.Config
 {
@@ -17,6 +18,14 @@ namespace ExpressPackingMonitoring.Config
         long AvailableFreeSpace,
         string VolumeId)
     {
+        /// <summary>存储位置类型：明确本地 / 明确网络 / 无法确认（fail-closed 按不可用处理）。</summary>
+        internal enum StorageLocationKind
+        {
+            Local,
+            Network,
+            Unknown
+        }
+
         public static bool TryGet(string path, out StorageVolumeInfo volume)
         {
             volume = default;
@@ -59,20 +68,91 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>
         /// 判断路径是否为网络位置（UNC 或映射网络盘）。
         /// </summary>
-        public static bool IsNetworkPath(string path)
+        public static bool IsNetworkPath(string path) =>
+            ClassifyStorageLocation(path) == StorageLocationKind.Network;
+
+        /// <summary>
+        /// 三态判定存储位置类型（不缓存，每次现算）：
+        /// UNC/映射盘/网络共享挂载点 → Network；明确本地卷 → Local；无法确认 → Unknown。
+        /// </summary>
+        public static StorageLocationKind ClassifyStorageLocation(string path) =>
+            ClassifyStorageLocation(path, ResolveFinalPathOfNearestExistingAncestor);
+
+        /// <summary>供测试注入 finalPathResolver 的三态判定重载。</summary>
+        internal static StorageLocationKind ClassifyStorageLocation(
+            string path,
+            Func<string, string?>? finalPathResolver)
         {
-            if (string.IsNullOrWhiteSpace(path)) return false;
-            if (path.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+            if (string.IsNullOrWhiteSpace(path))
+                return StorageLocationKind.Unknown;
 
             try
             {
-                string root = Path.GetPathRoot(Path.GetFullPath(path)) ?? "";
-                return root.Length > 0 && new DriveInfo(root).DriveType == DriveType.Network;
+                string fullPath = Path.GetFullPath(path.Trim().Trim('"'));
+                string? root = Path.GetPathRoot(fullPath);
+                if (string.IsNullOrWhiteSpace(root))
+                    return StorageLocationKind.Unknown;
+                if (root.StartsWith(@"\\", StringComparison.Ordinal))
+                    return StorageLocationKind.Network;
+
+                try
+                {
+                    if (new DriveInfo(root).DriveType == DriveType.Network)
+                        return StorageLocationKind.Network;
+                    if (!string.IsNullOrWhiteSpace(ResolveMappedRootWithWNet(
+                            root.TrimEnd(
+                                Path.DirectorySeparatorChar,
+                                Path.AltDirectorySeparatorChar))))
+                    {
+                        return StorageLocationKind.Network;
+                    }
+                }
+                catch
+                {
+                    // 继续按 final path 判定
+                }
+
+                string? final = finalPathResolver?.Invoke(fullPath);
+                return ClassifyFinalPath(final);
             }
             catch
             {
-                return false;
+                return StorageLocationKind.Unknown;
             }
+        }
+
+        /// <summary>是否明确是本地存储位置（主存储 fail-closed 的唯一放行条件）。</summary>
+        public static bool IsConfirmedLocal(string path) =>
+            ClassifyStorageLocation(path) == StorageLocationKind.Local;
+
+        /// <summary>
+        /// 规范化 final path 前缀后判定：
+        /// \\?\UNC\... 与 \\server\share 为网络；\\?\C:\ 等去掉 \\?\ 后为本地；
+        /// 卷 GUID 路径（\\?\Volume{...}）为本地；其他无法识别形态按网络保守处理。
+        /// </summary>
+        private static StorageLocationKind ClassifyFinalPath(string? finalPath)
+        {
+            if (string.IsNullOrWhiteSpace(finalPath))
+                return StorageLocationKind.Unknown;
+            string normalized = finalPath.Trim();
+            if (normalized.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+                return StorageLocationKind.Network;
+            if (normalized.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
+            {
+                string stripped = normalized[4..];
+                if (stripped.StartsWith("Volume", StringComparison.OrdinalIgnoreCase))
+                    return StorageLocationKind.Local;
+                if (stripped.Length >= 2
+                    && char.IsLetter(stripped[0])
+                    && stripped[1] == ':')
+                {
+                    return StorageLocationKind.Local;
+                }
+                return StorageLocationKind.Network;
+            }
+            if (normalized.StartsWith(@"\\", StringComparison.Ordinal))
+                return StorageLocationKind.Network;
+            return StorageLocationKind.Local;
         }
 
         /// <summary>
@@ -304,5 +384,84 @@ namespace ExpressPackingMonitoring.Config
             string lpLocalName,
             StringBuilder lpRemoteName,
             ref int lpnLength);
+
+        private const uint FileReadAttributes = 0x80;
+        private const uint ShareReadWriteDelete = 1 | 2 | 4;
+        private const uint OpenExisting = 3;
+        private const uint FlagBackupSemantics = 0x02000000;
+
+        /// <summary>解析路径的真实最终路径（穿透目录挂载点/连接点），失败返回 null。</summary>
+        private static string? ResolveFinalPath(string path)
+        {
+            try
+            {
+                using SafeFileHandle handle = CreateFile(
+                    path,
+                    FileReadAttributes,
+                    ShareReadWriteDelete,
+                    IntPtr.Zero,
+                    OpenExisting,
+                    FlagBackupSemantics,
+                    IntPtr.Zero);
+                if (handle.IsInvalid)
+                    return null;
+
+                var buffer = new StringBuilder(1024);
+                uint length = GetFinalPathNameByHandle(
+                    handle,
+                    buffer,
+                    (uint)buffer.Capacity,
+                    0);
+                if (length == 0 || length >= buffer.Capacity)
+                    return null;
+                return buffer.ToString();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 解析“路径本身或最近存在的父目录”的真实最终路径：
+        /// 尚未创建的本地目录会向上解析到已存在的父目录，从而正确识别父目录是否位于网络挂载点上。
+        /// </summary>
+        private static string? ResolveFinalPathOfNearestExistingAncestor(string path)
+        {
+            string? current = path;
+            while (!string.IsNullOrWhiteSpace(current))
+            {
+                if (Directory.Exists(current))
+                    return ResolveFinalPath(current);
+                string? parent = Path.GetDirectoryName(current);
+                if (string.IsNullOrWhiteSpace(parent)
+                    || string.Equals(
+                        parent,
+                        current,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                current = parent;
+            }
+            return null;
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFile(
+            string lpFileName,
+            uint dwDesiredAccess,
+            uint dwShareMode,
+            IntPtr lpSecurityAttributes,
+            uint dwCreationDisposition,
+            uint dwFlagsAndAttributes,
+            IntPtr hTemplateFile);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandle(
+            SafeFileHandle hFile,
+            StringBuilder lpszFilePath,
+            uint cchFilePath,
+            uint dwFlags);
     }
 }
