@@ -61,6 +61,17 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
+    public void ClassifyStorageLocation_UnknownFinalPathFormIsUnknown()
+    {
+        string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-unknown-form");
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                localInput,
+                _ => @"\\?\UnknownForm\path"));
+    }
+
+    [Fact]
     public void ClassifyStorageLocation_DoesNotCacheResult()
     {
         string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-nocache");

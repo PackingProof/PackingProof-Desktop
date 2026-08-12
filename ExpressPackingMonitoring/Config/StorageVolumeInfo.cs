@@ -128,7 +128,7 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>
         /// 规范化 final path 前缀后判定：
         /// \\?\UNC\... 与 \\server\share 为网络；\\?\C:\ 等去掉 \\?\ 后为本地；
-        /// 卷 GUID 路径（\\?\Volume{...}）为本地；其他无法识别形态按网络保守处理。
+        /// 卷 GUID 路径（\\?\Volume{...}）为本地；其他无法识别形态按 Unknown fail-closed。
         /// </summary>
         private static StorageLocationKind ClassifyFinalPath(string? finalPath)
         {
@@ -148,7 +148,7 @@ namespace ExpressPackingMonitoring.Config
                 {
                     return StorageLocationKind.Local;
                 }
-                return StorageLocationKind.Network;
+                return StorageLocationKind.Unknown;
             }
             if (normalized.StartsWith(@"\\", StringComparison.Ordinal))
                 return StorageLocationKind.Network;
