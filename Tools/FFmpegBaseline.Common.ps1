@@ -193,7 +193,9 @@ function Resolve-FFmpegBaselineExecutable {
         [Parameter(Mandatory = $true)][string]$CacheDirectory,
         [Parameter(Mandatory = $true)][string]$DestinationPath,
         [Parameter(Mandatory = $true)][string]$SevenZipExecutable,
-        [scriptblock]$DownloadFile
+        [scriptblock]$DownloadFile,
+        [int]$MaxAttemptsPerUrl = 3,
+        [int]$RetryDelaySeconds = 2
     )
 
     $cacheFullPath = [IO.Path]::GetFullPath($CacheDirectory)
@@ -231,23 +233,38 @@ function Resolve-FFmpegBaselineExecutable {
         }
         $lastError = $null
         foreach ($url in @($Baseline.package.urls)) {
-            $temporaryPackage = "$cachedPackage.download"
-            try {
-                if (Test-Path -LiteralPath $temporaryPackage) {
-                    Remove-Item -LiteralPath $temporaryPackage -Force
+            $attempt = 0
+            while ($attempt -lt $MaxAttemptsPerUrl) {
+                $attempt++
+                $temporaryPackage = "$cachedPackage.download"
+                try {
+                    if (Test-Path -LiteralPath $temporaryPackage) {
+                        Remove-Item -LiteralPath $temporaryPackage -Force
+                    }
+                    & $DownloadFile ([string]$url) $temporaryPackage
+                    Assert-FFmpegPackage -PackagePath $temporaryPackage -Baseline $Baseline -SevenZipExecutable $SevenZipExecutable
+                    Move-Item -LiteralPath $temporaryPackage -Destination $cachedPackage -Force
+                    $packageReady = $true
+                    break
                 }
-                & $DownloadFile ([string]$url) $temporaryPackage
-                Assert-FFmpegPackage -PackagePath $temporaryPackage -Baseline $Baseline -SevenZipExecutable $SevenZipExecutable
-                Move-Item -LiteralPath $temporaryPackage -Destination $cachedPackage -Force
-                $packageReady = $true
-                break
+                catch {
+                    $lastError = $_
+                    if (Test-Path -LiteralPath $temporaryPackage) {
+                        Remove-Item -LiteralPath $temporaryPackage -Force
+                    }
+                    if ($attempt -lt $MaxAttemptsPerUrl) {
+                        Write-Warning "FFmpeg dependency download failed (attempt $attempt/$MaxAttemptsPerUrl), retrying: $url"
+                        if ($RetryDelaySeconds -gt 0) {
+                            Start-Sleep -Seconds $RetryDelaySeconds
+                        }
+                    }
+                    else {
+                        Write-Warning "FFmpeg dependency download failed after $MaxAttemptsPerUrl attempts, trying next source: $url"
+                    }
+                }
             }
-            catch {
-                $lastError = $_
-                if (Test-Path -LiteralPath $temporaryPackage) {
-                    Remove-Item -LiteralPath $temporaryPackage -Force
-                }
-                Write-Warning "FFmpeg dependency download failed, trying next source: $url"
+            if ($packageReady) {
+                break
             }
         }
         if (-not $packageReady) {

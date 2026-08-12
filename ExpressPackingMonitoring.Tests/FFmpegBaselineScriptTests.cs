@@ -46,7 +46,34 @@ public sealed class FFmpegBaselineScriptTests
             }
             """;
 
-        ProcessResult result = fixture.RunResolve(downloader);
+        ProcessResult result = fixture.RunResolve(downloader, "-MaxAttemptsPerUrl 1");
+
+        Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
+        Assert.Equal(fixture.ExecutableBytes, File.ReadAllBytes(fixture.DestinationPath));
+    }
+
+    [Fact]
+    public void TransientDownloadFailure_RetriesSameUrlBeforeSucceeding()
+    {
+        using var fixture = new Fixture();
+        string package = EscapePowerShell(fixture.PackagePath);
+        string downloader = $$"""
+            {
+                param($url, $path)
+                $marker = "$path.attempt"
+                if (-not (Test-Path -LiteralPath $marker)) {
+                    Set-Content -LiteralPath $marker -Value '1' -Encoding UTF8
+                    throw 'transient download failure'
+                }
+                if ((Get-Content -LiteralPath $marker -Raw -Encoding UTF8) -eq '1') {
+                    Set-Content -LiteralPath $marker -Value '2' -Encoding UTF8
+                    throw 'transient download failure'
+                }
+                Copy-Item -LiteralPath '{{package}}' -Destination $path -Force
+            }
+            """;
+
+        ProcessResult result = fixture.RunResolve(downloader, "-MaxAttemptsPerUrl 3 -RetryDelaySeconds 0");
 
         Assert.True(result.ExitCode == 0, $"{result.Output}\n{result.Error}");
         Assert.Equal(fixture.ExecutableBytes, File.ReadAllBytes(fixture.DestinationPath));
@@ -127,15 +154,16 @@ public sealed class FFmpegBaselineScriptTests
             return RunPowerShell(command, _repositoryRoot);
         }
 
-        public ProcessResult RunResolve(string downloader)
+        public ProcessResult RunResolve(string downloader, string? resolveArguments = null)
         {
             string commonScript = Path.Combine(_repositoryRoot, "Tools", "FFmpegBaseline.Common.ps1");
+            string arguments = string.IsNullOrWhiteSpace(resolveArguments) ? "" : " " + resolveArguments;
             string command = $$"""
                 $ErrorActionPreference = 'Stop'
                 . '{{EscapePowerShell(commonScript)}}'
                 $baseline = Read-FFmpegBaselineManifest -ManifestPath '{{EscapePowerShell(_manifestPath)}}'
                 $download = {{downloader}}
-                Resolve-FFmpegBaselineExecutable -Baseline $baseline -CacheDirectory '{{EscapePowerShell(CacheDirectory)}}' -DestinationPath '{{EscapePowerShell(DestinationPath)}}' -SevenZipExecutable '{{EscapePowerShell(_sevenZipPath)}}' -DownloadFile $download
+                Resolve-FFmpegBaselineExecutable -Baseline $baseline -CacheDirectory '{{EscapePowerShell(CacheDirectory)}}' -DestinationPath '{{EscapePowerShell(DestinationPath)}}' -SevenZipExecutable '{{EscapePowerShell(_sevenZipPath)}}' -DownloadFile $download{{arguments}}
                 """;
             return RunPowerShell(command, _repositoryRoot);
         }
