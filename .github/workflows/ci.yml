@@ -51,6 +51,12 @@ jobs:
           "TEMP=$tempRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "CI temp root: $tempRoot"
 
+      - name: 缓存钉死的 FFmpeg 依赖
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: package/dependency-cache/ffmpeg
+          key: ffmpeg-${{ hashFiles('Tools/ffmpeg-baseline.json') }}
+
       - name: 准备钉死的 FFmpeg 依赖
         shell: pwsh
         run: pwsh -NoProfile -File Tools\Prepare-PinnedFFmpeg.ps1
