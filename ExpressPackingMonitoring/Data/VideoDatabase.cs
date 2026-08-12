@@ -393,6 +393,7 @@ namespace ExpressPackingMonitoring.Data
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_orderinfo_source_order ON OrderInfoRecords(SourceOrderId);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_orderinfo_push_time ON OrderInfoRecords(PushTime DESC);");
             ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_content_sha256 ON VideoRecords(ContentSha256);");
+            ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_video_archive_status_reason ON VideoRecords(ArchiveStatus, DeleteReasonCode);");
             ExecuteNonQuery("CREATE UNIQUE INDEX IF NOT EXISTS idx_video_external_session ON VideoRecords(SourceDeviceId, SourceSessionId) WHERE SourceType = 'external' AND SourceDeviceId <> '' AND SourceSessionId <> '';");
             CleanupExpiredOrderInfos();
         }

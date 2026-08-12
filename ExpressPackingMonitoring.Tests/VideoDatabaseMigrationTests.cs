@@ -33,6 +33,19 @@ public sealed class VideoDatabaseMigrationTests : IDisposable
     }
 
     [Fact]
+    public void FreshDatabase_HasArchiveStatusIndex()
+    {
+        string dbPath = Path.Combine(_directory, "index.db");
+        using var database = new VideoDatabase(dbPath);
+
+        using var verify = new SqliteConnection($"Data Source={dbPath}");
+        verify.Open();
+        using var cmd = verify.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type = 'index' AND name = 'idx_video_archive_status_reason';";
+        Assert.Equal(1L, Convert.ToInt64(cmd.ExecuteScalar()));
+    }
+
+    [Fact]
     public void LegacyDatabase_IsMigratedToCurrentSchemaVersion()
     {
         string legacyPath = Path.Combine(_directory, "legacy.db");
