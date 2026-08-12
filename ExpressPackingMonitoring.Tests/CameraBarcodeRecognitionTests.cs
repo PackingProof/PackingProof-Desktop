@@ -882,6 +882,35 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(2, recognized.Count);
     }
 
+    [Theory]
+    [InlineData("CLEAR")]
+    [InlineData("SHIP")]
+    [InlineData("BACK")]
+    [InlineData("START")]
+    [InlineData("STOP")]
+    public async Task RecognitionService_CommandCodeFiresRecognizedButNotConfirmed(
+        string command)
+    {
+        using Mat frame = CreateFrameWithBarcode(
+            command,
+            BarcodeFormat.CODE_128,
+            inGuide: true);
+        var recognized = new List<string>();
+        int confirmedCount = 0;
+        using var service = new CameraBarcodeRecognitionService(
+            value => CameraBarcodeCandidatePolicy.IsValid(
+                value,
+                "^[a-zA-Z0-9-]{12,25}$"));
+        service.BarcodeRecognized += recognized.Add;
+        service.BarcodeConfirmed += _ => Interlocked.Increment(ref confirmedCount);
+
+        service.TrySubmitFrame(frame);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+
+        Assert.Contains(command, recognized);
+        Assert.Equal(0, Volatile.Read(ref confirmedCount));
+    }
+
     [Fact]
     public async Task InvalidCandidateEvent_FiresForRejectedCodeAndThrottlesSameCode()
     {

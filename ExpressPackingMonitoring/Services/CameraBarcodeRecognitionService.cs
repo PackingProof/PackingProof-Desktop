@@ -1383,22 +1383,26 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         string? code = null;
         try
         {
-            code = _decoder.DecodeGuideRegion(
+            string? decoded = _decoder.DecodeGuideRegion(
                 frame,
                 IsValidCandidate,
                 _guideGeometryProvider());
             DateTimeOffset now = DateTimeOffset.UtcNow;
 
-            if (code != null && !IsValidCandidate(code))
+            if (decoded != null && !IsValidCandidate(decoded))
             {
-                NotifyInvalidCandidate(code);
-                code = null;
+                NotifyInvalidCandidate(decoded);
             }
 
             if (generation != Volatile.Read(ref _generation) || _disposed)
                 return;
 
-            NotifyRecognizedIfNew(code);
+            // 解码到任意非空条码即触发独立滴声（含 CLEAR/SHIP 等指令码）；
+            // 确认/状态/指令处理仍只使用通过校验的码。
+            NotifyRecognizedIfNew(decoded);
+            code = decoded != null && IsValidCandidate(decoded)
+                ? decoded
+                : null;
 
             CameraBarcodeObservation observation;
             TimeSpan confirmationWindow = code == null
