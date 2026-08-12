@@ -21,9 +21,12 @@ internal static class LocalCopyCleanupPolicy
     /// <summary>
     /// 未归档录像删除分档顺序：先删已尝试失败（占用空间且短期无意义），
     /// 再删等待归档，最后删从未备份过的 LocalOnly；档内由查询按结束时间最旧优先。
+    /// NasDeleted 排最前：它不会重新进入归档队列，本地空间紧张时应优先于仍可能恢复归档的
+    /// Pending/Failed 清理。
     /// </summary>
     public static readonly string[] UnarchivedCleanupTiers =
     [
+        VideoArchiveStatus.NasDeleted,
         VideoArchiveStatus.Failed,
         VideoArchiveStatus.Pending,
         VideoArchiveStatus.LocalOnly
@@ -31,6 +34,12 @@ internal static class LocalCopyCleanupPolicy
 
     /// <summary>GC 远端探测缓存窗口：24 小时内已成功探测则不重复探测。</summary>
     public static readonly TimeSpan ProbeCacheWindow = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// 远端确认过期窗口：超过该时长没有成功探测时，NAS 不可达不再阻塞本地容量清理，
+    /// Verified 本地副本可按本地策略删除并打未确认原因码；与探测缓存窗口一致。
+    /// </summary>
+    public static readonly TimeSpan UnconfirmedRemoteCleanupGrace = TimeSpan.FromHours(24);
 
     public static bool IsEligibleForCapacityCleanup(
         VideoRecord record,
@@ -48,17 +57,21 @@ internal static class LocalCopyCleanupPolicy
             reason = "本地文件不存在";
             return false;
         }
-        if (record.ArchiveStatus != VideoArchiveStatus.Verified)
+        if (record.ArchiveStatus is not (
+                VideoArchiveStatus.Verified
+                or VideoArchiveStatus.NasDeleted))
         {
             reason = $"归档状态 {record.ArchiveStatus} 未验证";
             return false;
         }
-        if (record.ArchiveCompletedAt == null)
+        if (record.ArchiveStatus == VideoArchiveStatus.Verified
+            && record.ArchiveCompletedAt == null)
         {
             reason = "缺少归档完成时间";
             return false;
         }
-        if (string.IsNullOrWhiteSpace(record.ArchivePath))
+        if (record.ArchiveStatus == VideoArchiveStatus.Verified
+            && string.IsNullOrWhiteSpace(record.ArchivePath))
         {
             reason = "缺少归档路径";
             return false;
@@ -99,7 +112,8 @@ internal static class LocalCopyCleanupPolicy
         if (record.ArchiveStatus is not (
                 VideoArchiveStatus.LocalOnly
                 or VideoArchiveStatus.Pending
-                or VideoArchiveStatus.Failed))
+                or VideoArchiveStatus.Failed
+                or VideoArchiveStatus.NasDeleted))
         {
             reason = $"状态 {record.ArchiveStatus} 不参与硬循环";
             return false;
@@ -111,6 +125,10 @@ internal static class LocalCopyCleanupPolicy
     public static bool IsProbeFresh(VideoRecord record, DateTime now) =>
         record?.LastArchiveProbeAt != null
         && now - record.LastArchiveProbeAt.Value < ProbeCacheWindow;
+
+    /// <summary>远端确认是否已过期（超过 24 小时或从未成功探测）。</summary>
+    public static bool IsRemoteConfirmationStale(VideoRecord record, DateTime now) =>
+        !IsProbeFresh(record, now);
 
     /// <summary>GC 删除本地录像文件前是否需要实时探测归档目标。</summary>
     public static bool ShouldProbeBeforeLocalCleanup(VideoRecord record, DateTime now) =>

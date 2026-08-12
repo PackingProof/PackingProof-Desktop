@@ -443,7 +443,8 @@ namespace ExpressPackingMonitoring.UI
                 VideoArchiveStatus.Conflict
                 or VideoArchiveStatus.Failed
                 or VideoArchiveStatus.NASFull
-                or VideoArchiveStatus.LocalDeleted;
+                or VideoArchiveStatus.LocalDeleted
+                or VideoArchiveStatus.NasDeleted;
             string archiveStatusText = record.ArchiveStatus switch
             {
                 VideoArchiveStatus.Conflict => $"归档冲突：网络端已有不同版本，请检查 {record.ArchivePath}",
@@ -452,6 +453,7 @@ namespace ExpressPackingMonitoring.UI
                 VideoArchiveStatus.LocalDeleted => record.ArchiveCompletedAt != null
                     ? "已归档（本地副本已清理）"
                     : "本地录像已清理，未备份到 NAS",
+                VideoArchiveStatus.NasDeleted => "NAS 副本已循环清理",
                 _ => ""
             };
             // 归档路径不创建 FileInfo，避免列表构建触碰 SMB；大小使用数据库记录值。

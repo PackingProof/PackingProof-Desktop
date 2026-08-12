@@ -248,11 +248,98 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
             LocalCopyCleanupPolicy.UnarchivedCleanupWarningCooldown);
         Assert.Equal(
             [
+                VideoArchiveStatus.NasDeleted,
                 VideoArchiveStatus.Failed,
                 VideoArchiveStatus.Pending,
                 VideoArchiveStatus.LocalOnly
             ],
             LocalCopyCleanupPolicy.UnarchivedCleanupTiers);
+    }
+
+    [Fact]
+    public void CleanupPolicy_AcceptsNasDeletedLocalCopyAndRejectsRecent()
+    {
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        VideoRecord oldNasDeleted = VerifiedRecord(
+            "nd1.mp4",
+            now.AddDays(-3),
+            createLocal: true,
+            createArchive: false);
+        oldNasDeleted.ArchiveStatus = VideoArchiveStatus.NasDeleted;
+        oldNasDeleted.ArchiveCompletedAt = now.AddDays(-3);
+        oldNasDeleted.ArchivePath = @"\\nas\share\old.mp4";
+        Assert.True(LocalCopyCleanupPolicy.IsEligibleForCapacityCleanup(
+            oldNasDeleted,
+            now,
+            out _));
+
+        VideoRecord recentNasDeleted = VerifiedRecord(
+            "nd2.mp4",
+            now.AddHours(-1),
+            createLocal: true,
+            createArchive: false);
+        recentNasDeleted.ArchiveStatus = VideoArchiveStatus.NasDeleted;
+        Assert.False(LocalCopyCleanupPolicy.IsEligibleForCapacityCleanup(
+            recentNasDeleted,
+            now,
+            out _));
+    }
+
+    [Fact]
+    public void RemoteConfirmation_StaleAfterGraceWindow()
+    {
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        VideoRecord fresh = VerifiedRecord(
+            "rc1.mp4",
+            now.AddDays(-3),
+            createLocal: true,
+            createArchive: true);
+        fresh.LastArchiveProbeAt = now.AddHours(-1);
+        Assert.False(LocalCopyCleanupPolicy.IsRemoteConfirmationStale(fresh, now));
+
+        fresh.LastArchiveProbeAt = now.AddHours(-25);
+        Assert.True(LocalCopyCleanupPolicy.IsRemoteConfirmationStale(fresh, now));
+
+        fresh.LastArchiveProbeAt = null;
+        Assert.True(LocalCopyCleanupPolicy.IsRemoteConfirmationStale(fresh, now));
+        Assert.Equal(
+            TimeSpan.FromHours(24),
+            LocalCopyCleanupPolicy.UnconfirmedRemoteCleanupGrace);
+    }
+
+    [Fact]
+    public void RemoteProbe_TryProbeFileStateDistinguishesMissingAndUnavailable()
+    {
+        string file = Path.Combine(_directory, "tri-state.bin");
+        File.WriteAllText(file, "12345");
+
+        Assert.Equal(
+            RemoteFileProbe.FileProbeState.Exists,
+            RemoteFileProbe.TryProbeFileState(file, 5, TimeSpan.FromSeconds(2)));
+        Assert.Equal(
+            RemoteFileProbe.FileProbeState.Unavailable,
+            RemoteFileProbe.TryProbeFileState(file, 4, TimeSpan.FromSeconds(2)));
+        Assert.Equal(
+            RemoteFileProbe.FileProbeState.ConfirmedMissing,
+            RemoteFileProbe.TryProbeFileState(
+                Path.Combine(_directory, "missing.bin"),
+                5,
+                TimeSpan.FromSeconds(2)));
+
+        // 目录缺失属于“明确不存在”；非法字符触发参数错误 → 必须判定为不可判断
+        string missingDirectory = Path.Combine(file, "sub", "x.mp4");
+        Assert.Equal(
+            RemoteFileProbe.FileProbeState.ConfirmedMissing,
+            RemoteFileProbe.TryProbeFileState(
+                missingDirectory,
+                5,
+                TimeSpan.FromSeconds(2)));
+        Assert.Equal(
+            RemoteFileProbe.FileProbeState.Unavailable,
+            RemoteFileProbe.TryProbeFileState(
+                Path.Combine(_directory, "bad|name.bin"),
+                5,
+                TimeSpan.FromSeconds(2)));
     }
 
     [Fact]

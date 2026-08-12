@@ -179,4 +179,93 @@ public sealed class NasArchiveProviderTests : IDisposable
                 4,
                 TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesRealFileAndReturnsDeleted()
+    {
+        string root = Path.Combine(_directory, "nas-root");
+        Directory.CreateDirectory(root);
+        string file = Path.Combine(root, "old.mp4");
+        File.WriteAllText(file, "content");
+        var provider = new NasArchiveProvider();
+
+        IArchiveProvider.DeleteOutcome outcome = await provider.DeleteAsync(
+            file,
+            new[] { root },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(IArchiveProvider.DeleteOutcome.Deleted, outcome);
+        Assert.False(File.Exists(file));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_MissingFileReturnsNotFoundWithoutThrowing()
+    {
+        string root = Path.Combine(_directory, "nas-root-missing");
+        Directory.CreateDirectory(root);
+        var provider = new NasArchiveProvider();
+
+        IArchiveProvider.DeleteOutcome outcome = await provider.DeleteAsync(
+            Path.Combine(root, "missing.mp4"),
+            new[] { root },
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(IArchiveProvider.DeleteOutcome.NotFound, outcome);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RejectsPathOutsideAllowedRoot()
+    {
+        string root = Path.Combine(_directory, "nas-root-safe");
+        string outside = Path.Combine(_directory, "outside.mp4");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(outside, "keep");
+        var provider = new NasArchiveProvider();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.DeleteAsync(
+                outside,
+                new[] { root },
+                TestContext.Current.CancellationToken));
+        Assert.True(File.Exists(outside));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RejectsDirectoryTarget()
+    {
+        string root = Path.Combine(_directory, "nas-root-dir");
+        Directory.CreateDirectory(root);
+        string dir = Path.Combine(root, "sub");
+        Directory.CreateDirectory(dir);
+        var provider = new NasArchiveProvider();
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            provider.DeleteAsync(
+                dir,
+                new[] { root },
+                TestContext.Current.CancellationToken));
+        Assert.True(Directory.Exists(dir));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_PropagatesIoErrorInsteadOfTreatingAsMissing()
+    {
+        string root = Path.Combine(_directory, "nas-root-error");
+        Directory.CreateDirectory(root);
+        string file = Path.Combine(root, "target.mp4");
+        File.WriteAllText(file, "content");
+        var provider = new NasArchiveProvider();
+        using var hold = new FileStream(
+            file,
+            FileMode.Open,
+            FileAccess.Write,
+            FileShare.None); // 独占锁定 → File.Delete 触发共享冲突
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            provider.DeleteAsync(
+                file,
+                new[] { root },
+                TestContext.Current.CancellationToken));
+        Assert.True(File.Exists(file));
+    }
 }

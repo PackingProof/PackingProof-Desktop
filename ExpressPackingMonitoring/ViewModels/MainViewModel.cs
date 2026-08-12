@@ -987,11 +987,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
                         StorageLocationResolver.GetOrderedNetworkLocations(Config));
+                _nasCircularCleanup = new NasCircularCleanupService(_db);
                 RefreshArchiveBackupSummary();
             }
             catch (Exception ex)
             {
                 _archiveService = null;
+                _nasCircularCleanup = null;
                 AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
             }
         }

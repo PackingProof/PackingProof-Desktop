@@ -9,6 +9,14 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal static class RemoteFileProbe
 {
+    /// <summary>单文件三态探测结果：明确存在（且大小一致）／明确不存在／不可判断。</summary>
+    internal enum FileProbeState
+    {
+        Exists,
+        ConfirmedMissing,
+        Unavailable
+    }
+
     /// <summary>目录根探测结果：可达 / 不可达 / 门禁忙（本轮无法确认）。</summary>
     internal enum DirectoryProbeState
     {
@@ -105,6 +113,57 @@ internal static class RemoteFileProbe
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
         return DirectoryProbeState.Busy;
+    }
+
+    /// <summary>
+    /// 单文件三态探测（带大小确认）：文件明确不存在返回 ConfirmedMissing，
+    /// 网络断开/超时/权限错误/门禁忙返回 Unavailable，只有可抛错 API 明确报告“不存在”才算缺失。
+    /// 用于 NAS 对账与删除前确认，禁止用 File.Exists 的 bool 直接判断缺失。
+    /// </summary>
+    public static FileProbeState TryProbeFileState(
+        string path,
+        long expectedSize,
+        TimeSpan timeout)
+    {
+        if (!ProbeGate.Wait(timeout))
+            return FileProbeState.Unavailable;
+        Task<FileProbeState> probe = Task.Run(() => ProbeFileStateCore(path, expectedSize));
+        if (probe.Wait(timeout))
+        {
+            ProbeGate.Release();
+            return probe.Result;
+        }
+        _ = probe.ContinueWith(
+            _ => ProbeGate.Release(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return FileProbeState.Unavailable;
+    }
+
+    private static FileProbeState ProbeFileStateCore(string path, long expectedSize)
+    {
+        try
+        {
+            FileAttributes attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.Directory) != 0)
+                return FileProbeState.ConfirmedMissing;
+            return new FileInfo(path).Length == expectedSize
+                ? FileProbeState.Exists
+                : FileProbeState.Unavailable;
+        }
+        catch (FileNotFoundException)
+        {
+            return FileProbeState.ConfirmedMissing;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return FileProbeState.ConfirmedMissing;
+        }
+        catch
+        {
+            return FileProbeState.Unavailable;
+        }
     }
 
     private static bool SafeFileExists(string path)

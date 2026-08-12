@@ -6,7 +6,8 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 架构守卫：NAS 只上传、永不删除；PendingDeleteAt 完全弃用。
+/// 架构守卫：NAS 滚动归档——删除只允许经 NasCircularCleanupService 走
+/// Provider 的根目录受限 DeleteAsync；PendingDeleteAt 完全弃用。
 /// 按接口定义与调用点扫描，不绑定具体实现文件名。
 /// </summary>
 public sealed class ArchiveArchitectureGuardTests
@@ -36,7 +37,7 @@ public sealed class ArchiveArchitectureGuardTests
     }
 
     [Fact]
-    public void ArchiveProviderInterface_DoesNotExposeDeleteCapability()
+    public void ArchiveProviderInterface_ExposesRootGuardedDeleteOnly()
     {
         string interfaceFile = Path.Combine(
             FindRepositoryRoot(),
@@ -45,22 +46,30 @@ public sealed class ArchiveArchitectureGuardTests
             "IArchiveProvider.cs");
         string source = File.ReadAllText(interfaceFile);
 
-        Assert.DoesNotContain("DeleteAsync", source, StringComparison.Ordinal);
+        Assert.Contains("DeleteAsync", source, StringComparison.Ordinal);
+        Assert.Contains("allowedRoots", source, StringComparison.Ordinal);
         Assert.Contains("PublishFileAsync", source, StringComparison.Ordinal);
         Assert.Contains("ProbeAsync", source, StringComparison.Ordinal);
         Assert.Contains("ComputeSha256Async", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ArchivePipeline_HasNoRemoteDeleteCalls()
+    public void ArchivePipeline_DeletesOnlyViaNasCircularCleanup()
     {
+        string[] allowedFiles =
+        [
+            "IArchiveProvider.cs",
+            "NasArchiveProvider.cs",
+            "NasCircularCleanupService.cs"
+        ];
         string[] offenders = ProjectSourceFiles()
-            .Where(path => File.ReadAllText(path).Contains("DeleteAsync", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("DeleteAsync", StringComparison.Ordinal)
+                && !allowedFiles.Contains(Path.GetFileName(path), StringComparer.Ordinal))
             .ToArray();
 
         Assert.True(
             offenders.Length == 0,
-            "归档链路不应存在远端删除调用: " + string.Join(" | ", offenders));
+            "远端删除只允许经 NasCircularCleanupService 调用: " + string.Join(" | ", offenders));
     }
 
     [Fact]

@@ -144,6 +144,7 @@
     <Compile Include="Services\LanRequestRateLimiter.cs" />
     <Compile Include="Services\LocalCopyCleanupPolicy.cs" />
     <Compile Include="Services\ManualCleanupService.cs" />
+    <Compile Include="Services\NasCircularCleanupService.cs" />
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />

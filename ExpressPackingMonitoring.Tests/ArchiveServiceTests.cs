@@ -50,6 +50,12 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
     }
 
     private sealed class RecordingProvider : IArchiveProvider
@@ -89,6 +95,12 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
     }
 
     private sealed class CorruptVerifyProvider : IArchiveProvider
@@ -125,6 +137,11 @@ public sealed class ArchiveServiceTests : IDisposable
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
 
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
     }
 
     private sealed class DiskFullProvider : IArchiveProvider
@@ -152,6 +169,13 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            Task.FromException<IArchiveProvider.DeleteOutcome>(
+                new NotSupportedException("测试 Provider 未实现删除"));
     }
 
     private sealed class SelectiveDiskFullProvider : IArchiveProvider
@@ -197,6 +221,12 @@ public sealed class ArchiveServiceTests : IDisposable
             string destinationPath,
             CancellationToken cancellationToken) =>
             _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
 
         private static bool IsUnderRoot(string root, string path) =>
             string.Equals(root, path, StringComparison.OrdinalIgnoreCase)

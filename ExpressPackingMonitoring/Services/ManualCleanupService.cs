@@ -38,8 +38,9 @@ public sealed record ManualCleanupResult(
 /// 设置页“录像清理”的后台服务：两阶段执行。
 /// 第一阶段只清理已确认备份（Verified）的本地副本；
 /// 空间模式未达到释放目标、或时间模式存在超过截止日期的未备份录像时，
-/// 通过 unarchivedDecider 询问用户，确认后按 Failed → Pending → LocalOnly 清理未备份录像。
-/// 所有清理都保留数据库记录并标记 LocalDeleted，NAS 文件永不删除。
+/// 通过 unarchivedDecider 询问用户，确认后按 NasDeleted → Failed → Pending → LocalOnly 清理未备份录像。
+/// 所有清理都保留数据库记录并标记 LocalDeleted；手动清理不主动删除 NAS 文件，
+/// NAS 副本只由容量循环清理与对账机制管理。
 /// </summary>
 internal sealed class ManualCleanupService
 {
@@ -47,6 +48,7 @@ internal sealed class ManualCleanupService
     private const string MissingFileRepairReason = "本地文件已缺失，状态自动修复";
     private static readonly string[] UnarchivedTiers =
     [
+        VideoArchiveStatus.NasDeleted,
         VideoArchiveStatus.Failed,
         VideoArchiveStatus.Pending,
         VideoArchiveStatus.LocalOnly
@@ -197,6 +199,16 @@ internal sealed class ManualCleanupService
             }
             if (!File.Exists(record.FilePath))
             {
+                if (record.ArchiveStatus == VideoArchiveStatus.NasDeleted)
+                {
+                    _database.MarkNasCleanedRecordDeleted(
+                        record.Id,
+                        record.ArchivePath,
+                        "本地文件已缺失，NAS 副本已循环清理",
+                        RecordingDeletionReasonCode.NasCapacityCleanup);
+                    repaired = true;
+                    return false;
+                }
                 _database.ReconcileMissingLocalFile(
                     record.Id,
                     MissingFileRepairReason,

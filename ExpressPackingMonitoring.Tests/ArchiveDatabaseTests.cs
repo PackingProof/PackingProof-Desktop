@@ -666,4 +666,358 @@ public sealed class ArchiveDatabaseTests : IDisposable
             candidate => candidate.Id == id);
     }
 
+    [Fact]
+    public void GetNasCleanupCandidates_IncludesVerifiedAndArchivedLocalDeleted()
+    {
+        DateTime now = DateTime.Now;
+        string root = @"\\nas\share";
+        long verified = InsertLocal(
+            @"\\nas\share\2026-08-11\a.mp4",
+            now.AddHours(-3),
+            now.AddHours(-2));
+        _database.UpdateArchiveState(
+            verified,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+
+        long localDeleted = InsertLocal(
+            @"\\nas\share\2026-08-11\b.mp4",
+            now.AddHours(-4),
+            now.AddHours(-3));
+        _database.UpdateArchiveState(
+            localDeleted,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-3));
+        _database.MarkLocalCopyDeleted(localDeleted, "容量清理");
+
+        long unarchivedLocalDeleted = InsertLocal(
+            @"\\nas\share\2026-08-11\c.mp4",
+            now.AddHours(-5),
+            now.AddHours(-4));
+        _database.MarkLocalCopyDeleted(unarchivedLocalDeleted, "手动清理"); // ArchiveCompletedAt 为空 → 排除
+
+        long pending = InsertLocal(
+            @"\\nas\share\2026-08-11\d.mp4",
+            now.AddHours(-2),
+            now.AddHours(-1));
+        _database.MarkArchivePending(pending);
+
+        long outside = InsertLocal(
+            @"\\other\share\x.mp4",
+            now.AddHours(-6),
+            now.AddHours(-5));
+        _database.UpdateArchiveState(
+            outside,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-5));
+
+        long deleted = InsertLocal(
+            @"\\nas\share\2026-08-11\e.mp4",
+            now.AddHours(-7),
+            now.AddHours(-6));
+        _database.UpdateArchiveState(
+            deleted,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-6));
+        _database.MarkRecordDeletedById(
+            deleted,
+            "用户删除",
+            RecordingDeletionReasonCode.UserRequested);
+
+        IReadOnlyList<VideoRecord> candidates =
+            _database.GetNasCleanupCandidates(root);
+
+        Assert.Equal([localDeleted, verified], candidates.Select(record => record.Id));
+    }
+
+    [Fact]
+    public void MarkNasCopyDeleted_LocalExists_SetsNasDeletedAndLogs()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "nas-delete-local-exists.mp4");
+        File.WriteAllText(localPath, "x");
+        string archivePath = @"\\nas\share\2026-08-11\n1.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N1",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-3),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-2), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.Equal(VideoArchiveStatus.NasDeleted, record.ArchiveStatus);
+        Assert.False(record.IsDeleted);
+        Assert.Equal(archivePath, record.ArchivePath);
+        Assert.Contains(
+            _database.GetDeleteLogs(10),
+            log => log.FilePath == archivePath);
+    }
+
+    [Fact]
+    public void MarkNasCopyDeleted_LocalMissing_MarksDeletedAndLogs()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "nas-delete-local-missing.mp4");
+        string archivePath = @"\\nas\share\2026-08-11\n2.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N2",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-3),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-2), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+        _database.MarkLocalCopyDeleted(id, "容量清理");
+
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 归档文件不存在，检测到外部删除或缺失（非本程序删除）",
+            RecordingDeletionReasonCode.NasCopyMissingReconcile);
+
+        VideoRecord record = _database.QueryVideos(null, null)
+            .Single(item => item.Id == id);
+        Assert.True(record.IsDeleted);
+        Assert.Equal(
+            RecordingDeletionReasonCode.NasCopyMissingReconcile,
+            record.DeleteReasonCode);
+        Assert.Contains(
+            _database.GetDeleteLogs(10),
+            log => log.FilePath == archivePath);
+    }
+
+    [Fact]
+    public void MarkNasCopyDeleted_IsIdempotent()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "nas-delete-idempotent.mp4");
+        File.WriteAllText(localPath, "x");
+        string archivePath = @"\\nas\share\2026-08-11\n3.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N3",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-3),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-2), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        Assert.Equal(
+            1,
+            _database.GetDeleteLogs(10)
+                .Count(log => log.FilePath == archivePath));
+        Assert.Equal(
+            VideoArchiveStatus.NasDeleted,
+            _database.GetVideoById(id)!.ArchiveStatus);
+    }
+
+    [Fact]
+    public void MarkNasCleanedRecordDeleted_MarksDeletedAndIsIdempotent()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "nas-cleaned-final.mp4");
+        File.WriteAllText(localPath, "x");
+        string archivePath = @"\\nas\share\2026-08-11\n4.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N4",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-3),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-2), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        _database.MarkNasCleanedRecordDeleted(
+            id,
+            archivePath,
+            "本地循环清理（NAS 副本已循环清理）",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+        _database.MarkNasCleanedRecordDeleted(
+            id,
+            archivePath,
+            "本地循环清理（NAS 副本已循环清理）",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        Assert.True(
+            _database.QueryVideos(null, null)
+                .Single(item => item.Id == id)
+                .IsDeleted);
+        Assert.Equal(
+            2, // 一条来自 NAS 副本删除，一条来自本地终态删除；重复调用不再追加
+            _database.GetDeleteLogs(10)
+                .Count(log => log.FilePath == archivePath));
+    }
+
+    [Fact]
+    public void GetEmergencyCleanupCandidates_IncludesNasDeleted()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "emergency-nasdeleted.mp4");
+        File.WriteAllText(localPath, "x");
+        string archivePath = @"\\nas\share\2026-08-11\n5.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N5",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-4),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-3), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-3));
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        IReadOnlyList<VideoRecord> candidates = _database.GetEmergencyCleanupCandidates(
+            now - LocalCopyCleanupPolicy.EmergencyDeleteGracePeriod);
+
+        Assert.Contains(candidates, record => record.Id == id);
+    }
+
+    [Fact]
+    public void GetManualCleanupCandidates_IncludesNasDeleted()
+    {
+        DateTime now = DateTime.Now;
+        string localPath = Path.Combine(_directory, "manual-nasdeleted.mp4");
+        File.WriteAllText(localPath, "x");
+        string archivePath = @"\\nas\share\2026-08-11\n6.mp4";
+        long id = _database.InsertVideoRecord(
+            "单号N6",
+            "发货",
+            "h264",
+            "libx264",
+            localPath,
+            now.AddHours(-4),
+            archivePath: archivePath);
+        _database.UpdateVideoRecordOnStop(id, now.AddHours(-3), 10, 100, "手动");
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-3));
+        _database.MarkNasCopyDeleted(
+            id,
+            archivePath,
+            "NAS 容量循环清理",
+            RecordingDeletionReasonCode.NasCapacityCleanup);
+
+        IReadOnlyList<VideoRecord> candidates = _database.GetManualCleanupCandidates(
+            DateTime.MaxValue,
+            new[] { _directory + Path.DirectorySeparatorChar },
+            200,
+            VideoArchiveStatus.NasDeleted);
+
+        Assert.Contains(candidates, record => record.Id == id);
+    }
+
+    [Fact]
+    public void GetReconcileCandidates_ReturnsOnlyStaleArchivedRecords()
+    {
+        DateTime now = DateTime.Now;
+        long freshVerified = InsertLocal(
+            @"\\nas\share\2026-08-11\r1.mp4",
+            now.AddHours(-3),
+            now.AddHours(-2));
+        _database.UpdateArchiveState(
+            freshVerified,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-2));
+        _database.UpdateLastArchiveProbeAt(freshVerified, now.AddHours(-1));
+
+        long staleVerified = InsertLocal(
+            @"\\nas\share\2026-08-11\r2.mp4",
+            now.AddHours(-6),
+            now.AddHours(-5));
+        _database.UpdateArchiveState(
+            staleVerified,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-5));
+        _database.UpdateLastArchiveProbeAt(staleVerified, now.AddHours(-25));
+
+        long staleLocalDeleted = InsertLocal(
+            @"\\nas\share\2026-08-11\r3.mp4",
+            now.AddHours(-8),
+            now.AddHours(-7));
+        _database.UpdateArchiveState(
+            staleLocalDeleted,
+            VideoArchiveStatus.Verified,
+            contentSha256: "h",
+            completedAt: now.AddHours(-7));
+        _database.MarkLocalCopyDeleted(staleLocalDeleted, "容量清理");
+
+        long unarchivedLocalDeleted = InsertLocal(
+            @"\\nas\share\2026-08-11\r4.mp4",
+            now.AddHours(-9),
+            now.AddHours(-8));
+        _database.MarkLocalCopyDeleted(unarchivedLocalDeleted, "手动清理");
+
+        IReadOnlyList<VideoRecord> candidates = _database.GetReconcileCandidates(
+            now - LocalCopyCleanupPolicy.UnconfirmedRemoteCleanupGrace);
+
+        Assert.Equal(
+            [staleLocalDeleted, staleVerified],
+            candidates.Select(record => record.Id));
+    }
+
 }

@@ -113,6 +113,45 @@ internal sealed class NasArchiveProvider : IArchiveProvider
     public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
         ComputeSha256CoreAsync(path, cancellationToken);
 
+    public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+        string path,
+        IReadOnlyList<string> allowedRoots,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new IOException("网络归档删除路径无效");
+        if (allowedRoots == null
+            || allowedRoots.Count == 0
+            || !IsUnderAnyAllowedRoot(path, allowedRoots))
+        {
+            throw new InvalidOperationException(
+                "拒绝删除未授权根目录之外的网络文件");
+        }
+
+        try
+        {
+            FileAttributes attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.Directory) != 0)
+                throw new IOException("网络归档目标是目录，拒绝删除");
+            File.Delete(path);
+            return Task.FromResult(IArchiveProvider.DeleteOutcome.Deleted);
+        }
+        catch (FileNotFoundException)
+        {
+            return Task.FromResult(IArchiveProvider.DeleteOutcome.NotFound);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return Task.FromResult(IArchiveProvider.DeleteOutcome.NotFound);
+        }
+        catch (Exception ex) when (
+            ex is not InvalidOperationException
+                and not IOException)
+        {
+            throw new IOException($"NAS 删除失败：{ex.Message}", ex);
+        }
+    }
+
     public Task RenameAsync(
         string sourcePath,
         string destinationPath,
@@ -167,6 +206,45 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         catch
         {
         }
+    }
+
+    private static bool IsUnderAnyAllowedRoot(
+        string path,
+        IReadOnlyList<string> allowedRoots)
+    {
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch
+        {
+            return false;
+        }
+
+        foreach (string root in allowedRoots)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+                continue;
+            string rootFull;
+            try
+            {
+                rootFull = Path.GetFullPath(root).TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                continue;
+            }
+            if (fullPath.StartsWith(
+                    rootFull + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static async Task<string> ComputeSha256CoreAsync(

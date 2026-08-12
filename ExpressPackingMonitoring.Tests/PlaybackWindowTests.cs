@@ -299,6 +299,38 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
+    public void CreateVideoItem_NasDeletedShowsRollingCleanupStatus()
+    {
+        string localPath = Path.Combine(
+            Path.GetTempPath(),
+            "packingproof-nasdeleted-local.mp4");
+        File.WriteAllText(localPath, "x");
+        try
+        {
+            var record = new VideoRecord
+            {
+                FilePath = localPath,
+                ArchivePath = @"\\NAS\share\2026-08-11\SF.mp4",
+                ArchiveStatus = VideoArchiveStatus.NasDeleted,
+                ArchiveCompletedAt = DateTime.Now,
+                StorageState = "Local",
+                FileSizeBytes = 2048,
+                TrackingNumber = "SF"
+            };
+
+            VideoItem item = PlaybackWindow.CreateVideoItem(record);
+
+            Assert.False(item.IsMissing);
+            Assert.Equal("NAS 副本已循环清理", item.StatusText);
+            Assert.Equal(localPath, item.FullPath);
+        }
+        finally
+        {
+            File.Delete(localPath);
+        }
+    }
+
+    [Fact]
     public void PlaybackListUsesSingleCreateVideoItemFactory()
     {
         string codeBehind = File.ReadAllText(FindRepositoryFile(
