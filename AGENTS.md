@@ -67,6 +67,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 ## Storage, Cache, and Web Video
 
 - Storage settings are expressed as reserved free space for the system and other apps, not as a recording quota. Keep `StorageSpacePolicy` as the single source of truth for minimum reserve rules.
+- NAS/网络备份位置是滚动归档存储：空间检查只查真实卷空间（不做文件探测），低于预留值时按最旧优先循环清理已确认归档的副本（`Verified` 与已成功归档的 `LocalDeleted`），单轮 200 条、同根互斥、每删一条回读真实空间；本地循环不依赖 NAS 可达性，远端确认过期（24 小时）后 `Verified` 本地副本仍可按容量策略清理（未确认原因码）；对账只认“明确不存在”，`Unavailable` 不改归档状态。
 - Cache-like Web artifacts, including transcode cache, clip previews, and clipped downloads, live under `%LOCALAPPDATA%\ExpressPackingMonitoring\cache` and are cleaned by the Web cache limit.
 - 持久化运行时状态（设备凭据、根密钥、订单接收方注册、电脑昵称、备份上传状态等）不得放在 `cache` 目录，统一存放于 `%LOCALAPPDATA%\ExpressPackingMonitoring\mobile-backup-state\`；`cache` 只存放可重建、可清理的临时产物。
 - Web clipping is named “剪辑” / “剪辑并下载”. Do not call it “导出视频”, which can be confused with original video download.

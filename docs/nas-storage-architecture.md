@@ -23,7 +23,9 @@ flowchart LR
 - **主界面“录像备份”状态卡片**：配置了网络备份位置即常驻显示在主页右下角（录像工作站角色不显示），短状态区分 备份中/备份失败/备份暂停/待备份/已同步，详情行显示剩余待备份数（`Pending + Copying/Verifying + Failed + NASFull`）与当前备份目标路径；移除全部备份位置后卡片隐藏。
 - **状态卡片公共控件**：主界面（手机/电脑备份、录像备份、订单联动、从机保存主机/录像上传）与录像文件备份主机窗口共用 `StatusCard` 控件（图标 + 标题 + 短状态 + 详情/内容区），短状态颜色规则集中维护；备份主机窗口头部显示电脑昵称 + IP，并在左侧展示“手机/电脑备份、录像备份、订单联动”三张卡片，右侧操作按钮不变。
 - 默认存储列表只含本地固定磁盘；网络位置必须由用户在“存储管理”手动添加（映射盘保存前归一化为 UNC）。
-- **NAS 只上传、永不删除**：本地循环清理只删本地录像文件；用户删除录像也只删本地记录，NAS 归档文件生命周期独立于本地记录，由管理员通过 NAS 管理工具维护。程序不保证 NAS 文件与本地数据库永久一一对应（单向归档的设计行为，不是异常）。
+- **NAS 滚动归档**：NAS 用于扩展本地录像的保存周期；NAS 空间不足时按最旧优先循环清理已确认归档的副本（候选含 `Verified` 与已成功归档的 `LocalDeleted`），记录保留可查；用户删除仍只删本地记录，不主动删 NAS。
+- **本地循环不依赖 NAS 可达性**：NAS 从未配置、暂时掉线或永久消失都不能阻止本地录像按容量策略循环；`Verified` 本地副本在“远端确认过期”（24 小时）后仍可被本地 GC 清理，未确认清理打独立原因码，由对账兜底校正。
+- **对账只认“明确不存在”**：探测三态（Exists/ConfirmedMissing/Unavailable）；只有明确不存在才把 `Verified/LocalDeleted` 修复为 `NasDeleted/IsDeleted`，网络不可达/超时/权限错误一律保持原状态，下轮再探测。
 - **NAS 空间状态只影响归档任务**：NAS 满时限频提示（60 分钟冷却），不影响本地录像、本地 GC 与硬循环保护机制。
 - **NAS 采用单向归档模型**：NAS 文件仅由归档流程写入；所有归档状态（Pending/Verified/Conflict 等）由本地数据库维护，NAS 文件本身没有状态；ArchiveStatus 为弱一致状态，允许与 NAS 实际状态短暂或永久不一致。
 
@@ -43,8 +45,12 @@ stateDiagram-v2
     Pending --> NASFull: NAS 空间不足
     NASFull --> Pending: NAS 空间恢复
     Conflict --> [*]: 人工处理 NAS 端后重试（暂无自动入口）
-    Verified --> LocalDeleted: 本地录像文件被容量清理
-    note right of Verified: 用户删除仅删除本地记录与本地文件，NAS 归档保留
+    Verified --> LocalDeleted: 本地录像文件被容量清理（确认或未确认）
+    Verified --> NasDeleted: NAS 容量循环清理 / 对账确认 NAS 缺失
+    LocalDeleted --> NasDeleted: 对账确认 NAS 缺失（本地仍在）
+    LocalDeleted --> IsDeleted: 对账确认 NAS 缺失（本地已无副本）
+    NasDeleted --> IsDeleted: 本地 GC 清理最后一个副本
+    note right of NasDeleted: NAS 副本已被容量策略或对账淘汰，不自动重新归档
 ```
 
 - `LocalOnly`：录像已停止但尚未决定最终文件，**不进入归档队列**。
@@ -61,13 +67,13 @@ stateDiagram-v2
 | 字段 | 语义 |
 | --- | --- |
 | `ArchivePath` | 网络归档目标完整路径（UNC 优先） |
-| `ArchiveStatus` | LocalOnly / Pending / Copying / Verifying / Verified / Failed / Conflict / NASFull / Deleting / LocalDeleted |
+| `ArchiveStatus` | LocalOnly / Pending / Copying / Verifying / Verified / Failed / Conflict / NASFull / Deleting / LocalDeleted / NasDeleted |
 | `ArchiveRetryCount` / `NextRetryAt` | 失败退避（30s×2^n，上限 30 分钟） |
 | `ArchiveError` | 最近一次错误（哈希失败为 `HashMismatch`） |
 | `ArchiveCompletedAt` | 归档验证完成时间 |
 | `LocalCopyDeletedAt` / `LocalDeleteReason` | 本地录像文件清理时间与原因 |
 | `LastArchiveProbeAt` | GC 最近一次成功探测归档目标的时间；24 小时内免重复探测 |
-| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityCleanupUnarchived` / `CapacityEmergencyCleanupUnarchived` |
+| `DeleteReasonCode` | `UserRequested` / `CapacityCleanupVerified` / `CapacityCleanupUnconfirmedRemote` / `CapacityCleanupUnarchived` / `CapacityEmergencyCleanupUnarchived` / `NasCapacityCleanup` / `NasCopyMissingReconcile` |
 | `ContentSha256` | 归档校验哈希（发布后写入） |
 
 队列查询：`GetPendingArchives` 按 Copying → Verifying → Pending（**EndTime 降序，新录像优先**）→ Failed（到期优先）排序；`NASFull` 不进入队列，由空间检查恢复后重新入队；队列为空时完成即唤醒可秒级归档刚结束的录像。NAS 恢复后新录像先归档，历史积压按批次上限自然限速补传。
@@ -102,18 +108,20 @@ flowchart TD
 - **归档中断/程序重启**：状态保留在 DB，重启后从 Copying/Verifying/Pending 继续；残留 `.uploading` 在本地源仍存在且超过 24 小时时清理，正在写入的临时文件不会被删除。
 - **NAS 长时间离线**：记录进入 Failed 退避重试；正常容量 GC 在没有网络归档目标或归档根确认探测不可达且释放目标未满足时，按 `Verified → Failed → Pending → LocalOnly` 分档删除未归档录像（档内最旧优先，沿用 30 分钟保护期），写 `DeleteReasonCode = CapacityCleanupUnarchived`，UI 警告受 6 小时节流，日志全量记录；归档根探测门禁忙（无法确认）时跳过本轮，避免把探测拥挤误判为 NAS 不可用；5 GiB 硬循环同样按分档删除（门禁忙时仍按不可达处理，保证录像不断流）。
 - **无网络归档目标暂停重试**：`ArchiveService` 通过归档目标解析器判断当前配置；没有网络归档目标或解析失败时本轮直接跳过，`Pending/Failed/Copying/Verifying` 状态原样保留，重新添加 NAS 后自动恢复。
-- **正常 GC 的远端探测缓存**：只删已成功归档的本地录像文件；若 `LastArchiveProbeAt` 在 24 小时内则直接删除（不重复探测），否则通过 Archive Provider 实时验证目标存在且大小一致（3 秒超时）成功后才删除并更新 `LastArchiveProbeAt`；探测失败跳过本轮。
+- **本地 GC 的三态远端确认**：`Verified` 本地副本在确认新鲜（`LastArchiveProbeAt` 24 小时内）时直接删除；确认过期后做三态探测——`Exists`（存在且大小一致）确认后删除、`ConfirmedMissing` 先对账再按结果继续、`Unavailable` 仅在确认过期时允许未确认删除（原因码 `CapacityCleanupUnconfirmedRemote`），不改归档状态、由对账兜底。
+- **NAS 循环清理**：空间检查只读取 NAS 真实卷空间（`GetDiskFreeSpaceEx`，不做文件探测）；低于预留值时按最旧优先取 `Verified/LocalDeleted` 候选，删除前仅对该条 `ArchivePath` 做一次三态探测；每删一条重新读取真实可用空间作为停止条件，回读失败立即停止本轮；单轮 200 条上限只结束本轮，下一轮继续；同一网络根目录同一时刻只允许一个清理循环。
+- **归档缺失对账**：启动后首次 GC 与每日一次低频扫描（沿用 24 小时探测缓存与单槽门禁），只对 `ConfirmedMissing` 修复状态；`Unavailable` 保持原状态、不写日志、不更新缓存；本地 GC 与 NAS 清理路径探测到 `ConfirmedMissing` 时也即时对账。
 - **Conflict 处理**：目标已存在且 Hash 不同 → Conflict，禁止覆盖、删除、重命名 NAS 旧文件（任何“改名旧文件再传新文件”都视为改变归档历史）；本地录像文件保留，等待人工处理。
 - **硬循环兜底（最后降级策略，不是正常 GC）**：同时满足以下条件才触发——
   1. 一轮正常 GC 后仍无法满足 `StorageSpacePolicy` 保留要求（可用空间低于该卷安全预留值）；
   2. 当前本地主存储卷可用空间低于 5 GiB（内部常量 `LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes`）；
   3. 没有配置网络归档目标，或以 3 秒超时探测网络归档目标根不可达（可达则只唤醒归档，不删除）。
 
-  触发后按 `Failed → Pending → LocalOnly` 分档删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）的本地录像文件，档内最旧优先；每次删除取所有权锁，删除后写 `DeleteReasonCode = CapacityEmergencyCleanupUnarchived` 并弹提示（受 6 小时节流）。**Conflict 永不进入硬循环**。
+  触发后按 `NasDeleted → Failed → Pending → LocalOnly` 分档删除 `EndTime` 超过 30 分钟保护期（`EmergencyDeleteGracePeriod`）的本地录像文件，档内最旧优先；NAS 不可达且远端确认过期时，`Verified` 本地副本也参与硬循环（未确认原因码）；每次删除取所有权锁，删除后写原因码并弹提示（受 6 小时节流）。**Conflict 永不进入硬循环**。
 
 - **用户删除**：只删本地文件并标记记录删除（`DeleteReasonCode=UserRequested`）；NAS 归档保留，不做远端删除。
-- **NAS 满**：复制/写入抛出磁盘满异常时，优先把记录改路到下一个可用备份位置（`RerouteArchivePath` + 置 `Pending`）；全部备份位置都不可用时才进入 `NASFull`（不增加重试次数、不进入队列）。周期检查发现所有网络备份位置可用空间 ≤ 预留值时，60 分钟冷却内提示“NAS 空间不足，录像仍保存在本地，归档已暂停；请清理 NAS 或调整备份位置”并写日志；任一备份位置恢复到预留值以上后，`NASFull` 记录批量回到 `Pending` 并唤醒 Worker，下一次尝试会自动切到可用位置。NAS 卷状态不影响本地录像、本地 GC 与硬循环。
-- **手动清理（设置 → 存储管理）**：提供按时间清理与按空间释放，两阶段执行——先只清理已确认备份（`Verified`，远端确认通过）的本地副本，空间模式未达到释放目标或时间模式存在超过截止日期的未备份录像时，再询问用户是否继续清理 `Failed → Pending → LocalOnly`。手动清理一律保留数据库记录并标记 `LocalDeleted`，原因码 `ManualCleanup`；NAS 文件永不删除；执行期间暂停自动 GC。
+- **NAS 满**：复制/写入抛出磁盘满异常时，优先把记录改路到下一个可用备份位置（`RerouteArchivePath` + 置 `Pending`）；周期空间检查先对每个低于预留值的位置执行循环清理，全部仍不足才进入 `NASFull`（不增加重试次数、不进入队列），60 分钟冷却内提示“NAS 空间不足，已循环清理最旧归档后仍不足，请清理 NAS 或调整备份位置”；任一备份位置恢复到预留值以上后，`NASFull` 记录批量回到 `Pending` 并唤醒 Worker。NAS 卷状态不影响本地录像、本地 GC 与硬循环。
+- **手动清理（设置 → 存储管理）**：提供按时间清理与按空间释放，两阶段执行——先只清理已确认备份（`Verified`，远端确认通过）的本地副本，空间模式未达到释放目标或时间模式存在超过截止日期的未备份录像时，再询问用户是否继续清理 `NasDeleted → Failed → Pending → LocalOnly`。手动清理一律保留数据库记录并标记 `LocalDeleted`，原因码 `ManualCleanup`；手动清理不主动删除 NAS 文件，NAS 副本只由容量循环清理与对账管理；执行期间暂停自动 GC。
 - **缺失文件状态修复**：本地文件已缺失但记录仍为 `Verified/LocalOnly/Pending/Failed` 时，手动清理或自动未归档清理会将其修复为 `LocalDeleted`（原因“本地文件已缺失，状态自动修复”），避免归档 Worker 对缺失文件无限重试。
 - **手动清理与自动清理状态差异**：自动未归档兜底（容量回退/硬循环）无人值守，删除未备份录像时记录一并移除，避免历史列表堆积不可播放记录；手动清理是用户主动操作，记录保留以追踪清理历史。两者共用同一删除锁、远端确认与分档顺序。
 
@@ -147,5 +155,6 @@ sequenceDiagram
 - 探测并发门禁：`RemoteFileProbe` 与 `NasArchiveProvider.ProbeAsync` 共用单槽信号量，同一时间最多一个 SMB 探测，避免挂死时线程池堆积；目录根探测返回 可达/不可达/门禁忙 三态，正常容量 GC 只在确认不可达时回退删除未归档（门禁忙跳过本轮），5 GiB 硬循环按不可达处理继续删除。
 - NAS 满提示冷却：60 分钟（`NetworkArchiveSpacePolicy.WarningCooldown`）。
 - 未归档删除提示冷却：6 小时（`LocalCopyCleanupPolicy.UnarchivedCleanupWarningCooldown`），日志全量记录。
+- 远端确认过期窗口：24 小时（`LocalCopyCleanupPolicy.UnconfirmedRemoteCleanupGrace`，与探测缓存一致）；NAS 清理单轮 200 条（`NasCircularCleanupService.BatchLimit`），同根清理互斥（每根 `SemaphoreSlim(1,1)`）；对账频率：启动后首次 GC + 每日一次。
 - 数据库 schema 版本：`VideoDatabase` 用 `PRAGMA user_version`（当前 `SchemaVersion=1`）做迁移保护，低版本启动时补齐字段并写版本，高版本只告警不降级。
-- Provider 边界：`IArchiveProvider` 只提供发布（Publish）、校验（Verify/ComputeSha256）、存在与元数据探测（Probe）；**不提供删除能力**。`RenameAsync` 仅用于把本次刚上传的损坏目标改名 `.corrupt`（自己的不完整文件，不是删除既有文件）。
+- Provider 边界：`IArchiveProvider` 提供发布（Publish）、校验（Verify/ComputeSha256）、存在与元数据探测（Probe）与删除（`DeleteAsync`，返回 Deleted/NotFound，网络/权限异常一律抛出）；删除前 Provider 内部校验目标路径属于调用方允许的根目录（防御式设计）。`RenameAsync` 仅用于把本次刚上传的损坏目标改名 `.corrupt`（自己的不完整文件，不是删除既有文件）。

@@ -232,8 +232,8 @@ The **recording file backup host** role can also add a NAS or network share as a
 
 * Local disks store recordings directly; network locations keep verified copies only
 * Backup locations are used in list order and switch automatically when a NAS is full
-* Files on the NAS are never deleted by the program
-* When the NAS is unavailable and local space is low, verified archived copies are cleaned first, then the oldest unarchived recordings after the protection period
+* NAS extends the local retention window; when NAS space is low, the oldest archived recordings are cycled automatically (records remain searchable)
+* NAS unavailability never blocks local capacity-based cycling; locally cleaned copies without remote confirmation are recorded with a dedicated reason code
 
 When a drive falls below its configured free-space reserve, PackingProof can:
 
