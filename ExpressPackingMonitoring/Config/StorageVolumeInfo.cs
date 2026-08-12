@@ -76,10 +76,34 @@ namespace ExpressPackingMonitoring.Config
         /// UNC/映射盘/网络共享挂载点 → Network；明确本地卷 → Local；无法确认 → Unknown。
         /// </summary>
         public static StorageLocationKind ClassifyStorageLocation(string path) =>
-            ClassifyStorageLocation(path, ResolveFinalPathOfNearestExistingAncestor);
+            ClassifyStorageLocationCore(path, ResolveFinalPathOfNearestExistingAncestor);
 
         /// <summary>供测试注入 finalPathResolver 的三态判定重载。</summary>
         internal static StorageLocationKind ClassifyStorageLocation(
+            string path,
+            Func<string, string?>? finalPathResolver) =>
+            ClassifyStorageLocationCore(path, finalPathResolver);
+
+        /// <summary>
+        /// 供测试注入逐级解析与条目存在性判断，验证“挂载点断开时不得回退到本地父目录”的
+        /// fail-closed 约束；resolveCurrent 为 null 时使用真实解析器。
+        /// </summary>
+        internal static StorageLocationKind ClassifyStorageLocation(
+            string path,
+            Func<string, string?>? resolveCurrent,
+            Func<string, bool>? entryExists)
+        {
+            if (resolveCurrent == null)
+                return ClassifyStorageLocationCore(path, ResolveFinalPathOfNearestExistingAncestor);
+            return ClassifyStorageLocationCore(
+                path,
+                current => ResolveFinalPathOfNearestExistingAncestor(
+                    current,
+                    resolveCurrent,
+                    entryExists ?? (_ => false)));
+        }
+
+        private static StorageLocationKind ClassifyStorageLocationCore(
             string path,
             Func<string, string?>? finalPathResolver)
         {
@@ -389,6 +413,7 @@ namespace ExpressPackingMonitoring.Config
         private const uint ShareReadWriteDelete = 1 | 2 | 4;
         private const uint OpenExisting = 3;
         private const uint FlagBackupSemantics = 0x02000000;
+        private const uint FlagOpenReparsePoint = 0x00200000;
 
         /// <summary>解析路径的真实最终路径（穿透目录挂载点/连接点），失败返回 null。</summary>
         private static string? ResolveFinalPath(string path)
@@ -425,14 +450,25 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>
         /// 解析“路径本身或最近存在的父目录”的真实最终路径：
         /// 尚未创建的本地目录会向上解析到已存在的父目录，从而正确识别父目录是否位于网络挂载点上。
+        /// 路径条目存在但无法解析（如断开的挂载点/符号链接）时立即返回 null（Unknown），
+        /// 不允许回退到本地父目录造成误判。
         /// </summary>
-        private static string? ResolveFinalPathOfNearestExistingAncestor(string path)
+        internal static string? ResolveFinalPathOfNearestExistingAncestor(string path) =>
+            ResolveFinalPathOfNearestExistingAncestor(path, ResolveFinalPath, PathEntryExists);
+
+        internal static string? ResolveFinalPathOfNearestExistingAncestor(
+            string path,
+            Func<string, string?> resolveCurrent,
+            Func<string, bool> entryExists)
         {
             string? current = path;
             while (!string.IsNullOrWhiteSpace(current))
             {
-                if (Directory.Exists(current))
-                    return ResolveFinalPath(current);
+                string? final = resolveCurrent(current);
+                if (final != null)
+                    return final;
+                if (entryExists(current))
+                    return null; // 条目存在但无法解析（断开的挂载点）→ fail-closed，不回退父目录
                 string? parent = Path.GetDirectoryName(current);
                 if (string.IsNullOrWhiteSpace(parent)
                     || string.Equals(
@@ -445,6 +481,27 @@ namespace ExpressPackingMonitoring.Config
                 current = parent;
             }
             return null;
+        }
+
+        /// <summary>不跟随重解析点地判断路径条目是否存在（断开的挂载点/符号链接条目仍存在）。</summary>
+        private static bool PathEntryExists(string path)
+        {
+            try
+            {
+                using SafeFileHandle handle = CreateFile(
+                    path,
+                    FileReadAttributes,
+                    ShareReadWriteDelete,
+                    IntPtr.Zero,
+                    OpenExisting,
+                    FlagBackupSemantics | FlagOpenReparsePoint,
+                    IntPtr.Zero);
+                return !handle.IsInvalid;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]

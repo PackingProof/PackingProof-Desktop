@@ -72,6 +72,54 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
+    public void ClassifyStorageLocation_NonexistentChildFallsBackToLocalParent()
+    {
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                @"C:\LocalRoot\NewFolder",
+                resolveCurrent: current => current.EndsWith(
+                    @"LocalRoot",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? @"\\?\C:\LocalRoot"
+                    : null,
+                entryExists: _ => false));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_BrokenMountPointAtPathDoesNotFallBackToLocalParent()
+    {
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                @"C:\Mount\NAS\录像",
+                resolveCurrent: current => current.EndsWith(
+                    @"Mount",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? @"\\?\C:\Mount"
+                    : null,
+                entryExists: current =>
+                    current.EndsWith(@"NAS\录像", StringComparison.OrdinalIgnoreCase)
+                    || current.EndsWith(@"NAS", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_BrokenMountParentDoesNotSkipToGrandparent()
+    {
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                @"C:\Mount\NAS\Sub\NewFolder",
+                resolveCurrent: current => current.EndsWith(
+                    @"Mount",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? @"\\?\C:\Mount"
+                    : null,
+                entryExists: current =>
+                    current.EndsWith(@"NAS", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
     public void ClassifyStorageLocation_DoesNotCacheResult()
     {
         string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-nocache");
