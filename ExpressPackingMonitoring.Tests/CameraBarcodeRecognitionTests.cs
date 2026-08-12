@@ -498,6 +498,23 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(BarcodeRecordingDecisionAction.Switch, decision.Action);
     }
 
+    [Fact]
+    public void RecordingDecisionPolicy_CommandCodeOnCooldownDoesNotRetrigger()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "BACK",
+            fromCamera: true,
+            canProcess: true,
+            isRecording: false,
+            recordingOrderId: "",
+            sameBarcodeStopEnabled: false,
+            inputOnCooldown: true,
+            "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Ignore, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.CooldownIgnored, decision.Reason);
+    }
+
     [Theory]
     [InlineData("CLEAR", "ClearInput", "ClearCommand")]
     [InlineData("SHIP", "SwitchToShipping", "ShippingCommand")]
