@@ -29,6 +29,13 @@ public sealed class PackingProofNodeInfo
     [JsonPropertyName("httpPort")]
     public int HttpPort { get; set; }
 
+    /// <summary>
+    /// 主机是否开启网页访问保护。旧版本主机不返回该字段，因此使用可空类型
+    /// 区分“明确未保护”（false）与“无法确认”（null）。
+    /// </summary>
+    [JsonPropertyName("accessProtected")]
+    public bool? AccessProtected { get; set; }
+
     [JsonPropertyName("backupCompatibility")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BackupCompatibilityInfo? BackupCompatibility { get; set; }

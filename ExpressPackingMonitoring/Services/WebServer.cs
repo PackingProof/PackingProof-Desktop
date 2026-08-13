@@ -52,6 +52,8 @@ namespace ExpressPackingMonitoring.Services
         public string DeviceId { get; set; } = "";
         public string DeviceName { get; set; } = "";
         public string DeviceKind { get; set; } = "mobile";
+        // 仅供批准弹窗展示（macos/windows），不参与任何校验或服务端分支。
+        public string Platform { get; set; } = "";
         public string RemoteAddress { get; set; } = "";
         public string ClientVersion { get; set; } = "";
         public int ClientBuildNumber { get; set; }
@@ -932,6 +934,7 @@ namespace ExpressPackingMonitoring.Services
                 Preset = _deploymentPreset,
                 Capabilities = PackingProofCapabilities.ForPreset(_deploymentPreset).ToList(),
                 HttpPort = Port,
+                AccessProtected = _requireAccessKey,
                 BackupCompatibility = PackingProofCapabilities.ForPreset(_deploymentPreset).Contains(
                     PackingProofCapabilities.MobileBackup,
                     StringComparer.OrdinalIgnoreCase)
@@ -1139,7 +1142,9 @@ namespace ExpressPackingMonitoring.Services
         private static string NormalizeDeviceKind(string deviceKind) =>
             string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                 ? "pc"
-                : "mobile";
+                : string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase)
+                    ? "viewer"
+                    : "mobile";
 
         private static bool IsMobileBackupUploadPath(string path, string suffix, out string uploadId)
         {
@@ -1199,12 +1204,11 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
             string deviceId = request.DeviceId?.Trim() ?? "";
-            string deviceKind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                ? "pc"
-                : "mobile";
+            string deviceKind = NormalizeDeviceKind(request.DeviceKind);
             request.DeviceId = deviceId;
             request.DeviceKind = deviceKind;
             request.DeviceName = (request.DeviceName ?? "").Trim();
+            request.Platform = (request.Platform ?? "").Trim();
             request.RemoteAddress = remoteAddress;
             if (deviceId.Length is < 8 or > 128)
             {
@@ -1317,11 +1321,17 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
             BackupDeviceEnrollment enrollment = operation.Enrollment;
-            MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
-                ctx.Request.RemoteEndPoint?.Address,
-                enrollment.DeviceId,
-                request.DeviceName);
+            MobileOrderReceiverInfo registeredDevice = null;
+            // 查看端只消费网页回放，不参与订单播报接收，不注册为订单接收设备。
+            if (!string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase))
+            {
+                registeredDevice = _mobileOrderReceivers.Register(
+                    ctx.Request.RemoteEndPoint?.Address,
+                    enrollment.DeviceId,
+                    request.DeviceName);
+            }
             string assignedDeviceName = registeredDevice?.NodeName ?? request.DeviceName;
+            string webAccessUrl = ResolveWebAccessUrl();
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -1333,8 +1343,31 @@ namespace ExpressPackingMonitoring.Services
                 deviceToken = enrollment.DeviceCredential,
                 deviceName = assignedDeviceName,
                 issuedAt = enrollment.IssuedAt,
-                hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion
+                hostVersion = BackupCompatibilityPolicy.CreateHostInfo().HostVersion,
+                webAccessUrl = webAccessUrl
             });
+        }
+
+        /// <summary>
+        /// 与“连接手机/电脑”使用同一链接：受保护时带 ?key=，未保护时为裸地址；
+        /// 提供者不可用时返回 null，由客户端按受保护状态处理，绝不降级为无认证打开。
+        /// </summary>
+        private string ResolveWebAccessUrl()
+        {
+            try
+            {
+                string url = _mobileConnectionUrlProvider()?.Trim() ?? "";
+                Uri parsed = null;
+                return Uri.TryCreate(url, UriKind.Absolute, out parsed)
+                    && (string.Equals(parsed.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                    ? url
+                    : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void ClearRecentBackupEnrollment()

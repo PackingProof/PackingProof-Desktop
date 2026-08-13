@@ -10,6 +10,9 @@ internal static class BackupCompatibilityPolicy
     internal const string MinimumMobileVersion = "0.5.10";
     internal const int MinimumMobileBuildNumber = 11010;
     internal const string MinimumDesktopVersion = "0.0.32";
+    // Viewer enrollment 协议兼容下限，不代表任何客户端发布版本；
+    // 取 viewer 类型首次随主机发布的版本号（当前主线下一版本）。
+    internal const string MinimumViewerVersion = "0.0.49";
     internal const string MobileDownloadUrl =
         "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
     internal const string DesktopDownloadUrl =
@@ -35,11 +38,17 @@ internal static class BackupCompatibilityPolicy
 
     internal static BackupCompatibilityFailure? ValidateClient(BackupDeviceEnrollmentRequest request)
     {
-        bool mobile = !string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase);
-        string minimumVersion = mobile ? MinimumMobileVersion : MinimumDesktopVersion;
+        bool workstation = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase);
+        bool viewer = string.Equals(request.DeviceKind, "viewer", StringComparison.OrdinalIgnoreCase);
+        bool mobile = !workstation && !viewer;
+        string minimumVersion = viewer
+            ? MinimumViewerVersion
+            : workstation
+                ? MinimumDesktopVersion
+                : MinimumMobileVersion;
         int minimumBuildNumber = mobile ? MinimumMobileBuildNumber : 0;
         string downloadUrl = mobile ? MobileDownloadUrl : DesktopDownloadUrl;
-        string updateTarget = mobile ? "mobile" : "recording-workstation";
+        string updateTarget = viewer ? "viewer" : mobile ? "mobile" : "recording-workstation";
 
         bool protocolCompatible = string.Equals(
                 request.BackupProtocol,
@@ -52,9 +61,11 @@ internal static class BackupCompatibilityPolicy
         if (protocolCompatible && versionCompatible && buildCompatible)
             return null;
 
-        string message = mobile
-            ? "手机 App 版本过低，请更新后重新连接"
-            : "录制工位版本过低，请更新电脑端后重新连接";
+        string message = viewer
+            ? "查看端版本过低，请更新后重新连接"
+            : mobile
+                ? "手机 App 版本过低，请更新后重新连接"
+                : "录制工位版本过低，请更新电脑端后重新连接";
         return new BackupCompatibilityFailure(
             updateTarget,
             minimumVersion,

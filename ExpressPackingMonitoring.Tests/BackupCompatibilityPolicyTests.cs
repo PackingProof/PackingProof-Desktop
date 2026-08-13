@@ -66,4 +66,32 @@ public sealed class BackupCompatibilityPolicyTests
         Assert.Null(BackupCompatibilityPolicy.ValidateClient(mobile));
         Assert.Null(BackupCompatibilityPolicy.ValidateClient(workstation));
     }
+
+    [Fact]
+    public void ViewerClientUsesItsOwnProtocolFloor()
+    {
+        var valid = new BackupDeviceEnrollmentRequest
+        {
+            DeviceKind = "viewer",
+            ClientVersion = BackupCompatibilityPolicy.MinimumViewerVersion,
+            ClientBuildNumber = 0,
+            BackupProtocol = "mobile-backup-v2",
+            EnrollmentVersion = 2,
+            AuthVersion = 3
+        };
+        var outdated = new BackupDeviceEnrollmentRequest
+        {
+            DeviceKind = "viewer",
+            ClientVersion = "0.0.48",
+            ClientBuildNumber = 0,
+            BackupProtocol = "mobile-backup-v2",
+            EnrollmentVersion = 2,
+            AuthVersion = 3
+        };
+
+        Assert.Null(BackupCompatibilityPolicy.ValidateClient(valid));
+        BackupCompatibilityFailure? failure = BackupCompatibilityPolicy.ValidateClient(outdated);
+        Assert.NotNull(failure);
+        Assert.Equal("viewer", failure.UpdateTarget);
+    }
 }

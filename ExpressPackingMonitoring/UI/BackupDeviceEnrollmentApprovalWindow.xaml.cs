@@ -13,14 +13,23 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
     internal BackupDeviceEnrollmentApprovalWindow(BackupDeviceEnrollmentRequest request)
     {
         InitializeComponent();
-        string kind = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+        bool isWorkstation = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase);
+        bool isViewer = string.Equals(request.DeviceKind, "viewer", StringComparison.OrdinalIgnoreCase);
+        string kind = isWorkstation
             ? "录制电脑"
-            : "手机";
+            : isViewer
+                ? "电脑查看端"
+                : "手机";
         string name = string.IsNullOrWhiteSpace(request.DeviceName) ? kind : request.DeviceName;
-        string permission = string.Equals(request.DeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
+        string permission = isWorkstation
             ? "允许后，这台录制电脑可以上传、查看和确认自己录制的录像"
-            : "允许后，这台手机可以上传自己的录像，并查看、播放、下载和剪辑保存主机中的录像；不能删除主机录像或修改设置";
-        MessageText.Text = $"{name}（{request.RemoteAddress}）申请连接这台保存主机。{permission}";
+            : isViewer
+                ? "允许后，这台查看端可以查看、播放、下载和剪辑保存主机中的录像；不能删除主机录像或修改设置"
+                : "允许后，这台手机可以上传自己的录像，并查看、播放、下载和剪辑保存主机中的录像；不能删除主机录像或修改设置";
+        string location = string.IsNullOrWhiteSpace(request.Platform)
+            ? request.RemoteAddress
+            : $"{request.Platform} · {request.RemoteAddress}";
+        MessageText.Text = $"{name}（{location}）申请连接这台保存主机。{permission}";
 
         _expiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         _expiryTimer.Tick += ExpiryTimer_Tick;
