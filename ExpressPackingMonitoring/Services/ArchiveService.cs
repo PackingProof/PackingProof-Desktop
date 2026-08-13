@@ -21,6 +21,11 @@ internal sealed class ArchiveService : IDisposable
     private static readonly TimeSpan BackfillInterval = TimeSpan.FromMinutes(5);
     private const int BackfillCatchUpBatchSize = 2000;
     private DateTime _lastBackfillAt = DateTime.MinValue;
+    private readonly object _circuitSync = new();
+    private string _unreachableRoot = "";
+    private int _consecutiveUnreachableFailures;
+    private DateTime _circuitRetryAfter;
+    private TimeSpan _nextUnreachableCooldown;
 
     public ArchiveService(
         VideoDatabase database,
@@ -32,10 +37,18 @@ internal sealed class ArchiveService : IDisposable
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _options = options ?? new ArchiveWorkerOptions();
+        _nextUnreachableCooldown = _options.UnreachableCooldown;
         _archiveTargetResolver = archiveTargetResolver;
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
+
+    /// <summary>
+    /// 备份目标可用性变化通知：available=false 表示目标不可达并进入熔断，
+    /// 参数携带不可达根路径；available=true 表示已确认恢复可达。
+    /// 事件在 Worker 线程触发，订阅方需自行切换 UI 线程。
+    /// </summary>
+    public event Action<bool, string>? BackupTargetAvailabilityChanged;
 
     public void Wake()
     {
@@ -66,6 +79,8 @@ internal sealed class ArchiveService : IDisposable
         }
         else
         {
+            if (IsCircuitOpen())
+                return 0; // 备份位置不可达，冷却期内不逐条空转
             BackfillHistoricalArchives(archiveTarget);
         }
 
@@ -75,10 +90,12 @@ internal sealed class ArchiveService : IDisposable
                      DateTime.Now))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (IsCircuitOpen())
+                break; // 本轮中途触发熔断：停止剩余记录，避免继续做挂起探测
             using IDisposable ownership = await VideoLifecycleCoordinator.EnterAsync(
                 record.Id,
                 cancellationToken);
-            if (await TryArchiveAsync(record, cancellationToken).ConfigureAwait(false))
+            if (await TryArchiveAsync(record, cancellationToken, archiveTarget).ConfigureAwait(false))
                 completed++;
         }
         return completed;
@@ -185,7 +202,8 @@ internal sealed class ArchiveService : IDisposable
 
     private async Task<bool> TryArchiveAsync(
         VideoRecord record,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? targetRoot = null)
     {
         if (record.ArchiveStatus is VideoArchiveStatus.Verified or VideoArchiveStatus.LocalDeleted)
             return true;
@@ -227,6 +245,7 @@ internal sealed class ArchiveService : IDisposable
                     string existingHash = await WithTimeoutAsync(
                         token => _provider.ComputeSha256Async(networkPath, token),
                         cancellationToken).ConfigureAwait(false);
+                    RecordTargetReachable();
                     if (string.Equals(existingHash, sourceHash, StringComparison.OrdinalIgnoreCase))
                     {
                         _database.UpdateArchiveState(
@@ -256,11 +275,13 @@ internal sealed class ArchiveService : IDisposable
                     sourceHash,
                     attemptToken,
                     cancellationToken).ConfigureAwait(false);
+            RecordTargetReachable();
 
             _database.UpdateArchiveState(record.Id, VideoArchiveStatus.Verifying, attemptedAt: attemptedAt);
             string publishedHash = await _provider.ComputeSha256Async(
                 networkPath,
                 cancellationToken).ConfigureAwait(false);
+            RecordTargetReachable();
             if (!string.Equals(publishedHash, sourceHash, StringComparison.OrdinalIgnoreCase))
             {
                 // 发布后校验失败：本地源仍保留，先把损坏目标改名 .corrupt（失败则仅记录），
@@ -360,13 +381,20 @@ internal sealed class ArchiveService : IDisposable
                 return false;
             }
 
+            DateTime? circuitRetryAt = NetworkArchiveErrorClassifier.IsTargetUnreachable(ex)
+                ? RecordUnreachableFailure(
+                    attemptedAt,
+                    targetRoot ?? ResolveUnreachableRootKey(networkPath))
+                : null;
+
             _database.UpdateArchiveState(
                 record.Id,
                 VideoArchiveStatus.Failed,
                 error: ex.Message,
                 attemptedAt: attemptedAt,
                 incrementRetry: true,
-                nextRetryAt: ComputeNextRetryAt(record.ArchiveRetryCount + 1));
+                nextRetryAt: circuitRetryAt
+                    ?? ComputeNextRetryAt(record.ArchiveRetryCount + 1));
             RuntimeLog.Warn("Archive", $"Archive failed id={record.Id}, target={networkPath}, error={ex.Message}");
             return false;
         }
@@ -427,6 +455,104 @@ internal sealed class ArchiveService : IDisposable
     {
         double seconds = Math.Min(1800, 30 * Math.Pow(2, Math.Max(0, retryCount - 1)));
         return DateTime.Now.AddSeconds(seconds);
+    }
+
+    private bool IsCircuitOpen()
+    {
+        lock (_circuitSync)
+            return _circuitRetryAfter > DateTime.Now;
+    }
+
+    /// <summary>
+    /// 没有解析出配置根时退化为共享根（UNC 的 \\server\share 或本地盘符），
+    /// 保证同一备份目标下的连续失败可以正确累计。
+    /// </summary>
+    private static string ResolveUnreachableRootKey(string path)
+    {
+        try
+        {
+            string? root = Path.GetPathRoot(path);
+            if (!string.IsNullOrWhiteSpace(root))
+                return root;
+        }
+        catch
+        {
+        }
+
+        return path;
+    }
+
+    /// <summary>
+    /// 记录一次“目标不可达”失败；同一根连续失败达到阈值后打开熔断，
+    /// 冷却时间指数增长至上限，期间 Worker 不再发起网络探测。
+    /// </summary>
+    private DateTime? RecordUnreachableFailure(DateTime now, string root)
+    {
+        bool opened = false;
+        TimeSpan cooldown = _options.UnreachableCooldown;
+        DateTime retryAfter = default;
+        lock (_circuitSync)
+        {
+            if (string.Equals(_unreachableRoot, root, StringComparison.OrdinalIgnoreCase))
+            {
+                _consecutiveUnreachableFailures++;
+            }
+            else
+            {
+                _unreachableRoot = root;
+                _consecutiveUnreachableFailures = 1;
+                _nextUnreachableCooldown = _options.UnreachableCooldown;
+            }
+
+            int threshold = Math.Max(1, _options.UnreachableFailureThreshold);
+            if (_consecutiveUnreachableFailures >= threshold)
+            {
+                opened = true;
+                cooldown = _nextUnreachableCooldown;
+                retryAfter = now + cooldown;
+                _circuitRetryAfter = retryAfter;
+
+                double baseSeconds = Math.Max(1, _options.UnreachableCooldown.TotalSeconds);
+                double maxSeconds = Math.Max(
+                    baseSeconds,
+                    _options.MaxUnreachableCooldown.TotalSeconds);
+                _nextUnreachableCooldown = TimeSpan.FromSeconds(
+                    Math.Min(maxSeconds, cooldown.TotalSeconds * 2));
+                _consecutiveUnreachableFailures = 0;
+            }
+        }
+
+        if (!opened)
+            return null;
+
+        RuntimeLog.Warn(
+            "Archive",
+            $"归档目标不可达，归档暂停约 {cooldown.TotalMinutes:F0} 分钟，等待网络位置恢复：{root}");
+        BackupTargetAvailabilityChanged?.Invoke(false, root);
+        return retryAfter;
+    }
+
+    /// <summary>
+    /// 任一网络操作成功后调用：确认目标恢复可达并关闭熔断。
+    /// 只有从“已熔断”切回可用时才触发事件与日志，正常连续成功不打扰。
+    /// </summary>
+    private void RecordTargetReachable()
+    {
+        bool wasOpen;
+        lock (_circuitSync)
+        {
+            wasOpen = _circuitRetryAfter != default;
+            _unreachableRoot = "";
+            _consecutiveUnreachableFailures = 0;
+            _circuitRetryAfter = default;
+            _nextUnreachableCooldown = _options.UnreachableCooldown;
+        }
+
+        if (!wasOpen)
+            return;
+
+        RuntimeLog.Info("Archive", "归档目标已恢复可达，继续归档");
+        BackupTargetAvailabilityChanged?.Invoke(true, "");
     }
 
     public void Dispose()

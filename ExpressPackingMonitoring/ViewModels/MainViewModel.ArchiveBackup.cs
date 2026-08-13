@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using System.Windows;
 
 namespace ExpressPackingMonitoring.ViewModels;
 
@@ -9,6 +10,8 @@ public partial class MainViewModel
     private string _archiveBackupStatusText = "正在检查待备份录像";
     private bool _archiveBackupCardVisible;
     private int _remainingArchiveBackupCount;
+    private bool _archiveTargetUnavailable;
+    private string _archiveUnavailableRoot = "";
 
     public bool IsArchiveBackupCardVisible
     {
@@ -64,8 +67,28 @@ public partial class MainViewModel
         RemainingArchiveBackupCount = summary.RemainingCount;
         ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             summary,
-            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(Config));
+            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(Config),
+            _archiveTargetUnavailable,
+            _archiveUnavailableRoot);
         ArchiveBackupShortStatusText = state.ShortStatusText;
         ArchiveBackupStatusText = state.DetailText;
+    }
+
+    private void OnArchiveTargetAvailabilityChanged(bool available, string root)
+    {
+        _ = Application.Current?.Dispatcher.InvokeAsync(() =>
+        {
+            if (_isDisposed)
+                return;
+
+            _archiveTargetUnavailable = !available;
+            _archiveUnavailableRoot = available ? "" : root;
+            RefreshArchiveBackupSummary();
+
+            if (available)
+                ShowToast("网络备份位置已恢复，继续备份录像", ToastSeverity.Information);
+            else
+                ShowToast("网络备份位置不可用，录像保留在本地，恢复后自动重试", ToastSeverity.Warning);
+        });
     }
 }

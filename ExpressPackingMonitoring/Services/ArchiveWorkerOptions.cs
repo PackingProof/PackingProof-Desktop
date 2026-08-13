@@ -9,4 +9,13 @@ internal sealed class ArchiveWorkerOptions
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan RemoteTimeout { get; init; } = TimeSpan.FromSeconds(3);
     public bool AutomaticWorkerEnabled { get; init; } = true;
+
+    /// <summary>同一备份根连续出现“网络不可达”错误达到该次数后触发熔断。</summary>
+    public int UnreachableFailureThreshold { get; init; } = 3;
+
+    /// <summary>熔断后的首次冷却时间，冷却结束后自动探测一次并决定继续或再次熔断。</summary>
+    public TimeSpan UnreachableCooldown { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>连续熔断时冷却时间的上限（指数增长封顶）。</summary>
+    public TimeSpan MaxUnreachableCooldown { get; init; } = TimeSpan.FromMinutes(30);
 }

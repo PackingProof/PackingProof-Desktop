@@ -35,9 +35,20 @@ internal static class ArchiveBackupCardModel
     /// </summary>
     internal static ArchiveBackupCardState BuildArchiveBackupCardState(
         ArchiveQueueSummary summary,
-        string currentTarget)
+        string currentTarget,
+        bool targetUnavailable = false,
+        string unavailableRoot = "")
     {
         int remaining = summary.RemainingCount;
+
+        if (targetUnavailable)
+        {
+            return new ArchiveBackupCardState(
+                "备份位置不可用",
+                string.IsNullOrWhiteSpace(unavailableRoot)
+                    ? $"{remaining} 个录像等待备份，录像仍保存在本地，恢复后自动重试"
+                    : $"无法访问备份位置 {CompactArchiveTarget(unavailableRoot)}，录像仍保存在本地，恢复后自动重试");
+        }
 
         if (summary.LostCount > 0)
         {

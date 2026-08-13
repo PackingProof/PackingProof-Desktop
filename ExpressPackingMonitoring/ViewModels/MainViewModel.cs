@@ -981,12 +981,19 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 _db = new VideoDatabase(_dbFilePath);
-                _archiveService?.Dispose();
+                if (_archiveService != null)
+                {
+                    _archiveService.BackupTargetAvailabilityChanged -=
+                        OnArchiveTargetAvailabilityChanged;
+                    _archiveService.Dispose();
+                }
                 _archiveService = new ArchiveService(
                     _db,
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
                         StorageLocationResolver.GetOrderedNetworkLocations(Config));
+                _archiveService.BackupTargetAvailabilityChanged +=
+                    OnArchiveTargetAvailabilityChanged;
                 _nasCircularCleanup = new NasCircularCleanupService(_db);
                 RefreshArchiveBackupSummary();
             }
@@ -4899,7 +4906,12 @@ namespace ExpressPackingMonitoring.ViewModels
             try { _globalKeyHook?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
             DisposeRecordingTransfers();
-            try { _archiveService?.Dispose(); } catch { }
+            if (_archiveService != null)
+            {
+                _archiveService.BackupTargetAvailabilityChanged -=
+                    OnArchiveTargetAvailabilityChanged;
+                try { _archiveService.Dispose(); } catch { }
+            }
             try { _db?.Dispose(); } catch { }
         }
     }

@@ -235,6 +235,59 @@ public sealed class ArchiveServiceTests : IDisposable
                 StringComparison.OrdinalIgnoreCase);
     }
 
+    private sealed class UnreachableProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+        public int PublishAttempts;
+        public bool Unreachable { get; set; } = true;
+
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            string attemptToken,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref PublishAttempts);
+            if (Unreachable)
+            {
+                return Task.FromException(new IOException(
+                    $"找不到网络路径。 : '{Path.GetDirectoryName(destinationPath)}'",
+                    unchecked((int)0x80070035)));
+            }
+
+            return _inner.PublishFileAsync(
+                sourcePath,
+                destinationPath,
+                recordId,
+                expectedSha256,
+                attemptToken,
+                cancellationToken);
+        }
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
+    }
+
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(),
         "epm-archive-service-" + Guid.NewGuid().ToString("N"));
@@ -683,6 +736,78 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.False(File.Exists(record.ArchivePath));
         Assert.True(File.Exists(record.ArchivePath + ".corrupt"));
         Assert.True(File.Exists(record.FilePath), "本地源必须保留");
+    }
+
+    [Fact]
+    public async Task UnreachableTarget_TripsCircuitAndSkipsRemainingBatch()
+    {
+        for (int i = 0; i < 8; i++)
+            InsertPendingRecord($"unreachable-{i}.mp4", "content-" + i);
+
+        var provider = new UnreachableProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                BatchSize = 8,
+                UnreachableFailureThreshold = 3,
+                UnreachableCooldown = TimeSpan.FromMinutes(5),
+                MaxUnreachableCooldown = TimeSpan.FromMinutes(10)
+            });
+
+        int completed = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, completed);
+        Assert.Equal(3, provider.PublishAttempts);
+        IReadOnlyList<VideoRecord> pending =
+            _database.GetPendingArchives(20, DateTime.Now);
+        Assert.Equal(5, pending.Count);
+        Assert.All(
+            pending,
+            record => Assert.Equal(VideoArchiveStatus.Pending, record.ArchiveStatus));
+
+        await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(3, provider.PublishAttempts);
+    }
+
+    [Fact]
+    public async Task UnreachableTarget_RecoversAfterCooldown()
+    {
+        long id = InsertPendingRecord("recoverable.mp4", "recover-content");
+        var provider = new UnreachableProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                BatchSize = 20,
+                UnreachableFailureThreshold = 1,
+                UnreachableCooldown = TimeSpan.FromMilliseconds(150),
+                MaxUnreachableCooldown = TimeSpan.FromMilliseconds(400)
+            });
+
+        int first = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
+        Assert.Equal(0, first);
+        Assert.Equal(1, provider.PublishAttempts);
+        Assert.Equal(VideoArchiveStatus.Failed, _database.GetVideoById(id)!.ArchiveStatus);
+
+        int second = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
+        Assert.Equal(0, second);
+        Assert.Equal(1, provider.PublishAttempts);
+
+        provider.Unreachable = false;
+        await Task.Delay(350);
+        int third = await service.ProcessPendingOnceAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, third);
+        Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
     }
 
     [Fact]
