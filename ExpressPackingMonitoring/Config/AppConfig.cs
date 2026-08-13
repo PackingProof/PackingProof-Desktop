@@ -118,6 +118,8 @@ namespace ExpressPackingMonitoring.Config
         public string LastKnownHostNodeName { get; set; } = "";
         public string LastKnownHostAddress { get; set; } = "";
         public string LastKnownHostAccessKey { get; set; } = "";
+        // 查看端保存主机的网页访问密钥；与录制工位使用的设备令牌 LastKnownHostAccessKey 区分。
+        public string LastKnownHostWebAccessKey { get; set; } = "";
         public int LastKnownHostBackupAuthVersion { get; set; }
         public int BackupConnectionSchemaVersion { get; set; }
         public string RecordingCachePolicy { get; set; } = "KeepWithinSize";
@@ -423,6 +425,12 @@ namespace ExpressPackingMonitoring.Config
             if (!string.Equals(config.LastKnownHostAccessKey, normalizedHostAccessKey, StringComparison.Ordinal))
             {
                 config.LastKnownHostAccessKey = normalizedHostAccessKey;
+                changed = true;
+            }
+            string normalizedHostWebAccessKey = config.LastKnownHostWebAccessKey?.Trim() ?? "";
+            if (!string.Equals(config.LastKnownHostWebAccessKey, normalizedHostWebAccessKey, StringComparison.Ordinal))
+            {
+                config.LastKnownHostWebAccessKey = normalizedHostWebAccessKey;
                 changed = true;
             }
 

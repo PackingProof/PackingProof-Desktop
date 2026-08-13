@@ -348,6 +348,7 @@ public partial class ViewerClientWindow : Window
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
             $"正在连接“{node.NodeName}”");
+        string previousHostNodeId = _config.LastKnownHostNodeId;
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
                 {
@@ -368,6 +369,21 @@ public partial class ViewerClientWindow : Window
                         config.BackupConnectionSchemaVersion =
                             AppConfig.CurrentBackupConnectionSchemaVersion;
                     }
+                    else
+                    {
+                        // 查看模式：粘贴链接携带的 key 持久化；更换主机时清除旧 key。
+                        if (!string.IsNullOrWhiteSpace(accessKey))
+                        {
+                            config.LastKnownHostWebAccessKey = accessKey.Trim();
+                        }
+                        else if (!string.Equals(
+                                     previousHostNodeId,
+                                     node.NodeId,
+                                     StringComparison.OrdinalIgnoreCase))
+                        {
+                            config.LastKnownHostWebAccessKey = "";
+                        }
+                    }
                     AppConfig.MarkDeploymentSetupCompleted(config);
                 },
                 out AppConfig saved,
@@ -382,6 +398,7 @@ public partial class ViewerClientWindow : Window
         _config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
         _config.LastKnownHostAddress = saved.LastKnownHostAddress;
         _config.LastKnownHostAccessKey = saved.LastKnownHostAccessKey;
+        _config.LastKnownHostWebAccessKey = saved.LastKnownHostWebAccessKey;
         _config.LastKnownHostBackupAuthVersion = saved.LastKnownHostBackupAuthVersion;
         _config.BackupConnectionSchemaVersion = saved.BackupConnectionSchemaVersion;
         _config.FirstUseWizardCompleted = saved.FirstUseWizardCompleted;
@@ -410,11 +427,182 @@ public partial class ViewerClientWindow : Window
         }
     }
 
-    private void OpenWeb_Click(object sender, RoutedEventArgs e)
+    private async void OpenWeb_Click(object sender, RoutedEventArgs e)
     {
         string address = _boundHost?.Address ?? _config.LastKnownHostAddress;
-        if (!WorkstationNetwork.TryOpenUrl(address, out string error))
-            AppDialog.Error(this, error, "打开录像网页失败");
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            AppDialog.Warning(this, "请先搜索并连接一台主机", "打开录像网页");
+            return;
+        }
+
+        OpenWebButton.IsEnabled = false;
+        try
+        {
+            bool? protectedState = _boundHost?.AccessProtected;
+            if (protectedState == false)
+            {
+                WorkstationNetwork.OpenUrl(address);
+                return;
+            }
+
+            if (protectedState == null)
+            {
+                await OpenLegacyHostWebAsync(address);
+                return;
+            }
+
+            await OpenProtectedHostWebAsync(address);
+        }
+        finally
+        {
+            OpenWebButton.IsEnabled = _boundHost != null;
+        }
+    }
+
+    /// <summary>
+    /// 旧主机不返回 accessProtected：先裸地址预检，再尝试已存 key，
+    /// 都失败时给出升级或粘贴链接提示，绝不无认证拉起浏览器。
+    /// </summary>
+    private async Task OpenLegacyHostWebAsync(string address)
+    {
+        // 优先用协议字段判断：主机已返回受保护状态时走标准流程。
+        PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(address);
+        if (node?.AccessProtected == true)
+        {
+            await OpenProtectedHostWebAsync(address);
+            return;
+        }
+
+        WorkstationNetwork.WebAccessProbeResult probe =
+            await WorkstationNetwork.ProbeWebAccessAsync(address);
+        if (probe == WorkstationNetwork.WebAccessProbeResult.Authorized)
+        {
+            WorkstationNetwork.OpenUrl(address);
+            return;
+        }
+        if (probe == WorkstationNetwork.WebAccessProbeResult.Failed)
+        {
+            AppDialog.Error(this, "无法连接保存主机网页，请检查网络后重试", "打开录像网页");
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_config.LastKnownHostWebAccessKey))
+        {
+            probe = await WorkstationNetwork.ProbeWebAccessAsync(
+                address,
+                _config.LastKnownHostWebAccessKey);
+            if (probe == WorkstationNetwork.WebAccessProbeResult.Authorized)
+            {
+                WorkstationNetwork.OpenUrl(WorkstationNetwork.BuildWebAccessUrl(
+                    address,
+                    _config.LastKnownHostWebAccessKey));
+                return;
+            }
+        }
+
+        AppDialog.Warning(
+            this,
+            "保存主机版本过旧或已开启访问保护，请更新保存主机，或使用“手动连接”粘贴完整链接",
+            "打开录像网页");
+    }
+
+    /// <summary>
+    /// 受保护主机：有 key 先预检；401 则清除旧 key、自动申请一次并再次预检；
+    /// 只有预检通过才打开浏览器，申请成功不直接信任返回链接。
+    /// </summary>
+    private async Task OpenProtectedHostWebAsync(string address)
+    {
+        string? key = _config.LastKnownHostWebAccessKey;
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            WorkstationNetwork.WebAccessProbeResult probe =
+                await WorkstationNetwork.ProbeWebAccessAsync(address, key);
+            if (probe == WorkstationNetwork.WebAccessProbeResult.Authorized)
+            {
+                WorkstationNetwork.OpenUrl(WorkstationNetwork.BuildWebAccessUrl(address, key));
+                return;
+            }
+            if (probe == WorkstationNetwork.WebAccessProbeResult.Failed)
+            {
+                AppDialog.Error(this, "无法连接保存主机网页，请检查网络后重试", "打开录像网页");
+                return;
+            }
+            ClearSavedWebAccessKey();
+        }
+
+        SearchStatusText.Text = "正在请求保存主机允许连接";
+        string url;
+        try
+        {
+            BackupDeviceEnrollmentResult enrollment =
+                await WorkstationNetwork.EnrollBackupDeviceAsync(
+                    address,
+                    _config.NodeId,
+                    string.IsNullOrWhiteSpace(_config.NodeName)
+                        ? Environment.MachineName
+                        : _config.NodeName,
+                    "viewer",
+                    clientVersion: BackupCompatibilityPolicy.MinimumViewerVersion,
+                    platform: "windows");
+            url = enrollment.WebAccessUrl ?? "";
+        }
+        catch (Exception ex)
+        {
+            SearchStatusText.Text = "未取得网页访问权限";
+            AppDialog.Error(this, ex.Message, "打开录像网页");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            SearchStatusText.Text = "未取得网页访问权限";
+            AppDialog.Error(this, "保存主机未返回网页访问链接，请更新保存主机后重试", "打开录像网页");
+            return;
+        }
+
+        WorkstationNetwork.ParseHostConnectionInput(url, out _, out string issuedKey);
+        if (issuedKey.Length == 0)
+        {
+            SearchStatusText.Text = "未取得网页访问权限";
+            AppDialog.Error(this, "保存主机返回的网页访问链接无效，请更新保存主机后重试", "打开录像网页");
+            return;
+        }
+
+        WorkstationNetwork.WebAccessProbeResult finalProbe =
+            await WorkstationNetwork.ProbeWebAccessAsync(address, issuedKey);
+        if (finalProbe != WorkstationNetwork.WebAccessProbeResult.Authorized)
+        {
+            SearchStatusText.Text = "未取得网页访问权限";
+            AppDialog.Error(this, "网页访问验证失败，请在保存主机上确认后重试", "打开录像网页");
+            return;
+        }
+
+        SaveWebAccessKey(issuedKey);
+        SearchStatusText.Text = "已允许访问";
+        WorkstationNetwork.OpenUrl(WorkstationNetwork.BuildWebAccessUrl(address, issuedKey));
+    }
+
+    private void SaveWebAccessKey(string key)
+    {
+        if (WorkstationConfigStore.TryUpdate(
+                config => config.LastKnownHostWebAccessKey = key.Trim(),
+                out AppConfig saved,
+                out _))
+        {
+            _config.LastKnownHostWebAccessKey = saved.LastKnownHostWebAccessKey;
+        }
+    }
+
+    private void ClearSavedWebAccessKey()
+    {
+        if (WorkstationConfigStore.TryUpdate(
+                config => config.LastKnownHostWebAccessKey = "",
+                out AppConfig saved,
+                out _))
+        {
+            _config.LastKnownHostWebAccessKey = saved.LastKnownHostWebAccessKey;
+        }
     }
 
     private async void SearchHosts_Click(object sender, RoutedEventArgs e) => await SearchHostsAsync();

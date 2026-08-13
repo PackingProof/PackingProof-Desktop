@@ -255,6 +255,7 @@ public static class WorkstationNetwork
     private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient TestOrderClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient LoopbackClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
+    private static readonly HttpClient WebAccessProbeClient = CreateLanHttpClient(TimeSpan.FromSeconds(8));
     private static readonly JsonSerializerOptions NetworkJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -606,13 +607,18 @@ public static class WorkstationNetwork
         string deviceName,
         string deviceKind,
         CancellationToken token = default,
-        Func<TimeSpan, CancellationToken, Task>? retryDelay = null)
+        Func<TimeSpan, CancellationToken, Task>? retryDelay = null,
+        string? clientVersion = null,
+        string? platform = null)
     {
         address = NormalizeAddress(address);
         if (address.Length == 0 || string.IsNullOrWhiteSpace(deviceId))
             throw new InvalidOperationException("保存主机地址或本机身份无效");
         using var client = CreateLanHttpClient(TimeSpan.FromSeconds(90));
         retryDelay ??= Task.Delay;
+        string resolvedClientVersion = string.IsNullOrWhiteSpace(clientVersion)
+            ? BackupCompatibilityPolicy.MinimumDesktopVersion
+            : clientVersion.Trim();
         for (int attempt = 0; ; attempt++)
         {
             using var request = new HttpRequestMessage(
@@ -625,8 +631,11 @@ public static class WorkstationNetwork
                     deviceName = deviceName?.Trim() ?? "",
                     deviceKind = string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                         ? "pc"
-                        : "mobile",
-                    clientVersion = BackupCompatibilityPolicy.MinimumDesktopVersion,
+                        : string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase)
+                            ? "viewer"
+                            : "mobile",
+                    platform = platform ?? "",
+                    clientVersion = resolvedClientVersion,
                     clientBuildNumber = 0,
                     backupProtocol = BackupCompatibilityPolicy.BackupProtocol,
                     enrollmentVersion = BackupCompatibilityPolicy.EnrollmentVersion,
@@ -896,6 +905,75 @@ public static class WorkstationNetwork
     public static void OpenUrl(string url)
     {
         TryOpenUrl(url, out _);
+    }
+
+    internal enum WebAccessProbeResult
+    {
+        Authorized,
+        Unauthorized,
+        Failed
+    }
+
+    /// <summary>
+    /// 构造网页访问地址；有 key 时带 ?key=，由服务端校验并种 cookie。
+    /// </summary>
+    internal static string BuildWebAccessUrl(string address, string? accessKey)
+    {
+        string url = ToUrl(address).TrimEnd('/');
+        return string.IsNullOrWhiteSpace(accessKey)
+            ? url
+            : $"{url}/?key={Uri.EscapeDataString(accessKey.Trim())}";
+    }
+
+    /// <summary>
+    /// 网页访问预检：自动跟随重定向。只有最终状态码 200 且最终 URL 仍严格为
+    /// 主机根路径（scheme/host/端口相同、path 为 "/"、无 query、无 fragment）
+    /// 才算主机明确接受；401 视为 key 无效；其余情况一律视为失败。
+    /// </summary>
+    internal static async Task<WebAccessProbeResult> ProbeWebAccessAsync(
+        string address,
+        string? accessKey = null,
+        CancellationToken token = default)
+    {
+        string normalized = NormalizeAddress(address);
+        if (normalized.Length == 0)
+            return WebAccessProbeResult.Failed;
+
+        string url = BuildWebAccessUrl(normalized, accessKey);
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await WebAccessProbeClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                token);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+                return WebAccessProbeResult.Unauthorized;
+            if (!response.IsSuccessStatusCode
+                || !IsWebRoot(response.RequestMessage?.RequestUri, url))
+                return WebAccessProbeResult.Failed;
+            return WebAccessProbeResult.Authorized;
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+            or TaskCanceledException
+            or InvalidOperationException)
+        {
+            return WebAccessProbeResult.Failed;
+        }
+    }
+
+    internal static bool IsWebRoot(Uri? finalUri, string expectedUrl)
+    {
+        if (finalUri == null
+            || !Uri.TryCreate(expectedUrl, UriKind.Absolute, out Uri? expected))
+            return false;
+
+        return string.Equals(finalUri.Scheme, expected.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(finalUri.Host, expected.Host, StringComparison.OrdinalIgnoreCase)
+            && finalUri.Port == expected.Port
+            && string.Equals(finalUri.AbsolutePath, "/", StringComparison.Ordinal)
+            && string.IsNullOrEmpty(finalUri.Query)
+            && string.IsNullOrEmpty(finalUri.Fragment);
     }
 
     public static bool TryRestartApplication(string reason = "unspecified", Window? owner = null)
@@ -1251,6 +1329,7 @@ internal sealed class BackupDeviceEnrollmentResult
     public string ComputerName { get; set; } = "";
     public string DeviceId { get; set; } = "";
     public string DeviceToken { get; set; } = "";
+    public string? WebAccessUrl { get; set; }
     public string HostVersion { get; set; } = "";
 }
 
