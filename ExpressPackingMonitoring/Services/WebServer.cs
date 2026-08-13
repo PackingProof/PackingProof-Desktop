@@ -1142,7 +1142,9 @@ namespace ExpressPackingMonitoring.Services
         private static string NormalizeDeviceKind(string deviceKind) =>
             string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                 ? "pc"
-                : "mobile";
+                : string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase)
+                    ? "viewer"
+                    : "mobile";
 
         private static bool IsMobileBackupUploadPath(string path, string suffix, out string uploadId)
         {
@@ -1319,7 +1321,7 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
             BackupDeviceEnrollment enrollment = operation.Enrollment;
-            MobileOrderReceiverInfo? registeredDevice = null;
+            MobileOrderReceiverInfo registeredDevice = null;
             // 查看端只消费网页回放，不参与订单播报接收，不注册为订单接收设备。
             if (!string.Equals(deviceKind, "viewer", StringComparison.OrdinalIgnoreCase))
             {
@@ -1329,7 +1331,7 @@ namespace ExpressPackingMonitoring.Services
                     request.DeviceName);
             }
             string assignedDeviceName = registeredDevice?.NodeName ?? request.DeviceName;
-            string? webAccessUrl = ResolveWebAccessUrl();
+            string webAccessUrl = ResolveWebAccessUrl();
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -1346,21 +1348,17 @@ namespace ExpressPackingMonitoring.Services
             });
         }
 
-        private static string NormalizeDeviceKind(string? kind) =>
-            string.Equals(kind, "pc", StringComparison.OrdinalIgnoreCase) ? "pc"
-            : string.Equals(kind, "viewer", StringComparison.OrdinalIgnoreCase) ? "viewer"
-            : "mobile";
-
         /// <summary>
         /// 与“连接手机/电脑”使用同一链接：受保护时带 ?key=，未保护时为裸地址；
         /// 提供者不可用时返回 null，由客户端按受保护状态处理，绝不降级为无认证打开。
         /// </summary>
-        private string? ResolveWebAccessUrl()
+        private string ResolveWebAccessUrl()
         {
             try
             {
                 string url = _mobileConnectionUrlProvider()?.Trim() ?? "";
-                return Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed)
+                Uri parsed = null;
+                return Uri.TryCreate(url, UriKind.Absolute, out parsed)
                     && (string.Equals(parsed.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
                         || string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
                     ? url
