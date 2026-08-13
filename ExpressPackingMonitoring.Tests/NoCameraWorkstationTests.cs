@@ -481,14 +481,8 @@ public sealed class NoCameraWorkstationTests
         }
     }
 
-    private static int GetFreeTcpPort()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
+    private static int GetFreeTcpPort() =>
+        TestPortAllocator.GetFreeTcpPort();
 
     private static string CreateTempDirectory()
     {

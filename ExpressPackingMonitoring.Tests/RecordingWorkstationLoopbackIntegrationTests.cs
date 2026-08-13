@@ -347,31 +347,7 @@ public sealed class RecordingWorkstationLoopbackIntegrationTests
         }
     }
 
-    private static int GetFreeTcpPort()
-    {
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            int port;
-            using (var tcpListener = new TcpListener(IPAddress.Loopback, 0))
-            {
-                tcpListener.Start();
-                port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
-            }
-
-            using var httpListener = new HttpListener();
-            httpListener.Prefixes.Add($"http://127.0.0.1:{port}/");
-            try
-            {
-                httpListener.Start();
-                return port;
-            }
-            catch (HttpListenerException ex) when (ex.ErrorCode == 5)
-            {
-                // HTTP.sys may reserve an otherwise free TCP port for another URL ACL.
-            }
-        }
-
-        throw new InvalidOperationException("Unable to find a loopback port available to HttpListener.");
-    }
+    private static int GetFreeTcpPort() =>
+        TestPortAllocator.GetFreeTcpPort();
 
 }
