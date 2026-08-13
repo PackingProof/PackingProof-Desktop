@@ -255,7 +255,6 @@ public static class WorkstationNetwork
     private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient TestOrderClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
     private static readonly HttpClient LoopbackClient = CreateLanHttpClient(TimeSpan.FromSeconds(3));
-    private static readonly HttpClient WebAccessProbeClient = CreateLanHttpClient(TimeSpan.FromSeconds(8));
     private static readonly JsonSerializerOptions NetworkJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -942,8 +941,14 @@ public static class WorkstationNetwork
         string url = BuildWebAccessUrl(normalized, accessKey);
         try
         {
+            // 每次预检使用独立客户端：服务端在带 key 请求上种 cookie，
+            // 共享客户端会把 cookie 泄漏到下一次裸地址探测。
+            using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false })
+            {
+                Timeout = TimeSpan.FromSeconds(8)
+            };
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            using var response = await WebAccessProbeClient.SendAsync(
+            using var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseContentRead,
                 token);
