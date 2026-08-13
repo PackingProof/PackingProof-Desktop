@@ -8,6 +8,9 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class NetworkArchiveErrorClassifierTests
 {
     [Theory]
+    [InlineData(3)]
+    [InlineData(15)]
+    [InlineData(21)]
     [InlineData(53)]
     [InlineData(64)]
     [InlineData(65)]

@@ -65,9 +65,9 @@ internal static class StorageLocationResolver
             string configuredPath = NormalizePath(location.Path);
             StorageVolumeInfo.StorageLocationKind kind =
                 StorageVolumeInfo.ClassifyStorageLocation(configuredPath);
-            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
+            if (IsBackupLocation(location))
             {
-                // 网络备份目标不参与本地轮换；归档目标直接取优先级最高的一个，
+                // 网络/网盘挂载备份目标不参与本地轮换；归档目标直接取优先级最高的一个，
                 // 可达性与空间检查由归档 Worker 在后台完成，避免 UI 路径阻塞探测。
                 firstNetworkRoot ??= configuredPath;
                 continue;
@@ -122,19 +122,29 @@ internal static class StorageLocationResolver
     }
 
     /// <summary>
-    /// 按优先级返回全部网络备份位置（不做可用性检查），供归档 Worker 与 UI 使用。
+    /// 按优先级返回全部备份位置（网络共享与网盘挂载盘，不做可用性检查），供归档 Worker 与 UI 使用。
     /// </summary>
-    public static IReadOnlyList<StorageLocation> GetOrderedNetworkLocations(
+    public static IReadOnlyList<StorageLocation> GetOrderedBackupLocations(
         AppConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
         return (config.StorageLocations ?? [])
             .Where(location => !string.IsNullOrWhiteSpace(location.Path))
             .OrderBy(location => location.Priority)
-            .Where(location => StorageVolumeInfo.IsNetworkPath(
-                NormalizePath(location.Path)))
+            .Where(IsBackupLocation)
             .ToList();
     }
+
+    /// <summary>
+    /// 是否为备份目标：用户显式添加标记，或路径本身是网络共享/网盘挂载成的虚拟磁盘。
+    /// 显式标记保证网盘盘符未挂载时仍保留备份角色。
+    /// </summary>
+    public static bool IsBackupLocation(StorageLocation location) =>
+        location != null
+        && !string.IsNullOrWhiteSpace(location.Path)
+        && (location.IsBackupTarget
+            || StorageVolumeInfo.IsBackupTargetPath(
+                NormalizePath(location.Path)));
 
     /// <summary>
     /// 按优先级选择第一个当前可用（可达且可用空间高于预留值）的网络备份位置；

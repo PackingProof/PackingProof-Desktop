@@ -82,7 +82,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         if (string.IsNullOrWhiteSpace(loc.Path)) continue;
                         string normalizedPath = Path.IsPathRooted(loc.Path) ? loc.Path : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, loc.Path);
-                        if (StorageVolumeInfo.IsNetworkPath(normalizedPath)) continue;
+                        if (StorageLocationResolver.IsBackupLocation(loc)) continue;
                         if (!Directory.Exists(normalizedPath)) continue;
 
                         long storageCapacity = 0;
@@ -161,7 +161,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     string normalizedPath = Path.IsPathRooted(location.Path)
                         ? location.Path
                         : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
-                    if (!StorageVolumeInfo.IsNetworkPath(normalizedPath))
+                    if (!StorageLocationResolver.IsBackupLocation(location))
                         continue;
                     firstNetworkPath ??= normalizedPath;
                     if (!StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume))
@@ -474,7 +474,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (Config.StorageLocations == null)
                 return null;
             return Config.StorageLocations
-                .Where(location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                .Where(StorageLocationResolver.IsBackupLocation)
                 .Select(location => Path.IsPathRooted(location.Path)
                     ? location.Path
                     : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path))

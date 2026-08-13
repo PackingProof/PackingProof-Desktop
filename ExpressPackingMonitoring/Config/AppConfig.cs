@@ -49,6 +49,8 @@ namespace ExpressPackingMonitoring.Config
         public string Path { get; set; } = "D:\\快递打包视频";
         public double ReserveGB { get; set; } = 0.0;
         public int Priority { get; set; } = 1; // 数字越小越优先
+        /// <summary>用户显式添加的备份目标；网盘挂载盘未挂载时仍据此保留备份角色。</summary>
+        public bool IsBackupTarget { get; set; }
         // 卷标识与最后验证时间，为未来盘符变化自动重定位预留数据（本版本不实现重映射）。
         public string VolumeId { get; set; } = "";
         public DateTime? LastVerifiedAt { get; set; }

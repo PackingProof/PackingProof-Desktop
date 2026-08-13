@@ -1106,8 +1106,8 @@ namespace ExpressPackingMonitoring.UI
         private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new StoragePathSelectionDialog(
-                title: "添加网络位置",
-                hint: "录像会异步备份到此位置；可以输入网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频")
+                title: "添加备份位置",
+                hint: "录像会异步备份到此位置；可输入网络共享路径（如 \\\\192.168.1.100\\共享目录\\快递打包视频），也可选择网盘挂载成的本地磁盘（如 Z:\\快递打包视频）")
             {
                 Owner = this
             };
@@ -1115,9 +1115,9 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             string selectedPath = dialog.SelectedPath;
-            StorageVolumeInfo.StorageLocationKind kind =
-                StorageVolumeInfo.ClassifyStorageLocation(selectedPath);
-            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
+            BackupStorageDecision decision =
+                BackupStorageLocationPolicy.Evaluate(selectedPath);
+            if (decision == BackupStorageDecision.Accept)
             {
                 if (StorageVolumeInfo.TryResolveUncPath(
                         selectedPath,
@@ -1126,19 +1126,33 @@ namespace ExpressPackingMonitoring.UI
                     selectedPath = uncPath;
                 }
             }
-            else if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)
+            else if (decision == BackupStorageDecision.ConfirmVirtualDisk)
             {
-                AppDialog.Error(
-                    this,
-                    "无法确认该路径是否为网络位置，请确认网络共享可访问后重试",
-                    "备份位置无效");
-                return;
+                if (!AppDialog.Confirm(
+                        this,
+                        $"网盘挂载盘不建议作为备份位置，网盘客户端异常时归档会自动暂停\n\n{selectedPath}\n\n确定仍要添加吗？",
+                        "备份位置确认",
+                        AppDialogSeverity.Warning))
+                {
+                    return;
+                }
+            }
+            else if (decision == BackupStorageDecision.ConfirmUnknown)
+            {
+                if (!AppDialog.Confirm(
+                        this,
+                        $"无法确认该路径是否为网盘挂载盘；网盘挂载盘不建议作为备份位置\n\n{selectedPath}\n\n确定仍要添加吗？",
+                        "备份位置确认",
+                        AppDialogSeverity.Warning))
+                {
+                    return;
+                }
             }
             else
             {
                 AppDialog.Error(
                     this,
-                    "备份位置必须是网络共享路径，例如 \\\\192.168.1.100\\共享目录\\快递打包视频；本地磁盘请添加到录像保存位置",
+                    "备份位置必须是网络共享路径或网盘挂载盘，例如 \\\\192.168.1.100\\共享目录\\快递打包视频；本地磁盘请添加到录像保存位置",
                     "备份位置无效");
                 return;
             }
@@ -1194,7 +1208,8 @@ namespace ExpressPackingMonitoring.UI
             {
                 Path = selectedPath,
                 ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
-                Priority = Config.StorageLocations.Count
+                Priority = Config.StorageLocations.Count,
+                IsBackupTarget = true
             };
             StorageLocationMetadata.RefreshVolumeId(location);
             Config.StorageLocations.Add(location);
@@ -1494,7 +1509,9 @@ namespace ExpressPackingMonitoring.UI
             bool hasSelection = StorageDataGrid?.SelectedItem is StorageLocation;
             int selectedIndex = StorageDataGrid?.SelectedIndex ?? -1;
             int localCount = Config.StorageLocations?
-                .Count(location => StorageVolumeInfo.IsConfirmedLocal(location.Path)) ?? 0;
+                .Count(location =>
+                    StorageVolumeInfo.IsConfirmedLocal(location.Path)
+                    && !StorageLocationResolver.IsBackupLocation(location)) ?? 0;
 
             RemoveStorageButton.IsEnabled = hasSelection;
             if (MoveStorageUpButton != null) MoveStorageUpButton.IsEnabled = hasSelection && selectedIndex > 0;
@@ -1509,14 +1526,15 @@ namespace ExpressPackingMonitoring.UI
         {
             e.Accepted = e.Item is StorageLocation location
                 && !string.IsNullOrWhiteSpace(location.Path)
-                && StorageVolumeInfo.IsConfirmedLocal(location.Path);
+                && StorageVolumeInfo.IsConfirmedLocal(location.Path)
+                && !StorageLocationResolver.IsBackupLocation(location);
         }
 
         private void BackupStorageView_Filter(object sender, FilterEventArgs e)
         {
             e.Accepted = e.Item is StorageLocation location
                 && !string.IsNullOrWhiteSpace(location.Path)
-                && StorageVolumeInfo.IsNetworkPath(location.Path);
+                && StorageLocationResolver.IsBackupLocation(location);
         }
 
         private void RefreshStorageViews()
@@ -1526,8 +1544,7 @@ namespace ExpressPackingMonitoring.UI
             if (BackupEmptyHint != null)
             {
                 int networkCount = Config.StorageLocations?
-                    .Count(location =>
-                        StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+                    .Count(StorageLocationResolver.IsBackupLocation) ?? 0;
                 BackupEmptyHint.Visibility = networkCount == 0
                     ? Visibility.Visible
                     : Visibility.Collapsed;
@@ -1547,8 +1564,8 @@ namespace ExpressPackingMonitoring.UI
                 return;
             bool hasSelection = BackupStorageDataGrid?.SelectedItem is StorageLocation;
             int selectedIndex = BackupStorageDataGrid?.SelectedIndex ?? -1;
-            int networkCount = Config.StorageLocations?.Count(
-                location => StorageVolumeInfo.IsNetworkPath(location.Path)) ?? 0;
+            int networkCount = Config.StorageLocations?
+                .Count(StorageLocationResolver.IsBackupLocation) ?? 0;
 
             BackupRemoveButton.IsEnabled = hasSelection;
             if (BackupMoveUpButton != null)
@@ -1576,7 +1593,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             var networks = Config.StorageLocations
-                .Where(location => StorageVolumeInfo.IsNetworkPath(location.Path))
+                .Where(StorageLocationResolver.IsBackupLocation)
                 .ToList();
             int networkIndex = networks.IndexOf(selected);
             int newNetworkIndex = networkIndex + direction;
@@ -1905,10 +1922,10 @@ namespace ExpressPackingMonitoring.UI
         {
             StorageVolumeInfo.StorageLocationKind kind =
                 StorageVolumeInfo.ClassifyStorageLocation(path);
-            if (kind == StorageVolumeInfo.StorageLocationKind.Network)
+            if (StorageVolumeInfo.IsBackupTargetPath(path))
             {
                 errorMessage =
-                    "该路径是网络位置（含映射盘/网络挂载），不能作为本地录像保存位置；如需备份到该共享，请添加到备份位置";
+                    "该路径是网络位置或网盘挂载盘，不能作为本地录像保存位置；如需备份到该位置，请添加到备份位置";
                 return false;
             }
             if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)

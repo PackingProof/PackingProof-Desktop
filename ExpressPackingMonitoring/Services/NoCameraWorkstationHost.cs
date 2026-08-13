@@ -110,7 +110,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                 _database,
                 new NasArchiveProvider(),
                 archiveTargetResolver: () =>
-                    StorageLocationResolver.GetOrderedNetworkLocations(_config));
+                    StorageLocationResolver.GetOrderedBackupLocations(_config));
             LocalPlaybackUrl = MobileConnectionService.BuildAccessUrl(
                 $"127.0.0.1:{_config.WebServerPort}",
                 _config.RequireWebAccessKey,

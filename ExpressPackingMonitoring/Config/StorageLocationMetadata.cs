@@ -16,7 +16,11 @@ namespace ExpressPackingMonitoring.Config
         public static bool RefreshVolumeId(StorageLocation location)
         {
             if (location == null || string.IsNullOrWhiteSpace(location.Path)) return false;
-            if (StorageVolumeInfo.IsNetworkPath(location.Path)) return false;
+            if (location.IsBackupTarget
+                || StorageVolumeInfo.IsBackupTargetPath(location.Path))
+            {
+                return false;
+            }
 
             try
             {

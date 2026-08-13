@@ -15,15 +15,15 @@ internal readonly record struct ArchiveBackupCardState(
 /// </summary>
 internal static class ArchiveBackupCardModel
 {
-    /// <summary>录像备份卡片可见条件：非录像工作站角色且配置了至少一个网络备份位置。</summary>
+    /// <summary>录像备份卡片可见条件：非录像工作站角色且配置了至少一个备份位置。</summary>
     internal static bool ShouldShowArchiveBackupCard(
         AppConfig config,
         bool isRecordingWorkstation) =>
         !isRecordingWorkstation
-        && StorageLocationResolver.GetOrderedNetworkLocations(config).Count > 0;
+        && StorageLocationResolver.GetOrderedBackupLocations(config).Count > 0;
 
     internal static string ResolveCurrentArchiveTarget(AppConfig config) =>
-        StorageLocationResolver.GetOrderedNetworkLocations(config)
+        StorageLocationResolver.GetOrderedBackupLocations(config)
             .Select(location => location.Path)
             .FirstOrDefault()
         ?? "";

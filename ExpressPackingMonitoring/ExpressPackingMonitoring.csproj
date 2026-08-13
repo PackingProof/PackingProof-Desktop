@@ -131,6 +131,7 @@
     <Compile Include="Services\ArchiveBackupCardModel.cs" />
     <Compile Include="Services\ArchivePathBuilder.cs" />
     <Compile Include="Services\ArchiveWorkerOptions.cs" />
+    <Compile Include="Services\BackupStorageLocationPolicy.cs" />
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\BackupDeviceIdentity.cs" />
     <Compile Include="Services\BackupCompatibilityPolicy.cs" />

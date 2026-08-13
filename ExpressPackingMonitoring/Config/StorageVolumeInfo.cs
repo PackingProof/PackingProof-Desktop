@@ -18,11 +18,15 @@ namespace ExpressPackingMonitoring.Config
         long AvailableFreeSpace,
         string VolumeId)
     {
-        /// <summary>存储位置类型：明确本地 / 明确网络 / 无法确认（fail-closed 按不可用处理）。</summary>
+        /// <summary>
+        /// 存储位置类型：明确物理本地 / 明确网络（UNC 或映射盘） / 网盘挂载成的虚拟磁盘 /
+        /// 无法确认（fail-closed 按不可用处理）。
+        /// </summary>
         internal enum StorageLocationKind
         {
             Local,
             Network,
+            VirtualDisk,
             Unknown
         }
 
@@ -72,17 +76,31 @@ namespace ExpressPackingMonitoring.Config
             ClassifyStorageLocation(path) == StorageLocationKind.Network;
 
         /// <summary>
-        /// 三态判定存储位置类型（不缓存，每次现算）：
-        /// UNC/映射盘/网络共享挂载点 → Network；明确本地卷 → Local；无法确认 → Unknown。
+        /// 判定存储位置类型（不缓存，每次现算）：
+        /// UNC/映射盘 → Network；网盘挂载成的虚拟磁盘 → VirtualDisk；
+        /// 明确物理本地卷 → Local；无法确认 → Unknown。
         /// </summary>
         public static StorageLocationKind ClassifyStorageLocation(string path) =>
-            ClassifyStorageLocationCore(path, ResolveFinalPathOfNearestExistingAncestor);
+            ClassifyStorageLocationCore(
+                path,
+                ResolveFinalPathOfNearestExistingAncestor,
+                ResolveVolumeDevicePath);
 
-        /// <summary>供测试注入 finalPathResolver 的三态判定重载。</summary>
+        /// <summary>供测试注入 finalPathResolver 的判定重载（不启用虚拟磁盘设备名检测）。</summary>
         internal static StorageLocationKind ClassifyStorageLocation(
             string path,
             Func<string, string?>? finalPathResolver) =>
-            ClassifyStorageLocationCore(path, finalPathResolver);
+            ClassifyStorageLocationCore(path, finalPathResolver, volumeDeviceResolver: null);
+
+        /// <summary>
+        /// 供测试注入 finalPathResolver 与盘符设备名解析器，覆盖虚拟磁盘检测分支。
+        /// volumeDeviceResolver 为 null 时退回 final path 判定，保持旧行为。
+        /// </summary>
+        internal static StorageLocationKind ClassifyStorageLocation(
+            string path,
+            Func<string, string?>? finalPathResolver,
+            Func<string, string?>? volumeDeviceResolver) =>
+            ClassifyStorageLocationCore(path, finalPathResolver, volumeDeviceResolver);
 
         /// <summary>
         /// 供测试注入逐级解析与条目存在性判断，验证“挂载点断开时不得回退到本地父目录”的
@@ -94,18 +112,23 @@ namespace ExpressPackingMonitoring.Config
             Func<string, bool>? entryExists)
         {
             if (resolveCurrent == null)
-                return ClassifyStorageLocationCore(path, ResolveFinalPathOfNearestExistingAncestor);
+                return ClassifyStorageLocationCore(
+                    path,
+                    ResolveFinalPathOfNearestExistingAncestor,
+                    volumeDeviceResolver: null);
             return ClassifyStorageLocationCore(
                 path,
                 current => ResolveFinalPathOfNearestExistingAncestor(
                     current,
                     resolveCurrent,
-                    entryExists ?? (_ => false)));
+                    entryExists ?? (_ => false)),
+                volumeDeviceResolver: null);
         }
 
         private static StorageLocationKind ClassifyStorageLocationCore(
             string path,
-            Func<string, string?>? finalPathResolver)
+            Func<string, string?>? finalPathResolver,
+            Func<string, string?>? volumeDeviceResolver)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return StorageLocationKind.Unknown;
@@ -136,6 +159,20 @@ namespace ExpressPackingMonitoring.Config
                     // 继续按 final path 判定
                 }
 
+                string trimmedRoot = root.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                string? devicePath = volumeDeviceResolver?.Invoke(trimmedRoot);
+                if (!string.IsNullOrWhiteSpace(devicePath))
+                {
+                    // 盘符背后不是物理磁盘设备时按网盘挂载盘处理；
+                    // 常见虚拟盘驱动（Dokan/WinFsp/CloudDrive2）的 GetFinalPathNameByHandle
+                    // 会失败，不能依赖 final path 判定。
+                    return IsPhysicalVolumeDevice(devicePath)
+                        ? StorageLocationKind.Local
+                        : StorageLocationKind.VirtualDisk;
+                }
+
                 string? final = finalPathResolver?.Invoke(fullPath);
                 return ClassifyFinalPath(final);
             }
@@ -148,6 +185,12 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>是否明确是本地存储位置（主存储 fail-closed 的唯一放行条件）。</summary>
         public static bool IsConfirmedLocal(string path) =>
             ClassifyStorageLocation(path) == StorageLocationKind.Local;
+
+        /// <summary>是否可作为备份目标：网络共享或网盘挂载成的虚拟磁盘。</summary>
+        public static bool IsBackupTargetPath(string path) =>
+            ClassifyStorageLocation(path)
+                is StorageLocationKind.Network
+                    or StorageLocationKind.VirtualDisk;
 
         /// <summary>
         /// 规范化 final path 前缀后判定：
@@ -409,6 +452,12 @@ namespace ExpressPackingMonitoring.Config
             StringBuilder lpRemoteName,
             ref int lpnLength);
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint QueryDosDevice(
+            string lpDeviceName,
+            StringBuilder lpTargetPath,
+            uint ucchMax);
+
         private const uint FileReadAttributes = 0x80;
         private const uint ShareReadWriteDelete = 1 | 2 | 4;
         private const uint OpenExisting = 3;
@@ -445,6 +494,45 @@ namespace ExpressPackingMonitoring.Config
             {
                 return null;
             }
+        }
+
+        /// <summary>
+        /// 读取盘符根（如 Z:）对应的内核设备名；失败或盘符不存在返回 null。
+        /// </summary>
+        private static string? ResolveVolumeDevicePath(string rootPath)
+        {
+            try
+            {
+                var buffer = new StringBuilder(512);
+                if (QueryDosDevice(rootPath, buffer, (uint)buffer.Capacity) == 0)
+                    return null;
+                return buffer.ToString();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 设备名是否属于物理本地卷（硬盘卷/光驱/软驱/内存盘）。
+        /// 其他自定义设备名视为虚拟磁盘挂载。
+        /// </summary>
+        private static bool IsPhysicalVolumeDevice(string devicePath)
+        {
+            string normalized = devicePath.Trim();
+            return normalized.StartsWith(
+                    @"\Device\HarddiskVolume",
+                    StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(
+                    @"\Device\CdRom",
+                    StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(
+                    @"\Device\Floppy",
+                    StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(
+                    @"\Device\RamDisk",
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

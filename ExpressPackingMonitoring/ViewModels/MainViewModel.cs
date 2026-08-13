@@ -991,7 +991,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _db,
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
-                        StorageLocationResolver.GetOrderedNetworkLocations(Config));
+                        StorageLocationResolver.GetOrderedBackupLocations(Config));
                 _archiveService.BackupTargetAvailabilityChanged +=
                     OnArchiveTargetAvailabilityChanged;
                 _nasCircularCleanup = new NasCircularCleanupService(_db);

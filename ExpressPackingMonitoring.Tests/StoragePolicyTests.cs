@@ -239,6 +239,84 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
+    public void RefreshVolumeId_SkipsBackupTargetLocations()
+    {
+        var location = new StorageLocation
+        {
+            Path = Path.GetTempPath(),
+            IsBackupTarget = true
+        };
+
+        Assert.False(StorageLocationMetadata.RefreshVolumeId(location));
+        Assert.Equal("", location.VolumeId);
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_VirtualDiskDeviceNames()
+    {
+        string root = Enumerable.Range('A', 26)
+            .Select(letter => ((char)letter).ToString() + ":")
+            .First(letter =>
+            {
+                try
+                {
+                    return new DriveInfo(letter + "\\").DriveType
+                        != DriveType.Network;
+                }
+                catch
+                {
+                    return true;
+                }
+            });
+        string input = root + @"\快递打包视频";
+
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.VirtualDisk,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                input,
+                finalPathResolver: _ => null,
+                volumeDeviceResolver: _ => @"\Device\CloudDrive2Disk0"));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.VirtualDisk,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                input,
+                finalPathResolver: _ => null,
+                volumeDeviceResolver: _ => @"\Device\DokanDisk1"));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_PhysicalVolumeDevicesAreLocal()
+    {
+        string input = @"D:\快递打包视频";
+
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                input,
+                finalPathResolver: _ => null,
+                volumeDeviceResolver: _ => @"\Device\HarddiskVolume3"));
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                input,
+                finalPathResolver: _ => null,
+                volumeDeviceResolver: _ => @"\Device\CdRom0"));
+    }
+
+    [Fact]
+    public void ClassifyStorageLocation_DeviceResolverFailureFallsBackToFinalPath()
+    {
+        string input = @"C:\Recordings";
+
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyStorageLocation(
+                input,
+                finalPathResolver: _ => @"\\?\C:\Recordings",
+                volumeDeviceResolver: _ => null));
+    }
+
+    [Fact]
     public void StorageLocation_VolumeIdRoundTripsThroughJson()
     {
         var location = new StorageLocation
@@ -253,6 +331,32 @@ public sealed class StoragePolicyTests
 
         Assert.Equal(location.VolumeId, restored.VolumeId);
         Assert.Equal(location.LastVerifiedAt, restored.LastVerifiedAt);
+    }
+
+    [Fact]
+    public void StorageLocation_IsBackupTargetRoundTripsThroughJson()
+    {
+        var location = new StorageLocation
+        {
+            Path = @"Z:\快递打包视频",
+            IsBackupTarget = true
+        };
+
+        string json = JsonSerializer.Serialize(location);
+        StorageLocation restored = JsonSerializer.Deserialize<StorageLocation>(json)!;
+
+        Assert.True(restored.IsBackupTarget);
+    }
+
+    [Fact]
+    public void StorageLocation_IsBackupTargetMissingFromJsonDefaultsToFalse()
+    {
+        const string json =
+            "{\"Path\":\"Z:\\\\快递打包视频\",\"ReserveGB\":20,\"Priority\":0}";
+
+        StorageLocation restored = JsonSerializer.Deserialize<StorageLocation>(json)!;
+
+        Assert.False(restored.IsBackupTarget);
     }
 
     [Fact]

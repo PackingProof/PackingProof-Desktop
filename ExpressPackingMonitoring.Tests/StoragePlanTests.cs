@@ -271,7 +271,8 @@ public sealed class StoragePlanTests
         Assert.Contains("StorageLocationKind.Local", driveDialog, StringComparison.Ordinal);
         Assert.Contains("不能作为本地录像保存位置", settings, StringComparison.Ordinal);
         Assert.Contains("无法确认存储位置类型", settings, StringComparison.Ordinal);
-        Assert.Contains("无法确认该路径是否为网络位置", settings, StringComparison.Ordinal);
+        Assert.Contains("本地磁盘请添加到录像保存位置", settings, StringComparison.Ordinal);
+        Assert.Contains("网盘挂载盘不建议作为备份位置", settings, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -314,6 +315,83 @@ public sealed class StoragePlanTests
         Assert.Equal(
             @"\\nas\share\快递打包视频\手机备份\手机1-ONEXYZ\2026-08-11\未识别面单_20260811_103000_发货.mp4",
             mobilePath);
+    }
+
+    [Fact]
+    public void GetOrderedBackupLocations_IncludesFlaggedVirtualDiskAndUnc()
+    {
+        var config = new AppConfig
+        {
+            StorageLocations =
+            [
+                new StorageLocation { Path = @"D:\本地录像", Priority = 0 },
+                new StorageLocation
+                {
+                    Path = @"Z:\云盘备份",
+                    Priority = 1,
+                    IsBackupTarget = true
+                },
+                new StorageLocation { Path = @"\\nas\share\备份", Priority = 2 }
+            ]
+        };
+
+        IReadOnlyList<StorageLocation> backups =
+            StorageLocationResolver.GetOrderedBackupLocations(config);
+
+        Assert.Equal(2, backups.Count);
+        Assert.Equal(@"Z:\云盘备份", backups[0].Path);
+        Assert.Equal(@"\\nas\share\备份", backups[1].Path);
+    }
+
+    [Fact]
+    public void IsBackupLocation_FlagKeepsUnmountedVirtualDiskAsBackup()
+    {
+        string missingRoot = Enumerable.Range('A', 26)
+            .Select(letter => ((char)letter).ToString() + ":\\")
+            .First(root => !Directory.Exists(root));
+        var location = new StorageLocation
+        {
+            Path = Path.Combine(missingRoot, "云盘备份"),
+            IsBackupTarget = true
+        };
+
+        Assert.True(StorageLocationResolver.IsBackupLocation(location));
+    }
+
+    [Fact]
+    public void ResolveRecordingPlan_FlaggedLocalPathIsArchiveTargetNotPrimary()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string primary = Path.Combine(directory, "本地录像");
+            string flaggedBackup = Path.Combine(directory, "同机备份");
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = primary, Priority = 0 },
+                    new StorageLocation
+                    {
+                        Path = flaggedBackup,
+                        Priority = 1,
+                        IsBackupTarget = true
+                    }
+                ]
+            };
+
+            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false);
+
+            Assert.Equal(Path.GetFullPath(primary), plan.WorkingRootPath);
+            Assert.True(plan.RequiresNetworkArchive);
+            Assert.Equal(Path.GetFullPath(flaggedBackup), plan.ArchiveTarget);
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
     }
 
     private static string CreateTempDirectory()

@@ -12,6 +12,9 @@ internal static class NetworkArchiveErrorClassifier
 {
     // Win32 网络路径/共享错误码。.NET 会把 GetLastError 转成 HRESULT_FROM_WIN32，
     // 因此低 16 位与 NativeErrorCode 相同；部分异常则直接包裹 Win32Exception。
+    private const int ErrorPathNotFound = 3;
+    private const int ErrorInvalidDrive = 15;
+    private const int ErrorDeviceNotReady = 21;
     private const int ErrorBadNetPath = 53;
     private const int ErrorNetworkNameDeleted = 64;
     private const int ErrorNetworkAccessDenied = 65;
@@ -47,7 +50,10 @@ internal static class NetworkArchiveErrorClassifier
     }
 
     private static bool IsUnreachableCode(int code) =>
-        code is ErrorBadNetPath
+        code is ErrorPathNotFound
+            or ErrorInvalidDrive
+            or ErrorDeviceNotReady
+            or ErrorBadNetPath
             or ErrorNetworkNameDeleted
             or ErrorNetworkAccessDenied
             or ErrorBadNetName

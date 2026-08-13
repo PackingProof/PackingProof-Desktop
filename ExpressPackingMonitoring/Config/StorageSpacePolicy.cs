@@ -58,7 +58,7 @@ namespace ExpressPackingMonitoring.Config
 
         private static long CalculateMinimumReserveBytes(string rootPath, long totalSize)
         {
-            StorageReserveKind kind = StorageVolumeInfo.IsNetworkPath(rootPath)
+            StorageReserveKind kind = StorageVolumeInfo.IsBackupTargetPath(rootPath)
                 ? StorageReserveKind.NetworkLocation
                 : IsSystemDrive(rootPath)
                     ? StorageReserveKind.LocalSystemDrive
