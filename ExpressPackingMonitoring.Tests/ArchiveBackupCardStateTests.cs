@@ -121,6 +121,23 @@ public sealed class ArchiveBackupCardStateTests
     }
 
     [Fact]
+    public void BuildArchiveBackupCardState_UnavailableTarget_TakesPriorityAndShowsPath()
+    {
+        ArchiveBackupCardState unavailable =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                Summary(pending: 1, failed: 500, lost: 2),
+                @"\\nas\share",
+                targetUnavailable: true,
+                unavailableRoot: @"\\CloudDrive-Z-123456789\CloudDrive\百度网盘\快递打包视频");
+
+        Assert.Equal("备份位置不可用", unavailable.ShortStatusText);
+        Assert.Contains(
+            @"\\CloudDrive-Z-123456789\CloudDrive",
+            unavailable.DetailText);
+        Assert.Contains("重新选择备份位置", unavailable.DetailText);
+    }
+
+    [Fact]
     public void CompactArchiveTarget_KeepsOnlyServerHost()
     {
         Assert.Equal(

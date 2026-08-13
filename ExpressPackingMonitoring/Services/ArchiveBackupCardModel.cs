@@ -46,8 +46,8 @@ internal static class ArchiveBackupCardModel
             return new ArchiveBackupCardState(
                 "备份位置不可用",
                 string.IsNullOrWhiteSpace(unavailableRoot)
-                    ? $"{remaining} 个录像等待备份，录像仍保存在本地，恢复后自动重试"
-                    : $"无法访问备份位置 {CompactArchiveTarget(unavailableRoot)}，录像仍保存在本地，恢复后自动重试");
+                    ? $"{remaining} 个录像等待备份，录像仍保存在本地；若网盘已重新挂载，请在设置中重新选择备份位置"
+                    : $"无法访问 {unavailableRoot}，录像仍保存在本地；若网盘已重新挂载，请在设置中重新选择备份位置");
         }
 
         if (summary.LostCount > 0)
