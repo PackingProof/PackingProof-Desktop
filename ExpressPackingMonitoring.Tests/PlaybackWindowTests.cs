@@ -57,7 +57,7 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"HideUnavailableButtonIcon\"", xaml);
         Assert.Contains("FluentEyeOffIcon", xaml);
         Assert.Contains("Click=\"HideUnavailableButton_Click\"", xaml);
-        Assert.Contains("Text=\"显示丢失记录\"", xaml);
+        Assert.Contains("Text=\"显示清理记录\"", xaml);
         Assert.DoesNotContain("异常记录", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailableCheckBox", xaml, StringComparison.Ordinal);
         Assert.Contains("<ScrollViewer Grid.Row=\"0\"", xaml);
@@ -83,7 +83,7 @@ public sealed class PlaybackWindowTests
     [Fact]
     public void BuildHiddenHintText_IncludesHiddenCountAndReason()
     {
-        Assert.Equal("已隐藏 3 条丢失或已清理记录", PlaybackWindow.BuildHiddenHintText(3));
+        Assert.Equal("已隐藏 3 条已清理记录", PlaybackWindow.BuildHiddenHintText(3));
     }
 
     [Theory]

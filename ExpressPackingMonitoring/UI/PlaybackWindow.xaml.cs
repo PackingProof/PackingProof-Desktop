@@ -227,14 +227,14 @@ namespace ExpressPackingMonitoring.UI
         private void UpdateHideUnavailableButtonText()
         {
             if (HideUnavailableButtonText != null)
-                HideUnavailableButtonText.Text = _hideUnavailable ? "显示丢失记录" : "隐藏丢失记录";
+                HideUnavailableButtonText.Text = _hideUnavailable ? "显示清理记录" : "隐藏清理记录";
             if (HideUnavailableButtonIcon != null)
                 HideUnavailableButtonIcon.Data = (Geometry)FindResource(
                     _hideUnavailable ? "FluentEyeOffIcon" : "FluentEyeIcon");
         }
 
         internal static string BuildHiddenHintText(int hiddenCount) =>
-            $"已隐藏 {hiddenCount} 条丢失或已清理记录";
+            $"已隐藏 {hiddenCount} 条已清理记录";
 
         private void UpdateHiddenHint(int hiddenCount)
         {

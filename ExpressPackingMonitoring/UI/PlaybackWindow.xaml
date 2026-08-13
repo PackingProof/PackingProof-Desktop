@@ -182,7 +182,7 @@
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
                                       Margin="0,0,7,0"/>
-                                <TextBlock x:Name="HideUnavailableButtonText" Text="显示丢失记录"/>
+                                <TextBlock x:Name="HideUnavailableButtonText" Text="显示清理记录"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="BtnImportVideos"
