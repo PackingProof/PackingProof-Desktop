@@ -2004,17 +2004,34 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex) { ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error); }
         }
 
+        internal enum CameraRestartAction
+        {
+            None,
+            RestartNow,
+            DeferUntilRecordingEnds
+        }
+
+        internal static CameraRestartAction GetCameraRestartAction(
+            AppConfig current,
+            AppConfig next,
+            bool isRecording)
+        {
+            if (!AppConfig.RequiresCameraRestart(current, next))
+                return CameraRestartAction.None;
+
+            return isRecording
+                ? CameraRestartAction.DeferUntilRecordingEnds
+                : CameraRestartAction.RestartNow;
+        }
+
         public async Task<bool> ApplySettingsAsync(AppConfig nextConfig)
         {
             try
             {
-                    // 判断摄像头相关配置是否变更
-                    bool cameraChanged = Config.CameraIndex != nextConfig.CameraIndex
-                        || Config.CameraMonikerString != nextConfig.CameraMonikerString
-                        || Config.FrameWidth != nextConfig.FrameWidth
-                        || Config.FrameHeight != nextConfig.FrameHeight
-                        || Config.Fps != nextConfig.Fps
-                        || Config.CameraRotate180 != nextConfig.CameraRotate180;
+                    CameraRestartAction cameraRestartAction = GetCameraRestartAction(
+                        Config,
+                        nextConfig,
+                        IsRecording);
                     bool themeChanged = Config.Theme != nextConfig.Theme;
                     bool globalKeyChanged = Config.EnableGlobalKeyboard != nextConfig.EnableGlobalKeyboard;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition;
@@ -2046,6 +2063,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     if (!SaveConfig(nextConfig, notifyUser: true))
                         return false;
+                    // 必须先切换到 nextConfig，录制结束后的 RestartCamera 才会读取新的网络摄像头地址/协议。
                     Config = nextConfig;
                     RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
@@ -2100,9 +2118,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         _ = RefreshWorkstationStatusAsync();
                     }
 
-                    if (cameraChanged)
+                    if (cameraRestartAction != CameraRestartAction.None)
                     {
-                        if (IsRecording)
+                        if (cameraRestartAction == CameraRestartAction.DeferUntilRecordingEnds)
                         {
                             ShowToast("配置已保存，摄像头配置将在录制结束后生效", ToastSeverity.Information);
                             _pendingCameraRestart = true;

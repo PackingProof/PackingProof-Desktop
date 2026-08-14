@@ -741,6 +741,33 @@ namespace ExpressPackingMonitoring.Config
             return kind == "network" ? "network:" + value : value;
         }
 
+        /// <summary>
+        /// 判断摄像头配置变化是否需要重新建立 Camera Source/Session，
+        /// 而不是判断两个 AppConfig 是否任意不同。
+        /// </summary>
+        internal static bool RequiresCameraRestart(AppConfig current, AppConfig next)
+        {
+            ArgumentNullException.ThrowIfNull(current);
+            ArgumentNullException.ThrowIfNull(next);
+
+            string currentKind = NormalizeCameraSourceKind(current.CameraSourceKind, current.NetworkCameraUrl);
+            string nextKind = NormalizeCameraSourceKind(next.CameraSourceKind, next.NetworkCameraUrl);
+            string currentUrl = current.NetworkCameraUrl?.Trim() ?? "";
+            string nextUrl = next.NetworkCameraUrl?.Trim() ?? "";
+            string currentTransport = NormalizeNetworkTransport(current.NetworkCameraRtspTransport);
+            string nextTransport = NormalizeNetworkTransport(next.NetworkCameraRtspTransport);
+
+            return current.CameraIndex != next.CameraIndex
+                || !string.Equals(current.CameraMonikerString, next.CameraMonikerString, StringComparison.Ordinal)
+                || current.FrameWidth != next.FrameWidth
+                || current.FrameHeight != next.FrameHeight
+                || current.Fps != next.Fps
+                || current.CameraRotate180 != next.CameraRotate180
+                || !string.Equals(currentKind, nextKind, StringComparison.Ordinal)
+                || !string.Equals(currentUrl, nextUrl, StringComparison.Ordinal)
+                || !string.Equals(currentTransport, nextTransport, StringComparison.Ordinal);
+        }
+
         private static List<StorageLocation> CreateDefaultStorageLocations()
         {
             try
