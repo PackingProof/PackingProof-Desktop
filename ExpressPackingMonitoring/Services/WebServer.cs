@@ -3145,10 +3145,10 @@ namespace ExpressPackingMonitoring.Services
             bool shouldTranscode = compatMode && codec != "" && codec != "h264";
             bool recording = _isRecordingProvider();
             bool hasTranscodeCache = shouldTranscode && HasTranscodeCache(filePath);
-            bool appleCoreMedia = IsAppleCoreMediaRequest(ctx);
+            bool appleClient = IsApplePlaybackClientRequest(ctx);
             string userAgent = ctx.Request.UserAgent ?? "";
             if (userAgent.Length > 120) userAgent = userAgent.Substring(0, 120);
-            Log($"HandlePlay: codec='{codec}', compat={(compatMode ? "1" : "0")}, 判定={(shouldTranscode ? "转码" : "直传")}, appleCoreMedia={appleCoreMedia}, ua={userAgent}");
+            Log($"HandlePlay: codec='{codec}', compat={(compatMode ? "1" : "0")}, 判定={(shouldTranscode ? "转码" : "直传")}, appleClient={appleClient}, ua={userAgent}");
 
             if (shouldTranscode && recording && !allowTranscodeWhileRecording && !hasTranscodeCache)
             {
@@ -3176,7 +3176,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 ServeTranscodedStream(ctx, filePath);
             }
-            else if (appleCoreMedia && IsHevcVideoCodec(codec)
+            else if (appleClient && IsHevcVideoCodec(codec)
                 && filePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
             {
                 ServeAppleCompatibleMp4(ctx, filePath);
@@ -3396,7 +3396,7 @@ namespace ExpressPackingMonitoring.Services
                 // iOS AVPlayer 依赖 Range/206：边转码边推流的 chunked 响应会被判定为
                 // serverIncorrectlyConfigured(-12939)。Apple 客户端先完整转码进缓存，
                 // 再按标准 Range 传输；浏览器继续保留边转码边推流的低延迟行为。
-                if (IsAppleCoreMediaRequest(ctx))
+                if (IsApplePlaybackClientRequest(ctx))
                 {
                     bool transcoded = TranscodeToFile(ffmpegPath, hwArgs, tmpPath);
                     if (!transcoded)
@@ -3442,12 +3442,29 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private static bool IsAppleCoreMediaRequest(HttpListenerContext ctx)
-            => IsAppleCoreMediaUserAgent(ctx.Request.UserAgent);
+        private static bool IsApplePlaybackClientRequest(HttpListenerContext ctx)
+            => IsApplePlaybackClientUserAgent(ctx.Request.UserAgent);
 
-        internal static bool IsAppleCoreMediaUserAgent(string userAgent)
-            => userAgent != null
-               && userAgent.Contains("AppleCoreMedia", StringComparison.OrdinalIgnoreCase);
+        /// <summary>
+        /// 识别 Apple 媒体播放客户端：iOS/AVFoundation 的媒体请求带 AppleCoreMedia UA；
+        /// macOS Safari 的 video 媒体请求使用普通 Safari UA，不含 AppleCoreMedia，
+        /// 因此额外识别“Macintosh + Safari/ 且非 Chrome/Edge/Opera”，
+        /// 让 Safari 同样进入 hev1→hvc1 拷贝与 Range 转码分支。
+        /// </summary>
+        internal static bool IsApplePlaybackClientUserAgent(string userAgent)
+        {
+            if (userAgent == null)
+                return false;
+
+            if (userAgent.Contains("AppleCoreMedia", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return userAgent.Contains("Safari/", StringComparison.OrdinalIgnoreCase)
+                && userAgent.Contains("Macintosh", StringComparison.OrdinalIgnoreCase)
+                && !userAgent.Contains("Chrome/", StringComparison.OrdinalIgnoreCase)
+                && !userAgent.Contains("Edg/", StringComparison.OrdinalIgnoreCase)
+                && !userAgent.Contains("OPR/", StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>
         /// 启动 FFmpeg，将 stdout 同时推送给浏览器和写入缓存文件。
