@@ -25,6 +25,12 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - `Tools\Publish-CleanPackage.ps1` produces the clean release layout with the root launcher and `app\` payload.
 - `Tools\Test-Release-Automated.ps1` runs the isolated WPF smoke test, userscript concurrency/routing tests, and headless Web UI acceptance suite.
 
+## 本地开发与测试环境
+
+- 日常构建与测试优先使用本机或局域网编译机，而不是 GitHub CI；具体机器地址、账号和连接方式只记录在本机本地笔记，禁止提交仓库或推送到远端。
+- Mac 负责 iOS/Xcode 构建。
+- 双机同步优先 rebase，禁止本地 merge 提交（见“分支整合与同步”）。
+
 ## Runtime and Distribution Notes
 
 - The publish script generates a directory package and a matching `.zip`.
