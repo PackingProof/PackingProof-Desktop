@@ -57,6 +57,38 @@ public sealed class DirectAacRecordingTests
     }
 
     [Theory]
+    [InlineData("h265")]
+    [InlineData("hevc")]
+    public void HevcMkvConversion_WritesHvc1Tag(string videoCodec)
+    {
+        string args = MainViewModel.BuildMkvToMp4Args(
+            "recording.mkv",
+            null,
+            "recording.mp4",
+            250,
+            videoCodec);
+
+        Assert.Contains("-tag:v hvc1", args);
+    }
+
+    [Theory]
+    [InlineData("h264")]
+    [InlineData("av1")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void NonHevcMkvConversion_KeepsDefaultVideoTag(string? videoCodec)
+    {
+        string args = MainViewModel.BuildMkvToMp4Args(
+            "recording.mkv",
+            null,
+            "recording.mp4",
+            250,
+            videoCodec);
+
+        Assert.DoesNotContain("-tag:v hvc1", args);
+    }
+
+    [Theory]
     [InlineData(250, 24000)]
     [InlineData(-250, -24000)]
     [InlineData(9000, 480000)]

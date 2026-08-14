@@ -33,6 +33,32 @@ public sealed class WebRequestLimitTests
     }
 
     [Theory]
+    [InlineData("AppleCoreMedia/1.0.0.21A329 (iPhone; U; CPU OS 18_3 like Mac OS X; zh_cn)", true)]
+    [InlineData("AppleCoreMedia/1.0 (Macintosh; U; Intel Mac OS X)", true)]
+    [InlineData("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15", true)]
+    [InlineData("Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1", true)]
+    [InlineData("Mozilla/5.0 (iPad; CPU OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Mobile/15E148 Safari/604.1", true)]
+    [InlineData("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36", false)]
+    [InlineData("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsApplePlaybackClientUserAgent_OnlyRecognizesAppleClients(string? userAgent, bool expected)
+    {
+        Assert.Equal(expected, WebServer.IsApplePlaybackClientUserAgent(userAgent));
+    }
+
+    [Theory]
+    [InlineData("h265", true)]
+    [InlineData("hevc", true)]
+    [InlineData("h264", false)]
+    [InlineData("av1", false)]
+    [InlineData("", false)]
+    public void IsHevcVideoCodec_OnlyAcceptsHevcAliases(string codec, bool expected)
+    {
+        Assert.Equal(expected, WebServer.IsHevcVideoCodec(codec));
+    }
+
+    [Theory]
     [InlineData("bytes=0-99", 1000, 0, 99)]
     [InlineData("bytes=900-", 1000, 900, 999)]
     [InlineData("bytes=-100", 1000, 900, 999)]
