@@ -3187,7 +3187,7 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private static bool IsHevcVideoCodec(string codec)
+        internal static bool IsHevcVideoCodec(string codec)
             => codec == "h265" || codec == "hevc";
 
         private string EnsureMp4ContainerForPlayback(HttpListenerContext ctx, VideoRecord record)
