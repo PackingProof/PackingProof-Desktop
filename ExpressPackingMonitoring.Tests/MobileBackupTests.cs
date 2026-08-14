@@ -170,6 +170,23 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public void DeviceClipAssetTicketFileNameMatchesSingleEscapedRequestPath()
+    {
+        const string sourceName = "YT0702565090843_20260814_181812_发货";
+        string outputName = $"{sourceName}_clip_20260814_203000.mp4";
+        string escapedAssetPath = "/api/clips/" + Uri.EscapeDataString(outputName);
+
+        string fileName = Path.GetFileName(escapedAssetPath);
+        Assert.Equal(Uri.EscapeDataString(outputName), fileName);
+        Assert.DoesNotContain("%25", fileName, StringComparison.Ordinal);
+
+        string assetUrl = "/api/mobile-backup/clips/" + fileName + "?ticket=abc";
+        Uri requestUri = new("http://127.0.0.1:5280" + assetUrl);
+        Assert.Equal(fileName, Path.GetFileName(requestUri.AbsolutePath));
+        Assert.DoesNotContain("%25", requestUri.AbsolutePath, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LegacyCacheMobileBackupStateMigratesToDurableStateDirectory()
     {
         string directory = CreateTempDirectory();

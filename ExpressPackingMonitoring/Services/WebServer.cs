@@ -1888,7 +1888,7 @@ namespace ExpressPackingMonitoring.Services
                 {
                     string fileName = Path.GetFileName(frame.Url);
                     string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "preview");
-                    frame.Url = $"/api/mobile-backup/clip-previews/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
+                    frame.Url = $"/api/mobile-backup/clip-previews/{fileName}?ticket={ticket}";
                 }
                 SendJson(ctx, 200, result);
             }
@@ -1936,7 +1936,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 string fileName = Path.GetFileName(task.DownloadUrl);
                 string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "clip");
-                task.DownloadUrl = $"/api/mobile-backup/clips/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
+                task.DownloadUrl = $"/api/mobile-backup/clips/{fileName}?ticket={ticket}";
                 task.PlayUrl = task.DownloadUrl + "&inline=1";
             }
             SendJson(ctx, 200, task);
