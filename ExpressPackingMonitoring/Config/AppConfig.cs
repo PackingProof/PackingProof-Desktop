@@ -765,7 +765,9 @@ namespace ExpressPackingMonitoring.Config
                 || current.CameraRotate180 != next.CameraRotate180
                 || !string.Equals(currentKind, nextKind, StringComparison.Ordinal)
                 || !string.Equals(currentUrl, nextUrl, StringComparison.Ordinal)
-                || !string.Equals(currentTransport, nextTransport, StringComparison.Ordinal);
+                || (currentKind == "network"
+                    && nextKind == "network"
+                    && !string.Equals(currentTransport, nextTransport, StringComparison.Ordinal));
         }
 
         private static List<StorageLocation> CreateDefaultStorageLocations()

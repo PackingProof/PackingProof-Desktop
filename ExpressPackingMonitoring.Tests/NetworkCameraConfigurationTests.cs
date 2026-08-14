@@ -109,6 +109,16 @@ public sealed class NetworkCameraConfigurationTests
     }
 
     [Fact]
+    public void RequiresCameraRestart_DoesNotTriggerForLocalCameraTransportChange()
+    {
+        AppConfig current = CreateLocalConfig();
+        AppConfig next = CreateLocalConfig();
+        next.NetworkCameraRtspTransport = "udp";
+
+        Assert.False(AppConfig.RequiresCameraRestart(current, next));
+    }
+
+    [Fact]
     public void RequiresCameraRestart_ReturnsTrueForNetworkToLocalTransition()
     {
         AppConfig current = CreateNetworkConfig("20");
@@ -183,6 +193,21 @@ public sealed class NetworkCameraConfigurationTests
             isRecording: false);
 
         Assert.Equal(MainViewModel.CameraRestartAction.RestartNow, action);
+    }
+
+    [Fact]
+    public void GetCameraRestartAction_TreatsUntrimmedNetworkUrlAsNoChange()
+    {
+        AppConfig current = CreateNetworkConfig("10");
+        AppConfig next = CreateNetworkConfig("10");
+        next.NetworkCameraUrl = $" {next.NetworkCameraUrl} ";
+
+        MainViewModel.CameraRestartAction action = MainViewModel.GetCameraRestartAction(
+            current,
+            next,
+            isRecording: false);
+
+        Assert.Equal(MainViewModel.CameraRestartAction.None, action);
     }
 
     [Fact]

@@ -2028,6 +2028,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
+                    AppConfig.NormalizeAfterLoad(nextConfig);
                     CameraRestartAction cameraRestartAction = GetCameraRestartAction(
                         Config,
                         nextConfig,
@@ -2057,7 +2058,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.NodeNameCustomized != nextConfig.NodeNameCustomized;
                     bool webServerNeedsRecovery = nextConfig.EnableWebServer && _webServer == null;
 
-                    AppConfig.NormalizeAfterLoad(nextConfig);
                     if (workstationChanged)
                         return await RunPurposeSwitchAsync(nextConfig);
 
