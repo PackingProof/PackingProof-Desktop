@@ -3318,7 +3318,7 @@ namespace ExpressPackingMonitoring.Services
             string tmpPath = Path.Combine(_transCacheDir, $"{Guid.NewGuid():N}.tmp.mp4");
             string args = $"-loglevel warning -y -i \"{filePath}\" -map 0:v:0 -map 0:a? -c copy -tag:v hvc1 -movflags +faststart -f mp4 \"{tmpPath}\"";
 
-            IDisposable ffmpegSlot = null;
+            IDisposable? ffmpegSlot = null;
             try
             {
                 ffmpegSlot = _ffmpegWorkLimiter.Enter(_cts.Token);
@@ -3545,8 +3545,8 @@ namespace ExpressPackingMonitoring.Services
                 CreateNoWindow = true
             };
 
-            Process proc = null;
-            FileStream cacheFs = null;
+            Process? proc = null;
+            FileStream? cacheFs = null;
             try
             {
                 proc = Process.Start(psi);
