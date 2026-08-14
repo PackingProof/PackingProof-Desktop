@@ -1886,7 +1886,7 @@ namespace ExpressPackingMonitoring.Services
                     : _clipService.CreateTimelinePreviews(recordId, request.FrameCount);
                 foreach (ClipTimelineFrame frame in result.Frames)
                 {
-                    string fileName = Path.GetFileName(frame.Url);
+                    string fileName = ResolveDeviceClipAssetFileName(frame.Url);
                     string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "preview");
                     frame.Url = $"/api/mobile-backup/clip-previews/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
                 }
@@ -1934,13 +1934,16 @@ namespace ExpressPackingMonitoring.Services
             }
             if (!string.IsNullOrWhiteSpace(task.DownloadUrl))
             {
-                string fileName = Path.GetFileName(task.DownloadUrl);
+                string fileName = ResolveDeviceClipAssetFileName(task.DownloadUrl);
                 string ticket = CreateDeviceClipAssetTicket(deviceId, fileName, "clip");
                 task.DownloadUrl = $"/api/mobile-backup/clips/{Uri.EscapeDataString(fileName)}?ticket={ticket}";
                 task.PlayUrl = task.DownloadUrl + "&inline=1";
             }
             SendJson(ctx, 200, task);
         }
+
+        internal static string ResolveDeviceClipAssetFileName(string escapedAssetPath) =>
+            Uri.UnescapeDataString(Path.GetFileName(escapedAssetPath));
 
         private void HandleCancelDeviceClipTask(HttpListenerContext ctx, string path)
         {
