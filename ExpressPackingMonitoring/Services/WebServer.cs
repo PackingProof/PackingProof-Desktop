@@ -3145,7 +3145,10 @@ namespace ExpressPackingMonitoring.Services
             bool shouldTranscode = compatMode && codec != "" && codec != "h264";
             bool recording = _isRecordingProvider();
             bool hasTranscodeCache = shouldTranscode && HasTranscodeCache(filePath);
-            Log($"HandlePlay: codec='{codec}', compat={(compatMode ? "1" : "0")}, 判定={(shouldTranscode ? "转码" : "直传")}");
+            bool appleCoreMedia = IsAppleCoreMediaRequest(ctx);
+            string userAgent = ctx.Request.UserAgent ?? "";
+            if (userAgent.Length > 120) userAgent = userAgent.Substring(0, 120);
+            Log($"HandlePlay: codec='{codec}', compat={(compatMode ? "1" : "0")}, 判定={(shouldTranscode ? "转码" : "直传")}, appleCoreMedia={appleCoreMedia}, ua={userAgent}");
 
             if (shouldTranscode && recording && !allowTranscodeWhileRecording && !hasTranscodeCache)
             {
@@ -3173,11 +3176,19 @@ namespace ExpressPackingMonitoring.Services
             {
                 ServeTranscodedStream(ctx, filePath);
             }
+            else if (appleCoreMedia && IsHevcVideoCodec(codec)
+                && filePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                ServeAppleCompatibleMp4(ctx, filePath);
+            }
             else
             {
                 ServeFileWithRange(ctx, filePath, inline: true);
             }
         }
+
+        private static bool IsHevcVideoCodec(string codec)
+            => codec == "h265" || codec == "hevc";
 
         private string EnsureMp4ContainerForPlayback(HttpListenerContext ctx, VideoRecord record)
         {
@@ -3272,6 +3283,68 @@ namespace ExpressPackingMonitoring.Services
             return Path.Combine(_transCacheDir, $"{cacheKey}.mp4");
         }
 
+        private static string GetAppleCompatibleCachePath(string filePath)
+        {
+            string cacheKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(filePath))).Substring(0, 16);
+            return Path.Combine(_transCacheDir, $"{cacheKey}.apple.mp4");
+        }
+
+        /// <summary>
+        /// Apple 客户端直传 HEVC 原片前，把 MP4 的 hev1 采样标签流拷贝为 hvc1 并缓存。
+        /// 苹果解码器不识别 NVENC 默认写出的 hev1 标签（白屏或 Cannot Decode），
+        /// hvc1 则可原生硬解。纯流拷贝不重新编码，只做一次并复用缓存；
+        /// ffmpeg 不可用或拷贝失败时回退直传原片，不影响其他客户端。
+        /// </summary>
+        private void ServeAppleCompatibleMp4(HttpListenerContext ctx, string filePath)
+        {
+            string cachePath = GetAppleCompatibleCachePath(filePath);
+            if (File.Exists(cachePath) && new FileInfo(cachePath).Length > 0)
+            {
+                Log($"ServeAppleCompatibleMp4: 命中 Apple 兼容缓存 {cachePath}");
+                ServeFileWithRange(ctx, cachePath, inline: true);
+                return;
+            }
+
+            string ffmpegPath = AppPaths.FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath) || !File.Exists(ffmpegPath))
+            {
+                Log("ServeAppleCompatibleMp4: 未找到 ffmpeg，直接传输原片");
+                ServeFileWithRange(ctx, filePath, inline: true);
+                return;
+            }
+
+            Directory.CreateDirectory(_transCacheDir);
+            string tmpPath = Path.Combine(_transCacheDir, $"{Guid.NewGuid():N}.tmp.mp4");
+            string args = $"-loglevel warning -y -i \"{filePath}\" -map 0:v:0 -map 0:a? -c copy -tag:v hvc1 -movflags +faststart -f mp4 \"{tmpPath}\"";
+
+            IDisposable ffmpegSlot = null;
+            try
+            {
+                ffmpegSlot = _ffmpegWorkLimiter.Enter(_cts.Token);
+                Log($"ServeAppleCompatibleMp4: 流拷贝 hev1→hvc1 {filePath}");
+                if (!TryRunFFmpeg(ffmpegPath, args, tmpPath))
+                {
+                    Log("ServeAppleCompatibleMp4: 流拷贝失败，直接传输原片");
+                    try { File.Delete(tmpPath); } catch { }
+                    ServeFileWithRange(ctx, filePath, inline: true);
+                    return;
+                }
+                try { File.Move(tmpPath, cachePath, overwrite: true); } catch { }
+                Task.Run(CleanWebCache);
+                ServeFileWithRange(ctx, File.Exists(cachePath) ? cachePath : tmpPath, inline: true);
+            }
+            catch (OperationCanceledException)
+            {
+                try { File.Delete(tmpPath); } catch { }
+                try { ctx.Response.Abort(); } catch { }
+            }
+            finally
+            {
+                ffmpegSlot?.Dispose();
+            }
+        }
+
         // ───── FFmpeg 转码：命中缓存直接 Range 传输，否则边转码边推流 + 同时写缓存 ─────
         private void ServeTranscodedStream(HttpListenerContext ctx, string filePath)
         {
@@ -3320,6 +3393,29 @@ namespace ExpressPackingMonitoring.Services
                 string hwArgs = $"-loglevel warning -hwaccel auto -i \"{filePath}\" {scaleFilter} -c:v h264_nvenc -preset p1 -cq 30 -c:a aac -b:a 96k -movflags frag_keyframe+empty_moov+default_base_moof -f mp4 pipe:1";
                 string swArgs = $"-loglevel warning -i \"{filePath}\" {scaleFilter} -c:v libx264 -preset ultrafast -tune zerolatency -crf 28 -c:a aac -b:a 96k -movflags frag_keyframe+empty_moov+default_base_moof -f mp4 pipe:1";
 
+                // iOS AVPlayer 依赖 Range/206：边转码边推流的 chunked 响应会被判定为
+                // serverIncorrectlyConfigured(-12939)。Apple 客户端先完整转码进缓存，
+                // 再按标准 Range 传输；浏览器继续保留边转码边推流的低延迟行为。
+                if (IsAppleCoreMediaRequest(ctx))
+                {
+                    bool transcoded = TranscodeToFile(ffmpegPath, hwArgs, tmpPath);
+                    if (!transcoded)
+                    {
+                        Log("ServeTranscodedStream: NVENC 预转码失败，回退 CPU");
+                        transcoded = TranscodeToFile(ffmpegPath, swArgs, tmpPath);
+                    }
+                    if (!transcoded)
+                    {
+                        try { File.Delete(tmpPath); } catch { }
+                        SendJson(ctx, 500, new { errorCode = "transcode_failed", error = "电脑端转码失败，请稍后重试" });
+                        return;
+                    }
+                    try { File.Move(tmpPath, cachePath, overwrite: true); } catch { }
+                    Task.Run(CleanWebCache);
+                    ServeFileWithRange(ctx, File.Exists(cachePath) ? cachePath : tmpPath, inline: true);
+                    return;
+                }
+
                 if (!StreamTranscodeToClient(ctx, ffmpegPath, hwArgs, tmpPath))
                 {
                     Log("ServeTranscodedStream: NVENC 流式转码失败，回退 CPU");
@@ -3345,6 +3441,13 @@ namespace ExpressPackingMonitoring.Services
                     _transcodeSlot.Release();
             }
         }
+
+        private static bool IsAppleCoreMediaRequest(HttpListenerContext ctx)
+            => IsAppleCoreMediaUserAgent(ctx.Request.UserAgent);
+
+        internal static bool IsAppleCoreMediaUserAgent(string? userAgent)
+            => userAgent != null
+               && userAgent.Contains("AppleCoreMedia", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// 启动 FFmpeg，将 stdout 同时推送给浏览器和写入缓存文件。
@@ -3414,6 +3517,64 @@ namespace ExpressPackingMonitoring.Services
             {
                 Log($"StreamTranscodeToClient 异常: {ex.Message}");
                 try { ctx.Response.Abort(); } catch { }
+                try { File.Delete(tmpPath); } catch { }
+                return false;
+            }
+            finally
+            {
+                cacheFs?.Dispose();
+                if (proc != null && !proc.HasExited) { try { proc.Kill(); } catch { } }
+                proc?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 启动 FFmpeg 并将 stdout 完整写入临时文件，不向客户端发送字节。
+        /// 返回 true 表示 FFmpeg 正常退出且已生成非空文件。
+        /// </summary>
+        private bool TranscodeToFile(string ffmpegPath, string args, string tmpPath)
+        {
+            Log($"TranscodeToFile: {args}");
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            Process proc = null;
+            FileStream cacheFs = null;
+            try
+            {
+                proc = Process.Start(psi);
+                if (proc == null) return false;
+
+                var stderrBuf = new StringBuilder();
+                proc.ErrorDataReceived += (_, e) => { if (e.Data != null) stderrBuf.AppendLine(e.Data); };
+                proc.BeginErrorReadLine();
+
+                cacheFs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                byte[] buffer = new byte[65536];
+                using var stdout = proc.StandardOutput.BaseStream;
+                int read;
+                while ((read = stdout.Read(buffer, 0, buffer.Length)) > 0)
+                    cacheFs.Write(buffer, 0, read);
+
+                cacheFs.Close();
+                cacheFs = null;
+                proc.WaitForExit(5000);
+                string stderr = stderrBuf.ToString();
+                Log($"TranscodeToFile: 退出码={proc.ExitCode}, stderr={stderr}");
+                return proc.ExitCode == 0
+                    && File.Exists(tmpPath)
+                    && new FileInfo(tmpPath).Length > 0;
+            }
+            catch (Exception ex)
+            {
+                Log($"TranscodeToFile 异常: {ex.Message}");
                 try { File.Delete(tmpPath); } catch { }
                 return false;
             }
