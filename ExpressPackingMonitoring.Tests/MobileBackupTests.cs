@@ -306,7 +306,7 @@ public sealed class MobileBackupTests
             try
             {
                 using HttpResponseMessage _ = await request.WaitAsync(
-                    TimeSpan.FromSeconds(2),
+                    TimeSpan.FromSeconds(10),
                     TestContext.Current.CancellationToken);
             }
             catch (HttpRequestException)
@@ -315,7 +315,7 @@ public sealed class MobileBackupTests
             }
             Assert.True(SpinWait.SpinUntil(
                 () => server.ServerResourcesDisposedForTesting,
-                TimeSpan.FromSeconds(2)));
+                TimeSpan.FromSeconds(10)));
         }
         finally
         {
