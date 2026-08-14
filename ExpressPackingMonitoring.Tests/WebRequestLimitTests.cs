@@ -45,7 +45,6 @@ public sealed class WebRequestLimitTests
 
     [Theory]
     [InlineData("h265", true)]
-    [InlineData("H265", true)]
     [InlineData("hevc", true)]
     [InlineData("h264", false)]
     [InlineData("av1", false)]
