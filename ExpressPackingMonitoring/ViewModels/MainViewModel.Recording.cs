@@ -2273,7 +2273,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
-                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs),
+                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs, Config.VideoCodec),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -2343,7 +2343,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             }
 
-            MkvConversionResult result = ConvertMkvToMp4ForPlayback(filePath);
+            MkvConversionResult result = ConvertMkvToMp4ForPlayback(
+                filePath,
+                videoCodec: record.VideoCodec);
             if (result.Success)
                 _db?.ClearMkvConversionFailure(filePath);
             else
@@ -2351,7 +2353,10 @@ namespace ExpressPackingMonitoring.ViewModels
             return result;
         }
 
-        private MkvConversionResult ConvertMkvToMp4ForPlayback(string mkvPath, CancellationToken cancellationToken = default)
+        private MkvConversionResult ConvertMkvToMp4ForPlayback(
+            string mkvPath,
+            CancellationToken cancellationToken = default,
+            string? videoCodec = null)
         {
             bool lockTaken = false;
             try
@@ -2416,7 +2421,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
-                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs),
+                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs, videoCodec),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -2519,10 +2524,21 @@ namespace ExpressPackingMonitoring.ViewModels
                 || (!string.IsNullOrWhiteSpace(audioLogPath) && File.Exists(audioLogPath));
         }
 
-        internal static string BuildMkvToMp4Args(string mkvPath, string? audioPath, string mp4Path, int audioSyncOffsetMs)
+        internal static string BuildMkvToMp4Args(
+            string mkvPath,
+            string? audioPath,
+            string mp4Path,
+            int audioSyncOffsetMs,
+            string? videoCodec = null)
         {
+            // 苹果解码器只认 hvc1 标签，NVENC 默认写出的 hev1 在 iOS 上无法解码；
+            // 仅在确认为 HEVC 时为视频轨写 hvc1，其他编码保持 movenc 默认标签。
+            string hevcTag = videoCodec is "h265" or "hevc"
+                ? " -tag:v hvc1"
+                : "";
+
             if (string.IsNullOrEmpty(audioPath) || !File.Exists(audioPath))
-                return $"-y -i \"{mkvPath}\" -map 0:v:0 -map 0:a? -c copy \"{mp4Path}\"";
+                return $"-y -i \"{mkvPath}\" -map 0:v:0 -map 0:a? -c copy{hevcTag} \"{mp4Path}\"";
 
             int offsetMs = Math.Clamp(audioSyncOffsetMs, -5000, 5000);
             string audioMap = "[a]";
@@ -2542,7 +2558,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 filter = " -filter_complex \"[1:a]apad[a]\"";
             }
 
-            return $"-y -i \"{mkvPath}\" -i \"{audioPath}\"{filter} -map 0:v:0 -map \"{audioMap}\" -c:v copy -c:a aac -b:a 128k -shortest \"{mp4Path}\"";
+            return $"-y -i \"{mkvPath}\" -i \"{audioPath}\"{filter} -map 0:v:0 -map \"{audioMap}\" -c:v copy{hevcTag} -c:a aac -b:a 128k -shortest \"{mp4Path}\"";
         }
 
         private bool ValidateConvertedMp4(
