@@ -103,6 +103,13 @@ Before declaring a release ready, perform an explicit release-readiness audit in
 - Keep concrete minimum versions and protocol numbers in the centralized compatibility policy code, not in this document. Update desktop and mobile regression tests together whenever that policy or the wire contract changes.
 - Release a compatible client package before publishing a host version that raises the client minimum. Verify both upgrade directions and a newer-but-compatible peer before release.
 
+## 分支整合与同步
+
+- 分支整合优先使用 rebase，保持主线直线历史；不把多个提交压缩成一个，原来有几个就保留几个。
+- 不主动生成 merge 提交；merge 仅用于：分支已推送且多人共用、需要保留整个功能分支的整合入口、发布分支或长期分支之间互相同步，或平台/保护分支强制要求时。
+- 已推送给他人使用的分支不随意 rebase 改写历史；如需线性化，先确认无人基于该分支工作。
+- Mac 与 Windows 双机同步：本机提交后，通过 bundle、patch 或远端推送让另一台 rebase 同步，禁止在本地生成 merge 提交。
+
 ## Commit & Pull Request Guidelines
 
 Recent history uses conventional prefixes with Chinese subjects, for example `fix: 优化 Web 搜索和转码确认` and `docs: 优化 README 表述`. Keep commits scoped and include a short body explaining what changed and why. Do not include secrets, local paths, account IDs, signing files, or machine-specific details.
