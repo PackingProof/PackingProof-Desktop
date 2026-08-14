@@ -3447,8 +3447,8 @@ namespace ExpressPackingMonitoring.Services
 
         /// <summary>
         /// 识别 Apple 媒体播放客户端：iOS/AVFoundation 的媒体请求带 AppleCoreMedia UA；
-        /// macOS Safari 的 video 媒体请求使用普通 Safari UA，不含 AppleCoreMedia，
-        /// 因此额外识别“Macintosh + Safari/ 且非 Chrome/Edge/Opera”，
+        /// Apple 各端 Safari 的 video 媒体请求使用普通 Safari UA，不含 AppleCoreMedia，
+        /// 因此额外识别“Safari/ 且非 Chrome/Edge/Opera，且设备为 Macintosh/iPhone/iPad/iPod”，
         /// 让 Safari 同样进入 hev1→hvc1 拷贝与 Range 转码分支。
         /// </summary>
         internal static bool IsApplePlaybackClientUserAgent(string userAgent)
@@ -3459,11 +3459,16 @@ namespace ExpressPackingMonitoring.Services
             if (userAgent.Contains("AppleCoreMedia", StringComparison.OrdinalIgnoreCase))
                 return true;
 
-            return userAgent.Contains("Safari/", StringComparison.OrdinalIgnoreCase)
-                && userAgent.Contains("Macintosh", StringComparison.OrdinalIgnoreCase)
-                && !userAgent.Contains("Chrome/", StringComparison.OrdinalIgnoreCase)
-                && !userAgent.Contains("Edg/", StringComparison.OrdinalIgnoreCase)
-                && !userAgent.Contains("OPR/", StringComparison.OrdinalIgnoreCase);
+            if (!userAgent.Contains("Safari/", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("Chrome/", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("Edg/", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("OPR/", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return userAgent.Contains("Macintosh", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("iPhone", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("iPad", StringComparison.OrdinalIgnoreCase)
+                || userAgent.Contains("iPod", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
