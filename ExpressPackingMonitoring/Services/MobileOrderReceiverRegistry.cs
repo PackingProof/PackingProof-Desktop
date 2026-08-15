@@ -142,6 +142,7 @@ internal sealed class MobileOrderReceiverRegistry
     {
         string value = name?.Trim() ?? "";
         return value.Length == 0
+            || value.Equals("本机", StringComparison.Ordinal)
             || value.Equals("设备", StringComparison.Ordinal)
             || value.StartsWith("设备 ", StringComparison.Ordinal)
             || value.StartsWith("手机录像设备 ", StringComparison.Ordinal)
