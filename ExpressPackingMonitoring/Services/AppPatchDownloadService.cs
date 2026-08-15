@@ -243,7 +243,7 @@ internal sealed class AppPatchDownloadService
         string downloadDirectory = Path.Combine(_updatesDirectory, $"download-{operationId}");
         string stagingDirectory = Path.Combine(_updatesDirectory, $"staging-{operationId}");
         string backupDirectory = Path.Combine(_updatesDirectory, $"replaced-{operationId}");
-        string patchFileName = $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip";
+        string patchFileName = $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip";
         string downloadPath = Path.Combine(downloadDirectory, patchFileName);
         try
         {
@@ -544,7 +544,7 @@ internal sealed class AppPatchDownloadService
                 return false;
             string packagePath = Path.Combine(
                 pendingDirectory,
-                $"ExpressPackingMonitoring_AppPatch_v{descriptor.LatestVersion}.zip");
+                $"PackingProof_AppPatch_v{descriptor.LatestVersion}.zip");
             if (!File.Exists(packagePath))
                 return false;
             ValidatePackage(packagePath, descriptor.PatchPackage);

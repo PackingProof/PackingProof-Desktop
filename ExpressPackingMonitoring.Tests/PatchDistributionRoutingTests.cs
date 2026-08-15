@@ -6,7 +6,7 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class PatchDistributionRoutingTests
 {
     [Fact]
-    public void Launcher_DownloadsAndInstallsOnlyAutomaticAppPatchName()
+    public void Launcher_KeepsLegacyAppPatchNameCompatibility()
     {
         string repositoryRoot = FindRepositoryRoot();
         string launcher = File.ReadAllText(
@@ -62,11 +62,8 @@ public sealed class PatchDistributionRoutingTests
         Assert.Contains(
             "$appPatchZipName = \"PackingProof_AppPatch_$releaseTag.zip\"",
             publisher);
-        Assert.Contains(
-            "$legacyAppPatchZipName = \"ExpressPackingMonitoring_AppPatch_$releaseTag.zip\"",
-            publisher);
-        Assert.Contains(
-            "Copy-Item -LiteralPath $appPatchZipPath -Destination $legacyAppPatchZipPath",
+        Assert.DoesNotContain(
+            "ExpressPackingMonitoring_AppPatch_",
             publisher);
         Assert.Contains(
             "$launcherPackageName = [string]$launcherBaseline.package.file",

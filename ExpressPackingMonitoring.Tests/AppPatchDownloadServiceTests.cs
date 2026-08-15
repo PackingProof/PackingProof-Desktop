@@ -22,7 +22,7 @@ public sealed class AppPatchDownloadServiceTests
             package,
             File.ReadAllBytes(Path.Combine(
                 fixture.PendingDirectory,
-                "ExpressPackingMonitoring_AppPatch_v1.2.3.zip")));
+                "PackingProof_AppPatch_v1.2.3.zip")));
         Assert.True(File.Exists(Path.Combine(fixture.PendingDirectory, "update_manifest.json")));
     }
 
@@ -57,7 +57,7 @@ public sealed class AppPatchDownloadServiceTests
             baselinePackage,
             File.ReadAllBytes(Path.Combine(
                 fixture.PendingDirectory,
-                "ExpressPackingMonitoring_AppPatch_v9.0.0.zip")));
+                "PackingProof_AppPatch_v9.0.0.zip")));
         Assert.Contains(fixture.BaselineTagUrl("9.0.0"), fixture.Requests);
     }
 
@@ -91,7 +91,7 @@ public sealed class AppPatchDownloadServiceTests
             firstHopPackage,
             File.ReadAllBytes(Path.Combine(
                 fixture.PendingDirectory,
-                "ExpressPackingMonitoring_AppPatch_v8.0.0.zip")));
+                "PackingProof_AppPatch_v8.0.0.zip")));
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public sealed class AppPatchDownloadServiceTests
             firstPackage,
             File.ReadAllBytes(Path.Combine(
                 fixture.PendingDirectory,
-                "ExpressPackingMonitoring_AppPatch_v1.2.3.zip")));
+                "PackingProof_AppPatch_v1.2.3.zip")));
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class AppPatchDownloadServiceTests
             package,
             File.ReadAllBytes(Path.Combine(
                 fixture.PendingDirectory,
-                "ExpressPackingMonitoring_AppPatch_v1.2.3.zip")));
+                "PackingProof_AppPatch_v1.2.3.zip")));
     }
 
     [Fact]
