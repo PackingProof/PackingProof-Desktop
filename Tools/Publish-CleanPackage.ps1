@@ -1370,9 +1370,6 @@ if ($patchSupported) {
     $updateManifest["patch_package"] = $patchPackageInfo
     $updateManifest["notes"] = @(
         "# 快递打包监控 v$normalizedVersion`n`n## 更新内容`n### 功能与体验`n- 请填写`n`n### 问题修复`n- 请填写`n`n### 兼容与工程`n- 请填写`n`n## 下载与更新说明`n- Setup：$setupFileName（未签名时注明 SmartScreen 提示）`n- 完整包 7z / ZIP：免安装，用于系统原生解压和故障恢复`n- 已安装用户：启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本`n`n## 未验证事项`n- 请填写"
-        "启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本"
-        "主程序会按锁定基线检查启动器；仅启动器真实变化时下载独立 LauncherPatch"
-        "首次安装建议从完整下载页获取《$setupFileName》；完整 7z 是小体积免安装包，ZIP 用于系统原生解压和故障恢复"
     )
 }
 else {
