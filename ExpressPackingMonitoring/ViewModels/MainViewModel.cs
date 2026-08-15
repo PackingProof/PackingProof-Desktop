@@ -3335,17 +3335,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             }
 
-            try
+            if (!ClipboardHelper.TrySetDataObject(url, out Exception error))
             {
-                Clipboard.SetDataObject(url, true);
-                ShowToast(MobileConnectionService.ContainsAccessKey(url)
-                    ? "连接网址已复制，包含访问密钥，请勿发送给无关人员"
-                    : "连接网址已复制");
+                ShowToast($"复制网址失败: {error.Message}", ToastSeverity.Error);
+                return;
             }
-            catch (Exception ex)
-            {
-                ShowToast($"复制网址失败: {ex.Message}", ToastSeverity.Error);
-            }
+
+            ShowToast(MobileConnectionService.ContainsAccessKey(url)
+                ? "连接网址已复制，包含访问密钥，请勿发送给无关人员"
+                : "连接网址已复制");
         }
 
         private void ShowMobileConnectionWindow(System.Windows.Window owner, string url)
