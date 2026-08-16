@@ -785,39 +785,77 @@ public static class WorkstationNetwork
             lastKnownAddress: null,
             port,
             progress,
-            token);
+            hostProgress: null,
+            token: token);
         return hosts.Count == 0 ? null : NormalizeAddress(hosts[0].Address);
+    }
+
+    internal sealed class HostReporter
+    {
+        private readonly object _lock = new();
+        private readonly HashSet<string> _seenNodeIds = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _seenAddresses = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<PackingProofNodeInfo> _hosts = new();
+        private readonly IProgress<PackingProofNodeInfo>? _progress;
+
+        public HostReporter(IProgress<PackingProofNodeInfo>? progress) => _progress = progress;
+
+        public void Report(PackingProofNodeInfo? node)
+        {
+            if (node?.IsValidHost != true)
+                return;
+
+            string address = NormalizeAddress(node.Address);
+            lock (_lock)
+            {
+                if (!_seenNodeIds.Add(node.NodeId))
+                    return;
+                if (!_seenAddresses.Add(address))
+                    return;
+                _hosts.Add(node);
+            }
+            _progress?.Report(node);
+        }
+
+        public IReadOnlyList<PackingProofNodeInfo> ToList()
+        {
+            lock (_lock)
+            {
+                return _hosts.ToList();
+            }
+        }
     }
 
     public static async Task<IReadOnlyList<PackingProofNodeInfo>> FindHostsAsync(
         string? lastKnownAddress,
         int port,
         IProgress<string>? progress = null,
+        IProgress<PackingProofNodeInfo>? hostProgress = null,
         CancellationToken token = default)
     {
         IEnumerable<string> candidates = GetLocalIpv4ScanAddresses()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .SelectMany(address => GetDiscoveryPorts(port).Select(discoveryPort => $"{address}:{discoveryPort}"));
 
-        Task<IReadOnlyList<PackingProofNodeInfo>> udpTask = DiscoverUdpHostsAsync(progress, token);
-        Task<IReadOnlyList<PackingProofNodeInfo>> httpTask = DiscoverHostsAsync(
+        var reporter = new HostReporter(hostProgress);
+        Task udpTask = DiscoverUdpHostsAsync(reporter, progress, token);
+        Task httpTask = DiscoverHostsAsync(
             lastKnownAddress,
             candidates,
             GetNodeInfoAsync,
+            reporter,
             progress,
             token);
 
         await Task.WhenAll(udpTask, httpTask).ConfigureAwait(false);
-        return MergeDiscoveredHosts(await udpTask.ConfigureAwait(false), await httpTask.ConfigureAwait(false));
+        return reporter.ToList();
     }
 
-    private static async Task<IReadOnlyList<PackingProofNodeInfo>> DiscoverUdpHostsAsync(
+    private static async Task DiscoverUdpHostsAsync(
+        HostReporter reporter,
         IProgress<string>? progress,
         CancellationToken token)
     {
-        var hosts = new List<PackingProofNodeInfo>();
-        var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         progress?.Report("正在通过局域网广播查找主机");
         try
         {
@@ -829,8 +867,7 @@ public static class WorkstationNetwork
                 PackingProofNodeInfo? node = await GetNodeInfoAsync(
                     $"{announce.SourceIp}:{announce.HttpPort}",
                     token).ConfigureAwait(false);
-                if (node?.IsValidHost == true && seenNodeIds.Add(node.NodeId))
-                    hosts.Add(node);
+                reporter.Report(node);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -841,35 +878,23 @@ public static class WorkstationNetwork
         {
             // UDP 探测失败不影响 HTTP 兜底。
         }
-
-        return hosts;
     }
 
-    private static IReadOnlyList<PackingProofNodeInfo> MergeDiscoveredHosts(
-        IReadOnlyList<PackingProofNodeInfo> first,
-        IReadOnlyList<PackingProofNodeInfo> second)
+    internal static Task<IReadOnlyList<PackingProofNodeInfo>> DiscoverHostsAsync(
+        string? lastKnownAddress,
+        IEnumerable<string> candidates,
+        Func<string, CancellationToken, Task<PackingProofNodeInfo?>> probe,
+        IProgress<string>? progress = null,
+        CancellationToken token = default)
     {
-        var merged = new List<PackingProofNodeInfo>(first.Count + second.Count);
-        var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (PackingProofNodeInfo node in first.Concat(second))
-        {
-            string address = NormalizeAddress(node.Address);
-            if (!seenNodeIds.Add(node.NodeId))
-                continue;
-            if (!seenAddresses.Add(address))
-                continue;
-            merged.Add(node);
-        }
-
-        return merged;
+        return DiscoverHostsAsync(lastKnownAddress, candidates, probe, null, progress, token);
     }
 
     internal static async Task<IReadOnlyList<PackingProofNodeInfo>> DiscoverHostsAsync(
         string? lastKnownAddress,
         IEnumerable<string> candidates,
         Func<string, CancellationToken, Task<PackingProofNodeInfo?>> probe,
+        HostReporter? reporter,
         IProgress<string>? progress = null,
         CancellationToken token = default)
     {
@@ -896,6 +921,7 @@ public static class WorkstationNetwork
             PackingProofNodeInfo? node = await probe(normalized, token);
             if (node?.IsValidHost == true)
             {
+                reporter?.Report(node);
                 lock (discoveryLock)
                 {
                     if (seenNodeIds.Add(node.NodeId))

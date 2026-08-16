@@ -234,10 +234,20 @@ public partial class ViewerClientWindow : Window
         await Dispatcher.Yield(DispatcherPriority.Render);
         try
         {
+            var incrementalHosts = new List<PackingProofNodeInfo>();
+            var hostProgress = new Progress<PackingProofNodeInfo>(host =>
+            {
+                if (!ReferenceEquals(searchCancellation, _searchCancellation))
+                    return;
+                incrementalHosts.Add(host);
+                HostsList.ItemsSource = FilterDiscoveredHosts(incrementalHosts, _bindingOnly);
+            });
+
             IReadOnlyList<PackingProofNodeInfo> hosts = await WorkstationNetwork.FindHostsAsync(
                 _config.LastKnownHostAddress,
                 _config.WebServerPort,
                 progress: null,
+                hostProgress: hostProgress,
                 token: searchCancellation.Token);
             if (!ReferenceEquals(searchCancellation, _searchCancellation))
                 return;
