@@ -350,7 +350,10 @@ public static class WorkstationNetwork
             if (node?.IsValidHost != true)
                 return null;
 
-            node.Address = ToUrl(address);
+            // 地址以「实际请求连接的 IP + node-info 返回的权威 httpPort」为准，
+            // 不信任请求时用的候选端口，避免端口不一致/多网卡时把身份和地址混在一起。
+            string host = NormalizeAddress(address).Split(':')[0];
+            node.Address = ToUrl($"{host}:{node.HttpPort}");
             return node;
         }
         catch (Exception ex) when (ex is HttpRequestException
@@ -786,7 +789,7 @@ public static class WorkstationNetwork
         return hosts.Count == 0 ? null : NormalizeAddress(hosts[0].Address);
     }
 
-    public static Task<IReadOnlyList<PackingProofNodeInfo>> FindHostsAsync(
+    public static async Task<IReadOnlyList<PackingProofNodeInfo>> FindHostsAsync(
         string? lastKnownAddress,
         int port,
         IProgress<string>? progress = null,
@@ -795,7 +798,72 @@ public static class WorkstationNetwork
         IEnumerable<string> candidates = GetLocalIpv4ScanAddresses()
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .SelectMany(address => GetDiscoveryPorts(port).Select(discoveryPort => $"{address}:{discoveryPort}"));
-        return DiscoverHostsAsync(lastKnownAddress, candidates, GetNodeInfoAsync, progress, token);
+
+        Task<IReadOnlyList<PackingProofNodeInfo>> udpTask = DiscoverUdpHostsAsync(progress, token);
+        Task<IReadOnlyList<PackingProofNodeInfo>> httpTask = DiscoverHostsAsync(
+            lastKnownAddress,
+            candidates,
+            GetNodeInfoAsync,
+            progress,
+            token);
+
+        await Task.WhenAll(udpTask, httpTask).ConfigureAwait(false);
+        return MergeDiscoveredHosts(await udpTask.ConfigureAwait(false), await httpTask.ConfigureAwait(false));
+    }
+
+    private static async Task<IReadOnlyList<PackingProofNodeInfo>> DiscoverUdpHostsAsync(
+        IProgress<string>? progress,
+        CancellationToken token)
+    {
+        var hosts = new List<PackingProofNodeInfo>();
+        var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        progress?.Report("正在通过局域网广播查找主机");
+        try
+        {
+            await foreach (UdpDiscoveryClient.Announce announce in UdpDiscoveryClient
+                .DiscoverAsync(token)
+                .ConfigureAwait(false))
+            {
+                token.ThrowIfCancellationRequested();
+                PackingProofNodeInfo? node = await GetNodeInfoAsync(
+                    $"{announce.SourceIp}:{announce.HttpPort}",
+                    token).ConfigureAwait(false);
+                if (node?.IsValidHost == true && seenNodeIds.Add(node.NodeId))
+                    hosts.Add(node);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            // UDP 探测失败不影响 HTTP 兜底。
+        }
+
+        return hosts;
+    }
+
+    private static IReadOnlyList<PackingProofNodeInfo> MergeDiscoveredHosts(
+        IReadOnlyList<PackingProofNodeInfo> first,
+        IReadOnlyList<PackingProofNodeInfo> second)
+    {
+        var merged = new List<PackingProofNodeInfo>(first.Count + second.Count);
+        var seenNodeIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (PackingProofNodeInfo node in first.Concat(second))
+        {
+            string address = NormalizeAddress(node.Address);
+            if (!seenNodeIds.Add(node.NodeId))
+                continue;
+            if (!seenAddresses.Add(address))
+                continue;
+            merged.Add(node);
+        }
+
+        return merged;
     }
 
     internal static async Task<IReadOnlyList<PackingProofNodeInfo>> DiscoverHostsAsync(

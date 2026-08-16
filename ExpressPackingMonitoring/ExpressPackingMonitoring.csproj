@@ -180,6 +180,7 @@
     <Compile Include="Services\PlaybackFileResolver.cs" />
     <Compile Include="Services\VideoFolderImportService.cs" />
     <Compile Include="Services\WebServer.cs" />
+    <Compile Include="Services\UdpDiscovery.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />
     <Compile Include="Services\FeedbackPackageService.cs" />
     <Compile Include="Themes\ThemeManager.cs" />

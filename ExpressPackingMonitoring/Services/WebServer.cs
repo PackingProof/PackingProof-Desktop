@@ -160,6 +160,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly FfmpegWorkLimiter _ffmpegWorkLimiter = new();
         private readonly ShortLivedSnapshotCache<byte[]> _storageOverviewCache = new(TimeSpan.FromSeconds(10));
         private Task _listenTask;
+        private UdpDiscoveryResponder _udpDiscoveryResponder;
         private int _activeRequests;
         private int _serverResourcesDisposed;
         private bool _disposed;
@@ -400,6 +401,21 @@ namespace ExpressPackingMonitoring.Services
                 TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds),
                 TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds));
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
+            StartUdpDiscoveryResponder();
+        }
+
+        private void StartUdpDiscoveryResponder()
+        {
+            bool isHost = PackingProofCapabilities.ForPreset(_deploymentPreset)
+                .Contains(PackingProofCapabilities.Host, StringComparer.OrdinalIgnoreCase);
+            if (!isHost)
+                return;
+
+            _udpDiscoveryResponder = new UdpDiscoveryResponder(
+                _nodeId,
+                () => Port,
+                () => true);
+            _udpDiscoveryResponder.Start();
         }
 
         internal static bool IsListenerConflict(Exception exception)
@@ -452,6 +468,7 @@ namespace ExpressPackingMonitoring.Services
         }
 
         internal const string FirewallRuleName = "快递打包监控 Web服务";
+        internal const string UdpFirewallRuleName = "快递打包监控 设备发现";
 
         internal static string BuildAccessSetupCommand(int port, string userSid, bool includeUrlAcl = true)
         {
@@ -475,8 +492,11 @@ namespace ExpressPackingMonitoring.Services
             if (port <= 0 || port > 65535)
                 throw new ArgumentOutOfRangeException(nameof(port));
 
-            return $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & "
+            string tcpRule = $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & "
                 + $"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port}";
+            string udpRule = $"netsh advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" >nul 2>&1 & "
+                + $"netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port}";
+            return $"({tcpRule}) && ({udpRule})";
         }
 
         internal static bool HasExpectedFirewallRule(int port)
@@ -493,19 +513,37 @@ namespace ExpressPackingMonitoring.Services
 
                 policyObject = Activator.CreateInstance(policyType);
                 dynamic policy = policyObject;
+                bool tcpFound = false;
+                bool udpFound = false;
                 foreach (dynamic rule in policy.Rules)
                 {
                     try
                     {
-                        if (string.Equals((string)rule.Name, FirewallRuleName, StringComparison.Ordinal)
-                            && (bool)rule.Enabled
-                            && (int)rule.Direction == 1
-                            && (int)rule.Action == 1
-                            && (int)rule.Protocol == 6
-                            && (((int)rule.Profiles & 7) == 7 || (int)rule.Profiles == int.MaxValue)
+                        string ruleName = (string)rule.Name;
+                        bool enabled = (bool)rule.Enabled;
+                        bool inbound = (int)rule.Direction == 1;
+                        bool allow = (int)rule.Action == 1;
+                        int protocol = (int)rule.Protocol;
+                        bool allProfiles = ((int)rule.Profiles & 7) == 7 || (int)rule.Profiles == int.MaxValue;
+                        if (string.Equals(ruleName, FirewallRuleName, StringComparison.Ordinal)
+                            && enabled
+                            && inbound
+                            && allow
+                            && protocol == 6
+                            && allProfiles
                             && FirewallPortsContain((string)rule.LocalPorts, port))
                         {
-                            return true;
+                            tcpFound = true;
+                        }
+                        else if (string.Equals(ruleName, UdpFirewallRuleName, StringComparison.Ordinal)
+                            && enabled
+                            && inbound
+                            && allow
+                            && protocol == 17
+                            && allProfiles
+                            && FirewallPortsContain((string)rule.LocalPorts, UdpDiscoveryProtocol.Port))
+                        {
+                            udpFound = true;
                         }
                     }
                     catch
@@ -522,7 +560,7 @@ namespace ExpressPackingMonitoring.Services
                         catch { }
                     }
                 }
-                return false;
+                return tcpFound && udpFound;
             }
             catch (Exception ex)
             {
@@ -4266,6 +4304,7 @@ namespace ExpressPackingMonitoring.Services
             if (_disposed) return;
             _disposed = true;
             _cts.Cancel();
+            try { _udpDiscoveryResponder?.Dispose(); } catch { }
             try { _mobileAppUpdateRefreshTimer?.Dispose(); } catch { }
             foreach (var pending in _pendingOrderLookups.Values)
                 pending.Completion.TrySetResult(new OrderLookupResult { Responded = false });
