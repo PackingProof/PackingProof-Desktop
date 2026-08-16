@@ -255,23 +255,25 @@ internal static class UdpDiscoveryClient
         timeoutCts.CancelAfter(CollectTimeout);
         while (true)
         {
+            UdpReceiveResult result;
             try
             {
-                UdpReceiveResult result = await udp.ReceiveAsync(timeoutCts.Token).ConfigureAwait(false);
-                if (!UdpDiscoveryProtocol.TryParseAnnounce(
-                        result.Buffer,
-                        out string nodeId,
-                        out int httpPort))
-                {
-                    continue;
-                }
-
-                string sourceIp = result.RemoteEndPoint.Address.ToString();
-                yield return new Announce(nodeId, httpPort, sourceIp);
+                result = await udp.ReceiveAsync(timeoutCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) { yield break; }
             catch (ObjectDisposedException) { yield break; }
             catch (SocketException) { yield break; }
+
+            if (!UdpDiscoveryProtocol.TryParseAnnounce(
+                    result.Buffer,
+                    out string nodeId,
+                    out int httpPort))
+            {
+                continue;
+            }
+
+            string sourceIp = result.RemoteEndPoint.Address.ToString();
+            yield return new Announce(nodeId, httpPort, sourceIp);
         }
     }
 }
