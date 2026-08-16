@@ -7,7 +7,9 @@ namespace ExpressPackingMonitoring.UI;
 
 public partial class BackupDeviceEnrollmentApprovalWindow : Window
 {
-    private readonly DispatcherTimer _expiryTimer;
+    private static readonly TimeSpan ApprovalCountdownDuration = TimeSpan.FromSeconds(60);
+    private readonly DispatcherTimer _countdownTimer;
+    private readonly DateTime _countdownDeadlineUtc;
     private bool _completed;
 
     internal BackupDeviceEnrollmentApprovalWindow(BackupDeviceEnrollmentRequest request)
@@ -31,12 +33,26 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
             : $"{request.Platform} · {request.RemoteAddress}";
         MessageText.Text = $"{name}（{location}）申请连接这台保存主机。{permission}";
 
-        _expiryTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
-        _expiryTimer.Tick += ExpiryTimer_Tick;
-        _expiryTimer.Start();
+        _countdownDeadlineUtc = DateTime.UtcNow.Add(ApprovalCountdownDuration);
+        _countdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _countdownTimer.Tick += CountdownTimer_Tick;
+        _countdownTimer.Start();
+        UpdateCountdownText();
     }
 
     internal event Action<BackupDeviceEnrollmentApprovalDecision>? Completed;
+
+    internal static bool TryGetRemainingDisplaySeconds(TimeSpan remaining, out int displaySeconds)
+    {
+        if (remaining <= TimeSpan.Zero)
+        {
+            displaySeconds = 0;
+            return false;
+        }
+
+        displaySeconds = (int)Math.Ceiling(remaining.TotalSeconds);
+        return true;
+    }
 
     private void Approve_Click(object sender, RoutedEventArgs e) =>
         Complete(BackupDeviceEnrollmentApprovalDecision.Approved);
@@ -44,8 +60,20 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
     private void Deny_Click(object sender, RoutedEventArgs e) =>
         Complete(BackupDeviceEnrollmentApprovalDecision.Denied);
 
-    private void ExpiryTimer_Tick(object? sender, EventArgs e) =>
-        Complete(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+    private void CountdownTimer_Tick(object? sender, EventArgs e) =>
+        UpdateCountdownText();
+
+    private void UpdateCountdownText()
+    {
+        TimeSpan remaining = _countdownDeadlineUtc - DateTime.UtcNow;
+        if (!TryGetRemainingDisplaySeconds(remaining, out int displaySeconds))
+        {
+            Complete(BackupDeviceEnrollmentApprovalDecision.Unavailable);
+            return;
+        }
+
+        CountdownText.Text = $"{displaySeconds} 秒内未处理，本次申请将自动取消";
+    }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
@@ -55,7 +83,7 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
 
     private void Window_Closed(object? sender, EventArgs e)
     {
-        _expiryTimer.Stop();
+        _countdownTimer.Stop();
         if (!_completed)
             Complete(BackupDeviceEnrollmentApprovalDecision.Denied, closeWindow: false);
     }
@@ -68,7 +96,7 @@ public partial class BackupDeviceEnrollmentApprovalWindow : Window
             return;
 
         _completed = true;
-        _expiryTimer.Stop();
+        _countdownTimer.Stop();
         Completed?.Invoke(decision);
         if (closeWindow)
             Close();

@@ -237,6 +237,10 @@ public sealed class AppDialogTests
             "ExpressPackingMonitoring",
             "UI",
             "BackupDeviceEnrollmentApprovalWindow.xaml");
+        string windowCode = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "BackupDeviceEnrollmentApprovalWindow.xaml.cs");
 
         Assert.Contains("application.Dispatcher.InvokeAsync", prompt, StringComparison.Ordinal);
         Assert.Contains("completion.TrySetResult(BackupDeviceEnrollmentApprovalDecision.Unavailable)", prompt, StringComparison.Ordinal);
@@ -246,6 +250,9 @@ public sealed class AppDialogTests
         Assert.Contains("prompt.Show();", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("ShowDialog", prompt, StringComparison.Ordinal);
         Assert.Contains("60 秒内未处理", window, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CountdownText\"", window, StringComparison.Ordinal);
+        Assert.Contains("CountdownText.Text", windowCode, StringComparison.Ordinal);
+        Assert.Contains("TryGetRemainingDisplaySeconds", windowCode, StringComparison.Ordinal);
         Assert.Contains(
             "BackupDeviceEnrollmentApprovalPrompt.Show(null, request)",
             mainViewModel,
@@ -254,6 +261,24 @@ public sealed class AppDialogTests
             "BackupDeviceEnrollmentApprovalPrompt.Show(Application.Current?.MainWindow, request)",
             mainViewModel,
             StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(60d, true, 60)]
+    [InlineData(59d, true, 59)]
+    [InlineData(0d, false, 0)]
+    [InlineData(-1d, false, 0)]
+    public void BackupEnrollmentCountdown_ComputesRemainingDisplaySeconds(
+        double remainingSeconds,
+        bool expectedActive,
+        int expectedDisplaySeconds)
+    {
+        bool active = BackupDeviceEnrollmentApprovalWindow.TryGetRemainingDisplaySeconds(
+            TimeSpan.FromSeconds(remainingSeconds),
+            out int displaySeconds);
+
+        Assert.Equal(expectedActive, active);
+        Assert.Equal(expectedDisplaySeconds, displaySeconds);
     }
 
     private static string ReadRepositoryFile(params string[] parts)

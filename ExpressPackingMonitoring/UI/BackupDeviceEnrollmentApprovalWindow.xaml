@@ -61,7 +61,8 @@
                        LineHeight="22"
                        Foreground="{DynamicResource TextPrimary}"/>
 
-            <TextBlock Grid.Row="2"
+            <TextBlock x:Name="CountdownText"
+                       Grid.Row="2"
                        Margin="0,10,0,0"
                        Text="60 秒内未处理，本次申请将自动取消"
                        FontSize="12"
