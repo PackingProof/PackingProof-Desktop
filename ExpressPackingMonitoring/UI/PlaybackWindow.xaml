@@ -405,6 +405,7 @@
                         </Button>
 
                         <Slider x:Name="TimelineSlider" Grid.Column="1" MinWidth="120" VerticalAlignment="Center" Minimum="0"
+                                IsMoveToPointEnabled="True"
                                 Thumb.DragStarted="TimelineSlider_DragStarted" 
                                 Thumb.DragCompleted="TimelineSlider_DragCompleted" 
                                 ValueChanged="TimelineSlider_ValueChanged"/>

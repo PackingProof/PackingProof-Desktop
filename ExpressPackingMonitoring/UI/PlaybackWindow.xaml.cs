@@ -91,6 +91,7 @@ namespace ExpressPackingMonitoring.UI
         private LibVLCSharp.Shared.MediaPlayer? _mediaPlayer;
         private List<VideoItem> _allVideos = new();
         private bool _isDragging;
+        private bool _suppressTimelineValueChanged;
         private bool _isPlaying;
         private bool _isLoadingVideos;
         private bool _isClosing;
@@ -744,8 +745,8 @@ namespace ExpressPackingMonitoring.UI
                 ShowPlaybackCover("正在准备视频...");
                 _timer.Stop();
                 _currentMediaLengthMs = 0;
-                TimelineSlider.Maximum = 0;
-                TimelineSlider.Value = 0;
+                SetTimelineMaximum(0);
+                SetTimelineValue(0);
                 TimeLabel.Text = "正在切换视频...";
 
                 // 2. 在后台线程执行阻塞的 Stop 操作
@@ -839,7 +840,7 @@ namespace ExpressPackingMonitoring.UI
         private void MediaPlayer_LengthChanged(object? sender, MediaPlayerLengthChangedEventArgs e)
         {
             _currentMediaLengthMs = e.Length;
-            Dispatcher.Invoke(() => TimelineSlider.Maximum = Math.Max(0, e.Length / 1000.0));
+            Dispatcher.Invoke(() => SetTimelineMaximum(e.Length / 1000.0));
         }
 
         private void MediaPlayer_TimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
@@ -851,8 +852,8 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (!this.IsLoaded) return;
                 RevealPlaybackSurfaceAfterFirstFrame();
-                TimelineSlider.Value = Math.Max(0, e.Time / 1000.0);
-                TimeLabel.Text = $"{TimeSpan.FromMilliseconds(e.Time):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(_currentMediaLengthMs):hh\\:mm\\:ss}";
+                SetTimelineValue(e.Time / 1000.0);
+                UpdateTimeLabel(e.Time, _currentMediaLengthMs);
             });
         }
 
@@ -862,7 +863,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 _timer.Stop();
                 UpdatePlayState(false);
-                TimelineSlider.Value = 0;
+                SetTimelineValue(0);
             });
         }
 
@@ -898,7 +899,7 @@ namespace ExpressPackingMonitoring.UI
             if (_isDragging || _mediaPlayer?.Media == null)
                 return;
 
-            TimeLabel.Text = $"{TimeSpan.FromMilliseconds(_mediaPlayer.Time):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(_currentMediaLengthMs):hh\\:mm\\:ss}";
+            UpdateTimeLabel(_mediaPlayer.Time, _currentMediaLengthMs);
         }
 
         private void TimelineSlider_DragStarted(object sender, DragStartedEventArgs e)
@@ -914,7 +915,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             _isDragging = false;
-            _mediaPlayer.Time = (long)(TimelineSlider.Value * 1000);
+            SeekTo(TimelineSlider.Value);
             _mediaPlayer.SetPause(false);
             _timer.Start();
             UpdatePlayState(true);
@@ -922,10 +923,62 @@ namespace ExpressPackingMonitoring.UI
 
         private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (_suppressTimelineValueChanged)
+                return;
+
             if (_isDragging)
             {
-                TimeLabel.Text = $"{TimeSpan.FromSeconds(e.NewValue):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(_currentMediaLengthMs):hh\\:mm\\:ss}";
+                UpdateTimeLabel((long)(e.NewValue * 1000), _currentMediaLengthMs);
+                return;
             }
+
+            SeekTo(e.NewValue);
+        }
+
+        private void SetTimelineMaximum(double maximum)
+        {
+            _suppressTimelineValueChanged = true;
+            try
+            {
+                TimelineSlider.Maximum = Math.Max(0, maximum);
+                if (TimelineSlider.Value > TimelineSlider.Maximum)
+                    TimelineSlider.Value = TimelineSlider.Maximum;
+            }
+            finally
+            {
+                _suppressTimelineValueChanged = false;
+            }
+        }
+
+        private void SetTimelineValue(double value)
+        {
+            _suppressTimelineValueChanged = true;
+            try
+            {
+                TimelineSlider.Value = Math.Clamp(value, TimelineSlider.Minimum, TimelineSlider.Maximum);
+            }
+            finally
+            {
+                _suppressTimelineValueChanged = false;
+            }
+        }
+
+        private void SeekTo(double seconds)
+        {
+            if (_mediaPlayer?.Media == null)
+                return;
+
+            long targetMs = (long)Math.Round(Math.Max(0, seconds) * 1000);
+            if (_currentMediaLengthMs > 0)
+                targetMs = Math.Min(targetMs, _currentMediaLengthMs);
+
+            _mediaPlayer.Time = targetMs;
+            UpdateTimeLabel(targetMs, _currentMediaLengthMs);
+        }
+
+        private void UpdateTimeLabel(long currentMs, long lengthMs)
+        {
+            TimeLabel.Text = $"{TimeSpan.FromMilliseconds(currentMs):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(lengthMs):hh\\:mm\\:ss}";
         }
 
         private void UpdateLocateButtonState(VideoItem? video = null)
