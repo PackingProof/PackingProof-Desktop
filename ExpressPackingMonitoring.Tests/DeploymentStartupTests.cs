@@ -55,16 +55,23 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("<Border x:Name=\"SecurityNotice\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"QrCodeImage\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"MobileAppQrCodeImage\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(xaml, "<ColumnDefinition Width=\"\\*\"/>").Count);
-        Assert.Equal(2, Regex.Matches(xaml, "Width=\"232\"[\\s\\S]*?Height=\"232\"").Count);
-        Assert.Equal(2, Regex.Matches(xaml, "Stretch=\"Uniform\"").Count);
+        Assert.Contains("x:Name=\"TestFlightQrCodeImage\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource FluentPhoneIcon", xaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource AndroidIcon", xaml, StringComparison.Ordinal);
+        Assert.Contains("StaticResource AppleIcon", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("StaticResource FluentLinkIcon", xaml, StringComparison.Ordinal);
+        Assert.Equal(3, Regex.Matches(xaml, "<ColumnDefinition Width=\"\\*\"/>").Count);
+        Assert.Equal(3, Regex.Matches(xaml, "Width=\"232\"[\\s\\S]*?Height=\"232\"").Count);
+        Assert.Equal(6, Regex.Matches(xaml, "Stretch=\"Uniform\"").Count);
         Assert.Contains("Grid.IsSharedSizeScope=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(2, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardQr\"").Count);
-        Assert.Equal(2, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardActions\"").Count);
+        Assert.Equal(3, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardQr\"").Count);
+        Assert.Equal(3, Regex.Matches(xaml, "SharedSizeGroup=\"ConnectionCardActions\"").Count);
         Assert.Contains("Text=\"下载手机 App\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"iOS 内测\"", xaml, StringComparison.Ordinal);
         Assert.Contains("使用 Android 手机扫码", xaml, StringComparison.Ordinal);
         Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"OpenMobileAppDownloadButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OpenTestFlight_Click\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
             "UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);",
             source,
@@ -77,6 +84,16 @@ public sealed class DeploymentStartupTests
             "MobileAppUpdatePolicyProvider.ReleasesUrl",
             source,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "TestFlightJoinUrl = \"https://testflight.apple.com/join/5QKpJuBG\"",
+            source,
+            StringComparison.Ordinal);
+        string iconResources = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Themes",
+            "FluentIcons.xaml");
+        Assert.Contains("x:Key=\"AppleIcon\"", iconResources, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"AndroidIcon\"", iconResources, StringComparison.Ordinal);
     }
 
     [Theory]

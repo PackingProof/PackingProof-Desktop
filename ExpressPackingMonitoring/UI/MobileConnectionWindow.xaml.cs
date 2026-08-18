@@ -6,6 +6,7 @@ namespace ExpressPackingMonitoring.UI;
 
 public partial class MobileConnectionWindow : Window
 {
+    private const string TestFlightJoinUrl = "https://testflight.apple.com/join/5QKpJuBG";
     private readonly string _url;
     private readonly bool _containsAccessKey;
     private string _mobileAppDownloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
@@ -46,6 +47,7 @@ public partial class MobileConnectionWindow : Window
         }
 
         UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
+        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(TestFlightJoinUrl);
         Loaded += MobileConnectionWindow_Loaded;
         Loaded += (_, _) =>
             (isReady ? CopyButton : OpenMobileAppDownloadButton).Focus();
@@ -103,6 +105,17 @@ public partial class MobileConnectionWindow : Window
         AppDialog.Error(
             this,
             AppLanguage.Format("打开手机 App 下载页失败：{0}", error),
+            AppLanguage.Get("手机/电脑连接"));
+    }
+
+    private void OpenTestFlight_Click(object sender, RoutedEventArgs e)
+    {
+        if (WorkstationNetwork.TryOpenUrl(TestFlightJoinUrl, out string error))
+            return;
+
+        AppDialog.Error(
+            this,
+            AppLanguage.Format("打开 TestFlight 加入页失败：{0}", error),
             AppLanguage.Get("手机/电脑连接"));
     }
 
