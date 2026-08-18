@@ -166,6 +166,40 @@ public sealed class HostDiscoveryTests
     }
 
     [Fact]
+    public void ViewerRecoverySelectsPreviouslyBoundHostAtItsCurrentAddress()
+    {
+        string boundNodeId = Guid.NewGuid().ToString("D");
+        PackingProofNodeInfo otherHost = ValidNode(
+            Guid.NewGuid().ToString("D"),
+            "192.168.1.20:5280");
+        PackingProofNodeInfo movedHost = ValidNode(
+            boundNodeId,
+            "192.168.1.30:5280");
+
+        PackingProofNodeInfo recovered = Assert.IsType<PackingProofNodeInfo>(
+            ViewerClientWindow.FindPreviouslyBoundHost(
+                [otherHost, movedHost],
+                boundNodeId.ToUpperInvariant()));
+
+        Assert.Same(movedHost, recovered);
+        Assert.Equal("http://192.168.1.30:5280", recovered.Address);
+    }
+
+    [Fact]
+    public void ViewerRecoveryDoesNotAutomaticallySelectADifferentHost()
+    {
+        PackingProofNodeInfo host = ValidNode(
+            Guid.NewGuid().ToString("D"),
+            "192.168.1.20:5280");
+
+        PackingProofNodeInfo? recovered = ViewerClientWindow.FindPreviouslyBoundHost(
+            [host],
+            Guid.NewGuid().ToString("D"));
+
+        Assert.Null(recovered);
+    }
+
+    [Fact]
     public async Task InvalidAndTimedOutCandidatesDoNotAbortDiscovery()
     {
         Task<PackingProofNodeInfo?> Probe(string address, CancellationToken token) =>

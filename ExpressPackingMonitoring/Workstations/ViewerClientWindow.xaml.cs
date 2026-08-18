@@ -224,6 +224,13 @@ public partial class ViewerClientWindow : Window
         _searchCancellation?.Dispose();
         var searchCancellation = new CancellationTokenSource();
         _searchCancellation = searchCancellation;
+        using var discoveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            searchCancellation.Token);
+        PackingProofNodeInfo? viewerRecoveryCandidate = null;
+        string savedHostNodeId = _config.LastKnownHostNodeId;
+        bool canRecoverViewer = !_bindingOnly && !string.IsNullOrWhiteSpace(savedHostNodeId);
+        var viewerRecoverySource = new TaskCompletionSource<PackingProofNodeInfo>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         _isSearching = true;
         HostsList.ItemsSource = null;
         ApplyConnectionViewState(
@@ -241,14 +248,42 @@ public partial class ViewerClientWindow : Window
                     return;
                 incrementalHosts.Add(host);
                 HostsList.ItemsSource = FilterDiscoveredHosts(incrementalHosts, _bindingOnly);
+                if (canRecoverViewer)
+                {
+                    PackingProofNodeInfo? matchingHost = FindPreviouslyBoundHost(
+                        [host],
+                        savedHostNodeId);
+                    if (matchingHost != null)
+                        viewerRecoverySource.TrySetResult(matchingHost);
+                }
             });
 
-            IReadOnlyList<PackingProofNodeInfo> hosts = await WorkstationNetwork.FindHostsAsync(
-                _config.LastKnownHostAddress,
-                _config.WebServerPort,
-                progress: null,
-                hostProgress: hostProgress,
-                token: searchCancellation.Token);
+            Task<IReadOnlyList<PackingProofNodeInfo>> discoveryTask =
+                WorkstationNetwork.FindHostsAsync(
+                    _config.LastKnownHostAddress,
+                    _config.WebServerPort,
+                    progress: null,
+                    hostProgress: hostProgress,
+                    token: discoveryCancellation.Token);
+            if (canRecoverViewer
+                && await Task.WhenAny(discoveryTask, viewerRecoverySource.Task)
+                    == viewerRecoverySource.Task)
+            {
+                viewerRecoveryCandidate = await viewerRecoverySource.Task;
+                discoveryCancellation.Cancel();
+                try
+                {
+                    await discoveryTask;
+                }
+                catch (OperationCanceledException) when (!searchCancellation.IsCancellationRequested)
+                {
+                    // 已找到原主机的新地址，无需继续扫描其余网段
+                }
+            }
+
+            IReadOnlyList<PackingProofNodeInfo> hosts = viewerRecoveryCandidate == null
+                ? await discoveryTask
+                : [viewerRecoveryCandidate];
             if (!ReferenceEquals(searchCancellation, _searchCancellation))
                 return;
 
@@ -283,6 +318,12 @@ public partial class ViewerClientWindow : Window
                 if (automatic != null && !differentHostWithPending)
                     await BindHostAsync(automatic);
             }
+            else
+            {
+                viewerRecoveryCandidate ??= FindPreviouslyBoundHost(
+                    compatibleHosts,
+                    savedHostNodeId);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -306,6 +347,25 @@ public partial class ViewerClientWindow : Window
                 UpdateConnectionControls();
             }
         }
+
+        if (viewerRecoveryCandidate != null
+            && ReferenceEquals(searchCancellation, _searchCancellation)
+            && !searchCancellation.IsCancellationRequested)
+        {
+            await BindHostAsync(viewerRecoveryCandidate);
+        }
+    }
+
+    internal static PackingProofNodeInfo? FindPreviouslyBoundHost(
+        IEnumerable<PackingProofNodeInfo> hosts,
+        string? nodeId)
+    {
+        if (string.IsNullOrWhiteSpace(nodeId))
+            return null;
+
+        return hosts.FirstOrDefault(host =>
+            host.IsValidHost
+            && string.Equals(host.NodeId, nodeId, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task BindHostAsync(PackingProofNodeInfo node, string? accessKey = null)
