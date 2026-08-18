@@ -166,6 +166,70 @@ public sealed class HostDiscoveryTests
     }
 
     [Fact]
+    public async Task NodeIdResolutionUsesVerifiedSavedAddressWithoutDiscovery()
+    {
+        string nodeId = Guid.NewGuid().ToString("D");
+        int discoveryCount = 0;
+
+        PackingProofNodeInfo? resolved = await WorkstationNetwork.FindHostByNodeIdAsync(
+            nodeId,
+            "192.168.1.10:5280",
+            (address, _) => Task.FromResult<PackingProofNodeInfo?>(ValidNode(nodeId, address)),
+            (_, _) =>
+            {
+                discoveryCount++;
+                return Task.FromResult<IReadOnlyList<PackingProofNodeInfo>>([]);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.NotNull(resolved);
+        Assert.Equal("http://192.168.1.10:5280", resolved.Address);
+        Assert.Equal(0, discoveryCount);
+    }
+
+    [Fact]
+    public async Task NodeIdResolutionIgnoresWrongIdentityAndReturnsDiscoveredAddress()
+    {
+        string targetNodeId = Guid.NewGuid().ToString("D");
+        string wrongNodeId = Guid.NewGuid().ToString("D");
+        PackingProofNodeInfo discovered = ValidNode(targetNodeId, "192.168.1.30:5280");
+
+        PackingProofNodeInfo? resolved = await WorkstationNetwork.FindHostByNodeIdAsync(
+            targetNodeId,
+            "192.168.1.10:5280",
+            (address, _) => Task.FromResult<PackingProofNodeInfo?>(ValidNode(wrongNodeId, address)),
+            (progress, _) =>
+            {
+                progress.Report(discovered);
+                return Task.FromResult<IReadOnlyList<PackingProofNodeInfo>>([discovered]);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(discovered, resolved);
+    }
+
+    [Fact]
+    public async Task NodeIdResolutionDoesNotSubstituteAnotherDiscoveredHost()
+    {
+        PackingProofNodeInfo other = ValidNode(
+            Guid.NewGuid().ToString("D"),
+            "192.168.1.20:5280");
+
+        PackingProofNodeInfo? resolved = await WorkstationNetwork.FindHostByNodeIdAsync(
+            Guid.NewGuid().ToString("D"),
+            "192.168.1.10:5280",
+            (_, _) => Task.FromResult<PackingProofNodeInfo?>(null),
+            (progress, _) =>
+            {
+                progress.Report(other);
+                return Task.FromResult<IReadOnlyList<PackingProofNodeInfo>>([other]);
+            },
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(resolved);
+    }
+
+    [Fact]
     public void ViewerRecoverySelectsPreviouslyBoundHostAtItsCurrentAddress()
     {
         string boundNodeId = Guid.NewGuid().ToString("D");

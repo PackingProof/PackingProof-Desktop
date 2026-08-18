@@ -126,7 +126,8 @@ public partial class MainViewModel
             _recordingTransferService = new RecordingTransferService(
                 _recordingTransferStore,
                 _db,
-                () => Config);
+                () => Config,
+                hostAddressChanged: PersistResolvedRecordingHost);
             _recordingTransferService.ProgressChanged += OnRecordingTransferProgressChanged;
             _recordingTransferService.Start();
             RefreshRecordingTransferSummary();
@@ -217,6 +218,28 @@ public partial class MainViewModel
                 Config.WebServerPort,
                 connected: true,
                 nicknameCustomized: Config.NodeNameCustomized);
+            if (!heartbeat.Online)
+            {
+                PackingProofNodeInfo? resolvedHost = await WorkstationNetwork.FindHostByNodeIdAsync(
+                    Config.LastKnownHostNodeId,
+                    Config.LastKnownHostAddress,
+                    Config.WebServerPort);
+                if (resolvedHost != null
+                    && !string.Equals(
+                        WorkstationNetwork.NormalizeAddress(resolvedHost.Address),
+                        WorkstationNetwork.NormalizeAddress(Config.LastKnownHostAddress),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    PersistResolvedRecordingHost(resolvedHost);
+                    heartbeat = await WorkstationNetwork.SendRecordingWorkstationHeartbeatAsync(
+                        resolvedHost.Address,
+                        Config.NodeId,
+                        Config.NodeName,
+                        Config.WebServerPort,
+                        connected: true,
+                        nicknameCustomized: Config.NodeNameCustomized);
+                }
+            }
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 if (_isDisposed) return;
@@ -389,6 +412,58 @@ public partial class MainViewModel
             requiresReconnect);
         RecordingTransferShortStatusText = cardState.ShortStatusText;
         RecordingTransferStatusText = cardState.DetailText;
+    }
+
+    private void PersistResolvedRecordingHost(PackingProofNodeInfo node)
+    {
+        if (!string.Equals(
+                node.NodeId,
+                Config.LastKnownHostNodeId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!WorkstationConfigStore.TryUpdate(
+                config =>
+                {
+                    if (string.Equals(
+                            config.LastKnownHostNodeId,
+                            node.NodeId,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.LastKnownHostAddress = node.Address;
+                        config.LastKnownHostNodeName = node.NodeName;
+                    }
+                },
+                out AppConfig saved,
+                out _)
+            || !string.Equals(
+                saved.LastKnownHostNodeId,
+                node.NodeId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (_isDisposed
+                || !string.Equals(
+                    Config.LastKnownHostNodeId,
+                    node.NodeId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            Config.LastKnownHostAddress = saved.LastKnownHostAddress;
+            Config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
+            OnPropertyChanged(nameof(BoundHostAddress));
+            OnPropertyChanged(nameof(BoundHostNameDisplay));
+            OnPropertyChanged(nameof(BoundHostDisplay));
+            QueueRecordingWorkstationHeartbeat(force: true);
+        });
     }
 
     internal static bool IsReconnectRequiredError(string? error) =>

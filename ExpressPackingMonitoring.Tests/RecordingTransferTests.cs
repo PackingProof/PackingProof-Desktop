@@ -312,6 +312,70 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
+    public async Task Transfer_ResolvesMovedHostByNodeIdAndPersistsCurrentAddress()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "video.mp4");
+            await File.WriteAllBytesAsync(
+                videoPath,
+                new byte[8192],
+                TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "MOVED-HOST-TRACK",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(recordId, DateTime.Now, 30, 8192, "手动");
+
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            string oldAddress = config.LastKnownHostAddress;
+            const string NewAddress = "http://127.0.0.2:5280";
+            PackingProofNodeInfo? changedHost = null;
+            var handler = new BackupProtocolHandler(verified: true, targetNodeId, config.NodeId);
+            using var client = new HttpClient(handler);
+            var store = new RecordingTransferQueueStore(databasePath);
+            using (var service = new RecordingTransferService(
+                       store,
+                       database,
+                       () => config,
+                       client,
+                       hostResolver: (nodeId, address, _, _) =>
+                       {
+                           Assert.Equal(targetNodeId, nodeId);
+                           Assert.Equal(oldAddress, address);
+                           return Task.FromResult<PackingProofNodeInfo?>(
+                               CreateHost(targetNodeId, NewAddress));
+                       },
+                       hostAddressChanged: node => changedHost = node))
+            {
+                Assert.Equal(1, service.EnqueueCompletedRecordings());
+                Assert.Equal(
+                    1,
+                    await service.ProcessReadyOnceAsync(TestContext.Current.CancellationToken));
+            }
+
+            Assert.NotNull(changedHost);
+            Assert.Equal(NewAddress, changedHost.Address);
+            using var reopened = new RecordingTransferQueueStore(databasePath);
+            RecordingTransferTask uploaded = Assert.Single(reopened.GetUploadedWithLocalCache());
+            Assert.Equal(targetNodeId, uploaded.TargetNodeId);
+            Assert.Equal(NewAddress, uploaded.TargetAddress);
+            Assert.True(File.Exists(videoPath));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public async Task Transfer_KeepsLocalFileWhenHostDoesNotVerify()
     {
         string directory = CreateTempDirectory();
@@ -558,7 +622,9 @@ public sealed class RecordingTransferTests
         return config;
     }
 
-    private static PackingProofNodeInfo CreateHost(string nodeId) => new()
+    private static PackingProofNodeInfo CreateHost(
+        string nodeId,
+        string address = "http://127.0.0.1:5280") => new()
     {
         Protocol = PackingProofNodeInfo.ExpectedProtocol,
         ProtocolVersion = PackingProofNodeInfo.SupportedProtocolVersion,
@@ -567,7 +633,7 @@ public sealed class RecordingTransferTests
         Preset = DeploymentPresets.RecordingHost,
         Capabilities = [PackingProofCapabilities.Host, PackingProofCapabilities.MobileBackup],
         HttpPort = 5280,
-        Address = "http://127.0.0.1:5280",
+        Address = address,
         BackupCompatibility = BackupCompatibilityPolicy.CreateHostInfo()
     };
 

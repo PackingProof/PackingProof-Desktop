@@ -19,7 +19,7 @@ internal sealed class RecordingTransferTask
     public string FileSha256 { get; init; } = "";
     public string SourceSessionId { get; init; } = "";
     public string TargetNodeId { get; init; } = "";
-    public string TargetAddress { get; init; } = "";
+    public string TargetAddress { get; set; } = "";
     public string State { get; init; } = RecordingTransferStates.Pending;
     public long ServerOffset { get; init; }
     public int RetryCount { get; init; }
@@ -165,6 +165,29 @@ internal sealed class RecordingTransferQueueStore : IDisposable
 
     public void UpdateOffset(long id, long offset, DateTime now) =>
         Update(id, "ServerOffset = @offset, UpdatedAt = @now", ("@offset", offset), ("@now", Format(now)));
+
+    public void UpdateTargetAddress(string nodeId, string address, DateTime now)
+    {
+        string normalizedNodeId = nodeId?.Trim() ?? "";
+        string normalizedAddress = address?.Trim().TrimEnd('/') ?? "";
+        if (normalizedNodeId.Length == 0 || normalizedAddress.Length == 0)
+            return;
+
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE RecordingTransferQueue
+                SET TargetAddress = @address,
+                    UpdatedAt = @now
+                WHERE TargetNodeId = @nodeId
+                  AND TargetAddress <> @address;";
+            cmd.Parameters.AddWithValue("@nodeId", normalizedNodeId);
+            cmd.Parameters.AddWithValue("@address", normalizedAddress);
+            cmd.Parameters.AddWithValue("@now", Format(now));
+            cmd.ExecuteNonQuery();
+        }
+    }
 
     public void MarkFailed(long id, int retryCount, string error, DateTime nextAttemptAt, DateTime now) =>
         Update(id,

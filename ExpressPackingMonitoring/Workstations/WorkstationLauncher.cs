@@ -851,6 +851,86 @@ public static class WorkstationNetwork
         return reporter.ToList();
     }
 
+    public static Task<PackingProofNodeInfo?> FindHostByNodeIdAsync(
+        string nodeId,
+        string? lastKnownAddress,
+        int port,
+        CancellationToken token = default) =>
+        FindHostByNodeIdAsync(
+            nodeId,
+            lastKnownAddress,
+            GetNodeInfoAsync,
+            (progress, discoveryToken) => FindHostsAsync(
+                lastKnownAddress: null,
+                port,
+                progress: null,
+                hostProgress: progress,
+                token: discoveryToken),
+            token);
+
+    internal static async Task<PackingProofNodeInfo?> FindHostByNodeIdAsync(
+        string nodeId,
+        string? lastKnownAddress,
+        Func<string, CancellationToken, Task<PackingProofNodeInfo?>> probe,
+        Func<IProgress<PackingProofNodeInfo>, CancellationToken, Task<IReadOnlyList<PackingProofNodeInfo>>> discover,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(probe);
+        ArgumentNullException.ThrowIfNull(discover);
+        string targetNodeId = nodeId?.Trim() ?? "";
+        if (targetNodeId.Length == 0)
+            return null;
+
+        string savedAddress = NormalizeAddress(lastKnownAddress ?? "");
+        if (savedAddress.Length > 0)
+        {
+            PackingProofNodeInfo? savedNode = await probe(savedAddress, token).ConfigureAwait(false);
+            if (IsMatchingHost(savedNode, targetNodeId))
+                return savedNode;
+        }
+
+        using var discoveryCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var matchSource = new TaskCompletionSource<PackingProofNodeInfo>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var matchProgress = new CallbackProgress<PackingProofNodeInfo>(node =>
+        {
+            if (IsMatchingHost(node, targetNodeId))
+                matchSource.TrySetResult(node);
+        });
+        Task<IReadOnlyList<PackingProofNodeInfo>> discoveryTask = discover(
+            matchProgress,
+            discoveryCancellation.Token);
+        await Task.WhenAny(discoveryTask, matchSource.Task).ConfigureAwait(false);
+
+        if (matchSource.Task.IsCompletedSuccessfully)
+        {
+            discoveryCancellation.Cancel();
+            try
+            {
+                await discoveryTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                // 已解析到目标节点，无需继续扫描其余地址
+            }
+            return await matchSource.Task.ConfigureAwait(false);
+        }
+
+        IReadOnlyList<PackingProofNodeInfo> hosts = await discoveryTask.ConfigureAwait(false);
+        return hosts.FirstOrDefault(node => IsMatchingHost(node, targetNodeId));
+    }
+
+    private static bool IsMatchingHost(PackingProofNodeInfo? node, string nodeId) =>
+        node?.IsValidHost == true
+        && string.Equals(node.NodeId, nodeId, StringComparison.OrdinalIgnoreCase);
+
+    private sealed class CallbackProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        private readonly Action<T> _callback = callback ?? throw new ArgumentNullException(nameof(callback));
+
+        public void Report(T value) => _callback(value);
+    }
+
     private static async Task DiscoverUdpHostsAsync(
         HostReporter reporter,
         IProgress<string>? progress,

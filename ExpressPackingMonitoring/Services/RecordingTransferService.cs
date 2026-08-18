@@ -29,6 +29,8 @@ internal sealed class RecordingTransferService : IDisposable
     private readonly VideoDatabase _database;
     private readonly Func<AppConfig> _configProvider;
     private readonly Func<string, CancellationToken, Task<PackingProofNodeInfo?>> _nodeInfoResolver;
+    private readonly Func<string, string, int, CancellationToken, Task<PackingProofNodeInfo?>> _hostResolver;
+    private readonly Action<PackingProofNodeInfo>? _hostAddressChanged;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly CancellationTokenSource _cts = new();
@@ -51,12 +53,19 @@ internal sealed class RecordingTransferService : IDisposable
         VideoDatabase database,
         Func<AppConfig> configProvider,
         HttpClient? httpClient = null,
-        Func<string, CancellationToken, Task<PackingProofNodeInfo?>>? nodeInfoResolver = null)
+        Func<string, CancellationToken, Task<PackingProofNodeInfo?>>? nodeInfoResolver = null,
+        Func<string, string, int, CancellationToken, Task<PackingProofNodeInfo?>>? hostResolver = null,
+        Action<PackingProofNodeInfo>? hostAddressChanged = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _configProvider = configProvider ?? throw new ArgumentNullException(nameof(configProvider));
         _nodeInfoResolver = nodeInfoResolver ?? WorkstationNetwork.GetNodeInfoAsync;
+        _hostResolver = hostResolver
+            ?? (nodeInfoResolver == null
+                ? WorkstationNetwork.FindHostByNodeIdAsync
+                : ResolveUsingConfiguredProbeAsync);
+        _hostAddressChanged = hostAddressChanged;
         _httpClient = httpClient ?? new HttpClient(WorkstationNetwork.CreateLanHttpMessageHandler())
         {
             Timeout = TimeSpan.FromMinutes(5)
@@ -184,7 +193,7 @@ internal sealed class RecordingTransferService : IDisposable
             string filePath = ResolveCurrentFilePath(task, record);
             ValidateUploadFile(filePath);
 
-            PackingProofNodeInfo? node = await _nodeInfoResolver(task.TargetAddress, cancellationToken)
+            PackingProofNodeInfo? node = await ResolveTaskHostAsync(task, config, cancellationToken)
                 .ConfigureAwait(false);
             if (node == null)
                 throw new HttpRequestException("保存主机离线");
@@ -517,6 +526,53 @@ internal sealed class RecordingTransferService : IDisposable
             throw new InvalidOperationException("上传任务绑定的保存主机与当前配置不一致");
     }
 
+    private async Task<PackingProofNodeInfo?> ResolveUsingConfiguredProbeAsync(
+        string nodeId,
+        string address,
+        int _,
+        CancellationToken cancellationToken)
+    {
+        PackingProofNodeInfo? node = await _nodeInfoResolver(address, cancellationToken)
+            .ConfigureAwait(false);
+        return string.Equals(node?.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
+            ? node
+            : null;
+    }
+
+    private async Task<PackingProofNodeInfo?> ResolveTaskHostAsync(
+        RecordingTransferTask task,
+        AppConfig config,
+        CancellationToken cancellationToken)
+    {
+        PackingProofNodeInfo? node = await _hostResolver(
+                task.TargetNodeId,
+                task.TargetAddress,
+                config.WebServerPort,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (node != null
+            && !string.Equals(node.NodeId, task.TargetNodeId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("保存主机身份已变化");
+        }
+        if (node == null
+            || string.Equals(
+                WorkstationNetwork.NormalizeAddress(node.Address),
+                WorkstationNetwork.NormalizeAddress(task.TargetAddress),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return node;
+        }
+
+        task.TargetAddress = node.Address.Trim().TrimEnd('/');
+        _store.UpdateTargetAddress(task.TargetNodeId, task.TargetAddress, DateTime.UtcNow);
+        _hostAddressChanged?.Invoke(node);
+        RuntimeLog.Info(
+            "RecordingTransfer",
+            $"Resolved host address node={task.TargetNodeId}, address={task.TargetAddress}");
+        return node;
+    }
+
     private static string ResolveCurrentFilePath(RecordingTransferTask task, VideoRecord record)
     {
         if (File.Exists(record.FilePath))
@@ -574,6 +630,10 @@ internal sealed class RecordingTransferService : IDisposable
         {
             AppConfig config = _configProvider();
             ValidateTaskTarget(task, config);
+            PackingProofNodeInfo? node = await ResolveTaskHostAsync(task, config, cancellationToken)
+                .ConfigureAwait(false);
+            if (node == null)
+                return false;
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
                 $"{BaseUrl(task.TargetAddress)}/api/mobile-backup/records/{recordId}/attestation");
