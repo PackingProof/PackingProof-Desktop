@@ -276,7 +276,7 @@
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Grid.Row="1"
-                                   Text="先下载 TestFlight App，再扫码加入内测"
+                                   Text="扫码加入内测"
                                    Margin="0,4,0,0"
                                    MinHeight="36"
                                    FontSize="12"

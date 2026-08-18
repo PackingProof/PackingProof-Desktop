@@ -544,7 +544,7 @@
   <data name="复制手机 App 下载网址" xml:space="preserve"><value>复制手机 App 下载网址</value></data>
   <data name="打开手机 App 下载页失败：{0}" xml:space="preserve"><value>打开手机 App 下载页失败：{0}</value></data>
   <data name="iOS 内测" xml:space="preserve"><value>iOS 内测</value></data>
-  <data name="先下载 TestFlight App，再扫码加入内测" xml:space="preserve"><value>先下载 TestFlight App，再扫码加入内测</value></data>
+  <data name="扫码加入内测" xml:space="preserve"><value>扫码加入内测</value></data>
   <data name="iOS 内测二维码" xml:space="preserve"><value>iOS 内测二维码</value></data>
   <data name="iOS 内测 · TestFlight 扫码加入" xml:space="preserve"><value>iOS 内测 · TestFlight 扫码加入</value></data>
   <data name="在电脑打开 TestFlight 加入页" xml:space="preserve"><value>在电脑打开 TestFlight 加入页</value></data>
