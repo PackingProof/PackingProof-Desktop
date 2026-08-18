@@ -414,7 +414,23 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _suppressVideoPreviewUpdates;
         public bool SuppressVideoPreviewUpdates { get => _suppressVideoPreviewUpdates; set => _suppressVideoPreviewUpdates = value; }
         public BitmapSource VideoFrame { get => _videoFrame; set => SetProperty(ref _videoFrame, value); }
-        public string CurrentMode { get => _currentMode; set { if (SetProperty(ref _currentMode, value)) ScheduleRefreshBarcodes(); } }
+        public string CurrentMode
+        {
+            get => _currentMode;
+            set
+            {
+                string normalizedMode = AppConfig.NormalizeRecordingMode(value);
+                if (!SetProperty(ref _currentMode, normalizedMode))
+                    return;
+
+                if (Config != null && Config.RecordingMode != normalizedMode)
+                {
+                    Config.RecordingMode = normalizedMode;
+                    SaveConfig();
+                }
+                ScheduleRefreshBarcodes();
+            }
+        }
         public string CurrentOrderId { get => _currentOrderId; set => SetProperty(ref _currentOrderId, value); }
         public bool IsRecording
         {
@@ -1925,6 +1941,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             Config = WorkstationConfigStore.Load();
+            _currentMode = AppConfig.NormalizeRecordingMode(Config.RecordingMode);
 
             bool configMigrated = containsRemovedStorageQuota;
             if (Config.VideoCqp <= 0)

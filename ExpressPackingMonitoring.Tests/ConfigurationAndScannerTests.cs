@@ -45,6 +45,28 @@ public sealed class ConfigurationAndScannerTests
         Assert.Equal(WindowCloseBehaviors.Ask, config.WindowCloseBehavior);
     }
 
+    [Fact]
+    public void AppConfig_PersistsAndNormalizesRecordingMode()
+    {
+        AppConfig config = new() { RecordingMode = " 退货 " };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        Assert.Equal("退货", config.RecordingMode);
+
+        AppConfig restored = JsonSerializer.Deserialize<AppConfig>(
+            JsonSerializer.Serialize(config))!;
+        Assert.Equal("退货", restored.RecordingMode);
+    }
+
+    [Fact]
+    public void AppConfig_InvalidRecordingModeFallsBackToShipping()
+    {
+        AppConfig config = new() { RecordingMode = "未知模式" };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        Assert.Equal("发货", config.RecordingMode);
+    }
+
     [Theory]
     [InlineData(WindowCloseBehaviors.Ask)]
     [InlineData(WindowCloseBehaviors.MinimizeToTray)]

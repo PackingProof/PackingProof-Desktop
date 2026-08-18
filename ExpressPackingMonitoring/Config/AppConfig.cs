@@ -141,6 +141,9 @@ namespace ExpressPackingMonitoring.Config
         public string PrintStationMonitorAddress { get; set; } = "";
         public bool FirstUseWizardCompleted { get; set; } = false;
 
+        // 当前打包模式："发货" 或 "退货"，用于重启后恢复手动/指令码切换结果。
+        public string RecordingMode { get; set; } = "发货";
+
         // 核心：多磁盘配置列表
         public List<StorageLocation> StorageLocations { get; set; } = CreateDefaultStorageLocations();
 
@@ -313,6 +316,13 @@ namespace ExpressPackingMonitoring.Config
             if (config.Language != normalizedLanguage)
             {
                 config.Language = normalizedLanguage;
+                changed = true;
+            }
+
+            string normalizedRecordingMode = NormalizeRecordingMode(config.RecordingMode);
+            if (!string.Equals(config.RecordingMode, normalizedRecordingMode, StringComparison.Ordinal))
+            {
+                config.RecordingMode = normalizedRecordingMode;
                 changed = true;
             }
 
@@ -711,6 +721,11 @@ namespace ExpressPackingMonitoring.Config
 
             return changed;
         }
+
+        internal static string NormalizeRecordingMode(string? mode) =>
+            string.Equals(mode?.Trim(), "退货", StringComparison.Ordinal)
+                ? "退货"
+                : "发货";
 
         internal static bool IsAutomaticComputerName(string? value)
         {
