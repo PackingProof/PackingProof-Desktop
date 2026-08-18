@@ -854,6 +854,11 @@ public sealed class DeploymentStartupTests
         Assert.Contains("DynamicResource AccentBlue", statusCard, StringComparison.Ordinal);
         Assert.Contains("DynamicResource AccentGreen", statusCard, StringComparison.Ordinal);
         Assert.Contains("DynamicResource AccentOrange", statusCard, StringComparison.Ordinal);
+        Assert.Contains(
+            "Visibility=\"{Binding IsOnline, Mode=OneWay, Converter={StaticResource BoolToVisibility}}\"",
+            statusCard,
+            StringComparison.Ordinal);
+        Assert.Contains("Binding DisplayText, Mode=OneWay", statusCard, StringComparison.Ordinal);
         Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("Value=\"上传中\"", statusCard, StringComparison.Ordinal);
