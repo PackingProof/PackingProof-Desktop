@@ -9,32 +9,12 @@
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource PanelBackground}"
-        Foreground="{DynamicResource TextPrimary}">
+        Foreground="{DynamicResource TextPrimary}"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="24">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <StackPanel>
-                <TextBlock Text="手机/电脑连接"
-                           FontSize="20"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimary}"/>
-                <TextBlock Text="连接录像网页，或先下载 PackingProof 手机录像 App"
-                           Margin="0,8,0,0"
-                           FontSize="13"
-                           LineHeight="20"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondary}"/>
-            </StackPanel>
-
-            <Grid Grid.Row="1"
-                  Margin="0,18,0,0"
-                  Grid.IsSharedSizeScope="True">
+        <Grid Margin="16">
+            <Grid Grid.IsSharedSizeScope="True">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="14"/>
@@ -44,7 +24,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0"
-                        Padding="18"
+                        Padding="16"
                         CornerRadius="12"
                         Background="{DynamicResource ControlBackground}"
                         BorderBrush="{DynamicResource BorderDefault}"
@@ -73,8 +53,8 @@
                         </StackPanel>
                         <TextBlock Grid.Row="1"
                                    Text="手机或其他电脑连接同一个局域网后，扫描二维码即可打开录像"
-                                   Margin="0,6,0,0"
-                                   MinHeight="40"
+                                   Margin="0,4,0,0"
+                                   MinHeight="36"
                                    FontSize="12"
                                    LineHeight="18"
                                    TextWrapping="Wrap"
@@ -83,7 +63,7 @@
                         <Grid x:Name="ReadyPanel"
                               Grid.Row="2"
                               Grid.RowSpan="3"
-                              Margin="0,14,0,0">
+                              Margin="0,10,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="232"/>
                                 <RowDefinition Height="*"/>
@@ -107,7 +87,7 @@
 
                             <StackPanel Grid.Row="1">
                                 <TextBlock Text="访问网址"
-                                           Margin="0,13,0,5"
+                                           Margin="0,10,0,5"
                                            FontSize="12"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}"/>
@@ -130,7 +110,7 @@
 
                             <WrapPanel Grid.Row="2"
                                        HorizontalAlignment="Right"
-                                       Margin="0,14,0,0">
+                                       Margin="0,10,0,0">
                                 <Button x:Name="CopyButton"
                                         Content="复制网址"
                                         Style="{StaticResource SecondaryButtonStyle}"
@@ -148,7 +128,7 @@
                         <Border x:Name="UnavailablePanel"
                                 Grid.Row="2"
                                 Grid.RowSpan="3"
-                                Margin="0,14,0,0"
+                                Margin="0,10,0,0"
                                 Padding="14"
                                 CornerRadius="8"
                                 Background="{DynamicResource PanelBackground}"
@@ -166,13 +146,20 @@
                                            LineHeight="18"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondary}"/>
+                                <Button x:Name="OpenSettingsButton"
+                                        Content="打开设置"
+                                        Margin="0,10,0,0"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Visibility="Collapsed"
+                                        Click="OpenSettings_Click"/>
                             </StackPanel>
                         </Border>
                     </Grid>
                 </Border>
 
                 <Border Grid.Column="2"
-                        Padding="18"
+                        Padding="16"
                         CornerRadius="12"
                         Background="{DynamicResource ControlBackground}"
                         BorderBrush="{DynamicResource BorderDefault}"
@@ -201,8 +188,8 @@
                         </StackPanel>
                         <TextBlock Grid.Row="1"
                                    Text="使用 Android 手机扫码，下载 PackingProof 手机录像 App"
-                                   Margin="0,6,0,0"
-                                   MinHeight="40"
+                                   Margin="0,4,0,0"
+                                   MinHeight="36"
                                    FontSize="12"
                                    LineHeight="18"
                                    TextWrapping="Wrap"
@@ -210,7 +197,7 @@
 
                         <Border Grid.Row="2"
                                 HorizontalAlignment="Center"
-                                Margin="0,14,0,0"
+                                Margin="0,10,0,0"
                                 Width="232"
                                 Height="232"
                                 Padding="10"
@@ -229,7 +216,7 @@
                         <StackPanel Grid.Row="3">
                             <TextBlock x:Name="MobileAppVersionText"
                                        Text="Android 版 · 扫码打开下载页"
-                                       Margin="0,13,0,0"
+                                       Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        FontSize="12"
                                        FontWeight="SemiBold"
@@ -245,7 +232,7 @@
                         <Button x:Name="OpenMobileAppDownloadButton"
                                 Grid.Row="4"
                                 Content="电脑打开下载页"
-                                Margin="0,14,0,0"
+                                Margin="0,10,0,0"
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 AutomationProperties.Name="在电脑打开手机 App 下载页"
@@ -254,7 +241,7 @@
                 </Border>
 
                 <Border Grid.Column="4"
-                        Padding="18"
+                        Padding="16"
                         CornerRadius="12"
                         Background="{DynamicResource ControlBackground}"
                         BorderBrush="{DynamicResource BorderDefault}"
@@ -283,8 +270,8 @@
                         </StackPanel>
                         <TextBlock Grid.Row="1"
                                    Text="先下载 TestFlight App，再扫码加入内测"
-                                   Margin="0,6,0,0"
-                                   MinHeight="40"
+                                   Margin="0,4,0,0"
+                                   MinHeight="36"
                                    FontSize="12"
                                    LineHeight="18"
                                    TextWrapping="Wrap"
@@ -292,7 +279,7 @@
 
                         <Border Grid.Row="2"
                                 HorizontalAlignment="Center"
-                                Margin="0,14,0,0"
+                                Margin="0,10,0,0"
                                 Width="232"
                                 Height="232"
                                 Padding="10"
@@ -310,7 +297,7 @@
 
                         <StackPanel Grid.Row="3">
                             <TextBlock Text="iOS 内测 · TestFlight 扫码加入"
-                                       Margin="0,13,0,0"
+                                       Margin="0,10,0,0"
                                        HorizontalAlignment="Center"
                                        FontSize="12"
                                        FontWeight="SemiBold"
@@ -320,7 +307,7 @@
                         <Button x:Name="OpenTestFlightButton"
                                 Grid.Row="4"
                                 Content="电脑打开 TestFlight 加入页"
-                                Margin="0,14,0,0"
+                                Margin="0,10,0,0"
                                 HorizontalAlignment="Right"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 AutomationProperties.Name="在电脑打开 TestFlight 加入页"
@@ -329,22 +316,6 @@
                 </Border>
             </Grid>
 
-            <StackPanel Grid.Row="2"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        Margin="0,18,0,0">
-                <Button x:Name="OpenSettingsButton"
-                        Content="打开设置"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Margin="0,0,10,0"
-                        Visibility="Collapsed"
-                        Click="OpenSettings_Click"/>
-                <Button x:Name="CloseButton"
-                        Content="关闭"
-                        IsCancel="True"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Click="Close_Click"/>
-            </StackPanel>
         </Grid>
     </ScrollViewer>
 </Window>

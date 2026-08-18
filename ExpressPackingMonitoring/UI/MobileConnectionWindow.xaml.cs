@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 
@@ -125,8 +126,12 @@ public partial class MobileConnectionWindow : Window
         Close();
     }
 
-    private void Close_Click(object sender, RoutedEventArgs e)
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        Close();
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+        }
     }
 }

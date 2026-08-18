@@ -60,6 +60,10 @@ public sealed class DeploymentStartupTests
         Assert.Contains("StaticResource AndroidIcon", xaml, StringComparison.Ordinal);
         Assert.Contains("StaticResource AppleIcon", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("StaticResource FluentLinkIcon", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Name=\"CloseButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"OpenSettingsButton\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"手机/电脑连接\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("连接录像网页，或先下载 PackingProof 手机录像 App", xaml, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Matches(xaml, "<ColumnDefinition Width=\"\\*\"/>").Count);
         Assert.Equal(3, Regex.Matches(xaml, "Width=\"232\"[\\s\\S]*?Height=\"232\"").Count);
         Assert.Equal(6, Regex.Matches(xaml, "Stretch=\"Uniform\"").Count);
@@ -72,6 +76,8 @@ public sealed class DeploymentStartupTests
         Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"OpenMobileAppDownloadButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"OpenTestFlight_Click\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseButton", source, StringComparison.Ordinal);
+        Assert.Contains("Key.Escape", source, StringComparison.Ordinal);
         Assert.Contains(
             "UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);",
             source,
