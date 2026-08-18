@@ -229,14 +229,21 @@
                                        Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
 
-                        <Button x:Name="OpenMobileAppDownloadButton"
-                                Grid.Row="4"
-                                Content="电脑打开下载页"
-                                Margin="0,10,0,0"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                AutomationProperties.Name="在电脑打开手机 App 下载页"
-                                Click="OpenMobileAppDownload_Click"/>
+                        <WrapPanel Grid.Row="4"
+                                   HorizontalAlignment="Right"
+                                   Margin="0,10,0,0">
+                            <Button x:Name="CopyMobileAppUrlButton"
+                                    Content="复制网址"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="复制手机 App 下载网址"
+                                    Click="CopyMobileAppUrl_Click"/>
+                            <Button x:Name="OpenMobileAppDownloadButton"
+                                    Content="电脑打开"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    AutomationProperties.Name="在电脑打开手机 App 下载页"
+                                    Click="OpenMobileAppDownload_Click"/>
+                        </WrapPanel>
                     </Grid>
                 </Border>
 
@@ -304,14 +311,21 @@
                                        Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
 
-                        <Button x:Name="OpenTestFlightButton"
-                                Grid.Row="4"
-                                Content="电脑打开 TestFlight 加入页"
-                                Margin="0,10,0,0"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                AutomationProperties.Name="在电脑打开 TestFlight 加入页"
-                                Click="OpenTestFlight_Click"/>
+                        <WrapPanel Grid.Row="4"
+                                   HorizontalAlignment="Right"
+                                   Margin="0,10,0,0">
+                            <Button x:Name="CopyTestFlightUrlButton"
+                                    Content="复制网址"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="复制 TestFlight 加入网址"
+                                    Click="CopyTestFlightUrl_Click"/>
+                            <Button x:Name="OpenTestFlightButton"
+                                    Content="电脑打开"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    AutomationProperties.Name="在电脑打开 TestFlight 加入页"
+                                    Click="OpenTestFlight_Click"/>
+                        </WrapPanel>
                     </Grid>
                 </Border>
             </Grid>

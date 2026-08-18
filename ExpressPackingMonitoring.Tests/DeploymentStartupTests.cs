@@ -76,8 +76,16 @@ public sealed class DeploymentStartupTests
         Assert.Contains("下载完成后按手机提示安装", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"OpenMobileAppDownloadButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"OpenTestFlight_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CopyMobileAppUrlButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CopyTestFlightUrlButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"CopyMobileAppUrl_Click\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"CopyTestFlightUrl_Click\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"电脑打开下载页\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"电脑打开 TestFlight 加入页\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("CloseButton", source, StringComparison.Ordinal);
         Assert.Contains("Key.Escape", source, StringComparison.Ordinal);
+        Assert.Contains("CopyMobileAppUrl_Click", source, StringComparison.Ordinal);
+        Assert.Contains("CopyTestFlightUrl_Click", source, StringComparison.Ordinal);
         Assert.Contains(
             "UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);",
             source,

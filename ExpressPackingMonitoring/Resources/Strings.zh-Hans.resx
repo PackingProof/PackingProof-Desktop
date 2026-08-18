@@ -540,15 +540,15 @@
   <data name="Android 版 · 扫码打开下载页" xml:space="preserve"><value>Android 版 · 扫码打开下载页</value></data>
   <data name="Android 最新版 v{0}" xml:space="preserve"><value>Android 最新版 v{0}</value></data>
   <data name="下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑" xml:space="preserve"><value>下载完成后按手机提示安装，再扫描左侧二维码连接这台电脑</value></data>
-  <data name="电脑打开下载页" xml:space="preserve"><value>电脑打开下载页</value></data>
   <data name="在电脑打开手机 App 下载页" xml:space="preserve"><value>在电脑打开手机 App 下载页</value></data>
+  <data name="复制手机 App 下载网址" xml:space="preserve"><value>复制手机 App 下载网址</value></data>
   <data name="打开手机 App 下载页失败：{0}" xml:space="preserve"><value>打开手机 App 下载页失败：{0}</value></data>
   <data name="iOS 内测" xml:space="preserve"><value>iOS 内测</value></data>
   <data name="先下载 TestFlight App，再扫码加入内测" xml:space="preserve"><value>先下载 TestFlight App，再扫码加入内测</value></data>
   <data name="iOS 内测二维码" xml:space="preserve"><value>iOS 内测二维码</value></data>
   <data name="iOS 内测 · TestFlight 扫码加入" xml:space="preserve"><value>iOS 内测 · TestFlight 扫码加入</value></data>
-  <data name="电脑打开 TestFlight 加入页" xml:space="preserve"><value>电脑打开 TestFlight 加入页</value></data>
   <data name="在电脑打开 TestFlight 加入页" xml:space="preserve"><value>在电脑打开 TestFlight 加入页</value></data>
+  <data name="复制 TestFlight 加入网址" xml:space="preserve"><value>复制 TestFlight 加入网址</value></data>
   <data name="打开 TestFlight 加入页失败：{0}" xml:space="preserve"><value>打开 TestFlight 加入页失败：{0}</value></data>
   <data name="用手机或其他电脑查看录像" xml:space="preserve"><value>用手机或其他电脑查看录像</value></data>
   <data name="手机或其他电脑连接同一个局域网后，扫描二维码或复制网址即可打开" xml:space="preserve"><value>手机或其他电脑连接同一个局域网后，扫描二维码或复制网址即可打开</value></data>

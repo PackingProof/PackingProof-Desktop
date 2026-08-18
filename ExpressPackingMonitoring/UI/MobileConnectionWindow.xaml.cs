@@ -90,6 +90,28 @@ public partial class MobileConnectionWindow : Window
         CopyButton.Content = _containsAccessKey ? "已复制 · 请勿转发" : "已复制";
     }
 
+    private void CopyMobileAppUrl_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ClipboardHelper.TrySetDataObject(_mobileAppDownloadUrl, out Exception error))
+        {
+            AppDialog.Error(this, $"复制网址失败：{error.Message}", "手机/电脑连接");
+            return;
+        }
+
+        CopyMobileAppUrlButton.Content = "已复制";
+    }
+
+    private void CopyTestFlightUrl_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ClipboardHelper.TrySetDataObject(TestFlightJoinUrl, out Exception error))
+        {
+            AppDialog.Error(this, $"复制网址失败：{error.Message}", "手机/电脑连接");
+            return;
+        }
+
+        CopyTestFlightUrlButton.Content = "已复制";
+    }
+
     private void Open_Click(object sender, RoutedEventArgs e)
     {
         if (WorkstationNetwork.TryOpenUrl(_url, out string error))
