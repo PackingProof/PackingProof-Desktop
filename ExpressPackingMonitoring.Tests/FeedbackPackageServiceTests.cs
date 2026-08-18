@@ -57,7 +57,13 @@ public sealed class FeedbackPackageServiceTests
             var service = new FeedbackPackageService(
                 directory,
                 appVersion: "v0.0.39",
-                commitId: "abc12345");
+                commitId: "abc12345",
+                hardwareInfoProvider: () => new FeedbackHardwareInfo(
+                    "Test CPU",
+                    12,
+                    32UL * 1024 * 1024 * 1024,
+                    [new FeedbackGpuInfo("Test GPU", "31.2.3.4")],
+                    "ffmpeg version 4.4.1-test"));
             string zipPath = service.CreatePackage(out IReadOnlyList<string> warnings);
 
             Assert.True(File.Exists(zipPath));
@@ -83,6 +89,11 @@ public sealed class FeedbackPackageServiceTests
                 string infoText = ReadEntry(zip, "feedback-info.txt");
                 Assert.Contains("v0.0.39", infoText);
                 Assert.Contains("abc12345", infoText);
+                Assert.Contains("CPU：Test CPU", infoText);
+                Assert.Contains("逻辑处理器：12", infoText);
+                Assert.Contains("物理内存：32.0 GB", infoText);
+                Assert.Contains("GPU 1：Test GPU（驱动 31.2.3.4）", infoText);
+                Assert.Contains("FFmpeg：ffmpeg version 4.4.1-test", infoText);
             }
 
             string snapshotPath = Path.Combine(directory, "snapshot.db");

@@ -1,7 +1,10 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
+using Microsoft.Win32;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -24,17 +27,20 @@ internal sealed class FeedbackPackageService
     private readonly string _feedbackDir;
     private readonly string _appVersion;
     private readonly string _commitId;
+    private readonly Func<FeedbackHardwareInfo> _hardwareInfoProvider;
 
     internal FeedbackPackageService(
         string userDataDir,
         string? feedbackDir = null,
         string? appVersion = null,
-        string? commitId = null)
+        string? commitId = null,
+        Func<FeedbackHardwareInfo>? hardwareInfoProvider = null)
     {
         _userDataDir = userDataDir ?? throw new ArgumentNullException(nameof(userDataDir));
         _feedbackDir = feedbackDir ?? Path.Combine(userDataDir, "backups", "feedback");
         _appVersion = string.IsNullOrWhiteSpace(appVersion) ? AppVersion.Current : appVersion;
         _commitId = string.IsNullOrWhiteSpace(commitId) ? AppVersion.CommitShortId : commitId;
+        _hardwareInfoProvider = hardwareInfoProvider ?? FeedbackHardwareInfo.Collect;
     }
 
     internal string CreatePackage(out IReadOnlyList<string> warnings)
@@ -284,6 +290,7 @@ internal sealed class FeedbackPackageService
         builder.AppendLine($"Commit：{_commitId}");
         builder.AppendLine($"操作系统：{Environment.OSVersion}");
         builder.AppendLine($"用户数据目录：{_userDataDir}");
+        AppendHardwareInfo(builder, warnings);
         builder.AppendLine();
         builder.AppendLine("包含文件：");
         foreach (string file in Directory
@@ -310,6 +317,45 @@ internal sealed class FeedbackPackageService
             builder.ToString(),
             Encoding.UTF8);
     }
+
+    private void AppendHardwareInfo(StringBuilder builder, List<string> warnings)
+    {
+        try
+        {
+            FeedbackHardwareInfo info = _hardwareInfoProvider();
+            builder.AppendLine();
+            builder.AppendLine("硬件与编码环境：");
+            builder.AppendLine($"- CPU：{ValueOrUnavailable(info.CpuName)}");
+            builder.AppendLine($"- 逻辑处理器：{info.LogicalProcessorCount}");
+            builder.AppendLine($"- 物理内存：{FormatMemory(info.TotalPhysicalMemoryBytes)}");
+            if (info.Gpus.Count == 0)
+            {
+                builder.AppendLine("- GPU：未获取");
+            }
+            else
+            {
+                for (int index = 0; index < info.Gpus.Count; index++)
+                {
+                    FeedbackGpuInfo gpu = info.Gpus[index];
+                    string driver = string.IsNullOrWhiteSpace(gpu.DriverVersion)
+                        ? "驱动版本未获取"
+                        : $"驱动 {gpu.DriverVersion}";
+                    builder.AppendLine($"- GPU {index + 1}：{gpu.Name}（{driver}）");
+                }
+            }
+            builder.AppendLine($"- FFmpeg：{ValueOrUnavailable(info.FfmpegVersion)}");
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"硬件与编码环境采集失败：{ex.Message}");
+        }
+    }
+
+    private static string ValueOrUnavailable(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "未获取" : value.Trim();
+
+    private static string FormatMemory(ulong bytes) =>
+        bytes == 0 ? "未获取" : $"{bytes / 1024d / 1024d / 1024d:F1} GB";
 
     private string GetUniqueZipPath()
     {
@@ -370,4 +416,141 @@ internal sealed class FeedbackPackageService
             // 临时目录清理失败不影响反馈包本身。
         }
     }
+}
+
+internal sealed record FeedbackGpuInfo(string Name, string DriverVersion);
+
+internal sealed record FeedbackHardwareInfo(
+    string CpuName,
+    int LogicalProcessorCount,
+    ulong TotalPhysicalMemoryBytes,
+    IReadOnlyList<FeedbackGpuInfo> Gpus,
+    string FfmpegVersion)
+{
+    private const string DisplayAdapterClassPath =
+        @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
+
+    internal static FeedbackHardwareInfo Collect()
+    {
+        return new FeedbackHardwareInfo(
+            ReadCpuName(),
+            Environment.ProcessorCount,
+            ReadTotalPhysicalMemory(),
+            ReadGpus(),
+            ReadFfmpegVersion());
+    }
+
+    private static string ReadCpuName()
+    {
+        try
+        {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                @"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+            return key?.GetValue("ProcessorNameString")?.ToString()?.Trim() ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    private static IReadOnlyList<FeedbackGpuInfo> ReadGpus()
+    {
+        var result = new List<FeedbackGpuInfo>();
+        try
+        {
+            using RegistryKey? classKey = Registry.LocalMachine.OpenSubKey(DisplayAdapterClassPath);
+            if (classKey == null)
+                return result;
+
+            foreach (string subKeyName in classKey.GetSubKeyNames())
+            {
+                using RegistryKey? adapterKey = classKey.OpenSubKey(subKeyName);
+                string matchingDeviceId = adapterKey?.GetValue("MatchingDeviceId")?.ToString() ?? "";
+                if (!matchingDeviceId.StartsWith("PCI\\VEN_", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string name = adapterKey?.GetValue("DriverDesc")?.ToString()?.Trim() ?? "";
+                if (string.IsNullOrWhiteSpace(name))
+                    continue;
+
+                string driverVersion = adapterKey?.GetValue("DriverVersion")?.ToString()?.Trim() ?? "";
+                var gpu = new FeedbackGpuInfo(name, driverVersion);
+                if (!result.Contains(gpu))
+                    result.Add(gpu);
+            }
+        }
+        catch
+        {
+            // 单项采集失败不应阻止用户生成反馈包。
+        }
+        return result;
+    }
+
+    private static ulong ReadTotalPhysicalMemory()
+    {
+        var status = new MemoryStatusEx
+        {
+            Length = (uint)Marshal.SizeOf<MemoryStatusEx>()
+        };
+        return GlobalMemoryStatusEx(ref status) ? status.TotalPhysical : 0;
+    }
+
+    private static string ReadFfmpegVersion()
+    {
+        string ffmpegPath = AppPaths.FindFFmpeg();
+        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+            return "";
+
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = "-hide_banner -version",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
+            process.Start();
+            Task<string> stdout = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderr = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(3000))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return "";
+            }
+            if (!Task.WaitAll([stdout, stderr], 1000))
+                return "";
+            string output = string.IsNullOrWhiteSpace(stdout.Result) ? stderr.Result : stdout.Result;
+            return output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault()?.Trim() ?? "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysical;
+        public ulong AvailablePhysical;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
 }
