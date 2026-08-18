@@ -109,6 +109,12 @@ namespace ExpressPackingMonitoring.Services
             public string Error { get; set; } = "";
         }
 
+        private sealed class OrderBroadcastRequest
+        {
+            public List<OrderInfo> Orders { get; set; } = [];
+            public List<string> TargetNodeIds { get; set; } = [];
+        }
+
         private const int MaxJsonBodyBytes = 64 * 1024;
         private const int MaxOrderInfoBodyBytes = 1024 * 1024;
         internal const int MaxOrderInfoItems = 200;
@@ -721,7 +727,7 @@ namespace ExpressPackingMonitoring.Services
 
                 if (method == "POST")
                 {
-                    int maxBodyBytes = path is "/api/orderinfo" or "/api/order-lookup/result"
+                    int maxBodyBytes = path is "/api/orderinfo" or "/api/orderinfo/broadcast" or "/api/order-lookup/result"
                         ? MaxOrderInfoBodyBytes
                         : MaxJsonBodyBytes;
                     if (ctx.Request.ContentLength64 > maxBodyBytes)
@@ -866,6 +872,9 @@ namespace ExpressPackingMonitoring.Services
                             HandlePushOrderInfo(ctx);
                         else
                             HandleQueryOrderInfo(ctx);
+                        break;
+                    case "/api/orderinfo/broadcast" when method == "POST":
+                        HandleBroadcastOrderInfo(ctx);
                         break;
                     case "/api/order-lookup/pending" when method == "GET":
                         HandlePollOrderLookup(ctx);
@@ -2425,6 +2434,73 @@ namespace ExpressPackingMonitoring.Services
         }
 
         // ───── API: 推送订单信息 (来自油猴脚本) ─────
+        private void HandleBroadcastOrderInfo(HttpListenerContext ctx)
+        {
+            try
+            {
+                string body = ReadRequestBody(ctx, MaxOrderInfoBodyBytes);
+                var request = JsonSerializer.Deserialize<OrderBroadcastRequest>(body, _jsonOptions);
+                List<OrderInfo> items = request?.Orders;
+                if (items == null || items.Count == 0)
+                {
+                    SendJson(ctx, 400, new { error = "空数据" });
+                    return;
+                }
+
+                ValidateOrderInfoItems(items);
+                HashSet<string> targetNodeIds = (request?.TargetNodeIds ?? [])
+                    .Where(nodeId => !string.IsNullOrWhiteSpace(nodeId))
+                    .Select(nodeId => nodeId.Trim())
+                    .Take(8)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (targetNodeIds.Count == 0)
+                {
+                    SendJson(ctx, 400, new { error = "没有指定订单接收设备" });
+                    return;
+                }
+                IReadOnlyList<RecordingDeviceInfo> devices = GetRecordingDevices(
+                    ctx.Request.Url?.Authority ?? "",
+                    includeKnown: false)
+                    .Where(device => targetNodeIds.Contains(device.NodeId))
+                    .ToArray();
+                if (devices.Count == 0)
+                {
+                    SendJson(ctx, 409, new { error = "当前没有在线的订单接收设备" });
+                    return;
+                }
+
+                IReadOnlyList<OrderInfoRelayResult> results = OrderInfoRelay.BroadcastAsync(
+                    devices,
+                    _nodeId,
+                    items,
+                    OrderInfoRelay.SendAsync,
+                    device =>
+                    {
+                        var (_, testCount) = AcceptOrderInfos(items);
+                        return new OrderInfoRelayResult(
+                            device.NodeId,
+                            device.NodeName,
+                            device.DeviceType,
+                            device.Address,
+                            true,
+                            200,
+                            testCount);
+                    },
+                    _cts.Token).GetAwaiter().GetResult();
+                SendJson(ctx, 200, new
+                {
+                    success = results.Any(result => result.Ok),
+                    ok = results.Any(result => result.Ok),
+                    results
+                });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleBroadcastOrderInfo 异常: {ex.Message}");
+                SendJson(ctx, 400, new { error = ex.Message });
+            }
+        }
+
         private void HandlePushOrderInfo(HttpListenerContext ctx)
         {
             try
@@ -2439,22 +2515,17 @@ namespace ExpressPackingMonitoring.Services
 
                 ValidateOrderInfoItems(items);
 
-                var realItems = items.Where(x => !x.IsTest).ToList();
-                var testItems = items.Where(x => x.IsTest).ToList();
-                int count = StoreOrderInfos(realItems, preserveConfirmedRefund: true);
+                (int count, int testCount) = AcceptOrderInfos(items);
 
                 if (EnableOrderInfoLog)
                 {
-                    Log($"HandlePushOrderInfo: 接收 {count} 条订单信息, 测试={testItems.Count}, 缓存总数={_orderInfoCache.Count}");
+                    Log($"HandlePushOrderInfo: 接收 {count} 条订单信息, 测试={testCount}, 缓存总数={_orderInfoCache.Count}");
                     foreach (var item in items)
                     {
                         if (!string.IsNullOrWhiteSpace(item.TrackingNumber))
                             Log($"  订单: 运单号={item.TrackingNumber}, 订单号={item.OrderId}, 测试={item.IsTest}, 打印后退款={item.IsPrintedRefund}, 退款状态=[{item.RefundStatus}], 买家留言=[{item.BuyerMessage}], 卖家备注=[{item.SellerMemo}], 商品=[{item.ProductInfo}]");
                     }
                 }
-
-                // 通知订阅方预生成语音缓存
-                try { OrderInfoReceived?.Invoke(items); } catch { }
 
                 SendJson(ctx, 200, new
                 {
@@ -2464,7 +2535,7 @@ namespace ExpressPackingMonitoring.Services
                     nodeName = _nodeName,
                     receivedCount = count,
                     count,
-                    testCount = testItems.Count
+                    testCount
                 });
             }
             catch (Exception ex)
@@ -2472,6 +2543,15 @@ namespace ExpressPackingMonitoring.Services
                 Log($"HandlePushOrderInfo 异常: {ex.Message}");
                 SendJson(ctx, 400, new { error = ex.Message });
             }
+        }
+
+        private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items)
+        {
+            var realItems = items.Where(item => !item.IsTest).ToList();
+            int count = StoreOrderInfos(realItems, preserveConfirmedRefund: true);
+            int testCount = items.Count(item => item.IsTest);
+            try { OrderInfoReceived?.Invoke(items); } catch { }
+            return (count, testCount);
         }
 
         private int StoreOrderInfos(List<OrderInfo> items, bool preserveConfirmedRefund)

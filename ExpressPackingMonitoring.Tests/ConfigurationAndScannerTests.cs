@@ -302,6 +302,8 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("Promise.allSettled(", script);
         Assert.Contains("getOnlineRecorderEndpoints()", script);
         Assert.Contains("/api/recording-devices", script);
+        Assert.Contains("/api/orderinfo/broadcast", script);
+        Assert.Contains("sendOrdersThroughHost(orders, devices)", script);
         Assert.Contains("RECORDER_STATUS_TIMEOUT = 900", script);
         Assert.Contains("OFFLINE_RECORDER_TIMEOUT = 1800", script);
         Assert.Contains("deliveryPlan.map(item => sendOrderToRecorder(item.device, orders, item.timeout))", script);

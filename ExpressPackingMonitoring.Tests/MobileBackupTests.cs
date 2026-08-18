@@ -1461,7 +1461,7 @@ public sealed class MobileBackupTests
             Assert.DoesNotContain("// @updateURL     127.0.0.1", script);
 
             string versionLine = ExtractUserscriptVersion(script);
-            Assert.Matches(@"^2\.12\.\d+$", versionLine);
+            Assert.Matches(@"^2\.13\.\d+$", versionLine);
             Assert.True(
                 File.Exists(Path.Combine(stateDirectory, "userscript-config", "revision.json")),
                 "配置修订号状态文件应位于状态目录子目录，避免被上传状态清理误删");

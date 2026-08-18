@@ -172,7 +172,7 @@ internal static class PrintToolInstallGuide
         return script.Replace(UpdateUrlsMarker, replacement, StringComparison.Ordinal);
     }
 
-    /// <summary>在模板基础版本后追加配置修订号：2.12 → 2.12.0 / 2.12.3。</summary>
+    /// <summary>在模板基础版本后追加配置修订号：2.13 → 2.13.0 / 2.13.3。</summary>
     internal static string RewriteUserscriptVersion(string script, int revision)
     {
         if (string.IsNullOrWhiteSpace(script) || revision < 0)

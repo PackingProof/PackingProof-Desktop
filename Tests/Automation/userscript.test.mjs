@@ -225,6 +225,7 @@ test('order push broadcasts to every paired receiver and tolerates one offline d
     formatAddress: address => `${address.host}:${address.port}`,
     getBaseUrl: (host, port) => `http://${host}:${port}`,
     getHostBaseUrl: () => 'http://192.168.31.250:5280',
+    requestMonitor: async () => ({ status: 404, body: {} }),
     getRecorderDevices: () => devices,
     gmGet: async (url, timeout) => {
       assert.equal(url, 'http://192.168.31.250:5280/api/recording-devices');
@@ -299,6 +300,7 @@ test('order push still broadcasts to every recorder when host status lookup fail
     formatAddress: address => `${address.host}:${address.port}`,
     getBaseUrl: (host, port) => `http://${host}:${port}`,
     getHostBaseUrl: () => 'http://192.168.31.250:5280',
+    requestMonitor: async () => ({ status: 404, body: {} }),
     getRecorderDevices: () => devices,
     gmGet: async () => ({ ok: false, response: {} }),
     parseJsonResponse: text => JSON.parse(text || '{}'),
@@ -328,6 +330,76 @@ test('order push still broadcasts to every recorder when host status lookup fail
   assert.equal(result.successfulCount, 2);
   assert.equal(requests.length, 2);
   assert.deepEqual(requests.map(request => request.timeout), [3000, 3000]);
+});
+
+test('order push uses host relay addresses after a recorder IP change', async () => {
+  const directRequests = [];
+  const relayRequests = [];
+  const context = {
+    DEFAULT_PORT: 5280,
+    RECORDER_STATUS_TIMEOUT: 900,
+    RECORDER_STATUS_CACHE_MS: 15000,
+    ONLINE_RECORDER_TIMEOUT: 3500,
+    OFFLINE_RECORDER_TIMEOUT: 1800,
+    UNKNOWN_RECORDER_TIMEOUT: 3000,
+    getHostBaseUrl: () => 'http://192.168.31.250:5280',
+    requestMonitor: async (method, url, data, timeout) => {
+      relayRequests.push({ method, url, data, timeout });
+      return {
+        status: 200,
+        body: {
+          results: [{
+            nodeId: 'recorder-node',
+            name: '录像工位',
+            type: 'pc',
+            address: 'http://192.168.31.88:5280',
+            ok: true,
+            status: 200,
+            testCount: 1
+          }]
+        }
+      };
+    },
+    getRecorderDevices: () => [
+      {
+        nodeId: 'recorder-node',
+        name: '录像工位',
+        type: 'pc',
+        url: 'http://192.168.31.20:5280'
+      },
+      {
+        nodeId: 'offline-node',
+        name: '离线工位',
+        type: 'pc',
+        url: 'http://192.168.31.21:5280'
+      }
+    ],
+    GM_xmlhttpRequest: options => directRequests.push(options.url),
+    showNotification() {},
+    console: { info() {}, warn() {} },
+    Promise,
+    Number,
+    String,
+    JSON,
+    Array
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    between('    let recorderStatusCache', '    function getHostAddress()') +
+      between('    function sendOrderToRecorder(', '    function requestMonitor(') +
+      ';globalThis.pushOrders=pushToMonitor;',
+    context);
+
+  const result = await context.pushOrders([{ trackingNumber: 'TRACK-1' }], { isTest: true });
+
+  assert.equal(relayRequests.length, 1);
+  assert.equal(relayRequests[0].url, 'http://192.168.31.250:5280/api/orderinfo/broadcast');
+  assert.deepEqual(relayRequests[0].data.targetNodeIds, ['recorder-node', 'offline-node']);
+  assert.equal(directRequests.length, 0);
+  assert.equal(result.successfulCount, 1);
+  assert.equal(result.targetCount, 2);
+  assert.equal(result.results[0].address, 'http://192.168.31.88:5280');
+  assert.equal(result.confirmed, true);
 });
 
 function createConnectionHeartbeatContext(status = 200) {

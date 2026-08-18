@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         订单备注播报插件
 // @namespace    https://github.com/ExpressPackingMonitoring
-// @version      2.12
+// @version      2.13
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，同时发送到已配对的电脑和手机
 // @author       ExpressPackingMonitoring
 // @icon         https://raw.githubusercontent.com/PackingProof/PackingProof-Desktop/main/ExpressPackingMonitoring/app.ico
@@ -56,7 +56,7 @@
     const CONNECTION_HEARTBEAT_INTERVAL_MS = 15000;
     const IS_REFUND_WORKER = new URL(location.href).searchParams.get(REFUND_WORKER_PARAM) === '1';
     const REFUND_WORKER_TOKEN = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const CHANGELOG = 'v2.12：发送前按主机心跳状态优先投递在线录像设备';
+    const CHANGELOG = 'v2.13：由保存主机按设备身份转发订单，录像设备换 IP 后可继续接收';
     const DEBUG_LOG = false;
 
     let lastUserActivityAt = Date.now();
@@ -557,11 +557,80 @@
         });
     }
 
+    async function sendOrdersThroughHost(orders, devices) {
+        const baseUrl = getHostBaseUrl();
+        if (!baseUrl) return null;
+        const response = await requestMonitor(
+            'POST',
+            `${baseUrl}/api/orderinfo/broadcast`,
+            {
+                orders,
+                targetNodeIds: devices.map(device => device.nodeId)
+            },
+            ONLINE_RECORDER_TIMEOUT + 1500);
+        if (response.status === 0 || response.status === 404) return null;
+        if (response.status !== 200 || !Array.isArray(response.body?.results)) {
+            return [{
+                nodeId: String(PACKING_PROOF_HOST?.nodeId || PACKING_PROOF_HOST?.NodeId || ''),
+                name: String(PACKING_PROOF_HOST?.nodeName || PACKING_PROOF_HOST?.NodeName || '保存主机'),
+                type: 'host',
+                address: baseUrl,
+                ok: false,
+                status: response.status,
+                error: String(response.body?.error || 'relay_failed'),
+                response: { testCount: 0 }
+            }];
+        }
+        return response.body.results.map(result => ({
+            nodeId: String(result?.nodeId || ''),
+            name: String(result?.name || result?.nodeName || ''),
+            type: String(result?.type || result?.deviceType || 'unknown'),
+            address: String(result?.address || ''),
+            ok: result?.ok === true,
+            status: Number(result?.status || 0),
+            error: String(result?.error || ''),
+            response: { testCount: Number(result?.testCount || 0) }
+        }));
+    }
+
+    function completeOrderPush(results, targetCount, orders, options) {
+        const successful = results.filter(result => result.ok);
+        const confirmed = !options.isTest || successful.some(result => Number(result.response?.testCount || 0) > 0);
+        console.info(`[PackingProof] 订单广播完成: ${successful.length}/${targetCount} 台`, results);
+        results.filter(result => !result.ok).forEach(result =>
+            console.warn(`[PackingProof] ${result.name} (${result.address}) 发送失败: ${result.error || result.status}`));
+
+        if (!options.silent) {
+            if (successful.length === 0) {
+                showNotification(options.isTest ? '测试发送失败，请检查接收设备地址' : '订单发送失败，请检查接收设备网络');
+            } else if (options.isTest) {
+                showNotification(confirmed
+                    ? `已有 ${successful.length}/${targetCount} 台设备收到测试订单`
+                    : `测试订单已发送至 ${successful.length}/${targetCount} 台设备`);
+            } else {
+                showNotification(`已向 ${successful.length}/${targetCount} 台设备推送 ${orders.length} 条订单`);
+            }
+        }
+
+        return {
+            ok: successful.length > 0,
+            confirmed,
+            successfulCount: successful.length,
+            targetCount,
+            results
+        };
+    }
+
     async function pushToMonitor(orders, options) {
         options = options || {};
         if (!orders || orders.length === 0) return { ok: false, confirmed: false, error: 'empty' };
         const devices = getRecorderDevices();
         if (devices.length === 0) return { ok: false, confirmed: false, error: 'no_recorders', results: [] };
+        const relayedResults = await sendOrdersThroughHost(orders, devices);
+        if (relayedResults !== null) {
+            return completeOrderPush(relayedResults, devices.length, orders, options);
+        }
+
         const deliveryPlan = await buildRecorderDeliveryPlan(devices);
         const settled = await Promise.allSettled(
             deliveryPlan.map(item => sendOrderToRecorder(item.device, orders, item.timeout))
@@ -576,31 +645,7 @@
                 ok: false,
                 error: entry.reason?.message || String(entry.reason || 'unknown')
             });
-        const successful = results.filter(result => result.ok);
-        const confirmed = !options.isTest || successful.some(result => Number(result.response?.testCount || 0) > 0);
-        console.info(`[PackingProof] 订单广播完成: ${successful.length}/${devices.length} 台`, results);
-        results.filter(result => !result.ok).forEach(result =>
-            console.warn(`[PackingProof] ${result.name} (${result.address}) 发送失败: ${result.error || result.status}`));
-
-        if (!options.silent) {
-            if (successful.length === 0) {
-                showNotification(options.isTest ? '测试发送失败，请检查接收设备地址' : '订单发送失败，请检查接收设备网络');
-            } else if (options.isTest) {
-                showNotification(confirmed
-                    ? `已有 ${successful.length}/${devices.length} 台设备收到测试订单`
-                    : `测试订单已发送至 ${successful.length}/${devices.length} 台设备`);
-            } else {
-                showNotification(`已向 ${successful.length}/${devices.length} 台设备推送 ${orders.length} 条订单`);
-            }
-        }
-
-        return {
-            ok: successful.length > 0,
-            confirmed,
-            successfulCount: successful.length,
-            targetCount: devices.length,
-            results
-        };
+        return completeOrderPush(results, devices.length, orders, options);
     }
 
     function requestMonitor(method, url, data, timeout) {
