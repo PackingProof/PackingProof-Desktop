@@ -67,7 +67,7 @@ public sealed class ConnectedClientTests
         registry.Heartbeat(Heartbeat("shared-client", "userscript", "快递端油猴脚本"), "192.168.1.20");
 
         Assert.Equal(2, registry.GetSnapshot().Count);
-        Assert.Equal(new[] { 1, 2 }, changedCounts);
+        Assert.Equal(new[] { 1, 1, 2 }, changedCounts);
     }
 
     [Fact]

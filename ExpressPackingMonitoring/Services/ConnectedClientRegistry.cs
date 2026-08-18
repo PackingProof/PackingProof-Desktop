@@ -94,6 +94,9 @@ internal sealed class ConnectedClientRegistry : IDisposable
             {
                 if (!string.Equals(existing.RemoteAddress, address, StringComparison.OrdinalIgnoreCase))
                     EnsureAddressCapacity(address, key);
+                // LastSeenUtc changes on every heartbeat; notify consumers so UI online indicators
+                // do not remain stuck on the snapshot captured before the first heartbeat.
+                changed = true;
                 if (!string.Equals(existing.DisplayName, displayName, StringComparison.Ordinal)
                     || !string.Equals(existing.RemoteAddress, address, StringComparison.Ordinal))
                 {
