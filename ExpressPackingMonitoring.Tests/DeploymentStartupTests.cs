@@ -858,6 +858,15 @@ public sealed class DeploymentStartupTests
             "Visibility=\"{Binding IsOnline, Mode=OneWay, Converter={StaticResource BoolToVisibility}}\"",
             statusCard,
             StringComparison.Ordinal);
+        // 圆点必须带显式尺寸，否则在真实主窗口渲染上下文中会塌缩成不可见。
+        Assert.Contains(
+            "<Ellipse Width=\"7\" Height=\"7\" Fill=\"{DynamicResource TextMuted}\"/>",
+            statusCard,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Ellipse Width=\"7\" Height=\"7\" Fill=\"{DynamicResource AccentGreen}\"",
+            statusCard,
+            StringComparison.Ordinal);
         Assert.Contains("Binding DisplayText, Mode=OneWay", statusCard, StringComparison.Ordinal);
         Assert.Contains("RecordingTransferShortStatusText, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);
         Assert.Contains("LastRecordingTransferError, Mode=OneWay", uploadMarkup, StringComparison.Ordinal);

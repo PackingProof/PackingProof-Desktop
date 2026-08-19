@@ -135,8 +135,8 @@
                     <DataTemplate>
                         <StackPanel Orientation="Horizontal" Margin="0,1">
                             <Grid Width="7" Height="7" Margin="1,0,7,0" VerticalAlignment="Center">
-                                <Ellipse Fill="{DynamicResource TextMuted}"/>
-                                <Ellipse Fill="{DynamicResource AccentGreen}"
+                                <Ellipse Width="7" Height="7" Fill="{DynamicResource TextMuted}"/>
+                                <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentGreen}"
                                          Visibility="{Binding IsOnline, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
                             </Grid>
                             <TextBlock Text="{Binding DisplayText, Mode=OneWay}"
