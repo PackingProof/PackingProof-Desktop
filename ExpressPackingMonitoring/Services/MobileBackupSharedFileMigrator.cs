@@ -7,6 +7,7 @@ namespace ExpressPackingMonitoring.Services;
 
 internal sealed class MobileBackupSharedFileMigrator
 {
+    private static readonly object MigrationLock = new();
     private readonly VideoDatabase _database;
     private readonly Func<string, StorageVolumeInfo?> _volumeResolver;
     private readonly Action? _beforeDatabaseCommit;
@@ -22,6 +23,12 @@ internal sealed class MobileBackupSharedFileMigrator
     }
 
     internal SharedFileMigrationSummary Run()
+    {
+        lock (MigrationLock)
+            return RunCore();
+    }
+
+    private SharedFileMigrationSummary RunCore()
     {
         int completedGroups = 0;
         int pendingGroups = 0;
