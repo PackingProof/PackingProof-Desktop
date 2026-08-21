@@ -429,7 +429,7 @@ internal sealed class MobileBackupService
             return preferredPath;
 
         string sessionFingerprint = Convert.ToHexString(
-            SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{sourceDeviceId}\n{session.Id}")))[..8]
+            SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{sourceDeviceId}\n{session.Id}")))[..16]
             .ToLowerInvariant();
         string collisionPath = Path.Combine(dateDirectory, $"{baseName}_{sessionFingerprint}.mp4");
         if (!File.Exists(collisionPath) || FileMatchesSha256(collisionPath, fileSha256))
