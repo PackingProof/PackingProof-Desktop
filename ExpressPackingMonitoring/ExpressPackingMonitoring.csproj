@@ -112,6 +112,7 @@
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\ArchiveBackupStatePolicy.cs" />
     <Compile Include="Data\RecordingTransferQueueStore.cs" />
+    <Compile Include="Data\SharedFileMigrationRecords.cs" />
     <Compile Include="Data\VideoDatabase.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
@@ -153,6 +154,7 @@
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />
+    <Compile Include="Services\MobileBackupSharedFileMigrator.cs" />
     <Compile Include="Services\MobileOrderReceiverRegistry.cs" />
     <Compile Include="Services\NasArchiveProvider.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
