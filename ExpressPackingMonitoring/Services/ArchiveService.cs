@@ -532,7 +532,9 @@ internal sealed class ArchiveService : IDisposable
 
             try
             {
-                await _wakeSignal.WaitAsync(_options.PollInterval, cancellationToken).ConfigureAwait(false);
+                await _wakeSignal.WaitAsync(
+                    GetNextWorkerDelay(),
+                    cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -612,6 +614,23 @@ internal sealed class ArchiveService : IDisposable
         catch (Exception ex)
         {
             RuntimeLog.Warn("Archive", $"归档状态通知失败：{ex.Message}");
+        }
+    }
+
+    private TimeSpan GetNextWorkerDelay()
+    {
+        TimeSpan delay = _options.PollInterval;
+        lock (_recoverySync)
+        {
+            if (!_recoveryMode || _recoveryNextRoundAt == default)
+                return delay;
+
+            TimeSpan recoveryDelay = _recoveryNextRoundAt - DateTime.Now;
+            if (recoveryDelay <= TimeSpan.Zero)
+                return TimeSpan.Zero;
+            return delay == Timeout.InfiniteTimeSpan || recoveryDelay < delay
+                ? recoveryDelay
+                : delay;
         }
     }
 

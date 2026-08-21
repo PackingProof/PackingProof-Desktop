@@ -1249,6 +1249,45 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AutomaticRecoveryWorker_UsesRecoveryDelayInsteadOfLongPollInterval()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            long id = InsertPendingRecord($"automatic-recovery-{i}.mp4", "automatic-" + i);
+            _database.UpdateArchiveState(id, VideoArchiveStatus.Failed, error: "旧路径不可达");
+        }
+
+        using var service = new ArchiveService(
+            _database,
+            new RecordingProvider(),
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = true,
+                PollInterval = TimeSpan.FromSeconds(30),
+                RecoveryBacklogThreshold = 4,
+                RecoveryInitialBatchSize = 1,
+                RecoveryMaxBatchSize = 4,
+                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(50)
+            });
+
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        int verified;
+        do
+        {
+            verified = _database.QueryVideos(null, null)
+                .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
+            if (verified >= 3)
+                break;
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+        while (DateTime.UtcNow < deadline);
+
+        Assert.True(
+            verified >= 3,
+            $"恢复 Worker 应在短恢复间隔内处理后续批次，实际完成 {verified} 个");
+    }
+
+    [Fact]
     public void AdaptiveThrottle_RampsToUnlimitedAndDemotesUnderPressure()
     {
         var time = new MutableTimeProvider();
