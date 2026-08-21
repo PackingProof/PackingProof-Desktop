@@ -186,6 +186,18 @@ internal sealed class NasArchiveProvider : IArchiveProvider, IArchiveTransferThr
         ComputeSha256CoreAsync(path, cancellationToken, throttleProvider: null);
 
     /// <summary>
+    /// 计算本地源文件哈希。归档服务只对内置 NAS Provider 使用该入口，
+    /// 以便恢复阶段同样受字节节流；第三方 Provider 的远端哈希实现不参与源文件校验。
+    /// </summary>
+    internal Task<string> ComputeSourceSha256Async(
+        string path,
+        CancellationToken cancellationToken) =>
+        ComputeSha256CoreAsync(
+            path,
+            cancellationToken,
+            () => Volatile.Read(ref _transferThrottle));
+
+    /// <summary>
     /// 清理同一目标下超过 24 小时的残留上传临时文件；只清理本地源仍存在的目标，
     /// 不删除可能仍在写入的本次尝试临时文件。
     /// </summary>

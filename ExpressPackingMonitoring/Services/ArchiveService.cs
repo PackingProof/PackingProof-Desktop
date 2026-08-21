@@ -263,9 +263,7 @@ internal sealed class ArchiveService : IDisposable
         {
             long localSize = new FileInfo(localPath).Length;
             string sourceHash = string.IsNullOrWhiteSpace(record.ContentSha256)
-                ? await _provider.ComputeSha256Async(
-                    localPath,
-                    cancellationToken).ConfigureAwait(false)
+                ? await ComputeSourceSha256Async(localPath, cancellationToken).ConfigureAwait(false)
                 : record.ContentSha256;
 
             RemoteProbeResult probe = await WithTimeoutAsync(
@@ -441,6 +439,13 @@ internal sealed class ArchiveService : IDisposable
             cancellationToken);
         return await TryArchiveAsync(record, cancellationToken).ConfigureAwait(false);
     }
+
+    private Task<string> ComputeSourceSha256Async(
+        string localPath,
+        CancellationToken cancellationToken) =>
+        _provider is NasArchiveProvider nas
+            ? nas.ComputeSourceSha256Async(localPath, cancellationToken)
+            : NasArchiveProvider.ComputeSha256FileAsync(localPath, cancellationToken);
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
