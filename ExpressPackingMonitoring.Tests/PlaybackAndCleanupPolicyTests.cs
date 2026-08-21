@@ -153,6 +153,55 @@ public sealed class PlaybackAndCleanupPolicyTests : IDisposable
     }
 
     [Fact]
+    public void EmergencyCleanupSnapshot_RejectsReplacedPathOrSize()
+    {
+        DateTime now = new(2026, 8, 11, 12, 0, 0);
+        string oldPath = Path.Combine(_directory, "old-snapshot.mp4");
+        string newPath = Path.Combine(_directory, "new-recording.mp4");
+        File.WriteAllText(oldPath, "old");
+        File.WriteAllText(newPath, "new");
+
+        VideoRecord snapshot = new()
+        {
+            Id = 42,
+            FilePath = oldPath,
+            FileSizeBytes = 3,
+            ArchiveStatus = VideoArchiveStatus.LocalOnly,
+            EndTime = now.AddHours(-2)
+        };
+        VideoRecord replaced = new()
+        {
+            Id = 42,
+            FilePath = newPath,
+            FileSizeBytes = 3,
+            ArchiveStatus = VideoArchiveStatus.LocalOnly,
+            EndTime = now.AddHours(-2)
+        };
+
+        Assert.False(LocalCopyCleanupPolicy.IsEmergencyCleanupSnapshotCurrent(
+            snapshot,
+            replaced,
+            now));
+        Assert.True(File.Exists(newPath));
+
+        replaced.FilePath = oldPath;
+        replaced.FileSizeBytes = 99;
+        Assert.False(LocalCopyCleanupPolicy.IsEmergencyCleanupSnapshotCurrent(
+            snapshot,
+            replaced,
+            now));
+        Assert.True(File.Exists(oldPath));
+
+        replaced.FileSizeBytes = 3;
+        replaced.ContentSha256 = "new-content";
+        snapshot.ContentSha256 = "old-content";
+        Assert.False(LocalCopyCleanupPolicy.IsEmergencyCleanupSnapshotCurrent(
+            snapshot,
+            replaced,
+            now));
+    }
+
+    [Fact]
     public void EmergencyCleanupPolicy_ConstantsMatchPlan()
     {
         Assert.Equal(5L * 1024 * 1024 * 1024, LocalCopyCleanupPolicy.EmergencyCleanupThresholdBytes);

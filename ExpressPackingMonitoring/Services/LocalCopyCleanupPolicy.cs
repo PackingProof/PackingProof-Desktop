@@ -121,6 +121,51 @@ internal static class LocalCopyCleanupPolicy
         return true;
     }
 
+    /// <summary>
+    /// 在记录所有权锁内确认候选快照仍指向同一条可清理记录。
+    /// </summary>
+    internal static bool IsEmergencyCleanupSnapshotCurrent(
+        VideoRecord snapshot,
+        VideoRecord? current,
+        DateTime now)
+    {
+        if (snapshot == null
+            || current == null
+            || current.IsDeleted
+            || string.IsNullOrWhiteSpace(current.FilePath)
+            || !string.Equals(
+                current.FilePath,
+                snapshot.FilePath,
+                StringComparison.OrdinalIgnoreCase)
+            || ((!string.IsNullOrWhiteSpace(snapshot.ContentSha256)
+                 || !string.IsNullOrWhiteSpace(current.ContentSha256))
+                && !string.Equals(
+                    current.ContentSha256,
+                    snapshot.ContentSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            || !IsEligibleForEmergencyCleanup(current, now, out _)
+            || !File.Exists(current.FilePath))
+        {
+            return false;
+        }
+
+        if (current.FileSizeBytes <= 0)
+            return true;
+
+        try
+        {
+            return new FileInfo(current.FilePath).Length == current.FileSizeBytes;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>LastArchiveProbeAt 是否在探测缓存窗口内（24 小时内免重复探测）。</summary>
     public static bool IsProbeFresh(VideoRecord record, DateTime now) =>
         record?.LastArchiveProbeAt != null

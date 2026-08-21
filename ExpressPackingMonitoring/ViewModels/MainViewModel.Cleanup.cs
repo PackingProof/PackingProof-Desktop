@@ -535,30 +535,15 @@ namespace ExpressPackingMonitoring.ViewModels
                             // 候选来自锁外快照。进入所有权锁后必须重新读取并复查，
                             // 防止归档/删除任务已发布新状态或替换路径后仍按旧快照删文件。
                             VideoRecord? current = _db.GetVideoById(record.Id);
-                            if (current == null
-                                || current.IsDeleted
-                                || string.IsNullOrWhiteSpace(current.FilePath)
-                                || !string.Equals(
-                                    current.FilePath,
-                                    record.FilePath,
-                                    StringComparison.OrdinalIgnoreCase)
-                                || !LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(
+                            if (!LocalCopyCleanupPolicy.IsEmergencyCleanupSnapshotCurrent(
+                                    record,
                                     current,
-                                    DateTime.Now,
-                                    out _)
-                                || !File.Exists(current.FilePath))
+                                    DateTime.Now))
                             {
                                 continue;
                             }
 
                             FileInfo currentFile = new(current.FilePath);
-                            if (current.FileSizeBytes > 0
-                                && currentFile.Length != current.FileSizeBytes)
-                            {
-                                // 文件已被替换或仍在写入，不能依据旧候选删除。
-                                continue;
-                            }
-
                             long currentSize = currentFile.Length;
                             File.Delete(current.FilePath);
                             try
