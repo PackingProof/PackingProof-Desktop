@@ -659,14 +659,18 @@ internal sealed class ArchiveService : IDisposable
 
         lock (_recoverySync)
         {
+            bool recoveryAlreadyStarted = _recoveryMode;
             _recoveryMode = true;
-            int initialBatchSize = Math.Clamp(
-                Math.Max(1, _options.RecoveryInitialBatchSize),
-                1,
-                Math.Max(1, _options.RecoveryMaxBatchSize));
-            _recoveryBatchSize = Math.Min(
-                Math.Max(1, _options.RecoveryMaxBatchSize),
-                initialBatchSize * 2);
+            if (!recoveryAlreadyStarted)
+            {
+                int initialBatchSize = Math.Clamp(
+                    Math.Max(1, _options.RecoveryInitialBatchSize),
+                    1,
+                    Math.Max(1, _options.RecoveryMaxBatchSize));
+                _recoveryBatchSize = Math.Min(
+                    Math.Max(1, _options.RecoveryMaxBatchSize),
+                    initialBatchSize * 2);
+            }
             _recoveryNextRoundAt = DateTime.Now + _options.RecoveryInterBatchDelay;
         }
 
