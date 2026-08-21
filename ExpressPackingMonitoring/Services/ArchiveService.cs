@@ -15,6 +15,7 @@ internal sealed class ArchiveService : IDisposable
     private readonly IArchiveProvider _provider;
     private readonly ArchiveWorkerOptions _options;
     private readonly Func<IReadOnlyList<StorageLocation>>? _archiveTargetResolver;
+    private readonly Func<bool>? _realtimeBusyProvider;
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
@@ -26,19 +27,34 @@ internal sealed class ArchiveService : IDisposable
     private int _consecutiveUnreachableFailures;
     private DateTime _circuitRetryAfter;
     private TimeSpan _nextUnreachableCooldown;
+    private readonly object _recoverySync = new();
+    private bool _recoveryMode;
+    private int _recoveryBatchSize;
+    private DateTime _recoveryNextRoundAt;
+    private readonly ArchiveTransferThrottle? _transferThrottle;
 
     public ArchiveService(
         VideoDatabase database,
         IArchiveProvider provider,
         ArchiveWorkerOptions? options = null,
         Func<IReadOnlyList<StorageLocation>>? archiveTargetResolver = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<bool>? realtimeBusyProvider = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _options = options ?? new ArchiveWorkerOptions();
         _nextUnreachableCooldown = _options.UnreachableCooldown;
         _archiveTargetResolver = archiveTargetResolver;
+        _realtimeBusyProvider = realtimeBusyProvider;
+        if (_provider is IArchiveTransferThrottleAware throttleAware
+            && _options.RecoveryMaxBytesPerSecond > 0)
+        {
+            _transferThrottle = new ArchiveTransferThrottle(
+                IsRecoveryThrottleActive,
+                _options.RecoveryMaxBytesPerSecond);
+            throttleAware.SetTransferThrottle(_transferThrottle);
+        }
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
@@ -69,6 +85,11 @@ internal sealed class ArchiveService : IDisposable
     /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
+        if (_realtimeBusyProvider?.Invoke() == true)
+            return 0;
+        if (!TryBeginRecoveryRound(out bool recoveryRound))
+            return 0;
+
         string? archiveTarget = ResolveArchiveTarget();
         if (archiveTarget == null)
             return 0; // 解析失败：跳过本轮
@@ -84,10 +105,17 @@ internal sealed class ArchiveService : IDisposable
             BackfillHistoricalArchives(archiveTarget);
         }
 
+        int batchSize = recoveryRound
+            ? Math.Min(
+                Math.Max(1, _options.BatchSize),
+                Math.Clamp(
+                    _recoveryBatchSize,
+                    1,
+                    Math.Max(1, _options.RecoveryMaxBatchSize)))
+            : Math.Max(1, _options.BatchSize);
+        IReadOnlyList<VideoRecord> records = _database.GetPendingArchives(batchSize, DateTime.Now);
         int completed = 0;
-        foreach (VideoRecord record in _database.GetPendingArchives(
-                     _options.BatchSize,
-                     DateTime.Now))
+        foreach (VideoRecord record in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (IsCircuitOpen())
@@ -97,7 +125,11 @@ internal sealed class ArchiveService : IDisposable
                 cancellationToken);
             if (await TryArchiveAsync(record, cancellationToken, archiveTarget).ConfigureAwait(false))
                 completed++;
+            // 恢复刚刚发生时只完成当前这一条，避免同一轮继续全速释放积压。
+            if (!recoveryRound && IsRecoveryThrottleActive())
+                break;
         }
+        CompleteRecoveryRound(recoveryRound, records.Count);
         return completed;
     }
 
@@ -231,7 +263,7 @@ internal sealed class ArchiveService : IDisposable
         {
             long localSize = new FileInfo(localPath).Length;
             string sourceHash = string.IsNullOrWhiteSpace(record.ContentSha256)
-                ? await NasArchiveProvider.ComputeSha256FileAsync(
+                ? await _provider.ComputeSha256Async(
                     localPath,
                     cancellationToken).ConfigureAwait(false)
                 : record.ContentSha256;
@@ -463,6 +495,49 @@ internal sealed class ArchiveService : IDisposable
             return _circuitRetryAfter > DateTime.Now;
     }
 
+    private bool IsRecoveryThrottleActive()
+    {
+        lock (_recoverySync)
+            return _recoveryMode;
+    }
+
+    private bool TryBeginRecoveryRound(out bool recoveryRound)
+    {
+        lock (_recoverySync)
+        {
+            recoveryRound = _recoveryMode;
+            if (!recoveryRound)
+                return true;
+            if (_recoveryNextRoundAt > DateTime.Now)
+                return false;
+            return true;
+        }
+    }
+
+    private void CompleteRecoveryRound(bool recoveryRound, int selectedCount)
+    {
+        if (!recoveryRound)
+            return;
+        lock (_recoverySync)
+        {
+            if (!_recoveryMode)
+                return;
+            if (selectedCount == 0 || selectedCount < Math.Max(1, _recoveryBatchSize))
+            {
+                _recoveryMode = false;
+                _recoveryBatchSize = 0;
+                _recoveryNextRoundAt = default;
+                RuntimeLog.Info("Archive", "NAS 恢复后的归档积压已完成渐进放量");
+                return;
+            }
+            int maxBatch = Math.Max(1, _options.RecoveryMaxBatchSize);
+            _recoveryBatchSize = Math.Min(
+                maxBatch,
+                Math.Max(1, _recoveryBatchSize) * 2);
+            _recoveryNextRoundAt = DateTime.Now + _options.RecoveryInterBatchDelay;
+        }
+    }
+
     /// <summary>
     /// 没有解析出配置根时退化为共享根（UNC 的 \\server\share 或本地盘符），
     /// 保证同一备份目标下的连续失败可以正确累计。
@@ -522,6 +597,13 @@ internal sealed class ArchiveService : IDisposable
             }
         }
 
+        lock (_recoverySync)
+        {
+            _recoveryMode = false;
+            _recoveryBatchSize = 0;
+            _recoveryNextRoundAt = default;
+        }
+
         if (!opened)
             return null;
 
@@ -551,6 +633,19 @@ internal sealed class ArchiveService : IDisposable
         if (!wasOpen)
             return;
 
+        lock (_recoverySync)
+        {
+            _recoveryMode = true;
+            int initialBatchSize = Math.Clamp(
+                Math.Max(1, _options.RecoveryInitialBatchSize),
+                1,
+                Math.Max(1, _options.RecoveryMaxBatchSize));
+            _recoveryBatchSize = Math.Min(
+                Math.Max(1, _options.RecoveryMaxBatchSize),
+                initialBatchSize * 2);
+            _recoveryNextRoundAt = DateTime.Now + _options.RecoveryInterBatchDelay;
+        }
+
         RuntimeLog.Info("Archive", "归档目标已恢复可达，继续归档");
         BackupTargetAvailabilityChanged?.Invoke(true, "");
     }
@@ -561,6 +656,8 @@ internal sealed class ArchiveService : IDisposable
         Wake();
         try { _worker.Wait(TimeSpan.FromSeconds(3)); } catch { }
         _wakeSignal.Dispose();
+        if (_provider is IArchiveTransferThrottleAware throttleAware)
+            throttleAware.SetTransferThrottle(null);
         _cts.Dispose();
     }
 }

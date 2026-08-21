@@ -868,6 +868,67 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RealtimeBusy_SkipsArchiveWithoutTouchingNas()
+    {
+        long id = InsertPendingRecord("busy.mp4", "busy-content");
+        bool realtimeBusy = true;
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            realtimeBusyProvider: () => realtimeBusy);
+
+        Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        Assert.Empty(provider.PublishedPaths);
+        Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(id)!.ArchiveStatus);
+
+        realtimeBusy = false;
+        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        Assert.Single(provider.PublishedPaths);
+    }
+
+    [Fact]
+    public async Task RecoveredBacklog_RampsBatchSizeAndWaitsBetweenRounds()
+    {
+        for (int i = 0; i < 6; i++)
+            InsertPendingRecord($"ramp-{i}.mp4", "ramp-content-" + i);
+
+        var provider = new UnreachableProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                BatchSize = 20,
+                UnreachableFailureThreshold = 1,
+                UnreachableCooldown = TimeSpan.FromMilliseconds(20),
+                MaxUnreachableCooldown = TimeSpan.FromMilliseconds(20),
+                RecoveryInitialBatchSize = 1,
+                RecoveryMaxBatchSize = 4,
+                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(40),
+                RecoveryMaxBytesPerSecond = 0
+            });
+
+        Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        provider.Unreachable = false;
+        await Task.Delay(60);
+
+        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        int verifiedAfterFirstRound = _database.QueryVideos(null, null)
+            .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
+        Assert.Equal(1, verifiedAfterFirstRound);
+        Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
+
+        await Task.Delay(60);
+        Assert.Equal(2, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        verifiedAfterFirstRound = _database.QueryVideos(null, null)
+            .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
+        Assert.Equal(3, verifiedAfterFirstRound);
+    }
+
+    [Fact]
     public async Task Backfill_CatchesUpTo2000ThenThrottlesUntilWake()
     {
         const int total = 3000;

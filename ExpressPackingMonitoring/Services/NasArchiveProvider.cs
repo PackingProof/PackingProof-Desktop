@@ -7,12 +7,16 @@ namespace ExpressPackingMonitoring.Services;
 /// <summary>
 /// 基于文件系统的 NAS/UNC 归档 Provider。
 /// </summary>
-internal sealed class NasArchiveProvider : IArchiveProvider
+internal sealed class NasArchiveProvider : IArchiveProvider, IArchiveTransferThrottleAware
 {
     /// <summary>残留上传临时文件超过该年龄且本地源仍存在时，发布前清理。</summary>
     private static readonly TimeSpan StaleTempCleanupAge = TimeSpan.FromHours(24);
     private static readonly ConcurrentDictionary<string, byte> ActiveTemporaryFiles =
         new(StringComparer.OrdinalIgnoreCase);
+    private ArchiveTransferThrottle? _transferThrottle;
+
+    public void SetTransferThrottle(ArchiveTransferThrottle? throttle) =>
+        Volatile.Write(ref _transferThrottle, throttle);
 
     public async Task PublishFileAsync(
         string sourcePath,
@@ -57,7 +61,8 @@ internal sealed class NasArchiveProvider : IArchiveProvider
                     sourcePath,
                     temporaryPath,
                     cancellationToken,
-                    () => temporaryOwned = true)
+                    () => temporaryOwned = true,
+                    () => Volatile.Read(ref _transferThrottle))
                 .ConfigureAwait(false);
 
             if (File.Exists(destinationPath))
@@ -127,7 +132,7 @@ internal sealed class NasArchiveProvider : IArchiveProvider
     }
 
     public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
-        ComputeSha256CoreAsync(path, cancellationToken);
+        ComputeSha256CoreAsync(path, cancellationToken, () => Volatile.Read(ref _transferThrottle));
 
     public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
         string path,
@@ -178,7 +183,7 @@ internal sealed class NasArchiveProvider : IArchiveProvider
     }
 
     internal static Task<string> ComputeSha256FileAsync(string path, CancellationToken cancellationToken) =>
-        ComputeSha256CoreAsync(path, cancellationToken);
+        ComputeSha256CoreAsync(path, cancellationToken, throttleProvider: null);
 
     /// <summary>
     /// 清理同一目标下超过 24 小时的残留上传临时文件；只清理本地源仍存在的目标，
@@ -300,7 +305,8 @@ internal sealed class NasArchiveProvider : IArchiveProvider
 
     private static async Task<string> ComputeSha256CoreAsync(
         string path,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ArchiveTransferThrottle?>? throttleProvider)
     {
         await using var stream = new FileStream(
             path,
@@ -309,15 +315,25 @@ internal sealed class NasArchiveProvider : IArchiveProvider
             FileShare.Read,
             1024 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        byte[] digest = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
-        return Convert.ToHexString(digest).ToLowerInvariant();
+        using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        byte[] buffer = new byte[1024 * 1024];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            ArchiveTransferThrottle? throttle = throttleProvider?.Invoke();
+            if (throttle != null)
+                await throttle.WaitAsync(read, cancellationToken).ConfigureAwait(false);
+            hash.AppendData(buffer, 0, read);
+        }
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
     private static async Task CopyFileAsync(
         string sourcePath,
         string destinationPath,
         CancellationToken cancellationToken,
-        Action onDestinationCreated)
+        Action onDestinationCreated,
+        Func<ArchiveTransferThrottle?> throttleProvider)
     {
         const int bufferSize = 1024 * 1024;
         await using var source = new FileStream(
@@ -335,7 +351,15 @@ internal sealed class NasArchiveProvider : IArchiveProvider
             bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         onDestinationCreated();
-        await source.CopyToAsync(destination, bufferSize, cancellationToken).ConfigureAwait(false);
+        byte[] buffer = new byte[bufferSize];
+        int read;
+        while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            ArchiveTransferThrottle? throttle = throttleProvider();
+            if (throttle != null)
+                await throttle.WaitAsync(read, cancellationToken).ConfigureAwait(false);
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
         destination.Flush(flushToDisk: true);
         if (source.Length != destination.Length)

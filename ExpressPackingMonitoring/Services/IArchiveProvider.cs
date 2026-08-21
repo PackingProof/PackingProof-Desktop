@@ -62,4 +62,10 @@ internal interface IArchiveProvider
         CancellationToken cancellationToken);
 }
 
+/// <summary>可选的传输节流能力；第三方 Provider 不实现时保持原有行为。</summary>
+internal interface IArchiveTransferThrottleAware
+{
+    void SetTransferThrottle(ArchiveTransferThrottle? throttle);
+}
+
 internal sealed class ArchiveConflictException(string message) : IOException(message);

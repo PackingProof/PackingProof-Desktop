@@ -18,4 +18,16 @@ internal sealed class ArchiveWorkerOptions
 
     /// <summary>连续熔断时冷却时间的上限（指数增长封顶）。</summary>
     public TimeSpan MaxUnreachableCooldown { get; init; } = TimeSpan.FromMinutes(30);
+
+    /// <summary>NAS 恢复后第一轮允许处理的记录数，随后按倍数渐进放量。</summary>
+    public int RecoveryInitialBatchSize { get; init; } = 1;
+
+    /// <summary>NAS 恢复后单轮最大记录数，避免积压一次性冲击实时录像。</summary>
+    public int RecoveryMaxBatchSize { get; init; } = 8;
+
+    /// <summary>恢复放量各轮之间的最短间隔。</summary>
+    public TimeSpan RecoveryInterBatchDelay { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>恢复阶段 NAS 文件读写上限；0 表示不限制（单位：字节/秒）。</summary>
+    public long RecoveryMaxBytesPerSecond { get; init; } = 8 * 1024 * 1024;
 }
