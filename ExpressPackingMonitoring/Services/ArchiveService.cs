@@ -125,9 +125,6 @@ internal sealed class ArchiveService : IDisposable
                 cancellationToken);
             if (await TryArchiveAsync(record, cancellationToken, archiveTarget).ConfigureAwait(false))
                 completed++;
-            // 恢复刚刚发生时只完成当前这一条，避免同一轮继续全速释放积压。
-            if (!recoveryRound && IsRecoveryThrottleActive())
-                break;
         }
         CompleteRecoveryRound(recoveryRound, records.Count);
         return completed;
@@ -508,8 +505,30 @@ internal sealed class ArchiveService : IDisposable
 
     private bool TryBeginRecoveryRound(out bool recoveryRound)
     {
+        bool cooldownExpired;
+        lock (_circuitSync)
+        {
+            if (_circuitRetryAfter > DateTime.Now)
+            {
+                recoveryRound = false;
+                return false;
+            }
+            // 熔断时间已到但尚未完成第一次恢复探测：先进入恢复模式，
+            // 让首条上传就使用 batch=1 与字节节流，避免大文件直接冲击实时路径。
+            cooldownExpired = _circuitRetryAfter != default;
+        }
+
         lock (_recoverySync)
         {
+            if (cooldownExpired && !_recoveryMode)
+            {
+                _recoveryMode = true;
+                _recoveryBatchSize = Math.Clamp(
+                    Math.Max(1, _options.RecoveryInitialBatchSize),
+                    1,
+                    Math.Max(1, _options.RecoveryMaxBatchSize));
+                _recoveryNextRoundAt = DateTime.Now;
+            }
             recoveryRound = _recoveryMode;
             if (!recoveryRound)
                 return true;

@@ -16,6 +16,8 @@ internal sealed class ArchiveTransferThrottle
         _bytesPerSecond = Math.Max(0, bytesPerSecond);
     }
 
+    internal bool IsActive => _bytesPerSecond > 0 && _enabled();
+
     public async ValueTask WaitAsync(int bytes, CancellationToken cancellationToken)
     {
         if (bytes <= 0 || _bytesPerSecond <= 0 || !_enabled())

@@ -867,6 +867,53 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
     }
 
+    private sealed class ThrottleAwareProvider : IArchiveProvider, IArchiveTransferThrottleAware
+    {
+        private readonly NasArchiveProvider _inner = new();
+        private ArchiveTransferThrottle? _throttle;
+        public bool SawActiveThrottle { get; private set; }
+        public bool Unreachable { get; set; } = true;
+
+        public void SetTransferThrottle(ArchiveTransferThrottle? throttle) => _throttle = throttle;
+
+        public Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            string attemptToken,
+            CancellationToken cancellationToken)
+        {
+            SawActiveThrottle |= _throttle?.IsActive == true;
+            if (Unreachable)
+                return Task.FromException(new IOException(
+                    "找不到网络路径。",
+                    unchecked((int)0x80070035)));
+            return _inner.PublishFileAsync(
+                sourcePath,
+                destinationPath,
+                recordId,
+                expectedSha256,
+                attemptToken,
+                cancellationToken);
+        }
+
+        public Task<RemoteProbeResult> ProbeAsync(string path, long expectedSize, CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
+
+        public Task RenameAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+    }
+
     [Fact]
     public async Task RealtimeBusy_SkipsArchiveWithoutTouchingNas()
     {
@@ -926,6 +973,30 @@ public sealed class ArchiveServiceTests : IDisposable
         verifiedAfterFirstRound = _database.QueryVideos(null, null)
             .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
         Assert.Equal(3, verifiedAfterFirstRound);
+    }
+
+    [Fact]
+    public async Task RecoveryFirstUpload_UsesThrottleBeforeReachabilityIsRecorded()
+    {
+        for (int i = 0; i < 3; i++)
+            InsertPendingRecord($"throttle-first-{i}.mp4", "throttle-content-" + i);
+        var unreachable = new ThrottleAwareProvider();
+        using var service = new ArchiveService(
+            _database,
+            unreachable,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                UnreachableFailureThreshold = 1,
+                UnreachableCooldown = TimeSpan.FromMilliseconds(20),
+                RecoveryMaxBytesPerSecond = 1
+            });
+
+        await service.ProcessPendingOnceAsync(CancellationToken.None);
+        unreachable.Unreachable = false;
+        await Task.Delay(40);
+        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        Assert.True(unreachable.SawActiveThrottle);
     }
 
     [Fact]
