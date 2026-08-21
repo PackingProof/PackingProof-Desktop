@@ -873,7 +873,7 @@ public sealed class MobileBackupTests
             byte[] file = Encoding.UTF8.GetBytes("new mobile video");
             string sha = Sha256(file);
             DateTime localStart = CompleteRequest(sha, "collision-session", "TRACK-001", "phone-1", "手机")
-                .StartedAt.ToLocalTime().DateTime;
+                .Sessions[0].StartedAt.ToLocalTime().DateTime;
             string dateDirectory = Path.Combine(
                 directory,
                 "recordings",
