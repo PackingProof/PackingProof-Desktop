@@ -16,6 +16,15 @@ internal sealed record OrderInfoRelayResult(
 
 internal static class OrderInfoRelay
 {
+    // Keep the relay payload aligned with the browser/mobile protocol.  The
+    // WebServer accepts both naming styles when reading, but remote clients
+    // may use a strict camelCase contract when writing.
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
     private static readonly HttpClient Client = new(new SocketsHttpHandler
     {
         UseProxy = false,
@@ -70,7 +79,7 @@ internal static class OrderInfoRelay
                 return Failed(device, (int)identityResponse.StatusCode, "identity_mismatch");
 
             using var content = new StringContent(
-                JsonSerializer.Serialize(orders),
+                JsonSerializer.Serialize(orders, JsonOptions),
                 Encoding.UTF8,
                 "application/json");
             using var response = await client.PostAsync($"{device.Address}/api/orderinfo", content, cancellationToken);
@@ -79,14 +88,17 @@ internal static class OrderInfoRelay
                 return Failed(device, (int)response.StatusCode, "delivery_failed");
 
             using JsonDocument document = JsonDocument.Parse(responseText);
+            // The identity probe above is authoritative.  Older order
+            // receivers only returned { ok, testCount } from POST, so a
+            // missing nodeId is compatible; an explicit, different nodeId
+            // still indicates that the endpoint changed identity and must be
+            // rejected.
             string reportedNodeId = GetString(document.RootElement, "nodeId");
-            if (!string.Equals(reportedNodeId, device.NodeId, StringComparison.OrdinalIgnoreCase))
+            if (reportedNodeId.Length > 0 &&
+                !string.Equals(reportedNodeId, device.NodeId, StringComparison.OrdinalIgnoreCase))
                 return Failed(device, (int)response.StatusCode, "identity_mismatch");
 
-            int testCount = document.RootElement.TryGetProperty("testCount", out JsonElement testCountElement)
-                && testCountElement.TryGetInt32(out int value)
-                    ? value
-                    : 0;
+            int testCount = TryGetInt32(document.RootElement, "testCount");
             return new OrderInfoRelayResult(
                 device.NodeId,
                 device.NodeName,
@@ -130,9 +142,35 @@ internal static class OrderInfoRelay
     }
 
     private static string GetString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out JsonElement property)
-            ? property.GetString()?.Trim() ?? ""
+        TryGetProperty(element, propertyName, out JsonElement property)
+            ? property.ValueKind == JsonValueKind.String
+                ? property.GetString()?.Trim() ?? ""
+                : ""
             : "";
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.TryGetProperty(propertyName, out value))
+            return true;
+
+        foreach (JsonProperty property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static int TryGetInt32(JsonElement element, string propertyName) =>
+        TryGetProperty(element, propertyName, out JsonElement value) &&
+        value.TryGetInt32(out int result)
+            ? result
+            : 0;
 
     private static OrderInfoRelayResult Failed(RecordingDeviceInfo device, int status, string error) =>
         new(device.NodeId, device.NodeName, device.DeviceType, device.Address, false, status, 0, error);

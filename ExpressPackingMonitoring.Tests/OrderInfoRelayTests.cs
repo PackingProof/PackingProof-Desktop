@@ -67,6 +67,20 @@ public sealed class OrderInfoRelayTests
                 unconfiguredContent,
                 TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.Conflict, unconfiguredResponse.StatusCode);
+
+            string tooManyTargets = string.Join(',', Enumerable.Range(1, 9).Select(index => $"\"node-{index}\""));
+            using var tooManyContent = new StringContent(
+                $"{{\"orders\":[{{\"trackingNumber\":\"TEST-3\"}}],\"targetNodeIds\":[{tooManyTargets}]}}",
+                Encoding.UTF8,
+                "application/json");
+            using HttpResponseMessage tooManyResponse = await client.PostAsync(
+                "/api/orderinfo/broadcast",
+                tooManyContent,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.BadRequest, tooManyResponse.StatusCode);
+            using JsonDocument tooManyDocument = JsonDocument.Parse(
+                await tooManyResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(8, tooManyDocument.RootElement.GetProperty("maxTargets").GetInt32());
         }
         finally
         {
@@ -147,6 +161,74 @@ public sealed class OrderInfoRelayTests
         Assert.False(result.Ok);
         Assert.Equal("identity_mismatch", result.Error);
         Assert.Equal([HttpMethod.Get], requests);
+    }
+
+    [Fact]
+    public async Task SendAsync_UsesCamelCaseAndAcceptsLegacyResponseWithoutNodeId()
+    {
+        string? requestBody = null;
+        int requestIndex = 0;
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            if (requestIndex++ == 0)
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"nodeId\":\"expected-node\"}", Encoding.UTF8, "application/json")
+                };
+            }
+
+            requestBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                // Older receivers do not echo nodeId in their POST response.
+                Content = new StringContent("{\"ok\":true,\"testCount\":1}", Encoding.UTF8, "application/json")
+            };
+        }));
+        RecordingDeviceInfo device = Device("expected-node", "http://192.168.1.20:5280");
+
+        OrderInfoRelayResult result = await OrderInfoRelay.SendAsync(
+            device,
+            [new OrderInfo { TrackingNumber = "TEST-1", IsTest = true }],
+            client,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Ok);
+        Assert.Equal(1, result.TestCount);
+        Assert.NotNull(requestBody);
+        string body = requestBody!;
+        Assert.Contains("\"trackingNumber\":\"TEST-1\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"TrackingNumber\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"isTest\":true", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SendAsync_RejectsExplicitIdentityMismatchInDeliveryResponse()
+    {
+        int requestIndex = 0;
+        using var client = new HttpClient(new StubHandler(_ =>
+        {
+            requestIndex++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    requestIndex == 1
+                        ? "{\"nodeId\":\"expected-node\"}"
+                        : "{\"ok\":true,\"nodeId\":\"different-node\"}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        }));
+        RecordingDeviceInfo device = Device("expected-node", "http://192.168.1.20:5280");
+
+        OrderInfoRelayResult result = await OrderInfoRelay.SendAsync(
+            device,
+            [new OrderInfo { TrackingNumber = "TEST-1" }],
+            client,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(result.Ok);
+        Assert.Equal("identity_mismatch", result.Error);
     }
 
     private static RecordingDeviceInfo Device(string nodeId, string address) => new()

@@ -118,6 +118,7 @@ namespace ExpressPackingMonitoring.Services
         private const int MaxJsonBodyBytes = 64 * 1024;
         private const int MaxOrderInfoBodyBytes = 1024 * 1024;
         internal const int MaxOrderInfoItems = 200;
+        private const int MaxOrderBroadcastTargets = 8;
         private HttpListener _listener;
         private readonly VideoDatabase _db;
         private readonly Func<bool> _isRecordingProvider;
@@ -2448,10 +2449,23 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 ValidateOrderInfoItems(items);
-                HashSet<string> targetNodeIds = (request?.TargetNodeIds ?? [])
+                string[] requestedTargetNodeIds = (request?.TargetNodeIds ?? [])
                     .Where(nodeId => !string.IsNullOrWhiteSpace(nodeId))
                     .Select(nodeId => nodeId.Trim())
-                    .Take(8)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                if (requestedTargetNodeIds.Length > MaxOrderBroadcastTargets)
+                {
+                    SendJson(ctx, 400, new
+                    {
+                        error = $"一次最多指定 {MaxOrderBroadcastTargets} 台订单接收设备",
+                        maxTargets = MaxOrderBroadcastTargets,
+                        requestedTargets = requestedTargetNodeIds.Length
+                    });
+                    return;
+                }
+
+                HashSet<string> targetNodeIds = requestedTargetNodeIds
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 if (targetNodeIds.Count == 0)
                 {
