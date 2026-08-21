@@ -30,8 +30,6 @@ namespace ExpressPackingMonitoring.Data
         public const string ConflictLocalMissing = "ConflictLocalMissing";
         /// <summary>任何可信副本都不存在（数据丢失），用户可见异常终态。</summary>
         public const string BackupLost = "BackupLost";
-        /// <summary>历史共享文件记录正在等待安全物化，禁止本地/NAS 自动清理。</summary>
-        public const string SharedFileMigrationPending = "SharedFileMigrationPending";
         /// <summary>设置页“录像清理”手动清理本地录像，NAS 归档不受影响。</summary>
         public const string ManualCleanup = "ManualCleanup";
     }
@@ -93,6 +91,8 @@ namespace ExpressPackingMonitoring.Data
         public const string LocalMissingUnverified = "LocalMissingUnverified";
         /// <summary>备份丢失：任何可信副本都不存在，用户可见异常终态，计入待备份。</summary>
         public const string BackupLost = "BackupLost";
+        /// <summary>历史共享文件记录正在等待安全物化，禁止本地/NAS 自动清理。</summary>
+        public const string SharedFileMigrationPending = "SharedFileMigrationPending";
     }
 
     /// <summary>
