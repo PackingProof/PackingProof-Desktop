@@ -1,0 +1,31 @@
+{
+  "request": {
+    "fileSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sourceDeviceId": "phone-contract",
+    "sourceDeviceName": "契约手机",
+    "sessions": [
+      {
+        "id": "session-contract",
+        "trackingNumber": "TRACK-CONTRACT",
+        "startedAt": "2026-08-21T01:00:00.000Z",
+        "endedAt": "2026-08-21T01:00:05.000Z",
+        "mediaStartMs": 0,
+        "mediaEndMs": 5000,
+        "mode": "shipping",
+        "markers": [
+          {
+            "code": "TRACK-CONTRACT",
+            "occurredAt": "2026-08-21T01:00:01.000Z",
+            "offsetMs": 1000
+          }
+        ]
+      }
+    ]
+  },
+  "response": {
+    "status": "verified",
+    "fileSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "recordId": 42,
+    "alreadyCompleted": false
+  }
+}

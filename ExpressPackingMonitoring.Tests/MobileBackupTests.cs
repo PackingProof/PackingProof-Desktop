@@ -1150,18 +1150,17 @@ public sealed class MobileBackupTests
     [Fact]
     public void CompleteWireContractUsesCanonicalSingleSessionSchema()
     {
-        MobileBackupCompleteRequest request = CompleteRequest(
-            new string('a', 64), "session-contract", "TRACK-CONTRACT", "phone-contract", "契约手机");
-        request.Sessions[0].Markers.Add(new MobileBackupMarkerRequest
-        {
-            Code = "TRACK-CONTRACT",
-            OccurredAt = request.Sessions[0].StartedAt.AddSeconds(1),
-            OffsetMs = 1000
-        });
         var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        using JsonDocument fixture = JsonDocument.Parse(File.ReadAllText(
+            FindRepositoryFile("protocol-fixtures/mobile-backup-v2-complete.json"),
+            Encoding.UTF8));
+        MobileBackupCompleteRequest request = Assert.IsType<MobileBackupCompleteRequest>(
+            JsonSerializer.Deserialize<MobileBackupCompleteRequest>(
+                fixture.RootElement.GetProperty("request").GetRawText(), jsonOptions));
 
         JsonElement root = JsonSerializer.SerializeToElement(request, jsonOptions);
         JsonElement session = root.GetProperty("sessions")[0];
+        JsonElement response = fixture.RootElement.GetProperty("response");
 
         Assert.False(root.TryGetProperty("sessionId", out _));
         Assert.False(root.TryGetProperty("recordIds", out _));
@@ -1172,6 +1171,8 @@ public sealed class MobileBackupTests
         Assert.False(session.TryGetProperty("sessionId", out _));
         Assert.False(session.TryGetProperty("durationMilliseconds", out _));
         Assert.False(session.TryGetProperty("orderInfo", out _));
+        Assert.Equal(42, response.GetProperty("recordId").GetInt64());
+        Assert.False(response.TryGetProperty("recordIds", out _));
 
         JsonObject privateMetadata = JsonNode.Parse(root.GetRawText())!.AsObject();
         privateMetadata["sessions"]![0]!["orderInfo"] = new JsonObject
@@ -1856,6 +1857,19 @@ public sealed class MobileBackupTests
     {
         SqliteTestPool.ClearPoolFor(path);
         try { Directory.Delete(path, recursive: true); } catch { }
+    }
+
+    private static string FindRepositoryFile(string relativePath)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate))
+                return candidate;
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException("找不到共享契约夹具", relativePath);
     }
 
     private static int GetFreeTcpPort() =>
