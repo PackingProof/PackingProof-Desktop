@@ -154,6 +154,29 @@ public sealed class NasArchiveProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task PublishFileAsync_DoesNotDeleteStaleTempForActiveAttempt()
+    {
+        (string source, string dest) = Prepare("in-use-stale", "ignored");
+        string temp = dest + ".7.1-current.uploading";
+        File.WriteAllText(temp, "partial");
+        File.SetLastWriteTimeUtc(temp, DateTime.UtcNow.AddHours(-25));
+        var provider = new NasArchiveProvider();
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            provider.PublishFileAsync(
+                source,
+                dest,
+                7,
+                "ignored",
+                "1-current",
+                CancellationToken.None));
+
+        // 当前 attemptToken 对应的临时文件可能仍由另一任务持有，失败任务不得清理它。
+        Assert.True(File.Exists(temp));
+        Assert.False(File.Exists(dest));
+    }
+
+    [Fact]
     public async Task ProbeAsync_ReportsNotExistsSameAndDifferentSize()
     {
         (string source, string dest) = Prepare("probe-content", "ignored");

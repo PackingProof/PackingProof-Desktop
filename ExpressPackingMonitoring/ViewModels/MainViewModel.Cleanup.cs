@@ -532,30 +532,57 @@ namespace ExpressPackingMonitoring.ViewModels
                                    record.Id,
                                    CancellationToken.None).GetAwaiter().GetResult())
                         {
-                            if (!File.Exists(record.FilePath))
+                            // 候选来自锁外快照。进入所有权锁后必须重新读取并复查，
+                            // 防止归档/删除任务已发布新状态或替换路径后仍按旧快照删文件。
+                            VideoRecord? current = _db.GetVideoById(record.Id);
+                            if (current == null
+                                || current.IsDeleted
+                                || string.IsNullOrWhiteSpace(current.FilePath)
+                                || !string.Equals(
+                                    current.FilePath,
+                                    record.FilePath,
+                                    StringComparison.OrdinalIgnoreCase)
+                                || !LocalCopyCleanupPolicy.IsEligibleForEmergencyCleanup(
+                                    current,
+                                    DateTime.Now,
+                                    out _)
+                                || !File.Exists(current.FilePath))
+                            {
                                 continue;
-                            File.Delete(record.FilePath);
+                            }
+
+                            FileInfo currentFile = new(current.FilePath);
+                            if (current.FileSizeBytes > 0
+                                && currentFile.Length != current.FileSizeBytes)
+                            {
+                                // 文件已被替换或仍在写入，不能依据旧候选删除。
+                                continue;
+                            }
+
+                            long currentSize = currentFile.Length;
+                            File.Delete(current.FilePath);
                             try
                             {
-                                if (record.ArchiveStatus == VideoArchiveStatus.NasDeleted)
+                                if (current.ArchiveStatus == VideoArchiveStatus.NasDeleted)
                                 {
                                     _db.MarkNasCleanedRecordDeleted(
-                                        record.Id,
-                                        record.ArchivePath,
+                                        current.Id,
+                                        current.ArchivePath,
                                         reason,
                                         reasonCode);
                                 }
                                 else
                                 {
-                                    _db.MarkVideoDeleted(record.FilePath, reason, reasonCode);
+                                    _db.MarkVideoDeleted(current.FilePath, reason, reasonCode);
                                 }
                             }
                             catch (Exception dbEx)
                             {
                                 RuntimeLog.Warn(
                                     "Cleanup",
-                                    $"Unarchived cleanup DB mark failed id={record.Id}, error={dbEx.Message}");
+                                    $"Unarchived cleanup DB mark failed id={current.Id}, error={dbEx.Message}");
                             }
+                            size = currentSize;
                         }
                         releasedBytes += size;
                         count++;

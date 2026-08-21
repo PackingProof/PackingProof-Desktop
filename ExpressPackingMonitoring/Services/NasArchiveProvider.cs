@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using System.Collections.Concurrent;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -10,6 +11,8 @@ internal sealed class NasArchiveProvider : IArchiveProvider
 {
     /// <summary>残留上传临时文件超过该年龄且本地源仍存在时，发布前清理。</summary>
     private static readonly TimeSpan StaleTempCleanupAge = TimeSpan.FromHours(24);
+    private static readonly ConcurrentDictionary<string, byte> ActiveTemporaryFiles =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public async Task PublishFileAsync(
         string sourcePath,
@@ -23,30 +26,39 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         if (string.IsNullOrWhiteSpace(destinationDirectory))
             throw new IOException("网络归档目标目录无效");
         Directory.CreateDirectory(destinationDirectory);
-        CleanupStaleTemporaryFiles(
-            destinationDirectory,
-            Path.GetFileName(destinationPath),
-            sourcePath);
-
-        long sourceLength = new FileInfo(sourcePath).Length;
-        if (File.Exists(destinationPath))
-        {
-            if (new FileInfo(destinationPath).Length != sourceLength)
-                throw new ArchiveConflictException("网络目标已存在同名但大小不同的文件，已禁止覆盖");
-            string existingHash = await ComputeSha256Async(destinationPath, cancellationToken).ConfigureAwait(false);
-            if (string.Equals(expectedSha256, existingHash, StringComparison.OrdinalIgnoreCase))
-                return;
-            throw new ArchiveConflictException("网络目标已存在同名但内容不同的文件，已禁止覆盖");
-        }
 
         string attemptSuffix = string.IsNullOrWhiteSpace(attemptToken)
             ? Guid.NewGuid().ToString("N")[..8]
             : attemptToken;
         string temporaryPath = destinationPath + $".{recordId}.{attemptSuffix}.uploading";
+        if (!ActiveTemporaryFiles.TryAdd(temporaryPath, 0))
+            throw new IOException("同一网络归档临时文件已有任务正在使用");
+        bool temporaryOwned = false;
 
         try
         {
-            await CopyFileAsync(sourcePath, temporaryPath, cancellationToken).ConfigureAwait(false);
+            CleanupStaleTemporaryFiles(
+                destinationDirectory,
+                Path.GetFileName(destinationPath),
+                sourcePath);
+
+            long sourceLength = new FileInfo(sourcePath).Length;
+            if (File.Exists(destinationPath))
+            {
+                if (new FileInfo(destinationPath).Length != sourceLength)
+                    throw new ArchiveConflictException("网络目标已存在同名但大小不同的文件，已禁止覆盖");
+                string existingHash = await ComputeSha256Async(destinationPath, cancellationToken).ConfigureAwait(false);
+                if (string.Equals(expectedSha256, existingHash, StringComparison.OrdinalIgnoreCase))
+                    return;
+                throw new ArchiveConflictException("网络目标已存在同名但内容不同的文件，已禁止覆盖");
+            }
+
+            await CopyFileAsync(
+                    sourcePath,
+                    temporaryPath,
+                    cancellationToken,
+                    () => temporaryOwned = true)
+                .ConfigureAwait(false);
 
             if (File.Exists(destinationPath))
             {
@@ -61,11 +73,15 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         }
         catch
         {
-            if (File.Exists(sourcePath) && File.Exists(temporaryPath))
+            if (temporaryOwned && File.Exists(sourcePath) && File.Exists(temporaryPath))
             {
                 try { File.Delete(temporaryPath); } catch { }
             }
             throw;
+        }
+        finally
+        {
+            ActiveTemporaryFiles.TryRemove(temporaryPath, out _);
         }
     }
 
@@ -196,6 +212,12 @@ internal sealed class NasArchiveProvider : IArchiveProvider
                     {
                         continue;
                     }
+                    if (ActiveTemporaryFiles.ContainsKey(candidate)
+                        || IsTemporaryFileInUse(candidate))
+                    {
+                        // 进程内仍有归档任务持有该临时文件，即使时间戳很旧也不能清理。
+                        continue;
+                    }
                     File.Delete(candidate);
                 }
                 catch
@@ -205,6 +227,35 @@ internal sealed class NasArchiveProvider : IArchiveProvider
         }
         catch
         {
+        }
+    }
+
+    private static bool IsTemporaryFileInUse(string path)
+    {
+        try
+        {
+            using FileStream stream = new(
+                path,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None);
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return true;
         }
     }
 
@@ -265,7 +316,8 @@ internal sealed class NasArchiveProvider : IArchiveProvider
     private static async Task CopyFileAsync(
         string sourcePath,
         string destinationPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action onDestinationCreated)
     {
         const int bufferSize = 1024 * 1024;
         await using var source = new FileStream(
@@ -282,6 +334,7 @@ internal sealed class NasArchiveProvider : IArchiveProvider
             FileShare.None,
             bufferSize,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
+        onDestinationCreated();
         await source.CopyToAsync(destination, bufferSize, cancellationToken).ConfigureAwait(false);
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
         destination.Flush(flushToDisk: true);

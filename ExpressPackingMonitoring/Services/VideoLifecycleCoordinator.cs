@@ -22,8 +22,36 @@ internal static class VideoLifecycleCoordinator
             entry.RefCount++;
         }
 
-        await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new Lease(recordId, entry);
+        try
+        {
+            await entry.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return new Lease(recordId, entry);
+        }
+        catch
+        {
+            // WaitAsync 未成功取得信号量时没有 Lease 可以负责回收引用，
+            // 否则取消/失败的等待会让 Entries 永久保留该记录。
+            ReleaseReference(recordId, entry);
+            throw;
+        }
+    }
+
+    private static void ReleaseReference(long recordId, Entry entry)
+    {
+        lock (Sync)
+        {
+            // 只有当前字典仍指向同一个 Entry 时才修改它；旧 Entry
+            // 可能已经被后续请求替换，不能误伤新锁。
+            if (!Entries.TryGetValue(recordId, out Entry? current)
+                || !ReferenceEquals(current, entry))
+            {
+                return;
+            }
+
+            entry.RefCount--;
+            if (entry.RefCount <= 0)
+                Entries.Remove(recordId);
+        }
     }
 
     private sealed class Entry
@@ -49,12 +77,7 @@ internal static class VideoLifecycleCoordinator
             if (Interlocked.Exchange(ref _disposed, 1) != 0)
                 return;
             _entry.Semaphore.Release();
-            lock (Sync)
-            {
-                _entry.RefCount--;
-                if (_entry.RefCount <= 0)
-                    Entries.Remove(_recordId);
-            }
+            ReleaseReference(_recordId, _entry);
         }
     }
 }
