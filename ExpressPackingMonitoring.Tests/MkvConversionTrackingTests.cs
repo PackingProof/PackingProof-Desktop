@@ -9,42 +9,41 @@ public sealed class MkvConversionTrackingTests
     private static readonly DateTime Now = new(2026, 7, 28, 12, 0, 0);
 
     [Fact]
-    public void AutomaticRetry_RetriesAggressivelyDuringFirstTwentyFourHours()
+    public void AutomaticRetry_DoesNotRetryARecordedFailure()
     {
         var state = CreateState(Now.AddHours(-23), Now.AddMinutes(-1));
 
         Assert.Equal(
-            MkvAutomaticRetryDecision.Retry,
+            MkvAutomaticRetryDecision.Suppressed,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(state, Now));
     }
 
     [Fact]
-    public void AutomaticRetry_DefersToDailyRetryAfterFirstTwentyFourHours()
+    public void AutomaticRetry_DoesNotRetryOldFailures()
     {
         var recentAttempt = CreateState(Now.AddHours(-25), Now.AddHours(-2));
         var oldAttempt = CreateState(Now.AddHours(-25), Now.AddHours(-24));
 
         Assert.Equal(
-            MkvAutomaticRetryDecision.Deferred,
+            MkvAutomaticRetryDecision.Suppressed,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(recentAttempt, Now));
         Assert.Equal(
-            MkvAutomaticRetryDecision.Retry,
+            MkvAutomaticRetryDecision.Suppressed,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(oldAttempt, Now));
     }
 
     [Fact]
-    public void AutomaticRetry_SuppressesFailuresOlderThanSevenDays()
+    public void AutomaticRetry_SuppressesFailuresRegardlessOfAge()
     {
         var state = CreateState(Now.AddDays(-7).AddSeconds(-1), Now.AddDays(-1));
 
         Assert.Equal(
             MkvAutomaticRetryDecision.Suppressed,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(state, Now));
-        Assert.False(MkvConversionRetryPolicy.ShouldNotify(state, Now));
     }
 
     [Fact]
-    public void Notification_IsDailyButNewFailureCanNotifyImmediately()
+    public void Notification_IsOnceButNewFailureCanNotifyImmediately()
     {
         var newFailure = CreateState(Now, Now);
         var notifiedToday = CreateState(Now.AddHours(-2), Now.AddHours(-1), Now.AddMinutes(-30));
@@ -52,7 +51,7 @@ public sealed class MkvConversionTrackingTests
 
         Assert.True(MkvConversionRetryPolicy.ShouldNotify(newFailure, Now));
         Assert.False(MkvConversionRetryPolicy.ShouldNotify(notifiedToday, Now));
-        Assert.True(MkvConversionRetryPolicy.ShouldNotify(notifiedYesterday, Now));
+        Assert.False(MkvConversionRetryPolicy.ShouldNotify(notifiedYesterday, Now));
     }
 
     [Fact]
@@ -80,7 +79,7 @@ public sealed class MkvConversionTrackingTests
 
             Assert.Equal(1, database.ClaimMkvFailureNotifications([path], Now.AddMinutes(2)));
             Assert.Equal(0, database.ClaimMkvFailureNotifications([path], Now.AddHours(1)));
-            Assert.Equal(1, database.ClaimMkvFailureNotifications([path], Now.AddDays(1)));
+            Assert.Equal(0, database.ClaimMkvFailureNotifications([path], Now.AddDays(1)));
 
             database.ClearMkvConversionFailure(path);
             MkvConversionFailureState cleared =

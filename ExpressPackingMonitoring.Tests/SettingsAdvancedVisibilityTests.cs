@@ -1,3 +1,5 @@
+using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.UI;
 using System.Xml.Linq;
 using Xunit;
 
@@ -10,6 +12,37 @@ public sealed class SettingsAdvancedVisibilityTests
 
     private static readonly XNamespace Xaml =
         "http://schemas.microsoft.com/winfx/2006/xaml";
+
+    [Fact]
+    public void MkvMigrationSummary_ReportsActualOutcomesWithoutFailureLabels()
+    {
+        var result = new MkvBatchConversionResult
+        {
+            SuccessCount = 5,
+            FailureCount = 2,
+            SkippedCount = 3,
+            SuppressedCount = 2
+        };
+
+        string summary = SettingsWindow.FormatMkvMigrationSummary(result);
+
+        Assert.Equal(
+            "处理完成：已生成兼容 MP4 5 个；未生成 2 个，原始录像已保留",
+            summary);
+        Assert.DoesNotContain("失败", summary);
+        Assert.DoesNotContain("长期", summary);
+        Assert.DoesNotContain("待核对", summary);
+    }
+
+    [Fact]
+    public void MkvMigrationSummary_ReportsNoWorkWithoutMissingDatabaseRecords()
+    {
+        var result = new MkvBatchConversionResult { SkippedCount = 176 };
+
+        Assert.Equal(
+            "处理完成：没有需要转换的 MKV",
+            SettingsWindow.FormatMkvMigrationSummary(result));
+    }
 
     [Fact]
     public void AdvancedSettingsToggle_IsPersistedAndControlsProfessionalRows()

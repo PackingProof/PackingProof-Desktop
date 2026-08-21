@@ -19,10 +19,6 @@ namespace ExpressPackingMonitoring.Data
 
     public static class MkvConversionRetryPolicy
     {
-        public static readonly TimeSpan AggressiveRetryPeriod = TimeSpan.FromHours(24);
-        public static readonly TimeSpan RetryInterval = TimeSpan.FromHours(24);
-        public static readonly TimeSpan AutomaticRetryLifetime = TimeSpan.FromDays(7);
-
         public static MkvAutomaticRetryDecision GetAutomaticRetryDecision(
             MkvConversionFailureState? state,
             DateTime now)
@@ -30,28 +26,19 @@ namespace ExpressPackingMonitoring.Data
             if (state?.FirstFailedAt == null)
                 return MkvAutomaticRetryDecision.Retry;
 
-            TimeSpan failureAge = now - state.FirstFailedAt.Value;
-            if (failureAge > AutomaticRetryLifetime)
-                return MkvAutomaticRetryDecision.Suppressed;
-
-            if (failureAge <= AggressiveRetryPeriod || state.LastAttemptAt == null)
-                return MkvAutomaticRetryDecision.Retry;
-
-            return now - state.LastAttemptAt.Value >= RetryInterval
-                ? MkvAutomaticRetryDecision.Retry
-                : MkvAutomaticRetryDecision.Deferred;
+            // 转换失败是确定性的文件/编码问题，后台不再按时间反复重试。
+            // 维护工具仍可通过 forceRetry 明确发起人工重试。
+            return MkvAutomaticRetryDecision.Suppressed;
         }
 
         public static bool ShouldNotify(MkvConversionFailureState? state, DateTime now)
         {
-            if (state?.FirstFailedAt == null
-                || now - state.FirstFailedAt.Value > AutomaticRetryLifetime)
+            if (state?.FirstFailedAt == null || state.LastNotifiedAt != null)
             {
                 return false;
             }
 
-            return state.LastNotifiedAt == null
-                || state.LastNotifiedAt.Value.Date < now.Date;
+            return true;
         }
     }
 

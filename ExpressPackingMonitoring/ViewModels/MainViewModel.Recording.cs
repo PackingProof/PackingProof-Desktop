@@ -2261,13 +2261,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 if (!ValidateAudioCaptureForMux(audioPath, audioLogPath, audioBytesWritten))
                 {
-                    Debug.WriteLine("[MkvToMp4] WAV 音频疑似提前静音，跳过 MP4 合成");
-                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
-                    {
-                        if (!_isDisposed)
-                            ShowToast("音频疑似提前静音，已保留原始文件", ToastSeverity.Warning);
-                    });
-                    return;
+                    Debug.WriteLine("[MkvToMp4] WAV 音频时间线异常，继续生成 MP4 并记录诊断");
                 }
 
                 var psi = new ProcessStartInfo
@@ -2312,14 +2306,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 else
                 {
-                    // 转换失败，保留 MKV，清理可能的残留 MP4
+                    // 仅在没有可接受 MP4 时保留 MKV；音轨诊断异常不会进入这里。
                     try { if (File.Exists(mp4Path)) File.Delete(mp4Path); } catch { }
                     Debug.WriteLine($"[MkvToMp4] 转换失败，保留原始 MKV");
-                    WriteAudioDiagnostic($"MP4 转换或音轨校验失败，已保留 MKV/WAV: mkv={mkvPath}, wav={audioPath}", audioLogPath);
+                    WriteAudioDiagnostic($"MP4 容器转换失败，已保留 MKV/WAV: mkv={mkvPath}, wav={audioPath}", audioLogPath);
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("音轨校验失败，已保留原始文件", ToastSeverity.Error);
+                            ShowToast("录像未生成兼容 MP4，原始录像已保留", ToastSeverity.Warning);
                     });
                 }
             }
@@ -2386,13 +2380,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     return MkvConversionResult.Ok(mkvPath, alreadyConverted: true);
 
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
-                string? audioPath = ResolveSidecarPath(mkvPath, ".wav");
-                string? audioLogPath = ResolveSidecarPath(mkvPath, ".audio.log");
+                MkvAudioMuxPlan audioPlan = ResolveMkvAudioMuxPlan(mkvPath);
+                string? audioPath = audioPlan.AudioPath;
+                string? audioLogPath = audioPlan.AudioLogPath;
 
-                if (audioPath == null && audioLogPath != null)
+                if (audioPlan.Mode == MkvAudioMuxMode.EmbeddedOrVideoOnly
+                    && audioLogPath != null)
                 {
-                    RuntimeLog.Warn("MkvToMp4", $"Audio failure sidecar exists without WAV, keeping MKV to avoid silent MP4 file={Path.GetFileName(mkvPath)}");
-                    return MkvConversionResult.Fail("音频录制失败，已保留 MKV，避免生成无声 MP4", mkvPath);
+                    // 历史录像可能只留下音频诊断文件而没有外部 WAV。继续封装 MKV
+                    // 自带的可选音轨；如果源文件没有音轨，也要优先生成可播放的视频 MP4。
+                    RuntimeLog.Warn("MkvToMp4", $"Audio diagnostic sidecar exists without WAV, continuing compatible MP4 conversion file={Path.GetFileName(mkvPath)}");
                 }
 
                 if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
@@ -2415,8 +2412,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (string.IsNullOrEmpty(ffmpegPath))
                     return MkvConversionResult.Fail("未找到 FFmpeg，无法转换", mkvPath);
 
+                // 音轨时间线检查用于诊断，不阻断 MP4 容器转换；否则一个可播放的
+                // MP4 会因为音频静音片段被误判为失败，最终只留下设备不兼容的 MKV。
                 if (!ValidateAudioCaptureForMux(audioPath, audioLogPath, 0))
-                    return MkvConversionResult.Fail("WAV 音频校验失败，已保留 MKV/WAV", mkvPath);
+                    RuntimeLog.Warn("MkvToMp4", $"Audio capture timeline warning, continuing conversion file={Path.GetFileName(mkvPath)}");
 
                 var psi = new ProcessStartInfo
                 {
@@ -2447,7 +2446,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     try { if (File.Exists(mp4Path)) File.Delete(mp4Path); } catch { }
                     WriteAudioDiagnostic($"Web/后台 MKV 转 MP4 失败: mkv={mkvPath}, wav={audioPath}, stderr={stderr}", audioLogPath);
                     RuntimeLog.Warn("MkvToMp4", $"Convert failed file={Path.GetFileName(mkvPath)}, exited={exited}, exitCode={(exited ? process.ExitCode : -999)}, stderr={TrimForRuntimeLog(stderr)}");
-                    return MkvConversionResult.Fail(exited ? "MP4 转换或音轨校验失败" : "MP4 转换超时", mkvPath);
+                    return MkvConversionResult.Fail(exited ? "MP4 转换或视频校验失败" : "MP4 转换超时", mkvPath);
                 }
 
                 try { File.Delete(mkvPath); } catch { }
@@ -2511,6 +2510,29 @@ namespace ExpressPackingMonitoring.ViewModels
             return File.Exists(path) ? path : null;
         }
 
+        internal static MkvAudioMuxPlan ResolveMkvAudioMuxPlan(string mkvPath)
+        {
+            string? audioPath = ResolveSidecarPath(mkvPath, ".wav");
+            string? audioLogPath = ResolveSidecarPath(mkvPath, ".audio.log");
+            return new MkvAudioMuxPlan(
+                audioPath,
+                audioLogPath,
+                audioPath == null
+                    ? MkvAudioMuxMode.EmbeddedOrVideoOnly
+                    : MkvAudioMuxMode.ExternalWav);
+        }
+
+        internal enum MkvAudioMuxMode
+        {
+            ExternalWav,
+            EmbeddedOrVideoOnly
+        }
+
+        internal sealed record MkvAudioMuxPlan(
+            string? AudioPath,
+            string? AudioLogPath,
+            MkvAudioMuxMode Mode);
+
         private static bool HasMuxRecoverySidecar(string mkvPath)
         {
             return File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
@@ -2568,7 +2590,47 @@ namespace ExpressPackingMonitoring.ViewModels
             string? audioLogPath,
             CancellationToken cancellationToken = default)
         {
-            if (!File.Exists(mp4Path)) return false;
+            if (!File.Exists(mp4Path) || new FileInfo(mp4Path).Length <= 0) return false;
+
+            // 仅把 FFmpeg 的成功退出和非空文件作为候选结果，再实际解码一帧视频，
+            // 避免把损坏容器误切换成主文件。
+            try
+            {
+                var videoProbe = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = BuildMp4VideoProbeArgs(mp4Path),
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true
+                };
+                using var probeProcess = Process.Start(videoProbe);
+                if (probeProcess == null)
+                    return false;
+
+                string probeStderr;
+                bool probeExited = WaitForProcessExit(
+                    probeProcess,
+                    GetMediaProcessTimeoutMs(mp4Path),
+                    cancellationToken,
+                    out probeStderr);
+                if (!probeExited || probeProcess.ExitCode != 0)
+                {
+                    RuntimeLog.Warn("MkvToMp4", $"MP4 video probe failed file={Path.GetFileName(mp4Path)}, error={TrimForRuntimeLog(probeStderr)}");
+                    return false;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MkvToMp4", $"MP4 video probe exception file={Path.GetFileName(mp4Path)}, error={ex.Message}");
+                return false;
+            }
+
             if (!requireAudio) return true;
 
             string decodedWavPath = Path.Combine(
@@ -2591,7 +2653,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (process == null)
                 {
                     Debug.WriteLine("[MkvToMp4] 音轨校验进程启动失败");
-                    return false;
+                    WriteAudioDiagnostic("MP4 音轨无法启动校验，保留可用容器结果", audioLogPath);
+                    return true;
                 }
 
                 string stderr;
@@ -2601,7 +2664,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     try { process.Kill(); } catch { }
                     Debug.WriteLine("[MkvToMp4] 音轨校验超时");
-                    return false;
+                    WriteAudioDiagnostic("MP4 音轨校验超时，保留可用容器结果", audioLogPath);
+                    return true;
                 }
 
                 bool ok = process.ExitCode == 0;
@@ -2610,7 +2674,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     Debug.WriteLine($"[MkvToMp4] 音轨校验失败: {stderr}");
                     WriteAudioDiagnostic($"MP4 音轨校验失败: {stderr}");
-                    return false;
+                    WriteAudioDiagnostic("MP4 音轨解码校验失败，保留可用容器结果", audioLogPath);
+                    return true;
                 }
 
                 using var reader = new WaveFileReader(decodedWavPath);
@@ -2619,7 +2684,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!IsAudioTimelineUsable(reader.TotalTime.TotalSeconds, timeline.FirstActiveSecond, timeline.LastActiveSecond, timeline.ActiveWindowCount, timeline.MaxConsecutiveActiveWindows, out string reason))
                 {
                     WriteAudioDiagnostic($"MP4 音轨疑似提前静音: {reason}", audioLogPath);
-                    return false;
+                    return true;
                 }
 
                 WriteAudioDiagnostic("MP4 音轨完整解码和时间线校验通过", audioLogPath);
@@ -2633,13 +2698,17 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 Debug.WriteLine($"[MkvToMp4] 音轨校验异常: {ex.Message}");
                 WriteAudioDiagnostic($"MP4 音轨校验异常: {ex.Message}");
-                return false;
+                WriteAudioDiagnostic("MP4 音轨校验异常，保留可用容器结果", audioLogPath);
+                return true;
             }
             finally
             {
                 try { if (File.Exists(decodedWavPath)) File.Delete(decodedWavPath); } catch { }
             }
         }
+
+        internal static string BuildMp4VideoProbeArgs(string mp4Path) =>
+            $"-v error -i \"{mp4Path}\" -map 0:v:0 -frames:v 1 -f null -";
 
         private bool ValidateAudioCaptureForMux(string? audioPath, string? audioLogPath, long audioBytesWritten)
         {

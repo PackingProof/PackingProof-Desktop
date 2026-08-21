@@ -6,6 +6,28 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class MkvConversionSafetyTests
 {
     [Fact]
+    public void HasMkvConversionCandidate_RequiresMkvOrMatchingMp4OnDisk()
+    {
+        string directory = CreateTemporaryDirectory();
+        try
+        {
+            string mkvPath = Path.Combine(directory, "recording.mkv");
+            Assert.False(MainViewModel.HasMkvConversionCandidate(mkvPath));
+
+            File.WriteAllBytes(mkvPath, [1]);
+            Assert.True(MainViewModel.HasMkvConversionCandidate(mkvPath));
+
+            File.Delete(mkvPath);
+            File.WriteAllBytes(Path.ChangeExtension(mkvPath, ".mp4"), [1]);
+            Assert.True(MainViewModel.HasMkvConversionCandidate(mkvPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void IsCompletedConcurrentMkvConversion_AcceptsNonEmptyMp4AfterMkvWasRemoved()
     {
         string directory = CreateTemporaryDirectory();

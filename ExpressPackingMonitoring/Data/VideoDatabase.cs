@@ -1287,14 +1287,10 @@ namespace ExpressPackingMonitoring.Data
                         SET MkvLastNotifiedAt = @notifiedAt
                         WHERE IsDeleted = 0
                           AND (FilePath = @mkvPath OR FilePath = @mp4Path)
-                          AND (
-                              MkvLastNotifiedAt IS NULL
-                              OR substr(MkvLastNotifiedAt, 1, 10) < @today
-                          );";
+                          AND MkvLastNotifiedAt IS NULL;";
                     cmd.Parameters.AddWithValue("@mkvPath", mkvPath);
                     cmd.Parameters.AddWithValue("@mp4Path", mp4Path);
                     cmd.Parameters.AddWithValue("@notifiedAt", ToDatabaseTimestamp(now));
-                    cmd.Parameters.AddWithValue("@today", now.ToString("yyyy-MM-dd"));
                     if (cmd.ExecuteNonQuery() > 0)
                         claimed++;
                 }

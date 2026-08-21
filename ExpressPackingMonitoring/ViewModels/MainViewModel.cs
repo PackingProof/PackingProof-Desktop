@@ -1679,7 +1679,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = Application.Current.Dispatcher.InvokeAsync(() =>
                     {
                         if (!_isDisposed)
-                            ShowToast("视频合成失败，已保留原文件", ToastSeverity.Error);
+                            ShowToast("录像未生成兼容 MP4，原始录像已保留", ToastSeverity.Warning);
                     });
                 }
             });
@@ -2480,33 +2480,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
                 string fileName = Path.GetFileName(mkvPath);
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
-                MkvAutomaticRetryDecision retryDecision =
-                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
-
-                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
-                {
-                    batchResult.SuppressedCount++;
-                    if (File.Exists(mkvPath))
-                        batchResult.AddFinalFile(mkvPath, mkvPath);
-                    _db.MarkArchivePendingByFilePath(mkvPath);
-                    _archiveService?.Wake();
-                    progress?.Report($"[{i + 1}/{total}] 已停止自动重试，可在维护工具中手动合并: {fileName}");
-                    continue;
-                }
-
-                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Deferred)
-                {
-                    batchResult.DeferredCount++;
-                    if (File.Exists(mkvPath))
-                        batchResult.AddFinalFile(mkvPath, mkvPath);
-                    progress?.Report($"[{i + 1}/{total}] 等待下次自动重试: {fileName}");
-                    continue;
-                }
 
                 // 如果 MKV 已不存在但 MP4 存在，只更新数据库
                 if (!File.Exists(mkvPath))
                 {
-                    if (File.Exists(mp4Path))
+                    if (File.Exists(mp4Path)
+                        && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token))
                     {
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
@@ -2524,7 +2503,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 // 如果 MP4 已存在，直接删 MKV 并更新数据库；但带 WAV/audio.log 的 MKV 需要重新合并，避免误用录制中生成的半截 MP4。
-                if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
+                if (File.Exists(mp4Path)
+                    && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token))
                 {
                     if (HasMuxRecoverySidecar(mkvPath))
                     {
@@ -2542,6 +2522,20 @@ namespace ExpressPackingMonitoring.ViewModels
                         progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
                         continue;
                     }
+                }
+
+                // 历史失败记录在完成文件对账后直接进入终态，不再后台重复转换。
+                MkvAutomaticRetryDecision retryDecision =
+                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
+                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                {
+                    batchResult.SuppressedCount++;
+                    if (File.Exists(mkvPath))
+                        batchResult.AddFinalFile(mkvPath, mkvPath);
+                    _db.MarkArchivePendingByFilePath(mkvPath);
+                    _archiveService?.Wake();
+                    progress?.Report($"[{i + 1}/{total}] 未生成兼容 MP4，已保留原始录像: {fileName}");
+                    continue;
                 }
 
                 progress?.Report($"[{i + 1}/{total}] 正在转换: {fileName}");
@@ -2608,8 +2602,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!_isDisposed)
                 {
                     ShowToast(
-                        $"有 {result.NotificationCount} 个视频合成失败，原文件已保留，可在高级设置的维护工具中手动合并",
-                        ToastSeverity.Error);
+                        $"有 {result.NotificationCount} 个录像未生成兼容 MP4，原始录像已保留，可在维护工具中查看",
+                        ToastSeverity.Warning);
                 }
             });
         }
@@ -2678,7 +2672,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (path.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
                 {
-                    targets.Add(path);
+                    if (HasMkvConversionCandidate(path))
+                        targets.Add(path);
                     continue;
                 }
 
@@ -2694,6 +2689,18 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             return targets.ToList();
+        }
+
+        internal static bool HasMkvConversionCandidate(string mkvPath)
+        {
+            if (string.IsNullOrWhiteSpace(mkvPath)
+                || !mkvPath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return File.Exists(mkvPath)
+                || File.Exists(Path.ChangeExtension(mkvPath, ".mp4"));
         }
 
         private void InitializeSystem()
@@ -2743,7 +2750,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         _ = Application.Current.Dispatcher.BeginInvoke(() =>
                             ShowToast($"已恢复 {result.SuccessCount} 个断电残留视频"));
                     }
-                    ShowMkvFailureToastIfNeeded(result);
+                    // 启动对账静默处理历史记录，不重复提醒用户旧版本失败。
                 }
             }
             catch (Exception ex)

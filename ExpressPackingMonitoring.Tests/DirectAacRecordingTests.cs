@@ -56,6 +56,34 @@ public sealed class DirectAacRecordingTests
         Assert.DoesNotContain("atrim", args);
     }
 
+    [Fact]
+    public void HistoricalAudioDiagnosticWithoutWav_UsesEmbeddedAudioOrVideoOnlyPlan()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"MkvAudioMuxPlanTests-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string mkvPath = Path.Combine(directory, "recording.mkv");
+            File.WriteAllBytes(mkvPath, [1]);
+            File.WriteAllText(Path.ChangeExtension(mkvPath, ".audio.log"), "audio capture failed");
+
+            MainViewModel.MkvAudioMuxPlan plan =
+                MainViewModel.ResolveMkvAudioMuxPlan(mkvPath);
+
+            Assert.Equal(
+                MainViewModel.MkvAudioMuxMode.EmbeddedOrVideoOnly,
+                plan.Mode);
+            Assert.Null(plan.AudioPath);
+            Assert.NotNull(plan.AudioLogPath);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("h265")]
     [InlineData("hevc")]
@@ -86,6 +114,16 @@ public sealed class DirectAacRecordingTests
             videoCodec);
 
         Assert.DoesNotContain("-tag:v hvc1", args);
+    }
+
+    [Fact]
+    public void Mp4AcceptanceProbe_DecodesOneVideoFrame()
+    {
+        string args = MainViewModel.BuildMp4VideoProbeArgs("recording.mp4");
+
+        Assert.Contains("-map 0:v:0", args);
+        Assert.Contains("-frames:v 1", args);
+        Assert.Contains("-f null -", args);
     }
 
     [Theory]

@@ -2748,8 +2748,7 @@ namespace ExpressPackingMonitoring.UI
                     await Context.BatchConvertMkvToMp4Async(progress, migrationCts.Token);
                 if (!_isClosing)
                 {
-                    MigrationStatusText.Text =
-                        $"合并完成：成功 {result.SuccessCount}，失败 {result.FailureCount}，跳过 {result.SkippedCount}，长期失败 {result.SuppressedCount}";
+                    MigrationStatusText.Text = FormatMkvMigrationSummary(result);
                 }
             }
             catch (OperationCanceledException)
@@ -2772,6 +2771,20 @@ namespace ExpressPackingMonitoring.UI
                     MigrationProgress.Visibility = Visibility.Collapsed;
                 }
             }
+        }
+
+        internal static string FormatMkvMigrationSummary(MkvBatchConversionResult result)
+        {
+            if (result.SuccessCount == 0 && result.FailureCount == 0)
+                return "处理完成：没有需要转换的 MKV";
+
+            var parts = new List<string>
+            {
+                $"已生成兼容 MP4 {result.SuccessCount} 个"
+            };
+            if (result.FailureCount > 0)
+                parts.Add($"未生成 {result.FailureCount} 个，原始录像已保留");
+            return $"处理完成：{string.Join("；", parts)}";
         }
     }
 }
