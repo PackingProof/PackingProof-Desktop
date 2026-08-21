@@ -1831,6 +1831,7 @@ namespace ExpressPackingMonitoring.Services
                 string.IsNullOrWhiteSpace(keyword) ? null : keyword,
                 page,
                 pageSize,
+                includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: hostLibrary ? "" : "external",
                 deviceId: hostLibrary ? "" : deviceId);
             int deviceTotal = _db.QueryVideosPaged(
@@ -1867,7 +1868,11 @@ namespace ExpressPackingMonitoring.Services
                     startTime = record.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                     durationSec = Math.Round(record.DurationSeconds, 0),
                     duration = TimeSpan.FromSeconds(record.DurationSeconds).ToString(@"mm\:ss"),
-                    exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)),
+                    status = record.IsDeleted ? "deleted" : (string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)) ? "missing" : "available"),
+                    statusReason = record.IsDeleted
+                        ? (string.IsNullOrWhiteSpace(record.DeleteReason) ? "已清理" : record.DeleteReason)
+                        : (string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)) ? "监控端未在记录的文件位置找到录像，可能已被移动、删除或清理" : ""),
+                    exists = !record.IsDeleted && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record)),
                     playUrl = $"/api/mobile-backup/videos/{record.Id}/play?ticket={ticket}",
                     thumbnailUrl = $"/api/mobile-backup/videos/{record.Id}/thumbnail?ticket={ticket}",
                     remote = true
@@ -3117,6 +3122,7 @@ namespace ExpressPackingMonitoring.Services
                 string.IsNullOrWhiteSpace(keyword) ? null : keyword,
                 page,
                 pageSize,
+                includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: sourceType,
                 deviceId: deviceId,
                 sourceDeviceName: sourceDeviceName);
@@ -3164,7 +3170,11 @@ namespace ExpressPackingMonitoring.Services
                 startTime = r.StartTime.ToString("yyyy-MM-dd HH:mm:ss"),
                 durationSec = Math.Round(r.DurationSeconds, 0),
                 duration = TimeSpan.FromSeconds(r.DurationSeconds).ToString(@"mm\:ss"),
-                exists = !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)),
+                status = r.IsDeleted ? "deleted" : (string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)) ? "missing" : "available"),
+                statusReason = r.IsDeleted
+                    ? (string.IsNullOrWhiteSpace(r.DeleteReason) ? "已清理" : r.DeleteReason)
+                    : (string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)) ? "监控端未在记录的文件位置找到录像，可能已被移动、删除或清理" : ""),
+                exists = !r.IsDeleted && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)),
                 playUrl = $"/api/videos/{r.Id}/play?compat=0",
                 thumbnailUrl = $"/api/videos/{r.Id}/thumbnail",
                 remote = true

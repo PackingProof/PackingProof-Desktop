@@ -924,5 +924,6 @@
    <data name="选择录像保存文件夹" xml:space="preserve"><value>选择录像保存文件夹</value></data>
    <data name="本地文件夹或 UNC 网络路径" xml:space="preserve"><value>本地文件夹或 UNC 网络路径</value></data>
   <data name="显示清理记录" xml:space="preserve"><value>显示清理记录</value></data>
+  <data name="导出单号" xml:space="preserve"><value>导出单号</value></data>
    <data name="尚未配置网络备份位置；本地磁盘不能作为备份位置" xml:space="preserve"><value>尚未配置网络备份位置；本地磁盘不能作为备份位置</value></data>
  </root>

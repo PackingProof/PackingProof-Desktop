@@ -47,7 +47,7 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
-    public void PlaybackLayout_HasHideUnavailableToggleAndSecondRowHiddenHint()
+    public void PlaybackLayout_HasOrderExportPlaceholderAndNoHiddenHint()
     {
         string xaml = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml"));
@@ -56,14 +56,14 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"HideUnavailableButtonText\"", xaml);
         Assert.Contains("x:Name=\"HideUnavailableButtonIcon\"", xaml);
         Assert.Contains("FluentEyeOffIcon", xaml);
-        Assert.Contains("Click=\"HideUnavailableButton_Click\"", xaml);
-        Assert.Contains("Text=\"显示清理记录\"", xaml);
+        Assert.DoesNotContain("Click=\"HideUnavailableButton_Click\"", xaml);
+        Assert.Contains("Text=\"导出单号\"", xaml);
         Assert.DoesNotContain("异常记录", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailableCheckBox", xaml, StringComparison.Ordinal);
         Assert.Contains("<ScrollViewer Grid.Row=\"0\"", xaml);
         Assert.DoesNotContain("仅本次回放生效", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"HiddenHintPanel\"", xaml);
-        Assert.Contains("x:Name=\"HiddenHintText\"", xaml);
+        Assert.DoesNotContain("x:Name=\"HiddenHintPanel\"", xaml);
+        Assert.DoesNotContain("x:Name=\"HiddenHintText\"", xaml);
 
         string icons = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "Themes", "FluentIcons.xaml"));
@@ -72,18 +72,10 @@ public sealed class PlaybackWindowTests
 
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
-        Assert.Contains("_hideUnavailable = true", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("HideUnavailableButton_Click", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("\"FluentEyeOffIcon\"", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("\"FluentEyeIcon\"", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("_hideUnavailable = !showDeletedVideos", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("HideUnavailableButton_Click", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("异常记录", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void BuildHiddenHintText_IncludesHiddenCountAndReason()
-    {
-        Assert.Equal("已隐藏 3 条已清理记录", PlaybackWindow.BuildHiddenHintText(3));
     }
 
     [Theory]
@@ -97,6 +89,20 @@ public sealed class PlaybackWindowTests
         bool expected)
     {
         Assert.Equal(expected, PlaybackWindow.IsCurrentLoadRequest(requestVersion, currentVersion, isClosing));
+    }
+
+    [Theory]
+    [InlineData(false, "", false)]
+    [InlineData(false, "ORDER-123", true)]
+    [InlineData(true, "", true)]
+    public void SearchAllowsCleanedRecordsEvenWhenSettingHidesThem(
+        bool showDeletedVideos,
+        string keyword,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            PlaybackWindow.ShouldIncludeDeletedVideos(showDeletedVideos, keyword));
     }
 
     [Fact]
@@ -396,7 +402,6 @@ public sealed class PlaybackWindowTests
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
 
         Assert.Contains("videos.Add(CreateVideoItem(record, _computerName));", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("VideoItem item = CreateVideoItem(record, _computerName);", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("PlaybackFileResolver.ResolvePlaybackPath", codeBehind, StringComparison.Ordinal);
     }
 

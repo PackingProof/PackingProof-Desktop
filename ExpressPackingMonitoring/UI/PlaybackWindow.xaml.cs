@@ -78,7 +78,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly string _computerName;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
-        private bool _hideUnavailable = true;
+        private bool _hideUnavailable;
         private readonly VideoFolderImportService? _videoImportService;
         private readonly Action<string>? _saveImportFolder;
         private readonly Action? _videosImported;
@@ -143,7 +143,7 @@ namespace ExpressPackingMonitoring.UI
             BtnTogglePlay.IsEnabled = false;
             TimelineSlider.IsEnabled = false;
             TimeLabel.Text = "正在加载列表...";
-            UpdateHideUnavailableButtonText();
+            _hideUnavailable = !showDeletedVideos;
             Loaded += PlaybackWindow_Loaded;
             BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
@@ -218,34 +218,6 @@ namespace ExpressPackingMonitoring.UI
             SearchBox.Text = "";
         }
 
-        private void HideUnavailableButton_Click(object sender, RoutedEventArgs e)
-        {
-            _hideUnavailable = !_hideUnavailable;
-            UpdateHideUnavailableButtonText();
-            RequestVideoLoad(1);
-        }
-
-        private void UpdateHideUnavailableButtonText()
-        {
-            if (HideUnavailableButtonText != null)
-                HideUnavailableButtonText.Text = _hideUnavailable ? "显示清理记录" : "隐藏清理记录";
-            if (HideUnavailableButtonIcon != null)
-                HideUnavailableButtonIcon.Data = (Geometry)FindResource(
-                    _hideUnavailable ? "FluentEyeOffIcon" : "FluentEyeIcon");
-        }
-
-        internal static string BuildHiddenHintText(int hiddenCount) =>
-            $"已隐藏 {hiddenCount} 条已清理记录";
-
-        private void UpdateHiddenHint(int hiddenCount)
-        {
-            bool show = _hideUnavailable && hiddenCount > 0;
-            if (HiddenHintPanel != null)
-                HiddenHintPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-            if (HiddenHintText != null)
-                HiddenHintText.Text = BuildHiddenHintText(hiddenCount);
-        }
-
         private void RequestVideoLoad(int? requestedPage = null)
         {
             if (!IsLoaded || _isClosing)
@@ -275,7 +247,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _pendingVideoLoad = null;
                     int requestVersion = _videoLoadRequestVersion;
-                    (List<VideoItem> Items, int Total, int HiddenCount) result;
+                    (List<VideoItem> Items, int Total) result;
                     try
                     {
                         result = await Task.Run(() =>
@@ -304,7 +276,6 @@ namespace ExpressPackingMonitoring.UI
                         _totalVideos = 0;
                         _currentPage = 1;
                         ShowCurrentPage();
-                        UpdateHiddenHint(0);
                         AppDialog.Error(this, $"加载回放列表失败：{ex.Message}", "回放错误");
                         continue;
                     }
@@ -312,7 +283,6 @@ namespace ExpressPackingMonitoring.UI
                     _allVideos = result.Items;
                     _totalVideos = result.Total;
                     ShowCurrentPage();
-                    UpdateHiddenHint(result.HiddenCount);
                 }
             }
             finally
@@ -325,20 +295,40 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private (List<VideoItem> Items, int Total, int HiddenCount) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
+        private (List<VideoItem> Items, int Total) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
         {
             var videos = new List<VideoItem>();
-            int hiddenCount = 0;
+            bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
             if (_db != null)
             {
                 try
                 {
-                    if (_hideUnavailable)
+                    if (_hideUnavailable && !hasSearchKeyword)
                     {
-                        hiddenCount = LoadAllVideoItems(start, end, keyword, videos);
-                        videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
-                        int total = videos.Count;
-                        return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), total, hiddenCount);
+                        string searchKeyword = keyword?.Trim() ?? "";
+                        var allRecords = _db.QueryVideoRecords(
+                            start,
+                            end,
+                            searchKeyword,
+                            includeDeleted: true,
+                            searchMode: VideoSearchMode.ExactOrderIdentifiers);
+                        if (allRecords.Count == 0 && searchKeyword.Length > 0)
+                        {
+                            allRecords = _db.QueryVideoRecords(
+                                start,
+                                end,
+                                searchKeyword,
+                                includeDeleted: true,
+                                searchMode: VideoSearchMode.OrderIdentifierContains);
+                        }
+
+                        videos.AddRange(allRecords
+                            .Where(record => !record.IsDeleted)
+                            .Select(record => CreateVideoItem(record, _computerName))
+                            .Where(item => !item.IsMissing));
+                        return (
+                            videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(),
+                            videos.Count);
                     }
 
                     var result = _db.QueryVideosPaged(
@@ -347,7 +337,7 @@ namespace ExpressPackingMonitoring.UI
                         string.IsNullOrEmpty(keyword) ? null : keyword,
                         page,
                         PageSize,
-                        includeDeleted: _showDeletedVideos,
+                        includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
                         searchMode: VideoSearchMode.ExactOrderIdentifiers);
                     if (result.Total == 0 && !string.IsNullOrWhiteSpace(keyword))
                     {
@@ -357,14 +347,14 @@ namespace ExpressPackingMonitoring.UI
                             keyword,
                             page,
                             PageSize,
-                            includeDeleted: _showDeletedVideos,
+                            includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
                             searchMode: VideoSearchMode.OrderIdentifierContains);
                      }
                      foreach (var record in result.Records)
                     {
                         videos.Add(CreateVideoItem(record, _computerName));
                     }
-                    return (videos, result.Total, 0);
+                    return (videos, result.Total);
                  }
                 catch
                 {
@@ -379,12 +369,6 @@ namespace ExpressPackingMonitoring.UI
 
             if (_hideUnavailable)
             {
-                int before = videos.Count;
-                videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
-                hiddenCount = before - videos.Count;
-            }
-            else if (!_showDeletedVideos)
-            {
                 videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
             }
             if (!string.IsNullOrWhiteSpace(keyword))
@@ -395,38 +379,11 @@ namespace ExpressPackingMonitoring.UI
                     (v.OrderId?.Contains(normalized, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
             }
             int totalVisible = videos.Count;
-            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), totalVisible, hiddenCount);
+            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), totalVisible);
         }
 
-        private int LoadAllVideoItems(DateTime? start, DateTime? end, string? keyword, List<VideoItem> videos)
-        {
-            string searchKeyword = keyword?.Trim() ?? "";
-            var records = _db!.QueryVideoRecords(
-                start,
-                end,
-                searchKeyword,
-                includeDeleted: true,
-                searchMode: VideoSearchMode.ExactOrderIdentifiers);
-            if (records.Count == 0 && searchKeyword.Length > 0)
-            {
-                records = _db.QueryVideoRecords(
-                    start,
-                    end,
-                    searchKeyword,
-                    includeDeleted: true,
-                    searchMode: VideoSearchMode.OrderIdentifierContains);
-            }
-
-            int hidden = 0;
-            foreach (var record in records)
-            {
-                VideoItem item = CreateVideoItem(record, _computerName);
-                videos.Add(item);
-                if (item.IsDeleted || item.IsMissing)
-                    hidden++;
-            }
-            return hidden;
-        }
+        internal static bool ShouldIncludeDeletedVideos(bool showDeletedVideos, string? keyword) =>
+            showDeletedVideos || !string.IsNullOrWhiteSpace(keyword);
 
         internal static VideoItem CreateVideoItem(VideoRecord record, string? localComputerName = null)
         {

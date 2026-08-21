@@ -38,6 +38,21 @@ public sealed class DefaultConfigurationTests
         Assert.False(config.RequireWebAccessKey);
         Assert.Equal(AppConfig.CurrentWebProtectionSetupVersion, config.WebProtectionSetupVersion);
     }
+
+    [Fact]
+    public void DeletedVideoVisibilityMigrationForcesLegacyConfigToHiddenOnce()
+    {
+        var config = new AppConfig { ShowDeletedVideos = true };
+
+        Assert.True(AppConfig.NormalizeAfterLoad(config));
+        Assert.False(config.ShowDeletedVideos);
+        Assert.Equal(AppConfig.CurrentDeletedVideoVisibilitySetupVersion,
+            config.DeletedVideoVisibilitySetupVersion);
+
+        config.ShowDeletedVideos = true;
+        Assert.False(AppConfig.NormalizeAfterLoad(config));
+        Assert.True(config.ShowDeletedVideos);
+    }
     [Fact]
     public void AppConfig_EnablesAutoStartForNewConfiguration()
     {

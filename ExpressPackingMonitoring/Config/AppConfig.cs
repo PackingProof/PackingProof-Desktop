@@ -100,6 +100,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentRecordingSetupVersion = 2;
         public const int CurrentBackupConnectionSchemaVersion = 1;
         public const int CurrentWebProtectionSetupVersion = 1;
+        public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -133,6 +134,7 @@ namespace ExpressPackingMonitoring.Config
         public int DeploymentSetupVersion { get; set; } = 0;
         public int RecordingSetupVersion { get; set; } = 0;
         public int WebProtectionSetupVersion { get; set; }
+        public int DeletedVideoVisibilitySetupVersion { get; set; }
 
         // 录像方式："CameraMonitor"=使用电脑摄像头录像，"PrintStation"=不使用电脑摄像头（兼容旧配置），空值表示首次启动需要选择。
         public string WorkstationRole { get; set; } = "";
@@ -199,7 +201,7 @@ namespace ExpressPackingMonitoring.Config
         public string Language { get; set; } = AppLanguage.Auto;
         public string WindowCloseBehavior { get; set; } = WindowCloseBehaviors.Ask;
         public bool ShowAdvancedSettings { get; set; } = false;
-        public bool ShowDeletedVideos { get; set; } = true;
+        public bool ShowDeletedVideos { get; set; } = false;
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
         public bool EnableAudioRecording { get; set; } = true;
@@ -341,6 +343,13 @@ namespace ExpressPackingMonitoring.Config
             else if (!string.Equals(config.WebAccessKey, config.WebAccessKey.Trim(), StringComparison.Ordinal))
             {
                 config.WebAccessKey = config.WebAccessKey.Trim();
+                changed = true;
+            }
+
+            if (config.DeletedVideoVisibilitySetupVersion < CurrentDeletedVideoVisibilitySetupVersion)
+            {
+                config.ShowDeletedVideos = false;
+                config.DeletedVideoVisibilitySetupVersion = CurrentDeletedVideoVisibilitySetupVersion;
                 changed = true;
             }
 

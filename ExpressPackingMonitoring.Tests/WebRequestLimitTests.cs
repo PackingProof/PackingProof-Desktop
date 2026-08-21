@@ -182,7 +182,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("orderLine.append(order)", html);
         Assert.Contains("tagLine.append(badge,status)", html);
         Assert.Contains("missingBadge.className='missing-badge'", html);
-        Assert.Contains("missingBadge.textContent='文件丢失'", html);
+        Assert.Contains("missingBadge.textContent=v.status==='deleted'?'已清理':'文件丢失'", html);
+        Assert.Contains("statusReason", html);
         Assert.Contains(".status-badge{background:var(--status-bg);color:var(--ok)", html);
         Assert.Contains(".status-badge.external{background:var(--external-status-bg);color:var(--external-status-text)}", html);
         Assert.Contains("text('resultsInfo','第 '+res.page+' / '+totalPages+' 页')", html);
