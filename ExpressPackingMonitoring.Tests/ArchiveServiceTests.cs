@@ -1210,7 +1210,7 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(
             0,
             await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         Assert.Equal(
             2,
             await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
