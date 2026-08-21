@@ -2600,6 +2600,43 @@ namespace ExpressPackingMonitoring.Data
         }
 
         /// <summary>
+        /// 把仍处于等待或失败状态、且目标路径未被其他任务改变的记录安全改投到新位置。
+        /// 旧位置产生的错误与退避状态会被清除，进行中、已完成和冲突记录不会被改写。
+        /// </summary>
+        public int TryReroutePendingArchivePath(
+            long recordId,
+            string expectedArchivePath,
+            string newArchivePath)
+        {
+            if (string.IsNullOrWhiteSpace(expectedArchivePath)
+                || string.IsNullOrWhiteSpace(newArchivePath))
+            {
+                return 0;
+            }
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords SET
+                        ArchivePath = @newArchivePath,
+                        ArchiveStatus = @pending,
+                        ArchiveError = '',
+                        ArchiveRetryCount = 0,
+                        NextRetryAt = NULL
+                    WHERE Id = @id
+                      AND IsDeleted = 0
+                      AND ArchivePath = @expectedArchivePath
+                      AND ArchiveStatus IN ('Pending', 'Failed');";
+                cmd.Parameters.AddWithValue("@newArchivePath", newArchivePath.Trim());
+                cmd.Parameters.AddWithValue("@expectedArchivePath", expectedArchivePath);
+                cmd.Parameters.AddWithValue("@pending", VideoArchiveStatus.Pending);
+                cmd.Parameters.AddWithValue("@id", recordId);
+                return cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
         /// 手动清理候选：本地录像已定稿、未删除、结束时间早于截止时间、
         /// 状态为已备份/失败/等待归档/仅本地，且文件位于任一托管本地根目录下。
         /// 按 Verified → Failed → Pending → LocalOnly 分档、档内最旧优先；

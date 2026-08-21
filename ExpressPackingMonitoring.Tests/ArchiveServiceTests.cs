@@ -609,7 +609,7 @@ public sealed class ArchiveServiceTests : IDisposable
             new NasArchiveProvider(),
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
             archiveTargetResolver: () =>
-                new List<StorageLocation> { new() { Path = @"\\nas\share" } });
+                new List<StorageLocation> { new() { Path = _nasRoot } });
 
         int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
 
@@ -867,6 +867,76 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(VideoArchiveStatus.Verified, _database.GetVideoById(id)!.ArchiveStatus);
     }
 
+    private sealed class ConcurrencyTrackingProvider : IArchiveProvider
+    {
+        private readonly NasArchiveProvider _inner = new();
+        private int _activePublishes;
+        private int _maxConcurrentPublishes;
+
+        public int MaxConcurrentPublishes => Volatile.Read(ref _maxConcurrentPublishes);
+
+        public async Task PublishFileAsync(
+            string sourcePath,
+            string destinationPath,
+            long recordId,
+            string expectedSha256,
+            string attemptToken,
+            CancellationToken cancellationToken)
+        {
+            int active = Interlocked.Increment(ref _activePublishes);
+            int observed;
+            do
+            {
+                observed = Volatile.Read(ref _maxConcurrentPublishes);
+                if (active <= observed)
+                    break;
+            }
+            while (Interlocked.CompareExchange(
+                       ref _maxConcurrentPublishes,
+                       active,
+                       observed) != observed);
+
+            try
+            {
+                await Task.Delay(30, cancellationToken);
+                await _inner.PublishFileAsync(
+                    sourcePath,
+                    destinationPath,
+                    recordId,
+                    expectedSha256,
+                    attemptToken,
+                    cancellationToken);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activePublishes);
+            }
+        }
+
+        public Task<RemoteProbeResult> ProbeAsync(
+            string path,
+            long expectedSize,
+            CancellationToken cancellationToken) =>
+            _inner.ProbeAsync(path, expectedSize, cancellationToken);
+
+        public Task<string> ComputeSha256Async(
+            string path,
+            CancellationToken cancellationToken) =>
+            _inner.ComputeSha256Async(path, cancellationToken);
+
+        public Task RenameAsync(
+            string sourcePath,
+            string destinationPath,
+            CancellationToken cancellationToken) =>
+            _inner.RenameAsync(sourcePath, destinationPath, cancellationToken);
+
+        public Task<IArchiveProvider.DeleteOutcome> DeleteAsync(
+            string path,
+            IReadOnlyList<string> allowedRoots,
+            CancellationToken cancellationToken) =>
+            _inner.DeleteAsync(path, allowedRoots, cancellationToken);
+    }
+
     private sealed class ThrottleAwareProvider : IArchiveProvider, IArchiveTransferThrottleAware
     {
         private readonly NasArchiveProvider _inner = new();
@@ -924,14 +994,18 @@ public sealed class ArchiveServiceTests : IDisposable
             _database,
             provider,
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
-            realtimeBusyProvider: () => realtimeBusy);
+            loadStateProvider: () => realtimeBusy
+                ? ArchiveLoadState.Paused
+                : ArchiveLoadState.Healthy);
 
         Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
         Assert.Empty(provider.PublishedPaths);
         Assert.Equal(VideoArchiveStatus.Pending, _database.GetVideoById(id)!.ArchiveStatus);
 
         realtimeBusy = false;
-        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        Assert.Equal(
+            1,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
         Assert.Single(provider.PublishedPaths);
     }
 
@@ -954,15 +1028,16 @@ public sealed class ArchiveServiceTests : IDisposable
                 MaxUnreachableCooldown = TimeSpan.FromMilliseconds(20),
                 RecoveryInitialBatchSize = 1,
                 RecoveryMaxBatchSize = 4,
-                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(40),
-                RecoveryMaxBytesPerSecond = 0
+                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(40)
             });
 
         Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
         provider.Unreachable = false;
         await Task.Delay(60);
 
-        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        Assert.Equal(
+            1,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
         int verifiedAfterFirstRound = _database.QueryVideos(null, null)
             .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
         Assert.Equal(1, verifiedAfterFirstRound);
@@ -988,8 +1063,7 @@ public sealed class ArchiveServiceTests : IDisposable
             {
                 AutomaticWorkerEnabled = false,
                 UnreachableFailureThreshold = 1,
-                UnreachableCooldown = TimeSpan.FromMilliseconds(20),
-                RecoveryMaxBytesPerSecond = 1
+                UnreachableCooldown = TimeSpan.FromMilliseconds(20)
             });
 
         await service.ProcessPendingOnceAsync(CancellationToken.None);
@@ -997,6 +1071,206 @@ public sealed class ArchiveServiceTests : IDisposable
         await Task.Delay(40);
         Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
         Assert.True(unreachable.SawActiveThrottle);
+    }
+
+    [Fact]
+    public async Task RemovedArchiveRoot_ReroutesFailedRecordAndUsesNewPathImmediately()
+    {
+        long id = InsertPendingRecord("reroute-old-root.mp4", "reroute-content");
+        string oldPath = Path.Combine(_directory, "removed-nas", "reroute-old-root.mp4");
+        _database.RerouteArchivePath(id, oldPath);
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Failed,
+            error: "找不到网络路径",
+            incrementRetry: true);
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                [new StorageLocation { Path = _nasRoot, Priority = 0 }]);
+
+        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        Assert.StartsWith(_nasRoot, record.ArchivePath);
+        Assert.Equal(record.ArchivePath, Assert.Single(provider.PublishedPaths));
+        Assert.Equal(VideoArchiveStatus.Verified, record.ArchiveStatus);
+        Assert.Equal(0, record.ArchiveRetryCount);
+        Assert.False(File.Exists(oldPath));
+    }
+
+    [Fact]
+    public async Task ConfiguredArchiveRoot_IsNotRerouted()
+    {
+        long id = InsertPendingRecord("keep-current-root.mp4", "keep-content");
+        string expectedPath = _database.GetVideoById(id)!.ArchivePath;
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                [new StorageLocation { Path = _nasRoot, Priority = 0 }]);
+
+        Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
+
+        Assert.Equal(expectedPath, _database.GetVideoById(id)!.ArchivePath);
+        Assert.Equal(expectedPath, Assert.Single(provider.PublishedPaths));
+    }
+
+    [Fact]
+    public void ConditionalReroute_RejectsChangedPathAndNonRetryableStates()
+    {
+        long id = InsertPendingRecord("conditional-reroute.mp4", "conditional-content");
+        string original = _database.GetVideoById(id)!.ArchivePath;
+        string replacement = Path.Combine(_nasRoot, "replacement.mp4");
+
+        Assert.Equal(
+            0,
+            _database.TryReroutePendingArchivePath(id, original + ".changed", replacement));
+        Assert.Equal(original, _database.GetVideoById(id)!.ArchivePath);
+
+        _database.UpdateArchiveState(id, VideoArchiveStatus.Copying);
+        Assert.Equal(0, _database.TryReroutePendingArchivePath(id, original, replacement));
+        _database.UpdateArchiveState(id, VideoArchiveStatus.Verified);
+        Assert.Equal(0, _database.TryReroutePendingArchivePath(id, original, replacement));
+
+        _database.UpdateArchiveState(
+            id,
+            VideoArchiveStatus.Failed,
+            error: "旧错误",
+            incrementRetry: true,
+            nextRetryAt: DateTime.Now.AddHours(1));
+        Assert.Equal(1, _database.TryReroutePendingArchivePath(id, original, replacement));
+        VideoRecord rerouted = _database.GetVideoById(id)!;
+        Assert.Equal(replacement, rerouted.ArchivePath);
+        Assert.Equal(VideoArchiveStatus.Pending, rerouted.ArchiveStatus);
+        Assert.Equal("", rerouted.ArchiveError);
+        Assert.Equal(0, rerouted.ArchiveRetryCount);
+        Assert.Null(rerouted.NextRetryAt);
+    }
+
+    [Fact]
+    public async Task PersistedFailedBacklog_StartsRecoveryAtSingleRecord()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            long id = InsertPendingRecord($"startup-failed-{i}.mp4", "failed-" + i);
+            _database.UpdateArchiveState(id, VideoArchiveStatus.Failed, error: "旧路径不可达");
+        }
+        var provider = new RecordingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                BatchSize = 20,
+                RecoveryBacklogThreshold = 4,
+                RecoveryInitialBatchSize = 1,
+                RecoveryMaxBatchSize = 4,
+                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(30)
+            });
+
+        Assert.Equal(
+            1,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+        Assert.Single(provider.PublishedPaths);
+        Assert.Equal(
+            0,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+        await Task.Delay(50);
+        Assert.Equal(
+            2,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RecoveryBatchGreaterThanOne_RemainsStrictlySequential()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            long id = InsertPendingRecord($"sequential-{i}.mp4", "sequential-" + i);
+            _database.UpdateArchiveState(id, VideoArchiveStatus.Failed, error: "旧路径不可达");
+        }
+        var provider = new ConcurrencyTrackingProvider();
+        using var service = new ArchiveService(
+            _database,
+            provider,
+            new ArchiveWorkerOptions
+            {
+                AutomaticWorkerEnabled = false,
+                BatchSize = 20,
+                RecoveryBacklogThreshold = 4,
+                RecoveryInitialBatchSize = 1,
+                RecoveryMaxBatchSize = 4,
+                RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(20)
+            });
+
+        Assert.Equal(
+            1,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+        await Task.Delay(40, TestContext.Current.CancellationToken);
+        Assert.Equal(
+            2,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(1, provider.MaxConcurrentPublishes);
+    }
+
+    [Fact]
+    public void AdaptiveThrottle_RampsToUnlimitedAndDemotesUnderPressure()
+    {
+        var time = new MutableTimeProvider();
+        ArchiveLoadState state = ArchiveLoadState.Healthy;
+        var throttle = new ArchiveTransferThrottle(
+            () => true,
+            () => state,
+            time);
+        const long mib = 1024L * 1024;
+
+        Assert.Equal(96 * mib, throttle.CurrentBytesPerSecond);
+        foreach (long expected in new[] { 192 * mib, 384 * mib, 768 * mib, 0L })
+        {
+            time.Advance(TimeSpan.FromSeconds(10));
+            Assert.Equal(expected, throttle.CurrentBytesPerSecond);
+        }
+
+        state = ArchiveLoadState.Degraded;
+        Assert.Equal(384 * mib, throttle.CurrentBytesPerSecond);
+        time.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(192 * mib, throttle.CurrentBytesPerSecond);
+        state = ArchiveLoadState.Paused;
+        _ = throttle.CurrentBytesPerSecond;
+        state = ArchiveLoadState.Healthy;
+        Assert.Equal(24 * mib, throttle.CurrentBytesPerSecond);
+    }
+
+    [Fact]
+    public async Task AdaptiveThrottle_PausesCurrentChunkUntilRecordingEnds()
+    {
+        ArchiveLoadState state = ArchiveLoadState.Paused;
+        var throttle = new ArchiveTransferThrottle(
+            () => true,
+            () => state);
+
+        Task wait = throttle.WaitAsync(1, TestContext.Current.CancellationToken).AsTask();
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.False(wait.IsCompleted);
+
+        state = ArchiveLoadState.Healthy;
+        await wait.WaitAsync(
+            TimeSpan.FromSeconds(2),
+            TestContext.Current.CancellationToken);
+    }
+
+    private sealed class MutableTimeProvider : TimeProvider
+    {
+        private DateTimeOffset _utcNow = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+        public void Advance(TimeSpan interval) => _utcNow += interval;
     }
 
     [Fact]

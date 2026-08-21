@@ -130,6 +130,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _lastVideoFrameErrorLogAt = DateTime.MinValue;
         private DateTime _lastCameraStateErrorLogAt = DateTime.MinValue;
         private DateTime _lastUiHeartbeatAt = DateTime.Now;
+        private long _archiveUiHeartbeatUtcTicks = DateTime.UtcNow.Ticks;
+        private long _archiveFrameUtcTicks;
+        private long _archivePreviewUtcTicks;
+        private int _archiveCameraActive;
         private System.Windows.Threading.DispatcherTimer _uiHeartbeatTimer;
         private readonly PreviewSessionGate _previewSessionGate = new();
         private readonly CameraFrameReadySignal _cameraFrameReady = new();
@@ -974,6 +978,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (dispatcher == null) return;
 
             _lastUiHeartbeatAt = DateTime.Now;
+            Interlocked.Exchange(ref _archiveUiHeartbeatUtcTicks, DateTime.UtcNow.Ticks);
             _uiHeartbeatTimer = new System.Windows.Threading.DispatcherTimer(
                 System.Windows.Threading.DispatcherPriority.Normal,
                 dispatcher)
@@ -983,6 +988,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _uiHeartbeatTimer.Tick += (_, __) =>
             {
                 _lastUiHeartbeatAt = DateTime.Now;
+                Interlocked.Exchange(ref _archiveUiHeartbeatUtcTicks, DateTime.UtcNow.Ticks);
                 if (_mobileBackupStatusDate != DateTime.Today)
                     RefreshMobileBackupStatuses();
                 if (DateTime.Now - _lastUserscriptStatusRefreshAt >= TimeSpan.FromSeconds(15))
@@ -1008,7 +1014,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     new NasArchiveProvider(),
                     archiveTargetResolver: () =>
                         StorageLocationResolver.GetOrderedBackupLocations(Config),
-                    realtimeBusyProvider: () => IsRecording);
+                    loadStateProvider: GetArchiveLoadState);
                 _archiveService.BackupTargetAvailabilityChanged +=
                     OnArchiveTargetAvailabilityChanged;
                 _nasCircularCleanup = new NasCircularCleanupService(_db);
@@ -2691,6 +2697,32 @@ namespace ExpressPackingMonitoring.ViewModels
             return targets.ToList();
         }
 
+        private ArchiveLoadState GetArchiveLoadState()
+        {
+            if (Volatile.Read(ref _isRecording))
+                return ArchiveLoadState.Paused;
+
+            long nowTicks = DateTime.UtcNow.Ticks;
+            long heartbeatTicks = Interlocked.Read(ref _archiveUiHeartbeatUtcTicks);
+            if (heartbeatTicks > 0
+                && nowTicks - heartbeatTicks > UiHeartbeatStaleThreshold.Ticks)
+            {
+                return ArchiveLoadState.Degraded;
+            }
+
+            if (Volatile.Read(ref _archiveCameraActive) == 0)
+                return ArchiveLoadState.Healthy;
+
+            long frameTicks = Interlocked.Read(ref _archiveFrameUtcTicks);
+            long previewTicks = Interlocked.Read(ref _archivePreviewUtcTicks);
+            return (frameTicks > 0
+                    && nowTicks - frameTicks > PreviewFreezeWarnThreshold.Ticks)
+                || (previewTicks > 0
+                    && nowTicks - previewTicks > PreviewFreezeWarnThreshold.Ticks)
+                ? ArchiveLoadState.Degraded
+                : ArchiveLoadState.Healthy;
+        }
+
         internal static bool HasMkvConversionCandidate(string mkvPath)
         {
             if (string.IsNullOrWhiteSpace(mkvPath)
@@ -3768,6 +3800,7 @@ namespace ExpressPackingMonitoring.ViewModels
             int sessionId = _previewSessionGate.BeginSession();
             _lastPreviewFrameAt = DateTime.MinValue;
             _lastPreviewPublishedAt = DateTime.Now;
+            Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
             _lastPreviewFreezeLogAt = DateTime.Now;
 
             if (clearFrame)
@@ -3940,6 +3973,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 _videoSource.NewFrame += VideoSource_NewFrame; _videoSource.Start();
                 _lastFrameTime = DateTime.Now; // 防止 VideoProcessLoop 启动时误判无帧
                 _lastPreviewPublishedAt = DateTime.Now;
+                long cameraReadyTicks = DateTime.UtcNow.Ticks;
+                Interlocked.Exchange(ref _archiveFrameUtcTicks, cameraReadyTicks);
+                Interlocked.Exchange(ref _archivePreviewUtcTicks, cameraReadyTicks);
+                Volatile.Write(ref _archiveCameraActive, 1);
                 _cameraEverConnected = true;
                 RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
             }
@@ -3986,6 +4023,10 @@ namespace ExpressPackingMonitoring.ViewModels
             _networkCameraStartedAt = DateTime.Now;
             _lastFrameTime = DateTime.Now;
             _lastPreviewPublishedAt = DateTime.Now;
+            long networkCameraReadyTicks = DateTime.UtcNow.Ticks;
+            Interlocked.Exchange(ref _archiveFrameUtcTicks, networkCameraReadyTicks);
+            Interlocked.Exchange(ref _archivePreviewUtcTicks, networkCameraReadyTicks);
+            Volatile.Write(ref _archiveCameraActive, 1);
             _cameraEverConnected = true;
             RuntimeLog.Info(
                 "Camera",
@@ -4083,6 +4124,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
             BeginPreviewSession(clearFrame: true);
+            Volatile.Write(ref _archiveCameraActive, 0);
             RuntimeLog.Info("Camera", "StopCamera completed");
             return true;
         }
@@ -4090,6 +4132,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void VideoSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
             _lastFrameTime = DateTime.Now;
+            Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             if (!_cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps))
                 return;
 
@@ -4106,6 +4149,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void NetworkCameraSource_FrameReady(object sender, NetworkCameraFrameEventArgs e)
         {
             _lastFrameTime = DateTime.Now;
+            Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             if (!_cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps))
             {
                 e.Frame.Dispose();
@@ -4636,6 +4680,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 bufferSize,
                                 stride);
                             _lastPreviewPublishedAt = DateTime.Now;
+                            Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
                         }
                     }
                     finally

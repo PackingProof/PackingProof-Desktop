@@ -15,7 +15,7 @@ internal sealed class ArchiveService : IDisposable
     private readonly IArchiveProvider _provider;
     private readonly ArchiveWorkerOptions _options;
     private readonly Func<IReadOnlyList<StorageLocation>>? _archiveTargetResolver;
-    private readonly Func<bool>? _realtimeBusyProvider;
+    private readonly Func<ArchiveLoadState> _loadStateProvider;
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly Task _worker;
@@ -39,20 +39,20 @@ internal sealed class ArchiveService : IDisposable
         ArchiveWorkerOptions? options = null,
         Func<IReadOnlyList<StorageLocation>>? archiveTargetResolver = null,
         CancellationToken cancellationToken = default,
-        Func<bool>? realtimeBusyProvider = null)
+        Func<ArchiveLoadState>? loadStateProvider = null)
     {
         _database = database ?? throw new ArgumentNullException(nameof(database));
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _options = options ?? new ArchiveWorkerOptions();
         _nextUnreachableCooldown = _options.UnreachableCooldown;
         _archiveTargetResolver = archiveTargetResolver;
-        _realtimeBusyProvider = realtimeBusyProvider;
-        if (_provider is IArchiveTransferThrottleAware throttleAware
-            && _options.RecoveryMaxBytesPerSecond > 0)
+        _loadStateProvider = loadStateProvider ?? (() => ArchiveLoadState.Healthy);
+        InitializeBacklogRecovery();
+        if (_provider is IArchiveTransferThrottleAware throttleAware)
         {
             _transferThrottle = new ArchiveTransferThrottle(
                 IsRecoveryThrottleActive,
-                _options.RecoveryMaxBytesPerSecond);
+                _loadStateProvider);
             throttleAware.SetTransferThrottle(_transferThrottle);
         }
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -85,7 +85,7 @@ internal sealed class ArchiveService : IDisposable
     /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
-        if (_realtimeBusyProvider?.Invoke() == true)
+        if (_loadStateProvider() == ArchiveLoadState.Paused)
             return 0;
         if (!TryBeginRecoveryRound(out bool recoveryRound))
             return 0;
@@ -118,6 +118,8 @@ internal sealed class ArchiveService : IDisposable
         foreach (VideoRecord record in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_loadStateProvider() == ArchiveLoadState.Paused)
+                break;
             if (IsCircuitOpen())
                 break; // 本轮中途触发熔断：停止剩余记录，避免继续做挂起探测
             using IDisposable ownership = await VideoLifecycleCoordinator.EnterAsync(
@@ -254,6 +256,10 @@ internal sealed class ArchiveService : IDisposable
             LocalMissingRepair.Apply(_database, record, probe);
             return false;
         }
+
+        networkPath = ResolveCurrentArchivePath(record, targetRoot);
+        if (string.IsNullOrWhiteSpace(networkPath))
+            return false;
 
         _database.UpdateArchiveState(record.Id, VideoArchiveStatus.Copying, attemptedAt: attemptedAt);
         try
@@ -501,6 +507,91 @@ internal sealed class ArchiveService : IDisposable
     {
         lock (_recoverySync)
             return _recoveryMode;
+    }
+
+    private void InitializeBacklogRecovery()
+    {
+        int threshold = _options.RecoveryBacklogThreshold > 0
+            ? _options.RecoveryBacklogThreshold
+            : Math.Max(1, _options.BatchSize);
+        int failedCount;
+        try
+        {
+            failedCount = _database.GetArchiveQueueSummary().FailedCount;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Archive", $"读取启动归档积压失败：{ex.Message}");
+            return;
+        }
+
+        if (failedCount < threshold)
+            return;
+
+        lock (_recoverySync)
+        {
+            _recoveryMode = true;
+            _recoveryBatchSize = Math.Clamp(
+                Math.Max(1, _options.RecoveryInitialBatchSize),
+                1,
+                Math.Max(1, _options.RecoveryMaxBatchSize));
+            _recoveryNextRoundAt = DateTime.Now;
+        }
+        RuntimeLog.Info(
+            "Archive",
+            $"检测到 {failedCount} 个失败积压，启动渐进恢复");
+    }
+
+    private string ResolveCurrentArchivePath(VideoRecord record, string? selectedRoot)
+    {
+        string currentPath = record.ArchivePath;
+        if (record.ArchiveStatus is not (VideoArchiveStatus.Pending or VideoArchiveStatus.Failed)
+            || string.IsNullOrWhiteSpace(selectedRoot))
+        {
+            return currentPath;
+        }
+
+        IReadOnlyList<StorageLocation>? candidates = GetArchiveCandidates();
+        if (candidates == null || candidates.Count == 0)
+            return currentPath;
+        if (candidates.Any(location => IsPathUnderRoot(currentPath, location.Path)))
+            return currentPath;
+
+        string fileName = Path.GetFileName(record.FilePath);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return currentPath;
+        string newArchivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
+            selectedRoot,
+            record.StartTime,
+            fileName);
+        int updated = _database.TryReroutePendingArchivePath(
+            record.Id,
+            currentPath,
+            newArchivePath);
+        if (updated == 1)
+        {
+            RuntimeLog.Info(
+                "Archive",
+                $"归档任务已改投当前备份位置 id={record.Id}, old={currentPath}, new={newArchivePath}");
+            return newArchivePath;
+        }
+
+        VideoRecord? latest = _database.GetVideoById(record.Id);
+        return latest is { ArchiveStatus: VideoArchiveStatus.Pending or VideoArchiveStatus.Failed }
+            ? latest.ArchivePath
+            : "";
+    }
+
+    private static bool IsPathUnderRoot(string path, string root)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(root))
+            return false;
+        string normalizedPath = path.Trim().Replace('\\', '/').TrimEnd('/');
+        string normalizedRoot = root.Trim().Replace('\\', '/').TrimEnd('/');
+        return normalizedPath.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith(
+                normalizedRoot + "/",
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private bool TryBeginRecoveryRound(out bool recoveryRound)

@@ -28,6 +28,6 @@ internal sealed class ArchiveWorkerOptions
     /// <summary>恢复放量各轮之间的最短间隔。</summary>
     public TimeSpan RecoveryInterBatchDelay { get; init; } = TimeSpan.FromSeconds(5);
 
-    /// <summary>恢复阶段 NAS 文件读写上限；0 表示不限制（单位：字节/秒）。</summary>
-    public long RecoveryMaxBytesPerSecond { get; init; } = 8 * 1024 * 1024;
+    /// <summary>启动时失败积压达到该数量便直接启用渐进恢复，避免重启绕过保护。</summary>
+    public int RecoveryBacklogThreshold { get; init; }
 }
