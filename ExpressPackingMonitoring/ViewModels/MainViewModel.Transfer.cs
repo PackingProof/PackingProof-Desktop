@@ -31,6 +31,8 @@ public partial class MainViewModel
     private bool _recordingCacheBlockedDialogShown;
     private int _recordingCacheEmergencyStopRequested;
     private DateTime _lastRecordingWorkstationHeartbeatAt = DateTime.MinValue;
+    private DateTime _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
+    private int _recordingWorkstationDiscoveryFailureCount;
     private int _recordingWorkstationHeartbeatInProgress;
     private readonly object _recordingCacheMaintenanceLock = new();
     private string _recordingCacheInventoryRoot = "";
@@ -202,6 +204,8 @@ public partial class MainViewModel
         if (Interlocked.Exchange(ref _recordingWorkstationHeartbeatInProgress, 1) != 0)
             return;
 
+        if (force)
+            _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
         _lastRecordingWorkstationHeartbeatAt = now;
         _ = SendRecordingWorkstationHeartbeatAsync();
     }
@@ -218,7 +222,12 @@ public partial class MainViewModel
                 Config.WebServerPort,
                 connected: true,
                 nicknameCustomized: Config.NodeNameCustomized);
-            if (!heartbeat.Online)
+            if (heartbeat.Online)
+            {
+                _recordingWorkstationDiscoveryFailureCount = 0;
+                _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
+            }
+            else if (DateTime.UtcNow >= _nextRecordingWorkstationDiscoveryAt)
             {
                 PackingProofNodeInfo? resolvedHost = await WorkstationNetwork.FindHostByNodeIdAsync(
                     Config.LastKnownHostNodeId,
@@ -238,6 +247,22 @@ public partial class MainViewModel
                         Config.WebServerPort,
                         connected: true,
                         nicknameCustomized: Config.NodeNameCustomized);
+                }
+
+                if (heartbeat.Online)
+                {
+                    _recordingWorkstationDiscoveryFailureCount = 0;
+                    _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
+                }
+                else
+                {
+                    _recordingWorkstationDiscoveryFailureCount = Math.Min(
+                        _recordingWorkstationDiscoveryFailureCount + 1,
+                        5);
+                    int backoffSeconds = 15 * (1 << Math.Min(
+                        _recordingWorkstationDiscoveryFailureCount - 1,
+                        4));
+                    _nextRecordingWorkstationDiscoveryAt = DateTime.UtcNow.AddSeconds(backoffSeconds);
                 }
             }
             Application.Current?.Dispatcher.BeginInvoke(() =>

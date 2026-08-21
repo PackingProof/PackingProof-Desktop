@@ -250,6 +250,7 @@ public static class WorkstationNetwork
 {
     private const int DefaultHttpPort = 5280;
     private const int MaxSubnetDiscoveryHosts = 1022;
+    private static readonly TimeSpan LanDiscoveryTimeout = TimeSpan.FromSeconds(15);
     private sealed record PendingRestart(string ExecutablePath, string WorkingDirectory, string Reason);
 
     private static readonly HttpClient Client = CreateLanHttpClient(TimeSpan.FromSeconds(3));
@@ -276,7 +277,7 @@ public static class WorkstationNetwork
                 || string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
         {
             int port = uri.IsDefaultPort ? defaultPort : uri.Port;
-            return $"{uri.Host}:{port}";
+            return FormatHostPort(uri.Host, port);
         }
         if (input.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
             input = input[7..];
@@ -287,7 +288,43 @@ public static class WorkstationNetwork
             input = input[..suffixIndex];
         input = input.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(input)) return "";
+        // IPv6 字面量必须保留方括号，否则拼接端口后会生成无效 URL
+        if (input.StartsWith("[", StringComparison.Ordinal))
+        {
+            int closingBracket = input.IndexOf(']');
+            if (closingBracket > 0)
+            {
+                string host = input[1..closingBracket];
+                string suffix = input[(closingBracket + 1)..];
+                if (suffix.StartsWith(":", StringComparison.Ordinal)
+                    && int.TryParse(suffix[1..], NumberStyles.None, CultureInfo.InvariantCulture, out int bracketPort)
+                    && bracketPort is > 0 and <= 65535)
+                    return FormatHostPort(host, bracketPort);
+                return FormatHostPort(host, defaultPort);
+            }
+        }
+        if (input.Count(static character => character == ':') > 1)
+            return FormatHostPort(input, defaultPort);
         return input.Contains(':') ? input : $"{input}:{defaultPort}";
+    }
+
+    private static string FormatHostPort(string host, int port) =>
+        host.IndexOf(':') >= 0 ? $"[{host.Trim('[', ']')}]:{port}" : $"{host}:{port}";
+
+    private static string GetAddressHost(string address)
+    {
+        string normalized = NormalizeAddress(address);
+        if (normalized.StartsWith("[", StringComparison.Ordinal))
+        {
+            int closingBracket = normalized.IndexOf(']');
+            if (closingBracket > 0)
+                return normalized[1..closingBracket];
+        }
+
+        int separator = normalized.LastIndexOf(':');
+        return separator > 0 && normalized.IndexOf(':') == separator
+            ? normalized[..separator]
+            : normalized;
     }
 
     public static string ToUrl(string address) => $"http://{NormalizeAddress(address)}";
@@ -302,7 +339,7 @@ public static class WorkstationNetwork
         if (Uri.TryCreate(input, UriKind.Absolute, out Uri? uri)
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
-            address = $"{uri.Host}:{(uri.IsDefaultPort ? DefaultHttpPort : uri.Port)}";
+            address = FormatHostPort(uri.Host, uri.IsDefaultPort ? DefaultHttpPort : uri.Port);
             foreach (string item in uri.Query.TrimStart('?').Split(
                          '&',
                          StringSplitOptions.RemoveEmptyEntries))
@@ -352,8 +389,8 @@ public static class WorkstationNetwork
 
             // 地址以「实际请求连接的 IP + node-info 返回的权威 httpPort」为准，
             // 不信任请求时用的候选端口，避免端口不一致/多网卡时把身份和地址混在一起。
-            string host = NormalizeAddress(address).Split(':')[0];
-            node.Address = ToUrl($"{host}:{node.HttpPort}");
+            string host = GetAddressHost(address);
+            node.Address = ToUrl(FormatHostPort(host, node.HttpPort));
             return node;
         }
         catch (Exception ex) when (ex is HttpRequestException
@@ -367,7 +404,7 @@ public static class WorkstationNetwork
 
     private static bool IsLoopbackAddress(string address)
     {
-        string host = NormalizeAddress(address).Split(':')[0];
+        string host = GetAddressHost(address);
         if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
             return true;
         return IPAddress.TryParse(host, out IPAddress? ip) && IPAddress.IsLoopback(ip);
@@ -837,17 +874,27 @@ public static class WorkstationNetwork
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .SelectMany(address => GetDiscoveryPorts(port).Select(discoveryPort => $"{address}:{discoveryPort}"));
 
+        using var discoveryTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        discoveryTimeout.CancelAfter(LanDiscoveryTimeout);
+        CancellationToken discoveryToken = discoveryTimeout.Token;
         var reporter = new HostReporter(hostProgress);
-        Task udpTask = DiscoverUdpHostsAsync(reporter, progress, token);
+        Task udpTask = DiscoverUdpHostsAsync(reporter, progress, discoveryToken);
         Task httpTask = DiscoverHostsAsync(
             lastKnownAddress,
             candidates,
             GetNodeInfoAsync,
             reporter,
             progress,
-            token);
+            discoveryToken);
 
-        await Task.WhenAll(udpTask, httpTask).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(udpTask, httpTask).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && discoveryTimeout.IsCancellationRequested)
+        {
+            // 局域网主机离线时到达总时限，返回已发现的主机，避免后台任务长期占用资源
+        }
         return reporter.ToList();
     }
 
@@ -1028,7 +1075,7 @@ public static class WorkstationNetwork
             string[] batch = pending.Skip(start).Take(32).ToArray();
             if (batch.Length > 0)
             {
-                string prefix = batch[0].Split(':')[0];
+                string prefix = GetAddressHost(batch[0]);
                 int lastDot = prefix.LastIndexOf('.');
                 progress?.Report(lastDot > 0
                     ? $"正在查找 {prefix[..lastDot]}.x"

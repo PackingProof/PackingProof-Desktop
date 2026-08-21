@@ -21,6 +21,15 @@ public sealed class HostDiscoveryTests
         Assert.False(handler.UseProxy);
     }
 
+    [Theory]
+    [InlineData("http://[::1]:5280", "[::1]:5280")]
+    [InlineData("[fe80::1]", "[fe80::1]:5280")]
+    [InlineData("fe80::1", "[fe80::1]:5280")]
+    public void NormalizeAddressPreservesIpv6LiteralAndPort(string input, string expected)
+    {
+        Assert.Equal(expected, WorkstationNetwork.NormalizeAddress(input));
+    }
+
     [Fact]
     public async Task NodeInfoApiReturnsStablePublicHostIdentityWithoutSecrets()
     {
