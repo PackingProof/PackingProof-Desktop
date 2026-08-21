@@ -94,6 +94,10 @@ internal sealed class MobileBackupSharedFileMigrator
         long fileSize = new FileInfo(sourcePath).Length;
         var copies = new List<PlannedCopy>();
         var updates = new List<SharedFileMigrationUpdate>(records.Count);
+        var validatedSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            $"{sourcePath}\n{sourceRecord.ContentSha256}"
+        };
 
         for (int index = 0; index < records.Count; index++)
         {
@@ -109,7 +113,9 @@ internal sealed class MobileBackupSharedFileMigrator
             string newArchivePath = expectedArchivePath;
             if (!string.IsNullOrWhiteSpace(expectedArchivePath))
             {
-                ValidateSource(expectedArchivePath, record.ContentSha256);
+                string sourceKey = $"{Path.GetFullPath(expectedArchivePath)}\n{record.ContentSha256}";
+                if (validatedSources.Add(sourceKey))
+                    ValidateSource(expectedArchivePath, record.ContentSha256);
                 if (index > 0)
                 {
                     newArchivePath = BuildIndependentPath(
