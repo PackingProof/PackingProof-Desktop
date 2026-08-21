@@ -100,6 +100,7 @@ public sealed class ArchiveBackupStatePolicyTests
         Assert.Contains(VideoArchiveStatus.Conflict, ArchiveBackupStatePolicy.RemainingStatuses);
         Assert.Contains(VideoArchiveStatus.LocalMissingUnverified, ArchiveBackupStatePolicy.RemainingStatuses);
         Assert.Contains(VideoArchiveStatus.BackupLost, ArchiveBackupStatePolicy.RemainingStatuses);
+        Assert.Contains(VideoArchiveStatus.SharedFileMigrationPending, ArchiveBackupStatePolicy.RemainingStatuses);
         Assert.DoesNotContain(VideoArchiveStatus.Verified, ArchiveBackupStatePolicy.RemainingStatuses);
         Assert.DoesNotContain(VideoArchiveStatus.LocalDeleted, ArchiveBackupStatePolicy.RemainingStatuses);
         Assert.DoesNotContain(VideoArchiveStatus.NasDeleted, ArchiveBackupStatePolicy.RemainingStatuses);

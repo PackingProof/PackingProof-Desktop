@@ -30,6 +30,8 @@ namespace ExpressPackingMonitoring.Data
         public const string ConflictLocalMissing = "ConflictLocalMissing";
         /// <summary>任何可信副本都不存在（数据丢失），用户可见异常终态。</summary>
         public const string BackupLost = "BackupLost";
+        /// <summary>历史共享文件记录正在等待安全物化，禁止本地/NAS 自动清理。</summary>
+        public const string SharedFileMigrationPending = "SharedFileMigrationPending";
         /// <summary>设置页“录像清理”手动清理本地录像，NAS 归档不受影响。</summary>
         public const string ManualCleanup = "ManualCleanup";
     }
@@ -978,6 +980,70 @@ namespace ExpressPackingMonitoring.Data
                 RemoveLocalVideoFileCore(oldPath);
                 if (fileSizeBytes > 0)
                     UpsertLocalVideoFileCore(newPath, fileSizeBytes);
+            }
+        }
+
+        internal void MarkSharedFileMigrationPending(
+            IReadOnlyList<SharedFileMigrationQuarantine> records)
+        {
+            if (records.Count == 0) return;
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                foreach (SharedFileMigrationQuarantine record in records)
+                {
+                    using var cmd = _connection.CreateCommand();
+                    cmd.Transaction = transaction;
+                    cmd.CommandText = @"
+                        UPDATE VideoRecords
+                        SET ArchiveStatus = @status, ArchiveError = @state
+                        WHERE Id = @id AND IsDeleted = 0;";
+                    cmd.Parameters.AddWithValue("@status", VideoArchiveStatus.SharedFileMigrationPending);
+                    cmd.Parameters.AddWithValue("@state", record.StateJson);
+                    cmd.Parameters.AddWithValue("@id", record.RecordId);
+                    if (cmd.ExecuteNonQuery() != 1)
+                        throw new InvalidOperationException("共享录像迁移隔离记录失败");
+                }
+                transaction.Commit();
+            }
+        }
+
+        internal void ApplySharedFileMigration(IReadOnlyList<SharedFileMigrationUpdate> records)
+        {
+            if (records.Count == 0) return;
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                foreach (SharedFileMigrationUpdate record in records)
+                {
+                    using var cmd = _connection.CreateCommand();
+                    cmd.Transaction = transaction;
+                    cmd.CommandText = @"
+                        UPDATE VideoRecords
+                        SET FilePath = @newFilePath,
+                            FileSizeBytes = @fileSizeBytes,
+                            ArchivePath = @newArchivePath,
+                            ArchiveStatus = @archiveStatus,
+                            ArchiveError = @archiveError
+                        WHERE Id = @id
+                          AND IsDeleted = 0
+                          AND FilePath = @expectedFilePath COLLATE NOCASE
+                          AND ArchivePath = @expectedArchivePath COLLATE NOCASE
+                          AND ArchiveStatus = @pendingStatus;";
+                    cmd.Parameters.AddWithValue("@newFilePath", record.NewFilePath);
+                    cmd.Parameters.AddWithValue("@fileSizeBytes", record.FileSizeBytes);
+                    cmd.Parameters.AddWithValue("@newArchivePath", record.NewArchivePath);
+                    cmd.Parameters.AddWithValue("@archiveStatus", record.RestoredArchiveStatus);
+                    cmd.Parameters.AddWithValue("@archiveError", record.RestoredArchiveError);
+                    cmd.Parameters.AddWithValue("@id", record.RecordId);
+                    cmd.Parameters.AddWithValue("@expectedFilePath", record.ExpectedFilePath);
+                    cmd.Parameters.AddWithValue("@expectedArchivePath", record.ExpectedArchivePath);
+                    cmd.Parameters.AddWithValue("@pendingStatus", VideoArchiveStatus.SharedFileMigrationPending);
+                    if (cmd.ExecuteNonQuery() != 1)
+                        throw new InvalidOperationException("共享录像迁移期间记录已发生变化");
+                    UpsertLocalVideoFileCore(record.NewFilePath, record.FileSizeBytes, transaction);
+                }
+                transaction.Commit();
             }
         }
 

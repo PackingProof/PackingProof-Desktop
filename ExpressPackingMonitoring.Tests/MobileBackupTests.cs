@@ -994,6 +994,121 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
+    public void SharedFileMigrationCreatesIndependentLocalAndArchiveCopiesAtomically()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("legacy shared mobile backup");
+            string sha = Sha256(file);
+            string localPath = Path.Combine(directory, "legacy.mp4");
+            string archivePath = Path.Combine(directory, "archive", "legacy.mp4");
+            Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+            File.WriteAllBytes(localPath, file);
+            File.WriteAllBytes(archivePath, file);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            long firstId = InsertSharedRecord(database, localPath, archivePath, sha, "legacy-1");
+            long secondId = InsertSharedRecord(database, localPath, archivePath, sha, "legacy-2");
+            var migrator = new MobileBackupSharedFileMigrator(database, _ => TestVolume());
+
+            SharedFileMigrationSummary summary = migrator.Run();
+            VideoRecord first = database.GetVideoById(firstId);
+            VideoRecord second = database.GetVideoById(secondId);
+
+            Assert.Equal(1, summary.CompletedGroups);
+            Assert.Equal(0, summary.PendingGroups);
+            Assert.NotEqual(first.FilePath, second.FilePath);
+            Assert.NotEqual(first.ArchivePath, second.ArchivePath);
+            Assert.Equal(VideoArchiveStatus.Verified, first.ArchiveStatus);
+            Assert.Equal(VideoArchiveStatus.Verified, second.ArchiveStatus);
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(first.FilePath)));
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(second.FilePath)));
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(first.ArchivePath)));
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(second.ArchivePath)));
+            Assert.Equal(0, migrator.Run().CompletedGroups);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void SharedFileMigrationSpaceFailureKeepsOriginalPathsAndBlocksCleanup()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("legacy shared no space");
+            string sha = Sha256(file);
+            string localPath = Path.Combine(directory, "legacy.mp4");
+            File.WriteAllBytes(localPath, file);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            long firstId = InsertSharedRecord(database, localPath, "", sha, "legacy-1", VideoArchiveStatus.LocalOnly);
+            long secondId = InsertSharedRecord(database, localPath, "", sha, "legacy-2", VideoArchiveStatus.LocalOnly);
+            var noSpace = new StorageVolumeInfo("test", 100L * 1024 * 1024 * 1024, 0, "test");
+
+            SharedFileMigrationSummary summary = new MobileBackupSharedFileMigrator(
+                database, _ => noSpace).Run();
+            VideoRecord first = database.GetVideoById(firstId);
+            VideoRecord second = database.GetVideoById(secondId);
+
+            Assert.Equal(0, summary.CompletedGroups);
+            Assert.Equal(1, summary.PendingGroups);
+            Assert.Equal(localPath, first.FilePath);
+            Assert.Equal(localPath, second.FilePath);
+            Assert.Equal(VideoArchiveStatus.SharedFileMigrationPending, first.ArchiveStatus);
+            Assert.Equal(VideoArchiveStatus.SharedFileMigrationPending, second.ArchiveStatus);
+            Assert.True(ArchiveBackupStatePolicy.IsBackupRemaining(first));
+            Assert.True(File.Exists(localPath));
+            Assert.Single(Directory.GetFiles(directory, "*.mp4"));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void SharedFileMigrationInterruptionIsRestartIdempotent()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("legacy interrupted migration");
+            string sha = Sha256(file);
+            string localPath = Path.Combine(directory, "legacy.mp4");
+            File.WriteAllBytes(localPath, file);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            long firstId = InsertSharedRecord(database, localPath, "", sha, "legacy-1", VideoArchiveStatus.LocalOnly);
+            long secondId = InsertSharedRecord(database, localPath, "", sha, "legacy-2", VideoArchiveStatus.LocalOnly);
+            var interrupted = new MobileBackupSharedFileMigrator(
+                database,
+                _ => TestVolume(),
+                () => throw new IOException("模拟数据库提交前中断"));
+
+            Assert.Equal(1, interrupted.Run().PendingGroups);
+            Assert.Equal(localPath, database.GetVideoById(firstId).FilePath);
+            Assert.Equal(localPath, database.GetVideoById(secondId).FilePath);
+            Assert.Single(Directory.GetFiles(directory, "*.mp4"));
+
+            SharedFileMigrationSummary restarted = new MobileBackupSharedFileMigrator(
+                database, _ => TestVolume()).Run();
+
+            Assert.Equal(1, restarted.CompletedGroups);
+            Assert.NotEqual(
+                database.GetVideoById(firstId).FilePath,
+                database.GetVideoById(secondId).FilePath);
+            Assert.Equal(VideoArchiveStatus.LocalOnly, database.GetVideoById(firstId).ArchiveStatus);
+            Assert.Equal(VideoArchiveStatus.LocalOnly, database.GetVideoById(secondId).ArchiveStatus);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void CompleteRejectsMissingOrMultipleSessions()
     {
         string directory = CreateTempDirectory();
@@ -1613,6 +1728,32 @@ public sealed class MobileBackupTests
 
     private static MobileBackupCreateRequest CreateRequest(string sha, long length) =>
         new() { FileSha256 = sha, TotalBytes = length, MimeType = "video/mp4" };
+
+    private static long InsertSharedRecord(
+        VideoDatabase database,
+        string localPath,
+        string archivePath,
+        string sha,
+        string sessionId,
+        string archiveStatus = VideoArchiveStatus.Verified) =>
+        database.InsertMobileBackupRecord(
+            $"TRACK-{sessionId}",
+            localPath,
+            new FileInfo(localPath).Length,
+            new DateTime(2026, 7, 19, 10, 0, 0),
+            5,
+            "phone-legacy",
+            "旧手机",
+            sessionId,
+            sha,
+            archivePath: archivePath,
+            archiveStatus: archiveStatus);
+
+    private static StorageVolumeInfo TestVolume() => new(
+        "test",
+        2L * 1024 * 1024 * 1024 * 1024,
+        1024L * 1024 * 1024 * 1024,
+        "test");
 
     private static MobileBackupCompleteRequest CompleteRequest(
         string sha, string sessionId, string trackingNumber, string deviceId, string deviceName) =>

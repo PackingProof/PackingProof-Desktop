@@ -25,7 +25,8 @@ public static class ArchiveBackupStatePolicy
         VideoArchiveStatus.NASFull,
         VideoArchiveStatus.Conflict,
         VideoArchiveStatus.LocalMissingUnverified,
-        VideoArchiveStatus.BackupLost
+        VideoArchiveStatus.BackupLost,
+        VideoArchiveStatus.SharedFileMigrationPending
     ];
 
     internal static readonly string[] PendingStatuses =
@@ -41,7 +42,7 @@ public static class ArchiveBackupStatePolicy
     internal static readonly string[] ConflictStatuses =
         [VideoArchiveStatus.Conflict];
     internal static readonly string[] PendingVerificationStatuses =
-        [VideoArchiveStatus.LocalMissingUnverified];
+        [VideoArchiveStatus.LocalMissingUnverified, VideoArchiveStatus.SharedFileMigrationPending];
     internal static readonly string[] LostStatuses =
         [VideoArchiveStatus.BackupLost];
 

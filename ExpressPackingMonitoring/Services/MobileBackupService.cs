@@ -63,6 +63,7 @@ internal sealed class MobileBackupService
         _archivePendingCallback = archivePendingCallback;
         Directory.CreateDirectory(_stateDirectory);
         CleanupExpiredUploads();
+        new MobileBackupSharedFileMigrator(_database).Run();
     }
 
     public MobileBackupCreateResult CreateOrResume(MobileBackupCreateRequest request)
