@@ -67,6 +67,7 @@ public partial class PrintWorkstationWindow : Window
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly WindowCloseBehaviorController _closeBehaviorController;
     private readonly DispatcherTimer _deviceRefreshTimer;
+    private readonly DispatcherTimer _archiveRefreshTimer;
     private readonly DispatcherTimer _toastTimer;
     private StatisticsWindow? _statisticsWindow;
     private PlaybackWindow? _playbackWindow;
@@ -75,6 +76,7 @@ public partial class PrintWorkstationWindow : Window
     private bool _deploymentSetupPersisted;
     private bool _testOrderSending;
     private bool _purposeSwitchPending;
+    private int _archiveBackupSummaryDirty;
     public ObservableCollection<MobileBackupStatusItem> MobileBackupDeviceStatuses { get; } = [];
     public MobileBackupToastState ToastState { get; } = new();
 
@@ -93,6 +95,7 @@ public partial class PrintWorkstationWindow : Window
         _host = new NoCameraWorkstationHost(config);
         _host.MobileAppUpdateAvailable += OnMobileAppUpdateAvailable;
         _host.MobileBackupStatusChanged += OnMobileBackupStatusChanged;
+        _host.ArchiveBackupStatusChanged += OnArchiveBackupStatusChanged;
         _host.BackupDeviceEnrollmentRequested += ApproveBackupDeviceEnrollment;
         _closeBehaviorController = new WindowCloseBehaviorController(
             this,
@@ -102,8 +105,13 @@ public partial class PrintWorkstationWindow : Window
         _deviceRefreshTimer.Tick += (_, _) =>
         {
             RefreshDeviceSummary();
-            RefreshArchiveBackupSummary();
             UpdateHeaderIdentity();
+        };
+        _archiveRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _archiveRefreshTimer.Tick += (_, _) =>
+        {
+            if (Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0) != 0)
+                RefreshArchiveBackupSummary();
         };
         _toastTimer = new DispatcherTimer();
         _toastTimer.Tick += (_, _) =>
@@ -117,10 +125,12 @@ public partial class PrintWorkstationWindow : Window
         {
             _closeBehaviorController.Dispose();
             _deviceRefreshTimer.Stop();
+            _archiveRefreshTimer.Stop();
             _toastTimer.Stop();
             ToastState.IsToastVisible = false;
             _lifetimeCts.Cancel();
             _host.MobileBackupStatusChanged -= OnMobileBackupStatusChanged;
+            _host.ArchiveBackupStatusChanged -= OnArchiveBackupStatusChanged;
             _host.BackupDeviceEnrollmentRequested -= ApproveBackupDeviceEnrollment;
             _host.Dispose();
             _lifetimeCts.Dispose();
@@ -174,6 +184,7 @@ public partial class PrintWorkstationWindow : Window
                 cancellationToken: _lifetimeCts.Token);
             RefreshServiceDisplay();
             _deviceRefreshTimer.Start();
+            _archiveRefreshTimer.Start();
             if (_host.IsLanAvailable)
                 CompleteDeploymentSetup();
             if (_openPlaybackOnStartup)
@@ -435,6 +446,9 @@ public partial class PrintWorkstationWindow : Window
         ArchiveBackupStatusCard.ShortStatusText = state.ShortStatusText;
         ArchiveBackupStatusCard.DetailText = state.DetailText;
     }
+
+    private void OnArchiveBackupStatusChanged() =>
+        Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
 
     internal static IReadOnlyList<MobileBackupStatusItem> BuildMobileBackupStatuses(
         IEnumerable<MobileBackupDailyCount> counts,

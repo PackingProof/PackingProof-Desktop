@@ -49,6 +49,12 @@
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份中">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="等待下一批">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="录像优先">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="检查中">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </DataTrigger>
@@ -83,6 +89,15 @@
                                 <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份暂停">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份位置不可用">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份异常">
+                                <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份丢失">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="离线">

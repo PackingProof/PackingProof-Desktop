@@ -994,6 +994,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (DateTime.Now - _lastUserscriptStatusRefreshAt >= TimeSpan.FromSeconds(15))
                     RefreshUserscriptStatus();
                 QueueRecordingWorkstationHeartbeat();
+                if (Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0) != 0)
+                    RefreshArchiveBackupSummary();
             };
             _uiHeartbeatTimer.Start();
         }
@@ -1007,8 +1009,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     _archiveService.BackupTargetAvailabilityChanged -=
                         OnArchiveTargetAvailabilityChanged;
+                    _archiveService.WorkerStateChanged -= OnArchiveWorkerStateChanged;
+                    _archiveService.ArchiveQueueChanged -= OnArchiveQueueChanged;
                     _archiveService.Dispose();
                 }
+                _archiveTargetUnavailable = false;
+                _archiveUnavailableRoot = "";
                 _archiveService = new ArchiveService(
                     _db,
                     new NasArchiveProvider(),
@@ -1017,6 +1023,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     loadStateProvider: GetArchiveLoadState);
                 _archiveService.BackupTargetAvailabilityChanged +=
                     OnArchiveTargetAvailabilityChanged;
+                _archiveService.WorkerStateChanged += OnArchiveWorkerStateChanged;
+                _archiveService.ArchiveQueueChanged += OnArchiveQueueChanged;
                 _nasCircularCleanup = new NasCircularCleanupService(_db);
                 RefreshArchiveBackupSummary();
             }
@@ -4996,6 +5004,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _archiveService.BackupTargetAvailabilityChanged -=
                     OnArchiveTargetAvailabilityChanged;
+                _archiveService.WorkerStateChanged -= OnArchiveWorkerStateChanged;
+                _archiveService.ArchiveQueueChanged -= OnArchiveQueueChanged;
                 try { _archiveService.Dispose(); } catch { }
             }
             try { _db?.Dispose(); } catch { }

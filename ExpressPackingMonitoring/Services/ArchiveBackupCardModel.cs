@@ -30,14 +30,16 @@ internal static class ArchiveBackupCardModel
 
     /// <summary>
     /// 构建“录像备份”卡片状态，优先级：
-    /// 备份丢失 > 上传中 > 备份失败 > 备份异常(Conflict) > 备份暂停 > 待核实 > 待备份
-    /// > 已清理(无待备份) > 已同步。
+    /// 位置不可用 > 备份丢失/冲突/空间不足 > Worker 运行状态 > 自动重试
+    /// > 待核实 > 待备份 > 已清理(无待备份) > 已同步。
     /// </summary>
     internal static ArchiveBackupCardState BuildArchiveBackupCardState(
         ArchiveQueueSummary summary,
         string currentTarget,
         bool targetUnavailable = false,
-        string unavailableRoot = "")
+        string unavailableRoot = "",
+        ArchiveWorkerSnapshot worker = default,
+        DateTime? now = null)
     {
         int remaining = summary.RemainingCount;
 
@@ -46,8 +48,8 @@ internal static class ArchiveBackupCardModel
             return new ArchiveBackupCardState(
                 "备份位置不可用",
                 string.IsNullOrWhiteSpace(unavailableRoot)
-                    ? $"{remaining} 个录像等待备份，录像仍保存在本地；若网盘已重新挂载，请在设置中重新选择备份位置"
-                    : $"无法访问 {unavailableRoot}，录像仍保存在本地；若网盘已重新挂载，请在设置中重新选择备份位置");
+                    ? $"{remaining} 个录像等待备份，录像仍保存在本地，位置恢复后会自动重试"
+                    : $"无法访问 {unavailableRoot}，录像仍保存在本地，位置恢复后会自动重试");
         }
 
         if (summary.LostCount > 0)
@@ -55,18 +57,6 @@ internal static class ArchiveBackupCardModel
             return new ArchiveBackupCardState(
                 "备份丢失",
                 $"{summary.LostCount} 个录像本地与 NAS 均无可信副本，请检查");
-        }
-        if (summary.UploadingCount > 0)
-        {
-            return new ArchiveBackupCardState(
-                "备份中",
-                $"正在备份 · 共 {remaining} 个待备份");
-        }
-        if (summary.FailedCount > 0)
-        {
-            return new ArchiveBackupCardState(
-                "备份失败",
-                $"{remaining} 个录像等待重试，录像仍保存在本地");
         }
         if (summary.ConflictCount > 0)
         {
@@ -79,6 +69,41 @@ internal static class ArchiveBackupCardModel
             return new ArchiveBackupCardState(
                 "备份暂停",
                 $"备份位置空间不足，{remaining} 个录像等待空间恢复");
+        }
+        if (worker.Phase == ArchiveWorkerPhase.Uploading
+            || summary.UploadingCount > 0)
+        {
+            return new ArchiveBackupCardState(
+                "备份中",
+                $"正在逐个备份，剩余 {remaining} 个");
+        }
+        if (worker.Phase == ArchiveWorkerPhase.WaitingForNextBatch
+            && remaining > 0)
+        {
+            int seconds = worker.NextBatchAt.HasValue
+                ? Math.Max(
+                    1,
+                    (int)Math.Ceiling(
+                        (worker.NextBatchAt.Value - (now ?? DateTime.Now)).TotalSeconds))
+                : 0;
+            return new ArchiveBackupCardState(
+                "等待下一批",
+                seconds > 0
+                    ? $"本批已完成，约 {seconds} 秒后继续，剩余 {remaining} 个"
+                    : $"本批已完成，稍后继续，剩余 {remaining} 个");
+        }
+        if (worker.Phase == ArchiveWorkerPhase.PausedForRecording
+            && remaining > 0)
+        {
+            return new ArchiveBackupCardState(
+                "录像优先",
+                $"为保证录像流畅，停止录像后继续，剩余 {remaining} 个");
+        }
+        if (summary.FailedCount > 0)
+        {
+            return new ArchiveBackupCardState(
+                "等待重试",
+                $"{summary.FailedCount} 个录像上次未完成，系统会自动重试，录像仍保存在本地");
         }
         if (summary.PendingVerificationCount > 0)
         {

@@ -41,6 +41,36 @@ public sealed class NoCameraWorkstationTests
     }
 
     [Fact]
+    public void ArchiveProgressRefresh_IsEventDrivenAndCoalescedToOneSecond()
+    {
+        string windowSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml.cs");
+        string viewModelSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
+
+        Assert.Contains(
+            "_host.ArchiveBackupStatusChanged += OnArchiveBackupStatusChanged",
+            windowSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_archiveRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) }",
+            windowSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0)",
+            windowSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Interlocked.Exchange(ref _archiveBackupSummaryDirty, 0)",
+            viewModelSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MobileBackupWindowUsesHostCopyAndLanUserscriptGuide()
     {
         string xaml = ReadRepositoryFile(

@@ -15,6 +15,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private WebServer? _server;
     private ArchiveService? _archiveService;
     private bool _disposed;
+    private bool _archiveTargetUnavailable;
+    private string _archiveUnavailableRoot = "";
 
     public NoCameraWorkstationHost(
         AppConfig config,
@@ -47,7 +49,10 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         ArchiveQueueSummary summary = _database.GetArchiveQueueSummary();
         ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             summary,
-            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(_config));
+            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(_config),
+            _archiveTargetUnavailable,
+            _archiveUnavailableRoot,
+            _archiveService?.CurrentWorkerSnapshot ?? default);
         return (true, state);
     }
     public string LanAccessUrl { get; private set; } = "";
@@ -56,6 +61,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         _database ?? throw new InvalidOperationException("录像数据库尚未打开");
     public event Action<MobileAppUpdateAvailableInfo>? MobileAppUpdateAvailable;
     public event Action? MobileBackupStatusChanged;
+    public event Action? ArchiveBackupStatusChanged;
     public event Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision>? BackupDeviceEnrollmentRequested;
     public event Action<bool>? MobileBackupActivityChanged;
 
@@ -105,12 +111,18 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         {
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
-            _archiveService?.Dispose();
+            DisposeArchiveService();
+            _archiveTargetUnavailable = false;
+            _archiveUnavailableRoot = "";
             _archiveService = new ArchiveService(
                 _database,
                 new NasArchiveProvider(),
                 archiveTargetResolver: () =>
                     StorageLocationResolver.GetOrderedBackupLocations(_config));
+            _archiveService.BackupTargetAvailabilityChanged +=
+                OnArchiveTargetAvailabilityChanged;
+            _archiveService.WorkerStateChanged += OnArchiveWorkerStateChanged;
+            _archiveService.ArchiveQueueChanged += OnArchiveQueueChanged;
             LocalPlaybackUrl = MobileConnectionService.BuildAccessUrl(
                 $"127.0.0.1:{_config.WebServerPort}",
                 _config.RequireWebAccessKey,
@@ -173,6 +185,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         catch (Exception ex)
         {
             StopServer();
+            DisposeArchiveService();
             ErrorMessage = GetFriendlyError(ex);
             RuntimeLog.Error("NoCamera", "No-camera workstation startup failed", ex);
             throw new InvalidOperationException(ErrorMessage, ex);
@@ -265,6 +278,35 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         IsLanAvailable = false;
     }
 
+    private void OnArchiveTargetAvailabilityChanged(bool available, string root)
+    {
+        _archiveTargetUnavailable = !available;
+        _archiveUnavailableRoot = available ? "" : root;
+        NotifyArchiveBackupStatusChanged();
+    }
+
+    private void OnArchiveWorkerStateChanged(ArchiveWorkerSnapshot _) =>
+        NotifyArchiveBackupStatusChanged();
+
+    private void OnArchiveQueueChanged() => NotifyArchiveBackupStatusChanged();
+
+    private void NotifyArchiveBackupStatusChanged()
+    {
+        try { ArchiveBackupStatusChanged?.Invoke(); } catch { }
+    }
+
+    private void DisposeArchiveService()
+    {
+        if (_archiveService == null)
+            return;
+        _archiveService.BackupTargetAvailabilityChanged -=
+            OnArchiveTargetAvailabilityChanged;
+        _archiveService.WorkerStateChanged -= OnArchiveWorkerStateChanged;
+        _archiveService.ArchiveQueueChanged -= OnArchiveQueueChanged;
+        try { _archiveService.Dispose(); } catch { }
+        _archiveService = null;
+    }
+
     private static string GetFriendlyError(Exception exception)
     {
         Exception root = exception;
@@ -283,8 +325,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         if (_disposed) return;
         _disposed = true;
         StopServer();
-        try { _archiveService?.Dispose(); } catch { }
-        _archiveService = null;
+        DisposeArchiveService();
         try { _database?.Dispose(); } catch { }
         _database = null;
     }

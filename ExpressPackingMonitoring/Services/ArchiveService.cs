@@ -5,6 +5,18 @@ using System.IO;
 
 namespace ExpressPackingMonitoring.Services;
 
+internal enum ArchiveWorkerPhase
+{
+    Idle,
+    Uploading,
+    WaitingForNextBatch,
+    PausedForRecording
+}
+
+internal readonly record struct ArchiveWorkerSnapshot(
+    ArchiveWorkerPhase Phase,
+    DateTime? NextBatchAt = null);
+
 /// <summary>
 /// 网络归档后台服务：从数据库队列取待归档/待删除记录，
 /// 通过 IArchiveProvider 复制、校验、发布到网络位置。
@@ -32,6 +44,10 @@ internal sealed class ArchiveService : IDisposable
     private int _recoveryBatchSize;
     private DateTime _recoveryNextRoundAt;
     private readonly ArchiveTransferThrottle? _transferThrottle;
+    private readonly object _workerSnapshotSync = new();
+    private ArchiveWorkerSnapshot _workerSnapshot =
+        new(ArchiveWorkerPhase.Idle);
+    private int _archiveInProgress;
 
     public ArchiveService(
         VideoDatabase database,
@@ -52,7 +68,7 @@ internal sealed class ArchiveService : IDisposable
         {
             _transferThrottle = new ArchiveTransferThrottle(
                 IsRecoveryThrottleActive,
-                _loadStateProvider);
+                ReadLoadState);
             throttleAware.SetTransferThrottle(_transferThrottle);
         }
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -65,6 +81,21 @@ internal sealed class ArchiveService : IDisposable
     /// 事件在 Worker 线程触发，订阅方需自行切换 UI 线程。
     /// </summary>
     public event Action<bool, string>? BackupTargetAvailabilityChanged;
+
+    /// <summary>Worker 阶段变化通知；在 Worker 线程触发，订阅方不得直接操作 UI。</summary>
+    public event Action<ArchiveWorkerSnapshot>? WorkerStateChanged;
+
+    /// <summary>单条录像完成一次归档尝试后的队列变化通知。</summary>
+    public event Action? ArchiveQueueChanged;
+
+    public ArchiveWorkerSnapshot CurrentWorkerSnapshot
+    {
+        get
+        {
+            lock (_workerSnapshotSync)
+                return _workerSnapshot;
+        }
+    }
 
     public void Wake()
     {
@@ -85,8 +116,12 @@ internal sealed class ArchiveService : IDisposable
     /// <summary>处理一轮待归档记录（供测试与手动触发使用）。</summary>
     internal async Task<int> ProcessPendingOnceAsync(CancellationToken cancellationToken)
     {
-        if (_loadStateProvider() == ArchiveLoadState.Paused)
+        if (ReadLoadState() == ArchiveLoadState.Paused)
+        {
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(
+                ArchiveWorkerPhase.PausedForRecording));
             return 0;
+        }
         if (!TryBeginRecoveryRound(out bool recoveryRound))
             return 0;
 
@@ -115,20 +150,47 @@ internal sealed class ArchiveService : IDisposable
             : Math.Max(1, _options.BatchSize);
         IReadOnlyList<VideoRecord> records = _database.GetPendingArchives(batchSize, DateTime.Now);
         int completed = 0;
+        bool pausedForRecording = false;
         foreach (VideoRecord record in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_loadStateProvider() == ArchiveLoadState.Paused)
+            if (ReadLoadState() == ArchiveLoadState.Paused)
+            {
+                pausedForRecording = true;
                 break;
+            }
             if (IsCircuitOpen())
                 break; // 本轮中途触发熔断：停止剩余记录，避免继续做挂起探测
             using IDisposable ownership = await VideoLifecycleCoordinator.EnterAsync(
                 record.Id,
                 cancellationToken);
-            if (await TryArchiveAsync(record, cancellationToken, archiveTarget).ConfigureAwait(false))
-                completed++;
+            Volatile.Write(ref _archiveInProgress, 1);
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Uploading));
+            try
+            {
+                if (await TryArchiveAsync(record, cancellationToken, archiveTarget).ConfigureAwait(false))
+                    completed++;
+            }
+            finally
+            {
+                Volatile.Write(ref _archiveInProgress, 0);
+                NotifyArchiveQueueChanged();
+            }
         }
         CompleteRecoveryRound(recoveryRound, records.Count);
+        if (pausedForRecording)
+        {
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(
+                ArchiveWorkerPhase.PausedForRecording));
+        }
+        else if (!recoveryRound)
+        {
+            SetWorkerSnapshot(records.Count >= batchSize
+                ? new ArchiveWorkerSnapshot(
+                    ArchiveWorkerPhase.WaitingForNextBatch,
+                    DateTime.Now + _options.PollInterval)
+                : new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Idle));
+        }
         return completed;
     }
 
@@ -509,6 +571,59 @@ internal sealed class ArchiveService : IDisposable
             return _recoveryMode;
     }
 
+    private ArchiveLoadState ReadLoadState()
+    {
+        ArchiveLoadState state;
+        try
+        {
+            state = _loadStateProvider();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Archive", $"读取实时负载状态失败：{ex.Message}");
+            state = ArchiveLoadState.Degraded;
+        }
+
+        if (state == ArchiveLoadState.Paused)
+        {
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(
+                ArchiveWorkerPhase.PausedForRecording));
+        }
+        else if (Volatile.Read(ref _archiveInProgress) != 0
+            && CurrentWorkerSnapshot.Phase == ArchiveWorkerPhase.PausedForRecording)
+        {
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Uploading));
+        }
+        return state;
+    }
+
+    private void SetWorkerSnapshot(ArchiveWorkerSnapshot snapshot)
+    {
+        Action<ArchiveWorkerSnapshot>? handler;
+        lock (_workerSnapshotSync)
+        {
+            if (_workerSnapshot == snapshot)
+                return;
+            _workerSnapshot = snapshot;
+            handler = WorkerStateChanged;
+        }
+
+        try { handler?.Invoke(snapshot); }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Archive", $"归档状态通知失败：{ex.Message}");
+        }
+    }
+
+    private void NotifyArchiveQueueChanged()
+    {
+        try { ArchiveQueueChanged?.Invoke(); }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Archive", $"归档队列通知失败：{ex.Message}");
+        }
+    }
+
     private void InitializeBacklogRecovery()
     {
         int threshold = _options.RecoveryBacklogThreshold > 0
@@ -624,7 +739,12 @@ internal sealed class ArchiveService : IDisposable
             if (!recoveryRound)
                 return true;
             if (_recoveryNextRoundAt > DateTime.Now)
+            {
+                SetWorkerSnapshot(new ArchiveWorkerSnapshot(
+                    ArchiveWorkerPhase.WaitingForNextBatch,
+                    _recoveryNextRoundAt));
                 return false;
+            }
             return true;
         }
     }
@@ -643,6 +763,7 @@ internal sealed class ArchiveService : IDisposable
                 _recoveryBatchSize = 0;
                 _recoveryNextRoundAt = default;
                 RuntimeLog.Info("Archive", "NAS 恢复后的归档积压已完成渐进放量");
+                SetWorkerSnapshot(new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Idle));
                 return;
             }
             int maxBatch = Math.Max(1, _options.RecoveryMaxBatchSize);
@@ -650,6 +771,9 @@ internal sealed class ArchiveService : IDisposable
                 maxBatch,
                 Math.Max(1, _recoveryBatchSize) * 2);
             _recoveryNextRoundAt = DateTime.Now + _options.RecoveryInterBatchDelay;
+            SetWorkerSnapshot(new ArchiveWorkerSnapshot(
+                ArchiveWorkerPhase.WaitingForNextBatch,
+                _recoveryNextRoundAt));
         }
     }
 

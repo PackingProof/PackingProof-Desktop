@@ -25,16 +25,16 @@ public sealed class ArchiveBackupCardStateTests
     public void BuildArchiveBackupCardState_PrecedenceAndTexts()
     {
         ArchiveBackupCardState uploading = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            Summary(pending: 1, uploading: 2, failed: 1, nasFull: 1, localOnly: 1),
+            Summary(pending: 1, uploading: 2, failed: 1, localOnly: 1),
             currentTarget: @"\\nas\share");
         Assert.Equal("备份中", uploading.ShortStatusText);
-        Assert.Contains("共 6 个待备份", uploading.DetailText);
+        Assert.Contains("剩余 5 个", uploading.DetailText);
 
         ArchiveBackupCardState failed = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             Summary(pending: 1, failed: 2),
             @"\\nas\share");
-        Assert.Equal("备份失败", failed.ShortStatusText);
-        Assert.Contains("等待重试", failed.DetailText);
+        Assert.Equal("等待重试", failed.ShortStatusText);
+        Assert.Contains("系统会自动重试", failed.DetailText);
 
         ArchiveBackupCardState paused = ArchiveBackupCardModel.BuildArchiveBackupCardState(
             Summary(pending: 1, nasFull: 3),
@@ -134,7 +134,59 @@ public sealed class ArchiveBackupCardStateTests
         Assert.Contains(
             @"\\CloudDrive-Z-123456789\CloudDrive",
             unavailable.DetailText);
-        Assert.Contains("重新选择备份位置", unavailable.DetailText);
+        Assert.Contains("位置恢复后会自动重试", unavailable.DetailText);
+    }
+
+    [Fact]
+    public void WorkerState_ShowsProgressWaitAndRecordingPriorityAheadOfRetry()
+    {
+        ArchiveQueueSummary summary = Summary(pending: 3, failed: 9000);
+        ArchiveBackupCardState uploading =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                summary,
+                @"\\nas\share",
+                worker: new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Uploading));
+        Assert.Equal("备份中", uploading.ShortStatusText);
+        Assert.Contains("正在逐个备份", uploading.DetailText);
+
+        DateTime now = new(2026, 8, 22, 3, 0, 0);
+        ArchiveBackupCardState waiting =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                summary,
+                @"\\nas\share",
+                worker: new ArchiveWorkerSnapshot(
+                    ArchiveWorkerPhase.WaitingForNextBatch,
+                    now.AddSeconds(5)),
+                now: now);
+        Assert.Equal("等待下一批", waiting.ShortStatusText);
+        Assert.Contains("约 5 秒后继续", waiting.DetailText);
+
+        ArchiveBackupCardState paused =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                summary,
+                @"\\nas\share",
+                worker: new ArchiveWorkerSnapshot(
+                    ArchiveWorkerPhase.PausedForRecording));
+        Assert.Equal("录像优先", paused.ShortStatusText);
+        Assert.Contains("停止录像后继续", paused.DetailText);
+    }
+
+    [Fact]
+    public void ManualArchiveProblems_TakePriorityOverWorkerProgress()
+    {
+        ArchiveBackupCardState conflict =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                Summary(uploading: 1, conflict: 1),
+                @"\\nas\share",
+                worker: new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Uploading));
+        Assert.Equal("备份异常", conflict.ShortStatusText);
+
+        ArchiveBackupCardState full =
+            ArchiveBackupCardModel.BuildArchiveBackupCardState(
+                Summary(uploading: 1, nasFull: 1),
+                @"\\nas\share",
+                worker: new ArchiveWorkerSnapshot(ArchiveWorkerPhase.Uploading));
+        Assert.Equal("备份暂停", full.ShortStatusText);
     }
 
     [Fact]

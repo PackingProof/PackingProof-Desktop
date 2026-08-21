@@ -1122,6 +1122,28 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task WorkerEvents_ReportUploadingQueueChangeAndFinalIdle()
+    {
+        InsertPendingRecord("worker-events.mp4", "worker-event-content");
+        var phases = new List<ArchiveWorkerPhase>();
+        int queueChanges = 0;
+        using var service = new ArchiveService(
+            _database,
+            new RecordingProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
+        service.WorkerStateChanged += snapshot => phases.Add(snapshot.Phase);
+        service.ArchiveQueueChanged += () => queueChanges++;
+
+        Assert.Equal(
+            1,
+            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains(ArchiveWorkerPhase.Uploading, phases);
+        Assert.Equal(ArchiveWorkerPhase.Idle, service.CurrentWorkerSnapshot.Phase);
+        Assert.Equal(1, queueChanges);
+    }
+
+    [Fact]
     public void ConditionalReroute_RejectsChangedPathAndNonRetryableStates()
     {
         long id = InsertPendingRecord("conditional-reroute.mp4", "conditional-content");
@@ -1174,11 +1196,17 @@ public sealed class ArchiveServiceTests : IDisposable
                 RecoveryMaxBatchSize = 4,
                 RecoveryInterBatchDelay = TimeSpan.FromMilliseconds(30)
             });
+        int queueChanges = 0;
+        service.ArchiveQueueChanged += () => queueChanges++;
 
         Assert.Equal(
             1,
             await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
         Assert.Single(provider.PublishedPaths);
+        Assert.Equal(1, queueChanges);
+        Assert.Equal(
+            ArchiveWorkerPhase.WaitingForNextBatch,
+            service.CurrentWorkerSnapshot.Phase);
         Assert.Equal(
             0,
             await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
