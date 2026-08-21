@@ -406,7 +406,8 @@ internal sealed class MobileBackupService
         string fileSha256,
         string sourceDeviceId,
         string sourceDeviceName,
-        string sourceDeviceKind)
+        string sourceDeviceKind,
+        bool alwaysUseSessionSuffix = false)
     {
         string trackingNumber = session.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
         if (string.IsNullOrWhiteSpace(trackingNumber)) trackingNumber = "未识别面单";
