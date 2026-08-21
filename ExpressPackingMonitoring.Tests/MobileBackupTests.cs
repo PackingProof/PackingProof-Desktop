@@ -893,8 +893,11 @@ public sealed class MobileBackupTests
                 sha,
                 CompleteRequest(sha, "collision-session", "TRACK-001", "phone-1", "手机"));
 
+            string sessionFingerprint = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes("phone-1\ncollision-session")))[..16]
+                .ToLowerInvariant();
             Assert.Equal(
-                $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_发货_{sha[..8]}.mp4",
+                $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_发货_{sessionFingerprint}.mp4",
                 Path.GetFileName(database.GetVideoById(completed.RecordId).FilePath));
         }
         finally
