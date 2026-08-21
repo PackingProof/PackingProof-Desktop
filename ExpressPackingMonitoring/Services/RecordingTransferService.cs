@@ -376,14 +376,24 @@ internal sealed class RecordingTransferService : IDisposable
             new MobileBackupCompleteRequest
             {
                 FileSha256 = sha256,
-                SessionId = task.SourceSessionId,
-                TrackingNumber = trackingNumber,
-                Mode = record.Mode,
-                StartedAt = new DateTimeOffset(record.StartTime),
-                DurationMilliseconds = Math.Max(1, (long)(record.DurationSeconds * 1000)),
                 SourceDeviceId = config.NodeId,
                 SourceDeviceName = config.NodeName,
-                SourceDeviceKind = "pc"
+                SourceDeviceKind = "pc",
+                Sessions =
+                [
+                    new MobileBackupSessionRequest
+                    {
+                        Id = task.SourceSessionId,
+                        TrackingNumber = trackingNumber,
+                        Mode = record.Mode,
+                        StartedAt = new DateTimeOffset(record.StartTime),
+                        EndedAt = new DateTimeOffset(
+                            record.StartTime.AddMilliseconds(Math.Max(1, record.DurationSeconds * 1000))),
+                        MediaStartMs = 0,
+                        MediaEndMs = Math.Max(1, (long)(record.DurationSeconds * 1000)),
+                        Markers = []
+                    }
+                ]
             },
             config);
         return await SendAsync<MobileBackupCompleteResponse>(request, cancellationToken).ConfigureAwait(false);

@@ -13,17 +13,17 @@ public sealed class BackupCompatibilityPolicyTests
         Assert.Equal("mobile-backup-v2", info.Protocol);
         Assert.Equal(2, info.EnrollmentVersion);
         Assert.Equal(3, info.AuthVersion);
-        Assert.Equal("0.5.10", info.MinimumMobileVersion);
-        Assert.Equal(11010, info.MinimumMobileBuildNumber);
-        Assert.Equal("0.0.32", info.MinimumWorkstationVersion);
+        Assert.Equal("0.5.23", info.MinimumMobileVersion);
+        Assert.Equal(11036, info.MinimumMobileBuildNumber);
+        Assert.Equal("0.0.55", info.MinimumWorkstationVersion);
         Assert.True(BackupCompatibilityPolicy.IsCompatibleHost(info));
     }
 
     [Theory]
-    [InlineData("0.0.31", "mobile-backup-v2", 2, 3)]
-    [InlineData("0.0.32", "mobile-backup-v1", 2, 3)]
-    [InlineData("0.0.32", "mobile-backup-v2", 1, 3)]
-    [InlineData("0.0.32", "mobile-backup-v2", 2, 2)]
+    [InlineData("0.0.54", "mobile-backup-v2", 2, 3)]
+    [InlineData("0.0.55", "mobile-backup-v1", 2, 3)]
+    [InlineData("0.0.55", "mobile-backup-v2", 1, 3)]
+    [InlineData("0.0.55", "mobile-backup-v2", 2, 2)]
     public void OlderOrMismatchedHostIsRejected(
         string hostVersion,
         string protocol,
@@ -47,8 +47,8 @@ public sealed class BackupCompatibilityPolicyTests
         var mobile = new BackupDeviceEnrollmentRequest
         {
             DeviceKind = "mobile",
-            ClientVersion = "0.5.11",
-            ClientBuildNumber = 11011,
+            ClientVersion = "0.5.24",
+            ClientBuildNumber = 11037,
             BackupProtocol = "mobile-backup-v2",
             EnrollmentVersion = 2,
             AuthVersion = 3
@@ -56,7 +56,7 @@ public sealed class BackupCompatibilityPolicyTests
         var workstation = new BackupDeviceEnrollmentRequest
         {
             DeviceKind = "pc",
-            ClientVersion = "0.0.33",
+            ClientVersion = "0.0.56",
             ClientBuildNumber = 0,
             BackupProtocol = "mobile-backup-v2",
             EnrollmentVersion = 2,
@@ -65,6 +65,31 @@ public sealed class BackupCompatibilityPolicyTests
 
         Assert.Null(BackupCompatibilityPolicy.ValidateClient(mobile));
         Assert.Null(BackupCompatibilityPolicy.ValidateClient(workstation));
+    }
+
+    [Fact]
+    public void PreviouslyReleasedV2ClientsAreRejectedBeforeEnrollment()
+    {
+        var mobile = new BackupDeviceEnrollmentRequest
+        {
+            DeviceKind = "mobile",
+            ClientVersion = "0.5.23",
+            ClientBuildNumber = 11035,
+            BackupProtocol = "mobile-backup-v2",
+            EnrollmentVersion = 2,
+            AuthVersion = 3
+        };
+        var workstation = new BackupDeviceEnrollmentRequest
+        {
+            DeviceKind = "pc",
+            ClientVersion = "0.0.54",
+            BackupProtocol = "mobile-backup-v2",
+            EnrollmentVersion = 2,
+            AuthVersion = 3
+        };
+
+        Assert.Equal("mobile", BackupCompatibilityPolicy.ValidateClient(mobile)?.UpdateTarget);
+        Assert.Equal("recording-workstation", BackupCompatibilityPolicy.ValidateClient(workstation)?.UpdateTarget);
     }
 
     [Fact]

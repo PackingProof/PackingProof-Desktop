@@ -32,8 +32,8 @@ public sealed class MobileAppUpdatePolicyTests
         MobileAppUpdatePolicy policy = MobileAppUpdatePolicyProvider.MinimumPolicy;
 
         Assert.Equal(2, policy.SchemaVersion);
-        Assert.Equal("0.5.10", policy.MinimumVersion);
-        Assert.Equal(11010, policy.MinimumBuildNumber);
+        Assert.Equal("0.5.23", policy.MinimumVersion);
+        Assert.Equal(11036, policy.MinimumBuildNumber);
         Assert.Equal("当前 APP 版本过低，需要更新", policy.Message);
     }
 

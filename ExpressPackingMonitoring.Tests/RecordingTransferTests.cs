@@ -696,8 +696,12 @@ public sealed class RecordingTransferTests
                 using JsonDocument document = JsonDocument.Parse(
                     await request.Content!.ReadAsStringAsync(cancellationToken));
                 SawPcSource = document.RootElement.GetProperty("sourceDeviceKind").GetString() == "pc";
-                ReceivedMode = document.RootElement.GetProperty("mode").GetString() ?? "";
-                string sessionId = document.RootElement.GetProperty("sessionId").GetString() ?? "";
+                JsonElement sessions = document.RootElement.GetProperty("sessions");
+                if (sessions.GetArrayLength() != 1)
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                JsonElement session = sessions[0];
+                ReceivedMode = session.GetProperty("mode").GetString() ?? "";
+                string sessionId = session.GetProperty("id").GetString() ?? "";
                 long verifiedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 long recordId = verified ? 42 : 0;
                 string receipt = verified

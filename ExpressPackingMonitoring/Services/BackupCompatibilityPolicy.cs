@@ -7,9 +7,9 @@ internal static class BackupCompatibilityPolicy
     internal const string BackupProtocol = "mobile-backup-v2";
     internal const int EnrollmentVersion = 2;
     internal const int AuthenticationVersion = 3;
-    internal const string MinimumMobileVersion = "0.5.10";
-    internal const int MinimumMobileBuildNumber = 11010;
-    internal const string MinimumDesktopVersion = "0.0.32";
+    internal const string MinimumMobileVersion = "0.5.23";
+    internal const int MinimumMobileBuildNumber = 11036;
+    internal const string MinimumDesktopVersion = "0.0.55";
     // Viewer enrollment 协议兼容下限，不代表任何客户端发布版本；
     // 取 viewer 类型首次随主机发布的版本号（当前主线下一版本）。
     internal const string MinimumViewerVersion = "0.0.49";

@@ -1497,7 +1497,7 @@ namespace ExpressPackingMonitoring.Services
                     videoLibrary = true,
                     cursorVideoLibrary = true,
                     rangePlayback = true,
-                    multipleSessionsPerFile = true,
+                    multipleSessionsPerFile = false,
                     libraryScope = "host",
                     deviceVideoClipping = true
                 },
@@ -1684,7 +1684,7 @@ namespace ExpressPackingMonitoring.Services
                 long verifiedAtUnixSeconds = 0;
                 long fileSizeBytes = 0;
                 string receiptSignature = "";
-                string receiptSessionId = request.GetSessions().FirstOrDefault()?.SessionId ?? request.SessionId;
+                string receiptSessionId = request.Sessions[0].Id;
                 if (_authenticatedDeviceKeys.TryGetValue(ctx, out string deviceCredential))
                 {
                     VideoRecord verifiedRecord = _db.GetVideoById(result.RecordId);
@@ -1711,7 +1711,6 @@ namespace ExpressPackingMonitoring.Services
                     status = result.Status,
                     fileSha256 = result.FileSha256,
                     recordId = result.RecordId,
-                    recordIds = result.RecordIds,
                     alreadyCompleted = result.AlreadyCompleted,
                     authVersion,
                     hostNodeId = authVersion > 0 ? _nodeId : null,

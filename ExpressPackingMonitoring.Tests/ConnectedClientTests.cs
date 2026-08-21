@@ -163,7 +163,7 @@ public sealed class ConnectedClientTests
             Assert.True(payload.RootElement.GetProperty("ok").GetBoolean());
             Assert.Equal(ConnectedClientRegistry.ExpirationSeconds, payload.RootElement.GetProperty("expiresInSeconds").GetInt32());
             JsonElement mobileUpdate = payload.RootElement.GetProperty("mobileAppUpdate");
-            Assert.Equal(11010, mobileUpdate.GetProperty("minimumBuildNumber").GetInt32());
+            Assert.Equal(11036, mobileUpdate.GetProperty("minimumBuildNumber").GetInt32());
             Assert.Equal(
                 "当前 APP 版本过低，需要更新",
                 mobileUpdate.GetProperty("message").GetString());

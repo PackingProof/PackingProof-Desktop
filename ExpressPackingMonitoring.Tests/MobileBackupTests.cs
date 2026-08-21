@@ -271,8 +271,8 @@ public sealed class MobileBackupTests
                 await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
             Assert.Equal("backup_client_upgrade_required", body.RootElement.GetProperty("errorCode").GetString());
             Assert.Equal("mobile", body.RootElement.GetProperty("updateTarget").GetString());
-            Assert.Equal("0.5.10", body.RootElement.GetProperty("minimumVersion").GetString());
-            Assert.Equal(11010, body.RootElement.GetProperty("minimumBuildNumber").GetInt32());
+            Assert.Equal("0.5.23", body.RootElement.GetProperty("minimumVersion").GetString());
+            Assert.Equal(11036, body.RootElement.GetProperty("minimumBuildNumber").GetInt32());
         }
         finally
         {
@@ -693,7 +693,7 @@ public sealed class MobileBackupTests
                 PushTime = DateTime.Now
             };
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
-            var service = CreateService(database, directory);
+            var service = CreateService(database, directory, tracking => tracking == "TRACK-001" ? order : null);
             MobileBackupCreateRequest createRequest = CreateRequest(fileSha, file.Length);
 
             MobileBackupCreateResult created = service.CreateOrResume(createRequest);
@@ -711,21 +711,10 @@ public sealed class MobileBackupTests
             byte[] remaining = file[8..];
             Assert.Equal(file.Length, service.AppendChunk(fileSha, 8, file.Length - 1, file.Length, remaining, Sha256(remaining)));
             MobileBackupCompleteRequest completeRequest = CompleteRequest(fileSha, "session-1", "TRACK-001", "phone-1", "打包手机");
-            completeRequest.Sessions = new List<MobileBackupSessionRequest>
-            {
-                new()
-                {
-                    SessionId = "session-1",
-                    TrackingNumber = "TRACK-001",
-                    StartedAt = completeRequest.StartedAt,
-                    DurationMilliseconds = completeRequest.DurationMilliseconds,
-                    Mode = "return",
-                    OrderInfo = order
-                }
-            };
+            completeRequest.Sessions[0].Mode = "return";
             MobileBackupCompleteResult completed = service.Complete(fileSha, completeRequest);
             MobileBackupCompleteResult repeated = service.Complete(fileSha, completeRequest);
-            DateTime localStart = completeRequest.StartedAt.ToLocalTime().DateTime;
+            DateTime localStart = completeRequest.Sessions[0].StartedAt.ToLocalTime().DateTime;
 
             Assert.Equal("verified", completed.Status);
             Assert.False(completed.AlreadyCompleted);
@@ -876,38 +865,6 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public void MergeOrderInfo_PrefersComputerFieldsAndPreservesMobileRefund()
-    {
-        var computer = new OrderInfo
-        {
-            TrackingNumber = "TRACK-1",
-            BuyerMessage = "电脑留言",
-            ProductInfo = "电脑商品",
-            PushTime = new DateTime(2026, 7, 19)
-        };
-        var mobile = new OrderInfo
-        {
-            TrackingNumber = "TRACK-1",
-            BuyerMessage = "手机留言",
-            SellerMemo = "手机备注",
-            HasRefund = true,
-            IsPrintedRefund = true,
-            RefundStatus = "退款处理中",
-            PushTime = new DateTime(2026, 7, 20)
-        };
-
-        OrderInfo merged = MobileBackupService.MergeOrderInfo(computer, mobile, "TRACK-1")!;
-
-        Assert.Equal("电脑留言", merged.BuyerMessage);
-        Assert.Equal("手机备注", merged.SellerMemo);
-        Assert.Equal("电脑商品", merged.ProductInfo);
-        Assert.True(merged.HasRefund);
-        Assert.True(merged.IsPrintedRefund);
-        Assert.Equal("退款处理中", merged.RefundStatus);
-        Assert.Equal(new DateTime(2026, 7, 20), merged.PushTime);
-    }
-
-    [Fact]
     public void DifferentContentWithSameBusinessNameUsesShortHashSuffix()
     {
         string directory = CreateTempDirectory();
@@ -973,7 +930,7 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public void SameShaReusesPhysicalFileButCreatesIndependentSearchRecords()
+    public void SameShaCreatesIndependentPhysicalFilesAndRecords()
     {
         string directory = CreateTempDirectory();
         try
@@ -991,11 +948,15 @@ public sealed class MobileBackupTests
             VideoRecord firstRecord = database.GetVideoById(first.RecordId);
             VideoRecord secondRecord = database.GetVideoById(second.RecordId);
             Assert.NotEqual(first.RecordId, second.RecordId);
-            Assert.Equal(firstRecord.FilePath, secondRecord.FilePath);
+            Assert.NotEqual(firstRecord.FilePath, secondRecord.FilePath);
+            Assert.True(File.Exists(firstRecord.FilePath));
+            Assert.True(File.Exists(secondRecord.FilePath));
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(firstRecord.FilePath)));
+            Assert.Equal(sha, Sha256(File.ReadAllBytes(secondRecord.FilePath)));
             Assert.Equal("TRACK-A", firstRecord.TrackingNumber);
             Assert.Equal("TRACK-B", secondRecord.TrackingNumber);
-            Assert.Equal(file.Length, database.GetTotalFileSizeBytes());
-            Assert.Single(database.GetActiveStorageVideoFiles());
+            Assert.Equal(file.Length * 2, database.GetTotalFileSizeBytes());
+            Assert.Equal(2, database.GetActiveStorageVideoFiles().Count);
         }
         finally
         {
@@ -1004,7 +965,36 @@ public sealed class MobileBackupTests
     }
 
     [Fact]
-    public void OnePhysicalFileCanCreateMultipleLogicalSessionRecords()
+    public void FileReadyRequiresExistingPhysicalFileHashToStillMatch()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("verified physical video");
+            byte[] replacement = Encoding.UTF8.GetBytes("tampered physical video");
+            Assert.Equal(file.Length, replacement.Length);
+            string sha = Sha256(file);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            var service = CreateService(database, directory);
+            service.CreateOrResume(CreateRequest(sha, file.Length));
+            service.AppendChunk(sha, 0, file.Length - 1, file.Length, file, sha);
+            MobileBackupCompleteResult completed = service.Complete(
+                sha, CompleteRequest(sha, "session-original", "TRACK-ORIGINAL", "phone-a", "手机 A"));
+            File.WriteAllBytes(database.GetVideoById(completed.RecordId).FilePath, replacement);
+
+            MobileBackupCreateResult resumed = service.CreateOrResume(CreateRequest(sha, file.Length));
+
+            Assert.False(resumed.FileReady);
+            Assert.Equal(0, resumed.Offset);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void CompleteRejectsMissingOrMultipleSessions()
     {
         string directory = CreateTempDirectory();
         try
@@ -1015,42 +1005,76 @@ public sealed class MobileBackupTests
             var service = CreateService(database, directory);
             service.CreateOrResume(CreateRequest(sha, file.Length));
             service.AppendChunk(sha, 0, file.Length - 1, file.Length, file, sha);
-            var request = new MobileBackupCompleteRequest
-            {
-                FileSha256 = sha,
-                SourceDeviceId = "phone-multi",
-                SourceDeviceName = "打包手机",
-                Sessions = new List<MobileBackupSessionRequest>
-                {
-                    new()
-                    {
-                        SessionId = "segment-1", TrackingNumber = "TRACK-1",
-                        StartedAt = new DateTimeOffset(2026, 7, 19, 10, 0, 0, TimeSpan.FromHours(8)),
-                        DurationMilliseconds = 5000
-                    },
-                    new()
-                    {
-                        SessionId = "segment-2", TrackingNumber = "TRACK-2",
-                        StartedAt = new DateTimeOffset(2026, 7, 19, 10, 0, 5, TimeSpan.FromHours(8)),
-                        DurationMilliseconds = 6000
-                    }
-                }
-            };
+            MobileBackupCompleteRequest missing = CompleteRequest(
+                sha, "segment-1", "TRACK-1", "phone-multi", "打包手机");
+            missing.Sessions = [];
+            MobileBackupCompleteRequest multiple = CompleteRequest(
+                sha, "segment-1", "TRACK-1", "phone-multi", "打包手机");
+            multiple.Sessions.Add(CompleteRequest(
+                sha, "segment-2", "TRACK-2", "phone-multi", "打包手机").Sessions[0]);
 
-            MobileBackupCompleteResult completed = service.Complete(sha, request);
-            MobileBackupCompleteResult repeated = service.Complete(sha, request);
+            MobileBackupValidationException missingError = Assert.Throws<MobileBackupValidationException>(
+                () => service.Complete(sha, missing));
+            MobileBackupValidationException multipleError = Assert.Throws<MobileBackupValidationException>(
+                () => service.Complete(sha, multiple));
 
-            Assert.Equal(2, completed.RecordIds.Count);
-            Assert.True(repeated.AlreadyCompleted);
-            Assert.Equal(completed.RecordIds, repeated.RecordIds);
-            Assert.Equal(
-                database.GetVideoById(completed.RecordIds[0]).FilePath,
-                database.GetVideoById(completed.RecordIds[1]).FilePath);
+            Assert.Equal("invalid_sessions", missingError.ErrorCode);
+            Assert.Equal("invalid_sessions", multipleError.ErrorCode);
+            Assert.Null(database.GetVideoBySourceSession("phone-multi", "segment-1"));
+            Assert.Null(database.GetVideoBySourceSession("phone-multi", "segment-2"));
         }
         finally
         {
             DeleteTempDirectory(directory);
         }
+    }
+
+    [Fact]
+    public void CompleteWireContractUsesCanonicalSingleSessionSchema()
+    {
+        MobileBackupCompleteRequest request = CompleteRequest(
+            new string('a', 64), "session-contract", "TRACK-CONTRACT", "phone-contract", "契约手机");
+        request.Sessions[0].Markers.Add(new MobileBackupMarkerRequest
+        {
+            Code = "TRACK-CONTRACT",
+            OccurredAt = request.Sessions[0].StartedAt.AddSeconds(1),
+            OffsetMs = 1000
+        });
+        var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+        JsonElement root = JsonSerializer.SerializeToElement(request, jsonOptions);
+        JsonElement session = root.GetProperty("sessions")[0];
+
+        Assert.False(root.TryGetProperty("sessionId", out _));
+        Assert.False(root.TryGetProperty("recordIds", out _));
+        Assert.Equal("session-contract", session.GetProperty("id").GetString());
+        Assert.Equal(0, session.GetProperty("mediaStartMs").GetInt64());
+        Assert.Equal(5000, session.GetProperty("mediaEndMs").GetInt64());
+        Assert.Equal("TRACK-CONTRACT", session.GetProperty("markers")[0].GetProperty("code").GetString());
+        Assert.False(session.TryGetProperty("sessionId", out _));
+        Assert.False(session.TryGetProperty("durationMilliseconds", out _));
+        Assert.False(session.TryGetProperty("orderInfo", out _));
+
+        JsonObject privateMetadata = JsonNode.Parse(root.GetRawText())!.AsObject();
+        privateMetadata["sessions"]![0]!["orderInfo"] = new JsonObject
+        {
+            ["buyerMessage"] = "不应通过备份协议上传"
+        };
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<MobileBackupCompleteRequest>(
+            privateMetadata.ToJsonString(), jsonOptions));
+
+        const string legacyRequest = """
+            {
+              "fileSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "sessionId": "legacy-session",
+              "trackingNumber": "TRACK-LEGACY",
+              "startedAt": "2026-07-19T02:00:00Z",
+              "durationMilliseconds": 5000,
+              "sourceDeviceName": "旧手机"
+            }
+            """;
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<MobileBackupCompleteRequest>(legacyRequest, jsonOptions));
     }
 
     [Fact]
@@ -1148,6 +1172,7 @@ public sealed class MobileBackupTests
             Assert.Equal(2, capabilityJson.RootElement.GetProperty("version").GetInt32());
             Assert.Equal(3, capabilityJson.RootElement.GetProperty("authVersion").GetInt32());
             Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("videoLibrary").GetBoolean());
+            Assert.False(capabilityJson.RootElement.GetProperty("features").GetProperty("multipleSessionsPerFile").GetBoolean());
             Assert.Equal("host", capabilityJson.RootElement.GetProperty("features").GetProperty("libraryScope").GetString());
             Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("deviceVideoClipping").GetBoolean());
             Assert.Equal(4 * 1024 * 1024, capabilityJson.RootElement.GetProperty("maxChunkBytes").GetInt32());
@@ -1183,6 +1208,8 @@ public sealed class MobileBackupTests
             using JsonDocument completeJson = JsonDocument.Parse(completeBody);
             Assert.Equal("电脑校验完成，备份成功", completeJson.RootElement.GetProperty("message").GetString());
             Assert.Equal("verified", completeJson.RootElement.GetProperty("status").GetString());
+            Assert.True(completeJson.RootElement.GetProperty("recordId").GetInt64() > 0);
+            Assert.False(completeJson.RootElement.TryGetProperty("recordIds", out _));
 
             using HttpResponseMessage videos = await SendSignedAsync(
                 client, HttpMethod.Get, "/api/mobile-backup/videos?size=50", deviceId, deviceToken, [], cancellationToken);
@@ -1592,12 +1619,22 @@ public sealed class MobileBackupTests
         new()
         {
             FileSha256 = sha,
-            SessionId = sessionId,
-            TrackingNumber = trackingNumber,
-            StartedAt = new DateTimeOffset(2026, 7, 19, 10, 0, 0, TimeSpan.FromHours(8)),
-            DurationMilliseconds = 5000,
             SourceDeviceId = deviceId,
-            SourceDeviceName = deviceName
+            SourceDeviceName = deviceName,
+            Sessions =
+            [
+                new MobileBackupSessionRequest
+                {
+                    Id = sessionId,
+                    TrackingNumber = trackingNumber,
+                    StartedAt = new DateTimeOffset(2026, 7, 19, 10, 0, 0, TimeSpan.FromHours(8)),
+                    EndedAt = new DateTimeOffset(2026, 7, 19, 10, 0, 5, TimeSpan.FromHours(8)),
+                    MediaStartMs = 0,
+                    MediaEndMs = 5000,
+                    Mode = "shipping",
+                    Markers = []
+                }
+            ]
         };
 
     private static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
@@ -1610,8 +1647,8 @@ public sealed class MobileBackupTests
         DeviceId = deviceId,
         DeviceName = deviceName,
         DeviceKind = deviceKind,
-        ClientVersion = deviceKind == "pc" ? "0.0.32" : "0.5.10",
-        ClientBuildNumber = deviceKind == "pc" ? 0 : 11010,
+        ClientVersion = deviceKind == "pc" ? "0.0.55" : "0.5.23",
+        ClientBuildNumber = deviceKind == "pc" ? 0 : 11036,
         BackupProtocol = "mobile-backup-v2",
         EnrollmentVersion = 2,
         AuthVersion = 3
