@@ -101,6 +101,8 @@ namespace ExpressPackingMonitoring.UI
         private bool _awaitingFirstFrame;
         private int _currentPage = 1;
         private int _totalVideos;
+        private bool _hasMoreVideoPages;
+        private bool _usingApproximatePaging;
         private int _videoLoadRequestVersion;
         private VideoLoadRequest? _pendingVideoLoad;
         private long _currentMediaLengthMs;
@@ -247,7 +249,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _pendingVideoLoad = null;
                     int requestVersion = _videoLoadRequestVersion;
-                    (List<VideoItem> Items, int Total) result;
+                    VideoPageLoadResult result;
                     try
                     {
                         result = await Task.Run(() =>
@@ -255,9 +257,11 @@ namespace ExpressPackingMonitoring.UI
                         if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                             continue;
 
-                        int pageCount = GetPageCount(result.Total);
-                        int normalizedPage = pageCount == 0 ? 1 : Math.Min(request.Page, pageCount);
-                        if (pageCount > 0 && normalizedPage != request.Page)
+                        int pageCount = result.UsesApproximatePaging ? 0 : GetPageCount(result.Total);
+                        int normalizedPage = result.UsesApproximatePaging || pageCount == 0
+                            ? request.Page
+                            : Math.Min(request.Page, pageCount);
+                        if (!result.UsesApproximatePaging && pageCount > 0 && normalizedPage != request.Page)
                         {
                             result = await Task.Run(() =>
                                 BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage));
@@ -274,6 +278,8 @@ namespace ExpressPackingMonitoring.UI
 
                         _allVideos = new List<VideoItem>();
                         _totalVideos = 0;
+                        _hasMoreVideoPages = false;
+                        _usingApproximatePaging = false;
                         _currentPage = 1;
                         ShowCurrentPage();
                         AppDialog.Error(this, $"加载回放列表失败：{ex.Message}", "回放错误");
@@ -282,6 +288,8 @@ namespace ExpressPackingMonitoring.UI
 
                     _allVideos = result.Items;
                     _totalVideos = result.Total;
+                    _hasMoreVideoPages = result.HasMore;
+                    _usingApproximatePaging = result.UsesApproximatePaging;
                     ShowCurrentPage();
                 }
             }
@@ -295,7 +303,13 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private (List<VideoItem> Items, int Total) BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
+        private sealed record VideoPageLoadResult(
+            List<VideoItem> Items,
+            int Total,
+            bool HasMore,
+            bool UsesApproximatePaging);
+
+        private VideoPageLoadResult BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
         {
             var videos = new List<VideoItem>();
             bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
@@ -305,30 +319,19 @@ namespace ExpressPackingMonitoring.UI
                 {
                     if (_hideUnavailable && !hasSearchKeyword)
                     {
-                        string searchKeyword = keyword?.Trim() ?? "";
-                        var allRecords = _db.QueryVideoRecords(
+                        CursorVideoResult window = _db.QueryVideosWindow(
                             start,
                             end,
-                            searchKeyword,
-                            includeDeleted: true,
+                            "",
+                            page,
+                            PageSize,
+                            includeDeleted: false,
                             searchMode: VideoSearchMode.ExactOrderIdentifiers);
-                        if (allRecords.Count == 0 && searchKeyword.Length > 0)
-                        {
-                            allRecords = _db.QueryVideoRecords(
-                                start,
-                                end,
-                                searchKeyword,
-                                includeDeleted: true,
-                                searchMode: VideoSearchMode.OrderIdentifierContains);
-                        }
 
-                        videos.AddRange(allRecords
-                            .Where(record => !record.IsDeleted)
+                        videos.AddRange(window.Records
                             .Select(record => CreateVideoItem(record, _computerName))
                             .Where(item => !item.IsMissing));
-                        return (
-                            videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(),
-                            videos.Count);
+                        return new VideoPageLoadResult(videos, window.Total, window.HasMore, true);
                     }
 
                     var result = _db.QueryVideosPaged(
@@ -354,7 +357,7 @@ namespace ExpressPackingMonitoring.UI
                     {
                         videos.Add(CreateVideoItem(record, _computerName));
                     }
-                    return (videos, result.Total);
+                    return new VideoPageLoadResult(videos, result.Total, page * PageSize < result.Total, false);
                  }
                 catch
                 {
@@ -379,7 +382,11 @@ namespace ExpressPackingMonitoring.UI
                     (v.OrderId?.Contains(normalized, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
             }
             int totalVisible = videos.Count;
-            return (videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(), totalVisible);
+            return new VideoPageLoadResult(
+                videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(),
+                totalVisible,
+                videos.Count > page * PageSize,
+                false);
         }
 
         internal static bool ShouldIncludeDeletedVideos(bool showDeletedVideos, string? keyword) =>
@@ -570,10 +577,10 @@ namespace ExpressPackingMonitoring.UI
             VideoList.ItemsSource = _allVideos;
             int pageCount = GetPageCount();
             PageStatusText.Text = pageCount == 0
-                ? "共 0 条"
-                : $"第 {_currentPage} / {pageCount} 页，共 {_totalVideos} 条";
-            BtnPreviousPage.IsEnabled = !_isLoadingVideos && pageCount > 0 && _currentPage > 1;
-            BtnNextPage.IsEnabled = !_isLoadingVideos && pageCount > 0 && _currentPage < pageCount;
+                    ? "共 0 条"
+                    : $"第 {_currentPage} / {pageCount} 页，共 {_totalVideos} 条";
+            BtnPreviousPage.IsEnabled = !_isLoadingVideos && _currentPage > 1;
+            BtnNextPage.IsEnabled = !_isLoadingVideos && (_usingApproximatePaging ? _hasMoreVideoPages : pageCount > 0 && _currentPage < pageCount);
             UpdateLocateButtonState();
         }
 
@@ -590,7 +597,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void BtnNextPage_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentPage >= GetPageCount()) return;
+            if (_usingApproximatePaging ? !_hasMoreVideoPages : _currentPage >= GetPageCount()) return;
             RequestVideoLoad(_currentPage + 1);
         }
 
@@ -998,7 +1005,9 @@ namespace ExpressPackingMonitoring.UI
         private void SetLoadingState(bool loading, string statusText)
         {
             BtnPreviousPage.IsEnabled = !loading && _currentPage > 1;
-            BtnNextPage.IsEnabled = !loading && _currentPage < GetPageCount();
+            BtnNextPage.IsEnabled = !loading && (_usingApproximatePaging
+                ? _hasMoreVideoPages
+                : _currentPage < GetPageCount());
             TimeLabel.Text = statusText;
         }
 

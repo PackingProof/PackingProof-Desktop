@@ -515,6 +515,41 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void QueryVideosWindow_FiltersDeletedAndReportsMoreWithoutCounting()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(tempDirectory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            DateTime start = new(2026, 1, 1);
+            for (int index = 0; index < 6; index++)
+            {
+                long id = database.InsertVideoRecord($"ORDER-{index}", "发货", "", "", $"video-{index}.mp4", start.AddMinutes(index));
+                database.UpdateVideoRecordOnStop(id, start.AddMinutes(index + 1), 60, 1024, "手动");
+                if (index == 1)
+                    database.MarkVideoDeleted("video-1.mp4", "测试清理");
+            }
+
+            CursorVideoResult first = database.QueryVideosWindow(null, null, "", 1, 2, false, VideoSearchMode.ExactOrderIdentifiers);
+            CursorVideoResult second = database.QueryVideosWindow(null, null, "", 2, 2, false, VideoSearchMode.ExactOrderIdentifiers);
+            CursorVideoResult third = database.QueryVideosWindow(null, null, "", 3, 2, false, VideoSearchMode.ExactOrderIdentifiers);
+
+            Assert.DoesNotContain(first.Records, record => record.IsDeleted);
+            Assert.DoesNotContain(second.Records, record => record.IsDeleted);
+            Assert.Equal(2, first.Records.Count);
+            Assert.True(first.HasMore);
+            Assert.True(second.HasMore);
+            Assert.Single(third.Records);
+            Assert.False(third.HasMore);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void QueryVideosPaged_ExactSearchMatchesOnlyOrderIdentifiers()
     {
         string tempDirectory = CreateTempDirectory();

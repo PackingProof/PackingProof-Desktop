@@ -192,6 +192,7 @@ namespace ExpressPackingMonitoring.Data
     {
         public List<VideoRecord> Records { get; set; } = new();
         public bool HasMore { get; set; }
+        public int Total { get; set; }
     }
 
     public class StorageVideoFile
@@ -1937,6 +1938,55 @@ namespace ExpressPackingMonitoring.Data
                     records.Add(ReadVideoRecord(reader));
 
                 return new PagedVideoResult { Total = total, Records = records };
+            }
+        }
+
+        /// <summary>
+        /// Reads one bounded playback window without performing a COUNT query.
+        /// The extra row is used only to determine whether another window exists.
+        /// </summary>
+        internal CursorVideoResult QueryVideosWindow(
+            DateTime? startDate,
+            DateTime? endDate,
+            string keyword,
+            int page,
+            int pageSize,
+            bool includeDeleted,
+            VideoSearchMode searchMode)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+            int offset = (page - 1) * pageSize;
+
+            lock (_lock)
+            {
+                (string whereSql, List<(string Name, object Value)> parameters) =
+                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, "", "", "");
+
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = VideoRecordSelectColumns + whereSql + @"
+                    ORDER BY StartTime DESC, Id DESC
+                    LIMIT @limit OFFSET @offset;";
+                foreach ((string name, object value) in parameters)
+                    cmd.Parameters.AddWithValue("@" + name, value);
+                cmd.Parameters.AddWithValue("@limit", pageSize + 1);
+                cmd.Parameters.AddWithValue("@offset", offset);
+
+                using var countCmd = _connection.CreateCommand();
+                countCmd.CommandText = "SELECT COUNT(1) " + whereSql + ";";
+                foreach ((string name, object value) in parameters)
+                    countCmd.Parameters.AddWithValue("@" + name, value);
+                int total = Convert.ToInt32(countCmd.ExecuteScalar());
+
+                var records = new List<VideoRecord>(pageSize + 1);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                    records.Add(ReadVideoRecord(reader));
+
+                bool hasMore = records.Count > pageSize;
+                if (hasMore)
+                    records.RemoveAt(records.Count - 1);
+                return new CursorVideoResult { Records = records, HasMore = hasMore, Total = total };
             }
         }
 
