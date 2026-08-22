@@ -2981,7 +2981,7 @@ namespace ExpressPackingMonitoring.Services
                     mergedOrderCount = true,
                         providerId = true,
                         recordingMetadataWrite = true,
-                        watermarkFields = false
+                        watermarkFields = true
                 },
                 limits = new
                 {
