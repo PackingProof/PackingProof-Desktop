@@ -8,6 +8,10 @@ public sealed class MobileAppUpdatePolicyTests
     [Fact]
     public void WebDownloadInfoAlwaysUsesLatestReleasesPage()
     {
+        Assert.Equal(
+            "https://testflight.apple.com/join/5QKpJuBG",
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
+
         MobileAppDownloadInfo cached = WebServer.CreateMobileAppDownloadInfo(
             new MobileAppReleaseInfo(
                 "v0.5.8+11008",
@@ -21,9 +25,17 @@ public sealed class MobileAppUpdatePolicyTests
             MobileAppUpdatePolicyProvider.ReleasesUrl,
             cached.DownloadUrl);
         Assert.StartsWith("data:image/png;base64,", cached.QrCode, StringComparison.Ordinal);
+        Assert.Equal(
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+            cached.IosDownloadUrl);
+        Assert.StartsWith("data:image/png;base64,", cached.IosQrCode, StringComparison.Ordinal);
         Assert.Equal("", fallback.Version);
         Assert.Equal(MobileAppUpdatePolicyProvider.ReleasesUrl, fallback.DownloadUrl);
         Assert.StartsWith("data:image/png;base64,", fallback.QrCode, StringComparison.Ordinal);
+        Assert.Equal(
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+            fallback.IosDownloadUrl);
+        Assert.StartsWith("data:image/png;base64,", fallback.IosQrCode, StringComparison.Ordinal);
     }
 
     [Fact]

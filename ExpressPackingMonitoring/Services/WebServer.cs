@@ -46,7 +46,9 @@ namespace ExpressPackingMonitoring.Services
     internal sealed record MobileAppDownloadInfo(
         string Version,
         string DownloadUrl,
-        string QrCode);
+        string QrCode,
+        string IosDownloadUrl,
+        string IosQrCode);
 
     public sealed class BackupDeviceEnrollmentRequest
     {
@@ -2681,10 +2683,13 @@ namespace ExpressPackingMonitoring.Services
             MobileAppReleaseInfo latestRelease)
         {
             string downloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
+            string iosDownloadUrl = MobileAppUpdatePolicyProvider.TestFlightJoinUrl;
             return new MobileAppDownloadInfo(
                 latestRelease?.Version ?? "",
                 downloadUrl,
-                MobileConnectionService.CreateQrDataUri(downloadUrl));
+                MobileConnectionService.CreateQrDataUri(downloadUrl),
+                iosDownloadUrl,
+                MobileConnectionService.CreateQrDataUri(iosDownloadUrl));
         }
 
         private bool TryAuthorizeRequest(HttpListenerContext ctx, out bool authorizedByQuery)

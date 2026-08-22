@@ -218,8 +218,9 @@ public sealed class WebRequestLimitTests
         Assert.Contains(".title-block h1{margin:0;font-size:26px;line-height:1.2;font-weight:750;white-space:nowrap}", html);
         Assert.Contains("text-decoration:none;justify-self:end}", html);
         Assert.Contains("id=\"desktopAppDownloadButton\" type=\"button\"", html);
-        Assert.Contains("id=\"desktopAppDownloadCopy\"", html);
-        Assert.Contains(".app-download-actions{display:flex;gap:8px;margin-top:11px}", html);
+        Assert.Contains("id=\"desktopAndroidDownloadCopy\"", html);
+        Assert.Contains("id=\"desktopIosDownloadCopy\"", html);
+        Assert.Contains(".app-download-actions{display:flex;gap:8px;margin-top:10px}", html);
         Assert.DoesNotContain(".compat-settings-menu{left:0;right:auto}", html);
         Assert.Contains("const target=document.querySelector('.top-actions');", html);
         Assert.Contains("titleBlock.appendChild(btn)", html);
@@ -227,13 +228,17 @@ public sealed class WebRequestLimitTests
         Assert.Contains("grid-template-columns:minmax(0,1fr) 56px 56px}", html);
         Assert.Contains(".top-actions>.language-float .language-menu{right:0;top:calc(100% + 9px);bottom:auto}", html);
         Assert.Contains(".top-actions>.language-float .language-trigger .icon{width:22px;height:22px}", html);
-        Assert.Contains("id=\"desktopAppDownloadQr\"", html);
+        Assert.Contains("id=\"desktopAndroidDownloadQr\"", html);
+        Assert.Contains("id=\"desktopIosDownloadQr\"", html);
         Assert.Contains("fetch('/api/mobile-app-download'", html);
         Assert.Contains("fetch('/api/mobile-app-download'+(location.search||'')", html);
-        Assert.Contains("let downloadUrl=open?open.href:''", html);
+        Assert.Contains("function detectMobileAppPlatform", html);
+        Assert.Contains("platform==='MacIntel'&&Number(maxTouchPoints)>1", html);
+        Assert.Contains("title.textContent='加入 iOS 内测'", html);
+        Assert.Contains("iosOpen.href=data.iosDownloadUrl", html);
         Assert.Contains(".player-close{width:32px;height:32px;border-radius:6px;border:1px solid var(--bad)", html);
         Assert.Contains(".floating-tools{display:none}", html);
-        Assert.Contains("if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches)return", html);
+        Assert.Contains("const compact=window.matchMedia&&window.matchMedia('(max-width:900px)').matches", html);
     }
 
     [Fact]

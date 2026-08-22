@@ -14,7 +14,6 @@ public sealed record MobileConnectionRepairResult(
 
 public partial class MobileConnectionWindow : Window
 {
-    private const string TestFlightJoinUrl = "https://testflight.apple.com/join/5QKpJuBG";
     private string _url;
     private bool _containsAccessKey;
     private bool _accessProtected;
@@ -38,7 +37,8 @@ public partial class MobileConnectionWindow : Window
         ApplyConnectionState(url, accessProtected, unavailableMessage, canOpenSettings);
 
         UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
-        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(TestFlightJoinUrl);
+        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(
+            MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
         Loaded += MobileConnectionWindow_Loaded;
         Loaded += (_, _) => ResolveInitialFocus().Focus();
     }
@@ -141,7 +141,9 @@ public partial class MobileConnectionWindow : Window
 
     private void CopyTestFlightUrl_Click(object sender, RoutedEventArgs e)
     {
-        if (!ClipboardHelper.TrySetDataObject(TestFlightJoinUrl, out Exception error))
+        if (!ClipboardHelper.TrySetDataObject(
+                MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+                out Exception error))
         {
             AppDialog.Error(this, $"复制网址失败：{error.Message}", "手机/电脑连接");
             return;
@@ -171,7 +173,9 @@ public partial class MobileConnectionWindow : Window
 
     private void OpenTestFlight_Click(object sender, RoutedEventArgs e)
     {
-        if (WorkstationNetwork.TryOpenUrl(TestFlightJoinUrl, out string error))
+        if (WorkstationNetwork.TryOpenUrl(
+                MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
+                out string error))
             return;
 
         AppDialog.Error(

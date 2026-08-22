@@ -107,7 +107,7 @@ public sealed class DeploymentStartupTests
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "TestFlightJoinUrl = \"https://testflight.apple.com/join/5QKpJuBG\"",
+            "MobileAppUpdatePolicyProvider.TestFlightJoinUrl",
             source,
             StringComparison.Ordinal);
         string iconResources = ReadRepositoryFile(

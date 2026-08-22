@@ -16,10 +16,19 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
       document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
 
-    const appDownloadButton = page.getByRole('button', { name: '下载 App' });
+    const appDownloadButton = page.getByRole('button', { name: '下载 苹果/安卓版' });
     await appDownloadButton.click();
     await assert.doesNotReject(() => page.locator('#desktopAppDownloadPopover.open').waitFor());
-    await assert.doesNotReject(() => page.locator('#desktopAppDownloadQr[src^="data:image/png;base64,"]').waitFor());
+    await assert.doesNotReject(() => page.locator('#desktopAndroidDownloadQr[src^="data:image/png;base64,"]').waitFor());
+    await assert.doesNotReject(() => page.locator('#desktopIosDownloadQr[src^="data:image/png;base64,"]').waitFor());
+    assert.match(
+      await page.locator('#desktopAndroidDownloadOpen').getAttribute('href'),
+      /gitee\.com\/PackingProof\/PackingProof-Mobile\/releases\/latest/
+    );
+    assert.match(
+      await page.locator('#desktopIosDownloadOpen').getAttribute('href'),
+      /testflight\.apple\.com\/join\//
+    );
     assert.equal(await appDownloadButton.getAttribute('aria-expanded'), 'true');
     await page.keyboard.press('Escape');
     assert.equal(await appDownloadButton.getAttribute('aria-expanded'), 'false');
@@ -42,7 +51,8 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.equal(await mobileConnectButton.isVisible(), false);
     await assert.doesNotReject(() => page.getByRole('link', { name: '下载手机 App' }).waitFor());
     assert.equal(await page.locator('#mobileConnectQr').isVisible(), false);
-    assert.equal(await page.locator('#desktopAppDownloadQr').isVisible(), false);
+    assert.equal(await page.locator('#desktopAndroidDownloadQr').isVisible(), false);
+    assert.equal(await page.locator('#desktopIosDownloadQr').isVisible(), false);
     assert.equal(
       await page.locator('#languageFloat').evaluate(element => element.parentElement?.classList.contains('top-actions')),
       true
@@ -69,15 +79,24 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     assert.equal(await page.locator('#pagination .page-btn').count(), 7);
     await page.setViewportSize({ width: 1280, height: 900 });
 
-    const mobilePage = await context.newPage();
+    const androidContext = await browser.newContext({
+      locale: 'zh-CN',
+      userAgent: 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 Chrome/127 Mobile Safari/537.36'
+    });
+    const mobilePage = await androidContext.newPage();
     await mobilePage.setViewportSize({ width: 390, height: 844 });
     let mobileDownloadInfoRequests = 0;
     mobilePage.on('request', request => {
       if (new URL(request.url()).pathname === '/api/mobile-app-download') mobileDownloadInfoRequests++;
     });
     await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
-    assert.equal(await mobilePage.getByRole('link', { name: '下载手机 App' }).isVisible(), true);
-    assert.equal(await mobilePage.locator('#desktopAppDownloadQr').isVisible(), false);
+    const androidDownload = mobilePage.getByRole('link', { name: '下载 Android App' });
+    assert.equal(await androidDownload.isVisible(), true);
+    assert.match(
+      await androidDownload.getAttribute('href'),
+      /gitee\.com\/PackingProof\/PackingProof-Mobile\/releases\/latest/
+    );
+    assert.equal(await mobilePage.locator('#desktopAndroidDownloadQr').isVisible(), false);
     assert.equal(mobileDownloadInfoRequests, 0);
     await mobilePage.evaluate(() => {
       document.getElementById('pagination').innerHTML = '';
@@ -93,6 +112,29 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     }));
     assert.ok(paginationBounds.scrollWidth <= paginationBounds.clientWidth);
     await mobilePage.close();
+    await androidContext.close();
+
+    const iosContext = await browser.newContext({
+      locale: 'zh-CN',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1'
+    });
+    const iosPage = await iosContext.newPage();
+    await iosPage.setViewportSize({ width: 390, height: 844 });
+    await iosPage.goto(baseUrl, { waitUntil: 'networkidle' });
+    const iosDownload = iosPage.getByRole('link', { name: '加入 iOS 内测' });
+    assert.equal(await iosDownload.isVisible(), true);
+    assert.match(await iosDownload.getAttribute('href'), /testflight\.apple\.com\/join\//);
+    assert.equal(await iosPage.evaluate(() => detectMobileAppPlatform(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)',
+      'MacIntel',
+      5
+    )), 'ios');
+    assert.equal(await iosPage.evaluate(() => detectMobileAppPlatform(
+      'Mozilla/5.0 (X11; Linux x86_64)',
+      'Linux x86_64',
+      0
+    )), 'unknown');
+    await iosContext.close();
 
     const search = page.getByPlaceholder('输入订单号关键词搜索');
     await search.fill('AUTO_WEB_001');

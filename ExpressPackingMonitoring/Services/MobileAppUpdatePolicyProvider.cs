@@ -24,6 +24,8 @@ internal sealed class MobileAppUpdatePolicyProvider
         "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Mobile/releases/latest";
     internal const string ReleasesUrl =
         "https://gitee.com/PackingProof/PackingProof-Mobile/releases/latest";
+    internal const string TestFlightJoinUrl =
+        "https://testflight.apple.com/join/5QKpJuBG";
 
     private readonly object _gate = new();
     private DateTimeOffset _lastAttemptUtc = DateTimeOffset.MinValue;
