@@ -235,6 +235,59 @@ public sealed class MobileConnectionTests
     }
 
     [Fact]
+    public async Task ExtensionOrdersEndpointAcceptsCountsAndPersistsOrderSnapshot()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"epm-extension-orders-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        int port = GetFreeTcpPort();
+        const string accessKey = "0123456789abcdef0123456789abcdef";
+
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: accessKey,
+                listenerHost: "127.0.0.1");
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+            using HttpResponseMessage unauthorized = await client.GetAsync(
+                "/api/extensions/v1/capabilities", cancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/extensions/v1/orders");
+            request.Headers.Add("X-EPM-Access-Key", accessKey);
+            request.Content = new StringContent(
+                "{\"apiVersion\":\"v1\",\"providerId\":\"test.provider\",\"orders\":[{\"trackingNumber\":\"EXT-TEST-001\",\"orderId\":\"ORDER-001\",\"totalItemCount\":7,\"mergedOrderCount\":2,\"isTest\":true}]}",
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using JsonDocument payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            Assert.Equal(1, payload.RootElement.GetProperty("testCount").GetInt32());
+
+            using HttpResponseMessage query = await client.GetAsync(
+                "/api/orderinfo?trackingNo=EXT-TEST-001", cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, query.StatusCode);
+            using JsonDocument queryPayload = JsonDocument.Parse(await query.Content.ReadAsStringAsync(cancellationToken));
+            JsonElement info = queryPayload.RootElement.GetProperty("info");
+            Assert.Equal(7, info.GetProperty("totalItemCount").GetInt32());
+            Assert.Equal(2, info.GetProperty("mergedOrderCount").GetInt32());
+            Assert.Equal("test.provider", info.GetProperty("providerId").GetString());
+        }
+        finally
+        {
+            try { Directory.Delete(tempDirectory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task StorageOverviewRejectsMissingAndWrongKeyAndAcceptsValidKey()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"epm-storage-auth-{Guid.NewGuid():N}");
