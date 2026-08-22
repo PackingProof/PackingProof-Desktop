@@ -45,6 +45,36 @@ Content-Type: application/json
 
 服务端会复用现有订单缓存、订单广播和录像订单快照逻辑。旧的 `/api/orderinfo` 接口继续保留，旧客户端无需升级。
 
+## 录像动态水印数据
+
+先查询正在录制的会话：
+
+```http
+GET /api/extensions/v1/recordings/active
+```
+
+向指定的活跃会话提交扩展字段：
+
+```http
+POST /api/extensions/v1/recordings/{recordingSessionId}/data
+Content-Type: application/json
+```
+
+```json
+{
+  "namespace": "scale.example",
+  "providerId": "scale.example",
+  "fields": {
+    "weight": "1.25 kg",
+    "length": "30 cm"
+  }
+}
+```
+
+同一会话、命名空间和字段名重复提交时，以最后一次提交的值为准。录像过程中到达的数据从后续帧开始显示，已经编码的画面不会回写。字段只会以固定文本行显示在水印中，第三方不能指定坐标、字体、绘制指令或 FFmpeg 参数。录像结束后仍可通过 `GET /api/extensions/v1/recordings/{recordingSessionId}/data` 读取已保存的字段，但不能继续写入。
+
+扩展字段限制为单次最多 32 个，命名空间和字段名仅允许字母、数字、`.`、`_`、`-`，每个值最多 1000 个字符。接口继续使用 Web 访问密钥保护。
+
 ## 输入限制
 
 - 单次最多 200 条订单
