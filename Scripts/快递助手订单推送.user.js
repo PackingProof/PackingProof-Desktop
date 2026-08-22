@@ -442,6 +442,19 @@
         return kdInput ? (kdInput.value || kdInput.getAttribute('title') || '').trim() : '';
     }
 
+    function extractProductQuantity(td) {
+        const orderInput = td.querySelector('.orderInput');
+        const dataNum = orderInput?.getAttribute('data-num') || '';
+        const visibleNum = td.querySelector('dd span[style*="font-size: 14px"]')?.textContent || '';
+        for (const candidate of [dataNum, visibleNum]) {
+            const match = String(candidate).match(/\d+/);
+            const quantity = match ? Number.parseInt(match[0], 10) : 0;
+            if (Number.isSafeInteger(quantity) && quantity > 0 && quantity <= 100000)
+                return quantity;
+        }
+        return 1;
+    }
+
     function extractOrders(options) {
         options = options || {};
         const orders = [];
@@ -497,13 +510,14 @@
 
                 // 3. 商品信息：提取商品标题和数量
                 const products = [];
+                let totalItemCount = 0;
                 row.querySelectorAll('.order_td').forEach(td => {
                     const titleEl = td.querySelector('.packageOrder_title') || td.querySelector('.packageOrder_titleShort');
                     const title = titleEl ? titleEl.textContent.trim() : '';
-                    const numEl = td.querySelector('dd span[style*="font-size: 14px"]');
-                    const num = numEl ? numEl.textContent.trim() : '1';
+                    const quantity = extractProductQuantity(td);
+                    totalItemCount += quantity;
                     if (title) {
-                        products.push(num !== '1' ? `${title}×${num}` : title);
+                        products.push(quantity !== 1 ? `${title}×${quantity}` : title);
                     }
                 });
                 const productInfo = products.join('，');
@@ -519,6 +533,7 @@
                         buyerMessage: buyerMessage,
                         sellerMemo: sellerMemo,
                         productInfo: productInfo,
+                        totalItemCount: totalItemCount,
                         hasRefund: refundInfo.hasRefund,
                         isPrintedRefund: refundInfo.isPrintedRefund,
                         refundStatus: refundInfo.refundStatus,
@@ -765,6 +780,7 @@
             buyerMessage: '',
             sellerMemo: '',
             productInfo: '',
+            totalItemCount: 0,
             hasRefund: false,
             isPrintedRefund: false,
             refundStatus: 'NO_REFUND',
@@ -897,6 +913,7 @@
             buyerMessage: '这是一条测试买家留言',
             sellerMemo: '这是一条测试卖家备注',
             productInfo: '测试商品',
+            totalItemCount: 1,
             isTest: true
         }];
     }

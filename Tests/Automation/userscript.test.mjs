@@ -193,6 +193,36 @@ test('requested refund lookup always uses exact tracking-number search', () => {
   assert.doesNotMatch(body, /missing = requested\.filter/);
 });
 
+test('userscript payload includes a bounded total item count from product quantities', () => {
+  assert.match(source, /function extractProductQuantity\(td\)/);
+  assert.match(source, /totalItemCount: totalItemCount/);
+  assert.match(source, /totalItemCount: 0/);
+  assert.match(source, /quantity <= 100000/);
+});
+
+test('product quantity parser prefers the order data attribute and falls back to visible quantity', () => {
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(
+    between('    function extractProductQuantity(td)', '    function extractOrders(options)') +
+      ';globalThis.extractQuantity=extractProductQuantity;',
+    context);
+
+  const cell = (dataNum, visibleText) => ({
+    querySelector(selector) {
+      if (selector === '.orderInput')
+        return { getAttribute: name => name === 'data-num' ? dataNum : '' };
+      if (selector === 'dd span[style*="font-size: 14px"]')
+        return { textContent: visibleText };
+      return null;
+    }
+  });
+
+  assert.equal(context.extractQuantity(cell('4', '2')), 4);
+  assert.equal(context.extractQuantity(cell('', '6')), 6);
+  assert.equal(context.extractQuantity(cell('0', '')), 1);
+});
+
 test('userscript keeps installed recorders as the only order targets', () => {
   assert.match(source, /const PACKING_PROOF_RECORDERS = \[\];/);
   assert.match(source, /const PACKING_PROOF_HOST = null;/);
