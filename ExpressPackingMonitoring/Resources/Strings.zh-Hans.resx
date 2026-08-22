@@ -97,6 +97,7 @@
   <data name="Speech.BuyerMessage" xml:space="preserve"><value>买家留言，{0}</value></data>
   <data name="Speech.SellerMemo" xml:space="preserve"><value>卖家备注，{0}</value></data>
   <data name="Speech.Product" xml:space="preserve"><value>商品，{0}</value></data>
+  <data name="Speech.OrderTotalCount" xml:space="preserve"><value>共 {0} 件商品</value></data>
   <data name="安装订单备注插件" xml:space="preserve"><value>安装订单备注插件</value></data>
   <data name="包含在线播放转码、剪辑预览和剪辑下载文件" xml:space="preserve"><value>包含在线播放转码、剪辑预览和剪辑下载文件</value></data>
   <data name="保护录像网页" xml:space="preserve"><value>保护录像网页</value></data>

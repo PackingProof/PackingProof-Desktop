@@ -1037,6 +1037,50 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
+    public void BuildOrderInfoSpeechFollowups_AnnouncesTotalItemCountBeforeRemarks()
+    {
+        var orderInfo = new OrderInfo
+        {
+            TotalItemCount = 3,
+            BuyerMessage = "放门口",
+            SellerMemo = "检查颜色"
+        };
+
+        IReadOnlyList<AlertSpeechFollowup> followups = MainViewModel.BuildOrderInfoSpeechFollowups(
+            orderInfo,
+            announcementsEnabled: true,
+            announceBuyerMessage: true,
+            announceSellerMemo: true,
+            announceProductInfo: false);
+
+        Assert.Equal(3, followups.Count);
+        Assert.Equal("共 3 件商品", followups[0].Text);
+        Assert.Contains("放门口", followups[1].Text);
+        Assert.Contains("检查颜色", followups[2].Text);
+    }
+
+    [Fact]
+    public void BuildOrderInfoSpeechFollowups_DoesNotAnnounceItemCountForRefundOrder()
+    {
+        var orderInfo = new OrderInfo
+        {
+            TotalItemCount = 3,
+            IsPrintedRefund = true,
+            BuyerMessage = "放门口"
+        };
+
+        IReadOnlyList<AlertSpeechFollowup> followups = MainViewModel.BuildOrderInfoSpeechFollowups(
+            orderInfo,
+            announcementsEnabled: true,
+            announceBuyerMessage: true,
+            announceSellerMemo: false,
+            announceProductInfo: false);
+
+        Assert.Single(followups);
+        Assert.DoesNotContain("3", followups[0].Text);
+    }
+
+    [Fact]
     public void AlertService_CriticalAlertBlocksNormalAlertUntilDisplayEnds()
     {
         DateTime now = new(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc);

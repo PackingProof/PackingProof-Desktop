@@ -51,6 +51,9 @@ namespace ExpressPackingMonitoring.Audio
 
         public static string CreateProductAnnouncement(string productInfo) => AppLanguage.Format("Speech.Product", productInfo);
 
+        public static string CreateOrderTotalCountAnnouncement(int totalItemCount) =>
+            AppLanguage.Format("Speech.OrderTotalCount", totalItemCount);
+
         private static string T(string key) => AppLanguage.Get("Speech." + key);
 
         public static IReadOnlyList<DefaultSpeechPrompt> Prompts =>

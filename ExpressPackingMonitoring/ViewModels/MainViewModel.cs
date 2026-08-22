@@ -1828,6 +1828,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 return Array.Empty<AlertSpeechFollowup>();
 
             var announcements = new List<AlertSpeechFollowup>();
+            if (!orderInfo.HasRefund && !orderInfo.IsPrintedRefund && orderInfo.TotalItemCount > 0)
+            {
+                announcements.Add(new AlertSpeechFollowup
+                {
+                    Text = DefaultSpeechCatalog.CreateOrderTotalCountAnnouncement(orderInfo.TotalItemCount),
+                    Sound = AlertSound.None
+                });
+            }
             if (announceBuyerMessage && !string.IsNullOrWhiteSpace(orderInfo.BuyerMessage))
             {
                 announcements.Add(new AlertSpeechFollowup
@@ -3646,6 +3654,8 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!Config.EnableOrderInfoAnnounce) return;
             foreach (var info in realOrders)
             {
+                if (!info.HasRefund && !info.IsPrintedRefund && info.TotalItemCount > 0)
+                    _alertService.PreGenerate(DefaultSpeechCatalog.CreateOrderTotalCountAnnouncement(info.TotalItemCount));
                 if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(info.BuyerMessage))
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateBuyerMessageAnnouncement(info.BuyerMessage));
                 if (Config.AnnounceSellerMemo && !string.IsNullOrWhiteSpace(info.SellerMemo))
