@@ -932,4 +932,5 @@
   <data name="已用时 0 秒" xml:space="preserve"><value>已用时 0 秒</value></data>
   <data name="取消导出" xml:space="preserve"><value>取消导出</value></data>
    <data name="尚未配置网络备份位置；本地磁盘不能作为备份位置" xml:space="preserve"><value>尚未配置网络备份位置；本地磁盘不能作为备份位置</value></data>
+  <data name="局域网连接已修复" xml:space="preserve"><value>局域网连接已修复</value></data>
  </root>

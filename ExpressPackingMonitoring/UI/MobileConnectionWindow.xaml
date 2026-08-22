@@ -146,13 +146,21 @@
                                            LineHeight="18"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondary}"/>
-                                <Button x:Name="OpenSettingsButton"
-                                        Content="打开设置"
-                                        Margin="0,10,0,0"
-                                        HorizontalAlignment="Left"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Visibility="Collapsed"
-                                        Click="OpenSettings_Click"/>
+                                <WrapPanel Margin="0,10,0,0"
+                                           HorizontalAlignment="Left">
+                                    <Button x:Name="RepairLanButton"
+                                            Content="修复局域网"
+                                            Margin="0,0,8,0"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Visibility="Collapsed"
+                                            AutomationProperties.Name="修复局域网连接"
+                                            Click="RepairLan_Click"/>
+                                    <Button x:Name="OpenSettingsButton"
+                                            Content="打开设置"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Visibility="Collapsed"
+                                            Click="OpenSettings_Click"/>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </Grid>

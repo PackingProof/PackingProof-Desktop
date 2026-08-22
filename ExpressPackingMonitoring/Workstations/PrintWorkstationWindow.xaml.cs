@@ -358,11 +358,35 @@ public partial class PrintWorkstationWindow : Window
             _host.LanAccessUrl,
             _config.RequireWebAccessKey,
             _host.IsLanAvailable ? "" : "当前仅本机可用，请先修复局域网",
-            canOpenSettings: false)
+            canOpenSettings: false,
+            repairLanAccessAsync: RepairLanAccessForMobileConnectionAsync)
         {
             Owner = owner
         };
         dialog.ShowDialog();
+    }
+
+    private async Task<MobileConnectionRepairResult> RepairLanAccessForMobileConnectionAsync()
+    {
+        bool repaired = await _host.RepairLanAccessAsync(_lifetimeCts.Token);
+        if (repaired && _host.IsLanAvailable)
+        {
+            RefreshServiceDisplay();
+            return new MobileConnectionRepairResult(
+                true,
+                _host.LanAccessUrl,
+                _config.RequireWebAccessKey,
+                "");
+        }
+
+        string message = string.IsNullOrWhiteSpace(_host.ErrorMessage)
+            ? WebServer.GetLanAccessFailureUserMessage(repairAttempted: true)
+            : _host.ErrorMessage;
+        return new MobileConnectionRepairResult(
+            false,
+            "",
+            _config.RequireWebAccessKey,
+            message);
     }
 
     private void CopyMobileConnectionUrl()

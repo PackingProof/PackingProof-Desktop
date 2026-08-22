@@ -1,15 +1,25 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
 
 namespace ExpressPackingMonitoring.UI;
 
+public sealed record MobileConnectionRepairResult(
+    bool IsReady,
+    string Url,
+    bool AccessProtected,
+    string UnavailableMessage);
+
 public partial class MobileConnectionWindow : Window
 {
     private const string TestFlightJoinUrl = "https://testflight.apple.com/join/5QKpJuBG";
-    private readonly string _url;
-    private readonly bool _containsAccessKey;
+    private string _url;
+    private bool _containsAccessKey;
+    private bool _accessProtected;
+    private readonly Func<Task<MobileConnectionRepairResult>>? _repairLanAccessAsync;
+    private bool _repairingLanAccess;
     private string _mobileAppDownloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
 
     public bool OpenSettingsRequested { get; private set; }
@@ -18,40 +28,68 @@ public partial class MobileConnectionWindow : Window
         string url,
         bool accessProtected,
         string unavailableMessage = "",
-        bool canOpenSettings = true)
+        bool canOpenSettings = true,
+        Func<Task<MobileConnectionRepairResult>>? repairLanAccessAsync = null)
     {
         InitializeComponent();
-        _url = url?.Trim() ?? "";
-        _containsAccessKey = MobileConnectionService.ContainsAccessKey(_url);
+        _url = "";
+        _accessProtected = accessProtected;
+        _repairLanAccessAsync = repairLanAccessAsync;
+        ApplyConnectionState(url, accessProtected, unavailableMessage, canOpenSettings);
 
+        UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
+        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(TestFlightJoinUrl);
+        Loaded += MobileConnectionWindow_Loaded;
+        Loaded += (_, _) => ResolveInitialFocus().Focus();
+    }
+
+    private void ApplyConnectionState(
+        string url,
+        bool accessProtected,
+        string unavailableMessage,
+        bool canOpenSettings)
+    {
+        _url = url?.Trim() ?? "";
+        _accessProtected = accessProtected;
+        _containsAccessKey = MobileConnectionService.ContainsAccessKey(_url);
         bool isReady = !string.IsNullOrWhiteSpace(_url)
             && string.IsNullOrWhiteSpace(unavailableMessage);
+
         ReadyPanel.Visibility = isReady ? Visibility.Visible : Visibility.Collapsed;
         UnavailablePanel.Visibility = isReady ? Visibility.Collapsed : Visibility.Visible;
         CopyButton.Visibility = isReady ? Visibility.Visible : Visibility.Collapsed;
         OpenButton.Visibility = isReady ? Visibility.Visible : Visibility.Collapsed;
-        OpenSettingsButton.Visibility = !isReady && canOpenSettings ? Visibility.Visible : Visibility.Collapsed;
+        RepairLanButton.Visibility = !isReady && _repairLanAccessAsync != null
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        OpenSettingsButton.Visibility = !isReady && canOpenSettings
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         if (isReady)
         {
             AccessUrlTextBox.Text = _url;
             QrCodeImage.Source = MobileConnectionService.CreateQrBitmap(_url);
-            SecurityNotice.Visibility = accessProtected || _containsAccessKey
+            SecurityNotice.Visibility = _accessProtected || _containsAccessKey
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-        }
-        else
-        {
-            UnavailableText.Text = string.IsNullOrWhiteSpace(unavailableMessage)
-                ? "局域网服务尚未准备完成，请稍后重试"
-                : unavailableMessage;
+            return;
         }
 
-        UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
-        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(TestFlightJoinUrl);
-        Loaded += MobileConnectionWindow_Loaded;
-        Loaded += (_, _) =>
-            (isReady ? CopyButton : OpenMobileAppDownloadButton).Focus();
+        UnavailableText.Text = string.IsNullOrWhiteSpace(unavailableMessage)
+            ? "局域网服务尚未准备完成，请稍后重试"
+            : unavailableMessage;
+    }
+
+    private Control ResolveInitialFocus()
+    {
+        if (ReadyPanel.Visibility == Visibility.Visible)
+            return CopyButton;
+        if (RepairLanButton.Visibility == Visibility.Visible)
+            return RepairLanButton;
+        if (OpenSettingsButton.Visibility == Visibility.Visible)
+            return OpenSettingsButton;
+        return OpenMobileAppDownloadButton;
     }
 
     private async void MobileConnectionWindow_Loaded(object sender, RoutedEventArgs e)
@@ -146,6 +184,49 @@ public partial class MobileConnectionWindow : Window
     {
         OpenSettingsRequested = true;
         Close();
+    }
+
+    private async void RepairLan_Click(object sender, RoutedEventArgs e)
+    {
+        if (_repairingLanAccess || _repairLanAccessAsync == null)
+            return;
+
+        _repairingLanAccess = true;
+        RepairLanButton.IsEnabled = false;
+        RepairLanButton.Content = "正在修复…";
+        UnavailableText.Text = "正在修复局域网，Windows 可能会请求管理员授权";
+        try
+        {
+            MobileConnectionRepairResult result = await _repairLanAccessAsync();
+            ApplyConnectionState(
+                result.Url,
+                result.AccessProtected,
+                result.UnavailableMessage,
+                canOpenSettings: OpenSettingsRequested || OpenSettingsButton.Visibility == Visibility.Visible);
+            if (!result.IsReady)
+            {
+                RepairLanButton.Content = "重新修复";
+                RepairLanButton.IsEnabled = true;
+            }
+            else
+            {
+                CopyButton.Focus();
+            }
+        }
+        catch
+        {
+            ApplyConnectionState(
+                "",
+                _accessProtected,
+                WebServer.GetLanAccessFailureUserMessage(repairAttempted: true),
+                canOpenSettings: OpenSettingsButton.Visibility == Visibility.Visible);
+            RepairLanButton.Content = "重新修复";
+            RepairLanButton.IsEnabled = true;
+        }
+        finally
+        {
+            _repairingLanAccess = false;
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

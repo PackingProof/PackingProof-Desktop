@@ -2893,7 +2893,9 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async Task<bool> RestartWebServerAsync(bool allowAccessSetup)
+        private async Task<bool> RestartWebServerAsync(
+            bool allowAccessSetup,
+            bool showFailureToast = true)
         {
             await _webServerLifecycleLock.WaitAsync();
             WebServer newServer = null;
@@ -2999,7 +3001,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     : "启动失败";
                 WorkstationStatusToolTip = userMessage;
                 SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), userMessage);
-                ShowToast(userMessage, ToastSeverity.Error);
+                if (showFailureToast)
+                    ShowToast(userMessage, ToastSeverity.Error);
                 return false;
             }
             finally
@@ -3365,7 +3368,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 url,
                 Config.RequireWebAccessKey,
                 unavailableMessage,
-                canOpenSettings: owner is not SettingsWindow)
+                canOpenSettings: owner is not SettingsWindow,
+                repairLanAccessAsync: RepairLanAccessForMobileConnectionAsync)
             {
                 Owner = dialogOwner
             };
@@ -3383,6 +3387,39 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (dialog.OpenSettingsRequested && owner is not SettingsWindow)
                 OpenSettings();
+        }
+
+        private async Task<MobileConnectionRepairResult> RepairLanAccessForMobileConnectionAsync()
+        {
+            try
+            {
+                RuntimeLog.Info("Web", $"Repairing LAN access from connection dialog port={Config.WebServerPort}");
+                await Task.Run(() => WebServer.RepairLanAccess(Config.WebServerPort));
+                bool started = await RestartWebServerAsync(
+                    allowAccessSetup: false,
+                    showFailureToast: false);
+                if (started && TryGetMobileConnectionUrl(out string url))
+                {
+                    ShowToast("局域网连接已修复");
+                    return new MobileConnectionRepairResult(
+                        true,
+                        url,
+                        Config.RequireWebAccessKey,
+                        "");
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Web", "LAN access repair from connection dialog failed", ex);
+            }
+
+            string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted: true);
+            ShowToast(message, ToastSeverity.Error);
+            return new MobileConnectionRepairResult(
+                false,
+                "",
+                Config.RequireWebAccessKey,
+                message);
         }
 
         internal static bool ShouldEnableWebServerForMobileConnection(AppConfig config) =>

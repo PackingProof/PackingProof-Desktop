@@ -199,7 +199,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         try
         {
             RuntimeLog.Info("NoCamera", $"Repairing LAN access port={_config.WebServerPort}");
-            _repairLanAccess(_config.WebServerPort);
+            await Task.Run(
+                () => _repairLanAccess(_config.WebServerPort),
+                cancellationToken);
             RuntimeLog.Info("NoCamera", $"LAN access permissions repaired port={_config.WebServerPort}");
         }
         catch (Exception ex)

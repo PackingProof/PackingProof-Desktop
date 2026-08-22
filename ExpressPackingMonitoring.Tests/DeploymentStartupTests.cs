@@ -62,6 +62,10 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("StaticResource FluentLinkIcon", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("x:Name=\"CloseButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"OpenSettingsButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RepairLanButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"修复局域网\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource PrimaryButtonStyle}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"RepairLan_Click\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"手机/电脑连接\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("连接录像网页，或先下载 PackingProof 手机录像 App", xaml, StringComparison.Ordinal);
         Assert.Equal(3, Regex.Matches(xaml, "<ColumnDefinition Width=\"\\*\"/>").Count);
@@ -84,6 +88,10 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("Content=\"电脑打开 TestFlight 加入页\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("CloseButton", source, StringComparison.Ordinal);
         Assert.Contains("Key.Escape", source, StringComparison.Ordinal);
+        Assert.Contains("RepairLanButton.IsEnabled = false", source, StringComparison.Ordinal);
+        Assert.Contains("RepairLanButton.Content = \"正在修复…\"", source, StringComparison.Ordinal);
+        Assert.Contains("RepairLanButton.Content = \"重新修复\"", source, StringComparison.Ordinal);
+        Assert.Contains("ApplyConnectionState(", source, StringComparison.Ordinal);
         Assert.Contains("CopyMobileAppUrl_Click", source, StringComparison.Ordinal);
         Assert.Contains("CopyTestFlightUrl_Click", source, StringComparison.Ordinal);
         Assert.Contains(
