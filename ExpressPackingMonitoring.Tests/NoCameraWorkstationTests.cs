@@ -530,6 +530,28 @@ public sealed class NoCameraWorkstationTests
         Assert.DoesNotContain("netsh", host.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task RepairLanAccessFailureShowsWindowsFirewallServiceRecoveryAction()
+    {
+        var config = new AppConfig
+        {
+            WebServerPort = GetFreeTcpPort()
+        };
+        using var host = new NoCameraWorkstationHost(
+            config,
+            repairLanAccess: _ => throw new WebServer.LanAccessSetupException(
+                WebServer.LanAccessFailureKind.WindowsFirewallServiceUnavailable,
+                "service stopped"));
+
+        bool repaired = await host.RepairLanAccessAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(repaired);
+        Assert.Contains("Windows Defender Firewall 服务未开启", host.ErrorMessage);
+        Assert.Contains("Windows“服务”", host.ErrorMessage);
+        Assert.Contains("然后重新修复", host.ErrorMessage);
+        Assert.DoesNotContain("管理员授权窗口", host.ErrorMessage);
+    }
+
     private static int GetFreeTcpPort() =>
         TestPortAllocator.GetFreeTcpPort();
 

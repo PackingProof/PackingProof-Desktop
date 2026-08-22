@@ -19,6 +19,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpressPackingMonitoring.ViewModels;
+using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.Services
 {
@@ -77,6 +78,32 @@ namespace ExpressPackingMonitoring.Services
 
     public sealed class WebServer : IDisposable
     {
+        internal enum LanAccessFailureKind
+        {
+            Unknown,
+            WindowsFirewallServiceUnavailable,
+            BaseFilteringEngineUnavailable
+        }
+
+        internal sealed class LanAccessSetupException : InvalidOperationException
+        {
+            internal LanAccessSetupException(LanAccessFailureKind failureKind, string message, Exception innerException = null)
+                : base(message, innerException)
+            {
+                FailureKind = failureKind;
+            }
+
+            internal LanAccessFailureKind FailureKind { get; }
+        }
+
+        internal sealed record WindowsServiceDiagnostic(
+            string ServiceName,
+            bool QuerySucceeded,
+            bool IsRunning,
+            bool IsDisabled,
+            uint CurrentState,
+            int? StartType);
+
         private sealed record DeviceVideoTicket(
             string DeviceId,
             string DeviceKind,
@@ -501,6 +528,7 @@ namespace ExpressPackingMonitoring.Services
         /// </summary>
         private static void ConfigureLanAccess(int port, bool includeUrlAcl)
         {
+            EnsureFirewallServicesAvailable();
             using WindowsIdentity identity = WindowsIdentity.GetCurrent();
             string userSid = identity.User?.Value;
             if (string.IsNullOrWhiteSpace(userSid))
@@ -519,6 +547,139 @@ namespace ExpressPackingMonitoring.Services
         internal const int UrlAclAddFailureExitCode = 11;
         internal const int TcpFirewallAddFailureExitCode = 12;
         internal const int UdpFirewallAddFailureExitCode = 13;
+
+        private const uint ScManagerConnect = 0x0001;
+        private const uint ServiceQueryStatus = 0x0004;
+        private const int ScStatusProcessInfo = 0;
+        private const uint ServiceRunning = 0x00000004;
+        private const int ServiceDisabled = 4;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ServiceStatusProcess
+        {
+            internal uint ServiceType;
+            internal uint CurrentState;
+            internal uint ControlsAccepted;
+            internal uint Win32ExitCode;
+            internal uint ServiceSpecificExitCode;
+            internal uint CheckPoint;
+            internal uint WaitHint;
+            internal uint ProcessId;
+            internal uint ServiceFlags;
+        }
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr OpenSCManager(string machineName, string databaseName, uint desiredAccess);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr OpenService(IntPtr serviceManager, string serviceName, uint desiredAccess);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool QueryServiceStatusEx(
+            IntPtr service,
+            int infoLevel,
+            out ServiceStatusProcess serviceStatus,
+            int bufferSize,
+            out int bytesNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool CloseServiceHandle(IntPtr serviceHandle);
+
+        internal static WindowsServiceDiagnostic InspectWindowsService(string serviceName)
+        {
+            int? startType = ReadServiceStartType(serviceName);
+            if (!OperatingSystem.IsWindows())
+                return new WindowsServiceDiagnostic(serviceName, false, false, startType == ServiceDisabled, 0, startType);
+
+            IntPtr serviceManager = IntPtr.Zero;
+            IntPtr service = IntPtr.Zero;
+            try
+            {
+                serviceManager = OpenSCManager(null, null, ScManagerConnect);
+                if (serviceManager == IntPtr.Zero)
+                    return new WindowsServiceDiagnostic(serviceName, false, false, startType == ServiceDisabled, 0, startType);
+
+                service = OpenService(serviceManager, serviceName, ServiceQueryStatus);
+                if (service == IntPtr.Zero)
+                    return new WindowsServiceDiagnostic(serviceName, false, false, startType == ServiceDisabled, 0, startType);
+
+                int size = Marshal.SizeOf<ServiceStatusProcess>();
+                bool queried = QueryServiceStatusEx(
+                    service,
+                    ScStatusProcessInfo,
+                    out ServiceStatusProcess status,
+                    size,
+                    out _);
+                return new WindowsServiceDiagnostic(
+                    serviceName,
+                    queried,
+                    queried && status.CurrentState == ServiceRunning,
+                    startType == ServiceDisabled,
+                    queried ? status.CurrentState : 0,
+                    startType);
+            }
+            catch
+            {
+                return new WindowsServiceDiagnostic(serviceName, false, false, startType == ServiceDisabled, 0, startType);
+            }
+            finally
+            {
+                if (service != IntPtr.Zero)
+                    CloseServiceHandle(service);
+                if (serviceManager != IntPtr.Zero)
+                    CloseServiceHandle(serviceManager);
+            }
+        }
+
+        private static int? ReadServiceStartType(string serviceName)
+        {
+            if (!OperatingSystem.IsWindows())
+                return null;
+            try
+            {
+                using RegistryKey key = Registry.LocalMachine.OpenSubKey(
+                    $@"SYSTEM\CurrentControlSet\Services\{serviceName}",
+                    writable: false);
+                return key?.GetValue("Start") is int value ? value : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static void EnsureFirewallServicesAvailable()
+        {
+            WindowsServiceDiagnostic firewall = InspectWindowsService("MpsSvc");
+            WindowsServiceDiagnostic filteringEngine = InspectWindowsService("BFE");
+            RuntimeLog.Info(
+                "Web",
+                $"LAN firewall service diagnostics MpsSvc={FormatServiceDiagnostic(firewall)}, BFE={FormatServiceDiagnostic(filteringEngine)}");
+
+            if (filteringEngine.QuerySucceeded && !filteringEngine.IsRunning)
+            {
+                throw new LanAccessSetupException(
+                    LanAccessFailureKind.BaseFilteringEngineUnavailable,
+                    "Base Filtering Engine service is not running");
+            }
+            if (firewall.QuerySucceeded && !firewall.IsRunning)
+            {
+                throw new LanAccessSetupException(
+                    LanAccessFailureKind.WindowsFirewallServiceUnavailable,
+                    "Windows Defender Firewall service is not running");
+            }
+        }
+
+        private static string FormatServiceDiagnostic(WindowsServiceDiagnostic diagnostic)
+        {
+            string state = diagnostic.QuerySucceeded
+                ? diagnostic.IsRunning ? "running" : $"state-{diagnostic.CurrentState}"
+                : "unknown";
+            string start = diagnostic.StartType?.ToString(CultureInfo.InvariantCulture) ?? "unknown";
+            return $"{state},start={start},disabled={diagnostic.IsDisabled}";
+        }
 
         internal static string BuildAccessSetupCommand(int port, string userSid, bool includeUrlAcl = true)
         {
@@ -687,6 +848,20 @@ namespace ExpressPackingMonitoring.Services
                     string output = ReadElevatedCmdOutput(outputPath);
                     string failedStep = ResolveLanSetupFailureStep(proc.ExitCode, output);
                     string detail = CompactLanSetupOutput(output);
+                    if (failedStep.StartsWith("firewall-", StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            EnsureFirewallServicesAvailable();
+                        }
+                        catch (LanAccessSetupException serviceException)
+                        {
+                            throw new LanAccessSetupException(
+                                serviceException.FailureKind,
+                                $"{actionName}失败，失败阶段：{failedStep}，输出：{detail}",
+                                serviceException);
+                        }
+                    }
                     throw new InvalidOperationException(
                         $"{actionName}失败，netsh 退出码：{proc.ExitCode}，失败阶段：{failedStep}，输出：{detail}");
                 }
@@ -769,8 +944,19 @@ namespace ExpressPackingMonitoring.Services
 
         internal static string GetLanAccessFailureUserMessage(
             bool repairAttempted,
-            bool repairButtonAvailable = false)
+            bool repairButtonAvailable = false,
+            Exception exception = null)
         {
+            LanAccessFailureKind failureKind = ResolveLanAccessFailureKind(exception);
+            if (failureKind == LanAccessFailureKind.WindowsFirewallServiceUnavailable)
+            {
+                return "Windows Defender Firewall 服务未开启，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Windows Defender Firewall”，然后重新修复；如果该服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改";
+            }
+            if (failureKind == LanAccessFailureKind.BaseFilteringEngineUnavailable)
+            {
+                return "Windows 的“Base Filtering Engine”服务未开启，防火墙无法配置，手机和其他电脑暂时无法连接，本机功能不受影响。请在 Windows“服务”中启动“Base Filtering Engine”和“Windows Defender Firewall”，然后重新修复；如果服务由安全软件或组织策略管理，请在对应软件中允许 PackingProof 的局域网和防火墙修改";
+            }
+
             if (repairAttempted)
             {
                 return "局域网修复未完成，手机和其他电脑暂时无法连接，本机功能不受影响。请确认在管理员授权窗口选择了“是”；如果安全软件弹出拦截提示，请选择允许；仍失败时，请导出反馈信息发给技术支持";
@@ -780,6 +966,16 @@ namespace ExpressPackingMonitoring.Services
                 ? "请点击“修复局域网”，并在管理员授权窗口选择“是”"
                 : "请重新启用局域网服务，并在管理员授权窗口选择“是”";
             return $"局域网连接失败，手机和其他电脑暂时无法连接，本机功能不受影响。{nextStep}；如果仍失败，请导出反馈信息发给技术支持";
+        }
+
+        internal static LanAccessFailureKind ResolveLanAccessFailureKind(Exception exception)
+        {
+            for (Exception current = exception; current != null; current = current.InnerException)
+            {
+                if (current is LanAccessSetupException setupException)
+                    return setupException.FailureKind;
+            }
+            return LanAccessFailureKind.Unknown;
         }
 
         private static string ReadElevatedCmdOutput(string outputPath)

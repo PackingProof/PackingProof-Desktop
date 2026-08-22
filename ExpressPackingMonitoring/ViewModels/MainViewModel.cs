@@ -2994,7 +2994,9 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 try { newServer?.Dispose(); } catch { }
                 RuntimeLog.Error("Web", "LAN service start failed", ex);
-                string userMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: false);
+                string userMessage = WebServer.GetLanAccessFailureUserMessage(
+                    repairAttempted: false,
+                    exception: ex);
                 MonitorAccessAddress = "";
                 WorkstationPrintStatusText = IsRecordingWorkstation
                     ? "订单联动接收：启动失败"
@@ -3391,6 +3393,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task<MobileConnectionRepairResult> RepairLanAccessForMobileConnectionAsync()
         {
+            Exception repairException = null;
             try
             {
                 RuntimeLog.Info("Web", $"Repairing LAN access from connection dialog port={Config.WebServerPort}");
@@ -3410,10 +3413,13 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
+                repairException = ex;
                 RuntimeLog.Error("Web", "LAN access repair from connection dialog failed", ex);
             }
 
-            string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted: true);
+            string message = WebServer.GetLanAccessFailureUserMessage(
+                repairAttempted: true,
+                exception: repairException);
             ShowToast(message, ToastSeverity.Error);
             return new MobileConnectionRepairResult(
                 false,

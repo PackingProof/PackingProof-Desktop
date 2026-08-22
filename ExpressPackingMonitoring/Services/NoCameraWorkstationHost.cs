@@ -173,7 +173,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                     _server = localServer;
                     ErrorMessage = WebServer.GetLanAccessFailureUserMessage(
                         repairAttempted: false,
-                        repairButtonAvailable: true);
+                        repairButtonAvailable: true,
+                        exception: lanException);
                 }
                 catch (Exception localException)
                 {
@@ -206,7 +207,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         }
         catch (Exception ex)
         {
-            ErrorMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: true);
+            ErrorMessage = WebServer.GetLanAccessFailureUserMessage(
+                repairAttempted: true,
+                exception: ex);
             RuntimeLog.Error("NoCamera", "LAN access permission repair failed", ex);
             return false;
         }

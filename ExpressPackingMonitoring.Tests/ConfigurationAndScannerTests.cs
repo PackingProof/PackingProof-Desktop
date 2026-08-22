@@ -700,6 +700,58 @@ public sealed class ConfigurationAndScannerTests
         Assert.DoesNotContain("点击“修复局域网”", message);
     }
 
+    [Fact]
+    public void LanAccessFailureUserMessage_WhenWindowsFirewallServiceStoppedGivesServiceAction()
+    {
+        var exception = new WebServer.LanAccessSetupException(
+            WebServer.LanAccessFailureKind.WindowsFirewallServiceUnavailable,
+            "service stopped");
+
+        string message = WebServer.GetLanAccessFailureUserMessage(
+            repairAttempted: true,
+            exception: exception);
+
+        Assert.StartsWith("Windows Defender Firewall 服务未开启", message, StringComparison.Ordinal);
+        Assert.Contains("Windows“服务”", message);
+        Assert.Contains("然后重新修复", message);
+        Assert.Contains("安全软件或组织策略", message);
+        Assert.DoesNotContain("管理员授权窗口", message);
+        Assert.False(message.EndsWith("。", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LanAccessFailureUserMessage_WhenBaseFilteringEngineStoppedNamesBothRequiredServices()
+    {
+        var serviceException = new WebServer.LanAccessSetupException(
+            WebServer.LanAccessFailureKind.BaseFilteringEngineUnavailable,
+            "service stopped");
+        var wrapped = new InvalidOperationException("repair failed", serviceException);
+
+        Assert.Equal(
+            WebServer.LanAccessFailureKind.BaseFilteringEngineUnavailable,
+            WebServer.ResolveLanAccessFailureKind(wrapped));
+
+        string message = WebServer.GetLanAccessFailureUserMessage(
+            repairAttempted: true,
+            exception: wrapped);
+        Assert.Contains("Base Filtering Engine", message);
+        Assert.Contains("Windows Defender Firewall", message);
+        Assert.Contains("然后重新修复", message);
+        Assert.False(message.EndsWith("。", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("MpsSvc")]
+    [InlineData("BFE")]
+    public void WindowsFirewallServiceInspection_ReadsRequiredServiceState(string serviceName)
+    {
+        WebServer.WindowsServiceDiagnostic diagnostic = WebServer.InspectWindowsService(serviceName);
+
+        Assert.Equal(serviceName, diagnostic.ServiceName);
+        Assert.True(diagnostic.QuerySucceeded);
+        Assert.NotNull(diagnostic.StartType);
+    }
+
     [Theory]
     [InlineData("5280", 5280, true)]
     [InlineData("80,443,5280", 5280, true)]
