@@ -34,17 +34,18 @@ public sealed class RecordingExtensionDataTests
     }
 
     [Fact]
-    public void LegacyDatabase_CreatesRecordingExtensionDataTable()
+    public void DatabaseReopen_RecreatesMissingRecordingExtensionDataTable()
     {
         string directory = CreateDirectory();
         string databasePath = Path.Combine(directory, "legacy.db");
         try
         {
+            using (var database = new VideoDatabase(databasePath)) { }
             using (var connection = new SqliteConnection($"Data Source={databasePath}"))
             {
                 connection.Open();
                 using var command = connection.CreateCommand();
-                command.CommandText = "CREATE TABLE VideoRecords (Id INTEGER PRIMARY KEY, OrderId TEXT NOT NULL, Mode TEXT NOT NULL, FilePath TEXT NOT NULL, StartTime TEXT NOT NULL);";
+                command.CommandText = "DROP TABLE RecordingExtensionData;";
                 command.ExecuteNonQuery();
             }
             using (var database = new VideoDatabase(databasePath))
