@@ -6,7 +6,7 @@
 - `ExpressPackingMonitoring/` contains the WPF application, including XAML views, view models, services, SQLite access, recording logic, and `Web/index.html`.
 - `ExpressPackingMonitoring.Launcher/` contains the small launcher executable used by the clean package layout.
 - `Tools/Publish-CleanPackage.ps1` creates the per-user Setup, distributable directory, LZMA2 solid 7z, compatibility zip, update manifest, launcher manifest, optional AppPatch, and a separate LauncherPatch.
-- `Scripts/快递助手订单推送.user.js` is the browser userscript for order push integration.
+- `Scripts/PackingProof-Order-Integration-KDZS.user.js` is the browser userscript for KDZS order integration.
 - `Image/` stores README and project screenshots. `Test/HTML/` contains captured sample pages for script/debug reference, not an automated test suite.
 
 ## Build, Test, and Development Commands
@@ -43,7 +43,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - 修改任何 ffmpeg 调用（录制编码、网络摄像头解码、编码器探测、音频/TTS 探测）前，必须用发布基线 ffmpeg（`Tools/ffmpeg-baseline.json` 锁定的 4.4.1）和至少一个其他受支持主版本（如 8.0.1）实际验证；只在本机某个 ffmpeg 上通过不算验证完成。
 - AppPatch 不携带 `ffmpeg.exe`，用户机器可能长期保留旧完整包的不同 ffmpeg 版本；应用层逻辑必须对版本差异保持兼容，不能依赖 AppPatch 更新 ffmpeg。
 - LibVLC 随包收录全部播放相关插件（解码/解封装/字幕/滤镜/输出），仅排除与本地录像回放无关的目录（access_output/mux/services_discovery/stream_out/visualization/lua）；发布时移除设计时程序集（ReachFramework、WinForms Design）。收录与排除规则集中在 `ExpressPackingMonitoring.csproj`，新增播放能力需要插件时按同目录模式追加。
-- `Scripts/快递助手订单推送.user.js` is the browser userscript used for order push integration.
+- `Scripts/PackingProof-Order-Integration-KDZS.user.js` is the browser userscript used for KDZS order integration.
 - Edge TTS is the default online voice path. Kokoro local TTS models and runtime dependencies are optional and should not be bundled unless explicitly intended.
 - Full packages include the generated default Edge TTS cache. AppPatch packages must exclude TTS cache files.
 
