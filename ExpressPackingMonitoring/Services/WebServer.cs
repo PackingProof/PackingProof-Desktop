@@ -249,6 +249,7 @@ namespace ExpressPackingMonitoring.Services
 
         /// <summary>收到油猴脚本推送的订单信息时触发，参数为本次推送的所有订单</summary>
         public event Action<List<OrderInfo>> OrderInfoReceived;
+        internal event Action<string, IReadOnlyList<RecordingExtensionField>> RecordingExtensionDataChanged;
         internal event Action<IReadOnlyList<ConnectedClientInfo>> ConnectedClientsChanged;
         internal event Action<MobileAppUpdateAvailableInfo> MobileAppUpdateAvailable;
         internal event Action<string, string> MobileBackupCompleted;
@@ -3043,6 +3044,16 @@ namespace ExpressPackingMonitoring.Services
                     request.ProviderId.Trim(),
                     request.Fields,
                     DateTime.UtcNow);
+                try
+                {
+                    RecordingExtensionDataChanged?.Invoke(
+                        recordingSessionId,
+                        _db.GetRecordingExtensionFields(recordingSessionId));
+                }
+                catch (Exception ex)
+                {
+                    Log($"RecordingExtensionDataChanged 回调失败: {ex.Message}");
+                }
                 SendJson(ctx, 200, new
                 {
                     success = true,

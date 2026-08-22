@@ -253,9 +253,23 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _stopReason = "手动";     // 停止录制的原因
         private string _recordingOrderId;       // 录制开始时的单号
         private string _recordingSessionId;     // 当前录像会话 ID，供第三方扩展数据绑定
+        private volatile WatermarkSnapshot _recordingWatermarkSnapshot = WatermarkSnapshot.Empty;
         private string _recordingMode;          // 录制开始时的模式
         private bool _autoStopWarned = false;
         private bool _maxDurationWarned = false;
+
+        private sealed class WatermarkSnapshot
+        {
+            public static WatermarkSnapshot Empty { get; } = new WatermarkSnapshot("", Array.Empty<string>());
+            public string RecordingSessionId { get; }
+            public IReadOnlyList<string> Lines { get; }
+
+            public WatermarkSnapshot(string recordingSessionId, IReadOnlyList<string> lines)
+            {
+                RecordingSessionId = recordingSessionId ?? "";
+                Lines = lines ?? Array.Empty<string>();
+            }
+        }
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
         private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
         private string _workstationPrintStatusText = "未连接";
@@ -342,6 +356,9 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         internal static void ApplyWatermarkToFrame(Mat frame, DateTimeOffset timestamp, string orderId)
+            => ApplyWatermarkToFrame(frame, timestamp, orderId, Array.Empty<string>());
+
+        internal static void ApplyWatermarkToFrame(Mat frame, DateTimeOffset timestamp, string orderId, IReadOnlyList<string> extensionLines)
         {
             if (frame == null || frame.IsDisposed || frame.Empty()) return;
 
@@ -358,16 +375,32 @@ namespace ExpressPackingMonitoring.ViewModels
             Cv2.PutText(frame, line1, new OpenCvSharp.Point(x1, y1),
                 HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
 
-            if (string.IsNullOrWhiteSpace(orderId)) return;
+            int nextLine = 1;
+            if (!string.IsNullOrWhiteSpace(orderId))
+            {
+                string line2 = $"Order:{orderId}";
+                DrawWatermarkLine(frame, line2, fontScale, thickness, lineHeight, ref nextLine);
+            }
 
-            string line2 = $"Order:{orderId}";
+            if (extensionLines == null) return;
+            foreach (string extensionLine in extensionLines.Take(4))
+            {
+                if (!string.IsNullOrWhiteSpace(extensionLine))
+                    DrawWatermarkLine(frame, extensionLine, fontScale, thickness, lineHeight, ref nextLine);
+            }
+        }
+
+        private static void DrawWatermarkLine(Mat frame, string text, double fontScale, int thickness, int lineHeight, ref int lineIndex)
+        {
+            string line2 = text;
             var size2 = Cv2.GetTextSize(line2, HersheyFonts.HersheySimplex, fontScale, thickness, out _);
             int x2 = Math.Max(8, frame.Width - size2.Width - 15);
-            int y2 = y1 + (int)(lineHeight * 1.1);
+            int y2 = (int)(lineHeight * 1.1 * (lineIndex + 1));
             Cv2.PutText(frame, line2, new OpenCvSharp.Point(x2, y2),
                 HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
             Cv2.PutText(frame, line2, new OpenCvSharp.Point(x2, y2),
                 HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
+            lineIndex++;
         }
 
         private string _toastMessage;
@@ -2979,6 +3012,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     try
                     {
                         server.OrderInfoReceived += OnOrderInfoReceived;
+                        server.RecordingExtensionDataChanged += OnRecordingExtensionDataChanged;
                         server.ConnectedClientsChanged += OnConnectedClientsChanged;
                         server.MobileAppUpdateAvailable += OnMobileAppUpdateAvailable;
                         server.MobileBackupCompleted += OnMobileBackupCompleted;
@@ -3028,6 +3062,30 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _webServerLifecycleLock.Release();
             }
+        }
+
+        private void OnRecordingExtensionDataChanged(string recordingSessionId, IReadOnlyList<RecordingExtensionField> fields)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId)
+                || !string.Equals(recordingSessionId, _recordingSessionId, StringComparison.Ordinal))
+                return;
+
+            var lines = (fields ?? Array.Empty<RecordingExtensionField>())
+                .Where(field => field != null && !string.IsNullOrWhiteSpace(field.FieldName))
+                .OrderBy(field => field.Namespace, StringComparer.Ordinal)
+                .ThenBy(field => field.FieldName, StringComparer.Ordinal)
+                .Take(4)
+                .Select(field =>
+                {
+                    string value = field.Value ?? "";
+                    if (value.Length > 96) value = value[..96] + "…";
+                    string prefix = string.IsNullOrWhiteSpace(field.Namespace)
+                        ? field.FieldName
+                        : $"{field.Namespace}.{field.FieldName}";
+                    return $"{prefix}: {value}";
+                })
+                .ToArray();
+            _recordingWatermarkSnapshot = new WatermarkSnapshot(recordingSessionId, lines);
         }
 
         private async Task RefreshWorkstationStatusAsync()
@@ -4449,7 +4507,11 @@ namespace ExpressPackingMonitoring.ViewModels
                                     processedFrame = currentFrame.Clone();
                                 }
                                 string orderId = IsRecording ? _recordingOrderId : CurrentOrderId;
-                                ApplyWatermarkToFrame(processedFrame, DateTimeOffset.Now, orderId);
+                                IReadOnlyList<string> extensionLines = IsRecording
+                                    && string.Equals(_recordingWatermarkSnapshot.RecordingSessionId, _recordingSessionId, StringComparison.Ordinal)
+                                    ? _recordingWatermarkSnapshot.Lines
+                                    : Array.Empty<string>();
+                                ApplyWatermarkToFrame(processedFrame, DateTimeOffset.Now, orderId, extensionLines);
                             }
                             catch { }
                         }

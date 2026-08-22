@@ -32,4 +32,21 @@ public sealed class WatermarkTimestampTests
         Cv2.Absdiff(before, frame, difference);
         Assert.True(Cv2.CountNonZero(difference.Reshape(1)) > 0);
     }
+
+    [Fact]
+    public void ApplyWatermarkToFrame_DrawsExtensionLines()
+    {
+        using var frame = new Mat(720, 1280, MatType.CV_8UC3, Scalar.Black);
+        using var before = frame.Clone();
+
+        MainViewModel.ApplyWatermarkToFrame(
+            frame,
+            new DateTimeOffset(2026, 7, 20, 9, 10, 11, TimeSpan.FromHours(8)),
+            "TEST123",
+            new[] { "scale.example.weight: 1.25 kg" });
+
+        using var difference = new Mat();
+        Cv2.Absdiff(before, frame, difference);
+        Assert.True(Cv2.CountNonZero(difference.Reshape(1)) > 0);
+    }
 }

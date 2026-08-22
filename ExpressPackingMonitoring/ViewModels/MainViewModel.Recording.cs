@@ -129,6 +129,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _currentFfmpegProcess = null;
             _recordingOrderId = null;
             _recordingSessionId = null;
+            _recordingWatermarkSnapshot = WatermarkSnapshot.Empty;
 
             _lastFinalizeTask = Task.Run(() => 
             {
@@ -703,6 +704,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 // 6. 在数据库中创建记录占位符
                 _recordingSessionId = Guid.NewGuid().ToString("N");
+                _recordingWatermarkSnapshot = new WatermarkSnapshot(_recordingSessionId, Array.Empty<string>());
                 var orderInfoSnapshot = _webServer?.GetOrderInfo(_recordingOrderId);
                 _currentRecordId = _db?.InsertVideoRecord(
                     _recordingOrderId,
@@ -875,7 +877,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (frame == null) return;
                 if (Config.EnableWatermark)
-                    ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId);
+                {
+                    IReadOnlyList<string> extensionLines = _recordingWatermarkSnapshot.RecordingSessionId == _recordingSessionId
+                        ? _recordingWatermarkSnapshot.Lines
+                        : Array.Empty<string>();
+                    ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId, extensionLines);
+                }
                 if (!queue.TryAdd(frame, 5))
                     frame.Dispose();
             }
