@@ -1807,6 +1807,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 return "";
 
             var lines = new List<string>();
+            if (orderInfo.TotalItemCount > 0)
+                lines.Add(AppLanguage.Format("Main.PreviewTotalItemCount", orderInfo.TotalItemCount));
             AddPreviewOrderLine(lines, "Main.PreviewProduct", orderInfo.ProductInfo);
 
             if (orderInfo.HasRefund || orderInfo.IsPrintedRefund)

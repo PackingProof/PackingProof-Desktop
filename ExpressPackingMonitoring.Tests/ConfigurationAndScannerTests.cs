@@ -206,6 +206,19 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("蓝色外套", details);
     }
 
+    [Fact]
+    public void BuildPreviewOrderDetailNotice_IncludesTotalItemCount()
+    {
+        string details = MainViewModel.BuildPreviewOrderDetailNotice(new OrderInfo
+        {
+            TotalItemCount = 3,
+            ProductInfo = "蓝色外套"
+        });
+
+        Assert.StartsWith("共 3 件商品", details, StringComparison.Ordinal);
+        Assert.Contains("蓝色外套", details);
+    }
+
     [Theory]
     [InlineData("提示：开始录像", AlertPriority.Normal, AlertSound.None, false)]
     [InlineData("警告：重复单号", AlertPriority.Normal, AlertSound.None, true)]
