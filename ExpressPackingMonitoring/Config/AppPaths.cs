@@ -22,6 +22,7 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string TranscodeCacheDir = Path.Combine(CacheDir, "transcode");
         public static readonly string TtsCacheDir = Path.Combine(CacheDir, "tts");
         public static readonly string GuideCacheDir = Path.Combine(CacheDir, "guide");
+        public static readonly string FeedbackCacheDir = Path.Combine(CacheDir, "feedback");
 
         public static readonly string ConfigPath = Path.Combine(UserDataDir, "config.json");
         public static readonly string VideoDatabasePath = Path.Combine(UserDataDir, "videos.db");
@@ -53,6 +54,7 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(TranscodeCacheDir);
             Directory.CreateDirectory(TtsCacheDir);
             Directory.CreateDirectory(GuideCacheDir);
+            Directory.CreateDirectory(FeedbackCacheDir);
         }
 
         private static void MigrateMobileBackupState()
@@ -129,6 +131,7 @@ namespace ExpressPackingMonitoring.Config
         private static void MigrateLegacyRuntimeData()
         {
             MoveDirectoryContents(Path.Combine(LogDir, "guide"), GuideCacheDir);
+            MigrateFeedbackCache(Path.Combine(BackupsDir, "feedback"), FeedbackCacheDir);
 
             foreach (string legacyRoot in GetLegacyRuntimeRoots())
             {
@@ -142,6 +145,11 @@ namespace ExpressPackingMonitoring.Config
                 MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts_cache"));
                 MoveLegacyTtsCacheDirectory(Path.Combine(legacyRoot, "tts"));
             }
+        }
+
+        internal static void MigrateFeedbackCache(string legacyDirectory, string destinationDirectory)
+        {
+            MoveDirectoryContents(legacyDirectory, destinationDirectory);
         }
 
         private static void MigrateLegacyVideoDatabase(string legacyRoot)

@@ -37,7 +37,7 @@ internal sealed class FeedbackPackageService
         Func<FeedbackHardwareInfo>? hardwareInfoProvider = null)
     {
         _userDataDir = userDataDir ?? throw new ArgumentNullException(nameof(userDataDir));
-        _feedbackDir = feedbackDir ?? Path.Combine(userDataDir, "backups", "feedback");
+        _feedbackDir = feedbackDir ?? Path.Combine(userDataDir, "cache", "feedback");
         _appVersion = string.IsNullOrWhiteSpace(appVersion) ? AppVersion.Current : appVersion;
         _commitId = string.IsNullOrWhiteSpace(commitId) ? AppVersion.CommitShortId : commitId;
         _hardwareInfoProvider = hardwareInfoProvider ?? FeedbackHardwareInfo.Collect;

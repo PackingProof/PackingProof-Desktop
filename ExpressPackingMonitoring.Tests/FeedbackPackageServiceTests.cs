@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using Microsoft.Data.Sqlite;
@@ -70,7 +71,7 @@ public sealed class FeedbackPackageServiceTests
             Assert.StartsWith("PackingProof_Feedback_", Path.GetFileName(zipPath));
             Assert.Empty(warnings);
             Assert.DoesNotContain(
-                Directory.GetDirectories(Path.Combine(directory, "backups", "feedback")),
+                Directory.GetDirectories(Path.Combine(directory, "cache", "feedback")),
                 dir => Path.GetFileName(dir).StartsWith("staging-", StringComparison.Ordinal));
 
             using (var zip = ZipFile.OpenRead(zipPath))
@@ -229,7 +230,7 @@ public sealed class FeedbackPackageServiceTests
         string directory = CreateTempDirectory();
         try
         {
-            string feedbackDir = Path.Combine(directory, "backups", "feedback");
+            string feedbackDir = Path.Combine(directory, "cache", "feedback");
             Directory.CreateDirectory(feedbackDir);
             for (int index = 0; index < 12; index++)
             {
@@ -254,6 +255,30 @@ public sealed class FeedbackPackageServiceTests
             Assert.Equal(FeedbackPackageService.MaxPackagesToKeep, remainingZips.Length);
             Assert.Equal(FeedbackPackageService.MaxPackagesToKeep, remainingEmls.Length);
             Assert.True(File.Exists(unrelated));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void MigrateFeedbackCache_MovesLegacyPackagesToCache()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string legacyDirectory = Path.Combine(directory, "backups", "feedback");
+            string cacheDirectory = Path.Combine(directory, "cache", "feedback");
+            Directory.CreateDirectory(legacyDirectory);
+            string legacyPackage = Path.Combine(legacyDirectory, "PackingProof_Feedback_legacy.zip");
+            File.WriteAllText(legacyPackage, "feedback", Encoding.UTF8);
+
+            AppPaths.MigrateFeedbackCache(legacyDirectory, cacheDirectory);
+
+            Assert.False(File.Exists(legacyPackage));
+            Assert.True(File.Exists(Path.Combine(cacheDirectory, Path.GetFileName(legacyPackage))));
+            Assert.False(Directory.Exists(legacyDirectory));
         }
         finally
         {
