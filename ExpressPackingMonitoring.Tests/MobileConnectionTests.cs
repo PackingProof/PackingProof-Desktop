@@ -263,14 +263,14 @@ public sealed class MobileConnectionTests
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/extensions/v1/orders");
             request.Headers.Add("X-EPM-Access-Key", accessKey);
             request.Content = new StringContent(
-                "{\"apiVersion\":\"v1\",\"providerId\":\"test.provider\",\"orders\":[{\"trackingNumber\":\"EXT-TEST-001\",\"orderId\":\"ORDER-001\",\"totalItemCount\":7,\"mergedOrderCount\":2,\"isTest\":true}]}",
+                "{\"apiVersion\":\"v1\",\"providerId\":\"test.provider\",\"orders\":[{\"trackingNumber\":\"EXT-TEST-001\",\"orderId\":\"ORDER-001\",\"totalItemCount\":7,\"mergedOrderCount\":2}]}",
                 System.Text.Encoding.UTF8,
                 "application/json");
 
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using JsonDocument payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-            Assert.Equal(1, payload.RootElement.GetProperty("testCount").GetInt32());
+            Assert.Equal(0, payload.RootElement.GetProperty("testCount").GetInt32());
 
             using HttpResponseMessage query = await client.GetAsync(
                 "/api/orderinfo?trackingNo=EXT-TEST-001", cancellationToken);
