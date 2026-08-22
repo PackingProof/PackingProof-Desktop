@@ -20,6 +20,13 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
+    public void NewConfigurationAcceptsThirdPartyWatermarkByDefault()
+    {
+        Assert.True(new AppConfig().EnableThirdPartyWatermark);
+        Assert.True(JsonSerializer.Deserialize<AppConfig>("{}")!.EnableThirdPartyWatermark);
+    }
+
+    [Fact]
     public void ExistingConfigurationEnablesProtectionOnceAndPreservesLaterUserChoice()
     {
         var config = new AppConfig

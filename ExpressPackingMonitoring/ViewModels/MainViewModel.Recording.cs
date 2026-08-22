@@ -878,7 +878,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (frame == null) return;
                 if (Config.EnableWatermark)
                 {
-                    IReadOnlyList<string> extensionLines = _recordingWatermarkSnapshot.RecordingSessionId == _recordingSessionId
+                    IReadOnlyList<string> extensionLines = Config.EnableThirdPartyWatermark
+                        && _recordingWatermarkSnapshot.RecordingSessionId == _recordingSessionId
                         ? _recordingWatermarkSnapshot.Lines
                         : Array.Empty<string>();
                     ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId, extensionLines);

@@ -224,6 +224,7 @@ namespace ExpressPackingMonitoring.Config
 
         // 水印
         public bool EnableWatermark { get; set; } = true;
+        public bool EnableThirdPartyWatermark { get; set; } = true;
 
         // 局域网 Web 服务
         public bool EnableWebServer { get; set; } = true;

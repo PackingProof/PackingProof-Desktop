@@ -4507,7 +4507,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                     processedFrame = currentFrame.Clone();
                                 }
                                 string orderId = IsRecording ? _recordingOrderId : CurrentOrderId;
-                                IReadOnlyList<string> extensionLines = IsRecording
+                                IReadOnlyList<string> extensionLines = Config.EnableThirdPartyWatermark && IsRecording
                                     && string.Equals(_recordingWatermarkSnapshot.RecordingSessionId, _recordingSessionId, StringComparison.Ordinal)
                                     ? _recordingWatermarkSnapshot.Lines
                                     : Array.Empty<string>();

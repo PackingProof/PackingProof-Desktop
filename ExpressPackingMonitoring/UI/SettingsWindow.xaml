@@ -3324,6 +3324,25 @@
                                                 Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="接收第三方水印" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="允许称重等第三方程序把数据显示到录像水印中"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableThirdPartyWatermark}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="接收第三方水印"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, Mode=OneWay, TargetNullValue=False}"
                                           ToolTip="兼容性提示：部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
