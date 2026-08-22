@@ -275,7 +275,9 @@ public sealed class MobileConnectionTests
             using HttpResponseMessage query = await client.GetAsync(
                 "/api/orderinfo?trackingNo=EXT-TEST-001", cancellationToken);
             Assert.Equal(HttpStatusCode.OK, query.StatusCode);
-            using JsonDocument queryPayload = JsonDocument.Parse(await query.Content.ReadAsStringAsync(cancellationToken));
+            string queryBody = await query.Content.ReadAsStringAsync(cancellationToken);
+            using JsonDocument queryPayload = JsonDocument.Parse(queryBody);
+            Assert.True(queryPayload.RootElement.GetProperty("found").GetBoolean(), queryBody);
             JsonElement info = queryPayload.RootElement.GetProperty("info");
             Assert.Equal(7, info.GetProperty("totalItemCount").GetInt32());
             Assert.Equal(2, info.GetProperty("mergedOrderCount").GetInt32());
