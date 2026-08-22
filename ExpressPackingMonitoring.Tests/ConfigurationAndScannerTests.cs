@@ -266,7 +266,7 @@ public sealed class ConfigurationAndScannerTests
     [Fact]
     public void RefundWorkerUserscript_IsolatesLookupFromUserPage()
     {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "快递助手订单推送.user.js");
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
         string script = File.ReadAllText(scriptPath);
 
         Assert.Contains("// @grant        GM_openInTab", script);
@@ -297,7 +297,7 @@ public sealed class ConfigurationAndScannerTests
     [Fact]
     public void Userscript_BroadcastsToEveryConfiguredRecorderIndependently()
     {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "快递助手订单推送.user.js");
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
         string script = File.ReadAllText(scriptPath);
 
         Assert.DoesNotContain("// @connect      *", script);
@@ -391,7 +391,7 @@ public sealed class ConfigurationAndScannerTests
     [Fact]
     public void UserscriptTemplate_KeepsUpdateUrlsPlaceholderWithoutHardcodedUrls()
     {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "快递助手订单推送.user.js");
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
         string script = File.ReadAllText(scriptPath);
 
         Assert.Contains("// PACKING_PROOF_UPDATE_URLS", script);

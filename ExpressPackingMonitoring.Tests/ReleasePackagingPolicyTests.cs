@@ -12,7 +12,7 @@ public sealed class ReleasePackagingPolicyTests
         string[] relativePaths =
         [
             @"Installer\ExpressPackingMonitoring.iss",
-            @"Scripts\快递助手订单推送.user.js",
+            @"Scripts\PackingProof-Order-Integration-KDZS.user.js",
             @"ExpressPackingMonitoring\Services\BackupCompatibilityPolicy.cs",
             @"ExpressPackingMonitoring\UI\SettingsWindow.xaml.cs"
         ];

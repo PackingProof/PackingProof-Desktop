@@ -21,7 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
     <ProjectReference Include="..\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
-    <None Include="..\Scripts\快递助手订单推送.user.js" Link="Scripts\快递助手订单推送.user.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Scripts\PackingProof-Order-Integration-KDZS.user.js" Link="Scripts\PackingProof-Order-Integration-KDZS.user.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
