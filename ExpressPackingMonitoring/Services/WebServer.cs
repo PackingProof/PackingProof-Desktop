@@ -476,6 +476,9 @@ namespace ExpressPackingMonitoring.Services
 
         internal const string FirewallRuleName = "快递打包监控 Web服务";
         internal const string UdpFirewallRuleName = "快递打包监控 设备发现";
+        internal const int UrlAclAddFailureExitCode = 11;
+        internal const int TcpFirewallAddFailureExitCode = 12;
+        internal const int UdpFirewallAddFailureExitCode = 13;
 
         internal static string BuildAccessSetupCommand(int port, string userSid, bool includeUrlAcl = true)
         {
@@ -490,7 +493,8 @@ namespace ExpressPackingMonitoring.Services
                 return firewallCommand;
 
             string urlAclCommand = $"(echo [LAN-STEP] urlacl-delete & netsh http delete urlacl url={url} & "
-                + $"echo [LAN-STEP] urlacl-add & netsh http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\")";
+                + $"echo [LAN-STEP] urlacl-add & netsh http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\" "
+                + $"|| exit /b {UrlAclAddFailureExitCode})";
             return $"{urlAclCommand} && ({firewallCommand})";
         }
 
@@ -500,9 +504,11 @@ namespace ExpressPackingMonitoring.Services
                 throw new ArgumentOutOfRangeException(nameof(port));
 
             string tcpRule = $"echo [LAN-STEP] firewall-tcp-delete & netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" & "
-                + $"echo [LAN-STEP] firewall-tcp-add & netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port}";
+                + $"echo [LAN-STEP] firewall-tcp-add & netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port} "
+                + $"|| exit /b {TcpFirewallAddFailureExitCode}";
             string udpRule = $"echo [LAN-STEP] firewall-udp-delete & netsh advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" & "
-                + $"echo [LAN-STEP] firewall-udp-add & netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port}";
+                + $"echo [LAN-STEP] firewall-udp-add & netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port} "
+                + $"|| exit /b {UdpFirewallAddFailureExitCode}";
             return $"({tcpRule}) && ({udpRule})";
         }
 
@@ -615,18 +621,17 @@ namespace ExpressPackingMonitoring.Services
             string outputPath = Path.Combine(Path.GetTempPath(), $"PackingProof-lan-repair-{Guid.NewGuid():N}.log");
             try
             {
+                bool alreadyElevated = IsCurrentProcessElevated();
+                RuntimeLog.Info("Web", $"LAN access setup elevation requested alreadyElevated={alreadyElevated}");
                 var psi = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
+                    Arguments = BuildElevatedCmdArguments(arguments, outputPath),
                     Verb = "runas",
                     UseShellExecute = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                     CreateNoWindow = true
                 };
-                psi.ArgumentList.Add("/D");
-                psi.ArgumentList.Add("/S");
-                psi.ArgumentList.Add("/C");
-                psi.ArgumentList.Add(BuildElevatedCmdCommand(arguments, outputPath));
                 using var proc = Process.Start(psi);
                 if (proc == null)
                     throw new InvalidOperationException($"{actionName}失败：无法启动管理员命令");
@@ -640,11 +645,15 @@ namespace ExpressPackingMonitoring.Services
                 if (proc.ExitCode != 0)
                 {
                     string output = ReadElevatedCmdOutput(outputPath);
-                    string failedStep = ExtractLastLanSetupStep(output);
+                    string failedStep = ResolveLanSetupFailureStep(proc.ExitCode, output);
                     string detail = CompactLanSetupOutput(output);
                     throw new InvalidOperationException(
                         $"{actionName}失败，netsh 退出码：{proc.ExitCode}，失败阶段：{failedStep}，输出：{detail}");
                 }
+            }
+            catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+            {
+                throw new InvalidOperationException($"{actionName}未完成：未获得管理员授权", ex);
             }
             catch (Exception ex) when (ex is not InvalidOperationException && ex is not TimeoutException)
             {
@@ -664,6 +673,35 @@ namespace ExpressPackingMonitoring.Services
                 throw new ArgumentException("命令输出路径不能为空", nameof(outputPath));
 
             return $"({arguments}) > \"{outputPath}\" 2>&1";
+        }
+
+        internal static string BuildElevatedCmdArguments(string arguments, string outputPath)
+        {
+            string command = BuildElevatedCmdCommand(arguments, outputPath);
+            return $"/D /S /C \"{command.Replace("\"", "\"\"")}\"";
+        }
+
+        internal static string ResolveLanSetupFailureStep(int exitCode, string output) =>
+            exitCode switch
+            {
+                UrlAclAddFailureExitCode => "urlacl-add",
+                TcpFirewallAddFailureExitCode => "firewall-tcp-add",
+                UdpFirewallAddFailureExitCode => "firewall-udp-add",
+                _ => ExtractLastLanSetupStep(output)
+            };
+
+        internal static bool IsCurrentProcessElevated()
+        {
+            try
+            {
+                using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+                return new WindowsPrincipal(identity)
+                    .IsInRole(WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         internal static string ExtractLastLanSetupStep(string output)

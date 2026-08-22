@@ -594,6 +594,9 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("[LAN-STEP] urlacl-add", command);
         Assert.Contains("[LAN-STEP] firewall-tcp-add", command);
         Assert.Contains("[LAN-STEP] firewall-udp-add", command);
+        Assert.Contains($"exit /b {WebServer.UrlAclAddFailureExitCode}", command);
+        Assert.Contains($"exit /b {WebServer.TcpFirewallAddFailureExitCode}", command);
+        Assert.Contains($"exit /b {WebServer.UdpFirewallAddFailureExitCode}", command);
         Assert.DoesNotContain("user=Everyone", command, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -630,6 +633,33 @@ public sealed class ConfigurationAndScannerTests
 
         Assert.StartsWith("(netsh test)", command, StringComparison.Ordinal);
         Assert.EndsWith("\"C:\\Temp\\lan repair.log\" 2>&1", command, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElevatedLanSetupArguments_UseShellExecuteCompatibleQuotedCommand()
+    {
+        string arguments = WebServer.BuildElevatedCmdArguments(
+            "netsh test name=\"PackingProof Test\"",
+            @"C:\Temp\lan repair.log");
+
+        Assert.StartsWith("/D /S /C \"", arguments, StringComparison.Ordinal);
+        Assert.Contains("name=\"\"PackingProof Test\"\"", arguments);
+        Assert.Contains("\"\"C:\\Temp\\lan repair.log\"\" 2>&1", arguments);
+        Assert.EndsWith("\"", arguments, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(WebServer.UrlAclAddFailureExitCode, "urlacl-add")]
+    [InlineData(WebServer.TcpFirewallAddFailureExitCode, "firewall-tcp-add")]
+    [InlineData(WebServer.UdpFirewallAddFailureExitCode, "firewall-udp-add")]
+    [InlineData(1, "firewall-tcp-add")]
+    public void LanSetupFailureStep_UsesDedicatedExitCodeOrCapturedMarker(
+        int exitCode,
+        string expectedStep)
+    {
+        const string output = "[LAN-STEP] firewall-tcp-add\r\n失败\r\n";
+
+        Assert.Equal(expectedStep, WebServer.ResolveLanSetupFailureStep(exitCode, output));
     }
 
     [Fact]
