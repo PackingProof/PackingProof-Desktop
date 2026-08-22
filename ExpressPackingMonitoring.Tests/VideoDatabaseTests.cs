@@ -195,6 +195,32 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void CodecBackfillOnlyUpdatesEmptyRecords()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            long emptyId = database.InsertMobileBackupRecord(
+                "EMPTY", "empty.mp4", 1, DateTime.Now, 3, "phone-a", "手机", "empty", "sha-empty");
+            long knownId = database.InsertMobileBackupRecord(
+                "KNOWN", "known.mp4", 1, DateTime.Now, 3, "phone-a", "手机", "known", "sha-known",
+                videoCodec: "h264");
+
+            Assert.Contains(database.GetVideosWithoutCodec(0, 20), item => item.Id == emptyId);
+            Assert.DoesNotContain(database.GetVideosWithoutCodec(0, 20), item => item.Id == knownId);
+            Assert.True(database.TrySetVideoCodecIfEmpty(emptyId, "h265"));
+            Assert.False(database.TrySetVideoCodecIfEmpty(knownId, "av1"));
+            Assert.Equal("h265", database.GetVideoById(emptyId).VideoCodec);
+            Assert.Equal("h264", database.GetVideoById(knownId).VideoCodec);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void OrderIdExistsRecent_ChecksThirtyDaysAndIgnoresDeletedOrExcludedRecords()
     {
         string tempDirectory = CreateTempDirectory();

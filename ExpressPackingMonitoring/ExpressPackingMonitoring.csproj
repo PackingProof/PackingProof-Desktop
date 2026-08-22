@@ -156,6 +156,7 @@
     <Compile Include="Services\MobileConnectionService.cs" />
     <Compile Include="Services\MobileAppUpdatePolicyProvider.cs" />
     <Compile Include="Services\MobileBackupService.cs" />
+    <Compile Include="Services\VideoCodecProbe.cs" />
     <Compile Include="Services\MobileBackupSharedFileMigrator.cs" />
     <Compile Include="Services\MobileOrderReceiverRegistry.cs" />
     <Compile Include="Services\NasArchiveProvider.cs" />

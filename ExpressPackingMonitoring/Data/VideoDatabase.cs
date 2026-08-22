@@ -472,7 +472,8 @@ namespace ExpressPackingMonitoring.Data
             string sourceDeviceKind = "mobile",
             string mode = "发货",
             string archivePath = "",
-            string archiveStatus = VideoArchiveStatus.LocalOnly)
+            string archiveStatus = VideoArchiveStatus.LocalOnly,
+            string videoCodec = "")
         {
             string normalizedTracking = trackingNumber?.Trim().ToUpperInvariant() ?? "";
             string orderId = string.IsNullOrEmpty(normalizedTracking) ? "未识别面单" : normalizedTracking;
@@ -486,12 +487,12 @@ namespace ExpressPackingMonitoring.Data
                     INSERT INTO VideoRecords (
                         OrderId, Mode, TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo,
                         OrderInfoPushTime, OrderInfoJson, SourceType, SourceDeviceId, SourceDeviceName,
-                        SourceDeviceKind, SourceSessionId, ContentSha256, FilePath, FileSizeBytes, StartTime, EndTime,
+                        SourceDeviceKind, SourceSessionId, ContentSha256, VideoCodec, FilePath, FileSizeBytes, StartTime, EndTime,
                         DurationSeconds, StopReason, BackupCompletedAt, ArchivePath, ArchiveStatus)
                     VALUES (
                         @orderId, @mode, @trackingNumber, @sourceOrderId, @buyerMessage, @sellerMemo, @productInfo,
                         @orderInfoPushTime, @orderInfoJson, 'external', @sourceDeviceId, @sourceDeviceName,
-                        @sourceDeviceKind, @sourceSessionId, @contentSha256, @filePath, @fileSizeBytes, @startTime, @endTime,
+                        @sourceDeviceKind, @sourceSessionId, @contentSha256, @videoCodec, @filePath, @fileSizeBytes, @startTime, @endTime,
                         @durationSeconds, @stopReason, @backupCompletedAt, @archivePath, @archiveStatus);
                     SELECT last_insert_rowid();";
                 cmd.Parameters.AddWithValue("@orderId", orderId);
@@ -509,6 +510,7 @@ namespace ExpressPackingMonitoring.Data
                     string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase) ? "pc" : "mobile");
                 cmd.Parameters.AddWithValue("@sourceSessionId", sourceSessionId?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@contentSha256", contentSha256?.Trim().ToLowerInvariant() ?? "");
+                cmd.Parameters.AddWithValue("@videoCodec", videoCodec?.Trim().ToLowerInvariant() ?? "");
                 cmd.Parameters.AddWithValue("@filePath", filePath ?? "");
                 cmd.Parameters.AddWithValue("@fileSizeBytes", fileSizeBytes);
                 cmd.Parameters.AddWithValue("@startTime", startTime.ToString("yyyy-MM-dd HH:mm:ss"));
@@ -854,6 +856,48 @@ namespace ExpressPackingMonitoring.Data
                 string filePath = GetVideoFilePath(recordId);
                 if (!string.IsNullOrWhiteSpace(filePath) && fileSizeBytes > 0)
                     UpsertLocalVideoFileCore(filePath, fileSizeBytes);
+            }
+        }
+
+        public List<(long Id, string FilePath)> GetVideosWithoutCodec(long afterId, int limit)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, FilePath
+                    FROM VideoRecords
+                    WHERE Id > @afterId
+                      AND IsDeleted = 0
+                      AND TRIM(COALESCE(VideoCodec, '')) = ''
+                    ORDER BY Id
+                    LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@afterId", afterId);
+                cmd.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 100));
+                using var reader = cmd.ExecuteReader();
+                var result = new List<(long Id, string FilePath)>();
+                while (reader.Read())
+                    result.Add((reader.GetInt64(0), reader.IsDBNull(1) ? "" : reader.GetString(1)));
+                return result;
+            }
+        }
+
+        public bool TrySetVideoCodecIfEmpty(long recordId, string videoCodec)
+        {
+            string normalized = videoCodec?.Trim().ToLowerInvariant() ?? "";
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE VideoRecords
+                    SET VideoCodec = @videoCodec
+                    WHERE Id = @id
+                      AND TRIM(COALESCE(VideoCodec, '')) = '';";
+                cmd.Parameters.AddWithValue("@id", recordId);
+                cmd.Parameters.AddWithValue("@videoCodec", normalized);
+                return cmd.ExecuteNonQuery() == 1;
             }
         }
 

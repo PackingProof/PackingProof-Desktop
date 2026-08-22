@@ -1,6 +1,7 @@
 {
   "request": {
     "fileSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "videoCodec": "h265",
     "sourceDeviceId": "phone-contract",
     "sourceDeviceName": "契约手机",
     "sessions": [

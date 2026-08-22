@@ -189,6 +189,7 @@ internal sealed class MobileBackupService
         ValidateCompleteRequest(request);
         MobileBackupSessionRequest session = request.Sessions[0];
         string fileSha256 = NormalizeSha256(request.FileSha256);
+        string videoCodec = NormalizeVideoCodec(request.VideoCodec);
         if (!string.Equals(uploadId, fileSha256, StringComparison.Ordinal))
             throw new MobileBackupValidationException("upload_sha256_mismatch", "上传任务与完整文件 SHA256 不一致");
 
@@ -291,7 +292,8 @@ internal sealed class MobileBackupService
                 archivePath,
                 string.IsNullOrWhiteSpace(archivePath)
                     ? VideoArchiveStatus.LocalOnly
-                    : VideoArchiveStatus.Pending);
+                    : VideoArchiveStatus.Pending,
+                videoCodec);
 
             if (!string.IsNullOrWhiteSpace(archivePath))
                 _archivePendingCallback?.Invoke();
@@ -620,6 +622,17 @@ internal sealed class MobileBackupService
             throw new MobileBackupValidationException("invalid_media_range", "媒体区间必须大于 0 且不超过 48 小时");
         }
     }
+
+    internal static string NormalizeVideoCodec(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "h264" or "avc" => "h264",
+            "h265" or "hevc" => "h265",
+            "av1" => "av1",
+            _ => ""
+        };
+    }
 }
 
 internal sealed class MobileBackupCreateRequest
@@ -634,6 +647,8 @@ internal sealed class MobileBackupCompleteRequest
 {
     [JsonRequired]
     public string FileSha256 { get; set; } = "";
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? VideoCodec { get; set; }
     public string SourceDeviceId { get; set; } = "";
     [JsonRequired]
     public string SourceDeviceName { get; set; } = "";

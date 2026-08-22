@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Headers;
 using System.Net.Http;
 using System.IO;
@@ -37,6 +38,7 @@ internal sealed class RecordingTransferService : IDisposable
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly ManualResetEventSlim _operationsIdle = new(initialState: true);
     private readonly object _lifecycleLock = new();
+    private readonly ConcurrentDictionary<string, bool> _uploadVideoCodecSupport = new(StringComparer.OrdinalIgnoreCase);
     private Task? _worker;
     private int _processing;
     private int _activeOperations;
@@ -203,6 +205,10 @@ internal sealed class RecordingTransferService : IDisposable
                 throw new InvalidOperationException("目标主机不支持录像接收");
             if (!BackupCompatibilityPolicy.IsCompatibleHost(node.BackupCompatibility))
                 throw new InvalidOperationException("保存主机版本过旧，请更新保存主机电脑");
+            bool supportsUploadVideoCodec = await SupportsUploadVideoCodecAsync(
+                task,
+                config,
+                cancellationToken).ConfigureAwait(false);
 
             string sha256 = task.FileSha256;
             if (sha256.Length != 64)
@@ -245,6 +251,7 @@ internal sealed class RecordingTransferService : IDisposable
                 record,
                 sha256,
                 create.UploadId,
+                supportsUploadVideoCodec,
                 cancellationToken).ConfigureAwait(false);
             if (!string.Equals(completed.Status, "verified", StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(completed.FileSha256, sha256, StringComparison.OrdinalIgnoreCase)
@@ -365,6 +372,7 @@ internal sealed class RecordingTransferService : IDisposable
         VideoRecord record,
         string sha256,
         string uploadId,
+        bool supportsUploadVideoCodec,
         CancellationToken cancellationToken)
     {
         string trackingNumber = string.IsNullOrWhiteSpace(record.TrackingNumber)
@@ -379,6 +387,9 @@ internal sealed class RecordingTransferService : IDisposable
                 SourceDeviceId = config.NodeId,
                 SourceDeviceName = config.NodeName,
                 SourceDeviceKind = "pc",
+                VideoCodec = supportsUploadVideoCodec
+                    ? MobileBackupService.NormalizeVideoCodec(record.VideoCodec)
+                    : null,
                 Sessions =
                 [
                     new MobileBackupSessionRequest
@@ -397,6 +408,34 @@ internal sealed class RecordingTransferService : IDisposable
             },
             config);
         return await SendAsync<MobileBackupCompleteResponse>(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> SupportsUploadVideoCodecAsync(
+        RecordingTransferTask task,
+        AppConfig config,
+        CancellationToken cancellationToken)
+    {
+        if (_uploadVideoCodecSupport.TryGetValue(task.TargetNodeId, out bool cached))
+            return cached;
+
+        try
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{BaseUrl(task.TargetAddress)}/api/mobile-backup/capabilities");
+            AddAuthenticationHeaders(request, config, []);
+            MobileBackupCapabilitiesResponse response =
+                await SendAsync<MobileBackupCapabilitiesResponse>(request, cancellationToken).ConfigureAwait(false);
+            bool supported = response.Features?.UploadVideoCodec == true;
+            _uploadVideoCodecSupport[task.TargetNodeId] = supported;
+            return supported;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            RuntimeLog.Warn("RecordingTransfer", $"Host codec capability unavailable: {ex.Message}");
+            _uploadVideoCodecSupport[task.TargetNodeId] = false;
+            return false;
+        }
     }
 
     private HttpRequestMessage CreateJsonRequest(
@@ -788,5 +827,15 @@ internal sealed class RecordingTransferService : IDisposable
         public long FileSizeBytes { get; set; }
         public long VerifiedAtUnixSeconds { get; set; }
         public string ReceiptSignature { get; set; } = "";
+    }
+
+    private sealed class MobileBackupCapabilitiesResponse
+    {
+        public MobileBackupFeaturesResponse? Features { get; set; }
+    }
+
+    private sealed class MobileBackupFeaturesResponse
+    {
+        public bool UploadVideoCodec { get; set; }
     }
 }

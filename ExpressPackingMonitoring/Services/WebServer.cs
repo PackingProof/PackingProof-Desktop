@@ -167,6 +167,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly FfmpegWorkLimiter _ffmpegWorkLimiter = new();
         private readonly ShortLivedSnapshotCache<byte[]> _storageOverviewCache = new(TimeSpan.FromSeconds(10));
         private Task _listenTask;
+        private Task _videoCodecBackfillTask;
         private UdpDiscoveryResponder _udpDiscoveryResponder;
         private int _activeRequests;
         private int _serverResourcesDisposed;
@@ -408,7 +409,46 @@ namespace ExpressPackingMonitoring.Services
                 TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds),
                 TimeSpan.FromSeconds(ConnectedClientRegistry.HeartbeatIntervalSeconds));
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
+            _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
+        }
+
+        private async Task BackfillVideoCodecsAsync(CancellationToken cancellationToken)
+        {
+            long afterId = 0;
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    if (_isRecordingProvider() || _mobileBackupService.HasActiveUploads)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    List<(long Id, string FilePath)> batch = _db.GetVideosWithoutCodec(afterId, 20);
+                    if (batch.Count == 0)
+                        return;
+                    foreach ((long id, string filePath) in batch)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (_isRecordingProvider() || _mobileBackupService.HasActiveUploads)
+                            break;
+                        afterId = id;
+                        string codec = await VideoCodecProbe.ProbeAsync(filePath, cancellationToken).ConfigureAwait(false);
+                        if (_db.TrySetVideoCodecIfEmpty(id, codec))
+                            RuntimeLog.Info("VideoCodecProbe", $"Backfilled codec record={id}, codec={codec}");
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("VideoCodecProbe", $"Background codec backfill stopped: {ex.Message}");
+            }
         }
 
         private void StartUdpDiscoveryResponder()
@@ -1616,7 +1656,8 @@ namespace ExpressPackingMonitoring.Services
                     rangePlayback = true,
                     multipleSessionsPerFile = false,
                     libraryScope = "host",
-                    deviceVideoClipping = true
+                    deviceVideoClipping = true,
+                    uploadVideoCodec = true
                 },
                 retryPolicy = new
                 {
@@ -4537,7 +4578,10 @@ namespace ExpressPackingMonitoring.Services
             TimeSpan requestsWait = ShutdownWaitTimeout - shutdownTimer.Elapsed;
             bool requestsStopped = _requestsIdle.Wait(
                 requestsWait > TimeSpan.Zero ? requestsWait : TimeSpan.Zero);
-            if (listenerStopped && requestsStopped)
+            TimeSpan backgroundWait = ShutdownWaitTimeout - shutdownTimer.Elapsed;
+            bool backgroundStopped = WaitForVideoCodecBackfill(
+                backgroundWait > TimeSpan.Zero ? backgroundWait : TimeSpan.Zero);
+            if (listenerStopped && requestsStopped && backgroundStopped)
             {
                 DisposeServerResources();
                 return;
@@ -4552,6 +4596,7 @@ namespace ExpressPackingMonitoring.Services
                 {
                     WaitForListenLoop(Timeout.InfiniteTimeSpan);
                     _requestsIdle.Wait();
+                    WaitForVideoCodecBackfill(Timeout.InfiniteTimeSpan);
                 }
                 finally
                 {
@@ -4572,6 +4617,21 @@ namespace ExpressPackingMonitoring.Services
             catch
             {
                 return listenTask.IsCompleted;
+            }
+        }
+
+        private bool WaitForVideoCodecBackfill(TimeSpan timeout)
+        {
+            Task backfillTask = _videoCodecBackfillTask;
+            if (backfillTask == null)
+                return true;
+            try
+            {
+                return backfillTask.Wait(timeout);
+            }
+            catch
+            {
+                return backfillTask.IsCompleted;
             }
         }
 

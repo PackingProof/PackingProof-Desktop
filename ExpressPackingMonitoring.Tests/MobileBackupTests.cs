@@ -711,6 +711,7 @@ public sealed class MobileBackupTests
             byte[] remaining = file[8..];
             Assert.Equal(file.Length, service.AppendChunk(fileSha, 8, file.Length - 1, file.Length, remaining, Sha256(remaining)));
             MobileBackupCompleteRequest completeRequest = CompleteRequest(fileSha, "session-1", "TRACK-001", "phone-1", "打包手机");
+            completeRequest.VideoCodec = "HEVC";
             completeRequest.Sessions[0].Mode = "return";
             MobileBackupCompleteResult completed = service.Complete(fileSha, completeRequest);
             MobileBackupCompleteResult repeated = service.Complete(fileSha, completeRequest);
@@ -726,6 +727,7 @@ public sealed class MobileBackupTests
             Assert.Equal("打包手机", record.SourceDeviceName);
             Assert.Equal("session-1", record.SourceSessionId);
             Assert.Equal(fileSha, record.ContentSha256);
+            Assert.Equal("h265", record.VideoCodec);
             Assert.Equal("退货", record.Mode);
             Assert.Equal("买家留言", record.BuyerMessage);
             Assert.Equal("卖家备注", record.SellerMemo);
@@ -1294,6 +1296,7 @@ public sealed class MobileBackupTests
             Assert.False(capabilityJson.RootElement.GetProperty("features").GetProperty("multipleSessionsPerFile").GetBoolean());
             Assert.Equal("host", capabilityJson.RootElement.GetProperty("features").GetProperty("libraryScope").GetString());
             Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("deviceVideoClipping").GetBoolean());
+            Assert.True(capabilityJson.RootElement.GetProperty("features").GetProperty("uploadVideoCodec").GetBoolean());
             Assert.Equal(4 * 1024 * 1024, capabilityJson.RootElement.GetProperty("maxChunkBytes").GetInt32());
 
             byte[] file = TestMediaAssets.TinyValidMp4;

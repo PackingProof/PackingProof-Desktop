@@ -276,11 +276,21 @@ public sealed class RecordingTransferTests
             long recordId;
             using var database = new VideoDatabase(databasePath);
             recordId = database.InsertVideoRecord("TRACK-1", "退货", "", "", videoPath, DateTime.Now.AddMinutes(-1));
-            database.UpdateVideoRecordOnStop(recordId, DateTime.Now, 60, new FileInfo(videoPath).Length, "手动");
+            database.UpdateVideoRecordOnStop(
+                recordId,
+                DateTime.Now,
+                60,
+                new FileInfo(videoPath).Length,
+                "手动",
+                videoCodec: "h265");
 
             string targetNodeId = Guid.NewGuid().ToString("D");
             var config = CreateConfig(directory, targetNodeId);
-            var handler = new BackupProtocolHandler(verified: true, targetNodeId, config.NodeId);
+            var handler = new BackupProtocolHandler(
+                verified: true,
+                targetNodeId,
+                config.NodeId,
+                uploadVideoCodec: true);
             using var client = new HttpClient(handler);
             var store = new RecordingTransferQueueStore(databasePath);
             using (var service = new RecordingTransferService(
@@ -303,6 +313,7 @@ public sealed class RecordingTransferTests
             Assert.True(handler.SawSignedAuthentication);
             Assert.True(handler.SawPcSource);
             Assert.Equal("退货", handler.ReceivedMode);
+            Assert.Equal("h265", handler.ReceivedVideoCodec);
             Assert.Equal(new FileInfo(videoPath).Length, handler.ReceivedBytes);
         }
         finally
@@ -654,13 +665,15 @@ public sealed class RecordingTransferTests
     private sealed class BackupProtocolHandler(
         bool verified,
         string hostNodeId = "",
-        string sourceDeviceId = "") : HttpMessageHandler
+        string sourceDeviceId = "",
+        bool uploadVideoCodec = false) : HttpMessageHandler
     {
         private string _sha256 = "";
         public long ReceivedBytes { get; private set; }
         public bool SawSignedAuthentication { get; private set; }
         public bool SawPcSource { get; private set; }
         public string ReceivedMode { get; private set; } = "";
+        public string ReceivedVideoCodec { get; private set; } = "";
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -670,6 +683,10 @@ public sealed class RecordingTransferTests
                 BackupRequestAuthentication.VersionHeader,
                 out var versions) && versions.Single() == BackupRequestAuthentication.CurrentVersion.ToString();
             string path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Get && path.EndsWith("/capabilities"))
+            {
+                return Json(new { features = new { uploadVideoCodec } });
+            }
             if (request.Method == HttpMethod.Post && path.EndsWith("/uploads"))
             {
                 using JsonDocument document = JsonDocument.Parse(
@@ -701,6 +718,9 @@ public sealed class RecordingTransferTests
                     return new HttpResponseMessage(HttpStatusCode.BadRequest);
                 JsonElement session = sessions[0];
                 ReceivedMode = session.GetProperty("mode").GetString() ?? "";
+                ReceivedVideoCodec = document.RootElement.TryGetProperty("videoCodec", out JsonElement codec)
+                    ? codec.GetString() ?? ""
+                    : "";
                 string sessionId = session.GetProperty("id").GetString() ?? "";
                 long verifiedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 long recordId = verified ? 42 : 0;
