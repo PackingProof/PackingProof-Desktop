@@ -35,6 +35,12 @@ namespace ExpressPackingMonitoring.Services
         public string BuyerMessage { get; set; } = "";
         public string SellerMemo { get; set; } = "";
         public string ProductInfo { get; set; } = "";
+        /// <summary>该订单中所有商品的总件数。</summary>
+        public int TotalItemCount { get; set; }
+        /// <summary>同一快递单号聚合后的订单数量。</summary>
+        public int MergedOrderCount { get; set; }
+        /// <summary>第三方来源标识，仅用于审计和兼容处理。</summary>
+        public string ProviderId { get; set; } = "";
         public bool HasRefund { get; set; }
         public bool IsPrintedRefund { get; set; }
         public string RefundStatus { get; set; } = "";
@@ -142,6 +148,13 @@ namespace ExpressPackingMonitoring.Services
         {
             public List<OrderInfo> Orders { get; set; } = [];
             public List<string> TargetNodeIds { get; set; } = [];
+        }
+
+        private sealed class OrderExtensionRequest
+        {
+            public string ProviderId { get; set; } = "";
+            public string ApiVersion { get; set; } = "";
+            public List<OrderInfo> Orders { get; set; } = [];
         }
 
         private const int MaxJsonBodyBytes = 64 * 1024;
@@ -1083,7 +1096,7 @@ namespace ExpressPackingMonitoring.Services
 
                 if (method == "POST")
                 {
-                    int maxBodyBytes = path is "/api/orderinfo" or "/api/orderinfo/broadcast" or "/api/order-lookup/result"
+                    int maxBodyBytes = path is "/api/orderinfo" or "/api/orderinfo/broadcast" or "/api/order-lookup/result" or "/api/extensions/v1/orders"
                         ? MaxOrderInfoBodyBytes
                         : MaxJsonBodyBytes;
                     if (ctx.Request.ContentLength64 > maxBodyBytes)
@@ -1177,6 +1190,12 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/mobile-backup/capabilities" when method == "GET":
                         HandleMobileBackupCapabilities(ctx);
+                        break;
+                    case "/api/extensions/v1/capabilities" when method == "GET":
+                        HandleExtensionCapabilities(ctx);
+                        break;
+                    case "/api/extensions/v1/orders" when method == "POST":
+                        HandleExtensionOrders(ctx);
                         break;
                     case "/api/mobile-backup/enroll" when method == "POST":
                         HandleBackupDeviceEnrollment(ctx);
@@ -1323,7 +1342,8 @@ namespace ExpressPackingMonitoring.Services
                 || path.StartsWith("/api/video-sources", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/storage", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/clip", StringComparison.OrdinalIgnoreCase)
-                || path.Equals("/api/mobile-connection", StringComparison.OrdinalIgnoreCase);
+                || path.Equals("/api/mobile-connection", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/api/extensions/v1", StringComparison.OrdinalIgnoreCase);
         }
 
         private void HandleNodeInfo(HttpListenerContext ctx)
@@ -1390,6 +1410,8 @@ namespace ExpressPackingMonitoring.Services
         internal static bool IsOrderReceiverPathAllowed(string path, string method) =>
             (path == "/api/node-info" && method == "GET")
             || (path == "/api/orderinfo" && method is "GET" or "POST")
+            || (path == "/api/extensions/v1/capabilities" && method == "GET")
+            || (path == "/api/extensions/v1/orders" && method == "POST")
             || (path == "/api/order-lookup/pending" && method == "GET")
             || (path == "/api/order-lookup/result" && method == "POST")
             || (path == "/api/connections/heartbeat" && method == "POST")
@@ -2922,6 +2944,97 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
+        private void HandleExtensionCapabilities(HttpListenerContext ctx)
+        {
+            SendJson(ctx, 200, new
+            {
+                apiVersion = "v1",
+                product = "PackingProof",
+                nodeId = _nodeId,
+                nodeName = _nodeName,
+                accessKeyRequired = _requireAccessKey,
+                features = new
+                {
+                    ordersWrite = true,
+                    totalItemCount = true,
+                    mergedOrderCount = true,
+                    providerId = true,
+                    recordingMetadataWrite = false,
+                    watermarkFields = false
+                },
+                limits = new
+                {
+                    maxOrdersPerRequest = MaxOrderInfoItems,
+                    maxRequestBytes = MaxOrderInfoBodyBytes,
+                    maxFieldCharacters = 4000
+                }
+            });
+        }
+
+        private void HandleExtensionOrders(HttpListenerContext ctx)
+        {
+            try
+            {
+                OrderExtensionRequest request = ReadJsonBody<OrderExtensionRequest>(ctx);
+                if (request == null || request.Orders == null || request.Orders.Count == 0)
+                {
+                    SendJson(ctx, 400, new { errorCode = "orders_empty", error = "订单数据不能为空" });
+                    return;
+                }
+
+                string providerId = (request.ProviderId ?? "").Trim();
+                ValidateFieldLength(providerId, 128, "来源标识");
+                if (string.IsNullOrWhiteSpace(providerId))
+                {
+                    SendJson(ctx, 400, new { errorCode = "provider_required", error = "缺少来源标识 providerId" });
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.ApiVersion)
+                    && !string.Equals(request.ApiVersion.Trim(), "v1", StringComparison.OrdinalIgnoreCase))
+                {
+                    SendJson(ctx, 426, new { errorCode = "extension_api_version_unsupported", error = "扩展接口版本不受支持，请使用 v1" });
+                    return;
+                }
+
+                foreach (OrderInfo item in request.Orders)
+                {
+                    if (item != null)
+                        item.ProviderId = providerId;
+                }
+                ValidateOrderInfoItems(request.Orders);
+                (int count, int testCount) = AcceptOrderInfos(request.Orders);
+
+                SendJson(ctx, 200, new
+                {
+                    success = true,
+                    ok = true,
+                    apiVersion = "v1",
+                    providerId,
+                    nodeId = _nodeId,
+                    nodeName = _nodeName,
+                    receivedCount = count,
+                    count,
+                    testCount
+                });
+            }
+            catch (JsonException ex)
+            {
+                Log($"HandleExtensionOrders JSON 无效: {ex.Message}");
+                SendJson(ctx, 400, new { errorCode = "invalid_json", error = "请求内容不是有效的 JSON" });
+            }
+            catch (InvalidDataException ex)
+            {
+                Log($"HandleExtensionOrders 数据无效: {ex.Message}");
+                SendJson(ctx, 400, new { errorCode = "invalid_order_data", error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                Log($"HandleExtensionOrders 异常: {ex.Message}");
+                SendJson(ctx, 500, new { errorCode = "extension_orders_failed", error = "服务器暂时无法处理订单数据" });
+            }
+        }
+
         private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items)
         {
             var realItems = items.Where(item => !item.IsTest).ToList();
@@ -3010,6 +3123,9 @@ namespace ExpressPackingMonitoring.Services
                         info.BuyerMessage,
                         info.SellerMemo,
                         info.ProductInfo,
+                        info.TotalItemCount,
+                        info.MergedOrderCount,
+                        info.ProviderId,
                         info.HasRefund,
                         info.IsPrintedRefund,
                         info.RefundStatus,
@@ -4496,6 +4612,11 @@ namespace ExpressPackingMonitoring.Services
                 ValidateFieldLength(item.BuyerMessage, 2000, "买家留言");
                 ValidateFieldLength(item.SellerMemo, 2000, "卖家备注");
                 ValidateFieldLength(item.ProductInfo, 4000, "商品信息");
+                if (item.TotalItemCount < 0 || item.TotalItemCount > 100000)
+                    throw new InvalidDataException("商品总件数必须在 0 到 100000 之间");
+                if (item.MergedOrderCount < 0 || item.MergedOrderCount > MaxOrderInfoItems)
+                    throw new InvalidDataException($"聚合订单数量必须在 0 到 {MaxOrderInfoItems} 之间");
+                ValidateFieldLength(item.ProviderId, 128, "来源标识");
                 ValidateFieldLength(item.RefundStatus, 256, "退款状态");
                 ValidateFieldLength(item.RefundProductInfo, 4000, "退款商品信息");
             }

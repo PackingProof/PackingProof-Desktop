@@ -143,6 +143,39 @@ public sealed class WebRequestLimitTests
     }
 
     [Fact]
+    public void ValidateOrderInfoItems_AcceptsExtensionCounts()
+    {
+        WebServer.ValidateOrderInfoItems(new List<OrderInfo>
+        {
+            new()
+            {
+                TrackingNumber = "TRACK-1",
+                TotalItemCount = 12,
+                MergedOrderCount = 3,
+                ProviderId = "scale.example"
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, -1)]
+    [InlineData(100001, 0)]
+    [InlineData(0, 201)]
+    public void ValidateOrderInfoItems_RejectsInvalidExtensionCounts(int totalItemCount, int mergedOrderCount)
+    {
+        Assert.Throws<InvalidDataException>(() => WebServer.ValidateOrderInfoItems(new List<OrderInfo>
+        {
+            new()
+            {
+                TrackingNumber = "TRACK-1",
+                TotalItemCount = totalItemCount,
+                MergedOrderCount = mergedOrderCount
+            }
+        }));
+    }
+
+    [Fact]
     public void ClipEditor_UsesSingleScreenSourcePlaybackWorkflow()
     {
         string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));

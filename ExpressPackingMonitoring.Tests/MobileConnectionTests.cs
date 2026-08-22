@@ -228,6 +228,13 @@ public sealed class MobileConnectionTests
     }
 
     [Fact]
+    public void ExtensionApiRequiresAccessKeyWhenProtectionIsEnabled()
+    {
+        Assert.True(WebServer.RequiresAccessKey("/api/extensions/v1/capabilities"));
+        Assert.True(WebServer.RequiresAccessKey("/API/EXTENSIONS/V1/ORDERS"));
+    }
+
+    [Fact]
     public async Task StorageOverviewRejectsMissingAndWrongKeyAndAcceptsValidKey()
     {
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"epm-storage-auth-{Guid.NewGuid():N}");
