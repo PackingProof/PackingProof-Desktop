@@ -42,6 +42,7 @@ internal sealed class UserscriptCatalog
     {
         lock (_sync)
         {
+            _items = Load();
             var official = Inspect(officialPath, OfficialId, true);
             return new[] { official }.Concat(_items.Where(item => !item.IsOfficial)).ToList();
         }
@@ -79,6 +80,7 @@ internal sealed class UserscriptCatalog
         if (string.Equals(id, OfficialId, StringComparison.Ordinal)) return officialPath;
         lock (_sync)
         {
+            _items = Load();
             UserscriptDescriptor item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
             return item != null && File.Exists(item.SourcePath) ? item.SourcePath : "";
         }
