@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Config;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -143,6 +144,16 @@ namespace ExpressPackingMonitoring.Data
         public string ArchiveError { get; set; } = "";
         public DateTime? LocalCopyDeletedAt { get; set; }
         public string LocalDeleteReason { get; set; } = "";
+    }
+
+    public sealed class RecordingExtensionField
+    {
+        public string RecordingSessionId { get; init; } = "";
+        public string Namespace { get; init; } = "";
+        public string FieldName { get; init; } = "";
+        public string Value { get; init; } = "";
+        public string ProviderId { get; init; } = "";
+        public DateTime UpdatedAt { get; init; }
     }
 
     /// <summary>
@@ -304,6 +315,19 @@ namespace ExpressPackingMonitoring.Data
                     UpdatedAt TEXT NOT NULL
                 );");
 
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS RecordingExtensionData (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    RecordingSessionId TEXT NOT NULL,
+                    Namespace TEXT NOT NULL,
+                    FieldName TEXT NOT NULL,
+                    FieldValue TEXT NOT NULL DEFAULT '',
+                    ProviderId TEXT NOT NULL DEFAULT '',
+                    UpdatedAt TEXT NOT NULL,
+                    UNIQUE (RecordingSessionId, Namespace, FieldName)
+                );");
+            ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_recording_extension_session ON RecordingExtensionData(RecordingSessionId, UpdatedAt);");
+
             // 录制工位本地上传队列。任务独立于 VideoRecords，避免网络重试影响录像主记录。
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS RecordingTransferQueue (
@@ -422,7 +446,8 @@ namespace ExpressPackingMonitoring.Data
             OrderInfo orderInfo = null,
             string sourceDeviceId = "",
             string sourceDeviceName = "",
-            string archivePath = "")
+            string archivePath = "",
+            string recordingSessionId = "")
         {
             string orderInfoJson = SerializeOrderInfo(orderInfo);
             lock (_lock)
@@ -432,11 +457,11 @@ namespace ExpressPackingMonitoring.Data
                     INSERT INTO VideoRecords (
                         OrderId, Mode, TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo,
                         OrderInfoPushTime, OrderInfoJson, SourceType, SourceDeviceId, SourceDeviceName,
-                        VideoCodec, VideoEncoder, FilePath, StartTime, ArchivePath)
+                        SourceSessionId, VideoCodec, VideoEncoder, FilePath, StartTime, ArchivePath)
                     VALUES (
                         @orderId, @mode, @trackingNumber, @sourceOrderId, @buyerMessage, @sellerMemo, @productInfo,
                         @orderInfoPushTime, @orderInfoJson, 'pc', @sourceDeviceId, @sourceDeviceName,
-                        @videoCodec, @videoEncoder, @filePath, @startTime, @archivePath);
+                        @sourceSessionId, @videoCodec, @videoEncoder, @filePath, @startTime, @archivePath);
                     SELECT last_insert_rowid();";
                 cmd.Parameters.AddWithValue("@orderId", orderId ?? "");
                 cmd.Parameters.AddWithValue("@mode", mode ?? "");
@@ -449,12 +474,115 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@orderInfoJson", orderInfoJson);
                 cmd.Parameters.AddWithValue("@sourceDeviceId", sourceDeviceId?.Trim() ?? "");
                 cmd.Parameters.AddWithValue("@sourceDeviceName", sourceDeviceName?.Trim() ?? "");
+                cmd.Parameters.AddWithValue("@sourceSessionId",
+                    string.IsNullOrWhiteSpace(recordingSessionId)
+                        ? Guid.NewGuid().ToString("N")
+                        : recordingSessionId.Trim());
                 cmd.Parameters.AddWithValue("@videoCodec", videoCodec ?? "");
                 cmd.Parameters.AddWithValue("@videoEncoder", videoEncoder ?? "");
                 cmd.Parameters.AddWithValue("@filePath", filePath ?? "");
                 cmd.Parameters.AddWithValue("@startTime", startTime.ToString("yyyy-MM-dd HH:mm:ss"));
                 cmd.Parameters.AddWithValue("@archivePath", archivePath?.Trim() ?? "");
                 return (long)cmd.ExecuteScalar();
+            }
+        }
+
+        public IReadOnlyList<VideoRecord> GetActiveRecordingSessions()
+        {
+            List<long> ids;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id FROM VideoRecords
+                    WHERE IsDeleted = 0 AND EndTime IS NULL AND SourceSessionId <> ''
+                    ORDER BY StartTime ASC, Id ASC;";
+                using var reader = cmd.ExecuteReader();
+                ids = new List<long>();
+                while (reader.Read()) ids.Add(reader.GetInt64(0));
+            }
+            return ids.Select(GetVideoById).Where(record => record != null).ToList();
+        }
+
+        public VideoRecord GetActiveRecordingBySession(string recordingSessionId)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId)) return null;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id FROM VideoRecords
+                    WHERE IsDeleted = 0 AND EndTime IS NULL AND SourceSessionId = @sessionId
+                    LIMIT 1;";
+                cmd.Parameters.AddWithValue("@sessionId", recordingSessionId.Trim());
+                object value = cmd.ExecuteScalar();
+                return value == null || value == DBNull.Value ? null : GetVideoById(Convert.ToInt64(value));
+            }
+        }
+
+        public void UpsertRecordingExtensionFields(
+            string recordingSessionId,
+            string namespaceName,
+            string providerId,
+            IReadOnlyDictionary<string, string> fields,
+            DateTime updatedAt)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId) || fields == null || fields.Count == 0) return;
+            lock (_lock)
+            {
+                using var transaction = _connection.BeginTransaction();
+                foreach (var pair in fields)
+                {
+                    using var cmd = _connection.CreateCommand();
+                    cmd.Transaction = transaction;
+                    cmd.CommandText = @"
+                        INSERT INTO RecordingExtensionData
+                            (RecordingSessionId, Namespace, FieldName, FieldValue, ProviderId, UpdatedAt)
+                        VALUES (@sessionId, @namespace, @fieldName, @value, @providerId, @updatedAt)
+                        ON CONFLICT(RecordingSessionId, Namespace, FieldName) DO UPDATE SET
+                            FieldValue = excluded.FieldValue,
+                            ProviderId = excluded.ProviderId,
+                            UpdatedAt = excluded.UpdatedAt;";
+                    cmd.Parameters.AddWithValue("@sessionId", recordingSessionId.Trim());
+                    cmd.Parameters.AddWithValue("@namespace", namespaceName?.Trim() ?? "");
+                    cmd.Parameters.AddWithValue("@fieldName", pair.Key);
+                    cmd.Parameters.AddWithValue("@value", pair.Value ?? "");
+                    cmd.Parameters.AddWithValue("@providerId", providerId?.Trim() ?? "");
+                    cmd.Parameters.AddWithValue("@updatedAt", updatedAt.ToUniversalTime().ToString("O"));
+                    cmd.ExecuteNonQuery();
+                }
+                transaction.Commit();
+            }
+        }
+
+        public IReadOnlyList<RecordingExtensionField> GetRecordingExtensionFields(string recordingSessionId)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId)) return Array.Empty<RecordingExtensionField>();
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT RecordingSessionId, Namespace, FieldName, FieldValue, ProviderId, UpdatedAt
+                    FROM RecordingExtensionData
+                    WHERE RecordingSessionId = @sessionId
+                    ORDER BY Namespace, FieldName;";
+                cmd.Parameters.AddWithValue("@sessionId", recordingSessionId.Trim());
+                using var reader = cmd.ExecuteReader();
+                var result = new List<RecordingExtensionField>();
+                while (reader.Read())
+                {
+                    DateTime.TryParse(reader.GetString(5), null, DateTimeStyles.RoundtripKind, out DateTime updatedAt);
+                    result.Add(new RecordingExtensionField
+                    {
+                        RecordingSessionId = reader.GetString(0),
+                        Namespace = reader.GetString(1),
+                        FieldName = reader.GetString(2),
+                        Value = reader.GetString(3),
+                        ProviderId = reader.GetString(4),
+                        UpdatedAt = updatedAt
+                    });
+                }
+                return result;
             }
         }
 

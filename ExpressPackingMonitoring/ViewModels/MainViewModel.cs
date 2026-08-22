@@ -252,6 +252,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private string _currentVideoEncoder;
         private string _stopReason = "手动";     // 停止录制的原因
         private string _recordingOrderId;       // 录制开始时的单号
+        private string _recordingSessionId;     // 当前录像会话 ID，供第三方扩展数据绑定
         private string _recordingMode;          // 录制开始时的模式
         private bool _autoStopWarned = false;
         private bool _maxDurationWarned = false;

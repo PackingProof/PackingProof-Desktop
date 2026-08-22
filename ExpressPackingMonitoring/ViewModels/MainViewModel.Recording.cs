@@ -128,6 +128,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _currentArchivePath = "";
             _currentFfmpegProcess = null;
             _recordingOrderId = null;
+            _recordingSessionId = null;
 
             _lastFinalizeTask = Task.Run(() => 
             {
@@ -701,6 +702,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 // 6. 在数据库中创建记录占位符
+                _recordingSessionId = Guid.NewGuid().ToString("N");
                 var orderInfoSnapshot = _webServer?.GetOrderInfo(_recordingOrderId);
                 _currentRecordId = _db?.InsertVideoRecord(
                     _recordingOrderId,
@@ -712,7 +714,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     orderInfoSnapshot,
                     Config.MobileBackupComputerId,
                     Environment.MachineName,
-                    archivePath) ?? 0;
+                    archivePath,
+                    _recordingSessionId) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");
 
                 ShowToast("开始录像", ToastSeverity.Information);

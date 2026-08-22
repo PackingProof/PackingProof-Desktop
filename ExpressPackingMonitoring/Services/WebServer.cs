@@ -157,6 +157,13 @@ namespace ExpressPackingMonitoring.Services
             public List<OrderInfo> Orders { get; set; } = [];
         }
 
+        private sealed class RecordingExtensionDataRequest
+        {
+            public string Namespace { get; set; } = "";
+            public string ProviderId { get; set; } = "";
+            public Dictionary<string, string> Fields { get; set; } = new(StringComparer.Ordinal);
+        }
+
         private const int MaxJsonBodyBytes = 64 * 1024;
         private const int MaxOrderInfoBodyBytes = 1024 * 1024;
         internal const int MaxOrderInfoItems = 200;
@@ -1097,6 +1104,7 @@ namespace ExpressPackingMonitoring.Services
                 if (method == "POST")
                 {
                     int maxBodyBytes = path is "/api/orderinfo" or "/api/orderinfo/broadcast" or "/api/order-lookup/result" or "/api/extensions/v1/orders"
+                        || path.StartsWith("/api/extensions/v1/recordings/", StringComparison.OrdinalIgnoreCase)
                         ? MaxOrderInfoBodyBytes
                         : MaxJsonBodyBytes;
                     if (ctx.Request.ContentLength64 > maxBodyBytes)
@@ -1196,6 +1204,14 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/extensions/v1/orders" when method == "POST":
                         HandleExtensionOrders(ctx);
+                        break;
+                    case "/api/extensions/v1/recordings/active" when method == "GET":
+                        HandleActiveRecordingExtensions(ctx);
+                        break;
+                    case var p when p.StartsWith("/api/extensions/v1/recordings/", StringComparison.OrdinalIgnoreCase)
+                        && p.EndsWith("/data", StringComparison.OrdinalIgnoreCase)
+                        && method is "GET" or "POST":
+                        HandleRecordingExtensionData(ctx, p, method);
                         break;
                     case "/api/mobile-backup/enroll" when method == "POST":
                         HandleBackupDeviceEnrollment(ctx);
@@ -1412,6 +1428,10 @@ namespace ExpressPackingMonitoring.Services
             || (path == "/api/orderinfo" && method is "GET" or "POST")
             || (path == "/api/extensions/v1/capabilities" && method == "GET")
             || (path == "/api/extensions/v1/orders" && method == "POST")
+            || (path == "/api/extensions/v1/recordings/active" && method == "GET")
+            || (path.StartsWith("/api/extensions/v1/recordings/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/data", StringComparison.OrdinalIgnoreCase)
+                && method is "GET" or "POST")
             || (path == "/api/order-lookup/pending" && method == "GET")
             || (path == "/api/order-lookup/result" && method == "POST")
             || (path == "/api/connections/heartbeat" && method == "POST")
@@ -1869,8 +1889,8 @@ namespace ExpressPackingMonitoring.Services
                 deviceName = registeredDevice?.NodeName ?? deviceName,
                 maxChunkBytes = MobileBackupService.ChunkSizeBytes,
                 supportedFormats = new[] { "video/mp4" },
-                features = new
-                {
+                    features = new
+                    {
                     videoLibrary = true,
                     cursorVideoLibrary = true,
                     rangePlayback = true,
@@ -2958,9 +2978,9 @@ namespace ExpressPackingMonitoring.Services
                     ordersWrite = true,
                     totalItemCount = true,
                     mergedOrderCount = true,
-                    providerId = true,
-                    recordingMetadataWrite = false,
-                    watermarkFields = false
+                        providerId = true,
+                        recordingMetadataWrite = true,
+                        watermarkFields = false
                 },
                 limits = new
                 {
@@ -2969,6 +2989,117 @@ namespace ExpressPackingMonitoring.Services
                     maxFieldCharacters = 4000
                 }
             });
+        }
+
+        private void HandleActiveRecordingExtensions(HttpListenerContext ctx)
+        {
+            SendJson(ctx, 200, new
+            {
+                apiVersion = "v1",
+                recordings = _db.GetActiveRecordingSessions().Select(record => new
+                {
+                    recordingSessionId = record.SourceSessionId,
+                    videoRecordId = record.Id,
+                    trackingNumber = record.TrackingNumber,
+                    orderId = record.OrderId,
+                    mode = record.Mode,
+                    startTime = record.StartTime
+                }).ToList()
+            });
+        }
+
+        private void HandleRecordingExtensionData(HttpListenerContext ctx, string path, string method)
+        {
+            if (!TryParseRecordingExtensionDataPath(path, out string recordingSessionId))
+            {
+                SendJson(ctx, 400, new { errorCode = "invalid_recording_session", error = "录像会话 ID 无效" });
+                return;
+            }
+
+            if (method == "GET")
+            {
+                SendJson(ctx, 200, new
+                {
+                    apiVersion = "v1",
+                    recordingSessionId,
+                    fields = _db.GetRecordingExtensionFields(recordingSessionId)
+                });
+                return;
+            }
+
+            try
+            {
+                if (_db.GetActiveRecordingBySession(recordingSessionId) == null)
+                {
+                    SendJson(ctx, 409, new { errorCode = "recording_not_active", error = "录像会话不存在或已结束" });
+                    return;
+                }
+
+                RecordingExtensionDataRequest request = ReadJsonBody<RecordingExtensionDataRequest>(ctx);
+                ValidateRecordingExtensionData(request);
+                _db.UpsertRecordingExtensionFields(
+                    recordingSessionId,
+                    request.Namespace.Trim(),
+                    request.ProviderId.Trim(),
+                    request.Fields,
+                    DateTime.UtcNow);
+                SendJson(ctx, 200, new
+                {
+                    success = true,
+                    ok = true,
+                    apiVersion = "v1",
+                    recordingSessionId,
+                    updatedCount = request.Fields.Count
+                });
+            }
+            catch (JsonException ex)
+            {
+                Log($"HandleRecordingExtensionData JSON 无效: {ex.Message}");
+                SendJson(ctx, 400, new { errorCode = "invalid_json", error = "请求内容不是有效的 JSON" });
+            }
+            catch (InvalidDataException ex)
+            {
+                Log($"HandleRecordingExtensionData 数据无效: {ex.Message}");
+                SendJson(ctx, 400, new { errorCode = "invalid_extension_data", error = ex.Message });
+            }
+        }
+
+        private static void ValidateRecordingExtensionData(RecordingExtensionDataRequest request)
+        {
+            if (request == null) throw new InvalidDataException("请求内容无效");
+            ValidateExtensionIdentifier(request.Namespace, "命名空间", 64);
+            ValidateExtensionIdentifier(request.ProviderId, "来源标识", 128);
+            if (request.Fields == null || request.Fields.Count == 0)
+                throw new InvalidDataException("至少需要提交一个扩展字段");
+            if (request.Fields.Count > 32)
+                throw new InvalidDataException("单次最多提交 32 个扩展字段");
+            foreach (var pair in request.Fields)
+            {
+                ValidateExtensionIdentifier(pair.Key, "字段名", 64);
+                ValidateFieldLength(pair.Value, 1000, "字段值");
+            }
+        }
+
+        private static void ValidateExtensionIdentifier(string value, string fieldName, int maxLength)
+        {
+            string normalized = value?.Trim() ?? "";
+            if (normalized.Length == 0 || normalized.Length > maxLength
+                || normalized.Any(ch => !(char.IsLetterOrDigit(ch) || ch is '.' or '_' or '-')))
+                throw new InvalidDataException($"{fieldName}格式无效");
+        }
+
+        private static bool TryParseRecordingExtensionDataPath(string path, out string recordingSessionId)
+        {
+            recordingSessionId = "";
+            const string prefix = "/api/extensions/v1/recordings/";
+            const string suffix = "/data";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return false;
+            string value = path[prefix.Length..^suffix.Length].Trim('/');
+            if (value.Length == 0 || value.Length > 128) return false;
+            recordingSessionId = Uri.UnescapeDataString(value);
+            return recordingSessionId.All(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_');
         }
 
         private void HandleExtensionOrders(HttpListenerContext ctx)
