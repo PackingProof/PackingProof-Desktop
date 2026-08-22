@@ -1081,6 +1081,20 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
+    public void BuildOrderInfoSpeechFollowups_RespectsTotalItemCountSwitch()
+    {
+        IReadOnlyList<AlertSpeechFollowup> followups = MainViewModel.BuildOrderInfoSpeechFollowups(
+            new OrderInfo { TotalItemCount = 3 },
+            announcementsEnabled: true,
+            announceBuyerMessage: false,
+            announceSellerMemo: false,
+            announceProductInfo: false,
+            announceTotalItemCount: false);
+
+        Assert.Empty(followups);
+    }
+
+    [Fact]
     public void AlertService_CriticalAlertBlocksNormalAlertUntilDisplayEnds()
     {
         DateTime now = new(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc);

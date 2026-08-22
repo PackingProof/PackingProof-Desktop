@@ -1357,7 +1357,8 @@ namespace ExpressPackingMonitoring.ViewModels
                                  Config.EnableOrderInfoAnnounce,
                                  Config.AnnounceBuyerMessage,
                                  Config.AnnounceSellerMemo,
-                                 Config.AnnounceProductInfo))
+                                 Config.AnnounceProductInfo,
+                                 Config.AnnounceTotalItemCount))
                     {
                         PublishVoice(
                             announcement.Text,
@@ -1649,7 +1650,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.EnableOrderInfoAnnounce,
                     Config.AnnounceBuyerMessage,
                     Config.AnnounceSellerMemo,
-                    Config.AnnounceProductInfo)
+                    Config.AnnounceProductInfo,
+                    Config.AnnounceTotalItemCount)
             });
         }
 
@@ -1822,13 +1824,17 @@ namespace ExpressPackingMonitoring.ViewModels
             bool announcementsEnabled,
             bool announceBuyerMessage,
             bool announceSellerMemo,
-            bool announceProductInfo)
+            bool announceProductInfo,
+            bool announceTotalItemCount = true)
         {
             if (!announcementsEnabled || orderInfo == null)
                 return Array.Empty<AlertSpeechFollowup>();
 
             var announcements = new List<AlertSpeechFollowup>();
-            if (!orderInfo.HasRefund && !orderInfo.IsPrintedRefund && orderInfo.TotalItemCount > 0)
+            if (announceTotalItemCount
+                && !orderInfo.HasRefund
+                && !orderInfo.IsPrintedRefund
+                && orderInfo.TotalItemCount > 0)
             {
                 announcements.Add(new AlertSpeechFollowup
                 {
@@ -3654,7 +3660,10 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!Config.EnableOrderInfoAnnounce) return;
             foreach (var info in realOrders)
             {
-                if (!info.HasRefund && !info.IsPrintedRefund && info.TotalItemCount > 0)
+                if (Config.AnnounceTotalItemCount
+                    && !info.HasRefund
+                    && !info.IsPrintedRefund
+                    && info.TotalItemCount > 0)
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateOrderTotalCountAnnouncement(info.TotalItemCount));
                 if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(info.BuyerMessage))
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateBuyerMessageAnnouncement(info.BuyerMessage));

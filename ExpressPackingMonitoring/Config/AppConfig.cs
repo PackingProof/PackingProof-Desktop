@@ -251,6 +251,7 @@ namespace ExpressPackingMonitoring.Config
         public bool AnnounceBuyerMessage { get; set; } = true;
         public bool AnnounceSellerMemo { get; set; } = true;
         public bool AnnounceProductInfo { get; set; } = false;
+        public bool AnnounceTotalItemCount { get; set; } = true;
         public bool EnablePrintedRefundAlert { get; set; } = true;
         public bool EnableOrderInfoLog { get; set; } = false;
 
