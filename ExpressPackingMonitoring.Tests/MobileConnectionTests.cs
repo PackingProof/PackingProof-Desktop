@@ -278,10 +278,9 @@ public sealed class MobileConnectionTests
             string queryBody = await query.Content.ReadAsStringAsync(cancellationToken);
             using JsonDocument queryPayload = JsonDocument.Parse(queryBody);
             Assert.True(queryPayload.RootElement.GetProperty("found").GetBoolean(), queryBody);
-            JsonElement info = queryPayload.RootElement.GetProperty("info");
-            Assert.Equal(7, info.GetProperty("totalItemCount").GetInt32());
-            Assert.Equal(2, info.GetProperty("mergedOrderCount").GetInt32());
-            Assert.Equal("test.provider", info.GetProperty("providerId").GetString());
+            Assert.Equal(7, queryPayload.RootElement.GetProperty("totalItemCount").GetInt32());
+            Assert.Equal(2, queryPayload.RootElement.GetProperty("mergedOrderCount").GetInt32());
+            Assert.Equal("test.provider", queryPayload.RootElement.GetProperty("providerId").GetString());
         }
         finally
         {
