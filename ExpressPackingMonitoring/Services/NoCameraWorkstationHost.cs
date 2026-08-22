@@ -171,7 +171,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                 {
                     localServer.Start();
                     _server = localServer;
-                    ErrorMessage = $"局域网服务启动失败，当前仅本机可用：{lanException.Message}";
+                    ErrorMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: false);
                 }
                 catch (Exception localException)
                 {
@@ -202,7 +202,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"局域网权限修复失败：{GetFriendlyError(ex)}";
+            ErrorMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: true);
             RuntimeLog.Error("NoCamera", "LAN access permission repair failed", ex);
             return false;
         }

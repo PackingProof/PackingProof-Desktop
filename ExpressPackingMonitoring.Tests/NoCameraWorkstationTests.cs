@@ -511,6 +511,25 @@ public sealed class NoCameraWorkstationTests
         }
     }
 
+    [Fact]
+    public async Task RepairLanAccessFailureShowsActionableMessageWithoutTechnicalDetails()
+    {
+        var config = new AppConfig
+        {
+            WebServerPort = GetFreeTcpPort()
+        };
+        using var host = new NoCameraWorkstationHost(
+            config,
+            repairLanAccess: _ => throw new InvalidOperationException("netsh 退出码：1"));
+
+        bool repaired = await host.RepairLanAccessAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(repaired);
+        Assert.Contains("局域网修复未完成", host.ErrorMessage);
+        Assert.Contains("导出反馈信息", host.ErrorMessage);
+        Assert.DoesNotContain("netsh", host.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static int GetFreeTcpPort() =>
         TestPortAllocator.GetFreeTcpPort();
 

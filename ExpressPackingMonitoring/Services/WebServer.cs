@@ -689,6 +689,17 @@ namespace ExpressPackingMonitoring.Services
             return compact.Length <= 4000 ? compact : compact[..4000] + "…";
         }
 
+        internal static string GetLanAccessFailureUserMessage(bool repairAttempted)
+        {
+            string failure = repairAttempted
+                ? "局域网修复未完成"
+                : "局域网连接服务启动失败";
+            string nextStep = repairAttempted
+                ? "请确认已允许 Windows 管理员授权，并在安全软件中放行 PackingProof 的网络和防火墙修改"
+                : "请允许 Windows 管理员授权后重试；如仍失败，请在安全软件中放行 PackingProof 的网络和防火墙修改";
+            return $"{failure}，当前仅本机可用，手机和其他电脑暂时无法连接。{nextStep}；仍无法恢复时，请导出反馈信息发给技术支持";
+        }
+
         private static string ReadElevatedCmdOutput(string outputPath)
         {
             try

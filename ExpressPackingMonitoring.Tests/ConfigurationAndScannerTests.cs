@@ -633,6 +633,24 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Theory]
+    [InlineData(false, "局域网连接服务启动失败")]
+    [InlineData(true, "局域网修复未完成")]
+    public void LanAccessFailureUserMessage_IsActionableAndHidesTechnicalDetails(
+        bool repairAttempted,
+        string expectedPrefix)
+    {
+        string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted);
+
+        Assert.StartsWith(expectedPrefix, message, StringComparison.Ordinal);
+        Assert.Contains("当前仅本机可用", message);
+        Assert.Contains("管理员授权", message);
+        Assert.Contains("安全软件", message);
+        Assert.Contains("导出反馈信息", message);
+        Assert.DoesNotContain("netsh", message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(message.EndsWith("。", StringComparison.Ordinal));
+    }
+
+    [Theory]
     [InlineData("5280", 5280, true)]
     [InlineData("80,443,5280", 5280, true)]
     [InlineData("5000-5300", 5280, true)]

@@ -2992,13 +2992,14 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 try { newServer?.Dispose(); } catch { }
                 RuntimeLog.Error("Web", "LAN service start failed", ex);
+                string userMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: false);
                 MonitorAccessAddress = "";
                 WorkstationPrintStatusText = IsRecordingWorkstation
                     ? "订单联动接收：启动失败"
                     : "启动失败";
-                WorkstationStatusToolTip = $"其他设备暂时无法连接这台电脑。\n{ex.Message}";
-                SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), ex.Message);
-                ShowToast($"局域网服务启动失败: {ex.Message}", ToastSeverity.Error);
+                WorkstationStatusToolTip = userMessage;
+                SetConnectedDeviceUnavailable(AppLanguage.Get("Main.ConnectionServiceUnavailable"), userMessage);
+                ShowToast(userMessage, ToastSeverity.Error);
                 return false;
             }
             finally
