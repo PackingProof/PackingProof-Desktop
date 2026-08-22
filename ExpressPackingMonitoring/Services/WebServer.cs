@@ -3239,10 +3239,7 @@ namespace ExpressPackingMonitoring.Services
         private byte[] BuildStorageOverviewResponse()
         {
             var config = LoadAppConfig();
-            var locations = config.StorageLocations?
-                .Where(x => !string.IsNullOrWhiteSpace(x.Path))
-                .OrderBy(x => x.Priority)
-                .ToList() ?? new List<StorageLocation>();
+            IReadOnlyList<StorageLocation> locations = GetStorageOverviewLocations(config);
 
             var configuredPaths = locations.Select(BuildStoragePathInfo).ToList();
             var records = _db.GetActiveStorageVideoFiles()
@@ -3327,6 +3324,16 @@ namespace ExpressPackingMonitoring.Services
                 pathCount = configuredPaths.Count,
                 paths = pathDtos
             }, _jsonOptions);
+        }
+
+        internal static IReadOnlyList<StorageLocation> GetStorageOverviewLocations(AppConfig config)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            return (config.StorageLocations ?? [])
+                .Where(location => !string.IsNullOrWhiteSpace(location.Path))
+                .Where(location => !StorageLocationResolver.IsBackupLocation(location))
+                .OrderBy(location => location.Priority)
+                .ToList();
         }
 
         private static AppConfig LoadAppConfig()

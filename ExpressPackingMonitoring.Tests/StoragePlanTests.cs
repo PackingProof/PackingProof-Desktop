@@ -359,6 +359,37 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
+    public void StorageOverviewLocations_ExcludeBackupTargets()
+    {
+        var config = new AppConfig
+        {
+            StorageLocations =
+            [
+                new StorageLocation
+                {
+                    Path = @"D:\录像",
+                    Priority = 2
+                },
+                new StorageLocation
+                {
+                    Path = @"Z:\NAS备份",
+                    Priority = 0,
+                    IsBackupTarget = true
+                },
+                new StorageLocation
+                {
+                    Path = @"\\nas\share\备份",
+                    Priority = 1
+                }
+            ]
+        };
+
+        StorageLocation location = Assert.Single(WebServer.GetStorageOverviewLocations(config));
+
+        Assert.Equal(@"D:\录像", location.Path);
+    }
+
+    [Fact]
     public void ResolveRecordingPlan_FlaggedLocalPathIsArchiveTargetNotPrimary()
     {
         string directory = CreateTempDirectory();
