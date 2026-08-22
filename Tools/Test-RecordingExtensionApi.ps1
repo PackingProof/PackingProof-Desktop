@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$BaseUrl = "http://127.0.0.1:5280",
     [Parameter(Mandatory = $true)]
