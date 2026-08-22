@@ -2250,6 +2250,11 @@ namespace ExpressPackingMonitoring.UI
             Context.OpenUserscriptGuide?.Invoke();
         }
 
+        private void ImportUserscript_Click(object sender, RoutedEventArgs e)
+        {
+            Context.ImportUserscript?.Invoke();
+        }
+
         private void ShowMobileConnection_Click(object sender, RoutedEventArgs e)
         {
             Context.ShowMobileConnection?.Invoke(this);

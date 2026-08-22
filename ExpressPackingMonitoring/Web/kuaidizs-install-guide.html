@@ -22,6 +22,8 @@
     .devices{margin:18px 0;padding:16px;border:1px solid #cdddf5;border-radius:10px;background:#f5f8ff}
     .devices ul{margin:10px 0;padding-left:22px;line-height:1.8}
     .hint{font-size:13px;color:#6b7788;margin-top:10px}
+    .script-choice{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:8px 0;padding:12px;border:1px solid #e3e8f0;border-radius:8px;background:#fff}
+    .script-choice .hint{display:block}
     .check{margin:8px 0 0 0;padding-left:20px;color:#39475a;line-height:1.7}
   </style>
 </head>
@@ -68,7 +70,7 @@
         <div>
           <h2>安装或更新订单联动脚本</h2>
           <p>请点击下面按钮，让 Tampermonkey 打开脚本安装页；以前安装过也要点击“更新”或“覆盖安装”。不要用记事本、Visual Studio 或脚本宿主打开这个文件。</p>
-          <div class="actions">{{scriptLink}}</div>
+          <div class="actions">{{scriptChoices}}</div>
           <div class="hint">从当前电脑的安装向导更新脚本，会自动加入本机接收地址的精确跨源访问权限。如果仍出现确认框，请选择“始终允许此域名”，不要选择“始终允许所有域名”。</div>
           <div class="hint">脚本会写入最近 90 天使用过的录像设备；订单将同时发送到所有设备，离线设备失败不会影响其他设备</div>
         </div>

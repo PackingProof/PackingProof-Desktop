@@ -12,8 +12,10 @@ namespace ExpressPackingMonitoring;
 internal static class PrintToolInstallGuide
 {
     private const string TemplateFileName = "kuaidizs-install-guide.html";
-    private const string ScriptFileName = "快递助手订单推送.user.js";
+    internal const string ScriptFileName = "PackingProof-Order-Integration-KDZS.user.js";
     private const string UpdateUrlsMarker = "// PACKING_PROOF_UPDATE_URLS";
+
+    internal static string OfficialScriptName => "PackingProof 快递助手订单联动";
 
     public static string CreateLocalGuide(string monitorAddress)
     {
@@ -53,6 +55,9 @@ internal static class PrintToolInstallGuide
     }
 
     public static string RenderForWeb(IReadOnlyList<RecordingDeviceInfo> devices, string scriptUrl)
+        => RenderForWeb(devices, scriptUrl, "");
+
+    public static string RenderForWeb(IReadOnlyList<RecordingDeviceInfo> devices, string scriptUrl, string scriptChoices)
     {
         string deviceSummary = devices.Count == 0
             ? "<div class=\"warn\">当前没有发现可接收订单的录像设备。请检查录像设备连接后返回桌面程序重试。</div>"
@@ -67,6 +72,7 @@ internal static class PrintToolInstallGuide
         string template = LoadTemplate();
         return template
             .Replace("{{scriptLink}}", devices.Count == 0 ? "" : BuildScriptLink(scriptUrl), StringComparison.Ordinal)
+            .Replace("{{scriptChoices}}", string.IsNullOrWhiteSpace(scriptChoices) ? BuildScriptLink(scriptUrl) : scriptChoices, StringComparison.Ordinal)
             .Replace("{{address}}", devices.Count == 0
                 ? ""
                 : WebUtility.HtmlEncode(string.Join("、", devices.Select(device => new Uri(device.Address).Authority))), StringComparison.Ordinal)

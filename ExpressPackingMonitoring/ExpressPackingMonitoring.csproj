@@ -88,8 +88,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
-    <Content Include="..\Scripts\快递助手订单推送.user.js">
-      <Link>Scripts\快递助手订单推送.user.js</Link>
+    <Content Include="..\Scripts\PackingProof-Order-Integration-KDZS.user.js">
+      <Link>Scripts\PackingProof-Order-Integration-KDZS.user.js</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
@@ -189,6 +189,7 @@
     <Compile Include="Services\WebServer.cs" />
     <Compile Include="Services\UdpDiscovery.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />
+    <Compile Include="Services\UserscriptCatalog.cs" />
     <Compile Include="Services\FeedbackPackageService.cs" />
     <Compile Include="Themes\ThemeManager.cs" />
     <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />

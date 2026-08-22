@@ -2708,6 +2708,24 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="自定义订单脚本" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="导入第三方油猴脚本，导入后可在安装向导中选择"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2"
+                                                Content="导入自定义脚本"
+                                                Click="ImportUserscript_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="打印后退款报警" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="发货或退货扫到退款单时继续录像并按退款状态连续报警"
                                                        Style="{StaticResource FieldHintStyle}"/>

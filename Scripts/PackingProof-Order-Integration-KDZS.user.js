@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         订单备注播报插件
-// @namespace    https://github.com/ExpressPackingMonitoring
+// @name         PackingProof 快递助手订单联动
+// @namespace    https://github.com/PackingProof
 // @version      2.13
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，同时发送到已配对的电脑和手机
 // @author       ExpressPackingMonitoring
