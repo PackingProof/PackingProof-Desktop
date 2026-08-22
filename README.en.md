@@ -384,11 +384,13 @@ Report problems or suggest features through [GitHub Issues](https://github.com/P
 
 Contributions to testing, documentation, code, and real-world usage guidance are welcome. If PackingProof is useful to you, consider starring the repository so more sellers can discover it.
 
-## License
+## License and Branding
 
 PackingProof is open source under the [AGPL-3.0 License](LICENSE).
 
 You may use, study, and modify the project at no cost under the license. Distributing a modified version or providing it as a network service requires compliance with the corresponding AGPL-3.0 source-sharing obligations.
+
+The `PackingProof` name and official application icon are project brand assets. The AGPL-3.0 source-code license does not grant permission to use them as the product identity of a modified version. Public modifications should use a distinct product name and icon, clearly identify themselves as unofficial, and may use “based on PackingProof” to describe their origin. See the [Brand Policy](BRAND_POLICY.md).
 
 ---
 
