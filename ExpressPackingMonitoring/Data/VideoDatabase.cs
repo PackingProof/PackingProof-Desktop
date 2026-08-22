@@ -195,6 +195,14 @@ namespace ExpressPackingMonitoring.Data
         public int Total { get; set; }
     }
 
+    internal sealed record OrderNumberExportSource(
+        string TrackingNumber,
+        string SourceOrderId,
+        string Mode,
+        DateTime StartTime,
+        string SourceType,
+        string SourceDeviceName);
+
     public class StorageVideoFile
     {
         public string FilePath { get; set; } = "";
@@ -2596,6 +2604,89 @@ namespace ExpressPackingMonitoring.Data
                 cmd.Parameters.AddWithValue("@archivePath", newArchivePath.Trim());
                 cmd.Parameters.AddWithValue("@id", recordId);
                 return cmd.ExecuteNonQuery();
+            }
+        }
+
+        internal List<OrderNumberExportSource> QueryOrderNumberExportSources(
+            DateTime? startDate,
+            DateTime? endDate,
+            CancellationToken cancellationToken = default,
+            IProgress<OrderNumberExportProgress> progress = null)
+        {
+            lock (_lock)
+            {
+                string whereSql = @"
+                    WHERE v.IsDeleted = 0
+                      AND COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), NULLIF(TRIM(v.OrderId), '')) IS NOT NULL";
+                var parameters = new List<(string Name, string Value)>();
+                if (startDate.HasValue)
+                {
+                    whereSql += " AND v.StartTime >= @startDate";
+                    parameters.Add(("startDate", startDate.Value.Date.ToString("yyyy-MM-dd 00:00:00")));
+                }
+                if (endDate.HasValue)
+                {
+                    whereSql += " AND v.StartTime < @endDate";
+                    parameters.Add(("endDate", endDate.Value.Date.AddDays(1).ToString("yyyy-MM-dd 00:00:00")));
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                progress?.Report(new OrderNumberExportProgress(
+                    OrderNumberExportStage.Reading,
+                    0,
+                    0,
+                    "正在读取录像记录",
+                    IsIndeterminate: true));
+                using var countCmd = _connection.CreateCommand();
+                countCmd.CommandText = "SELECT COUNT(1) FROM VideoRecords v " + whereSql + ";";
+                foreach ((string name, string value) in parameters)
+                    countCmd.Parameters.AddWithValue("@" + name, value);
+                int total = Convert.ToInt32(countCmd.ExecuteScalar());
+                progress?.Report(new OrderNumberExportProgress(
+                    OrderNumberExportStage.Reading,
+                    0,
+                    total,
+                    "正在读取录像记录"));
+
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT
+                        COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), TRIM(v.OrderId)) AS ExportTrackingNumber,
+                        COALESCE(NULLIF(TRIM(v.SourceOrderId), ''), TRIM(o.SourceOrderId), '') AS ExportSourceOrderId,
+                        v.Mode,
+                        v.StartTime,
+                        v.SourceType,
+                        v.SourceDeviceName
+                    FROM VideoRecords v
+                    LEFT JOIN OrderInfoRecords o
+                      ON o.TrackingNumber = COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), TRIM(v.OrderId)) COLLATE NOCASE "
+                    + whereSql;
+                foreach ((string name, string value) in parameters)
+                    cmd.Parameters.AddWithValue("@" + name, value);
+                cmd.CommandText += " ORDER BY v.StartTime DESC, v.Id DESC;";
+
+                var results = new List<OrderNumberExportSource>(total);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    results.Add(new OrderNumberExportSource(
+                        reader.IsDBNull(0) ? "" : reader.GetString(0),
+                        reader.IsDBNull(1) ? "" : reader.GetString(1),
+                        reader.IsDBNull(2) ? "" : reader.GetString(2),
+                        DateTime.Parse(reader.GetString(3)),
+                        reader.IsDBNull(4) ? "" : reader.GetString(4),
+                        reader.IsDBNull(5) ? "" : reader.GetString(5)));
+                    if (results.Count == total || results.Count % 100 == 0)
+                    {
+                        progress?.Report(new OrderNumberExportProgress(
+                            OrderNumberExportStage.Reading,
+                            results.Count,
+                            total,
+                            "正在读取录像记录"));
+                    }
+                }
+                return results;
             }
         }
 

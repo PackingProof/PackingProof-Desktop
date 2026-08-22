@@ -14,6 +14,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
+using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -78,7 +79,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly string _computerName;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
-        private bool _hideUnavailable;
+        private bool _excludeUnavailableRecords;
         private readonly VideoFolderImportService? _videoImportService;
         private readonly Action<string>? _saveImportFolder;
         private readonly Action? _videosImported;
@@ -145,12 +146,120 @@ namespace ExpressPackingMonitoring.UI
             BtnTogglePlay.IsEnabled = false;
             TimelineSlider.IsEnabled = false;
             TimeLabel.Text = "正在加载列表...";
-            _hideUnavailable = !showDeletedVideos;
+            _excludeUnavailableRecords = !showDeletedVideos;
             Loaded += PlaybackWindow_Loaded;
             BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+            ExportOrderNumbersButton.IsEnabled = _db != null;
             UpdateLocateButtonState();
+        }
+
+        private async void ExportOrderNumbersButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_db == null || !ExportOrderNumbersButton.IsEnabled)
+                return;
+
+            DateTime? start = DpStartDate.SelectedDate?.Date;
+            DateTime? end = DpEndDate.SelectedDate?.Date;
+            if (start.HasValue && end.HasValue && start > end)
+                (start, end) = (end, start);
+
+            var saveDialog = new SaveFileDialog
+            {
+                Title = "导出单号",
+                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                DefaultExt = ".xlsx",
+                AddExtension = true,
+                OverwritePrompt = true,
+                FileName = $"单号_{BuildOrderExportRangeName(start, end)}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
+            };
+            if (saveDialog.ShowDialog(this) != true)
+                return;
+
+            ExportOrderNumbersButton.IsEnabled = false;
+            ExportOrderNumbersButtonText.Text = "正在导出...";
+            try
+            {
+                await StopPlaybackForExportAsync();
+                if (_isClosing)
+                    return;
+
+                var progressDialog = new OrderNumberExportProgressDialog(
+                    _db,
+                    start,
+                    end,
+                    saveDialog.FileName)
+                {
+                    Owner = this
+                };
+                progressDialog.ShowDialog();
+
+                switch (progressDialog.Outcome)
+                {
+                    case OrderNumberExportOutcome.Success:
+                        AppDialog.Information(
+                            this,
+                            $"已导出 {progressDialog.ExportedCount} 条单号记录\n保存位置：{saveDialog.FileName}",
+                            "导出完成");
+                        break;
+                    case OrderNumberExportOutcome.Empty:
+                        AppDialog.Information(this, "当前日期范围内没有可导出的单号", "导出单号");
+                        break;
+                    case OrderNumberExportOutcome.Cancelled:
+                        AppDialog.Information(this, "已取消导出，未生成文件", "已取消导出");
+                        break;
+                    case OrderNumberExportOutcome.Failed:
+                        AppDialog.Error(
+                            this,
+                            $"导出单号失败：{progressDialog.FailureMessage}",
+                            "导出失败");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Playback", "导出单号失败", ex);
+                AppDialog.Error(this, $"导出单号失败：{ex.Message}", "导出失败");
+            }
+            finally
+            {
+                ExportOrderNumbersButtonText.Text = "导出单号";
+                ExportOrderNumbersButton.IsEnabled = _db != null && !_isClosing;
+            }
+        }
+
+        private async Task StopPlaybackForExportAsync()
+        {
+            await _playerSemaphore.WaitAsync();
+            try
+            {
+                if (_isClosing)
+                    return;
+
+                _timer.Stop();
+                _awaitingFirstFrame = false;
+                await Task.Run(() => _mediaPlayer?.Stop());
+                UpdatePlayState(false);
+                _currentMediaLengthMs = 0;
+                SetTimelineMaximum(0);
+                SetTimelineValue(0);
+                TimeLabel.Text = "00:00:00 / 00:00:00";
+                ShowPlaybackCover("请选择录像开始播放");
+            }
+            finally
+            {
+                _playerSemaphore.Release();
+            }
+        }
+
+        internal static string BuildOrderExportRangeName(DateTime? start, DateTime? end)
+        {
+            if (!start.HasValue && !end.HasValue)
+                return "全部";
+            if (start.HasValue && end.HasValue)
+                return $"{start:yyyyMMdd}-{end:yyyyMMdd}";
+            return start.HasValue ? $"{start:yyyyMMdd}起" : $"截至{end:yyyyMMdd}";
         }
 
         private void BtnImportVideos_Click(object sender, RoutedEventArgs e)
@@ -317,7 +426,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 try
                 {
-                    if (_hideUnavailable && !hasSearchKeyword)
+                    if (_excludeUnavailableRecords && !hasSearchKeyword)
                     {
                         CursorVideoResult window = _db.QueryVideosWindow(
                             start,
@@ -370,7 +479,7 @@ namespace ExpressPackingMonitoring.UI
                 LoadVideosFromFileSystem(videos, start, end);
             }
 
-            if (_hideUnavailable)
+            if (_excludeUnavailableRecords)
             {
                 videos = videos.Where(v => !v.IsDeleted && !v.IsMissing).ToList();
             }

@@ -925,5 +925,11 @@
    <data name="本地文件夹或 UNC 网络路径" xml:space="preserve"><value>Local folder or UNC network path</value></data>
   <data name="显示清理记录" xml:space="preserve"><value>Show cleaned recordings</value></data>
   <data name="导出单号" xml:space="preserve"><value>Export order numbers</value></data>
+  <data name="正在导出单号" xml:space="preserve"><value>Exporting order numbers</value></data>
+  <data name="数据较多时可能需要一些时间" xml:space="preserve"><value>Large exports may take some time</value></data>
+  <data name="正在准备导出" xml:space="preserve"><value>Preparing export</value></data>
+  <data name="正在准备数据" xml:space="preserve"><value>Preparing data</value></data>
+  <data name="已用时 0 秒" xml:space="preserve"><value>Elapsed: 0 seconds</value></data>
+  <data name="取消导出" xml:space="preserve"><value>Cancel export</value></data>
    <data name="尚未配置网络备份位置；本地磁盘不能作为备份位置" xml:space="preserve"><value>No network backup location configured; local disks cannot be used as backup locations</value></data>
  </root>

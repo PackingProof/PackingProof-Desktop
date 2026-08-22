@@ -66,6 +66,7 @@
     <PackageReference Include="Extended.Wpf.Toolkit" Version="5.0.0" />
     <PackageReference Include="LibVLCSharp.WPF" Version="3.10.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="MiniExcel" Version="1.45.0" />
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260226" />
     <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.13.0.20260226" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
@@ -122,6 +123,7 @@
     <Compile Include="Logging\RuntimeLog.cs" />
     <Compile Include="Localization\AppLanguage.cs" />
     <Compile Include="Services\UpdateCheckOptions.cs" />
+    <Compile Include="Services\OrderNumberExportService.cs" />
     <Compile Include="Services\UpdateCheckService.cs" />
     <Compile Include="Services\WinRtPlacementService.cs" />
     <Compile Include="Services\AppPatchDownloadService.cs" />
@@ -212,6 +214,7 @@
     <Compile Include="UI\ManualCleanupDialog.xaml.cs" />
     <Compile Include="UI\NotificationVisuals.cs" />
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
+    <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsContext.cs" />

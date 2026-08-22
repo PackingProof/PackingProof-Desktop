@@ -925,5 +925,11 @@
    <data name="本地文件夹或 UNC 网络路径" xml:space="preserve"><value>本地文件夹或 UNC 网络路径</value></data>
   <data name="显示清理记录" xml:space="preserve"><value>显示清理记录</value></data>
   <data name="导出单号" xml:space="preserve"><value>导出单号</value></data>
+  <data name="正在导出单号" xml:space="preserve"><value>正在导出单号</value></data>
+  <data name="数据较多时可能需要一些时间" xml:space="preserve"><value>数据较多时可能需要一些时间</value></data>
+  <data name="正在准备导出" xml:space="preserve"><value>正在准备导出</value></data>
+  <data name="正在准备数据" xml:space="preserve"><value>正在准备数据</value></data>
+  <data name="已用时 0 秒" xml:space="preserve"><value>已用时 0 秒</value></data>
+  <data name="取消导出" xml:space="preserve"><value>取消导出</value></data>
    <data name="尚未配置网络备份位置；本地磁盘不能作为备份位置" xml:space="preserve"><value>尚未配置网络备份位置；本地磁盘不能作为备份位置</value></data>
  </root>

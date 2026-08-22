@@ -47,16 +47,16 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
-    public void PlaybackLayout_HasOrderExportPlaceholderAndNoHiddenHint()
+    public void PlaybackLayout_HasOrderExportButtonAndNoHiddenHint()
     {
         string xaml = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml"));
 
-        Assert.Contains("x:Name=\"HideUnavailableButton\"", xaml);
-        Assert.Contains("x:Name=\"HideUnavailableButtonText\"", xaml);
-        Assert.Contains("x:Name=\"HideUnavailableButtonIcon\"", xaml);
-        Assert.Contains("FluentEyeOffIcon", xaml);
-        Assert.DoesNotContain("Click=\"HideUnavailableButton_Click\"", xaml);
+        Assert.Contains("x:Name=\"ExportOrderNumbersButton\"", xaml);
+        Assert.Contains("x:Name=\"ExportOrderNumbersButtonText\"", xaml);
+        Assert.Contains("x:Name=\"ExportOrderNumbersButtonIcon\"", xaml);
+        Assert.Contains("Data=\"{StaticResource FluentSaveIcon}\"", xaml);
+        Assert.Contains("Click=\"ExportOrderNumbersButton_Click\"", xaml);
         Assert.Contains("Text=\"导出单号\"", xaml);
         Assert.DoesNotContain("异常记录", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailableCheckBox", xaml, StringComparison.Ordinal);
@@ -65,17 +65,40 @@ public sealed class PlaybackWindowTests
         Assert.DoesNotContain("x:Name=\"HiddenHintPanel\"", xaml);
         Assert.DoesNotContain("x:Name=\"HiddenHintText\"", xaml);
 
-        string icons = File.ReadAllText(FindRepositoryFile(
-            "ExpressPackingMonitoring", "Themes", "FluentIcons.xaml"));
-        Assert.Contains("x:Key=\"FluentEyeIcon\"", icons);
-        Assert.Contains("x:Key=\"FluentEyeOffIcon\"", icons);
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        Assert.Contains("_excludeUnavailableRecords = !showDeletedVideos", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("HideUnavailableButton", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("异常记录", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OrderNumberExportProgressDialog_ReusesExistingDialogStyleAndProgressControls()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "OrderNumberExportProgressDialog.xaml"));
+
+        Assert.Contains("Width=\"520\"", xaml);
+        Assert.Contains("WindowStyle=\"None\"", xaml);
+        Assert.Contains("AllowsTransparency=\"True\"", xaml);
+        Assert.Contains("CornerRadius=\"14\"", xaml);
+        Assert.Contains("Background=\"{DynamicResource PanelBackground}\"", xaml);
+        Assert.Contains("x:Name=\"ExportProgressBar\"", xaml);
+        Assert.Contains("Height=\"6\"", xaml);
+        Assert.Contains("x:Name=\"ElapsedTimeText\"", xaml);
+        Assert.Contains("Grid.Column=\"1\"", xaml);
+        Assert.Contains("HorizontalAlignment=\"Right\"", xaml);
+        Assert.DoesNotContain("软件正在处理，请耐心等待", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CancelExportButton\"", xaml);
+        Assert.Contains("Style=\"{StaticResource SecondaryButtonStyle}\"", xaml);
+        Assert.DoesNotContain("FontFamily=", xaml, StringComparison.Ordinal);
 
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
-        Assert.Contains("_hideUnavailable = !showDeletedVideos", codeBehind, StringComparison.Ordinal);
-        Assert.DoesNotContain("HideUnavailableButton_Click", codeBehind, StringComparison.Ordinal);
-        Assert.DoesNotContain("异常记录", codeBehind, StringComparison.Ordinal);
-        Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
+        int stopIndex = codeBehind.IndexOf("await StopPlaybackForExportAsync();", StringComparison.Ordinal);
+        int dialogIndex = codeBehind.IndexOf("new OrderNumberExportProgressDialog", StringComparison.Ordinal);
+        Assert.True(stopIndex >= 0 && dialogIndex > stopIndex);
     }
 
     [Theory]

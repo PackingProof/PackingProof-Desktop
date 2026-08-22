@@ -170,20 +170,20 @@
                             <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="HideUnavailableButton"
+                        <Button x:Name="ExportOrderNumbersButton"
                                 Grid.Column="0"
                                 Style="{StaticResource SecondaryButtonStyle}"
-                                IsEnabled="False"
+                                Click="ExportOrderNumbersButton_Click"
                                 AutomationProperties.Name="导出单号">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Path x:Name="HideUnavailableButtonIcon"
-                                      Data="{StaticResource FluentEyeOffIcon}"
+                                <Path x:Name="ExportOrderNumbersButtonIcon"
+                                      Data="{StaticResource FluentSaveIcon}"
                                       Width="16"
                                       Height="16"
                                       Stretch="Uniform"
                                       Fill="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
                                       Margin="0,0,7,0"/>
-                                <TextBlock x:Name="HideUnavailableButtonText" Text="导出单号"/>
+                                <TextBlock x:Name="ExportOrderNumbersButtonText" Text="导出单号"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="BtnImportVideos"
