@@ -13,6 +13,8 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const page = await context.newPage();
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await assert.doesNotReject(() => page.getByRole('heading', { name: '快递打包录像回放' }).waitFor());
+    await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
+      document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
 
     const appDownloadButton = page.getByRole('button', { name: '下载 App' });
     await appDownloadButton.click();
@@ -114,10 +116,13 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
       document.querySelector('#videoPlayer')?.getAttribute('src') || ''));
     const source = await page.locator('#videoPlayer').getAttribute('src');
     assert.match(source ?? '', /\/api\/videos\/\d+\/play/);
+    await page.waitForFunction(() => document.querySelector('#playerTitle')?.textContent?.includes(
+      'H.264 · 直接播放原片'));
     await page.keyboard.press('Escape');
 
     await article.getByRole('button', { name: '剪辑' }).click();
     await assert.doesNotReject(() => page.locator('#clipOverlay.active').waitFor());
+    await page.waitForFunction(() => typeof clipState !== 'undefined' && clipState?.sourceReady === true);
     await page.setViewportSize({ width: 1760, height: 1272 });
     await page.evaluate(() => applyClipSourceLayout(1920, 1080));
     const desktopClipGeometry = await page.locator('#clipOverlay').evaluate(overlay => {

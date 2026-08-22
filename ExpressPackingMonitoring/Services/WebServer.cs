@@ -3470,11 +3470,11 @@ namespace ExpressPackingMonitoring.Services
             if (string.IsNullOrEmpty(filePath))
                 return;
 
-            string codec = (record.VideoCodec ?? "").Trim().ToLowerInvariant();
+            string codec = MobileBackupService.NormalizeVideoCodec(record.VideoCodec);
             bool compatMode = ctx.Request.QueryString["compat"] != "0";
             bool preflight = ctx.Request.QueryString["preflight"] == "1";
             bool allowTranscodeWhileRecording = ctx.Request.QueryString["allowTranscodeWhileRecording"] == "1";
-            bool shouldTranscode = compatMode && codec != "" && codec != "h264";
+            bool shouldTranscode = ShouldTranscodeForPlayback(codec, compatMode);
             bool recording = _isRecordingProvider();
             bool hasTranscodeCache = shouldTranscode && HasTranscodeCache(filePath);
             bool appleClient = IsApplePlaybackClientRequest(ctx);
@@ -3487,7 +3487,7 @@ namespace ExpressPackingMonitoring.Services
                 SendJson(ctx, 409, new
                 {
                     requiresConfirmation = true,
-                    message = "正在录制，H.265 转 H.264 可能影响实时预览和录制稳定性。是否仍要继续转码播放？",
+                    message = "正在录制，视频转码为 H.264 可能影响实时预览和录制稳定性。是否仍要继续转码播放？",
                     url = BuildPlayUrl(record.Id, compatMode, allowTranscodeWhileRecording: true)
                 });
                 return;
@@ -3495,11 +3495,13 @@ namespace ExpressPackingMonitoring.Services
 
             if (preflight)
             {
-            SendJson(ctx, 200, new
+                SendJson(ctx, 200, new
                 {
                     ok = true,
                     requiresConfirmation = false,
-                    url = BuildPlayUrl(record.Id, compatMode, allowTranscodeWhileRecording)
+                    url = BuildPlayUrl(record.Id, compatMode, allowTranscodeWhileRecording),
+                    videoCodec = codec,
+                    playbackMode = shouldTranscode ? "transcode" : "direct"
                 });
                 return;
             }
@@ -3521,6 +3523,9 @@ namespace ExpressPackingMonitoring.Services
 
         internal static bool IsHevcVideoCodec(string codec)
             => codec == "h265" || codec == "hevc";
+
+        internal static bool ShouldTranscodeForPlayback(string codec, bool compatMode)
+            => compatMode && MobileBackupService.NormalizeVideoCodec(codec) != "h264";
 
         private string EnsureMp4ContainerForPlayback(HttpListenerContext ctx, VideoRecord record)
         {

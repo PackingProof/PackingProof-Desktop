@@ -59,6 +59,23 @@ public sealed class WebRequestLimitTests
     }
 
     [Theory]
+    [InlineData("h264", true, false)]
+    [InlineData("avc", true, false)]
+    [InlineData("h265", true, true)]
+    [InlineData("av1", true, true)]
+    [InlineData("", true, true)]
+    [InlineData("vp9", true, true)]
+    [InlineData("h265", false, false)]
+    [InlineData("", false, false)]
+    public void ShouldTranscodeForPlayback_UsesCompatibilityModeAndTreatsUnknownAsIncompatible(
+        string codec,
+        bool compatMode,
+        bool expected)
+    {
+        Assert.Equal(expected, WebServer.ShouldTranscodeForPlayback(codec, compatMode));
+    }
+
+    [Theory]
     [InlineData("bytes=0-99", 1000, 0, 99)]
     [InlineData("bytes=900-", 1000, 900, 999)]
     [InlineData("bytes=-100", 1000, 900, 999)]
@@ -269,6 +286,10 @@ public sealed class WebRequestLimitTests
         Assert.Contains("av01.0.04M.08", html);
         Assert.Contains("function compatValueFor(codec,forced)", html);
         Assert.Contains("自动切换为兼容播放", html);
+        Assert.Contains("function playbackStatus(codec,mode)", html);
+        Assert.Contains("H.264 兼容播放", html);
+        Assert.Contains("编码未知", html);
+        Assert.Contains("data.playbackMode", html);
         Assert.DoesNotContain("expressPlaybackCompatMode", html);
         Assert.DoesNotContain("compatModeToggle", html);
         Assert.Contains(".floating-tools{position:fixed;right:max(16px,env(safe-area-inset-right));top:min(76vh,calc(100vh - 180px))", html);
