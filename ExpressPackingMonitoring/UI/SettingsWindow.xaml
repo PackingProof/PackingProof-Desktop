@@ -2770,8 +2770,6 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="播报商品件数" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="打包时播报当前订单的商品总件数，例如“共 3 件商品”"
-                                                       Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
                                                   IsChecked="{Binding Config.AnnounceTotalItemCount}"
