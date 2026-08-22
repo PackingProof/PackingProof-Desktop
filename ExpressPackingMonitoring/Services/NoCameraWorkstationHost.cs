@@ -171,7 +171,9 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                 {
                     localServer.Start();
                     _server = localServer;
-                    ErrorMessage = WebServer.GetLanAccessFailureUserMessage(repairAttempted: false);
+                    ErrorMessage = WebServer.GetLanAccessFailureUserMessage(
+                        repairAttempted: false,
+                        repairButtonAvailable: true);
                 }
                 catch (Exception localException)
                 {

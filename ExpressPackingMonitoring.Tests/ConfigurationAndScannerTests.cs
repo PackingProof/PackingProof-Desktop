@@ -632,22 +632,42 @@ public sealed class ConfigurationAndScannerTests
         Assert.EndsWith("\"C:\\Temp\\lan repair.log\" 2>&1", command, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(false, "局域网连接服务启动失败")]
-    [InlineData(true, "局域网修复未完成")]
-    public void LanAccessFailureUserMessage_IsActionableAndHidesTechnicalDetails(
-        bool repairAttempted,
-        string expectedPrefix)
+    [Fact]
+    public void LanAccessFailureUserMessage_WithRepairButtonGivesDirectAction()
     {
-        string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted);
+        string message = WebServer.GetLanAccessFailureUserMessage(
+            repairAttempted: false,
+            repairButtonAvailable: true);
 
-        Assert.StartsWith(expectedPrefix, message, StringComparison.Ordinal);
-        Assert.Contains("当前仅本机可用", message);
-        Assert.Contains("管理员授权", message);
-        Assert.Contains("安全软件", message);
+        Assert.StartsWith("局域网连接失败", message, StringComparison.Ordinal);
+        Assert.Contains("本机功能不受影响", message);
+        Assert.Contains("点击“修复局域网”", message);
+        Assert.Contains("选择“是”", message);
         Assert.Contains("导出反馈信息", message);
         Assert.DoesNotContain("netsh", message, StringComparison.OrdinalIgnoreCase);
         Assert.False(message.EndsWith("。", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LanAccessFailureUserMessage_AfterRepairExplainsAuthorizationAndSecurityPrompt()
+    {
+        string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted: true);
+
+        Assert.StartsWith("局域网修复未完成", message, StringComparison.Ordinal);
+        Assert.Contains("选择了“是”", message);
+        Assert.Contains("安全软件弹出拦截提示", message);
+        Assert.Contains("导出反馈信息", message);
+        Assert.DoesNotContain("netsh", message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(message.EndsWith("。", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void LanAccessFailureUserMessage_WithoutRepairButtonUsesSettingsAction()
+    {
+        string message = WebServer.GetLanAccessFailureUserMessage(repairAttempted: false);
+
+        Assert.Contains("重新启用局域网服务", message);
+        Assert.DoesNotContain("点击“修复局域网”", message);
     }
 
     [Theory]
