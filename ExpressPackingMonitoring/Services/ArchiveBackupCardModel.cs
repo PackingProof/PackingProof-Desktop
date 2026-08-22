@@ -87,7 +87,7 @@ internal static class ArchiveBackupCardModel
                         (worker.NextBatchAt.Value - (now ?? DateTime.Now)).TotalSeconds))
                 : 0;
             return new ArchiveBackupCardState(
-                "等待下一批",
+                "休息中",
                 seconds > 0
                     ? $"本批已完成，约 {seconds} 秒后继续，剩余 {remaining} 个"
                     : $"本批已完成，稍后继续，剩余 {remaining} 个");

@@ -49,7 +49,7 @@
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="备份中">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="等待下一批">
+                            <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="休息中">
                                 <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding ShortStatusText, ElementName=Root}" Value="录像优先">

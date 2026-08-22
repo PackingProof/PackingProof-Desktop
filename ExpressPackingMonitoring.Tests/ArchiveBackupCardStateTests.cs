@@ -158,7 +158,7 @@ public sealed class ArchiveBackupCardStateTests
                     ArchiveWorkerPhase.WaitingForNextBatch,
                     now.AddSeconds(5)),
                 now: now);
-        Assert.Equal("等待下一批", waiting.ShortStatusText);
+        Assert.Equal("休息中", waiting.ShortStatusText);
         Assert.Contains("约 5 秒后继续", waiting.DetailText);
 
         ArchiveBackupCardState paused =
