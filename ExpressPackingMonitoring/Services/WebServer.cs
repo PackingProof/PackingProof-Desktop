@@ -489,8 +489,8 @@ namespace ExpressPackingMonitoring.Services
             if (!includeUrlAcl)
                 return firewallCommand;
 
-            string urlAclCommand = $"(netsh http delete urlacl url={url} >nul 2>&1 & "
-                + $"netsh http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\")";
+            string urlAclCommand = $"(echo [LAN-STEP] urlacl-delete & netsh http delete urlacl url={url} & "
+                + $"echo [LAN-STEP] urlacl-add & netsh http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\")";
             return $"{urlAclCommand} && ({firewallCommand})";
         }
 
@@ -499,10 +499,10 @@ namespace ExpressPackingMonitoring.Services
             if (port <= 0 || port > 65535)
                 throw new ArgumentOutOfRangeException(nameof(port));
 
-            string tcpRule = $"netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" >nul 2>&1 & "
-                + $"netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port}";
-            string udpRule = $"netsh advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" >nul 2>&1 & "
-                + $"netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port}";
+            string tcpRule = $"echo [LAN-STEP] firewall-tcp-delete & netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" & "
+                + $"echo [LAN-STEP] firewall-tcp-add & netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port}";
+            string udpRule = $"echo [LAN-STEP] firewall-udp-delete & netsh advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" & "
+                + $"echo [LAN-STEP] firewall-udp-add & netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port}";
             return $"({tcpRule}) && ({udpRule})";
         }
 
@@ -612,17 +612,21 @@ namespace ExpressPackingMonitoring.Services
 
         private static void RunElevatedCmd(string arguments, string actionName)
         {
+            string outputPath = Path.Combine(Path.GetTempPath(), $"PackingProof-lan-repair-{Guid.NewGuid():N}.log");
             try
             {
                 var psi = new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/C {arguments}",
                     Verb = "runas",
                     UseShellExecute = true,
                     WindowStyle = ProcessWindowStyle.Hidden,
                     CreateNoWindow = true
                 };
+                psi.ArgumentList.Add("/D");
+                psi.ArgumentList.Add("/S");
+                psi.ArgumentList.Add("/C");
+                psi.ArgumentList.Add(BuildElevatedCmdCommand(arguments, outputPath));
                 using var proc = Process.Start(psi);
                 if (proc == null)
                     throw new InvalidOperationException($"{actionName}失败：无法启动管理员命令");
@@ -634,11 +638,71 @@ namespace ExpressPackingMonitoring.Services
                 }
 
                 if (proc.ExitCode != 0)
-                    throw new InvalidOperationException($"{actionName}失败，netsh 退出码：{proc.ExitCode}");
+                {
+                    string output = ReadElevatedCmdOutput(outputPath);
+                    string failedStep = ExtractLastLanSetupStep(output);
+                    string detail = CompactLanSetupOutput(output);
+                    throw new InvalidOperationException(
+                        $"{actionName}失败，netsh 退出码：{proc.ExitCode}，失败阶段：{failedStep}，输出：{detail}");
+                }
             }
             catch (Exception ex) when (ex is not InvalidOperationException && ex is not TimeoutException)
             {
                 throw new InvalidOperationException($"{actionName}失败，可能是用户取消了管理员授权或系统拒绝执行", ex);
+            }
+            finally
+            {
+                try { File.Delete(outputPath); } catch { }
+            }
+        }
+
+        internal static string BuildElevatedCmdCommand(string arguments, string outputPath)
+        {
+            if (string.IsNullOrWhiteSpace(arguments))
+                throw new ArgumentException("管理员命令不能为空", nameof(arguments));
+            if (string.IsNullOrWhiteSpace(outputPath))
+                throw new ArgumentException("命令输出路径不能为空", nameof(outputPath));
+
+            return $"({arguments}) > \"{outputPath}\" 2>&1";
+        }
+
+        internal static string ExtractLastLanSetupStep(string output)
+        {
+            const string marker = "[LAN-STEP] ";
+            string step = "unknown";
+            foreach (string line in output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                int markerIndex = line.IndexOf(marker, StringComparison.Ordinal);
+                if (markerIndex >= 0)
+                    step = line[(markerIndex + marker.Length)..].Trim();
+            }
+            return step;
+        }
+
+        internal static string CompactLanSetupOutput(string output)
+        {
+            string compact = string.Join(
+                " | ",
+                output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            if (string.IsNullOrWhiteSpace(compact))
+                return "无命令输出";
+            return compact.Length <= 4000 ? compact : compact[..4000] + "…";
+        }
+
+        private static string ReadElevatedCmdOutput(string outputPath)
+        {
+            try
+            {
+                Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                Encoding outputEncoding = Encoding.GetEncoding(
+                    System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
+                return File.Exists(outputPath)
+                    ? File.ReadAllText(outputPath, outputEncoding)
+                    : "";
+            }
+            catch (Exception ex)
+            {
+                return $"读取命令输出失败：{ex.Message}";
             }
         }
 

@@ -590,6 +590,10 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("localport=5280", command);
         Assert.Contains("delete urlacl", command);
         Assert.Contains("firewall delete rule", command);
+        Assert.Contains("[LAN-STEP] urlacl-delete", command);
+        Assert.Contains("[LAN-STEP] urlacl-add", command);
+        Assert.Contains("[LAN-STEP] firewall-tcp-add", command);
+        Assert.Contains("[LAN-STEP] firewall-udp-add", command);
         Assert.DoesNotContain("user=Everyone", command, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -605,6 +609,27 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("firewall delete rule", command, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("firewall add rule", command, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("localport=5280", command);
+    }
+
+    [Fact]
+    public void ElevatedLanSetupDiagnostics_ReportLastStartedStepAndCompactOutput()
+    {
+        const string output = "[LAN-STEP] urlacl-delete\r\n删除 URL 保留失败\r\n"
+            + "[LAN-STEP] urlacl-add\r\n拒绝访问\r\n";
+
+        Assert.Equal("urlacl-add", WebServer.ExtractLastLanSetupStep(output));
+        Assert.Equal(
+            "[LAN-STEP] urlacl-delete | 删除 URL 保留失败 | [LAN-STEP] urlacl-add | 拒绝访问",
+            WebServer.CompactLanSetupOutput(output));
+    }
+
+    [Fact]
+    public void ElevatedLanSetupCommand_RedirectsOutputToDiagnosticFile()
+    {
+        string command = WebServer.BuildElevatedCmdCommand("netsh test", @"C:\Temp\lan repair.log");
+
+        Assert.StartsWith("(netsh test)", command, StringComparison.Ordinal);
+        Assert.EndsWith("\"C:\\Temp\\lan repair.log\" 2>&1", command, StringComparison.Ordinal);
     }
 
     [Theory]
