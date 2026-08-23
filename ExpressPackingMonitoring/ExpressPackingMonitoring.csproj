@@ -112,6 +112,7 @@
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\ArchiveBackupStatePolicy.cs" />
+    <Compile Include="Data\ExtensionResultInboxStore.cs" />
     <Compile Include="Data\RecordingTransferQueueStore.cs" />
     <Compile Include="Data\SharedFileMigrationRecords.cs" />
     <Compile Include="Data\VideoDatabase.cs" />
