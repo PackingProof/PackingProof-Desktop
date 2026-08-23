@@ -942,4 +942,22 @@
   <data name="播报商品件数" xml:space="preserve"><value>播报商品件数</value></data>
   <data name="接收第三方水印" xml:space="preserve"><value>接收第三方水印</value></data>
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>允许称重等第三方程序把数据显示到录像水印中</value></data>
+  <data name="允许第三方扩展连接？" xml:space="preserve"><value>允许第三方扩展连接？</value></data>
+  <data name="申请访问范围" xml:space="preserve"><value>申请访问范围</value></data>
+  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源</value></data>
+  <data name="允许扩展" xml:space="preserve"><value>允许扩展</value></data>
+  <data name="Extension.EnrollmentSourceUnknown" xml:space="preserve"><value>来源未提供</value></data>
+  <data name="Extension.EnrollmentAddressUnknown" xml:space="preserve"><value>地址未知</value></data>
+  <data name="Extension.EnrollmentIdentity" xml:space="preserve"><value>{0}（版本 {1}）申请连接 PackingProof&#xA;来源：{2}&#xA;提供方：{3} · 地址：{4}</value></data>
+  <data name="Extension.EnrollmentNoRecordingNode" xml:space="preserve"><value>当前没有可绑定的录像工位，无法批准测量数据访问</value></data>
+  <data name="Extension.EnrollmentBoundNode" xml:space="preserve"><value>测量数据仅绑定到当前录像工位：{0}</value></data>
+  <data name="Extension.EnrollmentAllLocalNodes" xml:space="preserve"><value>订单与退款查询可响应这台电脑上的本地录像工位</value></data>
+  <data name="Extension.Access.OrderLookup" xml:space="preserve"><value>• 接收扫码单号并返回订单、商品和备注</value></data>
+  <data name="Extension.Access.RefundLookup" xml:space="preserve"><value>• 接收扫码单号并返回退款状态</value></data>
+  <data name="Extension.Access.MeasurementCapture" xml:space="preserve"><value>• 接收扫码任务并写入重量、长宽高等录像水印数据</value></data>
+  <data name="Extension.Access.UnknownCapability" xml:space="preserve"><value>• 未识别能力：{0}</value></data>
+  <data name="Extension.Access.OrdersWrite" xml:space="preserve"><value>• 主动提交订单数据到 PackingProof</value></data>
+  <data name="Extension.Access.RecordingsActiveRead" xml:space="preserve"><value>• 查看当前正在录像的会话和单号</value></data>
+  <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• 未识别权限：{0}</value></data>
+  <data name="Extension.Access.None" xml:space="preserve"><value>• 不申请可用接口</value></data>
  </root>

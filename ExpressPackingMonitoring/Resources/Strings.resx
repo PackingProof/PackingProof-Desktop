@@ -942,4 +942,22 @@
   <data name="播报商品件数" xml:space="preserve"><value>Announce item count</value></data>
   <data name="接收第三方水印" xml:space="preserve"><value>Receive third-party watermark data</value></data>
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>Allow weighing systems and other third-party apps to add data to recording watermarks</value></data>
+  <data name="允许第三方扩展连接？" xml:space="preserve"><value>Allow third-party extension?</value></data>
+  <data name="申请访问范围" xml:space="preserve"><value>Requested access</value></data>
+  <data name="PackingProof 不会执行此扩展的代码。允许后，扩展只能调用上面列出的接口；请仅批准你信任的来源" xml:space="preserve"><value>PackingProof does not execute this extension's code. If allowed, it can only call the APIs listed above; approve only sources you trust</value></data>
+  <data name="允许扩展" xml:space="preserve"><value>Allow extension</value></data>
+  <data name="Extension.EnrollmentSourceUnknown" xml:space="preserve"><value>Source not provided</value></data>
+  <data name="Extension.EnrollmentAddressUnknown" xml:space="preserve"><value>Address unknown</value></data>
+  <data name="Extension.EnrollmentIdentity" xml:space="preserve"><value>{0} (version {1}) wants to connect to PackingProof&#xA;Source: {2}&#xA;Provider: {3} · Address: {4}</value></data>
+  <data name="Extension.EnrollmentNoRecordingNode" xml:space="preserve"><value>No recording workstation is available, so measurement access cannot be approved</value></data>
+  <data name="Extension.EnrollmentBoundNode" xml:space="preserve"><value>Measurement data is limited to this recording workstation: {0}</value></data>
+  <data name="Extension.EnrollmentAllLocalNodes" xml:space="preserve"><value>Order and refund lookups may respond to local recording workstations on this computer</value></data>
+  <data name="Extension.Access.OrderLookup" xml:space="preserve"><value>• Receive scanned tracking numbers and return orders, products, and notes</value></data>
+  <data name="Extension.Access.RefundLookup" xml:space="preserve"><value>• Receive scanned tracking numbers and return refund status</value></data>
+  <data name="Extension.Access.MeasurementCapture" xml:space="preserve"><value>• Receive scan tasks and add weight or dimensions to recording watermark data</value></data>
+  <data name="Extension.Access.UnknownCapability" xml:space="preserve"><value>• Unknown capability: {0}</value></data>
+  <data name="Extension.Access.OrdersWrite" xml:space="preserve"><value>• Submit order data to PackingProof</value></data>
+  <data name="Extension.Access.RecordingsActiveRead" xml:space="preserve"><value>• View active recording sessions and tracking numbers</value></data>
+  <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• Unknown permission: {0}</value></data>
+  <data name="Extension.Access.None" xml:space="preserve"><value>• No usable API access requested</value></data>
  </root>

@@ -214,6 +214,8 @@
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalWindow.xaml.cs" />
+    <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
+    <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />
     <Compile Include="UI\ConfirmDialog.xaml.cs" />
     <Compile Include="UI\CloseBehaviorDialog.xaml.cs" />
     <Compile Include="UI\CameraBarcodeUpgradeDialog.xaml.cs" />
