@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace ExpressPackingMonitoring.Services;
 
-internal sealed class UserscriptDescriptor
+public sealed class UserscriptDescriptor
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
@@ -46,6 +46,15 @@ internal sealed class UserscriptCatalog
             _items = Load();
             var official = Inspect(officialPath, OfficialId, true);
             return new[] { official }.Concat(_items.Where(item => !item.IsOfficial)).ToList();
+        }
+    }
+
+    internal IReadOnlyList<UserscriptDescriptor> GetCustomScripts()
+    {
+        lock (_sync)
+        {
+            _items = Load();
+            return _items.Where(item => !item.IsOfficial).ToList();
         }
     }
 

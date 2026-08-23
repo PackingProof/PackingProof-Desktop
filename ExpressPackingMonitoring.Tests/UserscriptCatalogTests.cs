@@ -25,6 +25,21 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.Contains(catalog.GetAll(source), item => item.Id == imported.Id);
     }
 
+    [Fact]
+    public void GetCustomScripts_ListsImportedScriptsAndRemoveDeletesThem()
+    {
+        string source = Path.Combine(_directory, "scale.user.js");
+        File.WriteAllText(source, "// ==UserScript==\n// @name Scale Demo\n// @namespace demo.scale\n// @version 1.4\n// ==/UserScript==\n", Encoding.UTF8);
+        var catalog = new UserscriptCatalog(_directory);
+
+        UserscriptDescriptor imported = catalog.Import(source);
+
+        Assert.Contains(catalog.GetCustomScripts(), item => item.Id == imported.Id);
+        Assert.True(catalog.Remove(imported.Id));
+        Assert.DoesNotContain(catalog.GetCustomScripts(), item => item.Id == imported.Id);
+        Assert.False(File.Exists(imported.SourcePath));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_directory, true); } catch { }

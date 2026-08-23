@@ -24,6 +24,7 @@ using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.Services;
 using NAudio.CoreAudioApi;
 using System.Text.Json;
+using System.Collections.ObjectModel;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -165,6 +166,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isSyncingScannerModes;
         private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
+        public ObservableCollection<UserscriptDescriptor> CustomUserscripts { get; } = new();
         private const string FeedbackEmail = "PackingProof@outlook.com";
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -189,6 +191,7 @@ namespace ExpressPackingMonitoring.UI
             CurrentDiskUsageText = diskUsageText;
 
             this.DataContext = this;
+            RefreshCustomUserscripts();
             if (Capabilities.IsRecordingDevice)
                 SyncVoiceEngineComboBoxFromConfig();
             if (Capabilities.CanUseScanner)
@@ -2284,6 +2287,32 @@ namespace ExpressPackingMonitoring.UI
         private void ImportUserscript_Click(object sender, RoutedEventArgs e)
         {
             Context.ImportUserscript?.Invoke();
+            RefreshCustomUserscripts();
+        }
+
+        private void RemoveUserscript_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { CommandParameter: UserscriptDescriptor script }) return;
+            if (!AppDialog.Confirm(
+                    this,
+                    $"确定删除自定义脚本“{script.Name}”吗？删除后将无法再从安装向导安装该脚本",
+                    "删除自定义脚本",
+                    AppDialogSeverity.Warning,
+                    "删除"))
+                return;
+
+            if (new UserscriptCatalog().Remove(script.Id))
+            {
+                RefreshCustomUserscripts();
+                Context.ShowToast?.Invoke("自定义脚本已删除", ToastSeverity.Success);
+            }
+        }
+
+        private void RefreshCustomUserscripts()
+        {
+            CustomUserscripts.Clear();
+            foreach (UserscriptDescriptor script in new UserscriptCatalog().GetCustomScripts())
+                CustomUserscripts.Add(script);
         }
 
         private void ShowMobileConnection_Click(object sender, RoutedEventArgs e)

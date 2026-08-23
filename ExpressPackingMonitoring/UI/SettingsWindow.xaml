@@ -1764,7 +1764,7 @@
                         <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3432,7 +3432,7 @@
                                                 HorizontalAlignment="Left"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3448,6 +3448,49 @@
                                                 Click="ImportUserscript_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Margin="0,0,0,10">
+                                            <TextBlock Style="{StaticResource FieldLabelStyle}">
+                                                <Run Text="已导入脚本（"/>
+                                                <Run Text="{Binding CustomUserscripts.Count, Mode=OneWay}"/>
+                                                <Run Text="）"/>
+                                            </TextBlock>
+                                            <TextBlock Text="可以删除不再使用的第三方脚本"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding CustomUserscripts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,4,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Margin="0,0,16,0">
+                                                            <TextBlock Text="{Binding Name}" Style="{StaticResource FieldLabelStyle}"/>
+                                                            <TextBlock Style="{StaticResource FieldHintStyle}">
+                                                                <Run Text="版本 "/>
+                                                                <Run Text="{Binding Version}"/>
+                                                                <Run Text=" · "/>
+                                                                <Run Text="{Binding Author, TargetNullValue=未知作者}"/>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="1"
+                                                                Content="删除"
+                                                                CommandParameter="{Binding}"
+                                                                Click="RemoveUserscript_Click"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </Grid>
                                 </StackPanel>
                             </Border>
