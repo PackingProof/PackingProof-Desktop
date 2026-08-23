@@ -40,6 +40,29 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.False(File.Exists(imported.SourcePath));
     }
 
+    [Fact]
+    public void BuildUserscriptChoice_UsesUniformCardAndHighlightsWarnings()
+    {
+        var normal = new UserscriptDescriptor { Id = "normal", Name = "Normal", Version = "1.0" };
+        var warning = new UserscriptDescriptor
+        {
+            Id = "warning",
+            Name = "Warning",
+            Version = "1.0",
+            Warnings = ["缺少设备占位符"]
+        };
+
+        string normalHtml = WebServer.BuildUserscriptChoice(normal, "http", "127.0.0.1:5280");
+        string warningHtml = WebServer.BuildUserscriptChoice(warning, "http", "127.0.0.1:5280");
+
+        Assert.Contains("class=\"script-choice\"", normalHtml);
+        Assert.DoesNotContain("has-warning", normalHtml);
+        Assert.Contains("class=\"script-choice has-warning\"", warningHtml);
+        Assert.Contains("有提示：缺少设备占位符", warningHtml);
+        Assert.Contains(">安装</a>", normalHtml);
+        Assert.DoesNotContain("安装此脚本", normalHtml);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_directory, true); } catch { }

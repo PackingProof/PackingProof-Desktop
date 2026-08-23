@@ -5135,12 +5135,8 @@ namespace ExpressPackingMonitoring.Services
             string scheme = ctx.Request.Url?.Scheme ?? "http";
             string scriptUrl = $"{scheme}://{authority}/PackingProof-Order-Integration-KDZS.user.js?scriptId={UserscriptCatalog.OfficialId}";
             var catalog = new UserscriptCatalog();
-            string choices = string.Join("", catalog.GetAll(PrintToolInstallGuide.ResolveUserscriptPath()).Select(item =>
-            {
-                string url = $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(item.Id)}/download";
-                string warning = item.Warnings.Count == 0 ? "可自动维护" : $"有提示：{WebUtility.HtmlEncode(string.Join("；", item.Warnings))}";
-                return $"<div class=\"script-choice\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\">版本 {WebUtility.HtmlEncode(item.Version)} · {WebUtility.HtmlEncode(warning)}</span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装此脚本</a></div>";
-            }));
+            string choices = string.Join("", catalog.GetAll(PrintToolInstallGuide.ResolveUserscriptPath())
+                .Select(item => BuildUserscriptChoice(item, scheme, authority)));
             string html = PrintToolInstallGuide.RenderForWeb(devices, scriptUrl, choices);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -5148,6 +5144,15 @@ namespace ExpressPackingMonitoring.Services
             ctx.Response.ContentLength64 = bytes.Length;
             ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
             ctx.Response.OutputStream.Close();
+        }
+
+        internal static string BuildUserscriptChoice(UserscriptDescriptor item, string scheme, string authority)
+        {
+            string url = $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(item.Id)}/download";
+            bool hasWarning = item.Warnings.Count > 0;
+            string warning = hasWarning ? $"有提示：{string.Join("；", item.Warnings)}" : "可自动维护";
+            string warningClass = hasWarning ? " has-warning" : "";
+            return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\">版本 {WebUtility.HtmlEncode(item.Version)} · {WebUtility.HtmlEncode(warning)}</span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
         }
 
         private void ServeUserscript(HttpListenerContext ctx, string scriptId = null)
