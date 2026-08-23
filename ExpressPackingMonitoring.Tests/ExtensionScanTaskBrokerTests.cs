@@ -1,3 +1,4 @@
+using System.IO;
 using ExpressPackingMonitoring.Services;
 using Xunit;
 
@@ -20,7 +21,7 @@ public sealed class ExtensionScanTaskBrokerTests
             ]);
 
         Assert.Equal(2, published.Deliveries.Count);
-        Assert.Empty(published.SkippedExtensionInstanceIds);
+        Assert.Empty(published.SkippedTargets);
         ExtensionScanDelivery erp = Assert.NotNull(broker.Poll("erp-extension-001"));
         ExtensionScanDelivery scale = Assert.NotNull(broker.Poll("scale-extension-001"));
         Assert.NotEqual(erp.DeliveryId, scale.DeliveryId);
@@ -119,7 +120,9 @@ public sealed class ExtensionScanTaskBrokerTests
                 Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)
             ]);
 
-        Assert.Contains("scale-extension-001", second.SkippedExtensionInstanceIds);
+        Assert.Contains(second.SkippedTargets, skipped =>
+            skipped.ExtensionInstanceId == "scale-extension-001"
+            && skipped.Capability == ExtensionScanCapabilities.MeasurementCapture);
         Assert.Single(second.Deliveries);
         Assert.Equal("erp-extension-001", second.Deliveries[0].ExtensionInstanceId);
     }
@@ -161,6 +164,24 @@ public sealed class ExtensionScanTaskBrokerTests
     }
 
     [Fact]
+    public void Publish_WithNoMatchingTargetDoesNotConsumeOrCheckGlobalCapacity()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time, maxActiveTasks: 1);
+        broker.Publish(Event(time, "task-0015"), [Target(
+            "erp-extension-001",
+            ExtensionScanCapabilities.OrderLookup)]);
+
+        ExtensionScanPublishResult unmatched = broker.Publish(
+            Event(time, "task-0016"),
+            [Target("refund-extension-001", ExtensionScanCapabilities.RefundLookup)]);
+
+        Assert.Empty(unmatched.Deliveries);
+        Assert.Empty(unmatched.SkippedTargets);
+        Assert.Single(broker.GetSnapshot());
+    }
+
+    [Fact]
     public async Task ConcurrentPoll_DeliversOnlyOnceInsideRedeliveryWindow()
     {
         var time = new MutableTimeProvider(Utc(8, 0, 0));
@@ -171,6 +192,65 @@ public sealed class ExtensionScanTaskBrokerTests
             Enumerable.Range(0, 16).Select(_ => Task.Run(() => broker.Poll("erp-extension-001"))));
 
         Assert.Single(deliveries.Where(delivery => delivery != null));
+    }
+
+    [Fact]
+    public void Publish_CreatesIndependentDeliveryForEachExtensionCapability()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time);
+
+        ExtensionScanPublishResult published = broker.Publish(
+            Event(time, "task-0012"),
+            [Target(
+                "combined-extension-001",
+                ExtensionScanCapabilities.OrderLookup,
+                ExtensionScanCapabilities.MeasurementCapture)]);
+
+        Assert.Equal(2, published.Deliveries.Count);
+        ExtensionScanDelivery order = Assert.Single(
+            published.Deliveries,
+            delivery => delivery.Capability == ExtensionScanCapabilities.OrderLookup);
+        ExtensionScanDelivery measurement = Assert.Single(
+            published.Deliveries,
+            delivery => delivery.Capability == ExtensionScanCapabilities.MeasurementCapture);
+
+        Assert.Equal(
+            ExtensionScanSubmissionDisposition.Accepted,
+            broker.Submit(Submission(order, 1, ExtensionScanResultStatus.Found, '2')).Disposition);
+        Assert.Equal(ExtensionScanDeliveryState.Completed, Assert.Single(
+            broker.GetSnapshot(),
+            delivery => delivery.DeliveryId == order.DeliveryId).State);
+        Assert.Equal(ExtensionScanDeliveryState.Pending, Assert.Single(
+            broker.GetSnapshot(),
+            delivery => delivery.DeliveryId == measurement.DeliveryId).State);
+    }
+
+    [Fact]
+    public void Publish_RejectsUnknownRequestedCapabilityInsteadOfSilentlyDroppingIt()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time);
+
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => broker.Publish(
+            Event(time, "task-0013") with { RequestedCapabilities = ["order.lookpu"] },
+            [Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)]));
+
+        Assert.Contains("order.lookpu", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Submit_RejectsFinalStatusFromAnotherCapability()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time);
+        ExtensionScanDelivery measurement = Assert.Single(broker.Publish(
+            Event(time, "task-0014"),
+            [Target("scale-extension-001", ExtensionScanCapabilities.MeasurementCapture)]).Deliveries);
+
+        Assert.Throws<InvalidDataException>(() => broker.Submit(
+            Submission(measurement, 1, ExtensionScanResultStatus.Found, '3')));
+        Assert.Equal(0, Assert.Single(broker.GetSnapshot()).LatestRevision);
     }
 
     private static ExtensionScanEvent Event(MutableTimeProvider time, string taskId) => new()

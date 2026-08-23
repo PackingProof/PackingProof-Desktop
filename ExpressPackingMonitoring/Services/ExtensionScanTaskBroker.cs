@@ -24,7 +24,7 @@ internal enum ExtensionScanResultStatus
     NotFound,
     Completed,
     Unavailable,
-    Unauthorized,
+    ProviderAuthRequired,
     RateLimited,
     Timeout,
     InvalidRequest
@@ -74,7 +74,7 @@ internal sealed record ExtensionScanDelivery
     internal string DeliveryId { get; init; } = "";
     internal string ExtensionInstanceId { get; init; } = "";
     internal ExtensionScanEvent ScanEvent { get; init; } = new();
-    internal IReadOnlyList<string> RequestedCapabilities { get; init; } = [];
+    internal string Capability { get; init; } = "";
     internal ExtensionScanDeliveryState State { get; init; }
     internal int DeliveryAttempts { get; init; }
     internal DateTimeOffset? FirstDeliveredAtUtc { get; init; }
@@ -101,7 +101,11 @@ internal sealed record ExtensionScanSubmissionResult(
 
 internal sealed record ExtensionScanPublishResult(
     IReadOnlyList<ExtensionScanDelivery> Deliveries,
-    IReadOnlyList<string> SkippedExtensionInstanceIds);
+    IReadOnlyList<ExtensionScanSkippedTarget> SkippedTargets);
+
+internal sealed record ExtensionScanSkippedTarget(
+    string ExtensionInstanceId,
+    string Capability);
 
 internal sealed class ExtensionScanTaskCapacityException(string message) : InvalidOperationException(message);
 
@@ -161,6 +165,11 @@ internal sealed class ExtensionScanTaskBroker
             .GroupBy(target => target.ExtensionInstanceId, StringComparer.Ordinal)
             .Select(group => MergeTargets(group.Key, group))
             .ToArray();
+        (string ExtensionInstanceId, string Capability)[] candidates = normalizedTargets
+            .SelectMany(target => normalizedEvent.RequestedCapabilities
+                .Intersect(target.Capabilities, StringComparer.Ordinal)
+                .Select(capability => (target.ExtensionInstanceId, capability)))
+            .ToArray();
 
         lock (_sync)
         {
@@ -168,22 +177,19 @@ internal sealed class ExtensionScanTaskBroker
             PruneCore(now);
             if (_events.ContainsKey(normalizedEvent.TaskId))
                 throw new InvalidOperationException("扫码任务 ID 已存在");
+            if (candidates.Length == 0)
+                return new ExtensionScanPublishResult([], []);
             if (CountActiveEvents(now) >= _maxActiveTasks)
                 throw new ExtensionScanTaskCapacityException("活动扫码任务数量已达到上限");
 
             var created = new List<ExtensionScanDelivery>();
-            var skipped = new List<string>();
-            foreach (ExtensionScanTarget target in normalizedTargets)
+            var skipped = new List<ExtensionScanSkippedTarget>();
+            foreach ((string extensionInstanceId, string capability) in candidates)
             {
-                string[] matchedCapabilities = normalizedEvent.RequestedCapabilities
-                    .Intersect(target.Capabilities, StringComparer.Ordinal)
-                    .ToArray();
-                if (matchedCapabilities.Length == 0)
-                    continue;
-                if (CountPendingDeliveries(target.ExtensionInstanceId, now)
+                if (CountPendingDeliveries(extensionInstanceId, now)
                     >= _maxPendingDeliveriesPerExtension)
                 {
-                    skipped.Add(target.ExtensionInstanceId);
+                    skipped.Add(new ExtensionScanSkippedTarget(extensionInstanceId, capability));
                     continue;
                 }
 
@@ -191,8 +197,8 @@ internal sealed class ExtensionScanTaskBroker
                 {
                     DeliveryId = Guid.NewGuid().ToString("N"),
                     TaskId = normalizedEvent.TaskId,
-                    ExtensionInstanceId = target.ExtensionInstanceId,
-                    RequestedCapabilities = matchedCapabilities
+                    ExtensionInstanceId = extensionInstanceId,
+                    Capability = capability
                 };
                 _deliveries.Add(state.DeliveryId, state);
                 created.Add(ToSnapshot(state, normalizedEvent, now));
@@ -293,6 +299,7 @@ internal sealed class ExtensionScanTaskBroker
                     throw new InvalidDataException("最终响应不能设置重试时间");
                 }
             }
+            ValidateStatusForCapability(state.Capability, submission.Status);
 
             state.LatestRevision = submission.Revision;
             state.LatestStatus = submission.Status;
@@ -386,7 +393,7 @@ internal sealed class ExtensionScanTaskBroker
         {
             throw new InvalidDataException("扫码任务时间范围无效");
         }
-        string[] capabilities = NormalizeCapabilities(scanEvent.RequestedCapabilities);
+        string[] capabilities = NormalizeRequestedCapabilities(scanEvent.RequestedCapabilities);
         if (capabilities.Length == 0) throw new InvalidDataException("扫码任务必须申请至少一种能力");
         return scanEvent with
         {
@@ -429,6 +436,46 @@ internal sealed class ExtensionScanTaskBroker
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
 
+    private static string[] NormalizeRequestedCapabilities(IEnumerable<string>? values)
+    {
+        string[] normalized = (values ?? [])
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToArray();
+        string? unsupported = normalized.FirstOrDefault(value => !ExtensionScanCapabilities.Supported.Contains(value));
+        if (unsupported != null)
+            throw new InvalidDataException($"扫码任务包含不支持的能力：{unsupported}");
+        return normalized;
+    }
+
+    private static void ValidateStatusForCapability(
+        string capability,
+        ExtensionScanResultStatus status)
+    {
+        if (status is ExtensionScanResultStatus.InProgress
+            or ExtensionScanResultStatus.Unavailable
+            or ExtensionScanResultStatus.ProviderAuthRequired
+            or ExtensionScanResultStatus.RateLimited
+            or ExtensionScanResultStatus.Timeout
+            or ExtensionScanResultStatus.InvalidRequest)
+        {
+            return;
+        }
+
+        bool valid = capability switch
+        {
+            ExtensionScanCapabilities.OrderLookup or ExtensionScanCapabilities.RefundLookup =>
+                status is ExtensionScanResultStatus.Found or ExtensionScanResultStatus.NotFound,
+            ExtensionScanCapabilities.MeasurementCapture =>
+                status == ExtensionScanResultStatus.Completed,
+            _ => false
+        };
+        if (!valid)
+            throw new InvalidDataException($"状态 {status} 不适用于能力 {capability}");
+    }
+
     private static string NormalizeIdentifier(string? value, string fieldName)
     {
         string result = value?.Trim() ?? "";
@@ -444,7 +491,7 @@ internal sealed class ExtensionScanTaskBroker
         DeliveryId = state.DeliveryId,
         ExtensionInstanceId = state.ExtensionInstanceId,
         ScanEvent = scanEvent,
-        RequestedCapabilities = state.RequestedCapabilities,
+        Capability = state.Capability,
         State = state.Completed
             ? ExtensionScanDeliveryState.Completed
             : state.Expired || now > scanEvent.ExpiresAtUtc
@@ -471,7 +518,7 @@ internal sealed class ExtensionScanTaskBroker
         internal string DeliveryId { get; init; } = "";
         internal string TaskId { get; init; } = "";
         internal string ExtensionInstanceId { get; init; } = "";
-        internal IReadOnlyList<string> RequestedCapabilities { get; init; } = [];
+        internal string Capability { get; init; } = "";
         internal int DeliveryAttempts { get; set; }
         internal DateTimeOffset? FirstDeliveredAtUtc { get; set; }
         internal DateTimeOffset? LastDeliveredAtUtc { get; set; }
