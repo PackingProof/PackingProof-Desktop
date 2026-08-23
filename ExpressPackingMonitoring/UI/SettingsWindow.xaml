@@ -534,6 +534,13 @@
             <Setter Property="BorderBrush" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ActionHoverBackground}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource ActionHoverBorder}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource ActionHoverForeground}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="AdvancedModeButtonStyle" TargetType="ToggleButton">
@@ -559,8 +566,9 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ActionHoverBackground}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource ActionHoverBorder}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ActionHoverForeground}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentBlue}"/>
@@ -606,8 +614,9 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                                <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ActionHoverBackground}"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource ActionHoverBorder}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource ActionHoverForeground}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource AccentBlue}"/>
@@ -621,6 +630,21 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="DeleteUserscriptButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerActionHoverBackground}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource DangerActionHoverBorder}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DangerActionHoverForeground}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
@@ -978,6 +1002,7 @@
                         <ContentPresenter x:Name="PART_SelectedContentHost"
                                           Grid.Column="1"
                                           ContentSource="SelectedContent"
+                                          Cursor="Arrow"
                                           Margin="18,0,0,0"
                                           SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
                     </Grid>
@@ -3530,7 +3555,7 @@
                                                                     Height="32"
                                                                     CommandParameter="{Binding}"
                                                                     Click="RemoveUserscript_Click"
-                                                                    Style="{StaticResource DangerButtonStyle}"
+                                                                    Style="{StaticResource DeleteUserscriptButtonStyle}"
                                                                     HorizontalAlignment="Center"
                                                                     VerticalAlignment="Center"/>
                                                         </DataTemplate>

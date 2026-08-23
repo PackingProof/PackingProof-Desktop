@@ -164,7 +164,7 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Contains(
             grid.Descendants(Presentation + "Button"),
             button => (string?)button.Attribute("Content") == "删除"
-                && (string?)button.Attribute("Style") == "{StaticResource DangerButtonStyle}");
+                && (string?)button.Attribute("Style") == "{StaticResource DeleteUserscriptButtonStyle}");
         XElement developmentHint = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
             text => (string?)text.Attribute("Text") == "开发第三方脚本时，可参考官方开发手册或 API 扩展文档");

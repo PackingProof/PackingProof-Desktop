@@ -27,7 +27,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.88"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.94"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Root" Property="Opacity" Value="0.76"/>
@@ -46,12 +46,26 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
         <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource PrimaryActionHoverBackground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryActionHoverBackground}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PrimaryActionHoverForeground}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ActionHoverBackground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource ActionHoverBorder}"/>
+                <Setter Property="Foreground" Value="{DynamicResource ActionHoverForeground}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
@@ -59,6 +73,13 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentRed}"/>
         <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DangerActionHoverBackground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DangerActionHoverBorder}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DangerActionHoverForeground}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SecondarySmallButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">

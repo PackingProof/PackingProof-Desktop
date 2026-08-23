@@ -25,6 +25,14 @@
     <SolidColorBrush x:Key="AccentOrange" Color="{DynamicResource Amber500Color}"/>
     <SolidColorBrush x:Key="AccentPurple" Color="{DynamicResource Purple500Color}"/>
     <SolidColorBrush x:Key="AccentCyan" Color="{DynamicResource Cyan600Color}"/>
+    <SolidColorBrush x:Key="ActionHoverBackground" Color="{DynamicResource Blue100Color}"/>
+    <SolidColorBrush x:Key="ActionHoverBorder" Color="{DynamicResource Blue500Color}"/>
+    <SolidColorBrush x:Key="ActionHoverForeground" Color="{DynamicResource Slate800Color}"/>
+    <SolidColorBrush x:Key="PrimaryActionHoverBackground" Color="{DynamicResource Blue700Color}"/>
+    <SolidColorBrush x:Key="PrimaryActionHoverForeground" Color="{DynamicResource WhiteColor}"/>
+    <SolidColorBrush x:Key="DangerActionHoverBackground" Color="{DynamicResource Red100Color}"/>
+    <SolidColorBrush x:Key="DangerActionHoverBorder" Color="{DynamicResource Red500Color}"/>
+    <SolidColorBrush x:Key="DangerActionHoverForeground" Color="{DynamicResource Slate800Color}"/>
     <SolidColorBrush x:Key="DisabledActionBackground" Color="{DynamicResource Slate500Color}"/>
 
     <!-- List Item Status Colors -->
