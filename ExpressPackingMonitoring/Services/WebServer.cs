@@ -1233,7 +1233,8 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                bool isSignedExtensionRequest = IsSignedExtensionPath(path, method);
+                bool isSignedExtensionRequest = IsSignedExtensionPath(path, method)
+                    || (IsLegacyExtensionPath(path, method) && HasExtensionSignatureIntent(ctx));
                 if (isSignedExtensionRequest && !TryAuthorizeExtensionRequest(ctx, out int extensionAuthStatus, out string extensionAuthCode))
                 {
                     SendJson(ctx, extensionAuthStatus, new
@@ -3182,6 +3183,19 @@ namespace ExpressPackingMonitoring.Services
                 && path.EndsWith("/ack", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase));
 
+        private static bool IsLegacyExtensionPath(string path, string method) =>
+            (string.Equals(path, "/api/extensions/v1/orders", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            || (string.Equals(path, "/api/extensions/v1/recordings/active", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
+            || (path.StartsWith("/api/extensions/v1/recordings/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/data", StringComparison.OrdinalIgnoreCase)
+                && method is "GET" or "POST");
+
+        private static bool HasExtensionSignatureIntent(HttpListenerContext ctx) =>
+            !string.IsNullOrWhiteSpace(ctx.Request.Headers[ExtensionRequestSignature.InstanceIdHeader])
+            || !string.IsNullOrWhiteSpace(ctx.Request.Headers[ExtensionRequestSignature.SignatureHeader]);
+
         private bool TryAuthorizeExtensionRequest(
             HttpListenerContext ctx,
             out int statusCode,
@@ -3471,6 +3485,26 @@ namespace ExpressPackingMonitoring.Services
             return true;
         }
 
+        private bool TryAuthorizeLegacyExtensionPermission(
+            HttpListenerContext ctx,
+            string permission,
+            bool requireCurrentNodeBinding = false)
+        {
+            if (!_authenticatedExtensionContexts.TryGetValue(ctx, out ExtensionAuthorizationContext authorization))
+                return true;
+            if (!authorization.HasPermission(permission))
+            {
+                SendJson(ctx, 403, new { errorCode = "extension_permission_denied", error = "扩展没有调用此接口的权限" });
+                return false;
+            }
+            if (requireCurrentNodeBinding && !authorization.IsBoundToOriginNode(_nodeId))
+            {
+                SendJson(ctx, 403, new { errorCode = "extension_node_forbidden", error = "扩展未获准访问当前录像节点" });
+                return false;
+            }
+            return true;
+        }
+
         private static object ToExtensionDeliveryResponse(ExtensionScanDelivery delivery) => new
         {
             deliveryId = delivery.DeliveryId,
@@ -3659,6 +3693,11 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleActiveRecordingExtensions(HttpListenerContext ctx)
         {
+            if (!TryAuthorizeLegacyExtensionPermission(
+                    ctx,
+                    ExtensionPermissions.RecordingsActiveRead,
+                    requireCurrentNodeBinding: true))
+                return;
             SendJson(ctx, 200, new
             {
                 apiVersion = "v1",
@@ -3676,6 +3715,14 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleRecordingExtensionData(HttpListenerContext ctx, string path, string method)
         {
+            string requiredPermission = method == "GET"
+                ? ExtensionPermissions.RecordingsActiveRead
+                : ExtensionPermissions.RecordingFieldsWrite;
+            if (!TryAuthorizeLegacyExtensionPermission(
+                    ctx,
+                    requiredPermission,
+                    requireCurrentNodeBinding: true))
+                return;
             if (!TryParseRecordingExtensionDataPath(path, out string recordingSessionId))
             {
                 SendJson(ctx, 400, new { errorCode = "invalid_recording_session", error = "录像会话 ID 无效" });
@@ -3703,6 +3750,15 @@ namespace ExpressPackingMonitoring.Services
 
                 RecordingExtensionDataRequest request = ReadJsonBody<RecordingExtensionDataRequest>(ctx);
                 ValidateRecordingExtensionData(request);
+                if (_authenticatedExtensionContexts.TryGetValue(ctx, out ExtensionAuthorizationContext authorization)
+                    && !string.Equals(
+                        request.ProviderId?.Trim(),
+                        authorization.ProviderId,
+                        StringComparison.Ordinal))
+                {
+                    SendJson(ctx, 403, new { errorCode = "extension_provider_forbidden", error = "扩展不能冒用其他来源标识" });
+                    return;
+                }
                 _db.UpsertRecordingExtensionFields(
                     recordingSessionId,
                     request.Namespace.Trim(),
@@ -3780,6 +3836,8 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleExtensionOrders(HttpListenerContext ctx)
         {
+            if (!TryAuthorizeLegacyExtensionPermission(ctx, ExtensionPermissions.OrdersWrite))
+                return;
             try
             {
                 OrderExtensionRequest request = ReadJsonBody<OrderExtensionRequest>(ctx);
@@ -3794,6 +3852,12 @@ namespace ExpressPackingMonitoring.Services
                 if (string.IsNullOrWhiteSpace(providerId))
                 {
                     SendJson(ctx, 400, new { errorCode = "provider_required", error = "缺少来源标识 providerId" });
+                    return;
+                }
+                if (_authenticatedExtensionContexts.TryGetValue(ctx, out ExtensionAuthorizationContext authorization)
+                    && !string.Equals(providerId, authorization.ProviderId, StringComparison.Ordinal))
+                {
+                    SendJson(ctx, 403, new { errorCode = "extension_provider_forbidden", error = "扩展不能冒用其他来源标识" });
                     return;
                 }
 

@@ -66,6 +66,8 @@ Content-Type: application/json
 
 也兼容在 URL 中使用 `?key=...`，但不建议这样做，因为 URL 可能进入浏览器历史、代理或日志。不要把任何凭据写入公开仓库、脚本元数据或页面文本。
 
+扩展 API 已启用时，这些兼容接口也接受扩展凭据签名。签名调用必须分别获得 `orders.write`、`recordings.active.read` 或 `recording-fields.write` 权限；录像相关接口还会检查当前录像节点是否在授权范围内。签名请求中的 `providerId` 必须与授权身份一致，不能冒用其他数据来源。
+
 成功响应为 JSON；失败响应包含 `error`，扩展接口还会尽量提供稳定的 `errorCode`。常见状态码：
 
 | 状态码 | 含义 |
@@ -325,6 +327,8 @@ POST /api/extensions/v1/orders
 Content-Type: application/json
 ```
 
+签名调用需要 `orders.write` 权限；使用网页访问密钥的旧脚本保持兼容。
+
 请求示例：
 
 ```json
@@ -361,12 +365,16 @@ Content-Type: application/json
 GET /api/extensions/v1/recordings/active
 ```
 
+签名调用需要 `recordings.active.read` 权限和当前录像节点授权。
+
 向指定的活跃会话提交扩展字段：
 
 ```http
 POST /api/extensions/v1/recordings/{recordingSessionId}/data
 Content-Type: application/json
 ```
+
+签名写入需要 `recording-fields.write` 权限和当前录像节点授权；签名读取已保存字段需要 `recordings.active.read` 权限。
 
 ```json
 {
@@ -381,7 +389,7 @@ Content-Type: application/json
 
 同一会话、命名空间和字段名重复提交时，以最后一次提交的值为准。录像过程中到达的数据从后续帧开始显示，已经编码的画面不会回写。字段只会以固定文本行显示在水印中，第三方不能指定坐标、字体、绘制指令或 FFmpeg 参数。录像结束后仍可通过 `GET /api/extensions/v1/recordings/{recordingSessionId}/data` 读取已保存的字段，但不能继续写入。
 
-扩展字段限制为单次最多 32 个，命名空间和字段名仅允许字母、数字、`.`、`_`、`-`，每个值最多 1000 个字符。接口继续使用 Web 访问密钥保护。
+扩展字段限制为单次最多 32 个，命名空间和字段名仅允许字母、数字、`.`、`_`、`-`，每个值最多 1000 个字符。接口同时支持旧版 Web 访问密钥和具备对应权限的扩展签名。
 
 ## 输入限制
 
