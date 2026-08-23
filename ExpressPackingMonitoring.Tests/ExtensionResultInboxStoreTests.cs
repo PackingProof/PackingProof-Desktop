@@ -97,6 +97,29 @@ public sealed class ExtensionResultInboxStoreTests
     }
 
     [Fact]
+    public void Accept_AcknowledgesDurableDuplicateAfterExpiryButRejectsNewRevision()
+    {
+        using var fixture = new InboxFixture();
+        ExtensionResultSubmission original = fixture.Submission();
+        ExtensionResultInboxAcceptResult accepted = fixture.Store.Accept(original);
+        fixture.Time.Advance(TimeSpan.FromSeconds(31));
+
+        ExtensionResultInboxAcceptResult duplicate = fixture.Store.Accept(original);
+        ExtensionResultInboxAcceptResult expired = fixture.Store.Accept(original with
+        {
+            Revision = 2,
+            ResultId = "stable-result-002",
+            NormalizedPayloadJson = "{\"weight\":2}"
+        });
+
+        Assert.Equal(ExtensionResultInboxDisposition.Duplicate, duplicate.Disposition);
+        Assert.Equal(accepted.InboxId, duplicate.InboxId);
+        Assert.NotEmpty(duplicate.PayloadFingerprint);
+        Assert.Equal(ExtensionResultInboxDisposition.Expired, expired.Disposition);
+        Assert.Null(expired.InboxId);
+    }
+
+    [Fact]
     public void ClaimFailureRetryAndAppliedLifecycleIsDurable()
     {
         using var fixture = new InboxFixture();
@@ -186,12 +209,25 @@ public sealed class ExtensionResultInboxStoreTests
                         DeliveryId TEXT PRIMARY KEY, ExtensionInstanceId TEXT NOT NULL,
                         TaskId TEXT NOT NULL, Capability TEXT NOT NULL, LatestRevision INTEGER NOT NULL,
                         LatestPayloadFingerprint TEXT NOT NULL, LatestResultId TEXT NOT NULL,
-                        LatestInboxId INTEGER, UpdatedAtUtc TEXT NOT NULL);";
+                        LatestInboxId INTEGER, UpdatedAtUtc TEXT NOT NULL);
+                    INSERT INTO ExtensionResultInbox (
+                        ExtensionInstanceId, ProviderId, ResultId, DeliveryId, TaskId,
+                        Capability, Revision, Status, ObservedAtUtc, PayloadJson,
+                        PayloadFingerprint, State, CreatedAtUtc, UpdatedAtUtc)
+                    VALUES (
+                        'legacy-extension-001', 'legacy.provider', 'legacy-result-001',
+                        'legacy-delivery-001', 'legacy-task-001', 'measurement.capture',
+                        1, 'Completed', '2026-08-23T07:59:59.0000000Z', '{}',
+                        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                        'Pending', '2026-08-23T08:00:00.0000000Z',
+                        '2026-08-23T08:00:00.0000000Z');";
                 command.ExecuteNonQuery();
             }
             SqliteTestPool.ClearPoolFor(directory);
 
             using var migrated = new ExtensionResultInboxStore(databasePath, time);
+            ExtensionResultInboxItem legacy = RequireNotNull(migrated.Get(1));
+            Assert.Equal(Utc(7, 59, 59), legacy.ExpiresAtUtc);
             ExtensionResultInboxAcceptResult accepted = migrated.Accept(Submission(time));
             Assert.Equal(ExtensionResultInboxDisposition.Accepted, accepted.Disposition);
             ExtensionResultInboxItem item = RequireNotNull(migrated.Get(accepted.InboxId!.Value));
@@ -214,6 +250,7 @@ public sealed class ExtensionResultInboxStoreTests
         OriginNodeId = "recording-node-001",
         RecordingSessionId = "recording-session-001",
         TrackingNumber = "YT123456",
+        ExpiresAtUtc = time.GetUtcNow().AddSeconds(30),
         Capability = ExtensionScanCapabilities.MeasurementCapture,
         Revision = 1,
         Status = ExtensionScanResultStatus.Completed,

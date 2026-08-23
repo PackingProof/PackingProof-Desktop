@@ -107,6 +107,30 @@ public sealed class ExtensionScanTaskBrokerTests
     }
 
     [Fact]
+    public void ApplyDurablyAccepted_CompletesResultPersistedBeforeExpiryBoundary()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time);
+        ExtensionScanDelivery delivery = Assert.Single(broker.Publish(
+            Event(time, "task-0017"),
+            [Target("scale-extension-001", ExtensionScanCapabilities.MeasurementCapture)]).Deliveries);
+        ExtensionScanSubmission completed = Submission(
+            delivery,
+            1,
+            ExtensionScanResultStatus.Completed,
+            '7');
+
+        time.Advance(TimeSpan.FromSeconds(31));
+
+        Assert.Equal(
+            ExtensionScanSubmissionDisposition.Expired,
+            broker.Submit(completed).Disposition);
+        ExtensionScanSubmissionResult applied = broker.ApplyDurablyAccepted(completed);
+        Assert.Equal(ExtensionScanSubmissionDisposition.Accepted, applied.Disposition);
+        Assert.Equal(ExtensionScanDeliveryState.Completed, applied.Delivery!.State);
+    }
+
+    [Fact]
     public void Publish_SkipsOnlyExtensionAtPendingCapacity()
     {
         var time = new MutableTimeProvider(Utc(8, 0, 0));

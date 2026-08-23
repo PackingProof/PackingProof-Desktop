@@ -246,6 +246,15 @@ internal sealed class ExtensionScanTaskBroker
     }
 
     internal ExtensionScanSubmissionResult Submit(ExtensionScanSubmission submission)
+        => SubmitCore(submission, durablyAccepted: false);
+
+    internal ExtensionScanSubmissionResult ApplyDurablyAccepted(
+        ExtensionScanSubmission submission)
+        => SubmitCore(submission, durablyAccepted: true);
+
+    private ExtensionScanSubmissionResult SubmitCore(
+        ExtensionScanSubmission submission,
+        bool durablyAccepted)
     {
         ArgumentNullException.ThrowIfNull(submission);
         string extensionId = NormalizeIdentifier(submission.ExtensionInstanceId, "扩展实例 ID");
@@ -281,7 +290,7 @@ internal sealed class ExtensionScanTaskBroker
                 return new(ExtensionScanSubmissionDisposition.StaleRevision, ToSnapshot(state, scanEvent, now));
             if (state.Completed)
                 return new(ExtensionScanSubmissionDisposition.StaleRevision, ToSnapshot(state, scanEvent, now));
-            if (state.Expired || now > scanEvent.ExpiresAtUtc)
+            if (!durablyAccepted && (state.Expired || now > scanEvent.ExpiresAtUtc))
             {
                 state.Expired = true;
                 return new(ExtensionScanSubmissionDisposition.Expired, ToSnapshot(state, scanEvent, now));
@@ -329,6 +338,20 @@ internal sealed class ExtensionScanTaskBroker
                 .OrderBy(delivery => delivery.ScanEvent.OccurredAtUtc)
                 .ThenBy(delivery => delivery.DeliveryId, StringComparer.Ordinal)
                 .ToArray();
+        }
+    }
+
+    internal ExtensionScanDelivery? GetDelivery(string deliveryId)
+    {
+        string normalizedDeliveryId = NormalizeIdentifier(deliveryId, "投递 ID");
+        lock (_sync)
+        {
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+            PruneCore(now);
+            return _deliveries.TryGetValue(normalizedDeliveryId, out DeliveryState? delivery)
+                && _events.TryGetValue(delivery.TaskId, out EventState? state)
+                    ? ToSnapshot(delivery, state.ScanEvent, now)
+                    : null;
         }
     }
 

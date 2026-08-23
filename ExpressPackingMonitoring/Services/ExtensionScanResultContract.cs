@@ -229,6 +229,7 @@ internal sealed class ExtensionScanResultValidator
                 OriginNodeId = delivery.ScanEvent.OriginNodeId,
                 RecordingSessionId = delivery.ScanEvent.RecordingSessionId,
                 TrackingNumber = delivery.ScanEvent.TrackingNumber,
+                ExpiresAtUtc = delivery.ScanEvent.ExpiresAtUtc,
                 Capability = delivery.Capability,
                 Revision = request.Revision,
                 Status = status,

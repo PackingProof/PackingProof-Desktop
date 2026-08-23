@@ -24,7 +24,8 @@ internal enum ExtensionResultInboxDisposition
     StaleRevision,
     RevisionConflict,
     ResultIdConflict,
-    DeliveryIdentityConflict
+    DeliveryIdentityConflict,
+    Expired
 }
 
 internal sealed record ExtensionResultSubmission
@@ -37,6 +38,7 @@ internal sealed record ExtensionResultSubmission
     internal string OriginNodeId { get; init; } = "";
     internal string RecordingSessionId { get; init; } = "";
     internal string TrackingNumber { get; init; } = "";
+    internal DateTimeOffset ExpiresAtUtc { get; init; }
     internal string Capability { get; init; } = "";
     internal long Revision { get; init; }
     internal ExtensionScanResultStatus Status { get; init; }
@@ -46,7 +48,8 @@ internal sealed record ExtensionResultSubmission
 
 internal sealed record ExtensionResultInboxAcceptResult(
     ExtensionResultInboxDisposition Disposition,
-    long? InboxId = null);
+    long? InboxId = null,
+    string PayloadFingerprint = "");
 
 internal sealed record ExtensionResultInboxItem
 {
@@ -59,6 +62,7 @@ internal sealed record ExtensionResultInboxItem
     internal string OriginNodeId { get; init; } = "";
     internal string RecordingSessionId { get; init; } = "";
     internal string TrackingNumber { get; init; } = "";
+    internal DateTimeOffset ExpiresAtUtc { get; init; }
     internal string Capability { get; init; } = "";
     internal long Revision { get; init; }
     internal ExtensionScanResultStatus Status { get; init; }
@@ -109,7 +113,8 @@ internal sealed class ExtensionResultInboxStore : IDisposable
     internal ExtensionResultInboxAcceptResult Accept(ExtensionResultSubmission submission)
     {
         ArgumentNullException.ThrowIfNull(submission);
-        NormalizedSubmission normalized = NormalizeSubmission(submission, _timeProvider.GetUtcNow());
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        NormalizedSubmission normalized = NormalizeSubmission(submission, now);
 
         lock (_gate)
         {
@@ -122,6 +127,8 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                     || !string.Equals(latest.OriginNodeId, normalized.OriginNodeId, StringComparison.Ordinal)
                     || !string.Equals(latest.RecordingSessionId, normalized.RecordingSessionId, StringComparison.Ordinal)
                     || !string.Equals(latest.TrackingNumber, normalized.TrackingNumber, StringComparison.Ordinal)
+                    || (latest.ExpiresAtUtc is { } latestExpiry
+                        && latestExpiry != normalized.ExpiresAtUtc)
                     || !string.Equals(latest.Capability, normalized.Capability, StringComparison.Ordinal))
                 {
                     transaction.Rollback();
@@ -138,13 +145,20 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                     return new(duplicate
                         ? ExtensionResultInboxDisposition.Duplicate
                         : ExtensionResultInboxDisposition.RevisionConflict,
-                        latest.LatestInboxId);
+                        latest.LatestInboxId,
+                        duplicate ? normalized.PayloadFingerprint : "");
                 }
                 if (normalized.Revision < latest.LatestRevision)
                 {
                     transaction.Rollback();
                     return new(ExtensionResultInboxDisposition.StaleRevision, latest.LatestInboxId);
                 }
+            }
+
+            if (now > normalized.ExpiresAtUtc)
+            {
+                transaction.Rollback();
+                return new(ExtensionResultInboxDisposition.Expired);
             }
 
             BusinessResult? existingResult = ReadBusinessResult(
@@ -162,7 +176,6 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 return new(ExtensionResultInboxDisposition.ResultIdConflict, existingResult.InboxId);
             }
 
-            DateTimeOffset now = _timeProvider.GetUtcNow();
             long? inboxId = existingResult?.InboxId;
             if (existingResult == null)
                 inboxId = InsertInbox(normalized, now, transaction);
@@ -172,7 +185,8 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 existingResult == null
                     ? ExtensionResultInboxDisposition.Accepted
                     : ExtensionResultInboxDisposition.BusinessDuplicate,
-                inboxId);
+                inboxId,
+                normalized.PayloadFingerprint);
         }
     }
 
@@ -322,6 +336,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 OriginNodeId TEXT NOT NULL,
                 RecordingSessionId TEXT NOT NULL,
                 TrackingNumber TEXT NOT NULL,
+                ExpiresAtUtc TEXT NOT NULL,
                 Capability TEXT NOT NULL,
                 Revision INTEGER NOT NULL,
                 Status TEXT NOT NULL,
@@ -345,6 +360,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 OriginNodeId TEXT NOT NULL,
                 RecordingSessionId TEXT NOT NULL,
                 TrackingNumber TEXT NOT NULL,
+                ExpiresAtUtc TEXT NOT NULL,
                 Capability TEXT NOT NULL,
                 LatestRevision INTEGER NOT NULL,
                 LatestPayloadFingerprint TEXT NOT NULL,
@@ -355,9 +371,11 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         EnsureColumn("ExtensionResultInbox", "OriginNodeId", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn("ExtensionResultInbox", "RecordingSessionId", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn("ExtensionResultInbox", "TrackingNumber", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionResultInbox", "ExpiresAtUtc", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn("ExtensionDeliveryRevisions", "OriginNodeId", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn("ExtensionDeliveryRevisions", "RecordingSessionId", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn("ExtensionDeliveryRevisions", "TrackingNumber", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionDeliveryRevisions", "ExpiresAtUtc", "TEXT NOT NULL DEFAULT ''");
         Execute("CREATE INDEX IF NOT EXISTS IX_ExtensionResultInbox_State_NextAttempt ON ExtensionResultInbox(State, NextAttemptAtUtc, CreatedAtUtc);");
     }
 
@@ -371,12 +389,12 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.CommandText = @"
             INSERT INTO ExtensionResultInbox (
                 ExtensionInstanceId, ProviderId, ResultId, DeliveryId, TaskId,
-                OriginNodeId, RecordingSessionId, TrackingNumber,
+                OriginNodeId, RecordingSessionId, TrackingNumber, ExpiresAtUtc,
                 Capability, Revision, Status, ObservedAtUtc, PayloadJson,
                 PayloadFingerprint, State, CreatedAtUtc, UpdatedAtUtc)
             VALUES (
                 @extensionId, @providerId, @resultId, @deliveryId, @taskId,
-                @originNodeId, @recordingSessionId, @trackingNumber,
+                @originNodeId, @recordingSessionId, @trackingNumber, @expiresAt,
                 @capability, @revision, @status, @observedAt, @payload,
                 @fingerprint, @state, @now, @now);
             SELECT last_insert_rowid();";
@@ -397,13 +415,17 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.CommandText = @"
             INSERT INTO ExtensionDeliveryRevisions (
                 DeliveryId, ExtensionInstanceId, TaskId, OriginNodeId,
-                RecordingSessionId, TrackingNumber, Capability, LatestRevision,
+                RecordingSessionId, TrackingNumber, ExpiresAtUtc, Capability, LatestRevision,
                 LatestPayloadFingerprint, LatestResultId, LatestInboxId, UpdatedAtUtc)
             VALUES (
                 @deliveryId, @extensionId, @taskId, @originNodeId,
-                @recordingSessionId, @trackingNumber, @capability, @revision,
+                @recordingSessionId, @trackingNumber, @expiresAt, @capability, @revision,
                 @fingerprint, @resultId, @inboxId, @now)
             ON CONFLICT(DeliveryId) DO UPDATE SET
+                ExpiresAtUtc = CASE
+                    WHEN ExtensionDeliveryRevisions.ExpiresAtUtc = '' THEN excluded.ExpiresAtUtc
+                    ELSE ExtensionDeliveryRevisions.ExpiresAtUtc
+                END,
                 LatestRevision = excluded.LatestRevision,
                 LatestPayloadFingerprint = excluded.LatestPayloadFingerprint,
                 LatestResultId = excluded.LatestResultId,
@@ -425,6 +447,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.Parameters.AddWithValue("@originNodeId", submission.OriginNodeId);
         command.Parameters.AddWithValue("@recordingSessionId", submission.RecordingSessionId);
         command.Parameters.AddWithValue("@trackingNumber", submission.TrackingNumber);
+        command.Parameters.AddWithValue("@expiresAt", Format(submission.ExpiresAtUtc));
         command.Parameters.AddWithValue("@capability", submission.Capability);
         command.Parameters.AddWithValue("@revision", submission.Revision);
         command.Parameters.AddWithValue("@status", submission.Status.ToString());
@@ -439,7 +462,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.Transaction = transaction;
         command.CommandText = @"
             SELECT ExtensionInstanceId, TaskId, OriginNodeId, RecordingSessionId,
-                   TrackingNumber, Capability, LatestRevision,
+                   TrackingNumber, ExpiresAtUtc, Capability, LatestRevision,
                    LatestPayloadFingerprint, LatestResultId, LatestInboxId
             FROM ExtensionDeliveryRevisions
             WHERE DeliveryId = @deliveryId;";
@@ -453,11 +476,12 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             reader.GetString(2),
             reader.GetString(3),
             reader.GetString(4),
-            reader.GetString(5),
-            reader.GetInt64(6),
-            reader.GetString(7),
+            ParseOptional(reader.GetString(5)),
+            reader.GetString(6),
+            reader.GetInt64(7),
             reader.GetString(8),
-            reader.IsDBNull(9) ? null : reader.GetInt64(9));
+            reader.GetString(9),
+            reader.IsDBNull(10) ? null : reader.GetInt64(10));
     }
 
     private BusinessResult? ReadBusinessResult(
@@ -488,7 +512,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.CommandText = @"
             SELECT Id, ExtensionInstanceId, ProviderId, ResultId, DeliveryId, TaskId,
                    OriginNodeId, RecordingSessionId, TrackingNumber,
-                   Capability, Revision, Status, ObservedAtUtc, PayloadJson,
+                   ExpiresAtUtc, Capability, Revision, Status, ObservedAtUtc, PayloadJson,
                    PayloadFingerprint, State, AttemptCount, NextAttemptAtUtc,
                    LastError, CreatedAtUtc, UpdatedAtUtc
             FROM ExtensionResultInbox
@@ -497,7 +521,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read())
             return null;
-        if (!Enum.TryParse(reader.GetString(11), out ExtensionScanResultStatus status))
+        if (!Enum.TryParse(reader.GetString(12), out ExtensionScanResultStatus status))
             throw new InvalidDataException("扩展结果状态无法识别");
         return new ExtensionResultInboxItem
         {
@@ -510,18 +534,19 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             OriginNodeId = reader.GetString(6),
             RecordingSessionId = reader.GetString(7),
             TrackingNumber = reader.GetString(8),
-            Capability = reader.GetString(9),
-            Revision = reader.GetInt64(10),
+            ExpiresAtUtc = ParseOptional(reader.GetString(9)) ?? Parse(reader.GetString(13)),
+            Capability = reader.GetString(10),
+            Revision = reader.GetInt64(11),
             Status = status,
-            ObservedAtUtc = Parse(reader.GetString(12)),
-            PayloadJson = reader.GetString(13),
-            PayloadFingerprint = reader.GetString(14),
-            State = reader.GetString(15),
-            AttemptCount = reader.GetInt32(16),
-            NextAttemptAtUtc = reader.IsDBNull(17) ? null : Parse(reader.GetString(17)),
-            LastError = reader.GetString(18),
-            CreatedAtUtc = Parse(reader.GetString(19)),
-            UpdatedAtUtc = Parse(reader.GetString(20))
+            ObservedAtUtc = Parse(reader.GetString(13)),
+            PayloadJson = reader.GetString(14),
+            PayloadFingerprint = reader.GetString(15),
+            State = reader.GetString(16),
+            AttemptCount = reader.GetInt32(17),
+            NextAttemptAtUtc = reader.IsDBNull(18) ? null : Parse(reader.GetString(18)),
+            LastError = reader.GetString(19),
+            CreatedAtUtc = Parse(reader.GetString(20)),
+            UpdatedAtUtc = Parse(reader.GetString(21))
         };
     }
 
@@ -541,6 +566,11 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         string trackingNumber = submission.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
         if (trackingNumber.Length is < 1 or > 128 || trackingNumber.Any(char.IsControl))
             throw new InvalidDataException("快递单号格式无效");
+        if (submission.ExpiresAtUtc == default
+            || submission.ExpiresAtUtc - submission.ObservedAtUtc > TimeSpan.FromMinutes(2))
+        {
+            throw new InvalidDataException("结果任务有效期无效");
+        }
         string capability = submission.Capability?.Trim().ToLowerInvariant() ?? "";
         if (!ExtensionScanCapabilities.Supported.Contains(capability))
             throw new InvalidDataException("结果能力不受支持");
@@ -565,6 +595,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             originNodeId,
             recordingSessionId,
             trackingNumber,
+            submission.ExpiresAtUtc,
             capability,
             submission.Revision,
             submission.Status,
@@ -667,6 +698,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
     private static DateTimeOffset Parse(string value) =>
         new(DateTime.Parse(value, null, System.Globalization.DateTimeStyles.RoundtripKind).ToUniversalTime());
 
+    private static DateTimeOffset? ParseOptional(string value) =>
+        string.IsNullOrWhiteSpace(value) ? null : Parse(value);
+
     public void Dispose() => _connection.Dispose();
 
     private sealed record NormalizedSubmission(
@@ -678,6 +712,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         string OriginNodeId,
         string RecordingSessionId,
         string TrackingNumber,
+        DateTimeOffset ExpiresAtUtc,
         string Capability,
         long Revision,
         ExtensionScanResultStatus Status,
@@ -691,6 +726,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         string OriginNodeId,
         string RecordingSessionId,
         string TrackingNumber,
+        DateTimeOffset? ExpiresAtUtc,
         string Capability,
         long LatestRevision,
         string LatestPayloadFingerprint,
