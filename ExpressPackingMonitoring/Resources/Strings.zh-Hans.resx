@@ -935,4 +935,11 @@
   <data name="取消导出" xml:space="preserve"><value>取消导出</value></data>
    <data name="尚未配置网络备份位置；本地磁盘不能作为备份位置" xml:space="preserve"><value>尚未配置网络备份位置；本地磁盘不能作为备份位置</value></data>
   <data name="局域网连接已修复" xml:space="preserve"><value>局域网连接已修复</value></data>
+  <data name="保护开启时可全选复制；关闭保护后才能修改，修改后旧链接立即失效" xml:space="preserve"><value>保护开启时可全选复制；关闭保护后才能修改，修改后旧链接立即失效</value></data>
+  <data name="自定义订单脚本" xml:space="preserve"><value>自定义订单脚本</value></data>
+  <data name="导入第三方油猴脚本，导入后可在安装向导中选择" xml:space="preserve"><value>导入第三方油猴脚本，导入后可在安装向导中选择</value></data>
+  <data name="导入自定义脚本" xml:space="preserve"><value>导入自定义脚本</value></data>
+  <data name="播报商品件数" xml:space="preserve"><value>播报商品件数</value></data>
+  <data name="接收第三方水印" xml:space="preserve"><value>接收第三方水印</value></data>
+  <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>允许称重等第三方程序把数据显示到录像水印中</value></data>
  </root>
