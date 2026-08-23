@@ -1,27 +1,70 @@
 # PackingProof 扩展接口 v1
 
-扩展接口供 ERP、油猴脚本、称重程序等局域网适配器使用。第三方程序只能通过 HTTP API 提交数据，不得直接访问 PackingProof 的数据库、配置文件或执行目录。本文件同时约定第三方油猴脚本的导入、安装和维护规则。
+扩展接口供 ERP、油猴脚本、称重程序等局域网适配器使用。第三方程序只能通过 HTTP API 交换受限结构化数据，不得直接访问 PackingProof 的数据库、配置文件或执行目录。本文件是已经实现的 v1 协议，不包含未落地的路线图草案。
 
-后续的扩展授权、通用扫码任务、多扩展响应和结构化商品规划见 [第三方扩展 API 路线图](EXTENSION_API_ROADMAP.md)。路线图中的草案接口尚未全部实现，当前开发必须以本文件列出的 v1 接口为准。
+v1 同时保留两类接口：
+
+- 生产扩展协议：用户明确授权后，扩展使用独立凭据签名，领取扫码任务并提交订单、退款或测量结果
+- 兼容数据接口：旧脚本继续使用录像网页访问密钥主动推送订单或当前录像水印字段
+
+扩展 API 总开关默认关闭。关闭时不创建扩展凭据，不初始化任务代理、结果处理器或扩展后台定时器；旧版订单广播接口仍可继续工作。
 
 ## 快速开始
 
-1. 在 PackingProof 的“设置 → 局域网查看”中点击“导入自定义脚本”，选择第三方的 `.user.js` 文件
-2. 导入完成后打开“安装订单联动”，在脚本列表中选择该脚本安装
-3. 脚本从安装向导提供的主机地址调用本接口，并在每次请求中发送访问密钥
+1. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
+2. 扩展读取 `/api/extensions/v1/capabilities`，确认 `extensionApiEnabled=true` 和所需 feature
+3. 扩展向 `/api/extensions/v1/enroll` 发起授权，用户在电脑端确认名称、来源、权限、能力和绑定工位
+4. 扩展仅保存本次返回的独立凭据，后续请求使用 v1 签名，不使用录像网页访问密钥
+5. 用户可在“已授权扩展”中查看在线状态、轮换凭据或撤销授权
+
+油猴脚本还可以从“导入自定义脚本”导入，再通过“安装订单联动”选择安装。导入和安装只负责维护脚本文件、地址及更新链接，不会绕过扩展授权。
 
 PackingProof 不执行导入的脚本，也不会把脚本加载为桌面端插件。脚本只会被保存、检查、注入当前设备地址后提供给浏览器脚本管理器安装。
 
-## 鉴权与请求约定
+## 两种鉴权方式
 
-扩展接口的所有路径都纳入 Web 访问保护；当主机启用 Web 访问保护时，能力查询也需要鉴权。未启用访问保护的本机开发环境可以直接调用。推荐使用请求头传递密钥：
+### 扩展签名鉴权（推荐）
+
+扫码任务、确认、结果提交和扩展心跳必须使用扩展授权返回的独立凭据签名。该凭据与录像网页访问密钥、手机备份令牌互相独立，撤销或轮换不会改变录像网页链接。
+
+签名请求头：
+
+```http
+X-PackingProof-Extension-Version: 1
+X-PackingProof-Extension-Id: <extensionInstanceId>
+X-PackingProof-Extension-Credential-Generation: <credentialGeneration>
+X-PackingProof-Extension-Timestamp: <Unix 秒>
+X-PackingProof-Extension-Nonce: <至少 16 字节随机数的十六进制>
+X-PackingProof-Extension-Content-SHA256: <请求正文 SHA-256>
+X-PackingProof-Extension-Signature: <HMAC-SHA256>
+```
+
+签名原文严格使用 UTF-8 和换行符 `\n`：
+
+```text
+packingproof-extension-request-v1
+1
+<credentialGeneration>
+<大写 HTTP 方法>
+<路径和查询字符串>
+<Unix 秒>
+<小写 nonce>
+<小写正文 SHA-256>
+<extensionInstanceId>
+```
+
+GET 请求的正文是零字节，不是 `{}`。每个请求必须使用新的 nonce；时间与主机相差不得超过 5 分钟。
+
+### 录像网页访问密钥（兼容）
+
+`orders`、`recordings/active` 和录像字段接口继续兼容网页访问密钥：
 
 ```http
 X-EPM-Access-Key: <PackingProof 访问密钥>
 Content-Type: application/json
 ```
 
-也兼容在 URL 中使用 `?key=...`，但不建议这样做，因为 URL 可能出现在浏览器历史、代理或日志中。油猴脚本应使用 `GM_xmlhttpRequest` 并只请求安装向导写入的主机地址，不要把密钥写入公开仓库或页面文本。
+也兼容在 URL 中使用 `?key=...`，但不建议这样做，因为 URL 可能进入浏览器历史、代理或日志。不要把任何凭据写入公开仓库、脚本元数据或页面文本。
 
 成功响应为 JSON；失败响应包含 `error`，扩展接口还会尽量提供稳定的 `errorCode`。常见状态码：
 
@@ -30,8 +73,11 @@ Content-Type: application/json
 | `200` | 请求已处理 |
 | `400` | JSON、字段或长度无效 |
 | `401` | 缺少或无效的访问密钥 |
+| `403` | 扩展未启用、权限不足、授权被拒绝或凭据已撤销 |
 | `409` | 当前状态不允许操作，例如录像已结束 |
+| `410` | 扫码任务已经过期 |
 | `426` | 请求的扩展接口版本不受支持 |
+| `429` | 请求频率、连接数或防重放容量达到上限 |
 | `500` | 主机暂时无法处理请求 |
 
 ## 第三方油猴脚本开发规范
@@ -73,7 +119,7 @@ const PACKING_PROOF_HOST = null;
 
 缺少占位符的脚本仍可以导入和安装，但安装向导会显示警告，设备地址、`@connect` 或自动更新地址无法由桌面端自动维护。脚本可以自行实现地址配置，但必须仍然通过本接口发送数据。
 
-最小的订单推送示例：
+兼容订单推送的最小示例：
 
 ```javascript
 function pushOrders(host, accessKey, orders) {
@@ -122,7 +168,155 @@ function pushOrders(host, accessKey, orders) {
 GET /api/extensions/v1/capabilities
 ```
 
-返回当前主机支持的扩展能力和请求限制。启用 Web 访问保护时，扩展接口也必须携带现有访问密钥。
+返回当前主机支持的扩展能力和请求限制。生产扩展应检查：
+
+```json
+{
+  "apiVersion": "v1",
+  "extensionApiEnabled": true,
+  "features": {
+    "signedScanTasks": true
+  }
+}
+```
+
+总开关关闭时能力查询仍可返回，但授权和签名接口返回 `extension_disabled`。
+
+## 注册与授权
+
+```http
+POST /api/extensions/v1/enroll
+Content-Type: application/json
+```
+
+```json
+{
+  "requestId": "enroll-0123456789abcdef01234567",
+  "requestSecret": "64 位随机十六进制",
+  "extensionInstanceId": "scale-device-0001",
+  "providerId": "scale.example",
+  "displayName": "示例称重设备",
+  "version": "1.0",
+  "source": "https://example.com/packingproof-adapter",
+  "requestedPermissions": [
+    "scan-tasks.read",
+    "scan-results.write",
+    "recording-fields.write"
+  ],
+  "requestedCapabilities": ["measurement.capture"]
+}
+```
+
+`requestId`、`requestSecret` 和 `extensionInstanceId` 必须由扩展生成；不要使用机器名、IP、手机号或账号等个人信息。相同请求可在短时间内安全重试，但同一 `requestId + requestSecret` 不得改动申请内容。
+
+成功响应中的 `credential` 只返回一次：
+
+```json
+{
+  "apiVersion": "v1",
+  "extensionInstanceId": "scale-device-0001",
+  "credential": "...",
+  "credentialGeneration": 1,
+  "permissions": ["scan-tasks.read", "scan-results.write", "recording-fields.write"],
+  "capabilities": ["measurement.capture"],
+  "routingScope": "selected_recording_nodes",
+  "boundOriginNodeIds": ["recording-node-001"]
+}
+```
+
+扩展必须核对实际批准的权限、能力和绑定节点。用户拒绝时不要高频重复弹窗；建议至少等待 10 分钟或由用户主动重试。
+
+完整的最小 JavaScript 客户端见 [`examples/extension-v1-minimal.js`](examples/extension-v1-minimal.js)。示例只包含注册、签名、心跳、任务领取、确认和结果提交，不包含任何 ERP 页面解析或业务系统代码，也不会自动保存凭据。
+
+## 心跳与在线状态
+
+```http
+POST /api/extensions/v1/heartbeat
+```
+
+此接口使用签名鉴权。正文示例：
+
+```json
+{
+  "version": "1.2",
+  "capabilities": ["order.lookup", "refund.lookup"],
+  "lastSuccessfulActivityAt": "2026-08-23T06:20:18Z",
+  "dataCount": 3
+}
+```
+
+建议每 15 秒发送一次；45 秒没有心跳后管理界面显示离线。心跳只用于在线状态和运行版本，不会增加“收到 N 条数据”；业务活动以主机真正接受的结果为准。
+
+## 扫码任务闭环
+
+扩展使用签名长轮询领取任务：
+
+```http
+GET /api/extensions/v1/scan-tasks/next?waitSeconds=20
+```
+
+没有任务时返回 `204`。有任务时返回：
+
+```json
+{
+  "deliveryId": "...",
+  "taskId": "...",
+  "originNodeId": "recording-node-001",
+  "recordingSessionId": "...",
+  "trackingNumber": "YT123456",
+  "recordingMode": "发货",
+  "capability": "order.lookup",
+  "occurredAt": "2026-08-23T06:20:00Z",
+  "softDeadline": "2026-08-23T06:20:08Z",
+  "expiresAt": "2026-08-23T06:20:30Z",
+  "deliveryAttempt": 1
+}
+```
+
+先确认投递：
+
+```http
+POST /api/extensions/v1/scan-tasks/{deliveryId}/ack
+
+{"taskId":"..."}
+```
+
+再提交结构化结果：
+
+```http
+POST /api/extensions/v1/scan-results
+```
+
+```json
+{
+  "deliveryId": "...",
+  "taskId": "...",
+  "providerId": "erp.example",
+  "resultId": "result-0123456789abcdef",
+  "revision": 1,
+  "status": "found",
+  "observedAt": "2026-08-23T06:20:05Z",
+  "orders": [
+    {
+      "trackingNumber": "YT123456",
+      "orderId": "ORDER-1",
+      "buyerMessage": "请轻放",
+      "sellerMemo": "",
+      "totalItemCount": 3,
+      "products": [
+        {"name":"商品 A","sku":"A-1","merchantSku":"","quantity":3}
+      ],
+      "refundState": "none",
+      "refundReason": ""
+    }
+  ],
+  "measurements": []
+}
+```
+
+可用能力：`order.lookup`、`refund.lookup`、`measurement.capture`。结果状态包括 `in_progress`、`found`、`not_found`、`completed`、`unavailable`、`provider_auth_required`、`rate_limited`、`timeout` 和 `invalid_request`。
+
+`resultId + revision` 用于幂等和修订；重试相同内容不会重复应用，不得用同一修订号发送不同内容。晚于硬超时的任务返回 `410`，乱序或冲突修订返回 `409`。多台工位的任务必须按 `originNodeId` 和 `recordingSessionId` 保持隔离。
 
 ## 推送订单
 
@@ -197,8 +391,31 @@ Content-Type: application/json
 - 买家留言和卖家备注最长 2000 个字符
 - 总件数范围为 0 到 100000
 - 聚合订单数量范围为 0 到 200
+- 单个扫码结果最多 50 条订单，每条最多 100 个结构化商品
+- 单个扫码结果最多 8 个测量值
+- 扩展标识、任务标识和结果标识只允许协议规定的字母、数字及有限分隔符
 
 请求失败只拒绝当前请求，不会停止录像或删除已有订单数据。
+
+## 稳定错误码
+
+签名和授权相关错误至少包括：
+
+- `extension_disabled`
+- `extension_auth_required`
+- `extension_auth_version_unsupported`
+- `extension_auth_timestamp_stale`
+- `extension_auth_revoked`
+- `extension_auth_generation_mismatch`
+- `extension_auth_content_hash_mismatch`
+- `extension_auth_signature_invalid`
+- `extension_auth_replay_detected`
+- `extension_permission_denied`
+- `extension_delivery_not_found`
+- `extension_delivery_expired`
+- `extension_result_conflict`
+
+收到 `extension_auth_revoked` 或 `extension_auth_generation_mismatch` 后应停止使用旧凭据，由用户重新授权或录入轮换后的凭据；不要无限重试。
 
 ## 安全约束
 
@@ -208,3 +425,6 @@ Content-Type: application/json
 - 不接受 SQL、Shell、PowerShell、FFmpeg 参数或文件路径
 - Web 展示必须进行 HTML 转义
 - 不允许第三方直接写 SQLite 或加载主程序插件代码
+- 扩展返回的所有字符串都按数据处理，不会解释为 SQL、HTML、Shell、PowerShell、FFmpeg 或绘制指令
+- 录像水印只使用主机固定布局和字体，第三方不能传入坐标、模板或可执行表达式
+- 每个扩展只能领取符合已批准能力和绑定工位的任务；两台工位并发时按来源节点和录像会话隔离
