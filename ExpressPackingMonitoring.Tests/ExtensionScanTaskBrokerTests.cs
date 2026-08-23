@@ -22,8 +22,8 @@ public sealed class ExtensionScanTaskBrokerTests
 
         Assert.Equal(2, published.Deliveries.Count);
         Assert.Empty(published.SkippedTargets);
-        ExtensionScanDelivery erp = Assert.NotNull(broker.Poll("erp-extension-001"));
-        ExtensionScanDelivery scale = Assert.NotNull(broker.Poll("scale-extension-001"));
+        ExtensionScanDelivery erp = RequireNotNull(broker.Poll("erp-extension-001"));
+        ExtensionScanDelivery scale = RequireNotNull(broker.Poll("scale-extension-001"));
         Assert.NotEqual(erp.DeliveryId, scale.DeliveryId);
         Assert.Equal(erp.ScanEvent.TaskId, scale.ScanEvent.TaskId);
         Assert.Null(broker.Poll("unrelated-extension-001"));
@@ -36,10 +36,10 @@ public sealed class ExtensionScanTaskBrokerTests
         var broker = new ExtensionScanTaskBroker(time, redeliveryDelay: TimeSpan.FromSeconds(5));
         broker.Publish(Event(time, "task-0002"), [Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)]);
 
-        ExtensionScanDelivery first = Assert.NotNull(broker.Poll("erp-extension-001"));
+        ExtensionScanDelivery first = RequireNotNull(broker.Poll("erp-extension-001"));
         Assert.Null(broker.Poll("erp-extension-001"));
         time.Advance(TimeSpan.FromSeconds(5));
-        ExtensionScanDelivery repeated = Assert.NotNull(broker.Poll("erp-extension-001"));
+        ExtensionScanDelivery repeated = RequireNotNull(broker.Poll("erp-extension-001"));
 
         Assert.Equal(first.DeliveryId, repeated.DeliveryId);
         Assert.Equal(2, repeated.DeliveryAttempts);
@@ -51,7 +51,7 @@ public sealed class ExtensionScanTaskBrokerTests
         var time = new MutableTimeProvider(Utc(8, 0, 0));
         var broker = new ExtensionScanTaskBroker(time);
         broker.Publish(Event(time, "task-0003"), [Target("scale-extension-001", ExtensionScanCapabilities.MeasurementCapture)]);
-        ExtensionScanDelivery delivery = Assert.NotNull(broker.Poll("scale-extension-001"));
+        ExtensionScanDelivery delivery = RequireNotNull(broker.Poll("scale-extension-001"));
 
         ExtensionScanSubmission revision1 = Submission(delivery, 1, ExtensionScanResultStatus.InProgress, 'a');
         Assert.Equal(ExtensionScanSubmissionDisposition.Accepted, broker.Submit(revision1).Disposition);
@@ -76,7 +76,7 @@ public sealed class ExtensionScanTaskBrokerTests
         var time = new MutableTimeProvider(Utc(8, 0, 0));
         var broker = new ExtensionScanTaskBroker(time);
         broker.Publish(Event(time, "task-0004"), [Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)]);
-        ExtensionScanDelivery delivery = Assert.NotNull(broker.Poll("erp-extension-001"));
+        ExtensionScanDelivery delivery = RequireNotNull(broker.Poll("erp-extension-001"));
         ExtensionScanSubmission valid = Submission(delivery, 1, ExtensionScanResultStatus.Found, 'd');
 
         Assert.Equal(
@@ -94,7 +94,7 @@ public sealed class ExtensionScanTaskBrokerTests
         var time = new MutableTimeProvider(Utc(8, 0, 0));
         var broker = new ExtensionScanTaskBroker(time);
         broker.Publish(Event(time, "task-0005"), [Target("scale-extension-001", ExtensionScanCapabilities.MeasurementCapture)]);
-        ExtensionScanDelivery delivery = Assert.NotNull(broker.Poll("scale-extension-001"));
+        ExtensionScanDelivery delivery = RequireNotNull(broker.Poll("scale-extension-001"));
         ExtensionScanSubmission progress = Submission(delivery, 1, ExtensionScanResultStatus.InProgress, 'e');
         Assert.Equal(ExtensionScanSubmissionDisposition.Accepted, broker.Submit(progress).Disposition);
 
@@ -133,7 +133,7 @@ public sealed class ExtensionScanTaskBrokerTests
         var time = new MutableTimeProvider(Utc(8, 0, 0));
         var broker = new ExtensionScanTaskBroker(time, redeliveryDelay: TimeSpan.FromSeconds(5));
         broker.Publish(Event(time, "task-0011"), [Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)]);
-        ExtensionScanDelivery delivery = Assert.NotNull(broker.Poll("erp-extension-001"));
+        ExtensionScanDelivery delivery = RequireNotNull(broker.Poll("erp-extension-001"));
         DateTimeOffset retryAt = time.GetUtcNow().AddSeconds(20);
 
         ExtensionScanSubmissionResult limited = broker.Submit(
@@ -191,7 +191,7 @@ public sealed class ExtensionScanTaskBrokerTests
         ExtensionScanDelivery?[] deliveries = await Task.WhenAll(
             Enumerable.Range(0, 16).Select(_ => Task.Run(() => broker.Poll("erp-extension-001"))));
 
-        Assert.Single(deliveries.Where(delivery => delivery != null));
+        Assert.Single(deliveries, delivery => delivery != null);
     }
 
     [Fact]
@@ -291,6 +291,12 @@ public sealed class ExtensionScanTaskBrokerTests
     };
 
     private static string Fingerprint(char value) => new(value, 64);
+
+    private static T RequireNotNull<T>(T? value) where T : class
+    {
+        Assert.NotNull(value);
+        return value!;
+    }
 
     private static DateTimeOffset Utc(int hour, int minute, int second) =>
         new(2026, 8, 23, hour, minute, second, TimeSpan.Zero);
