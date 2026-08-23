@@ -209,6 +209,7 @@ namespace ExpressPackingMonitoring.Services
         private ExtensionRequestAuthenticator _extensionRequestAuthenticator;
         private ExtensionScanTaskBroker _extensionScanTaskBroker;
         private ExtensionScanResultSubmissionCoordinator _extensionScanResultCoordinator;
+        private Action _extensionResultAvailable;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -420,7 +421,8 @@ namespace ExpressPackingMonitoring.Services
 
         internal void ConfigureExtensionTaskApi(
             ExtensionScanTaskBroker broker,
-            ExtensionScanResultSubmissionCoordinator resultCoordinator)
+            ExtensionScanResultSubmissionCoordinator resultCoordinator,
+            Action resultAvailable = null)
         {
             if (!_extensionApiEnabled)
                 throw new InvalidOperationException("扩展 API 未启用");
@@ -429,6 +431,7 @@ namespace ExpressPackingMonitoring.Services
             _extensionScanTaskBroker = broker ?? throw new ArgumentNullException(nameof(broker));
             _extensionScanResultCoordinator = resultCoordinator
                 ?? throw new ArgumentNullException(nameof(resultCoordinator));
+            _extensionResultAvailable = resultAvailable;
         }
 
         private static HttpListener CreateListener(int port, string listenerHost)
@@ -3351,6 +3354,11 @@ namespace ExpressPackingMonitoring.Services
                     authorization,
                     request);
                 SendExtensionScanResultOutcome(ctx, outcome);
+                if (outcome.Disposition == ExtensionScanResultSubmissionDisposition.Accepted)
+                {
+                    try { _extensionResultAvailable?.Invoke(); }
+                    catch (Exception ex) { RuntimeLog.Error("ExtensionResult", "Result processing trigger failed", ex); }
+                }
             }
             catch (UnauthorizedAccessException ex)
             {

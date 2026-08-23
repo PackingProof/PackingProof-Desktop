@@ -191,6 +191,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _isDisposed = false; // 新增：防止销毁后操作 UI
         private WebServer _webServer;
         private ExtensionAuthorizationStore _extensionAuthorizationStore;
+        private ExtensionRuntime _extensionRuntime;
         private Task<bool> _webServerStartupTask;
         private readonly SemaphoreSlim _webServerLifecycleLock = new(1, 1);
         private StatisticsWindow _statisticsWindow;
@@ -1366,6 +1367,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     await InternalStopRecordingAsync();
                 }
                 await InternalStartRecordingAsync();
+                PublishExtensionScanTaskIfRecordingStarted(upperResult);
                 QueuePrintedRefundCheck(upperResult, CurrentMode);
 
                 // 录制已启动、数据库记录已写入，此时检查重复单号（排除刚刚插入的当前记录）
@@ -2952,6 +2954,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             await _webServerLifecycleLock.WaitAsync();
             WebServer newServer = null;
+            ExtensionRuntime newExtensionRuntime = null;
             try
             {
                 bool orderReceiverOnly = IsRecordingWorkstation;
@@ -2959,6 +2962,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 WebServer previousServer = _webServer;
                 _webServer = null;
                 try { previousServer?.Dispose(); } catch { }
+                ExtensionRuntime previousExtensionRuntime = _extensionRuntime;
+                _extensionRuntime = null;
+                try { previousExtensionRuntime?.Dispose(); } catch { }
 
                 if ((!Config.EnableWebServer && !orderReceiverOnly) || _db == null || _isDisposed)
                 {
@@ -3024,6 +3030,17 @@ namespace ExpressPackingMonitoring.ViewModels
                                 request,
                                 Config.NodeId,
                                 Config.NodeName));
+                        newExtensionRuntime = new ExtensionRuntime(
+                            _db,
+                            _dbFilePath,
+                            Config.NodeId,
+                            _extensionAuthorizationStore,
+                            OnRecordingExtensionDataChanged,
+                            order => OnOrderInfoReceived([order]));
+                        server.ConfigureExtensionTaskApi(
+                            newExtensionRuntime.Broker,
+                            newExtensionRuntime.Coordinator,
+                            newExtensionRuntime.ProcessAvailableResults);
                     }
                     try
                     {
@@ -3050,6 +3067,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 _webServer = newServer;
                 newServer = null;
+                _extensionRuntime = newExtensionRuntime;
+                newExtensionRuntime = null;
                 await RefreshWorkstationStatusAsync();
                 QueueRecordingWorkstationHeartbeat(force: true);
                 RuntimeLog.Info(
@@ -3060,6 +3079,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 try { newServer?.Dispose(); } catch { }
+                try { newExtensionRuntime?.Dispose(); } catch { }
                 RuntimeLog.Error("Web", "LAN service start failed", ex);
                 string userMessage = WebServer.GetLanAccessFailureUserMessage(
                     repairAttempted: false,
@@ -4381,6 +4401,35 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        private void PublishExtensionScanTaskIfRecordingStarted(string trackingNumber)
+        {
+            ExtensionRuntime runtime = _extensionRuntime;
+            if (!Config.EnableExtensionApi
+                || runtime == null
+                || !IsRecording
+                || _currentRecordId <= 0
+                || string.IsNullOrWhiteSpace(_recordingSessionId))
+                return;
+            try
+            {
+                ExtensionScanPublishResult result = runtime.Publish(
+                    Config.NodeId,
+                    _recordingSessionId,
+                    trackingNumber,
+                    _recordingMode);
+                if (result.Deliveries.Count > 0 || result.SkippedTargets.Count > 0)
+                {
+                    RuntimeLog.Info(
+                        "ExtensionTask",
+                        $"Published scan task session={_recordingSessionId}, deliveries={result.Deliveries.Count}, skipped={result.SkippedTargets.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("ExtensionTask", "Failed to publish scan task", ex);
+            }
+        }
+
         private Mat BitmapToMat(Bitmap bitmap)
         {
             if (bitmap.PixelFormat == PixelFormat.Format24bppRgb)
@@ -5178,6 +5227,8 @@ namespace ExpressPackingMonitoring.ViewModels
             _purposeSwitchCts.Dispose();
             try { _globalKeyHook?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
+            try { _extensionRuntime?.Dispose(); } catch { }
+            _extensionRuntime = null;
             DisposeRecordingTransfers();
             if (_archiveService != null)
             {

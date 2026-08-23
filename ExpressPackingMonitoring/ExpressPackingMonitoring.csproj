@@ -152,6 +152,7 @@
     <Compile Include="Services\ExtensionOrderResultApplier.cs" />
     <Compile Include="Services\ExtensionRequestAuthentication.cs" />
     <Compile Include="Services\ExtensionResultInboxProcessor.cs" />
+    <Compile Include="Services\ExtensionRuntime.cs" />
     <Compile Include="Services\ExtensionScanResultContract.cs" />
     <Compile Include="Services\ExtensionScanResultSubmissionCoordinator.cs" />
     <Compile Include="Services\ExtensionScanTaskBroker.cs" />
