@@ -168,6 +168,11 @@ namespace ExpressPackingMonitoring.UI
         private bool _recordingCacheLimitExplained;
         public ObservableCollection<UserscriptDescriptor> CustomUserscripts { get; } = new();
         public ObservableCollection<ExtensionAuthorizationDisplayItem> ExtensionAuthorizations { get; } = new();
+        public ObservableCollection<OrderIntegrationDeviceDisplayItem> OrderIntegrationDevices { get; } = new();
+        private readonly System.Windows.Threading.DispatcherTimer _integrationStatusTimer = new()
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
         private const string FeedbackEmail = "PackingProof@outlook.com";
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -194,6 +199,10 @@ namespace ExpressPackingMonitoring.UI
             this.DataContext = this;
             RefreshCustomUserscripts();
             RefreshExtensionAuthorizations();
+            RefreshOrderIntegrationDevices();
+            _integrationStatusTimer.Tick += IntegrationStatusTimer_Tick;
+            if (Capabilities.CanRunWebServer)
+                _integrationStatusTimer.Start();
             if (Capabilities.IsRecordingDevice)
                 SyncVoiceEngineComboBoxFromConfig();
             if (Capabilities.CanUseScanner)
@@ -2341,6 +2350,17 @@ namespace ExpressPackingMonitoring.UI
                 ExtensionAuthorizations.Add(item);
         }
 
+        private void IntegrationStatusTimer_Tick(object sender, EventArgs e) =>
+            RefreshOrderIntegrationDevices();
+
+        private void RefreshOrderIntegrationDevices()
+        {
+            OrderIntegrationDevices.Clear();
+            foreach (OrderIntegrationDeviceDisplayItem item in
+                     Context.GetOrderIntegrationDevices?.Invoke() ?? [])
+                OrderIntegrationDevices.Add(item);
+        }
+
         private void RotateExtensionCredential_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button { CommandParameter: ExtensionAuthorizationDisplayItem item }) return;
@@ -2433,6 +2453,8 @@ namespace ExpressPackingMonitoring.UI
         protected override void OnClosed(EventArgs e)
         {
             _isClosing = true;
+            _integrationStatusTimer.Stop();
+            _integrationStatusTimer.Tick -= IntegrationStatusTimer_Tick;
             var migrationCts = Interlocked.Exchange(ref _migrationCts, null);
             try { migrationCts?.Cancel(); } catch (ObjectDisposedException) { }
             Context.SetPreviewZoomScale?.Invoke(null);

@@ -193,6 +193,26 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
+    public void OrderIntegrationDevices_UseOnlineIndicatorAndRecentActivityGrid()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement grid = Assert.Single(
+            document.Descendants(Presentation + "DataGrid"),
+            element => ((string?)element.Attribute("ItemsSource"))?.Contains(
+                "OrderIntegrationDevices",
+                StringComparison.Ordinal) == true);
+
+        Assert.Contains(
+            grid.Descendants(Presentation + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding Online}"
+                && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(
+            grid.Descendants(Presentation + "DataGridTextColumn"),
+            column => (string?)column.Attribute("Header") == "最近活动"
+                && (string?)column.Attribute("Binding") == "{Binding ActivityText}");
+    }
+
+    [Fact]
     public void SettingRows_HighlightOnlyWhileEnabledAndPurposeHintIsRemoved()
     {
         XDocument document = LoadSettingsXaml();

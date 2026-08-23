@@ -6,6 +6,7 @@ namespace ExpressPackingMonitoring.Services;
 internal sealed class RecordingComputerNicknameRegistry
 {
     private const int MaxNameLength = 20;
+    private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
     private readonly string _path;
     private readonly object _sync = new();
     private List<Entry> _entries;
@@ -59,6 +60,25 @@ internal sealed class RecordingComputerNicknameRegistry
     internal void RegisterHost(string? nodeId, string? displayName, bool customized)
     {
         Assign(nodeId, displayName, customized);
+    }
+
+    internal IReadOnlyList<RecordingComputerNicknameInfo> GetKnown()
+    {
+        lock (_sync)
+        {
+            DateTime cutoff = DateTime.UtcNow - Retention;
+            if (_entries.RemoveAll(item => item.UpdatedAtUtc < cutoff) > 0)
+            {
+                try { Save(); } catch { }
+            }
+            return _entries
+                .OrderByDescending(item => item.UpdatedAtUtc)
+                .Select(item => new RecordingComputerNicknameInfo(
+                    item.NodeId,
+                    item.DisplayName,
+                    item.UpdatedAtUtc))
+                .ToArray();
+        }
     }
 
     private string CreateNextAutomaticName()
@@ -128,3 +148,8 @@ internal sealed class RecordingComputerNicknameRegistry
         public DateTime UpdatedAtUtc { get; set; }
     }
 }
+
+internal sealed record RecordingComputerNicknameInfo(
+    string NodeId,
+    string DisplayName,
+    DateTime UpdatedAtUtc);

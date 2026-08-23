@@ -11,8 +11,8 @@ namespace ExpressPackingMonitoring.Services;
 internal sealed class MobileOrderReceiverRegistry
 {
     internal const int OrderReceiverPort = 5280;
-    private static readonly TimeSpan Retention = TimeSpan.FromDays(90);
-    private static readonly TimeSpan ActiveRetention = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
+    private static readonly TimeSpan ActiveRetention = TimeSpan.FromSeconds(45);
     private readonly string _path;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();

@@ -3437,6 +3437,51 @@
 
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
+                                    <TextBlock Text="订单联动设备" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="显示可接收联动数据的录像设备；绿点表示当前在线"
+                                               Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8"
+                                            Background="{DynamicResource ControlBackground}">
+                                        <DataGrid ItemsSource="{Binding OrderIntegrationDevices}" AutoGenerateColumns="False"
+                                                  CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
+                                                  Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
+                                                  RowHeight="64" MinHeight="48" MaxHeight="260" SelectionMode="Single"
+                                                  PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel" CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}" CellStyle="{StaticResource StorageGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Header="设备" Width="2*">
+                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
+                                                            <Ellipse Width="8" Height="8" Margin="0,0,9,0">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="{DynamicResource TextTertiary}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Online}" Value="True">
+                                                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding DeviceTypeText}" Style="{StaticResource FieldHintStyle}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTextColumn Header="最近活动" Width="2*" Binding="{Binding ActivityText}"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
                                     <TextBlock Text="已授权扩展" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,10"/>
                                     <TextBlock Text="授权扩展会一直保留到手动撤销；轮换凭据后旧凭据立即失效"
                                                Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>

@@ -4454,6 +4454,20 @@ namespace ExpressPackingMonitoring.ViewModels
                 .ToArray();
         }
 
+        internal IReadOnlyList<OrderIntegrationDeviceDisplayItem> GetOrderIntegrationDevices() =>
+            (_webServer?.GetOrderIntegrationDeviceStatuses() ?? [])
+                .Select(device => new OrderIntegrationDeviceDisplayItem(
+                    device.NodeId,
+                    device.DisplayName,
+                    string.Equals(device.DeviceType, "mobile", StringComparison.OrdinalIgnoreCase)
+                        ? "手机录像设备"
+                        : "电脑录像设备",
+                    device.Online,
+                    device.LastActivityUtc.HasValue
+                        ? $"{device.LastActivityUtc.Value.ToLocalTime():HH:mm} 收到 {device.ReceivedCount} 条数据"
+                        : "暂未收到数据"))
+                .ToArray();
+
         internal ExtensionCredentialDisplayResult RotateExtensionCredential(string extensionInstanceId)
         {
             ExtensionEnrollmentCredential rotated = _extensionAuthorizationStore?.RotateCredential(extensionInstanceId)

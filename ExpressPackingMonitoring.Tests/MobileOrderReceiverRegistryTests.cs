@@ -79,4 +79,28 @@ public sealed class MobileOrderReceiverRegistryTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+
+    [Fact]
+    public void DeviceTurnsOfflineAfterThreeMissedHeartbeatsAndExpiresAfterThirtyDays()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(directory, "receivers.json");
+        DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(IPAddress.Parse("192.168.31.205"), "mobile-device-0001", "设备 ABCDEF");
+            Assert.True(Assert.Single(registry.GetKnownRecordingDevices()).Online);
+
+            now = now.AddSeconds(46);
+            Assert.False(Assert.Single(registry.GetKnownRecordingDevices()).Online);
+
+            now = now.AddDays(31);
+            Assert.Empty(registry.GetKnownRecordingDevices());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
 }

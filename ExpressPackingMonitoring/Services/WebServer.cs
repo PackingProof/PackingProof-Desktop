@@ -23,6 +23,14 @@ using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.Services
 {
+    internal sealed record OrderIntegrationDeviceStatus(
+        string NodeId,
+        string DisplayName,
+        string DeviceType,
+        bool Online,
+        DateTimeOffset? LastActivityUtc,
+        int ReceivedCount);
+
     /// <summary>
     /// 内嵌轻量 HTTP 服务器，供局域网客户端搜索、播放和下载视频。
     /// 基于 HttpListener，无需额外 NuGet 依赖。
@@ -199,6 +207,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly BackupPairingTokenService _backupPairingTokens;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
+        private readonly OrderIntegrationActivityRegistry _orderIntegrationActivities;
         private readonly UserscriptConfigRevisionStore _userscriptConfigRevision;
         private readonly UserscriptCatalog _userscriptCatalog;
         private readonly string _extensionStateDirectory;
@@ -390,6 +399,8 @@ namespace ExpressPackingMonitoring.Services
                 Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));
             _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"));
+            _orderIntegrationActivities = new OrderIntegrationActivityRegistry(
+                Path.Combine(resolvedMobileBackupStateDirectory, "order-integration-activity.json"));
             // 放在状态目录子目录，避免被 MobileBackupService 只扫描顶层 *.json 的上传状态清理误删。
             _userscriptConfigRevision = new UserscriptConfigRevisionStore(
                 Path.Combine(resolvedMobileBackupStateDirectory, "userscript-config", "revision.json"));
@@ -2090,6 +2101,48 @@ namespace ExpressPackingMonitoring.Services
 
         internal IReadOnlyList<ConnectedClientInfo> GetConnectedClients() => _connectedClients.GetSnapshot();
 
+        internal IReadOnlyList<OrderIntegrationDeviceStatus> GetOrderIntegrationDeviceStatuses()
+        {
+            IReadOnlyDictionary<string, OrderIntegrationActivity> activities =
+                _orderIntegrationActivities.GetSnapshot();
+            var statuses = GetRecordingDevices("", includeKnown: true)
+                .Select(device =>
+                {
+                    activities.TryGetValue(device.NodeId, out OrderIntegrationActivity activity);
+                    return new OrderIntegrationDeviceStatus(
+                        device.NodeId,
+                        device.NodeName,
+                        device.DeviceType,
+                        device.Online,
+                        activity?.LastActivityUtc,
+                        activity?.ReceivedCount ?? 0);
+                })
+                .ToList();
+            HashSet<string> knownNodeIds = statuses
+                .Select(device => device.NodeId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> onlineNodeIds = _connectedClients.GetSnapshot()
+                .Where(client => string.Equals(client.ClientType, "recording-workstation", StringComparison.OrdinalIgnoreCase))
+                .Select(client => client.NodeId)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (RecordingComputerNicknameInfo computer in _recordingComputerNicknames.GetKnown())
+            {
+                if (!knownNodeIds.Add(computer.NodeId)) continue;
+                activities.TryGetValue(computer.NodeId, out OrderIntegrationActivity activity);
+                statuses.Add(new OrderIntegrationDeviceStatus(
+                    computer.NodeId,
+                    computer.DisplayName,
+                    "pc",
+                    onlineNodeIds.Contains(computer.NodeId),
+                    activity?.LastActivityUtc,
+                    activity?.ReceivedCount ?? 0));
+            }
+            return statuses
+                .OrderByDescending(device => device.Online)
+                .ThenBy(device => device.DisplayName, StringComparer.CurrentCulture)
+                .ToArray();
+        }
+
         private void NotifyMobileAppUpdateIfNeeded(ConnectedClientHeartbeat heartbeat)
         {
             if (!ShouldNotifyUnknownMobileVersion(heartbeat))
@@ -3014,9 +3067,15 @@ namespace ExpressPackingMonitoring.Services
                             device.Address,
                             true,
                             200,
-                            testCount);
+                            testCount,
+                            items.Count);
                     },
                     _cts.Token).GetAwaiter().GetResult();
+                foreach (OrderInfoRelayResult result in results.Where(result => result.Ok))
+                {
+                    int receivedCount = result.ReceivedCount > 0 ? result.ReceivedCount : items.Count;
+                    _orderIntegrationActivities.RecordReceived(result.NodeId, receivedCount);
+                }
                 SendJson(ctx, 200, new
                 {
                     success = results.Any(result => result.Ok),

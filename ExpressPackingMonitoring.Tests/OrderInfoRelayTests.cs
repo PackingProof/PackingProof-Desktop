@@ -57,6 +57,12 @@ public sealed class OrderInfoRelayTests
             Assert.Single(await received.Task.WaitAsync(
                 TimeSpan.FromSeconds(1),
                 TestContext.Current.CancellationToken));
+            OrderIntegrationDeviceStatus deviceStatus = Assert.Single(
+                server.GetOrderIntegrationDeviceStatuses(),
+                device => string.Equals(device.NodeId, nodeId, StringComparison.OrdinalIgnoreCase));
+            Assert.True(deviceStatus.Online);
+            Assert.Equal(1, deviceStatus.ReceivedCount);
+            Assert.NotNull(deviceStatus.LastActivityUtc);
 
             using var unconfiguredContent = new StringContent(
                 "{\"orders\":[{\"trackingNumber\":\"TEST-2\"}],\"targetNodeIds\":[\"other-node\"]}",
@@ -182,7 +188,7 @@ public sealed class OrderInfoRelayTests
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 // Older receivers do not echo nodeId in their POST response.
-                Content = new StringContent("{\"ok\":true,\"testCount\":1}", Encoding.UTF8, "application/json")
+                Content = new StringContent("{\"ok\":true,\"testCount\":1,\"receivedCount\":2}", Encoding.UTF8, "application/json")
             };
         }));
         RecordingDeviceInfo device = Device("expected-node", "http://192.168.1.20:5280");
@@ -195,6 +201,7 @@ public sealed class OrderInfoRelayTests
 
         Assert.True(result.Ok);
         Assert.Equal(1, result.TestCount);
+        Assert.Equal(2, result.ReceivedCount);
         Assert.NotNull(requestBody);
         string body = requestBody!;
         Assert.Contains("\"trackingNumber\":\"TEST-1\"", body, StringComparison.Ordinal);

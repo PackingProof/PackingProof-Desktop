@@ -12,6 +12,7 @@ internal sealed record OrderInfoRelayResult(
     bool Ok,
     int Status = 0,
     int TestCount = 0,
+    int ReceivedCount = 0,
     string Error = "");
 
 internal static class OrderInfoRelay
@@ -99,6 +100,9 @@ internal static class OrderInfoRelay
                 return Failed(device, (int)response.StatusCode, "identity_mismatch");
 
             int testCount = TryGetInt32(document.RootElement, "testCount");
+            int receivedCount = TryGetInt32(document.RootElement, "receivedCount");
+            if (receivedCount <= 0)
+                receivedCount = TryGetInt32(document.RootElement, "count");
             return new OrderInfoRelayResult(
                 device.NodeId,
                 device.NodeName,
@@ -106,7 +110,8 @@ internal static class OrderInfoRelay
                 device.Address,
                 true,
                 (int)response.StatusCode,
-                testCount);
+                testCount,
+                receivedCount);
         }
         catch (OperationCanceledException)
         {
@@ -173,5 +178,5 @@ internal static class OrderInfoRelay
             : 0;
 
     private static OrderInfoRelayResult Failed(RecordingDeviceInfo device, int status, string error) =>
-        new(device.NodeId, device.NodeName, device.DeviceType, device.Address, false, status, 0, error);
+        new(device.NodeId, device.NodeName, device.DeviceType, device.Address, false, status, 0, 0, error);
 }

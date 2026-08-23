@@ -955,6 +955,10 @@
   <data name="权限与绑定" xml:space="preserve"><value>Permissions and binding</value></data>
   <data name="轮换凭据" xml:space="preserve"><value>Rotate credentials</value></data>
   <data name="撤销" xml:space="preserve"><value>Revoke</value></data>
+  <data name="订单联动设备" xml:space="preserve"><value>Order integration devices</value></data>
+  <data name="显示可接收联动数据的录像设备；绿点表示当前在线" xml:space="preserve"><value>Recording devices that can receive integration data; a green dot indicates online</value></data>
+  <data name="设备" xml:space="preserve"><value>Device</value></data>
+  <data name="最近活动" xml:space="preserve"><value>Recent activity</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>Imported scripts (</value></data>
   <data name="已导入脚本" xml:space="preserve"><value>Imported scripts</value></data>
   <data name="管理" xml:space="preserve"><value>Manage</value></data>

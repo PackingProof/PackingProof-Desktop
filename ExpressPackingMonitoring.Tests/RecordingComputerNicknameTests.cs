@@ -76,6 +76,8 @@ public sealed class RecordingComputerNicknameTests
             var restarted = new RecordingComputerNicknameRegistry(path);
             Assert.Equal("电脑2", restarted.Assign("workstation-a", "电脑1", customized: false));
             Assert.Equal("电脑3", restarted.Assign("workstation-b", "电脑1", customized: false));
+            Assert.Contains(restarted.GetKnown(), item =>
+                item.NodeId == "workstation-a" && item.DisplayName == "电脑2");
         }
         finally
         {

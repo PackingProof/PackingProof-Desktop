@@ -65,6 +65,7 @@ public sealed class SettingsContext
     public Action? OpenUserscriptGuide { get; init; }
     public Action? ImportUserscript { get; init; }
     public Func<IReadOnlyList<ExtensionAuthorizationDisplayItem>>? GetExtensionAuthorizations { get; init; }
+    public Func<IReadOnlyList<OrderIntegrationDeviceDisplayItem>>? GetOrderIntegrationDevices { get; init; }
     public Func<string, ExtensionCredentialDisplayResult?>? RotateExtensionCredential { get; init; }
     public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
     public Action<double?>? SetPreviewZoomScale { get; init; }
@@ -92,6 +93,7 @@ public sealed class SettingsContext
             OpenUserscriptGuide = mainViewModel.OpenUserscriptGuide,
             ImportUserscript = mainViewModel.ImportUserscript,
             GetExtensionAuthorizations = mainViewModel.GetExtensionAuthorizations,
+            GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RotateExtensionCredential = mainViewModel.RotateExtensionCredential,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,
             SetPreviewZoomScale = value => mainViewModel.PreviewZoomScale = value,
@@ -119,6 +121,13 @@ public sealed record ExtensionAuthorizationDisplayItem(
     string BindingText,
     int CredentialGeneration,
     DateTimeOffset UpdatedAtUtc);
+
+public sealed record OrderIntegrationDeviceDisplayItem(
+    string NodeId,
+    string DisplayName,
+    string DeviceTypeText,
+    bool Online,
+    string ActivityText);
 
 public sealed record ExtensionCredentialDisplayResult(
     string Credential,
