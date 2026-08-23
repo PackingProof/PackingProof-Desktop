@@ -55,6 +55,8 @@
     const REFUND_WORKER_OPEN_COOLDOWN_MS = 10 * 60 * 1000;
     const CONNECTION_CLIENT_ID_KEY = 'connection_client_id';
     const CONNECTION_HEARTBEAT_INTERVAL_MS = 15000;
+    const CONNECTION_LAST_SUCCESS_AT_KEY = 'connection_last_success_at';
+    const CONNECTION_LAST_DATA_COUNT_KEY = 'connection_last_data_count';
     const EXTENSION_CREDENTIAL_KEY = 'packingproof_extension_credential_v1';
     const EXTENSION_INSTANCE_ID_KEY = 'packingproof_extension_instance_id_v1';
     const EXTENSION_ENROLL_RETRY_AT_KEY = 'packingproof_extension_enroll_retry_at_v1';
@@ -623,6 +625,10 @@
     function completeOrderPush(results, targetCount, orders, options) {
         const successful = results.filter(result => result.ok);
         const confirmed = !options.isTest || successful.some(result => Number(result.response?.testCount || 0) > 0);
+        if (successful.length > 0 && !options.isTest) {
+            GM_setValue(CONNECTION_LAST_SUCCESS_AT_KEY, new Date().toISOString());
+            GM_setValue(CONNECTION_LAST_DATA_COUNT_KEY, Math.max(1, orders.length));
+        }
         console.info(`[PackingProof] 订单广播完成: ${successful.length}/${targetCount} 台`, results);
         results.filter(result => !result.ok).forEach(result =>
             console.warn(`[PackingProof] ${result.name} (${result.address}) 发送失败: ${result.error || result.status}`));
@@ -861,7 +867,11 @@
         const response = await requestMonitor('POST', getConnectionHeartbeatUrl(), {
             clientId: getConnectionClientId(),
             clientType: 'userscript',
-            displayName: '快递端油猴脚本'
+            displayName: '快递端油猴脚本',
+            appVersion: getScriptVersion(),
+            capabilities: ['orders.push', ...EXTENSION_CAPABILITIES],
+            lastSuccessfulActivityAt: GM_getValue(CONNECTION_LAST_SUCCESS_AT_KEY, null),
+            dataCount: Number(GM_getValue(CONNECTION_LAST_DATA_COUNT_KEY, 0) || 0)
         }, 3000);
         return response.status === 200;
     }

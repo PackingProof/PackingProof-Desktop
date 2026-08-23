@@ -308,6 +308,10 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("if (!await startExtensionTaskPolling()) startOrderLookupPolling()", script);
         Assert.Contains(".finally(() => startOrderLookupPolling())", script);
         Assert.Contains("GM_setValue(EXTENSION_CREDENTIAL_KEY, state)", script);
+        Assert.Contains("appVersion: getScriptVersion()", script);
+        Assert.Contains("capabilities: ['orders.push', ...EXTENSION_CAPABILITIES]", script);
+        Assert.Contains("lastSuccessfulActivityAt: GM_getValue(CONNECTION_LAST_SUCCESS_AT_KEY, null)", script);
+        Assert.Contains("GM_setValue(CONNECTION_LAST_DATA_COUNT_KEY, Math.max(1, orders.length))", script);
         Assert.DoesNotContain("const EXTENSION_CREDENTIAL =", script);
     }
 
