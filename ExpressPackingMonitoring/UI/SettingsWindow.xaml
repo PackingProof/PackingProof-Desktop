@@ -2606,6 +2606,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
+                                                  x:Name="RequireWebAccessKeyCheckBox"
                                                   IsChecked="{Binding Config.RequireWebAccessKey}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
@@ -2621,13 +2622,24 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="录像网页访问密钥" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="至少 16 个字符；留空会自动生成，修改后旧链接立即失效"
+                                            <TextBlock Text="保护开启时可全选复制；关闭保护后才能修改，修改后旧链接立即失效"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <TextBox Grid.Column="2"
+                                                 x:Name="WebAccessKeyTextBox"
                                                  MaxLength="128"
-                                                 IsEnabled="{Binding Config.RequireWebAccessKey}"
-                                                 Text="{Binding Config.WebAccessKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 Text="{Binding Config.WebAccessKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                    <Setter Property="IsReadOnly" Value="False"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ElementName=RequireWebAccessKeyCheckBox, Path=IsChecked}" Value="True">
+                                                            <Setter Property="IsReadOnly" Value="True"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
                                     </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"

@@ -156,6 +156,7 @@ namespace ExpressPackingMonitoring.UI
                 : AppLanguage.Format("完整 Commit ID：{0}", commitId);
         }
         private string _originalNodeName;
+        private string _originalWebAccessKey;
         private bool _isRecording;
         private CollectionViewSource _localStorageView;
         private CollectionViewSource _backupStorageView;
@@ -181,6 +182,7 @@ namespace ExpressPackingMonitoring.UI
             Config = clonedConfig;
             AppConfig.NormalizeAfterLoad(Config);
             _originalNodeName = Config.NodeName;
+            _originalWebAccessKey = Config.WebAccessKey;
             InitializeComponent();
 
             CurrentDiskUsagePercent = diskUsagePercent;
@@ -1660,6 +1662,23 @@ namespace ExpressPackingMonitoring.UI
         private async Task<bool> SaveAndApplyAsync()
         {
             Keyboard.ClearFocus();
+            if (!string.Equals(Config.WebAccessKey, _originalWebAccessKey, StringComparison.Ordinal))
+            {
+                bool shouldChangeAccessKey = AppDialog.Confirm(
+                    this,
+                    "修改录像网页访问密钥后，所有包含旧密钥的访问链接都会立即失效，其他手机和电脑需要重新获取新链接\n\n是否确认修改并继续保存？",
+                    "确认修改访问密钥",
+                    AppDialogSeverity.Warning,
+                    confirmText: "确认修改",
+                    cancelText: "不修改",
+                    isDangerous: true);
+                if (!shouldChangeAccessKey)
+                {
+                    Config.WebAccessKey = _originalWebAccessKey;
+                    WebAccessKeyTextBox?.GetBindingExpression(TextBox.TextProperty)?.UpdateTarget();
+                    return false;
+                }
+            }
             if (Capabilities.CanRecordAudio)
                 SyncSelectedMicToConfig();
 
@@ -1832,6 +1851,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 _originalTheme = Config.Theme;
                 _originalNodeName = Config.NodeName;
+                _originalWebAccessKey = Config.WebAccessKey;
                 if (_originalLanguage != Config.Language)
                 {
                     AppDialog.Information(
