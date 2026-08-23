@@ -323,6 +323,8 @@ namespace ExpressPackingMonitoring.Data
                     FieldName TEXT NOT NULL,
                     FieldValue TEXT NOT NULL DEFAULT '',
                     ProviderId TEXT NOT NULL DEFAULT '',
+                    DeliveryId TEXT NOT NULL DEFAULT '',
+                    Revision INTEGER NOT NULL DEFAULT 0,
                     UpdatedAt TEXT NOT NULL,
                     UNIQUE (RecordingSessionId, Namespace, FieldName)
                 );");
@@ -410,6 +412,8 @@ namespace ExpressPackingMonitoring.Data
             EnsureColumnExists("VideoRecords", "LocalDeleteReason", "TEXT DEFAULT ''");
             EnsureColumnExists("RecordingTransferQueue", "NextAttemptAt", "TEXT");
             EnsureColumnExists("RecordingTransferQueue", "CacheDeletedAt", "TEXT");
+            EnsureColumnExists("RecordingExtensionData", "DeliveryId", "TEXT NOT NULL DEFAULT ''");
+            EnsureColumnExists("RecordingExtensionData", "Revision", "INTEGER NOT NULL DEFAULT 0");
             EnsureSchemaVersion();
             ExecuteNonQuery(@"
                 UPDATE VideoRecords
@@ -520,6 +524,23 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        internal VideoRecord GetRecordingBySession(string recordingSessionId)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId)) return null;
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id FROM VideoRecords
+                    WHERE IsDeleted = 0 AND SourceSessionId = @sessionId
+                    ORDER BY Id DESC
+                    LIMIT 1;";
+                cmd.Parameters.AddWithValue("@sessionId", recordingSessionId.Trim());
+                object value = cmd.ExecuteScalar();
+                return value == null || value == DBNull.Value ? null : GetVideoById(Convert.ToInt64(value));
+            }
+        }
+
         public void UpsertRecordingExtensionFields(
             string recordingSessionId,
             string namespaceName,
@@ -527,31 +548,69 @@ namespace ExpressPackingMonitoring.Data
             IReadOnlyDictionary<string, string> fields,
             DateTime updatedAt)
         {
-            if (string.IsNullOrWhiteSpace(recordingSessionId) || fields == null || fields.Count == 0) return;
+            UpsertRecordingExtensionFields(
+                recordingSessionId,
+                namespaceName,
+                providerId,
+                deliveryId: "",
+                revision: 0,
+                fields: fields,
+                updatedAt: updatedAt);
+        }
+
+        internal int UpsertRecordingExtensionFields(
+            string recordingSessionId,
+            string namespaceName,
+            string providerId,
+            string deliveryId,
+            long revision,
+            IReadOnlyDictionary<string, string> fields,
+            DateTime updatedAt)
+        {
+            if (string.IsNullOrWhiteSpace(recordingSessionId) || fields == null || fields.Count == 0) return 0;
+            if (revision < 0) throw new ArgumentOutOfRangeException(nameof(revision));
             lock (_lock)
             {
                 using var transaction = _connection.BeginTransaction();
+                int updatedCount = 0;
                 foreach (var pair in fields)
                 {
                     using var cmd = _connection.CreateCommand();
                     cmd.Transaction = transaction;
                     cmd.CommandText = @"
                         INSERT INTO RecordingExtensionData
-                            (RecordingSessionId, Namespace, FieldName, FieldValue, ProviderId, UpdatedAt)
-                        VALUES (@sessionId, @namespace, @fieldName, @value, @providerId, @updatedAt)
+                            (RecordingSessionId, Namespace, FieldName, FieldValue, ProviderId,
+                             DeliveryId, Revision, UpdatedAt)
+                        VALUES (@sessionId, @namespace, @fieldName, @value, @providerId,
+                                @deliveryId, @revision, @updatedAt)
                         ON CONFLICT(RecordingSessionId, Namespace, FieldName) DO UPDATE SET
                             FieldValue = excluded.FieldValue,
                             ProviderId = excluded.ProviderId,
-                            UpdatedAt = excluded.UpdatedAt;";
+                            DeliveryId = CASE
+                                WHEN excluded.Revision = 0 THEN RecordingExtensionData.DeliveryId
+                                ELSE excluded.DeliveryId
+                            END,
+                            Revision = CASE
+                                WHEN excluded.Revision = 0 THEN RecordingExtensionData.Revision
+                                ELSE excluded.Revision
+                            END,
+                            UpdatedAt = excluded.UpdatedAt
+                        WHERE excluded.Revision = 0
+                           OR RecordingExtensionData.Revision = 0
+                           OR (RecordingExtensionData.DeliveryId = excluded.DeliveryId
+                               AND excluded.Revision > RecordingExtensionData.Revision);";
                     cmd.Parameters.AddWithValue("@sessionId", recordingSessionId.Trim());
                     cmd.Parameters.AddWithValue("@namespace", namespaceName?.Trim() ?? "");
                     cmd.Parameters.AddWithValue("@fieldName", pair.Key);
                     cmd.Parameters.AddWithValue("@value", pair.Value ?? "");
                     cmd.Parameters.AddWithValue("@providerId", providerId?.Trim() ?? "");
+                    cmd.Parameters.AddWithValue("@deliveryId", deliveryId?.Trim() ?? "");
+                    cmd.Parameters.AddWithValue("@revision", revision);
                     cmd.Parameters.AddWithValue("@updatedAt", updatedAt.ToUniversalTime().ToString("O"));
-                    cmd.ExecuteNonQuery();
+                    updatedCount += cmd.ExecuteNonQuery();
                 }
                 transaction.Commit();
+                return updatedCount;
             }
         }
 

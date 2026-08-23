@@ -201,17 +201,17 @@ internal sealed class ExtensionScanResultValidator
             throw new InvalidDataException("结果观察时间无效");
         }
 
-        IReadOnlyList<NormalizedOrder> orders = ValidateOrders(
+        IReadOnlyList<ExtensionNormalizedOrder> orders = ValidateOrders(
             request.Orders,
             delivery,
             status);
-        IReadOnlyList<NormalizedMeasurement> measurements = ValidateMeasurements(
+        IReadOnlyList<ExtensionNormalizedMeasurement> measurements = ValidateMeasurements(
             request.Measurements,
             authorization,
             delivery,
             status,
             now);
-        var payload = new NormalizedPayload
+        var payload = new ExtensionNormalizedResultPayload
         {
             SchemaVersion = 1,
             Orders = orders,
@@ -238,7 +238,7 @@ internal sealed class ExtensionScanResultValidator
             request.RetryAfterUtc);
     }
 
-    private static IReadOnlyList<NormalizedOrder> ValidateOrders(
+    private static IReadOnlyList<ExtensionNormalizedOrder> ValidateOrders(
         IReadOnlyList<ExtensionOrderResult>? orders,
         ExtensionScanDelivery delivery,
         ExtensionScanResultStatus status)
@@ -255,7 +255,7 @@ internal sealed class ExtensionScanResultValidator
         if (status != ExtensionScanResultStatus.Found && values.Length > 0)
             throw new InvalidDataException("只有 found 响应可以包含订单数据");
 
-        var normalized = new List<NormalizedOrder>(values.Length);
+        var normalized = new List<ExtensionNormalizedOrder>(values.Length);
         foreach (ExtensionOrderResult value in values)
         {
             if (value == null)
@@ -274,7 +274,7 @@ internal sealed class ExtensionScanResultValidator
             if (products.Length > MaxProductsPerOrder)
                 throw new InvalidDataException($"每条订单最多包含 {MaxProductsPerOrder} 个商品项");
 
-            var normalizedProducts = new List<NormalizedProduct>(products.Length);
+            var normalizedProducts = new List<ExtensionNormalizedProduct>(products.Length);
             int productQuantity = 0;
             foreach (ExtensionProductResult product in products)
             {
@@ -285,7 +285,7 @@ internal sealed class ExtensionScanResultValidator
                 productQuantity = checked(productQuantity + product.Quantity);
                 if (productQuantity > MaxTotalItemCount)
                     throw new InvalidDataException("商品总件数超出允许范围");
-                normalizedProducts.Add(new NormalizedProduct
+                normalizedProducts.Add(new ExtensionNormalizedProduct
                 {
                     Name = NormalizeText(product.Name, 500, "商品名称", required: true),
                     Sku = NormalizeText(product.Sku, 128, "SKU"),
@@ -302,7 +302,7 @@ internal sealed class ExtensionScanResultValidator
             {
                 throw new InvalidDataException("商品总件数与商品明细数量不一致");
             }
-            normalized.Add(new NormalizedOrder
+            normalized.Add(new ExtensionNormalizedOrder
             {
                 TrackingNumber = trackingNumber,
                 OrderId = orderId,
@@ -317,7 +317,7 @@ internal sealed class ExtensionScanResultValidator
         return normalized;
     }
 
-    private static IReadOnlyList<NormalizedMeasurement> ValidateMeasurements(
+    private static IReadOnlyList<ExtensionNormalizedMeasurement> ValidateMeasurements(
         IReadOnlyList<ExtensionMeasurementResult>? measurements,
         ExtensionAuthorizationContext authorization,
         ExtensionScanDelivery delivery,
@@ -346,7 +346,7 @@ internal sealed class ExtensionScanResultValidator
             throw new InvalidDataException("当前响应状态不能包含测量数据");
         }
 
-        var normalized = new List<NormalizedMeasurement>(values.Length);
+        var normalized = new List<ExtensionNormalizedMeasurement>(values.Length);
         var usedTypes = new HashSet<string>(StringComparer.Ordinal);
         foreach (ExtensionMeasurementResult value in values)
         {
@@ -377,7 +377,7 @@ internal sealed class ExtensionScanResultValidator
             {
                 throw new InvalidDataException("测量采集时间无效");
             }
-            normalized.Add(new NormalizedMeasurement
+            normalized.Add(new ExtensionNormalizedMeasurement
             {
                 MeasurementType = type,
                 Value = number.ToString("0.############################", CultureInfo.InvariantCulture),
@@ -467,40 +467,40 @@ internal sealed class ExtensionScanResultValidator
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never
     };
+}
 
-    private sealed class NormalizedPayload
-    {
-        public int SchemaVersion { get; init; }
-        public IReadOnlyList<NormalizedOrder> Orders { get; init; } = [];
-        public IReadOnlyList<NormalizedMeasurement> Measurements { get; init; } = [];
-    }
+internal sealed class ExtensionNormalizedResultPayload
+{
+    public int SchemaVersion { get; init; }
+    public IReadOnlyList<ExtensionNormalizedOrder> Orders { get; init; } = [];
+    public IReadOnlyList<ExtensionNormalizedMeasurement> Measurements { get; init; } = [];
+}
 
-    private sealed class NormalizedOrder
-    {
-        public string TrackingNumber { get; init; } = "";
-        public string OrderId { get; init; } = "";
-        public string BuyerMessage { get; init; } = "";
-        public string SellerMemo { get; init; } = "";
-        public int TotalItemCount { get; init; }
-        public IReadOnlyList<NormalizedProduct> Products { get; init; } = [];
-        public string RefundState { get; init; } = "unknown";
-        public string RefundReason { get; init; } = "";
-    }
+internal sealed class ExtensionNormalizedOrder
+{
+    public string TrackingNumber { get; init; } = "";
+    public string OrderId { get; init; } = "";
+    public string BuyerMessage { get; init; } = "";
+    public string SellerMemo { get; init; } = "";
+    public int TotalItemCount { get; init; }
+    public IReadOnlyList<ExtensionNormalizedProduct> Products { get; init; } = [];
+    public string RefundState { get; init; } = "unknown";
+    public string RefundReason { get; init; } = "";
+}
 
-    private sealed class NormalizedProduct
-    {
-        public string Name { get; init; } = "";
-        public string Sku { get; init; } = "";
-        public string MerchantSku { get; init; } = "";
-        public int Quantity { get; init; }
-    }
+internal sealed class ExtensionNormalizedProduct
+{
+    public string Name { get; init; } = "";
+    public string Sku { get; init; } = "";
+    public string MerchantSku { get; init; } = "";
+    public int Quantity { get; init; }
+}
 
-    private sealed class NormalizedMeasurement
-    {
-        public string MeasurementType { get; init; } = "";
-        public string Value { get; init; } = "";
-        public string Unit { get; init; } = "";
-        public bool Stable { get; init; }
-        public DateTimeOffset CapturedAtUtc { get; init; }
-    }
+internal sealed class ExtensionNormalizedMeasurement
+{
+    public string MeasurementType { get; init; } = "";
+    public string Value { get; init; } = "";
+    public string Unit { get; init; } = "";
+    public bool Stable { get; init; }
+    public DateTimeOffset CapturedAtUtc { get; init; }
 }
