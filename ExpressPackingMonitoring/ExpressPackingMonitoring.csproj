@@ -147,6 +147,7 @@
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ConnectedClientRegistry.cs" />
     <Compile Include="Services\ExtensionAuthorizationStore.cs" />
+    <Compile Include="Services\ExtensionEnrollmentService.cs" />
     <Compile Include="Services\ExtensionMeasurementResultApplier.cs" />
     <Compile Include="Services\ExtensionOrderResultApplier.cs" />
     <Compile Include="Services\ExtensionRequestAuthentication.cs" />
