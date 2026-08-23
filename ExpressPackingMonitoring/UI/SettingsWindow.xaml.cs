@@ -398,6 +398,17 @@ namespace ExpressPackingMonitoring.UI
                 SettingsTabControl.SelectedItem = RecordingCacheTabItem;
         }
 
+        private void SoundSettingsPanel_Loaded(object sender, RoutedEventArgs e)
+        {
+            int voiceOptionsIndex = SoundSettingsPanel.Children.IndexOf(VoiceOptionsCard);
+            int orderAnnounceIndex = SoundSettingsPanel.Children.IndexOf(OrderAnnounceCard);
+            if (voiceOptionsIndex < 0 || orderAnnounceIndex < 0 || orderAnnounceIndex < voiceOptionsIndex)
+                return;
+
+            SoundSettingsPanel.Children.RemoveAt(orderAnnounceIndex);
+            SoundSettingsPanel.Children.Insert(voiceOptionsIndex, OrderAnnounceCard);
+        }
+
         private async void SettingsWindow_Loaded(object sender, RoutedEventArgs e)
         {
             if (Capabilities.CanUseCamera || Capabilities.CanRecordAudio)
