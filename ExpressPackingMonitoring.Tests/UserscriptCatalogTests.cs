@@ -55,7 +55,7 @@ public sealed class UserscriptCatalogTests : IDisposable
         string normalHtml = WebServer.BuildUserscriptChoice(normal, "http", "127.0.0.1:5280");
         string warningHtml = WebServer.BuildUserscriptChoice(warning, "http", "127.0.0.1:5280");
 
-        Assert.Contains("class=\"script-choice\"", normalHtml);
+        Assert.Contains("class=\"script-choice is-maintainable\"", normalHtml);
         Assert.DoesNotContain("has-warning", normalHtml);
         Assert.Contains("class=\"script-choice has-warning\"", warningHtml);
         Assert.Contains("有提示：缺少设备占位符", warningHtml);
