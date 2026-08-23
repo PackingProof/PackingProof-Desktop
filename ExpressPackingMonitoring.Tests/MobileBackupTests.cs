@@ -1602,10 +1602,10 @@ public sealed class MobileBackupTests
             Assert.Contains("// @connect      192.168.31.205", script);
             Assert.DoesNotContain("// @connect      127.0.0.1", script);
             Assert.Contains(
-                $"// @updateURL     http://192.168.31.250:{port}/api/userscripts/official-kdzs/download",
+                $"// @updateURL     http://192.168.31.250:{port}/PackingProof-Order-Integration-KDZS.user.js?scriptId=official-kdzs",
                 script);
             Assert.Contains(
-                $"// @downloadURL   http://192.168.31.250:{port}/api/userscripts/official-kdzs/download",
+                $"// @downloadURL   http://192.168.31.250:{port}/PackingProof-Order-Integration-KDZS.user.js?scriptId=official-kdzs",
                 script);
             Assert.DoesNotContain("// @updateURL     127.0.0.1", script);
 

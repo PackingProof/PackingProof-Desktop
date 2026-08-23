@@ -5691,11 +5691,16 @@ namespace ExpressPackingMonitoring.Services
 
         internal static string BuildUserscriptChoice(UserscriptDescriptor item, string scheme, string authority)
         {
-            string url = $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(item.Id)}/download";
+            string url = BuildUserscriptDownloadUrl(scheme, authority, item.Id);
             bool hasWarning = item.Warnings.Count > 0;
             string warning = hasWarning ? $"有提示：{string.Join("；", item.Warnings)}" : "可自动维护";
             string warningClass = hasWarning ? " has-warning" : " is-maintainable";
             return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\"><span>版本</span> {WebUtility.HtmlEncode(item.Version)} · <span>{WebUtility.HtmlEncode(warning)}</span></span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
+        }
+
+        internal static string BuildUserscriptDownloadUrl(string scheme, string authority, string scriptId)
+        {
+            return $"{scheme}://{authority}/{PrintToolInstallGuide.ScriptFileName}?scriptId={Uri.EscapeDataString(scriptId)}";
         }
 
         private void ServeUserscript(HttpListenerContext ctx, string scriptId = null)
@@ -5731,8 +5736,10 @@ namespace ExpressPackingMonitoring.Services
                 Address = $"http://{primaryAuthority}"
             };
             script = PrintToolInstallGuide.AddRecordingDevices(script, devices, host);
-            string scriptUrl =
-                $"{ctx.Request.Url?.Scheme ?? "http"}://{primaryAuthority}/api/userscripts/{Uri.EscapeDataString(selectedId)}/download";
+            string scriptUrl = BuildUserscriptDownloadUrl(
+                ctx.Request.Url?.Scheme ?? "http",
+                primaryAuthority,
+                selectedId);
             script = PrintToolInstallGuide.AddUserscriptUpdateUrls(script, scriptUrl);
             string fingerprint = PrintToolInstallGuide.ComputeConfigFingerprint(devices, host);
             int revision = _userscriptConfigRevision.GetRevision(fingerprint);

@@ -62,6 +62,21 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.Contains("有提示：缺少设备占位符", warningHtml);
         Assert.Contains(">安装</a>", normalHtml);
         Assert.DoesNotContain("安装此脚本", normalHtml);
+        Assert.Contains(
+            "href=\"http://127.0.0.1:5280/PackingProof-Order-Integration-KDZS.user.js?scriptId=normal\"",
+            normalHtml,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/userscripts/normal/download", normalHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildUserscriptDownloadUrl_EndsPathWithUserscriptExtension()
+    {
+        string url = WebServer.BuildUserscriptDownloadUrl("http", "127.0.0.1:5280", "custom script");
+
+        var uri = new Uri(url);
+        Assert.EndsWith(".user.js", uri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("?scriptId=custom%20script", uri.Query);
     }
 
     public void Dispose()
