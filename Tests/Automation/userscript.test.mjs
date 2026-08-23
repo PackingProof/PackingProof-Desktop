@@ -312,6 +312,7 @@ test('order push broadcasts to every paired receiver and tolerates one offline d
 
 test('order push still broadcasts to every recorder when host status lookup fails', async () => {
   const requests = [];
+  const store = new Map();
   const devices = [
     { nodeId: 'pc', name: 'PC recorder', type: 'pc', url: 'http://192.168.31.250:5280' },
     { nodeId: 'phone', name: 'Phone recorder', type: 'mobile', url: 'http://192.168.31.205:5280' }
@@ -339,6 +340,9 @@ test('order push still broadcasts to every recorder when host status lookup fail
       queueMicrotask(() => options.onload({ status: 200, responseText: '{"ok":true}' }));
     },
     showNotification() {},
+    CONNECTION_LAST_SUCCESS_AT_KEY: 'last_success',
+    CONNECTION_LAST_DATA_COUNT_KEY: 'last_count',
+    GM_setValue: (key, value) => store.set(key, value),
     console: { info() {}, warn() {} },
     Promise,
     Number,
@@ -360,6 +364,8 @@ test('order push still broadcasts to every recorder when host status lookup fail
   assert.equal(result.successfulCount, 2);
   assert.equal(requests.length, 2);
   assert.deepEqual(requests.map(request => request.timeout), [3000, 3000]);
+  assert.match(store.get('last_success'), /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(store.get('last_count'), 1);
 });
 
 test('order push uses host relay addresses after a recorder IP change', async () => {
@@ -440,8 +446,12 @@ function createConnectionHeartbeatContext(status = 200) {
   const context = {
     CONNECTION_CLIENT_ID_KEY: 'connection_client_id',
     CONNECTION_HEARTBEAT_INTERVAL_MS: 15000,
+    CONNECTION_LAST_SUCCESS_AT_KEY: 'connection_last_success_at',
+    CONNECTION_LAST_DATA_COUNT_KEY: 'connection_last_data_count',
+    EXTENSION_CAPABILITIES: ['order.lookup', 'refund.lookup'],
     GM_getValue: (key, fallback) => store.has(key) ? store.get(key) : fallback,
     GM_setValue: (key, value) => store.set(key, value),
+    getScriptVersion: () => '2.14',
     getHostBaseUrl: () => 'http://192.168.1.20:5280',
     getConnectionHeartbeatUrl: () => 'http://192.168.1.20:5280/api/connections/heartbeat',
     requestMonitor: async (method, url, data, timeout) => {
@@ -474,6 +484,10 @@ test('userscript heartbeat keeps one persistent id across tabs', async () => {
   assert.equal(first.requests.length, 1);
   assert.equal(first.requests[0].data.clientId, id);
   assert.equal(first.requests[0].data.clientType, 'userscript');
+  assert.equal(first.requests[0].data.appVersion, '2.14');
+  assert.deepEqual(Array.from(first.requests[0].data.capabilities), ['orders.push', 'order.lookup', 'refund.lookup']);
+  assert.equal(first.requests[0].data.lastSuccessfulActivityAt, null);
+  assert.equal(first.requests[0].data.dataCount, 0);
 });
 
 test('userscript heartbeat uses 15 second interval and validates only the installed host', async () => {
