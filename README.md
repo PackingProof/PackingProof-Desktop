@@ -212,6 +212,8 @@ PackingProof_Setup_vX.Y.Z.exe
 
 打印页面中的订单发生变化时，脚本会将订单信息同步给 PackingProof。
 
+如果要开发 ERP、称重设备或第三方油猴脚本，请参阅 [扩展接口与第三方脚本开发规范](docs/EXTENSION_API_V1.md)。
+
 扫码开始打包后，软件可以播报买家留言、卖家备注和商品信息。
 
 <details>
