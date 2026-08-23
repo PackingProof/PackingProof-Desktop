@@ -3155,6 +3155,7 @@ namespace ExpressPackingMonitoring.Services
                 features = new
                 {
                     ordersWrite = true,
+                    signedScanTasks = true,
                     totalItemCount = true,
                     mergedOrderCount = true,
                         providerId = true,

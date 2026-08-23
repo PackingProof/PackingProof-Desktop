@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PackingProof 快递助手订单联动
 // @namespace    https://github.com/PackingProof
-// @version      2.13
+// @version      2.14
 // @description  从快递助手批量打印页面提取订单备注和打印后退款状态，同时发送到已配对的电脑和手机
 // @author       ExpressPackingMonitoring
 // @icon         https://raw.githubusercontent.com/PackingProof/PackingProof-Desktop/main/ExpressPackingMonitoring/app.ico
@@ -18,6 +18,7 @@
 // @grant        GM_getTab
 // @grant        GM_saveTab
 // @grant        GM_getTabs
+// @grant        GM_info
 // @noframes
 // @run-at       document-idle
 // ==/UserScript==
@@ -54,9 +55,17 @@
     const REFUND_WORKER_OPEN_COOLDOWN_MS = 10 * 60 * 1000;
     const CONNECTION_CLIENT_ID_KEY = 'connection_client_id';
     const CONNECTION_HEARTBEAT_INTERVAL_MS = 15000;
+    const EXTENSION_CREDENTIAL_KEY = 'packingproof_extension_credential_v1';
+    const EXTENSION_INSTANCE_ID_KEY = 'packingproof_extension_instance_id_v1';
+    const EXTENSION_ENROLL_RETRY_AT_KEY = 'packingproof_extension_enroll_retry_at_v1';
+    const EXTENSION_ENROLL_RETRY_MS = 10 * 60 * 1000;
+    const EXTENSION_PROVIDER_ID = 'packingproof.kdzs';
+    const EXTENSION_DISPLAY_NAME = 'PackingProof 快递助手订单联动';
+    const EXTENSION_PERMISSIONS = ['scan-tasks.read', 'scan-results.write'];
+    const EXTENSION_CAPABILITIES = ['order.lookup', 'refund.lookup'];
     const IS_REFUND_WORKER = new URL(location.href).searchParams.get(REFUND_WORKER_PARAM) === '1';
     const REFUND_WORKER_TOKEN = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const CHANGELOG = 'v2.13：由保存主机按设备身份转发订单，录像设备换 IP 后可继续接收';
+    const CHANGELOG = 'v2.14：支持扩展 API 授权与签名扫码查询，旧主机继续使用兼容接口';
     const DEBUG_LOG = false;
 
     let lastUserActivityAt = Date.now();
@@ -517,10 +526,12 @@
                     const quantity = extractProductQuantity(td);
                     totalItemCount += quantity;
                     if (title) {
-                        products.push(quantity !== 1 ? `${title}×${quantity}` : title);
+                        products.push({ name: title, quantity });
                     }
                 });
-                const productInfo = products.join('，');
+                const productInfo = products
+                    .map(product => product.quantity !== 1 ? `${product.name}×${product.quantity}` : product.name)
+                    .join('，');
 
                 // 4. 订单号（淘宝交易号）
                 const orderId = togetherId;
@@ -533,6 +544,7 @@
                         buyerMessage: buyerMessage,
                         sellerMemo: sellerMemo,
                         productInfo: productInfo,
+                        products: products,
                         totalItemCount: totalItemCount,
                         hasRefund: refundInfo.hasRefund,
                         isPrintedRefund: refundInfo.isPrintedRefund,
@@ -676,6 +688,164 @@
                 ontimeout: () => resolve({ status: 0, body: {} })
             });
         });
+    }
+
+    function bytesToHex(bytes) {
+        return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hexToBytes(value) {
+        const normalized = String(value || '').trim();
+        if (normalized.length % 2 !== 0 || !/^[a-f0-9]+$/i.test(normalized)) throw new Error('invalid_hex');
+        return new Uint8Array(normalized.match(/../g).map(item => Number.parseInt(item, 16)));
+    }
+
+    function randomHex(byteLength) {
+        const bytes = new Uint8Array(byteLength);
+        crypto.getRandomValues(bytes);
+        return bytesToHex(bytes);
+    }
+
+    async function sha256Hex(bytes) {
+        return bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
+    }
+
+    async function hmacSha256Hex(keyHex, value) {
+        const key = await crypto.subtle.importKey(
+            'raw',
+            hexToBytes(keyHex),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']);
+        const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(value));
+        return bytesToHex(new Uint8Array(signature));
+    }
+
+    function getScriptVersion() {
+        return String(GM_info?.script?.version || '2.14').trim();
+    }
+
+    function getExtensionInstanceId() {
+        let value = String(GM_getValue(EXTENSION_INSTANCE_ID_KEY, '') || '').trim();
+        if (/^[A-Za-z0-9._:-]{8,128}$/.test(value)) return value;
+        value = `kdzs-${randomHex(16)}`;
+        GM_setValue(EXTENSION_INSTANCE_ID_KEY, value);
+        return value;
+    }
+
+    function loadExtensionCredential() {
+        const value = GM_getValue(EXTENSION_CREDENTIAL_KEY, null);
+        if (!value || typeof value !== 'object') return null;
+        const credential = String(value.credential || '').trim();
+        const extensionInstanceId = String(value.extensionInstanceId || '').trim();
+        const host = String(value.host || '').trim();
+        const credentialGeneration = Number(value.credentialGeneration || 0);
+        return /^[a-f0-9]{64}$/i.test(credential) &&
+            /^[A-Za-z0-9._:-]{8,128}$/.test(extensionInstanceId) &&
+            Number.isSafeInteger(credentialGeneration) && credentialGeneration > 0 && host
+            ? { credential, extensionInstanceId, host, credentialGeneration }
+            : null;
+    }
+
+    function clearExtensionCredential() {
+        GM_setValue(EXTENSION_CREDENTIAL_KEY, null);
+    }
+
+    async function signedExtensionRequest(method, requestTarget, data, timeout, credentialState) {
+        const state = credentialState || loadExtensionCredential();
+        if (!state) return { status: 0, body: {}, error: 'not_authorized' };
+        const baseUrl = getHostBaseUrl();
+        if (!baseUrl || state.host !== baseUrl) return { status: 0, body: {}, error: 'host_changed' };
+
+        const bodyText = data == null ? '' : JSON.stringify(data);
+        const bodyBytes = new TextEncoder().encode(bodyText);
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = randomHex(16);
+        const contentHash = await sha256Hex(bodyBytes);
+        const canonical = [
+            'packingproof-extension-request-v1',
+            '1',
+            String(state.credentialGeneration),
+            String(method || '').toUpperCase(),
+            requestTarget,
+            String(timestamp),
+            nonce,
+            contentHash,
+            state.extensionInstanceId
+        ].join('\n');
+        const signature = await hmacSha256Hex(state.credential, canonical);
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method,
+                url: `${baseUrl}${requestTarget}`,
+                headers: {
+                    ...(data == null ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
+                    'X-PackingProof-Extension-Version': '1',
+                    'X-PackingProof-Extension-Id': state.extensionInstanceId,
+                    'X-PackingProof-Extension-Credential-Generation': String(state.credentialGeneration),
+                    'X-PackingProof-Extension-Timestamp': String(timestamp),
+                    'X-PackingProof-Extension-Nonce': nonce,
+                    'X-PackingProof-Extension-Content-SHA256': contentHash,
+                    'X-PackingProof-Extension-Signature': signature
+                },
+                data: data == null ? undefined : bodyText,
+                timeout: timeout || 3000,
+                onload: response => resolve({ status: response.status, body: parseJsonResponse(response.responseText) }),
+                onerror: () => resolve({ status: 0, body: {}, error: 'connect' }),
+                ontimeout: () => resolve({ status: 0, body: {}, error: 'timeout' })
+            });
+        });
+    }
+
+    async function enrollExtension(baseUrl) {
+        if (Date.now() < Number(GM_getValue(EXTENSION_ENROLL_RETRY_AT_KEY, 0) || 0)) return null;
+        const response = await requestMonitor('POST', `${baseUrl}/api/extensions/v1/enroll`, {
+            requestId: `enroll-${randomHex(12)}`,
+            requestSecret: randomHex(32),
+            extensionInstanceId: getExtensionInstanceId(),
+            providerId: EXTENSION_PROVIDER_ID,
+            displayName: EXTENSION_DISPLAY_NAME,
+            version: getScriptVersion(),
+            source: location.origin,
+            requestedPermissions: EXTENSION_PERMISSIONS,
+            requestedCapabilities: EXTENSION_CAPABILITIES
+        }, 120000);
+        if (response.status !== 200 || !response.body?.credential) {
+            GM_setValue(EXTENSION_ENROLL_RETRY_AT_KEY, Date.now() + EXTENSION_ENROLL_RETRY_MS);
+            return null;
+        }
+        const state = {
+            host: baseUrl,
+            extensionInstanceId: String(response.body.extensionInstanceId || ''),
+            credential: String(response.body.credential || ''),
+            credentialGeneration: Number(response.body.credentialGeneration || 0)
+        };
+        GM_setValue(EXTENSION_CREDENTIAL_KEY, state);
+        GM_setValue(EXTENSION_ENROLL_RETRY_AT_KEY, 0);
+        return loadExtensionCredential();
+    }
+
+    async function ensureExtensionAuthorization() {
+        const baseUrl = getHostBaseUrl();
+        if (!baseUrl || !globalThis.crypto?.subtle) return null;
+        const capabilities = await requestMonitor('GET', `${baseUrl}/api/extensions/v1/capabilities`, null, 2500);
+        if (capabilities.status !== 200 ||
+            capabilities.body?.extensionApiEnabled !== true ||
+            capabilities.body?.features?.signedScanTasks !== true) return null;
+
+        let state = loadExtensionCredential();
+        if (state?.host === baseUrl) {
+            const heartbeat = await signedExtensionRequest('POST', '/api/extensions/v1/heartbeat', {
+                version: getScriptVersion(),
+                capabilities: EXTENSION_CAPABILITIES,
+                lastSuccessfulActivityAt: null,
+                dataCount: 0
+            }, 3000, state);
+            if (heartbeat.status === 200) return state;
+            if ([401, 403].includes(heartbeat.status)) clearExtensionCredential();
+            else return null;
+        }
+        return enrollExtension(baseUrl);
     }
 
     function getConnectionClientId() {
@@ -853,6 +1023,105 @@
         return queryOrdersByTrackingNumbers(requested);
     }
 
+    function toExtensionOrder(order) {
+        const hasRefund = order?.hasRefund === true || order?.isPrintedRefund === true;
+        return {
+            trackingNumber: String(order?.trackingNumber || '').trim(),
+            orderId: String(order?.orderId || '').trim(),
+            buyerMessage: String(order?.buyerMessage || ''),
+            sellerMemo: String(order?.sellerMemo || ''),
+            totalItemCount: Number(order?.totalItemCount || 0),
+            products: Array.isArray(order?.products)
+                ? order.products.slice(0, 100).map(product => ({
+                    name: String(product?.name || ''),
+                    sku: '',
+                    merchantSku: '',
+                    quantity: Number(product?.quantity || 1)
+                }))
+                : [],
+            refundState: hasRefund ? 'requested' : 'none',
+            refundReason: String(order?.refundStatus || order?.refundProductInfo || '')
+        };
+    }
+
+    async function processExtensionDelivery(delivery, credentialState) {
+        const deliveryId = String(delivery?.deliveryId || '');
+        const taskId = String(delivery?.taskId || '');
+        if (!deliveryId || !taskId) return false;
+
+        const ackTarget = `/api/extensions/v1/scan-tasks/${encodeURIComponent(deliveryId)}/ack`;
+        const acknowledged = await signedExtensionRequest(
+            'POST',
+            ackTarget,
+            { taskId },
+            3000,
+            credentialState);
+        if (acknowledged.status !== 200) return false;
+
+        let status = 'unavailable';
+        let orders = [];
+        try {
+            const found = await queryRequestedRefundSnapshot([delivery.trackingNumber]);
+            orders = found.map(toExtensionOrder);
+            status = orders.some(order => order.orderId || order.products.length > 0 || order.buyerMessage || order.sellerMemo)
+                ? 'found'
+                : 'not_found';
+        } catch (error) {
+            console.warn('[PackingProof] 扩展扫码查询失败:', error?.message || error);
+        }
+
+        const result = await signedExtensionRequest(
+            'POST',
+            '/api/extensions/v1/scan-results',
+            {
+                deliveryId,
+                taskId,
+                providerId: EXTENSION_PROVIDER_ID,
+                resultId: `${deliveryId}-result-1`,
+                revision: 1,
+                status,
+                observedAt: new Date().toISOString(),
+                orders,
+                measurements: []
+            },
+            10000,
+            credentialState);
+        if (![200, 202].includes(result.status)) return false;
+
+        await signedExtensionRequest('POST', '/api/extensions/v1/heartbeat', {
+            version: getScriptVersion(),
+            capabilities: EXTENSION_CAPABILITIES,
+            lastSuccessfulActivityAt: new Date().toISOString(),
+            dataCount: Math.max(1, orders.length)
+        }, 3000, credentialState);
+        return true;
+    }
+
+    async function runExtensionTaskLoop(credentialState) {
+        let state = credentialState;
+        while (state) {
+            const target = '/api/extensions/v1/scan-tasks/next?waitSeconds=20';
+            const response = await signedExtensionRequest('GET', target, null, 25000, state);
+            if (response.status === 204) continue;
+            if (response.status === 200 && response.body?.deliveryId) {
+                await processExtensionDelivery(response.body, state);
+                continue;
+            }
+            if ([401, 403].includes(response.status)) clearExtensionCredential();
+            return false;
+        }
+        return false;
+    }
+
+    async function startExtensionTaskPolling() {
+        const credentialState = await ensureExtensionAuthorization();
+        if (!credentialState) return false;
+        runExtensionTaskLoop(credentialState)
+            .catch(error => console.warn('[PackingProof] 扩展任务轮询已停止:', error?.message || error))
+            .finally(() => startOrderLookupPolling());
+        return true;
+    }
+
     let orderLookupPollStarted = false;
     async function pollOrderLookupRequests() {
         let reconnectDelay = ORDER_LOOKUP_RECONNECT_MS;
@@ -1019,7 +1288,7 @@
             if (!await startRefundWorkerHeartbeat()) return;
             const startWhenHostAvailable = async () => {
                 if (await canConnectHost()) {
-                    startOrderLookupPolling();
+                    if (!await startExtensionTaskPolling()) startOrderLookupPolling();
                     return;
                 }
                 setTimeout(startWhenHostAvailable, REFUND_WORKER_RECHECK_INTERVAL_MS);

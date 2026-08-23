@@ -295,6 +295,23 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
+    public void OfficialUserscript_UsesSignedExtensionTasksWithLegacyFallback()
+    {
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
+        string script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("packingproof-extension-request-v1", script);
+        Assert.Contains("/api/extensions/v1/enroll", script);
+        Assert.Contains("/api/extensions/v1/scan-tasks/next?waitSeconds=20", script);
+        Assert.Contains("/api/extensions/v1/scan-results", script);
+        Assert.Contains("features?.signedScanTasks !== true", script);
+        Assert.Contains("if (!await startExtensionTaskPolling()) startOrderLookupPolling()", script);
+        Assert.Contains(".finally(() => startOrderLookupPolling())", script);
+        Assert.Contains("GM_setValue(EXTENSION_CREDENTIAL_KEY, state)", script);
+        Assert.DoesNotContain("const EXTENSION_CREDENTIAL =", script);
+    }
+
+    [Fact]
     public void Userscript_BroadcastsToEveryConfiguredRecorderIndependently()
     {
         string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");

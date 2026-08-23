@@ -33,6 +33,7 @@ public sealed class ExtensionApiV1ContractTests
 
             JsonElement features = root.GetProperty("features");
             Assert.True(features.GetProperty("ordersWrite").GetBoolean());
+            Assert.True(features.GetProperty("signedScanTasks").GetBoolean());
             Assert.True(features.GetProperty("totalItemCount").GetBoolean());
             Assert.True(features.GetProperty("mergedOrderCount").GetBoolean());
             Assert.True(features.GetProperty("providerId").GetBoolean());
