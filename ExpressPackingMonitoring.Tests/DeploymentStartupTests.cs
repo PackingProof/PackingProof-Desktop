@@ -1610,6 +1610,17 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void RecordingPreviewShowsMultipleItemCountAsIndependentBottomRightBadge()
+    {
+        string xaml = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");
+
+        Assert.Contains("Text=\"{Binding PreviewOrderItemCountText}\"", xaml, StringComparison.Ordinal);
+        Assert.Matches(
+            "HorizontalAlignment=\"Right\"[\\s\\S]*VerticalAlignment=\"Bottom\"[\\s\\S]*PreviewOrderItemCountText",
+            xaml);
+    }
+
+    [Fact]
     public void EveryDeploymentWindowExposesTestOrderAndRecordingHostUsesTwoRows()
     {
         string recordingXaml = ReadRepositoryFile(

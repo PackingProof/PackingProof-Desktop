@@ -416,6 +416,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string _previewOrderRemarkText = "";
         private string _previewOrderDetailText = "";
+        private string _previewOrderItemCountText = "";
         private string _previewAlertText = "";
         private bool _isPreviewOrderNoticeVisible;
         private bool _isPreviewAlertVisible;
@@ -423,6 +424,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private CancellationTokenSource _previewAlertCts;
         public string PreviewOrderRemarkText { get => _previewOrderRemarkText; private set => SetProperty(ref _previewOrderRemarkText, value); }
         public string PreviewOrderDetailText { get => _previewOrderDetailText; private set => SetProperty(ref _previewOrderDetailText, value); }
+        public string PreviewOrderItemCountText { get => _previewOrderItemCountText; private set => SetProperty(ref _previewOrderItemCountText, value); }
         public string PreviewAlertText { get => _previewAlertText; private set => SetProperty(ref _previewAlertText, value); }
         public bool IsPreviewOrderNoticeVisible { get => _isPreviewOrderNoticeVisible; private set => SetProperty(ref _isPreviewOrderNoticeVisible, value); }
         public bool IsPreviewAlertVisible { get => _isPreviewAlertVisible; private set => SetProperty(ref _isPreviewAlertVisible, value); }
@@ -1845,8 +1847,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 return "";
 
             var lines = new List<string>();
-            if (orderInfo.TotalItemCount > 0)
-                lines.Add(AppLanguage.Format("Main.PreviewTotalItemCount", orderInfo.TotalItemCount));
             AddPreviewOrderLine(lines, "Main.PreviewProduct", orderInfo.ProductInfo);
 
             if (orderInfo.HasRefund || orderInfo.IsPrintedRefund)
@@ -1857,6 +1857,13 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             return string.Join(Environment.NewLine, lines);
+        }
+
+        internal static string BuildPreviewOrderItemCountText(OrderInfo orderInfo)
+        {
+            return orderInfo?.TotalItemCount > 1
+                ? orderInfo.TotalItemCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : "";
         }
 
         internal static IReadOnlyList<AlertSpeechFollowup> BuildOrderInfoSpeechFollowups(
@@ -1927,6 +1934,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             PreviewOrderRemarkText = BuildPreviewOrderRemarkNotice(orderInfo);
             PreviewOrderDetailText = BuildPreviewOrderDetailNotice(orderInfo);
+            PreviewOrderItemCountText = BuildPreviewOrderItemCountText(orderInfo);
             IsPreviewOrderNoticeVisible = PreviewOrderRemarkText.Length > 0 || PreviewOrderDetailText.Length > 0;
         }
 

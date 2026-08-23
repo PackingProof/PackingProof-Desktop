@@ -440,6 +440,36 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
+                        <Border HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="20"
+                                MinWidth="76"
+                                MinHeight="76"
+                                Padding="14,6"
+                                Background="{StaticResource OverlayStrong}"
+                                BorderBrush="{StaticResource WarningOverlayBorder}"
+                                BorderThickness="2"
+                                CornerRadius="38"
+                                IsHitTestVisible="False"
+                                Panel.ZIndex="30">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PreviewOrderItemCountText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding PreviewOrderItemCountText}"
+                                       Foreground="{StaticResource TextOnAccent}"
+                                       FontSize="44"
+                                       FontWeight="Bold"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
                         <!-- 摄像头休眠提示 -->
                         <Grid IsHitTestVisible="False">
                             <Grid.Style>

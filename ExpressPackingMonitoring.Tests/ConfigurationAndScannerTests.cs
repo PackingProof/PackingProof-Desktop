@@ -207,7 +207,7 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
-    public void BuildPreviewOrderDetailNotice_IncludesTotalItemCount()
+    public void BuildPreviewOrderDetailNotice_DoesNotIncludeTotalItemCount()
     {
         string details = MainViewModel.BuildPreviewOrderDetailNotice(new OrderInfo
         {
@@ -215,8 +215,23 @@ public sealed class ConfigurationAndScannerTests
             ProductInfo = "蓝色外套"
         });
 
-        Assert.StartsWith("共 3 件商品", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("共 3 件商品", details, StringComparison.Ordinal);
         Assert.Contains("蓝色外套", details);
+    }
+
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(1, "")]
+    [InlineData(2, "2")]
+    [InlineData(15, "15")]
+    public void BuildPreviewOrderItemCountText_OnlyShowsMultipleItems(int totalItemCount, string expected)
+    {
+        string actual = MainViewModel.BuildPreviewOrderItemCountText(new OrderInfo
+        {
+            TotalItemCount = totalItemCount
+        });
+
+        Assert.Equal(expected, actual);
     }
 
     [Theory]
