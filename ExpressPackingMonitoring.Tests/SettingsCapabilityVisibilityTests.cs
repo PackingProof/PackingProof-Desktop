@@ -29,9 +29,9 @@ public sealed class SettingsCapabilityVisibilityTests
 
     [Theory]
     [InlineData("面单放大", "Capabilities.CanRecordPcVideo")]
-    [InlineData("录制控制", "Capabilities.CanRecordPcVideo")]
-    [InlineData("AI 语音", "Capabilities.IsRecordingDevice")]
-    [InlineData("条码识别", "Capabilities.CanUseScanner")]
+    [InlineData("录像设置", "Capabilities.CanRecordPcVideo")]
+    [InlineData("声音与播报", "Capabilities.IsRecordingDevice")]
+    [InlineData("扫码与识别", "Capabilities.CanUseScanner")]
     public void CameraOnlyTabsAreControlledByCapabilities(string header, string capability)
     {
         XElement tab = Assert.Single(
@@ -63,18 +63,49 @@ public sealed class SettingsCapabilityVisibilityTests
     }
 
     [Fact]
-    public void RecordingSoundToggleAppearsBelowMicrophoneInDeviceTab()
+    public void SettingsTabsFollowTheUserWorkflow()
     {
-        XElement tab = Assert.Single(
-            LoadSettingsXaml().Descendants(Presentation + "TabItem"),
-            element => (string?)element.Attribute("Header") == "设备与画面");
-
-        string?[] labels = tab.Descendants(Presentation + "TextBlock")
-            .Select(element => (string?)element.Attribute("Text"))
-            .Where(text => text == "录制声音" || text == "麦克风")
+        string?[] headers = LoadSettingsXaml()
+            .Descendants(Presentation + "TabItem")
+            .Select(element => (string?)element.Attribute("Header"))
             .ToArray();
 
-        Assert.Equal(new string?[] { "麦克风", "录制声音" }, labels);
+        Assert.Equal(
+            new string?[]
+            {
+                "设备与外观",
+                "扫码与识别",
+                "面单放大",
+                "存储与备份",
+                "存储与备份",
+                "录像设置",
+                "声音与播报",
+                "局域网与网页",
+                "扩展与联动",
+                "高级设置",
+                "关于"
+            },
+            headers);
+    }
+
+    [Theory]
+    [InlineData("麦克风", "设备与外观")]
+    [InlineData("录制声音", "录像设置")]
+    [InlineData("视频编码格式", "录像设置")]
+    [InlineData("接收第三方水印", "录像设置")]
+    [InlineData("订单备注播报", "声音与播报")]
+    [InlineData("播报商品件数", "声音与播报")]
+    [InlineData("网页访问端口", "局域网与网页")]
+    [InlineData("安装订单联动", "扩展与联动")]
+    [InlineData("自定义订单脚本", "扩展与联动")]
+    public void SettingsAreGroupedByUserPurpose(string label, string expectedTab)
+    {
+        XElement labelElement = Assert.Single(
+            LoadSettingsXaml().Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == label);
+        XElement tab = Assert.Single(labelElement.Ancestors(Presentation + "TabItem"));
+
+        Assert.Equal(expectedTab, (string?)tab.Attribute("Header"));
     }
 
     [Theory]

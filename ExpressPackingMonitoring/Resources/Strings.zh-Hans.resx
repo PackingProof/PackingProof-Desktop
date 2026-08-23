@@ -29,6 +29,13 @@
   <data name="AI 语音" xml:space="preserve"><value>AI 语音</value></data>
   <data name="局域网查看" xml:space="preserve"><value>局域网查看</value></data>
   <data name="条码识别" xml:space="preserve"><value>条码识别</value></data>
+  <data name="设备与外观" xml:space="preserve"><value>设备与外观</value></data>
+  <data name="扫码与识别" xml:space="preserve"><value>扫码与识别</value></data>
+  <data name="存储与备份" xml:space="preserve"><value>存储与备份</value></data>
+  <data name="录像设置" xml:space="preserve"><value>录像设置</value></data>
+  <data name="声音与播报" xml:space="preserve"><value>声音与播报</value></data>
+  <data name="局域网与网页" xml:space="preserve"><value>局域网与网页</value></data>
+  <data name="扩展与联动" xml:space="preserve"><value>扩展与联动</value></data>
   <data name="高级设置" xml:space="preserve"><value>高级设置</value></data>
   <data name="关于" xml:space="preserve"><value>关于</value></data>
   <data name="摄像头" xml:space="preserve"><value>摄像头</value></data>
@@ -361,6 +368,7 @@
   <data name="摄像头已休眠" xml:space="preserve"><value>摄像头已休眠</value></data>
   <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
   <data name="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
+  <data name="关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”</value></data>
   <data name="手机 App 更新" xml:space="preserve"><value>手机 App 更新</value></data>
   <data name="发现新版手机 App" xml:space="preserve"><value>发现新版手机 App</value></data>
   <data name="稍后" xml:space="preserve"><value>稍后</value></data>

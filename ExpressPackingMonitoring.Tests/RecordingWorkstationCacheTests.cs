@@ -216,7 +216,7 @@ public sealed class RecordingWorkstationCacheTests
             "<TabItem x:Name=\"RecordingCacheTabItem\"",
             StringComparison.Ordinal);
         int cacheTabEnd = settings.IndexOf(
-            "<TabItem Header=\"存储管理\"",
+            "<TabItem Header=\"录像设置\"",
             cacheTabStart,
             StringComparison.Ordinal);
         string cacheTab = settings[cacheTabStart..cacheTabEnd];

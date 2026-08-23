@@ -29,6 +29,13 @@
   <data name="AI 语音" xml:space="preserve"><value>AI voice</value></data>
   <data name="局域网查看" xml:space="preserve"><value>LAN access</value></data>
   <data name="条码识别" xml:space="preserve"><value>Barcode recognition</value></data>
+  <data name="设备与外观" xml:space="preserve"><value>Devices &amp; appearance</value></data>
+  <data name="扫码与识别" xml:space="preserve"><value>Scanning &amp; recognition</value></data>
+  <data name="存储与备份" xml:space="preserve"><value>Storage &amp; backup</value></data>
+  <data name="录像设置" xml:space="preserve"><value>Recording settings</value></data>
+  <data name="声音与播报" xml:space="preserve"><value>Sound &amp; announcements</value></data>
+  <data name="局域网与网页" xml:space="preserve"><value>LAN &amp; web</value></data>
+  <data name="扩展与联动" xml:space="preserve"><value>Extensions &amp; integrations</value></data>
   <data name="高级设置" xml:space="preserve"><value>Advanced</value></data>
   <data name="关于" xml:space="preserve"><value>About</value></data>
   <data name="摄像头" xml:space="preserve"><value>Camera</value></data>
@@ -361,6 +368,7 @@
   <data name="摄像头已休眠" xml:space="preserve"><value>The camera has gone to sleep</value></data>
   <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>The camera slept after {0} idle minutes. To disable this, enable Advanced mode at the left of Settings, then turn off Close the camera when unused under Recording controls</value></data>
   <data name="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>To disable: enable Advanced mode at the left of Settings, then turn off Close the camera when unused under Recording controls</value></data>
+  <data name="关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>To disable: enable Advanced mode at the left of Settings, then turn off Close the camera when unused under Recording settings</value></data>
   <data name="手机 App 更新" xml:space="preserve"><value>Phone app update</value></data>
   <data name="发现新版手机 App" xml:space="preserve"><value>New phone app available</value></data>
   <data name="稍后" xml:space="preserve"><value>Later</value></data>
