@@ -230,6 +230,39 @@ Content-Type: application/json
 
 完整的最小 JavaScript 客户端见 [`examples/extension-v1-minimal.js`](examples/extension-v1-minimal.js)。示例只包含注册、签名、心跳、任务领取、确认和结果提交，不包含任何 ERP 页面解析或业务系统代码，也不会自动保存凭据。
 
+### 串口电子秤适配器示例
+
+完整参考见 [`examples/extension-v1-serial-scale.js`](examples/extension-v1-serial-scale.js)。这是由第三方独立运行的 Node.js 程序，不会被 PackingProof 加载或执行。示例使用 `serialport` 连接电子秤，复用最小客户端完成授权、签名、扫码任务领取和重量提交：
+
+```bash
+cd docs/examples
+npm install
+set PACKINGPROOF_BASE_URL=http://127.0.0.1:5280
+set PACKINGPROOF_SCALE_PORT=COM3
+node extension-v1-serial-scale.js
+```
+
+示例采用常见英展 ASCII 连续输出格式：波特率 9600、数据位 8、停止位 1、无校验。每帧共 18 字节，最后两个字节为 `0D 0A`：
+
+```text
+ST,NT,+32.1000kg\r\n
+```
+
+| 字节位置 | 含义 |
+|---|---|
+| 1～2 | `ST` 表示稳定，`US` 表示不稳定 |
+| 3、6 | ASCII 逗号 `2C` |
+| 4～5 | `NT` 表示净重，`TR` 表示去皮状态 |
+| 7～14 | 固定 8 字节重量文本，第 7 字节为正负号 |
+| 15～16 | 单位，千克为 `kg`（`6B 67`） |
+| 17～18 | 回车换行 `0D 0A` |
+
+电子秤会连续输出，适配器只在内存中保留最近的稳定且大于零的重量，不会把每一帧都上传。PackingProof 扫码后主动发布 `measurement.capture` 任务；适配器确认任务，等待与本次扫码时间相邻的新鲜稳定值，再提交测量结果。超时仍没有稳定读数时提交 `timeout`，不会把上一件包裹的旧重量绑定到新单号。
+
+测量结果中的 `deliveryId + taskId` 已经与 `trackingNumber`、`originNodeId` 和 `recordingSessionId` 绑定。测量任务的 `orders` 必须保持为空，第三方不能重复填写或替换快递单号；服务端会把重量写入扫码任务对应的订单和录像会话。
+
+不同品牌电子秤通常只需替换 `parseYingzhanFrame`。串口号、主机地址和授权凭据均保存在运行环境或本机状态文件中，不应写死到源码或提交仓库。
+
 ## 心跳与在线状态
 
 ```http

@@ -1,0 +1,11 @@
+{
+  "name": "packingproof-extension-examples",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
+  }
+}
