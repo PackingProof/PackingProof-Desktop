@@ -71,6 +71,8 @@ public sealed class PlaybackWindowTests
         Assert.DoesNotContain("HideUnavailableButton", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("异常记录", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("HideUnavailable_Changed", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("LocateExportedOrderFile(saveDialog.FileName);", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("WindowsShellFileLocator.Locate(filePath)", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]

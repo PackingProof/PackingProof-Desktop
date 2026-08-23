@@ -202,6 +202,7 @@ namespace ExpressPackingMonitoring.UI
                             this,
                             $"已导出 {progressDialog.ExportedCount} 条单号记录\n保存位置：{saveDialog.FileName}",
                             "导出完成");
+                        LocateExportedOrderFile(saveDialog.FileName);
                         break;
                     case OrderNumberExportOutcome.Empty:
                         AppDialog.Information(this, "当前日期范围内没有可导出的单号", "导出单号");
@@ -226,6 +227,29 @@ namespace ExpressPackingMonitoring.UI
             {
                 ExportOrderNumbersButtonText.Text = "导出单号";
                 ExportOrderNumbersButton.IsEnabled = _db != null && !_isClosing;
+            }
+        }
+
+        private void LocateExportedOrderFile(string filePath)
+        {
+            try
+            {
+                FileLocationResult result = WindowsShellFileLocator.Locate(filePath);
+                if (result == FileLocationResult.OpenedFolder)
+                {
+                    AppDialog.Information(
+                        this,
+                        "已打开表格所在文件夹，但系统未能自动选中导出文件",
+                        "定位导出文件");
+                }
+                else if (result != FileLocationResult.Selected)
+                {
+                    AppDialog.Error(this, "导出文件不存在或路径无效", "定位失败");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppDialog.Error(this, $"无法打开文件管理器：{ex.Message}", "定位失败");
             }
         }
 
