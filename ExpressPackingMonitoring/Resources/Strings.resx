@@ -949,6 +949,12 @@
   <data name="导入自定义脚本" xml:space="preserve"><value>Import custom script</value></data>
   <data name="启用扩展 API" xml:space="preserve"><value>Enable extension API</value></data>
   <data name="允许经过授权的 ERP、称重设备和其他扩展连接；关闭时不启动扩展任务服务" xml:space="preserve"><value>Allow authorized ERP systems, measuring devices, and other extensions to connect; extension task services stay stopped while disabled</value></data>
+  <data name="已授权扩展" xml:space="preserve"><value>Authorized extensions</value></data>
+  <data name="授权扩展会一直保留到手动撤销；轮换凭据后旧凭据立即失效" xml:space="preserve"><value>Authorizations remain until manually revoked; rotating credentials immediately invalidates the old credentials</value></data>
+  <data name="扩展" xml:space="preserve"><value>Extension</value></data>
+  <data name="权限与绑定" xml:space="preserve"><value>Permissions and binding</value></data>
+  <data name="轮换凭据" xml:space="preserve"><value>Rotate credentials</value></data>
+  <data name="撤销" xml:space="preserve"><value>Revoke</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>Imported scripts (</value></data>
   <data name="已导入脚本" xml:space="preserve"><value>Imported scripts</value></data>
   <data name="管理" xml:space="preserve"><value>Manage</value></data>
