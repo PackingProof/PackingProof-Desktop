@@ -3096,21 +3096,24 @@ namespace ExpressPackingMonitoring.Services
                 return false;
             }
 
+            int version = 0;
+            int credentialGeneration = 0;
+            long timestamp = 0;
             bool validHeaders = int.TryParse(
                     ctx.Request.Headers[ExtensionRequestSignature.VersionHeader],
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
-                    out int version)
+                    out version)
                 && int.TryParse(
                     ctx.Request.Headers[ExtensionRequestSignature.CredentialGenerationHeader],
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
-                    out int credentialGeneration)
+                    out credentialGeneration)
                 && long.TryParse(
                     ctx.Request.Headers[ExtensionRequestSignature.TimestampHeader],
                     NumberStyles.Integer,
                     CultureInfo.InvariantCulture,
-                    out long timestamp);
+                    out timestamp);
             if (!validHeaders)
                 return false;
 
@@ -3173,7 +3176,7 @@ namespace ExpressPackingMonitoring.Services
         {
             if (!_authenticatedExtensionContexts.TryGetValue(
                     ctx,
-                    out ExtensionAuthorizationContext? authorization))
+                    out ExtensionAuthorizationContext authorization))
             {
                 SendJson(ctx, 401, new
                 {
