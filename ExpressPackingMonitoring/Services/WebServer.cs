@@ -177,6 +177,11 @@ namespace ExpressPackingMonitoring.Services
             public List<string> RequestedCapabilities { get; set; } = [];
         }
 
+        private sealed class ExtensionScanTaskAckRequest
+        {
+            public string TaskId { get; set; } = "";
+        }
+
         private const int MaxJsonBodyBytes = 64 * 1024;
         private const int MaxOrderInfoBodyBytes = 1024 * 1024;
         internal const int MaxOrderInfoItems = 200;
@@ -202,6 +207,8 @@ namespace ExpressPackingMonitoring.Services
         private ExtensionAuthorizationStore _extensionAuthorizations;
         private ExtensionEnrollmentService _extensionEnrollment;
         private ExtensionRequestAuthenticator _extensionRequestAuthenticator;
+        private ExtensionScanTaskBroker _extensionScanTaskBroker;
+        private ExtensionScanResultSubmissionCoordinator _extensionScanResultCoordinator;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -409,6 +416,19 @@ namespace ExpressPackingMonitoring.Services
             _extensionEnrollment = new ExtensionEnrollmentService(
                 _extensionAuthorizations,
                 approver ?? throw new ArgumentNullException(nameof(approver)));
+        }
+
+        internal void ConfigureExtensionTaskApi(
+            ExtensionScanTaskBroker broker,
+            ExtensionScanResultSubmissionCoordinator resultCoordinator)
+        {
+            if (!_extensionApiEnabled)
+                throw new InvalidOperationException("扩展 API 未启用");
+            if (_listener.IsListening)
+                throw new InvalidOperationException("扩展任务服务必须在 Web 服务启动前配置");
+            _extensionScanTaskBroker = broker ?? throw new ArgumentNullException(nameof(broker));
+            _extensionScanResultCoordinator = resultCoordinator
+                ?? throw new ArgumentNullException(nameof(resultCoordinator));
         }
 
         private static HttpListener CreateListener(int port, string listenerHost)
@@ -1260,6 +1280,17 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/extensions/v1/heartbeat" when method == "POST":
                         HandleExtensionHeartbeat(ctx);
+                        break;
+                    case "/api/extensions/v1/scan-tasks/next" when method == "GET":
+                        HandlePollExtensionScanTask(ctx);
+                        break;
+                    case "/api/extensions/v1/scan-results" when method == "POST":
+                        HandleExtensionScanResult(ctx);
+                        break;
+                    case var p when method == "POST"
+                        && p.StartsWith("/api/extensions/v1/scan-tasks/", StringComparison.OrdinalIgnoreCase)
+                        && p.EndsWith("/ack", StringComparison.OrdinalIgnoreCase):
+                        HandleAcknowledgeExtensionScanTask(ctx, p);
                         break;
                     case "/api/extensions/v1/orders" when method == "POST":
                         HandleExtensionOrders(ctx);
@@ -3070,8 +3101,15 @@ namespace ExpressPackingMonitoring.Services
         }
 
         private static bool IsSignedExtensionPath(string path, string method) =>
-            string.Equals(path, "/api/extensions/v1/heartbeat", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase);
+            (string.Equals(path, "/api/extensions/v1/heartbeat", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            || (string.Equals(path, "/api/extensions/v1/scan-tasks/next", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase))
+            || (string.Equals(path, "/api/extensions/v1/scan-results", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            || (path.StartsWith("/api/extensions/v1/scan-tasks/", StringComparison.OrdinalIgnoreCase)
+                && path.EndsWith("/ack", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase));
 
         private bool TryAuthorizeExtensionRequest(
             HttpListenerContext ctx,
@@ -3193,6 +3231,193 @@ namespace ExpressPackingMonitoring.Services
                 extensionInstanceId = authorization.ExtensionInstanceId,
                 serverTime = DateTimeOffset.UtcNow
             });
+        }
+
+        private void HandlePollExtensionScanTask(HttpListenerContext ctx)
+        {
+            if (!TryGetExtensionAuthorization(
+                    ctx,
+                    ExtensionPermissions.ScanTasksRead,
+                    out ExtensionAuthorizationContext authorization))
+                return;
+            if (_extensionScanTaskBroker == null)
+            {
+                SendJson(ctx, 503, new { errorCode = "extension_task_service_unavailable", error = "扩展任务服务尚未就绪" });
+                return;
+            }
+
+            int waitSeconds = 20;
+            if (int.TryParse(ctx.Request.QueryString["waitSeconds"], out int requestedWait))
+                waitSeconds = Math.Clamp(requestedWait, 0, 25);
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(waitSeconds);
+            ExtensionScanDelivery delivery = null;
+            do
+            {
+                ExtensionScanDelivery candidate = _extensionScanTaskBroker.Poll(
+                    authorization.ExtensionInstanceId);
+                if (candidate != null
+                    && authorization.SupportsCapability(candidate.Capability)
+                    && authorization.IsBoundToOriginNode(candidate.ScanEvent.OriginNodeId))
+                {
+                    delivery = candidate;
+                    break;
+                }
+                if (waitSeconds == 0 || DateTimeOffset.UtcNow >= deadline)
+                    break;
+                Thread.Sleep(200);
+            } while (true);
+
+            if (delivery == null)
+            {
+                ctx.Response.StatusCode = 204;
+                ctx.Response.OutputStream.Close();
+                return;
+            }
+            SendJson(ctx, 200, ToExtensionDeliveryResponse(delivery));
+        }
+
+        private void HandleAcknowledgeExtensionScanTask(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(
+                    ctx,
+                    ExtensionPermissions.ScanTasksRead,
+                    out ExtensionAuthorizationContext authorization))
+                return;
+            if (_extensionScanTaskBroker == null)
+            {
+                SendJson(ctx, 503, new { errorCode = "extension_task_service_unavailable", error = "扩展任务服务尚未就绪" });
+                return;
+            }
+
+            const string prefix = "/api/extensions/v1/scan-tasks/";
+            string deliveryId = path[prefix.Length..^"/ack".Length];
+            ExtensionScanTaskAckRequest request;
+            try { request = ReadJsonBody<ExtensionScanTaskAckRequest>(ctx); }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new { errorCode = "extension_ack_invalid", error = "任务确认内容无效" });
+                return;
+            }
+
+            ExtensionScanAcknowledgementDisposition result;
+            try
+            {
+                result = _extensionScanTaskBroker.Acknowledge(
+                    authorization.ExtensionInstanceId,
+                    deliveryId,
+                    request.TaskId);
+            }
+            catch (InvalidDataException ex)
+            {
+                SendJson(ctx, 400, new { errorCode = "extension_ack_invalid", error = ex.Message });
+                return;
+            }
+            switch (result)
+            {
+                case ExtensionScanAcknowledgementDisposition.Accepted:
+                case ExtensionScanAcknowledgementDisposition.Duplicate:
+                    SendJson(ctx, 200, new { ok = true, duplicate = result == ExtensionScanAcknowledgementDisposition.Duplicate });
+                    break;
+                case ExtensionScanAcknowledgementDisposition.DeliveryNotFound:
+                    SendJson(ctx, 404, new { errorCode = "extension_delivery_not_found", error = "任务投递不存在" });
+                    break;
+                case ExtensionScanAcknowledgementDisposition.Expired:
+                    SendJson(ctx, 410, new { errorCode = "extension_delivery_expired", error = "任务投递已过期" });
+                    break;
+                default:
+                    SendJson(ctx, 403, new { errorCode = "extension_delivery_forbidden", error = "扩展无权确认此任务" });
+                    break;
+            }
+        }
+
+        private void HandleExtensionScanResult(HttpListenerContext ctx)
+        {
+            if (!TryGetExtensionAuthorization(
+                    ctx,
+                    ExtensionPermissions.ScanResultsWrite,
+                    out ExtensionAuthorizationContext authorization))
+                return;
+            if (_extensionScanResultCoordinator == null)
+            {
+                SendJson(ctx, 503, new { errorCode = "extension_result_service_unavailable", error = "扩展结果服务尚未就绪" });
+                return;
+            }
+
+            ExtensionScanResultRequest request;
+            try
+            {
+                request = ReadJsonBody<ExtensionScanResultRequest>(ctx);
+                ExtensionScanResultSubmissionOutcome outcome = _extensionScanResultCoordinator.Submit(
+                    authorization,
+                    request);
+                SendExtensionScanResultOutcome(ctx, outcome);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                SendJson(ctx, 403, new { errorCode = "extension_result_forbidden", error = ex.Message });
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new { errorCode = "extension_result_invalid", error = ex.Message });
+            }
+        }
+
+        private bool TryGetExtensionAuthorization(
+            HttpListenerContext ctx,
+            string permission,
+            out ExtensionAuthorizationContext authorization)
+        {
+            if (!_authenticatedExtensionContexts.TryGetValue(ctx, out authorization))
+            {
+                SendJson(ctx, 401, new { errorCode = "extension_auth_required", error = "需要有效的扩展签名" });
+                return false;
+            }
+            if (!authorization.HasPermission(permission))
+            {
+                SendJson(ctx, 403, new { errorCode = "extension_permission_denied", error = "扩展没有调用此接口的权限" });
+                return false;
+            }
+            return true;
+        }
+
+        private static object ToExtensionDeliveryResponse(ExtensionScanDelivery delivery) => new
+        {
+            deliveryId = delivery.DeliveryId,
+            taskId = delivery.ScanEvent.TaskId,
+            originNodeId = delivery.ScanEvent.OriginNodeId,
+            recordingSessionId = delivery.ScanEvent.RecordingSessionId,
+            trackingNumber = delivery.ScanEvent.TrackingNumber,
+            recordingMode = delivery.ScanEvent.RecordingMode,
+            capability = delivery.Capability,
+            occurredAt = delivery.ScanEvent.OccurredAtUtc,
+            softDeadline = delivery.ScanEvent.SoftDeadlineUtc,
+            expiresAt = delivery.ScanEvent.ExpiresAtUtc,
+            deliveryAttempt = delivery.DeliveryAttempts
+        };
+
+        private static void SendExtensionScanResultOutcome(
+            HttpListenerContext ctx,
+            ExtensionScanResultSubmissionOutcome outcome)
+        {
+            switch (outcome.Disposition)
+            {
+                case ExtensionScanResultSubmissionDisposition.Accepted:
+                    SendJson(ctx, 202, new { ok = true, inboxId = outcome.InboxId, duplicate = false });
+                    break;
+                case ExtensionScanResultSubmissionDisposition.Duplicate:
+                case ExtensionScanResultSubmissionDisposition.BusinessDuplicate:
+                    SendJson(ctx, 200, new { ok = true, inboxId = outcome.InboxId, duplicate = true });
+                    break;
+                case ExtensionScanResultSubmissionDisposition.Expired:
+                    SendJson(ctx, 410, new { errorCode = "extension_delivery_expired", error = "任务投递已过期" });
+                    break;
+                case ExtensionScanResultSubmissionDisposition.DeliveryNotFound:
+                    SendJson(ctx, 404, new { errorCode = "extension_delivery_not_found", error = "任务投递不存在" });
+                    break;
+                default:
+                    SendJson(ctx, 409, new { errorCode = "extension_result_conflict", error = "扩展结果修订与已接收内容冲突" });
+                    break;
+            }
         }
 
         private void HandleExtensionEnrollment(HttpListenerContext ctx)

@@ -50,6 +50,16 @@ internal enum ExtensionScanSubmissionDisposition
     Expired
 }
 
+internal enum ExtensionScanAcknowledgementDisposition
+{
+    Accepted,
+    Duplicate,
+    DeliveryNotFound,
+    ExtensionMismatch,
+    TaskMismatch,
+    Expired
+}
+
 internal sealed record ExtensionScanEvent
 {
     internal string TaskId { get; init; } = "";
@@ -238,10 +248,44 @@ internal sealed class ExtensionScanTaskBroker
             if (state == null) return null;
 
             state.DeliveryAttempts++;
+            state.Acknowledged = false;
             state.FirstDeliveredAtUtc ??= now;
             state.LastDeliveredAtUtc = now;
             state.NextDeliveryAtUtc = now + _redeliveryDelay;
             return ToSnapshot(state, _events[state.TaskId].ScanEvent, now);
+        }
+    }
+
+    internal ExtensionScanAcknowledgementDisposition Acknowledge(
+        string extensionInstanceId,
+        string deliveryId,
+        string taskId)
+    {
+        string normalizedExtensionId = NormalizeIdentifier(extensionInstanceId, "扩展实例 ID");
+        string normalizedDeliveryId = NormalizeIdentifier(deliveryId, "投递 ID");
+        string normalizedTaskId = NormalizeIdentifier(taskId, "任务 ID");
+        lock (_sync)
+        {
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+            PruneCore(now);
+            if (!_deliveries.TryGetValue(normalizedDeliveryId, out DeliveryState? state))
+                return ExtensionScanAcknowledgementDisposition.DeliveryNotFound;
+            if (!string.Equals(state.ExtensionInstanceId, normalizedExtensionId, StringComparison.Ordinal))
+                return ExtensionScanAcknowledgementDisposition.ExtensionMismatch;
+            if (!string.Equals(state.TaskId, normalizedTaskId, StringComparison.Ordinal))
+                return ExtensionScanAcknowledgementDisposition.TaskMismatch;
+            ExtensionScanEvent scanEvent = _events[state.TaskId].ScanEvent;
+            if (state.Expired || now > scanEvent.ExpiresAtUtc)
+                return ExtensionScanAcknowledgementDisposition.Expired;
+            if (state.Completed || state.Acknowledged)
+                return ExtensionScanAcknowledgementDisposition.Duplicate;
+
+            state.Acknowledged = true;
+            DateTimeOffset leaseUntil = now + TimeSpan.FromSeconds(30);
+            state.NextDeliveryAtUtc = leaseUntil < scanEvent.ExpiresAtUtc
+                ? leaseUntil
+                : scanEvent.ExpiresAtUtc;
+            return ExtensionScanAcknowledgementDisposition.Accepted;
         }
     }
 
@@ -546,6 +590,7 @@ internal sealed class ExtensionScanTaskBroker
         internal DateTimeOffset? FirstDeliveredAtUtc { get; set; }
         internal DateTimeOffset? LastDeliveredAtUtc { get; set; }
         internal DateTimeOffset? NextDeliveryAtUtc { get; set; }
+        internal bool Acknowledged { get; set; }
         internal long LatestRevision { get; set; }
         internal ExtensionScanResultStatus? LatestStatus { get; set; }
         internal string LatestPayloadFingerprint { get; set; } = "";

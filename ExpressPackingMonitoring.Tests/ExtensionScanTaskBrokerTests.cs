@@ -46,6 +46,26 @@ public sealed class ExtensionScanTaskBrokerTests
     }
 
     [Fact]
+    public void Acknowledge_ExtendsDeliveryLeaseAndIsIdempotent()
+    {
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        var broker = new ExtensionScanTaskBroker(time, redeliveryDelay: TimeSpan.FromSeconds(5));
+        broker.Publish(Event(time, "task-ack-0001"), [Target("erp-extension-001", ExtensionScanCapabilities.OrderLookup)]);
+        ExtensionScanDelivery delivery = RequireNotNull(broker.Poll("erp-extension-001"));
+
+        Assert.Equal(
+            ExtensionScanAcknowledgementDisposition.Accepted,
+            broker.Acknowledge("erp-extension-001", delivery.DeliveryId, delivery.ScanEvent.TaskId));
+        Assert.Equal(
+            ExtensionScanAcknowledgementDisposition.Duplicate,
+            broker.Acknowledge("erp-extension-001", delivery.DeliveryId, delivery.ScanEvent.TaskId));
+        time.Advance(TimeSpan.FromSeconds(20));
+        Assert.Null(broker.Poll("erp-extension-001"));
+        time.Advance(TimeSpan.FromSeconds(10));
+        Assert.NotNull(broker.Poll("erp-extension-001"));
+    }
+
+    [Fact]
     public void Submit_HandlesDuplicateConflictStaleAndIncreasingRevisions()
     {
         var time = new MutableTimeProvider(Utc(8, 0, 0));
