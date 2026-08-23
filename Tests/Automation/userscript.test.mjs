@@ -5,7 +5,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
-const scriptPath = path.join(repoRoot, 'Scripts', '快递助手订单推送.user.js');
+const scriptPath = path.join(repoRoot, 'Scripts', 'PackingProof-Order-Integration-KDZS.user.js');
 const source = fs.readFileSync(scriptPath, 'utf8');
 
 function between(startMarker, endMarker) {
