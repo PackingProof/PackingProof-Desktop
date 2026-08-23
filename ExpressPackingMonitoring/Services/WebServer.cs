@@ -201,6 +201,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly object _extensionEnrollmentInitializationLock = new();
         private ExtensionAuthorizationStore _extensionAuthorizations;
         private ExtensionEnrollmentService _extensionEnrollment;
+        private ExtensionRequestAuthenticator _extensionRequestAuthenticator;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -251,6 +252,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly object _orderInfoLock = new();
         private readonly ConcurrentDictionary<string, PendingOrderLookup> _pendingOrderLookups = new();
         private readonly ConcurrentDictionary<HttpListenerContext, byte[]> _authenticatedRequestBodies = new();
+        private readonly ConcurrentDictionary<HttpListenerContext, ExtensionAuthorizationContext> _authenticatedExtensionContexts = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKeys = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceIds = new();
         private readonly ConcurrentDictionary<HttpListenerContext, string> _authenticatedDeviceKinds = new();
@@ -403,6 +405,7 @@ namespace ExpressPackingMonitoring.Services
                 throw new InvalidOperationException("扩展授权服务必须在 Web 服务启动前配置");
             _extensionAuthorizations = authorizations
                 ?? throw new ArgumentNullException(nameof(authorizations));
+            _extensionRequestAuthenticator = new ExtensionRequestAuthenticator(_extensionAuthorizations);
             _extensionEnrollment = new ExtensionEnrollmentService(
                 _extensionAuthorizations,
                 approver ?? throw new ArgumentNullException(nameof(approver)));
@@ -1138,7 +1141,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
 
                 if (method == "POST")
                 {
@@ -1188,7 +1191,18 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                if (_requireAccessKey && RequiresAccessKey(path))
+                bool isSignedExtensionRequest = IsSignedExtensionPath(path, method);
+                if (isSignedExtensionRequest && !TryAuthorizeExtensionRequest(ctx, out int extensionAuthStatus, out string extensionAuthCode))
+                {
+                    SendJson(ctx, extensionAuthStatus, new
+                    {
+                        errorCode = extensionAuthCode,
+                        error = GetExtensionAuthenticationError(extensionAuthCode)
+                    });
+                    return;
+                }
+
+                if (_requireAccessKey && RequiresAccessKey(path) && !isSignedExtensionRequest)
                 {
                     bool authorized = TryAuthorizeRequest(ctx, out bool authorizedByQuery);
                     if (!authorized)
@@ -1243,6 +1257,9 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/extensions/v1/enroll" when method == "POST":
                         HandleExtensionEnrollment(ctx);
+                        break;
+                    case "/api/extensions/v1/heartbeat" when method == "POST":
+                        HandleExtensionHeartbeat(ctx);
                         break;
                     case "/api/extensions/v1/orders" when method == "POST":
                         HandleExtensionOrders(ctx);
@@ -1377,6 +1394,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 requestLease?.Dispose();
                 _authenticatedRequestBodies.TryRemove(ctx, out _);
+                _authenticatedExtensionContexts.TryRemove(ctx, out _);
                 _authenticatedDeviceKeys.TryRemove(ctx, out _);
                 _authenticatedDeviceIds.TryRemove(ctx, out _);
                 _authenticatedDeviceKinds.TryRemove(ctx, out _);
@@ -1515,7 +1533,8 @@ namespace ExpressPackingMonitoring.Services
             if (string.Equals(path, "/api/mobile-backup/enroll", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(path, "/api/extensions/v1/enroll", StringComparison.OrdinalIgnoreCase))
                 return LanRequestCategory.Enrollment;
-            if (string.Equals(path, "/api/connections/heartbeat", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(path, "/api/connections/heartbeat", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "/api/extensions/v1/heartbeat", StringComparison.OrdinalIgnoreCase))
                 return LanRequestCategory.Heartbeat;
             if (IsMobileBackupPath(path)
                 && (string.Equals(method, "PUT", StringComparison.OrdinalIgnoreCase)
@@ -3050,6 +3069,129 @@ namespace ExpressPackingMonitoring.Services
             });
         }
 
+        private static bool IsSignedExtensionPath(string path, string method) =>
+            string.Equals(path, "/api/extensions/v1/heartbeat", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase);
+
+        private bool TryAuthorizeExtensionRequest(
+            HttpListenerContext ctx,
+            out int statusCode,
+            out string errorCode)
+        {
+            statusCode = 401;
+            errorCode = "extension_auth_required";
+            if (!_extensionApiEnabled || _extensionRequestAuthenticator == null)
+            {
+                statusCode = 403;
+                errorCode = "extension_disabled";
+                return false;
+            }
+
+            byte[] body;
+            try { body = ReadRequestBytesCore(ctx, MaxJsonBodyBytes); }
+            catch (InvalidDataException)
+            {
+                statusCode = 413;
+                errorCode = "extension_request_too_large";
+                return false;
+            }
+
+            bool validHeaders = int.TryParse(
+                    ctx.Request.Headers[ExtensionRequestSignature.VersionHeader],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int version)
+                && int.TryParse(
+                    ctx.Request.Headers[ExtensionRequestSignature.CredentialGenerationHeader],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out int credentialGeneration)
+                && long.TryParse(
+                    ctx.Request.Headers[ExtensionRequestSignature.TimestampHeader],
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out long timestamp);
+            if (!validHeaders)
+                return false;
+
+            var request = new ExtensionSignedRequest
+            {
+                Version = version,
+                ExtensionInstanceId = ctx.Request.Headers[ExtensionRequestSignature.InstanceIdHeader] ?? "",
+                CredentialGeneration = credentialGeneration,
+                Timestamp = timestamp,
+                Nonce = ctx.Request.Headers[ExtensionRequestSignature.NonceHeader] ?? "",
+                ContentHash = ctx.Request.Headers[ExtensionRequestSignature.ContentHashHeader] ?? "",
+                Signature = ctx.Request.Headers[ExtensionRequestSignature.SignatureHeader] ?? "",
+                Method = ctx.Request.HttpMethod,
+                RequestTarget = ctx.Request.Url?.PathAndQuery ?? "/",
+                Body = body
+            };
+            ExtensionAuthenticationResult result = _extensionRequestAuthenticator.Authenticate(request);
+            if (result.Disposition != ExtensionAuthenticationDisposition.Accepted
+                || result.Authorization == null)
+            {
+                (statusCode, errorCode) = MapExtensionAuthenticationFailure(result.Disposition);
+                return false;
+            }
+
+            _authenticatedRequestBodies[ctx] = body;
+            _authenticatedExtensionContexts[ctx] = result.Authorization;
+            return true;
+        }
+
+        private static (int StatusCode, string ErrorCode) MapExtensionAuthenticationFailure(
+            ExtensionAuthenticationDisposition disposition) => disposition switch
+        {
+            ExtensionAuthenticationDisposition.UnsupportedVersion => (426, "extension_auth_version_unsupported"),
+            ExtensionAuthenticationDisposition.StaleTimestamp => (401, "extension_auth_timestamp_stale"),
+            ExtensionAuthenticationDisposition.UnknownOrRevokedExtension => (403, "extension_auth_revoked"),
+            ExtensionAuthenticationDisposition.CredentialGenerationMismatch => (403, "extension_auth_generation_mismatch"),
+            ExtensionAuthenticationDisposition.ContentHashMismatch => (401, "extension_auth_content_hash_mismatch"),
+            ExtensionAuthenticationDisposition.InvalidSignature => (401, "extension_auth_signature_invalid"),
+            ExtensionAuthenticationDisposition.ReplayDetected => (409, "extension_auth_replay_detected"),
+            ExtensionAuthenticationDisposition.ReplayCapacityExceeded => (429, "extension_auth_replay_capacity"),
+            _ => (401, "extension_auth_invalid_request")
+        };
+
+        private static string GetExtensionAuthenticationError(string errorCode) => errorCode switch
+        {
+            "extension_disabled" => "主机尚未启用扩展 API",
+            "extension_request_too_large" => "扩展请求内容过大",
+            "extension_auth_version_unsupported" => "扩展签名协议版本不受支持",
+            "extension_auth_timestamp_stale" => "扩展请求时间已过期，请校准系统时间",
+            "extension_auth_revoked" => "扩展授权不存在或已撤销",
+            "extension_auth_generation_mismatch" => "扩展凭据已更新，请重新授权",
+            "extension_auth_content_hash_mismatch" => "扩展请求内容校验失败",
+            "extension_auth_signature_invalid" => "扩展请求签名无效",
+            "extension_auth_replay_detected" => "扩展请求已被处理，请勿重复发送",
+            "extension_auth_replay_capacity" => "扩展请求过于频繁，请稍后重试",
+            _ => "需要有效的扩展签名"
+        };
+
+        private void HandleExtensionHeartbeat(HttpListenerContext ctx)
+        {
+            if (!_authenticatedExtensionContexts.TryGetValue(
+                    ctx,
+                    out ExtensionAuthorizationContext? authorization))
+            {
+                SendJson(ctx, 401, new
+                {
+                    errorCode = "extension_auth_required",
+                    error = "需要有效的扩展签名"
+                });
+                return;
+            }
+
+            SendJson(ctx, 200, new
+            {
+                ok = true,
+                apiVersion = "v1",
+                extensionInstanceId = authorization.ExtensionInstanceId,
+                serverTime = DateTimeOffset.UtcNow
+            });
+        }
+
         private void HandleExtensionEnrollment(HttpListenerContext ctx)
         {
             ctx.Response.Headers["Cache-Control"] = "no-store";
@@ -3185,6 +3327,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 if (_extensionEnrollment != null) return _extensionEnrollment;
                 _extensionAuthorizations = new ExtensionAuthorizationStore(_extensionStateDirectory);
+                _extensionRequestAuthenticator = new ExtensionRequestAuthenticator(_extensionAuthorizations);
                 _extensionEnrollment = new ExtensionEnrollmentService(
                     _extensionAuthorizations,
                     _ => new ExtensionEnrollmentApprovalResult

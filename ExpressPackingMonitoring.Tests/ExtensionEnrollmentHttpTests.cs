@@ -143,6 +143,86 @@ public sealed class ExtensionEnrollmentHttpTests
         }
     }
 
+    [Fact]
+    public async Task SignedHeartbeat_AuthenticatesCredentialAndRejectsReplay()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "epm-extension-signed-heartbeat-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: "web-key-is-not-an-extension-credential",
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: directory,
+                extensionApiEnabled: true);
+            server.ConfigureExtensionEnrollment(
+                new ExtensionAuthorizationStore(directory),
+                request => new ExtensionEnrollmentApprovalResult
+                {
+                    Disposition = ExtensionEnrollmentApprovalDisposition.Approved,
+                    ApprovedPermissions = request.RequestedPermissions,
+                    ApprovedCapabilities = request.RequestedCapabilities,
+                    RoutingScope = ExtensionRoutingScope.AllLocalRecordingNodes
+                });
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage unsigned = await client.PostAsync(
+                "/api/extensions/v1/heartbeat",
+                JsonContent("{}"),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Unauthorized, unsigned.StatusCode);
+            using JsonDocument unsignedPayload = JsonDocument.Parse(
+                await unsigned.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                "extension_auth_required",
+                unsignedPayload.RootElement.GetProperty("errorCode").GetString());
+
+            using HttpResponseMessage enrollment = await client.PostAsync(
+                "/api/extensions/v1/enroll",
+                JsonContent(RequestJson()),
+                TestContext.Current.CancellationToken);
+            using JsonDocument enrollmentPayload = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            string credential = enrollmentPayload.RootElement.GetProperty("credential").GetString()!;
+            int generation = enrollmentPayload.RootElement.GetProperty("credentialGeneration").GetInt32();
+            string nonce = new string('a', 32);
+
+            using HttpResponseMessage accepted = await client.SendAsync(
+                SignedHeartbeat(credential, generation, nonce),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            using JsonDocument acceptedPayload = JsonDocument.Parse(
+                await accepted.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.True(acceptedPayload.RootElement.GetProperty("ok").GetBoolean());
+            Assert.Equal(
+                "extension-fixture-01",
+                acceptedPayload.RootElement.GetProperty("extensionInstanceId").GetString());
+
+            using HttpResponseMessage replayed = await client.SendAsync(
+                SignedHeartbeat(credential, generation, nonce),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Conflict, replayed.StatusCode);
+            using JsonDocument replayPayload = JsonDocument.Parse(
+                await replayed.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                "extension_auth_replay_detected",
+                replayPayload.RootElement.GetProperty("errorCode").GetString());
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
     [Theory]
     [InlineData(1, HttpStatusCode.Forbidden, "extension_enrollment_denied")]
     [InlineData(2, HttpStatusCode.ServiceUnavailable, "extension_enrollment_approval_unavailable")]
@@ -198,6 +278,9 @@ public sealed class ExtensionEnrollmentHttpTests
         Assert.Equal(
             LanRequestCategory.Enrollment,
             WebServer.ClassifyRequest("POST", "/api/extensions/v1/enroll"));
+        Assert.Equal(
+            LanRequestCategory.Heartbeat,
+            WebServer.ClassifyRequest("POST", "/api/extensions/v1/heartbeat"));
         Assert.False(WebServer.RequiresAccessKey("/api/extensions/v1/enroll"));
     }
 
@@ -220,6 +303,49 @@ public sealed class ExtensionEnrollmentHttpTests
 
     private static StringContent JsonContent(string json) =>
         new(json, Encoding.UTF8, "application/json");
+
+    private static HttpRequestMessage SignedHeartbeat(
+        string credential,
+        int credentialGeneration,
+        string nonce)
+    {
+        const string path = "/api/extensions/v1/heartbeat";
+        byte[] body = Encoding.UTF8.GetBytes("{}");
+        long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        string contentHash = ExtensionRequestSignature.ComputeContentHash(body);
+        string signature = ExtensionRequestSignature.Create(
+            credential,
+            "POST",
+            path,
+            timestamp,
+            nonce,
+            contentHash,
+            "extension-fixture-01",
+            credentialGeneration);
+        var request = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = new ByteArrayContent(body)
+        };
+        request.Content.Headers.ContentType = new("application/json");
+        request.Headers.TryAddWithoutValidation(ExtensionRequestSignature.VersionHeader, "1");
+        request.Headers.TryAddWithoutValidation(
+            ExtensionRequestSignature.InstanceIdHeader,
+            "extension-fixture-01");
+        request.Headers.TryAddWithoutValidation(
+            ExtensionRequestSignature.CredentialGenerationHeader,
+            credentialGeneration.ToString());
+        request.Headers.TryAddWithoutValidation(
+            ExtensionRequestSignature.TimestampHeader,
+            timestamp.ToString());
+        request.Headers.TryAddWithoutValidation(ExtensionRequestSignature.NonceHeader, nonce);
+        request.Headers.TryAddWithoutValidation(
+            ExtensionRequestSignature.ContentHashHeader,
+            contentHash);
+        request.Headers.TryAddWithoutValidation(
+            ExtensionRequestSignature.SignatureHeader,
+            signature);
+        return request;
+    }
 
     private static int GetFreeTcpPort()
     {
