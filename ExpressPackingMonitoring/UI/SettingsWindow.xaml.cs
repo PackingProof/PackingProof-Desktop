@@ -2284,6 +2284,22 @@ namespace ExpressPackingMonitoring.UI
             Context.OpenUserscriptGuide?.Invoke();
         }
 
+        private void StorageDataGrid_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            DependencyObject current = sender as DependencyObject;
+            while (current != null && current is not ScrollViewer)
+                current = VisualTreeHelper.GetParent(current);
+
+            if (current is not ScrollViewer settingsScrollViewer) return;
+
+            e.Handled = true;
+            settingsScrollViewer.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = MouseWheelEvent,
+                Source = settingsScrollViewer
+            });
+        }
+
         private void ImportUserscript_Click(object sender, RoutedEventArgs e)
         {
             Context.ImportUserscript?.Invoke();
