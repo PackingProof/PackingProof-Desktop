@@ -197,6 +197,13 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Contains(
             grid.Descendants(Presentation + "TextBlock"),
             text => (string?)text.Attribute("Text") == "{Binding ActivityText}");
+        string code = LoadSettingsCode();
+        int timerStart = code.IndexOf("private void IntegrationStatusTimer_Tick", StringComparison.Ordinal);
+        int nextMethod = code.IndexOf("private void RefreshOrderIntegrationDevices", timerStart, StringComparison.Ordinal);
+        Assert.True(timerStart >= 0 && nextMethod > timerStart);
+        string timerBody = code[timerStart..nextMethod];
+        Assert.Contains("RefreshExtensionAuthorizations();", timerBody, StringComparison.Ordinal);
+        Assert.Contains("RefreshOrderIntegrationDevices();", timerBody, StringComparison.Ordinal);
     }
 
     [Fact]

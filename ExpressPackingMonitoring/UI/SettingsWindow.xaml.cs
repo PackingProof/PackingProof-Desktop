@@ -2350,8 +2350,11 @@ namespace ExpressPackingMonitoring.UI
                 ExtensionAuthorizations.Add(item);
         }
 
-        private void IntegrationStatusTimer_Tick(object sender, EventArgs e) =>
+        private void IntegrationStatusTimer_Tick(object sender, EventArgs e)
+        {
+            RefreshExtensionAuthorizations();
             RefreshOrderIntegrationDevices();
+        }
 
         private void RefreshOrderIntegrationDevices()
         {
