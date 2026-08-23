@@ -3238,23 +3238,6 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="24"/>
-                                        <ColumnDefinition Width="260"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
-                                        <TextBlock Text="记录局域网服务和设备备份的详细信息"
-                                                   Style="{StaticResource FieldHintStyle}"/>
-                                    </StackPanel>
-                                    <CheckBox Grid.Column="2"
-                                              IsChecked="{Binding Config.EnableOrderInfoLog}"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left"
-                                              Style="{StaticResource ToggleSwitchStyle}"/>
-                                </Grid>
                                 </StackPanel>
                             </Border>
 </StackPanel>
@@ -3368,7 +3351,7 @@
                                         </TextBox>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           ToolTip="缓存包含在线播放转码、剪辑预览图和剪辑下载文件，超出上限后会自动清理最旧文件">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -3395,6 +3378,24 @@
                                                     TickFrequency="256"
                                                     Value="{Binding Config.TranscodeCacheMaxMB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IntSliderValueConverter}}"/>
                                         </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="记录局域网服务和设备备份的详细信息"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableOrderInfoLog}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
                                 </StackPanel>
