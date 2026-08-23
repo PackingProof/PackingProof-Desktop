@@ -28,11 +28,12 @@ public sealed class ExtensionEnrollmentApprovalWindowTests
         IReadOnlyList<string> descriptions =
             ExtensionEnrollmentApprovalWindow.BuildAccessDescriptions(request);
 
-        Assert.Contains(descriptions, value => value.Contains("订单", StringComparison.Ordinal));
-        Assert.Contains(descriptions, value => value.Contains("录像水印", StringComparison.Ordinal));
-        Assert.Contains(descriptions, value => value.Contains("正在录像", StringComparison.Ordinal));
+        Assert.Contains(descriptions, value => ContainsLocalized(value, "订单", "order"));
+        Assert.Contains(descriptions, value => ContainsLocalized(value, "录像水印", "watermark"));
+        Assert.Contains(descriptions, value => ContainsLocalized(value, "正在录像", "active recording"));
         Assert.DoesNotContain(descriptions, value => value.Contains("Shell", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(descriptions, value => value.Contains("数据库", StringComparison.Ordinal));
+        Assert.DoesNotContain(descriptions, value => value.Contains("database", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -47,4 +48,8 @@ public sealed class ExtensionEnrollmentApprovalWindowTests
             out seconds));
         Assert.Equal(0, seconds);
     }
+
+    private static bool ContainsLocalized(string value, string chinese, string english) =>
+        value.Contains(chinese, StringComparison.Ordinal)
+        || value.Contains(english, StringComparison.OrdinalIgnoreCase);
 }
