@@ -198,10 +198,6 @@ namespace ExpressPackingMonitoring.UI
                 switch (progressDialog.Outcome)
                 {
                     case OrderNumberExportOutcome.Success:
-                        AppDialog.Information(
-                            this,
-                            $"已导出 {progressDialog.ExportedCount} 条单号记录\n保存位置：{saveDialog.FileName}",
-                            "导出完成");
                         LocateExportedOrderFile(saveDialog.FileName);
                         break;
                     case OrderNumberExportOutcome.Empty:
