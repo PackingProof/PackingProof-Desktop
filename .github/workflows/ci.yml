@@ -79,4 +79,4 @@ jobs:
         run: dotnet test ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj -c Debug --no-build --no-restore --nologo
 
       - name: 检查用户脚本语法
-        run: node --check "Scripts\快递助手订单推送.user.js"
+        run: node --check "Scripts\PackingProof-Order-Integration-KDZS.user.js"
