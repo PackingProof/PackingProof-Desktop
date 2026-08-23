@@ -24,6 +24,8 @@ public sealed class DefaultConfigurationTests
     {
         Assert.True(new AppConfig().EnableThirdPartyWatermark);
         Assert.True(JsonSerializer.Deserialize<AppConfig>("{}")!.EnableThirdPartyWatermark);
+        Assert.False(new AppConfig().EnableExtensionApi);
+        Assert.False(JsonSerializer.Deserialize<AppConfig>("{}")!.EnableExtensionApi);
     }
 
     [Fact]

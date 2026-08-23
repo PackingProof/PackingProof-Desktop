@@ -37,6 +37,52 @@ public sealed class ExtensionEnrollmentHttpTests
     }
 
     [Fact]
+    public async Task DisabledExtensionApi_RejectsEnrollmentWithoutCreatingState()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "epm-extension-enrollment-disabled-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: directory);
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage capabilities = await client.GetAsync(
+                "/api/extensions/v1/capabilities",
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, capabilities.StatusCode);
+            using JsonDocument capabilityPayload = JsonDocument.Parse(
+                await capabilities.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.False(capabilityPayload.RootElement.GetProperty("extensionApiEnabled").GetBoolean());
+
+            using HttpResponseMessage enrollment = await client.PostAsync(
+                "/api/extensions/v1/enroll",
+                JsonContent(RequestJson()),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Forbidden, enrollment.StatusCode);
+            using JsonDocument enrollmentPayload = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(
+                "extension_disabled",
+                enrollmentPayload.RootElement.GetProperty("errorCode").GetString());
+            Assert.False(Directory.Exists(Path.Combine(directory, "extensions")));
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task Enroll_UsesExtensionCredentialWithoutWebAccessKey()
     {
         string directory = Path.Combine(
@@ -56,7 +102,8 @@ public sealed class ExtensionEnrollmentHttpTests
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: directory,
                 nodeId: "host-node-fixture",
-                nodeName: "测试主机");
+                nodeName: "测试主机",
+                extensionApiEnabled: true);
             server.ConfigureExtensionEnrollment(
                 authorizations,
                 request => new ExtensionEnrollmentApprovalResult
@@ -117,7 +164,8 @@ public sealed class ExtensionEnrollmentHttpTests
                 database,
                 port,
                 listenerHost: "127.0.0.1",
-                mobileBackupStateDirectory: directory);
+                mobileBackupStateDirectory: directory,
+                extensionApiEnabled: true);
             server.ConfigureExtensionEnrollment(
                 new ExtensionAuthorizationStore(directory),
                 _ => new ExtensionEnrollmentApprovalResult

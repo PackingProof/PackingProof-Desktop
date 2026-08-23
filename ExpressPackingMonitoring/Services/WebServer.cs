@@ -197,6 +197,7 @@ namespace ExpressPackingMonitoring.Services
         private readonly UserscriptConfigRevisionStore _userscriptConfigRevision;
         private readonly UserscriptCatalog _userscriptCatalog;
         private readonly string _extensionStateDirectory;
+        private readonly bool _extensionApiEnabled;
         private readonly object _extensionEnrollmentInitializationLock = new();
         private ExtensionAuthorizationStore _extensionAuthorizations;
         private ExtensionEnrollmentService _extensionEnrollment;
@@ -318,7 +319,8 @@ namespace ExpressPackingMonitoring.Services
             string deploymentPreset = null,
             bool orderReceiverOnly = false,
             bool nodeNameCustomized = false,
-            Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null)
+            Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null,
+            bool extensionApiEnabled = false)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -343,6 +345,7 @@ namespace ExpressPackingMonitoring.Services
                 ? DeploymentPresets.Normalize(deploymentPreset)
                 : DeploymentPresets.RecordingHost;
             _orderReceiverOnly = orderReceiverOnly;
+            _extensionApiEnabled = extensionApiEnabled;
             _backupDeviceEnrollmentApprover = backupDeviceEnrollmentApprover;
             _clipService = new VideoClipService(
                 _db,
@@ -394,6 +397,8 @@ namespace ExpressPackingMonitoring.Services
             ExtensionAuthorizationStore authorizations,
             Func<ExtensionEnrollmentRequest, ExtensionEnrollmentApprovalResult> approver)
         {
+            if (!_extensionApiEnabled)
+                throw new InvalidOperationException("扩展 API 未启用");
             if (_listener.IsListening)
                 throw new InvalidOperationException("扩展授权服务必须在 Web 服务启动前配置");
             _extensionAuthorizations = authorizations
@@ -3026,6 +3031,7 @@ namespace ExpressPackingMonitoring.Services
                 nodeId = _nodeId,
                 nodeName = _nodeName,
                 accessKeyRequired = _requireAccessKey,
+                extensionApiEnabled = _extensionApiEnabled,
                 features = new
                 {
                     ordersWrite = true,
@@ -3048,6 +3054,15 @@ namespace ExpressPackingMonitoring.Services
         {
             ctx.Response.Headers["Cache-Control"] = "no-store";
             ctx.Response.Headers["Pragma"] = "no-cache";
+            if (!_extensionApiEnabled)
+            {
+                SendJson(ctx, 403, new
+                {
+                    errorCode = "extension_disabled",
+                    error = "主机尚未启用扩展 API"
+                });
+                return;
+            }
             IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
             if (remoteAddress == null || !IsPrivateAddress(remoteAddress))
             {
@@ -3163,6 +3178,8 @@ namespace ExpressPackingMonitoring.Services
 
         private ExtensionEnrollmentService GetExtensionEnrollmentService()
         {
+            if (!_extensionApiEnabled)
+                throw new InvalidOperationException("扩展 API 未启用");
             if (_extensionEnrollment != null) return _extensionEnrollment;
             lock (_extensionEnrollmentInitializationLock)
             {

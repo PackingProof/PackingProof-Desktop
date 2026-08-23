@@ -3413,6 +3413,28 @@
     <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="启用扩展 API" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="允许经过授权的 ERP、称重设备和其他扩展连接；关闭时不启动扩展任务服务"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableExtensionApi}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource SectionCardStyle}"
                                     Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>

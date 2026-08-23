@@ -691,7 +691,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             LoadConfig();
-            _extensionAuthorizationStore = new ExtensionAuthorizationStore(AppPaths.MobileBackupStateDir);
             InitializeCameraBarcodeRecognition();
             // 在起动时后台探测可用 GPU 编码器并缓存
             Task.Run(() => {
@@ -2131,6 +2130,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.WebServerPort != nextConfig.WebServerPort
                         || Config.TranscodeCacheMaxMB != nextConfig.TranscodeCacheMaxMB
                         || Config.EnableOrderInfoLog != nextConfig.EnableOrderInfoLog
+                        || Config.EnableExtensionApi != nextConfig.EnableExtensionApi
                         || Config.RequireWebAccessKey != nextConfig.RequireWebAccessKey
                         || !string.Equals(Config.WebAccessKey, nextConfig.WebAccessKey, StringComparison.Ordinal)
                         || (string.Equals(
@@ -3008,17 +3008,23 @@ namespace ExpressPackingMonitoring.ViewModels
                         deploymentPreset: Config.DeploymentPreset,
                         orderReceiverOnly: orderReceiverOnly,
                         nodeNameCustomized: Config.NodeNameCustomized,
-                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment)
+                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment,
+                        extensionApiEnabled: Config.EnableExtensionApi)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };
-                    server.ConfigureExtensionEnrollment(
-                        _extensionAuthorizationStore,
-                        request => ExtensionEnrollmentApprovalPrompt.Show(
-                            Application.Current?.MainWindow,
-                            request,
-                            Config.NodeId,
-                            Config.NodeName));
+                    if (Config.EnableExtensionApi)
+                    {
+                        _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
+                            AppPaths.MobileBackupStateDir);
+                        server.ConfigureExtensionEnrollment(
+                            _extensionAuthorizationStore,
+                            request => ExtensionEnrollmentApprovalPrompt.Show(
+                                Application.Current?.MainWindow,
+                                request,
+                                Config.NodeId,
+                                Config.NodeName));
+                    }
                     try
                     {
                         server.OrderInfoReceived += OnOrderInfoReceived;
