@@ -1369,14 +1369,15 @@ if ($patchSupported) {
     $patchPackageInfo["size"] = $appPatchSize
     $updateManifest["patch_package"] = $patchPackageInfo
     $updateManifest["notes"] = @(
-        "# 快递打包监控 v$normalizedVersion`n`n## 更新内容`n### 功能与体验`n- 请填写`n`n### 问题修复`n- 请填写`n`n### 兼容与工程`n- 请填写`n`n## 下载与更新说明`n- Setup：$setupFileName（未签名时注明 SmartScreen 提示）`n- 完整包 7z / ZIP：免安装，用于系统原生解压和故障恢复`n- 已安装用户：启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本`n`n## 未验证事项`n- 请填写"
+        "请填写本版本最重要的用户可见变化"
+        "请填写本版本修复的主要问题"
     )
 }
 else {
     $updateManifest["patch_package"] = $null
     $updateManifest["notes"] = @(
-        "本版本不支持自动增量更新，请下载《$setupFileName》完成升级"
-        "完整 7z 是小体积免安装包，ZIP 用于系统原生解压和故障恢复"
+        "请填写本版本最重要的用户可见变化"
+        "请填写本版本修复的主要问题"
     )
 }
 $updateManifest["full_download_page"] = $fullDownloadPage

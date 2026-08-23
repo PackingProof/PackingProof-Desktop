@@ -46,7 +46,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - 发布笔记必须使用 `RELEASE_NOTES_TEMPLATE.md`，并先以 `git log --oneline <上一正式版标签>..HEAD` 核对全部提交。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化和未验证事项。
 - 标题固定为 `v<X.Y.Z> <一句话内容>`。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
-- `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致，`notes` 只放简洁摘要和下载提示；完整内容留在 Release 页面。
+- `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。启动器会自动添加列表符号，完整内容留在 Release 页面。
 - 不生成 AppFull 或 ManualUpdate，不上传旧名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`。`launcher_manifest` 和 `release_info` 仅作本地校验交接，默认不上传。
 
 | 目标 | 上传资产 |

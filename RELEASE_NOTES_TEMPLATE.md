@@ -5,8 +5,20 @@
 > 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，并在正文首行注明“预览版”。
 > 更新日志范围：预览版只写本预览版相对上一版本的增量更新内容；正式版必须汇总自上一个正式版以来（含中间所有预览版）的全部更新内容，避免正式版用户缺少中间版本的变更记录。
 > 编写前必须先执行 `git log --oneline <上一正式版标签>..HEAD` 逐条核对全部提交，发布笔记必须覆盖所有用户可见变更，禁止凭印象编写或遗漏提交。
-> 发布目标为 GitHub、Gitee（PackingProof/PackingProof-Desktop）与旧 Gitee（chenjjian/ExpressPackingMonitoring）三个远端；旧 Gitee 同样创建 Release 并上传 update JSON、AppPatch（含双别名）与 LauncherPatch。
-> `update_vX.Y.Z.json` 的 `title` 与 Release 标题一致，`notes` 只保留简洁更新摘要（分类要点加一句下载提示），完整笔记以 Release 页面为准。
+> 发布目标为 GitHub、Gitee（PackingProof/PackingProof-Desktop）与旧 Gitee（chenjjian/ExpressPackingMonitoring）三个远端；旧 Gitee 同样创建 Release 并上传 update JSON、可选 AppPatch，以及仅在建立新启动器基线时上传 LauncherPatch。
+> `update_vX.Y.Z.json` 的 `title` 与 Release 标题一致；`notes` 必须是纯文本字符串数组，每项只写一条用户可见变化。不要加入 Markdown 标题、列表减号、序号或下载说明，启动器会自动为每项添加列表符号，完整笔记以 Release 页面为准。
+
+`update_vX.Y.Z.json` 摘要示例：
+
+```json
+{
+  "title": "v<X.Y.Z> <一句话内容>",
+  "notes": [
+    "优化局域网修复失败时的提示和诊断",
+    "修复摄像头偶发进入重复重连的问题"
+  ]
+}
+```
 
 <完整下载页/网盘链接，取自 .env 的 FULL_DOWNLOAD_PAGE；没有则删除本行>
 
