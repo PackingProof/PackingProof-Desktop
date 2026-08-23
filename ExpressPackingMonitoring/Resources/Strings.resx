@@ -948,6 +948,9 @@
   <data name="导入第三方油猴脚本，导入后可在安装向导中选择" xml:space="preserve"><value>Import third-party userscripts, then select one in the installation guide</value></data>
   <data name="导入自定义脚本" xml:space="preserve"><value>Import custom script</value></data>
   <data name="已导入脚本（" xml:space="preserve"><value>Imported scripts (</value></data>
+  <data name="已导入脚本" xml:space="preserve"><value>Imported scripts</value></data>
+  <data name="管理" xml:space="preserve"><value>Manage</value></data>
+  <data name="开发第三方脚本时，可参考官方开发手册或 API 扩展文档" xml:space="preserve"><value>Refer to the official developer guide or extension API documentation when developing third-party scripts</value></data>
   <data name="可以删除不再使用的第三方脚本" xml:space="preserve"><value>Remove third-party scripts you no longer use</value></data>
   <data name="版本 " xml:space="preserve"><value>Version </value></data>
   <data name="删除" xml:space="preserve"><value>Remove</value></data>

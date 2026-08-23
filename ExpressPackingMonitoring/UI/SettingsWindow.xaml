@@ -3457,42 +3457,70 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
-                                        <StackPanel Margin="0,0,0,10">
-                                            <TextBlock Style="{StaticResource FieldLabelStyle}">
-                                                <Run Text="已导入脚本（"/>
-                                                <Run Text="{Binding CustomUserscripts.Count, Mode=OneWay}"/>
-                                                <Run Text="）"/>
-                                            </TextBlock>
-                                            <TextBlock Text="可以删除不再使用的第三方脚本"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <ItemsControl Grid.Row="1" ItemsSource="{Binding CustomUserscripts}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="0,4,0,4">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel Margin="0,0,16,0">
-                                                            <TextBlock Text="{Binding Name}" Style="{StaticResource FieldLabelStyle}"/>
-                                                            <TextBlock Style="{StaticResource FieldHintStyle}">
-                                                                <Run Text="版本 "/>
-                                                                <Run Text="{Binding Version}"/>
-                                                                <Run Text=" · "/>
-                                                                <Run Text="{Binding Author, TargetNullValue=未知作者}"/>
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                        <Button Grid.Column="1"
-                                                                Content="删除"
-                                                                CommandParameter="{Binding}"
-                                                                Click="RemoveUserscript_Click"
-                                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                                VerticalAlignment="Center"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                        <Border BorderBrush="{DynamicResource BorderLight}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Background="{DynamicResource ControlBackground}">
+                                            <DataGrid ItemsSource="{Binding CustomUserscripts}"
+                                                      AutoGenerateColumns="False"
+                                                      CanUserAddRows="False"
+                                                      HeadersVisibility="Column"
+                                                      GridLinesVisibility="Horizontal"
+                                                      HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                      BorderThickness="0"
+                                                      Background="{StaticResource TransparentBrush}"
+                                                      Foreground="{DynamicResource TextPrimary}"
+                                                      RowHeight="58"
+                                                      MinHeight="48"
+                                                      MaxHeight="280"
+                                                      FontSize="13"
+                                                      SelectionMode="Single"
+                                                      PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel"
+                                                      CanUserSortColumns="False"
+                                                      ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                      RowStyle="{StaticResource StorageGridRowStyle}"
+                                                      CellStyle="{StaticResource StorageGridCellStyle}">
+                                                <DataGrid.Columns>
+                                                    <DataGridTemplateColumn Header="已导入脚本" Width="*">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Margin="12,0" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               Foreground="{DynamicResource TextPrimary}"
+                                                                               FontWeight="SemiBold"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               ToolTip="{Binding Name}"/>
+                                                                    <TextBlock Style="{StaticResource FieldHintStyle}">
+                                                                        <Run Text="版本 "/>
+                                                                        <Run Text="{Binding Version}"/>
+                                                                        <Run Text=" · "/>
+                                                                        <Run Text="{Binding Author, TargetNullValue=未知作者}"/>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
+                                                    <DataGridTemplateColumn Header="管理" Width="150">
+                                                        <DataGridTemplateColumn.CellTemplate>
+                                                            <DataTemplate>
+                                                                <Button Content="删除"
+                                                                        Width="72"
+                                                                        Height="32"
+                                                                        CommandParameter="{Binding}"
+                                                                        Click="RemoveUserscript_Click"
+                                                                        Style="{StaticResource DangerButtonStyle}"
+                                                                        HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"/>
+                                                            </DataTemplate>
+                                                        </DataGridTemplateColumn.CellTemplate>
+                                                    </DataGridTemplateColumn>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </Border>
+                                        <TextBlock Grid.Row="1"
+                                                   Text="开发第三方脚本时，可参考官方开发手册或 API 扩展文档"
+                                                   Style="{StaticResource FieldHintStyle}"
+                                                   Margin="0,10,0,0"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>

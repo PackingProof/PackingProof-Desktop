@@ -148,6 +148,28 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
+    public void CustomUserscripts_UseStorageGridWithEmbeddedManagementAction()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement grid = Assert.Single(
+            document.Descendants(Presentation + "DataGrid"),
+            element => ((string?)element.Attribute("ItemsSource"))?.Contains(
+                "CustomUserscripts",
+                StringComparison.Ordinal) == true);
+
+        XElement[] columns = grid.Descendants(Presentation + "DataGridTemplateColumn").ToArray();
+        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "已导入脚本");
+        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "管理");
+        Assert.Contains(
+            grid.Descendants(Presentation + "Button"),
+            button => (string?)button.Attribute("Content") == "删除"
+                && (string?)button.Attribute("Style") == "{StaticResource DangerButtonStyle}");
+        Assert.Contains(
+            document.Descendants(Presentation + "TextBlock"),
+            text => (string?)text.Attribute("Text") == "开发第三方脚本时，可参考官方开发手册或 API 扩展文档");
+    }
+
+    [Fact]
     public void SettingRows_HighlightOnlyWhileEnabledAndPurposeHintIsRemoved()
     {
         XDocument document = LoadSettingsXaml();
