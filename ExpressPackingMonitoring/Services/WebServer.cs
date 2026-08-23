@@ -5631,7 +5631,7 @@ namespace ExpressPackingMonitoring.Services
             bool hasWarning = item.Warnings.Count > 0;
             string warning = hasWarning ? $"有提示：{string.Join("；", item.Warnings)}" : "可自动维护";
             string warningClass = hasWarning ? " has-warning" : " is-maintainable";
-            return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\">版本 {WebUtility.HtmlEncode(item.Version)} · {WebUtility.HtmlEncode(warning)}</span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
+            return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\"><span>版本</span> {WebUtility.HtmlEncode(item.Version)} · <span>{WebUtility.HtmlEncode(warning)}</span></span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
         }
 
         private void ServeUserscript(HttpListenerContext ctx, string scriptId = null)
