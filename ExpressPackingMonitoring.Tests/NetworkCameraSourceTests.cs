@@ -254,12 +254,15 @@ public sealed class NetworkCameraSourceTests
             RedirectStandardError = true
         };
         using Process process = Process.Start(startInfo)!;
-        string output = process.StandardOutput.ReadToEnd();
-        if (!process.WaitForExit(5000))
+        Task<string> standardOutput = process.StandardOutput.ReadToEndAsync();
+        Task<string> standardError = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(10000))
         {
             try { process.Kill(entireProcessTree: true); } catch { }
+            process.WaitForExit(2000);
         }
-        return output;
+        Task.WaitAll(standardOutput, standardError);
+        return standardOutput.Result + Environment.NewLine + standardError.Result;
     }
 
     private static IEnumerable<string> ExtractOptionNames(string args)
