@@ -985,6 +985,8 @@
   <data name="Extension.Access.UnknownCapability" xml:space="preserve"><value>• Unknown capability: {0}</value></data>
   <data name="Extension.Access.OrdersWrite" xml:space="preserve"><value>• Submit order data to PackingProof</value></data>
   <data name="Extension.Access.RecordingsActiveRead" xml:space="preserve"><value>• View active recording sessions and tracking numbers</value></data>
+  <data name="Extension.Access.RecordingsSearch" xml:space="preserve"><value>• Search recording history by exact tracking number</value></data>
+  <data name="Extension.Access.RecordingsDownload" xml:space="preserve"><value>• Download original recording files returned by a search</value></data>
   <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• Unknown permission: {0}</value></data>
   <data name="Extension.Access.None" xml:space="preserve"><value>• No usable API access requested</value></data>
  </root>

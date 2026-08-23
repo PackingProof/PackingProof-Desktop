@@ -966,6 +966,8 @@
   <data name="Extension.Access.UnknownCapability" xml:space="preserve"><value>• 未识别能力：{0}</value></data>
   <data name="Extension.Access.OrdersWrite" xml:space="preserve"><value>• 主动提交订单数据到 PackingProof</value></data>
   <data name="Extension.Access.RecordingsActiveRead" xml:space="preserve"><value>• 查看当前正在录像的会话和单号</value></data>
+  <data name="Extension.Access.RecordingsSearch" xml:space="preserve"><value>• 根据精确快递单号查询历史录像</value></data>
+  <data name="Extension.Access.RecordingsDownload" xml:space="preserve"><value>• 下载查询到的原始录像文件</value></data>
   <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• 未识别权限：{0}</value></data>
   <data name="Extension.Access.None" xml:space="preserve"><value>• 不申请可用接口</value></data>
  </root>

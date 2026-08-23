@@ -138,6 +138,20 @@ export class PackingProofExtensionClient {
   submitResult(result) {
     return this.signedRequest('POST', '/api/extensions/v1/scan-results', result);
   }
+
+  createRecordingQuery(trackingNumber) {
+    return this.signedRequest('POST', '/api/extensions/v1/recording-queries', { trackingNumber });
+  }
+
+  getRecordingQuery(queryId) {
+    return this.signedRequest('GET', `/api/extensions/v1/recording-queries/${encodeURIComponent(queryId)}`);
+  }
+
+  downloadRecording(queryId, recordingId) {
+    return this.signedRequest(
+      'GET',
+      `/api/extensions/v1/recording-queries/${encodeURIComponent(queryId)}/recordings/${recordingId}/download`);
+  }
 }
 
 // Example identity. Generate extensionInstanceId once and persist it; do not regenerate it per request.

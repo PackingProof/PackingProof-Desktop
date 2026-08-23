@@ -39,6 +39,8 @@ public sealed class ExtensionApiV1ContractTests
             Assert.True(features.GetProperty("providerId").GetBoolean());
             Assert.True(features.GetProperty("recordingMetadataWrite").GetBoolean());
             Assert.True(features.GetProperty("watermarkFields").GetBoolean());
+            Assert.True(features.GetProperty("recordingSearch").GetBoolean());
+            Assert.True(features.GetProperty("recordingDownload").GetBoolean());
 
             JsonElement limits = root.GetProperty("limits");
             Assert.Equal(200, limits.GetProperty("maxOrdersPerRequest").GetInt32());

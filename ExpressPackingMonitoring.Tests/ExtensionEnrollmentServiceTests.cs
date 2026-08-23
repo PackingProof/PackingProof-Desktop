@@ -53,6 +53,19 @@ public sealed class ExtensionEnrollmentServiceTests
     }
 
     [Fact]
+    public void Enroll_RecordingDownloadAlsoRequiresSearchPermission()
+    {
+        using var fixture = new EnrollmentFixture();
+        ExtensionEnrollmentRequest request = OrderRequest() with
+        {
+            RequestedPermissions = [ExtensionPermissions.RecordingsDownload],
+            RequestedCapabilities = []
+        };
+
+        Assert.Throws<InvalidDataException>(() => fixture.Service(ApproveAll).Enroll(request));
+    }
+
+    [Fact]
     public void Enroll_MeasurementUsesHostSelectedNodeBinding()
     {
         using var fixture = new EnrollmentFixture();

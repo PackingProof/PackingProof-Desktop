@@ -480,6 +480,102 @@ public sealed class ExtensionEnrollmentHttpTests
         }
     }
 
+    [Fact]
+    public async Task SignedRecordingQuery_SearchesPollsAndDownloadsWithoutWebKey()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "epm-extension-recording-http-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            byte[] expectedVideo = [10, 20, 30, 40, 50];
+            string videoPath = Path.Combine(directory, "recording.mp4");
+            await File.WriteAllBytesAsync(videoPath, expectedVideo, TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            DateTime startedAt = DateTime.Now.AddMinutes(-2);
+            long recordId = database.InsertVideoRecord("BOT-TRACK-001", "发货", "h264", "", videoPath, startedAt);
+            database.UpdateVideoRecordOnStop(recordId, startedAt.AddMinutes(1), 60, expectedVideo.Length, "手动");
+            var authorizations = new ExtensionAuthorizationStore(directory);
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: true,
+                accessKey: "web-key-must-not-authorize-bot",
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: directory,
+                extensionApiEnabled: true);
+            server.ConfigureExtensionEnrollment(
+                authorizations,
+                request => new ExtensionEnrollmentApprovalResult
+                {
+                    Disposition = ExtensionEnrollmentApprovalDisposition.Approved,
+                    ApprovedPermissions = request.RequestedPermissions,
+                    ApprovedCapabilities = request.RequestedCapabilities,
+                    RoutingScope = ExtensionRoutingScope.AllLocalRecordingNodes
+                });
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage enrollment = await client.PostAsync(
+                "/api/extensions/v1/enroll",
+                JsonContent(RequestJson(
+                    [ExtensionPermissions.RecordingsSearch, ExtensionPermissions.RecordingsDownload],
+                    [])),
+                TestContext.Current.CancellationToken);
+            enrollment.EnsureSuccessStatusCode();
+            using JsonDocument enrollmentPayload = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            string credential = enrollmentPayload.RootElement.GetProperty("credential").GetString()!;
+            int generation = enrollmentPayload.RootElement.GetProperty("credentialGeneration").GetInt32();
+
+            const string createPath = "/api/extensions/v1/recording-queries";
+            string createBody = JsonSerializer.Serialize(new { trackingNumber = "BOT-TRACK-001" });
+            using HttpResponseMessage created = await client.SendAsync(
+                SignedRequest(HttpMethod.Post, createPath, createBody, credential, generation, new string('3', 32)),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Accepted, created.StatusCode);
+            using JsonDocument createdPayload = JsonDocument.Parse(
+                await created.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            string queryId = createdPayload.RootElement.GetProperty("queryId").GetString()!;
+
+            string queryPath = $"/api/extensions/v1/recording-queries/{queryId}";
+            JsonDocument? readyPayload = null;
+            for (int attempt = 0; attempt < 100 && readyPayload == null; attempt++)
+            {
+                string nonce = attempt.ToString("x32");
+                using HttpResponseMessage queried = await client.SendAsync(
+                    SignedRequest(HttpMethod.Get, queryPath, "", credential, generation, nonce),
+                    TestContext.Current.CancellationToken);
+                queried.EnsureSuccessStatusCode();
+                JsonDocument payload = JsonDocument.Parse(
+                    await queried.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+                if (payload.RootElement.GetProperty("status").GetString() == "ready") readyPayload = payload;
+                else
+                {
+                    payload.Dispose();
+                    await Task.Delay(20, TestContext.Current.CancellationToken);
+                }
+            }
+            Assert.NotNull(readyPayload);
+            using (readyPayload)
+            {
+                JsonElement recording = Assert.Single(readyPayload.RootElement.GetProperty("recordings").EnumerateArray());
+                Assert.Equal("h264", recording.GetProperty("videoCodec").GetString());
+                string downloadPath = recording.GetProperty("downloadUrl").GetString()!;
+                using HttpResponseMessage downloaded = await client.SendAsync(
+                    SignedRequest(HttpMethod.Get, downloadPath, "", credential, generation, new string('a', 32)),
+                    TestContext.Current.CancellationToken);
+                downloaded.EnsureSuccessStatusCode();
+                Assert.Equal(expectedVideo, await downloaded.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+            }
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
     [Theory]
     [InlineData(1, HttpStatusCode.Forbidden, "extension_enrollment_denied")]
     [InlineData(2, HttpStatusCode.ServiceUnavailable, "extension_enrollment_approval_unavailable")]

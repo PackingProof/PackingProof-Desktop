@@ -19,6 +19,8 @@ public sealed class ExtensionDocumentationTests
         Assert.Contains("packingproof-extension-request-v1", document);
         Assert.Contains("GET /api/extensions/v1/scan-tasks/next?waitSeconds=20", document);
         Assert.Contains("POST /api/extensions/v1/scan-results", document);
+        Assert.Contains("POST /api/extensions/v1/recording-queries", document);
+        Assert.Contains("recordings.download", document);
         Assert.Contains("extension_auth_replay_detected", document);
         Assert.Contains("examples/extension-v1-minimal.js", document);
         Assert.Contains("examples/extension-v1-serial-scale.js", document);
@@ -28,6 +30,8 @@ public sealed class ExtensionDocumentationTests
         Assert.Contains("export class PackingProofExtensionClient", example);
         Assert.Contains("globalThis.crypto.subtle", example);
         Assert.Contains("credentialState", example);
+        Assert.Contains("createRecordingQuery(trackingNumber)", example);
+        Assert.Contains("downloadRecording(queryId, recordingId)", example);
         Assert.DoesNotContain("const credential =", example);
 
         Assert.Contains("baudRate: 9600", scaleExample);

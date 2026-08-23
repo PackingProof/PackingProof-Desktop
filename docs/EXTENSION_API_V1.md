@@ -177,7 +177,9 @@ GET /api/extensions/v1/capabilities
   "apiVersion": "v1",
   "extensionApiEnabled": true,
   "features": {
-    "signedScanTasks": true
+    "signedScanTasks": true,
+    "recordingSearch": true,
+    "recordingDownload": true
   }
 }
 ```
@@ -229,6 +231,8 @@ Content-Type: application/json
 扩展必须核对实际批准的权限、能力和绑定节点。用户拒绝时不要高频重复弹窗；建议至少等待 10 分钟或由用户主动重试。
 
 完整的最小 JavaScript 客户端见 [`examples/extension-v1-minimal.js`](examples/extension-v1-minimal.js)。示例只包含注册、签名、心跳、任务领取、确认和结果提交，不包含任何 ERP 页面解析或业务系统代码，也不会自动保存凭据。
+
+需要检索录像的机器人申请 `recordings.search` 和 `recordings.download`。用户批准后凭据由机器人保存在自己的受保护状态中，不应要求用户复制网页访问密钥，也不得把扩展凭据写进源码。
 
 ### 串口电子秤适配器示例
 
@@ -353,6 +357,73 @@ POST /api/extensions/v1/scan-results
 
 `resultId + revision` 用于幂等和修订；重试相同内容不会重复应用，不得用同一修订号发送不同内容。晚于硬超时的任务返回 `410`，乱序或冲突修订返回 `409`。多台工位的任务必须按 `originNodeId` 和 `recordingSessionId` 保持隔离。
 
+## 聊天机器人录像检索
+
+聊天机器人应通过 PackingProof 查询录像，不能读取 `videos.db`，也不能获取本地或 NAS 真实路径。v1 支持机器人与 PackingProof 运行在同一台电脑或同一局域网；公网机器人需要另行部署安全中继，不在本接口范围内。
+
+创建精确单号查询：
+
+```http
+POST /api/extensions/v1/recording-queries
+Content-Type: application/json
+
+{"trackingNumber":"YT123456"}
+```
+
+接口返回 `202` 和 `queryId`。机器人根据响应的 `Retry-After` 轮询：
+
+```http
+GET /api/extensions/v1/recording-queries/{queryId}
+```
+
+任务状态包括：
+
+| 状态 | 含义 |
+| --- | --- |
+| `queued` | 已接收请求 |
+| `searching` | 正在查询数据库 |
+| `preparing` | 正在把仅存于 NAS 的录像准备到临时缓存 |
+| `ready` | 至少一段录像可以下载 |
+| `downloading` | 机器人正在下载 |
+| `completed` | 所有可用录像下载完成 |
+| `not_found` | 没有精确匹配的录像 |
+| `failed` | 查询或文件准备失败 |
+| `expired` | 临时任务已经过期 |
+
+同一单号可能返回多段录像，每段录像有独立的 `status`、`progress`、`videoCodec` 和 `downloadUrl`。单次最多返回 20 段；超过时 `truncated=true` 并通过 `totalMatches` 告知完整数量。本地录像不会复制；仅存在于已确认 NAS 归档中的录像会先复制到 Web cache。某一段准备失败不会阻止其他已经就绪的录像下载。
+
+```json
+{
+  "queryId": "0123456789abcdef0123456789abcdef",
+  "trackingNumber": "YT123456",
+  "status": "ready",
+  "message": "录像可以下载",
+  "totalMatches": 1,
+  "truncated": false,
+  "recordings": [
+    {
+      "recordingId": 42,
+      "status": "ready",
+      "progress": 100,
+      "videoCodec": "h265",
+      "fileSizeBytes": 12345678,
+      "downloadUrl": "/api/extensions/v1/recording-queries/0123456789abcdef0123456789abcdef/recordings/42/download"
+    }
+  ],
+  "expiresAt": "2026-08-23T08:00:00Z"
+}
+```
+
+下载地址仍需使用 `recordings.download` 权限签名，不能把密钥放进 URL：
+
+```http
+GET /api/extensions/v1/recording-queries/{queryId}/recordings/{recordingId}/download
+```
+
+服务端返回原始录像，不自动转码。机器人可根据 `videoCodec` 决定聊天平台是否接受；下载中断后任务恢复为 `ready`，可以重新签名下载。查询和临时缓存默认保留一小时，真实文件路径、UNC 地址和 NAS 凭据永远不会出现在响应中。
+
+NAS 临时副本受 Web cache 容量限制；空间不足或单个录像超过限制时，该录像返回 `archive_cache_limit_exceeded`，不会删除原始录像或已确认归档。
+
 ## 推送订单
 
 ```http
@@ -455,6 +526,10 @@ Content-Type: application/json
 - `extension_delivery_not_found`
 - `extension_delivery_expired`
 - `extension_result_conflict`
+- `tracking_number_invalid`
+- `recording_query_not_found`
+- `recording_download_not_ready`
+- `archive_cache_limit_exceeded`
 
 收到 `extension_auth_revoked` 或 `extension_auth_generation_mismatch` 后应停止使用旧凭据，由用户重新授权或录入轮换后的凭据；不要无限重试。
 

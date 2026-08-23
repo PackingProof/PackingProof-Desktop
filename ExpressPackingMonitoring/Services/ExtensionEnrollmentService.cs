@@ -175,6 +175,9 @@ internal sealed class ExtensionEnrollmentService
             "申请能力");
         if (permissions.Length == 0)
             throw new InvalidDataException("扩展必须申请至少一项权限");
+        if (permissions.Contains(ExtensionPermissions.RecordingsDownload, StringComparer.Ordinal)
+            && !permissions.Contains(ExtensionPermissions.RecordingsSearch, StringComparer.Ordinal))
+            throw new InvalidDataException("申请录像下载权限时必须同时申请录像查询权限");
         if (capabilities.Length > 0
             && (!permissions.Contains(ExtensionPermissions.ScanTasksRead, StringComparer.Ordinal)
                 || !permissions.Contains(ExtensionPermissions.ScanResultsWrite, StringComparer.Ordinal)))

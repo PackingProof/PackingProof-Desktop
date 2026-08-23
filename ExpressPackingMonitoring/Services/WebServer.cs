@@ -226,6 +226,7 @@ namespace ExpressPackingMonitoring.Services
         private ExtensionRequestAuthenticator _extensionRequestAuthenticator;
         private ExtensionScanTaskBroker _extensionScanTaskBroker;
         private ExtensionScanResultSubmissionCoordinator _extensionScanResultCoordinator;
+        private readonly ExtensionRecordingQueryService _extensionRecordingQueries;
         private Action _extensionResultAvailable;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
@@ -383,6 +384,11 @@ namespace ExpressPackingMonitoring.Services
                 _ffmpegWorkLimiter);
             Port = port;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
+            if (_extensionApiEnabled)
+                _extensionRecordingQueries = new ExtensionRecordingQueryService(
+                    _db,
+                    AppPaths.CacheDir,
+                    _transCacheMaxBytes);
             _listener = CreateListener(port, listenerHost);
             MigrateLegacyOrderInfoCache();
             LoadOrderInfoCacheFromDatabase();
@@ -1309,6 +1315,17 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/extensions/v1/scan-results" when method == "POST":
                         HandleExtensionScanResult(ctx);
+                        break;
+                    case "/api/extensions/v1/recording-queries" when method == "POST":
+                        HandleCreateExtensionRecordingQuery(ctx);
+                        break;
+                    case var p when method == "GET"
+                        && TryParseExtensionRecordingDownloadPath(p, out _, out _):
+                        HandleExtensionRecordingDownload(ctx, p);
+                        break;
+                    case var p when method == "GET"
+                        && TryParseExtensionRecordingQueryPath(p, out _):
+                        HandleGetExtensionRecordingQuery(ctx, p);
                         break;
                     case var p when method == "POST"
                         && p.StartsWith("/api/extensions/v1/scan-tasks/", StringComparison.OrdinalIgnoreCase)
@@ -3162,9 +3179,11 @@ namespace ExpressPackingMonitoring.Services
                     signedScanTasks = true,
                     totalItemCount = true,
                     mergedOrderCount = true,
-                        providerId = true,
-                        recordingMetadataWrite = true,
-                        watermarkFields = true
+                    providerId = true,
+                    recordingMetadataWrite = true,
+                    watermarkFields = true,
+                    recordingSearch = true,
+                    recordingDownload = true
                 },
                 limits = new
                 {
@@ -3184,7 +3203,9 @@ namespace ExpressPackingMonitoring.Services
                 && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
             || (path.StartsWith("/api/extensions/v1/scan-tasks/", StringComparison.OrdinalIgnoreCase)
                 && path.EndsWith("/ack", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase));
+                && string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+            || (path.StartsWith("/api/extensions/v1/recording-queries", StringComparison.OrdinalIgnoreCase)
+                && method is "GET" or "POST");
 
         private static bool IsLegacyExtensionPath(string path, string method) =>
             (string.Equals(path, "/api/extensions/v1/orders", StringComparison.OrdinalIgnoreCase)
@@ -3297,6 +3318,92 @@ namespace ExpressPackingMonitoring.Services
             "extension_auth_replay_capacity" => "扩展请求过于频繁，请稍后重试",
             _ => "需要有效的扩展签名"
         };
+
+        private sealed class ExtensionRecordingQueryRequest
+        {
+            public string TrackingNumber { get; set; } = "";
+        }
+
+        private void HandleCreateExtensionRecordingQuery(HttpListenerContext ctx)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsSearch, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingQueries == null)
+            {
+                SendJson(ctx, 503, new { errorCode = "recording_query_unavailable", error = "录像查询服务尚未就绪" });
+                return;
+            }
+            try
+            {
+                ExtensionRecordingQueryRequest request = ReadJsonBody<ExtensionRecordingQueryRequest>(ctx);
+                ExtensionRecordingQuerySnapshot result = _extensionRecordingQueries.Create(authorization.ExtensionInstanceId, request.TrackingNumber);
+                ctx.Response.Headers.Add("Retry-After", "1");
+                SendJson(ctx, 202, result);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new { errorCode = "tracking_number_invalid", error = ex.Message });
+            }
+        }
+
+        private void HandleGetExtensionRecordingQuery(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsSearch, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingQueries == null
+                || !TryParseExtensionRecordingQueryPath(path, out string queryId)
+                || !_extensionRecordingQueries.TryGet(queryId, authorization.ExtensionInstanceId, out ExtensionRecordingQuerySnapshot snapshot))
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_query_not_found", error = "录像查询不存在或已过期" });
+                return;
+            }
+            if (snapshot.Status is "queued" or "searching" or "preparing" or "downloading")
+                ctx.Response.Headers.Add("Retry-After", "1");
+            SendJson(ctx, 200, snapshot);
+        }
+
+        private void HandleExtensionRecordingDownload(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsDownload, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingQueries == null
+                || !TryParseExtensionRecordingDownloadPath(path, out string queryId, out long recordingId)
+                || !_extensionRecordingQueries.TryBeginDownload(queryId, recordingId, authorization.ExtensionInstanceId, out string filePath))
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_download_not_ready", error = "录像不存在、尚未准备完成或已过期" });
+                return;
+            }
+            bool completed = false;
+            try { completed = ServeFileWithRange(ctx, filePath, inline: false); }
+            finally
+            {
+                _extensionRecordingQueries.FinishDownload(queryId, recordingId, completed);
+                if (completed) _extensionAuthorizations?.RecordBusinessActivity(authorization.ExtensionInstanceId, 1);
+            }
+        }
+
+        private static bool TryParseExtensionRecordingQueryPath(string path, out string queryId)
+        {
+            queryId = "";
+            const string prefix = "/api/extensions/v1/recording-queries/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            string suffix = path[prefix.Length..].Trim('/');
+            if (suffix.Contains('/') || !Guid.TryParseExact(suffix, "N", out _)) return false;
+            queryId = suffix;
+            return true;
+        }
+
+        private static bool TryParseExtensionRecordingDownloadPath(string path, out string queryId, out long recordingId)
+        {
+            queryId = "";
+            recordingId = 0;
+            const string prefix = "/api/extensions/v1/recording-queries/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            string[] parts = path[prefix.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 4 || !Guid.TryParseExact(parts[0], "N", out _)
+                || !string.Equals(parts[1], "recordings", StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out recordingId)
+                || !string.Equals(parts[3], "download", StringComparison.OrdinalIgnoreCase)) return false;
+            queryId = parts[0];
+            return recordingId > 0;
+        }
 
         private void HandleExtensionHeartbeat(HttpListenerContext ctx)
         {
@@ -5526,7 +5633,7 @@ namespace ExpressPackingMonitoring.Services
         }
 
         // ───── 文件传输 (支持 Range 请求实现拖拽播放) ─────
-        private static void ServeFileWithRange(HttpListenerContext ctx, string filePath, bool inline)
+        private static bool ServeFileWithRange(HttpListenerContext ctx, string filePath, bool inline)
         {
             var fi = new FileInfo(filePath);
             long fileLength = fi.Length;
@@ -5551,7 +5658,7 @@ namespace ExpressPackingMonitoring.Services
                     ctx.Response.Headers.Add("Content-Range", $"bytes */{fileLength}");
                     ctx.Response.ContentLength64 = 0;
                     ctx.Response.OutputStream.Close();
-                    return;
+                    return false;
                 }
 
                 ctx.Response.StatusCode = 206;
@@ -5579,6 +5686,7 @@ namespace ExpressPackingMonitoring.Services
                 remaining -= read;
             }
             ctx.Response.OutputStream.Close();
+            return remaining == 0 && string.IsNullOrWhiteSpace(rangeHeader);
         }
 
         internal static bool TryResolveByteRange(
@@ -5873,6 +5981,7 @@ namespace ExpressPackingMonitoring.Services
             if (Interlocked.Exchange(ref _serverResourcesDisposed, 1) != 0)
                 return;
             try { _clipService.Dispose(); } catch { }
+            try { _extensionRecordingQueries?.Dispose(); } catch { }
             try { _connectedClients.Dispose(); } catch { }
             _requestSlots.Dispose();
             _transcodeSlot.Dispose();

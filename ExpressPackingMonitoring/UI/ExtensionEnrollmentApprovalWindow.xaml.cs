@@ -84,6 +84,8 @@ public partial class ExtensionEnrollmentApprovalWindow : Window
             {
                 ExtensionPermissions.OrdersWrite => AppLanguage.Get("Extension.Access.OrdersWrite"),
                 ExtensionPermissions.RecordingsActiveRead => AppLanguage.Get("Extension.Access.RecordingsActiveRead"),
+                ExtensionPermissions.RecordingsSearch => AppLanguage.Get("Extension.Access.RecordingsSearch"),
+                ExtensionPermissions.RecordingsDownload => AppLanguage.Get("Extension.Access.RecordingsDownload"),
                 _ => AppLanguage.Format("Extension.Access.UnknownPermission", permission)
             });
         }
