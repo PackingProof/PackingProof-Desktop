@@ -349,6 +349,137 @@ public sealed class ExtensionEnrollmentHttpTests
         }
     }
 
+    [Fact]
+    public async Task SignedTaskHttpLifecycle_PollsAcknowledgesAndPersistsResult()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "epm-extension-signed-task-http-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string databasePath = Path.Combine(directory, "videos.db");
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(databasePath);
+            database.InsertVideoRecord(
+                "EXT-TASK-001",
+                "发货",
+                "h264",
+                "",
+                Path.Combine(directory, "task.mp4"),
+                DateTime.Now,
+                recordingSessionId: "task-session");
+            var authorizations = new ExtensionAuthorizationStore(directory);
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: directory,
+                nodeId: "fixture-host",
+                extensionApiEnabled: true);
+            server.ConfigureExtensionEnrollment(
+                authorizations,
+                request => new ExtensionEnrollmentApprovalResult
+                {
+                    Disposition = ExtensionEnrollmentApprovalDisposition.Approved,
+                    ApprovedPermissions = request.RequestedPermissions,
+                    ApprovedCapabilities = request.RequestedCapabilities,
+                    RoutingScope = ExtensionRoutingScope.AllLocalRecordingNodes
+                });
+            OrderInfo? appliedOrder = null;
+            using var runtime = new ExtensionRuntime(
+                database,
+                databasePath,
+                "fixture-host",
+                authorizations,
+                (_, _) => { },
+                order => appliedOrder = order);
+            server.ConfigureExtensionTaskApi(
+                runtime.Broker,
+                runtime.Coordinator,
+                runtime.ProcessAvailableResults);
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage enrollment = await client.PostAsync(
+                "/api/extensions/v1/enroll",
+                JsonContent(RequestJson()),
+                TestContext.Current.CancellationToken);
+            enrollment.EnsureSuccessStatusCode();
+            using JsonDocument enrollmentPayload = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            string credential = enrollmentPayload.RootElement.GetProperty("credential").GetString()!;
+            int generation = enrollmentPayload.RootElement.GetProperty("credentialGeneration").GetInt32();
+
+            ExtensionScanDelivery expectedDelivery = Assert.Single(runtime.Publish(
+                "fixture-host",
+                "task-session",
+                "EXT-TASK-001",
+                "发货").Deliveries);
+            const string pollPath = "/api/extensions/v1/scan-tasks/next?waitSeconds=0";
+            using HttpResponseMessage polled = await client.SendAsync(
+                SignedRequest(HttpMethod.Get, pollPath, "", credential, generation, new string('f', 32)),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, polled.StatusCode);
+            using JsonDocument taskPayload = JsonDocument.Parse(
+                await polled.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(expectedDelivery.DeliveryId, taskPayload.RootElement.GetProperty("deliveryId").GetString());
+            Assert.Equal("task-session", taskPayload.RootElement.GetProperty("recordingSessionId").GetString());
+            string taskId = taskPayload.RootElement.GetProperty("taskId").GetString()!;
+
+            string ackPath = $"/api/extensions/v1/scan-tasks/{expectedDelivery.DeliveryId}/ack";
+            string ackBody = JsonSerializer.Serialize(new { taskId });
+            using HttpResponseMessage acknowledged = await client.SendAsync(
+                SignedRequest(HttpMethod.Post, ackPath, ackBody, credential, generation, new string('1', 32)),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, acknowledged.StatusCode);
+
+            const string resultPath = "/api/extensions/v1/scan-results";
+            string resultBody = JsonSerializer.Serialize(new
+            {
+                deliveryId = expectedDelivery.DeliveryId,
+                taskId,
+                providerId = "fixture.erp",
+                resultId = "task-result-001",
+                revision = 1,
+                status = "found",
+                observedAt = DateTimeOffset.UtcNow,
+                orders = new[]
+                {
+                    new
+                    {
+                        trackingNumber = "EXT-TASK-001",
+                        orderId = "ORDER-TASK-001",
+                        totalItemCount = 2,
+                        products = new[] { new { name = "测试商品", quantity = 2 } },
+                        refundState = "none"
+                    }
+                },
+                measurements = Array.Empty<object>()
+            });
+            using HttpResponseMessage accepted = await client.SendAsync(
+                SignedRequest(HttpMethod.Post, resultPath, resultBody, credential, generation, new string('2', 32)),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+            Assert.True(SpinWait.SpinUntil(
+                () => Volatile.Read(ref appliedOrder)?.OrderId == "ORDER-TASK-001",
+                TimeSpan.FromSeconds(3)));
+
+            using HttpResponseMessage duplicate = await client.SendAsync(
+                SignedRequest(HttpMethod.Post, resultPath, resultBody, credential, generation, new string('3', 32)),
+                TestContext.Current.CancellationToken);
+            Assert.Equal(HttpStatusCode.OK, duplicate.StatusCode);
+            using JsonDocument duplicatePayload = JsonDocument.Parse(
+                await duplicate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            Assert.True(duplicatePayload.RootElement.GetProperty("duplicate").GetBoolean());
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
     [Theory]
     [InlineData(1, HttpStatusCode.Forbidden, "extension_enrollment_denied")]
     [InlineData(2, HttpStatusCode.ServiceUnavailable, "extension_enrollment_approval_unavailable")]
