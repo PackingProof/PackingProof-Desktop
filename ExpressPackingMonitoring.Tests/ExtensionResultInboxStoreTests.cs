@@ -138,6 +138,7 @@ public sealed class ExtensionResultInboxStoreTests
         }
         finally
         {
+            SqliteTestPool.ClearPoolFor(directory);
             Directory.Delete(directory, recursive: true);
         }
     }
@@ -208,6 +209,7 @@ public sealed class ExtensionResultInboxStoreTests
         public void Dispose()
         {
             Store.Dispose();
+            SqliteTestPool.ClearPoolFor(Directory);
             System.IO.Directory.Delete(Directory, recursive: true);
         }
     }
