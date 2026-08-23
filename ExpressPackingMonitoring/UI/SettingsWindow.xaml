@@ -3415,30 +3415,8 @@
             <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="启用扩展 API" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="允许经过授权的 ERP、称重设备和其他扩展连接"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableExtensionApi}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
-                                <StackPanel>
-                                <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid Style="{StaticResource SettingRowStyle}"
+                                      Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="24"/>
@@ -3452,11 +3430,31 @@
                                     <Button Grid.Column="2"
                                             Content="安装订单联动"
                                             Click="InstallTool_Click"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            HorizontalAlignment="Left"/>
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    HorizontalAlignment="Left"/>
                                 </Grid>
 
                                 <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="启用扩展 API" Style="{StaticResource FieldLabelStyle}"/>
+                                        <TextBlock Text="允许经过授权的 ERP、称重设备和其他扩展连接"
+                                                   Style="{StaticResource FieldHintStyle}"/>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ExtensionApiToggle"
+                                              Grid.Column="2"
+                                              IsChecked="{Binding Config.EnableExtensionApi}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              Style="{StaticResource ToggleSwitchStyle}"/>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}"
+                                      Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="24"/>
@@ -3470,11 +3468,12 @@
                                     <Button Grid.Column="2"
                                             Content="导入自定义脚本"
                                             Click="ImportUserscript_Click"
+                                            IsEnabled="{Binding ElementName=ExtensionApiToggle, Path=IsChecked}"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Left"/>
                                 </Grid>
 
-                                <Grid>
+                                <Grid Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
@@ -3484,6 +3483,7 @@
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid ItemsSource="{Binding CustomUserscripts}"
+                                                  IsEnabled="{Binding ElementName=ExtensionApiToggle, Path=IsChecked}"
                                                   AutoGenerateColumns="False"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"

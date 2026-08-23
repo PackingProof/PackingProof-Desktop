@@ -232,14 +232,14 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
-    public void ExtensionApiPlacesOrderIntegrationInstallImmediatelyAfterToggleAndUsesShortHint()
+    public void OrderIntegrationCardPlacesExtensionToggleAfterInstallAndGatesCustomScriptManagement()
     {
         string xaml = LoadSettingsXaml().ToString(SaveOptions.DisableFormatting);
         int toggle = xaml.IndexOf("Text=\"启用扩展 API\"", StringComparison.Ordinal);
         int install = xaml.IndexOf("Text=\"安装订单联动\"", StringComparison.Ordinal);
         int devices = xaml.IndexOf("Text=\"订单联动设备\"", StringComparison.Ordinal);
 
-        Assert.True(toggle >= 0 && install > toggle && devices > install);
+        Assert.True(install >= 0 && toggle > install && devices > toggle);
         Assert.Contains("允许经过授权的 ERP、称重设备和其他扩展连接", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("关闭时不启动扩展任务服务", xaml, StringComparison.Ordinal);
 
@@ -254,7 +254,26 @@ public sealed class SettingsAdvancedVisibilityTests
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
         XElement customCard = customLabel.Ancestors(Presentation + "Border")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
+        XElement toggleLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "启用扩展 API");
+        XElement toggleCard = toggleLabel.Ancestors(Presentation + "Border")
+            .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
         Assert.Same(installCard, customCard);
+        Assert.Same(installCard, toggleCard);
+
+        XElement importButton = Assert.Single(
+            document.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute("Content") == "导入自定义脚本");
+        Assert.Equal(
+            "{Binding ElementName=ExtensionApiToggle, Path=IsChecked}",
+            (string?)importButton.Attribute("IsEnabled"));
+        XElement customGrid = Assert.Single(
+            document.Descendants(Presentation + "DataGrid"),
+            element => ((string?)element.Attribute("ItemsSource"))?.Contains("CustomUserscripts", StringComparison.Ordinal) == true);
+        Assert.Equal(
+            "{Binding ElementName=ExtensionApiToggle, Path=IsChecked}",
+            (string?)customGrid.Attribute("IsEnabled"));
         Assert.Contains("扩展 API 授权", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("已授权扩展", xaml, StringComparison.Ordinal);
     }

@@ -2313,12 +2313,18 @@ namespace ExpressPackingMonitoring.UI
 
         private void ImportUserscript_Click(object sender, RoutedEventArgs e)
         {
+            if (!Config.EnableExtensionApi)
+            {
+                Context.ShowToast?.Invoke("请先启用扩展 API", ToastSeverity.Warning);
+                return;
+            }
             Context.ImportUserscript?.Invoke();
             RefreshCustomUserscripts();
         }
 
         private void RemoveUserscript_Click(object sender, RoutedEventArgs e)
         {
+            if (!Config.EnableExtensionApi) return;
             if (sender is not Button { CommandParameter: UserscriptDescriptor script }) return;
             if (!AppDialog.Confirm(
                     this,
