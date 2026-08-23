@@ -1,0 +1,18 @@
+{
+  "apiVersion": "v1",
+  "providerId": "fixture.erp",
+  "orders": [
+    {
+      "trackingNumber": "EXT-FIXTURE-001",
+      "orderId": "ORDER-FIXTURE-001",
+      "buyerMessage": "请轻放",
+      "sellerMemo": "核对颜色",
+      "productInfo": "蓝色水杯 ×3",
+      "totalItemCount": 3,
+      "mergedOrderCount": 2,
+      "hasRefund": false,
+      "isPrintedRefund": false,
+      "refundStatus": ""
+    }
+  ]
+}

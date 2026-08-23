@@ -1,0 +1,8 @@
+{
+  "namespace": "fixture.scale",
+  "providerId": "fixture.scale",
+  "fields": {
+    "weight": "1.25 kg",
+    "length": "30 cm"
+  }
+}
