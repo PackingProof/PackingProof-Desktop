@@ -162,8 +162,9 @@ public sealed class ExtensionEnrollmentHttpTests
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: directory,
                 extensionApiEnabled: true);
+            var authorizations = new ExtensionAuthorizationStore(directory);
             server.ConfigureExtensionEnrollment(
-                new ExtensionAuthorizationStore(directory),
+                authorizations,
                 request => new ExtensionEnrollmentApprovalResult
                 {
                     Disposition = ExtensionEnrollmentApprovalDisposition.Approved,
@@ -205,6 +206,10 @@ public sealed class ExtensionEnrollmentHttpTests
             Assert.Equal(
                 "extension-fixture-01",
                 acceptedPayload.RootElement.GetProperty("extensionInstanceId").GetString());
+            ExtensionAuthorizationContext heartbeatState = Assert.Single(
+                authorizations.GetAll(includeRevoked: false));
+            Assert.NotNull(heartbeatState.LastSeenUtc);
+            Assert.Equal("1.2", heartbeatState.RuntimeVersion);
 
             using HttpResponseMessage replayed = await client.SendAsync(
                 SignedHeartbeat(credential, generation, nonce),
@@ -310,7 +315,7 @@ public sealed class ExtensionEnrollmentHttpTests
         string nonce)
     {
         const string path = "/api/extensions/v1/heartbeat";
-        byte[] body = Encoding.UTF8.GetBytes("{}");
+        byte[] body = Encoding.UTF8.GetBytes("{\"version\":\"1.2\",\"capabilities\":[\"orders.lookup\"]}");
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string contentHash = ExtensionRequestSignature.ComputeContentHash(body);
         string signature = ExtensionRequestSignature.Create(

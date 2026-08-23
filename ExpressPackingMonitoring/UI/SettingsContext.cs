@@ -120,7 +120,9 @@ public sealed record ExtensionAuthorizationDisplayItem(
     string PermissionsText,
     string BindingText,
     int CredentialGeneration,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    bool Online,
+    string ActivityText);
 
 public sealed record OrderIntegrationDeviceDisplayItem(
     string NodeId,

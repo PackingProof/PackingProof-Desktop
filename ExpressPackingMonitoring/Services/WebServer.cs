@@ -165,6 +165,14 @@ namespace ExpressPackingMonitoring.Services
             public List<OrderInfo> Orders { get; set; } = [];
         }
 
+        private sealed class ExtensionHeartbeatRequest
+        {
+            public string Version { get; set; } = "";
+            public string[] Capabilities { get; set; } = [];
+            public DateTimeOffset? LastSuccessfulActivityAt { get; set; }
+            public int DataCount { get; set; }
+        }
+
         private sealed class RecordingExtensionDataRequest
         {
             public string Namespace { get; set; } = "";
@@ -3286,6 +3294,17 @@ namespace ExpressPackingMonitoring.Services
                 return;
             }
 
+            ExtensionHeartbeatRequest request;
+            try { request = ReadJsonBody<ExtensionHeartbeatRequest>(ctx); }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new { errorCode = "extension_heartbeat_invalid", error = "扩展心跳内容无效" });
+                return;
+            }
+            _extensionAuthorizations?.RecordHeartbeat(
+                authorization.ExtensionInstanceId,
+                request.Version);
+
             SendJson(ctx, 200, new
             {
                 ok = true,
@@ -3415,6 +3434,10 @@ namespace ExpressPackingMonitoring.Services
                 SendExtensionScanResultOutcome(ctx, outcome);
                 if (outcome.Disposition == ExtensionScanResultSubmissionDisposition.Accepted)
                 {
+                    int dataCount = Math.Max(1, request.Orders.Count + request.Measurements.Count);
+                    _extensionAuthorizations?.RecordBusinessActivity(
+                        authorization.ExtensionInstanceId,
+                        dataCount);
                     try { _extensionResultAvailable?.Invoke(); }
                     catch (Exception ex) { RuntimeLog.Error("ExtensionResult", "Result processing trigger failed", ex); }
                 }

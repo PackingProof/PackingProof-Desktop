@@ -190,6 +190,13 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Contains(grid.Descendants(Presentation + "Button"), button =>
             (string?)button.Attribute("Content") == "撤销"
             && (string?)button.Attribute("Style") == "{StaticResource DangerButtonStyle}");
+        Assert.Contains(
+            grid.Descendants(Presentation + "DataTrigger"),
+            trigger => (string?)trigger.Attribute("Binding") == "{Binding Online}"
+                && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(
+            grid.Descendants(Presentation + "TextBlock"),
+            text => (string?)text.Attribute("Text") == "{Binding ActivityText}");
     }
 
     [Fact]

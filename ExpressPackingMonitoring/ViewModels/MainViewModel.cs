@@ -4443,14 +4443,19 @@ namespace ExpressPackingMonitoring.ViewModels
                 .Select(value => new ExtensionAuthorizationDisplayItem(
                     value.ExtensionInstanceId,
                     value.DisplayName,
-                    value.Version,
+                    string.IsNullOrWhiteSpace(value.RuntimeVersion) ? value.Version : value.RuntimeVersion,
                     value.Source,
                     string.Join("、", value.Permissions),
                     value.RoutingScope == ExtensionRoutingScope.AllLocalRecordingNodes
                         ? "所有本机录像工位"
                         : string.Join("、", value.BoundOriginNodeIds),
                     value.CredentialGeneration,
-                    value.UpdatedAtUtc))
+                    value.UpdatedAtUtc,
+                    value.LastSeenUtc.HasValue
+                        && DateTimeOffset.UtcNow - value.LastSeenUtc.Value <= TimeSpan.FromSeconds(45),
+                    value.LastBusinessActivityUtc.HasValue
+                        ? $"{value.LastBusinessActivityUtc.Value.ToLocalTime():HH:mm} 收到 {value.LastBusinessDataCount} 条数据"
+                        : "暂未收到数据"))
                 .ToArray();
         }
 

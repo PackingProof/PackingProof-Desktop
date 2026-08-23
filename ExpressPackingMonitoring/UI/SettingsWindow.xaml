@@ -3498,9 +3498,23 @@
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Header="扩展" Width="2*">
                                                     <DataGridTemplateColumn.CellTemplate><DataTemplate>
-                                                        <StackPanel Margin="12,0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                            <TextBlock Style="{StaticResource FieldHintStyle}"><Run Text="版本 "/><Run Text="{Binding Version}"/><Run Text=" · "/><Run Text="{Binding Source}"/></TextBlock>
+                                                        <StackPanel Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
+                                                            <Ellipse Width="8" Height="8" Margin="0,0,9,0">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="{DynamicResource TextTertiary}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Online}" Value="True">
+                                                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Style="{StaticResource FieldHintStyle}"><Run Text="版本 "/><Run Text="{Binding Version}"/><Run Text=" · "/><Run Text="{Binding Source}"/></TextBlock>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                     </DataTemplate></DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>
@@ -3509,6 +3523,7 @@
                                                         <StackPanel Margin="12,0" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding PermissionsText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding PermissionsText}"/>
                                                             <TextBlock Text="{Binding BindingText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding BindingText}"/>
+                                                            <TextBlock Text="{Binding ActivityText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
                                                     </DataTemplate></DataGridTemplateColumn.CellTemplate>
                                                 </DataGridTemplateColumn>

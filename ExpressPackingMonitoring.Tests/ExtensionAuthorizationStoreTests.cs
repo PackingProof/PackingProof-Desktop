@@ -127,6 +127,36 @@ public sealed class ExtensionAuthorizationStoreTests
     }
 
     [Fact]
+    public void Activity_HeartbeatIsRuntimeOnlyAndBusinessActivityPersists()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            var time = new MutableTimeProvider(Utc(8, 0, 0));
+            var store = new ExtensionAuthorizationStore(directory, time);
+            ExtensionEnrollmentCredential enrollment = store.Approve(OrderApproval());
+
+            time.Advance(TimeSpan.FromMinutes(1));
+            store.RecordHeartbeat(enrollment.Authorization.ExtensionInstanceId, "1.2");
+            ExtensionAuthorizationContext online = Assert.Single(store.GetAll(includeRevoked: false));
+            Assert.Equal(time.GetUtcNow(), online.LastSeenUtc);
+            Assert.Equal("1.2", online.RuntimeVersion);
+
+            time.Advance(TimeSpan.FromMinutes(1));
+            store.RecordBusinessActivity(enrollment.Authorization.ExtensionInstanceId, 3);
+            var restarted = new ExtensionAuthorizationStore(directory, time);
+            ExtensionAuthorizationContext restored = Assert.Single(restarted.GetAll(includeRevoked: false));
+            Assert.Null(restored.LastSeenUtc);
+            Assert.Equal(time.GetUtcNow(), restored.LastBusinessActivityUtc);
+            Assert.Equal(3, restored.LastBusinessDataCount);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Revoke_InvalidatesCredentialAcrossRestartWithoutDeletingAuditMetadata()
     {
         string directory = CreateTempDirectory();

@@ -63,6 +63,10 @@ internal sealed record ExtensionAuthorizationContext
     internal DateTimeOffset ApprovedAtUtc { get; init; }
     internal DateTimeOffset UpdatedAtUtc { get; init; }
     internal DateTimeOffset? RevokedAtUtc { get; init; }
+    internal DateTimeOffset? LastSeenUtc { get; init; }
+    internal DateTimeOffset? LastBusinessActivityUtc { get; init; }
+    internal int LastBusinessDataCount { get; init; }
+    internal string RuntimeVersion { get; init; } = "";
 
     internal bool HasPermission(string permission) =>
         Permissions.Contains(permission, StringComparer.Ordinal);
@@ -135,7 +139,11 @@ internal sealed class ExtensionAuthorizationStore
                 ApprovedAtUtc = previous is { RevokedAtUtc: null }
                     ? previous.ApprovedAtUtc
                     : now,
-                UpdatedAtUtc = now
+                UpdatedAtUtc = now,
+                LastSeenUtc = previous?.LastSeenUtc,
+                LastBusinessActivityUtc = previous?.LastBusinessActivityUtc,
+                LastBusinessDataCount = previous?.LastBusinessDataCount ?? 0,
+                RuntimeVersion = previous?.RuntimeVersion ?? ""
             };
             _authorizations[state.ExtensionInstanceId] = state;
             Save();
@@ -245,6 +253,38 @@ internal sealed class ExtensionAuthorizationStore
                 .ThenBy(state => state.ExtensionInstanceId, StringComparer.Ordinal)
                 .Select(ToContext)
                 .ToArray();
+        }
+    }
+
+    internal void RecordHeartbeat(string extensionInstanceId, string? runtimeVersion = null)
+    {
+        string normalizedId = NormalizeIdentifier(extensionInstanceId, "扩展实例 ID");
+        lock (_gate)
+        {
+            if (!_authorizations.TryGetValue(normalizedId, out AuthorizationState? state)
+                || state.RevokedAtUtc != null)
+                return;
+            state.LastSeenUtc = _timeProvider.GetUtcNow();
+            string version = runtimeVersion?.Trim() ?? "";
+            if (version.Length is > 0 and <= 32 && !version.Any(char.IsControl))
+                state.RuntimeVersion = version;
+        }
+    }
+
+    internal void RecordBusinessActivity(string extensionInstanceId, int dataCount)
+    {
+        if (dataCount <= 0) return;
+        string normalizedId = NormalizeIdentifier(extensionInstanceId, "扩展实例 ID");
+        lock (_gate)
+        {
+            if (!_authorizations.TryGetValue(normalizedId, out AuthorizationState? state)
+                || state.RevokedAtUtc != null)
+                return;
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+            state.LastSeenUtc = now;
+            state.LastBusinessActivityUtc = now;
+            state.LastBusinessDataCount = dataCount;
+            Save();
         }
     }
 
@@ -436,7 +476,9 @@ internal sealed class ExtensionAuthorizationStore
             CredentialTag = Convert.ToBase64String(tag),
             ApprovedAtUtc = state.ApprovedAtUtc,
             UpdatedAtUtc = state.UpdatedAtUtc,
-            RevokedAtUtc = state.RevokedAtUtc
+            RevokedAtUtc = state.RevokedAtUtc,
+            LastBusinessActivityUtc = state.LastBusinessActivityUtc,
+            LastBusinessDataCount = state.LastBusinessDataCount
         };
     }
 
@@ -492,7 +534,9 @@ internal sealed class ExtensionAuthorizationStore
             Credential = credential,
             ApprovedAtUtc = item.ApprovedAtUtc,
             UpdatedAtUtc = item.UpdatedAtUtc,
-            RevokedAtUtc = item.RevokedAtUtc
+            RevokedAtUtc = item.RevokedAtUtc,
+            LastBusinessActivityUtc = item.LastBusinessActivityUtc,
+            LastBusinessDataCount = Math.Max(0, item.LastBusinessDataCount)
         };
     }
 
@@ -539,7 +583,11 @@ internal sealed class ExtensionAuthorizationStore
         CredentialGeneration = state.CredentialGeneration,
         ApprovedAtUtc = state.ApprovedAtUtc,
         UpdatedAtUtc = state.UpdatedAtUtc,
-        RevokedAtUtc = state.RevokedAtUtc
+        RevokedAtUtc = state.RevokedAtUtc,
+        LastSeenUtc = state.LastSeenUtc,
+        LastBusinessActivityUtc = state.LastBusinessActivityUtc,
+        LastBusinessDataCount = state.LastBusinessDataCount,
+        RuntimeVersion = state.RuntimeVersion
     };
 
     private static string SafeIdentifier(string? value)
@@ -564,6 +612,10 @@ internal sealed class ExtensionAuthorizationStore
         internal DateTimeOffset ApprovedAtUtc { get; init; }
         internal DateTimeOffset UpdatedAtUtc { get; set; }
         internal DateTimeOffset? RevokedAtUtc { get; set; }
+        internal DateTimeOffset? LastSeenUtc { get; set; }
+        internal DateTimeOffset? LastBusinessActivityUtc { get; set; }
+        internal int LastBusinessDataCount { get; set; }
+        internal string RuntimeVersion { get; set; } = "";
     }
 
     private sealed class StoredDocument
@@ -590,5 +642,7 @@ internal sealed class ExtensionAuthorizationStore
         public DateTimeOffset ApprovedAtUtc { get; set; }
         public DateTimeOffset UpdatedAtUtc { get; set; }
         public DateTimeOffset? RevokedAtUtc { get; set; }
+        public DateTimeOffset? LastBusinessActivityUtc { get; set; }
+        public int LastBusinessDataCount { get; set; }
     }
 }
