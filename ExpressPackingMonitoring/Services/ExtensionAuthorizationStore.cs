@@ -206,6 +206,32 @@ internal sealed class ExtensionAuthorizationStore
         }
     }
 
+    internal bool TryGetActiveCredential(
+        string extensionInstanceId,
+        out string credential,
+        out ExtensionAuthorizationContext? authorization)
+    {
+        credential = "";
+        authorization = null;
+        string normalizedId;
+        try { normalizedId = NormalizeIdentifier(extensionInstanceId, "扩展实例 ID"); }
+        catch (InvalidDataException) { return false; }
+
+        lock (_gate)
+        {
+            if (!_authorizations.TryGetValue(normalizedId, out AuthorizationState? state)
+                || state.RevokedAtUtc != null
+                || !IsCredentialFormatValid(state.Credential))
+            {
+                return false;
+            }
+
+            credential = state.Credential;
+            authorization = ToContext(state);
+            return true;
+        }
+    }
+
     internal IReadOnlyList<ExtensionAuthorizationContext> GetAll() =>
         GetAll(includeRevoked: true);
 

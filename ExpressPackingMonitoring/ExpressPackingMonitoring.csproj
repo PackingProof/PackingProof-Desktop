@@ -145,6 +145,7 @@
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ConnectedClientRegistry.cs" />
     <Compile Include="Services\ExtensionAuthorizationStore.cs" />
+    <Compile Include="Services\ExtensionRequestAuthentication.cs" />
     <Compile Include="Services\ExtensionScanTaskBroker.cs" />
     <Compile Include="Services\ClipboardHelper.cs" />
     <Compile Include="Services\FfmpegWorkLimiter.cs" />
