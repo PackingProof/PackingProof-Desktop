@@ -947,6 +947,10 @@
   <data name="自定义订单脚本" xml:space="preserve"><value>Custom order scripts</value></data>
   <data name="导入第三方油猴脚本，导入后可在安装向导中选择" xml:space="preserve"><value>Import third-party userscripts, then select one in the installation guide</value></data>
   <data name="导入自定义脚本" xml:space="preserve"><value>Import custom script</value></data>
+  <data name="已导入脚本（" xml:space="preserve"><value>Imported scripts (</value></data>
+  <data name="可以删除不再使用的第三方脚本" xml:space="preserve"><value>Remove third-party scripts you no longer use</value></data>
+  <data name="版本 " xml:space="preserve"><value>Version </value></data>
+  <data name="删除" xml:space="preserve"><value>Remove</value></data>
   <data name="播报商品件数" xml:space="preserve"><value>Announce item count</value></data>
   <data name="接收第三方水印" xml:space="preserve"><value>Receive third-party watermark data</value></data>
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>Allow weighing systems and other third-party apps to add data to recording watermarks</value></data>
