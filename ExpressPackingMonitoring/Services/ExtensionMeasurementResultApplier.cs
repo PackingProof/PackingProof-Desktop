@@ -71,12 +71,9 @@ internal sealed class ExtensionMeasurementResultApplier
             item.Revision,
             fields,
             item.ObservedAtUtc.UtcDateTime);
-        if (updated > 0)
-        {
-            _fieldsChanged?.Invoke(
-                item.RecordingSessionId,
-                _database.GetRecordingExtensionFields(item.RecordingSessionId));
-        }
+        _fieldsChanged?.Invoke(
+            item.RecordingSessionId,
+            _database.GetRecordingExtensionFields(item.RecordingSessionId));
         return updated;
     }
 

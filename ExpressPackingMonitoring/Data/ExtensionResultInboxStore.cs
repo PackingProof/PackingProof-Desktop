@@ -14,6 +14,7 @@ internal static class ExtensionResultInboxStates
     internal const string Applying = "Applying";
     internal const string Applied = "Applied";
     internal const string Failed = "Failed";
+    internal const string DeadLetter = "DeadLetter";
 }
 
 internal enum ExtensionResultInboxDisposition
@@ -311,6 +312,30 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             command.Parameters.AddWithValue("@error", normalizedError);
             command.Parameters.AddWithValue("@retryAt", retryAtUtc is null ? DBNull.Value : Format(retryAtUtc.Value));
             command.Parameters.AddWithValue("@now", Format(now));
+            command.Parameters.AddWithValue("@id", inboxId);
+            return command.ExecuteNonQuery() == 1;
+        }
+    }
+
+    internal bool MarkDeadLetter(long inboxId, string error)
+    {
+        string normalizedError = (error ?? "").Trim();
+        if (normalizedError.Length > MaxLastErrorLength)
+            normalizedError = normalizedError[..MaxLastErrorLength];
+        lock (_gate)
+        {
+            using SqliteCommand command = _connection.CreateCommand();
+            command.CommandText = @"
+                UPDATE ExtensionResultInbox
+                SET State = @deadLetter,
+                    LastError = @error,
+                    NextAttemptAtUtc = NULL,
+                    UpdatedAtUtc = @now
+                WHERE Id = @id AND State = @applying;";
+            command.Parameters.AddWithValue("@deadLetter", ExtensionResultInboxStates.DeadLetter);
+            command.Parameters.AddWithValue("@applying", ExtensionResultInboxStates.Applying);
+            command.Parameters.AddWithValue("@error", normalizedError);
+            command.Parameters.AddWithValue("@now", Format(_timeProvider.GetUtcNow()));
             command.Parameters.AddWithValue("@id", inboxId);
             return command.ExecuteNonQuery() == 1;
         }
