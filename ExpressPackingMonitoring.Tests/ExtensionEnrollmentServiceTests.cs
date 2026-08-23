@@ -114,6 +114,29 @@ public sealed class ExtensionEnrollmentServiceTests
         Assert.Single(fixture.Store.GetAll());
     }
 
+    [Fact]
+    public void Enroll_SameRetryProofFromDifferentAddressReturnsConflict()
+    {
+        using var fixture = new EnrollmentFixture();
+        int prompts = 0;
+        var service = fixture.Service(request =>
+        {
+            prompts++;
+            return ApproveAll(request);
+        });
+        ExtensionEnrollmentRequest request = OrderRequest();
+        service.Enroll(request);
+
+        ExtensionEnrollmentOutcome conflict = service.Enroll(request with
+        {
+            RemoteAddress = "192.168.1.99"
+        });
+
+        Assert.Equal(ExtensionEnrollmentDisposition.RequestConflict, conflict.Disposition);
+        Assert.Equal(1, prompts);
+        Assert.Single(fixture.Store.GetAll());
+    }
+
     private static ExtensionEnrollmentApprovalResult ApproveAll(
         ExtensionEnrollmentRequest request) => new()
     {

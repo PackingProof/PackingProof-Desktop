@@ -259,6 +259,7 @@ internal sealed class ExtensionEnrollmentService
             request.DisplayName,
             request.Version,
             request.Source,
+            request.RemoteAddress,
             request.RequestedPermissions,
             request.RequestedCapabilities
         });

@@ -190,6 +190,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _recordingStartTimestamp;
         private bool _isDisposed = false; // 新增：防止销毁后操作 UI
         private WebServer _webServer;
+        private ExtensionAuthorizationStore _extensionAuthorizationStore;
         private Task<bool> _webServerStartupTask;
         private readonly SemaphoreSlim _webServerLifecycleLock = new(1, 1);
         private StatisticsWindow _statisticsWindow;
@@ -690,6 +691,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             LoadConfig();
+            _extensionAuthorizationStore = new ExtensionAuthorizationStore(AppPaths.MobileBackupStateDir);
             InitializeCameraBarcodeRecognition();
             // 在起动时后台探测可用 GPU 编码器并缓存
             Task.Run(() => {
@@ -3010,6 +3012,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };
+                    server.ConfigureExtensionEnrollment(
+                        _extensionAuthorizationStore,
+                        request => ExtensionEnrollmentApprovalPrompt.Show(
+                            Application.Current?.MainWindow,
+                            request,
+                            Config.NodeId,
+                            Config.NodeName));
                     try
                     {
                         server.OrderInfoReceived += OnOrderInfoReceived;

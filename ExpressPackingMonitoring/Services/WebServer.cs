@@ -164,6 +164,19 @@ namespace ExpressPackingMonitoring.Services
             public Dictionary<string, string> Fields { get; set; } = new(StringComparer.Ordinal);
         }
 
+        private sealed class ExtensionEnrollmentHttpRequest
+        {
+            public string RequestId { get; set; } = "";
+            public string RequestSecret { get; set; } = "";
+            public string ExtensionInstanceId { get; set; } = "";
+            public string ProviderId { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+            public string Version { get; set; } = "";
+            public string Source { get; set; } = "";
+            public List<string> RequestedPermissions { get; set; } = [];
+            public List<string> RequestedCapabilities { get; set; } = [];
+        }
+
         private const int MaxJsonBodyBytes = 64 * 1024;
         private const int MaxOrderInfoBodyBytes = 1024 * 1024;
         internal const int MaxOrderInfoItems = 200;
@@ -183,6 +196,10 @@ namespace ExpressPackingMonitoring.Services
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
         private readonly UserscriptConfigRevisionStore _userscriptConfigRevision;
         private readonly UserscriptCatalog _userscriptCatalog;
+        private readonly string _extensionStateDirectory;
+        private readonly object _extensionEnrollmentInitializationLock = new();
+        private ExtensionAuthorizationStore _extensionAuthorizations;
+        private ExtensionEnrollmentService _extensionEnrollment;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
             MobileAppUpdatePolicyProvider.Shared;
@@ -341,6 +358,7 @@ namespace ExpressPackingMonitoring.Services
             LoadOrderInfoCacheFromDatabase();
             string resolvedMobileBackupStateDirectory = mobileBackupStateDirectory
                 ?? AppPaths.MobileBackupStateDir;
+            _extensionStateDirectory = resolvedMobileBackupStateDirectory;
             _backupPairingTokens = new BackupPairingTokenService(
                 resolvedMobileBackupStateDirectory,
                 _accessKey);
@@ -370,6 +388,19 @@ namespace ExpressPackingMonitoring.Services
             {
                 try { ConnectedClientsChanged?.Invoke(clients); } catch { }
             };
+        }
+
+        internal void ConfigureExtensionEnrollment(
+            ExtensionAuthorizationStore authorizations,
+            Func<ExtensionEnrollmentRequest, ExtensionEnrollmentApprovalResult> approver)
+        {
+            if (_listener.IsListening)
+                throw new InvalidOperationException("扩展授权服务必须在 Web 服务启动前配置");
+            _extensionAuthorizations = authorizations
+                ?? throw new ArgumentNullException(nameof(authorizations));
+            _extensionEnrollment = new ExtensionEnrollmentService(
+                _extensionAuthorizations,
+                approver ?? throw new ArgumentNullException(nameof(approver)));
         }
 
         private static HttpListener CreateListener(int port, string listenerHost)
@@ -1205,6 +1236,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/extensions/v1/capabilities" when method == "GET":
                         HandleExtensionCapabilities(ctx);
                         break;
+                    case "/api/extensions/v1/enroll" when method == "POST":
+                        HandleExtensionEnrollment(ctx);
+                        break;
                     case "/api/extensions/v1/orders" when method == "POST":
                         HandleExtensionOrders(ctx);
                         break;
@@ -1363,6 +1397,8 @@ namespace ExpressPackingMonitoring.Services
 
         internal static bool RequiresAccessKey(string path)
         {
+            if (string.Equals(path, "/api/extensions/v1/enroll", StringComparison.OrdinalIgnoreCase))
+                return false;
             return path == ""
                 || path.StartsWith("/api/videos", StringComparison.OrdinalIgnoreCase)
                 || path.StartsWith("/api/video-sources", StringComparison.OrdinalIgnoreCase)
@@ -1437,6 +1473,7 @@ namespace ExpressPackingMonitoring.Services
             (path == "/api/node-info" && method == "GET")
             || (path == "/api/orderinfo" && method is "GET" or "POST")
             || (path == "/api/extensions/v1/capabilities" && method == "GET")
+            || (path == "/api/extensions/v1/enroll" && method == "POST")
             || (path == "/api/extensions/v1/orders" && method == "POST")
             || (path == "/api/extensions/v1/recordings/active" && method == "GET")
             || (path.StartsWith("/api/extensions/v1/recordings/", StringComparison.OrdinalIgnoreCase)
@@ -1470,7 +1507,8 @@ namespace ExpressPackingMonitoring.Services
 
         internal static LanRequestCategory ClassifyRequest(string method, string path)
         {
-            if (string.Equals(path, "/api/mobile-backup/enroll", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(path, "/api/mobile-backup/enroll", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "/api/extensions/v1/enroll", StringComparison.OrdinalIgnoreCase))
                 return LanRequestCategory.Enrollment;
             if (string.Equals(path, "/api/connections/heartbeat", StringComparison.OrdinalIgnoreCase))
                 return LanRequestCategory.Heartbeat;
@@ -2839,6 +2877,7 @@ namespace ExpressPackingMonitoring.Services
 
         private static bool IsPrivateAddress(IPAddress ip)
         {
+            if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
             if (IPAddress.IsLoopback(ip)) return true;
 
             byte[] bytes = ip.GetAddressBytes();
@@ -3003,6 +3042,140 @@ namespace ExpressPackingMonitoring.Services
                     maxFieldCharacters = 4000
                 }
             });
+        }
+
+        private void HandleExtensionEnrollment(HttpListenerContext ctx)
+        {
+            ctx.Response.Headers["Cache-Control"] = "no-store";
+            ctx.Response.Headers["Pragma"] = "no-cache";
+            IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
+            if (remoteAddress == null || !IsPrivateAddress(remoteAddress))
+            {
+                SendJson(ctx, 403, new
+                {
+                    errorCode = "extension_enrollment_private_network_required",
+                    error = "扩展授权只允许从本机或私有局域网发起"
+                });
+                return;
+            }
+
+            ExtensionEnrollmentHttpRequest payload;
+            try
+            {
+                payload = ReadJsonBody<ExtensionEnrollmentHttpRequest>(ctx);
+                if (payload == null) throw new InvalidDataException("授权请求为空");
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new
+                {
+                    errorCode = "extension_enrollment_invalid",
+                    error = "扩展授权信息无效"
+                });
+                return;
+            }
+
+            ExtensionEnrollmentOutcome outcome;
+            try
+            {
+                outcome = GetExtensionEnrollmentService().Enroll(new ExtensionEnrollmentRequest
+                {
+                    RequestId = payload.RequestId,
+                    RequestSecret = payload.RequestSecret,
+                    ExtensionInstanceId = payload.ExtensionInstanceId,
+                    ProviderId = payload.ProviderId,
+                    DisplayName = payload.DisplayName,
+                    Version = payload.Version,
+                    Source = payload.Source,
+                    RemoteAddress = remoteAddress.ToString(),
+                    RequestedPermissions = payload.RequestedPermissions ?? [],
+                    RequestedCapabilities = payload.RequestedCapabilities ?? []
+                });
+            }
+            catch (InvalidDataException ex)
+            {
+                RuntimeLog.Info(
+                    "ExtensionEnrollment",
+                    $"Rejected invalid enrollment remote={remoteAddress}");
+                SendJson(ctx, 400, new
+                {
+                    errorCode = "extension_enrollment_invalid",
+                    error = ex.Message
+                });
+                return;
+            }
+
+            if (outcome.Disposition == ExtensionEnrollmentDisposition.Denied)
+            {
+                SendJson(ctx, 403, new
+                {
+                    errorCode = "extension_enrollment_denied",
+                    error = "电脑端已拒绝此扩展连接"
+                });
+                return;
+            }
+            if (outcome.Disposition == ExtensionEnrollmentDisposition.Unavailable)
+            {
+                SendJson(ctx, 503, new
+                {
+                    errorCode = "extension_enrollment_approval_unavailable",
+                    error = "电脑端暂时无法显示扩展授权窗口，请打开主界面后重试"
+                });
+                return;
+            }
+            if (outcome.Disposition == ExtensionEnrollmentDisposition.RequestConflict)
+            {
+                SendJson(ctx, 409, new
+                {
+                    errorCode = "extension_enrollment_request_conflict",
+                    error = "授权请求标识已被另一份请求使用，请生成新的请求标识和随机秘密"
+                });
+                return;
+            }
+
+            ExtensionEnrollmentCredential enrollment = outcome.Enrollment;
+            if (enrollment == null)
+            {
+                SendJson(ctx, 503, new
+                {
+                    errorCode = "extension_enrollment_approval_unavailable",
+                    error = "扩展授权结果暂时不可用，请稍后重试"
+                });
+                return;
+            }
+
+            ExtensionAuthorizationContext authorization = enrollment.Authorization;
+            SendJson(ctx, 200, new
+            {
+                apiVersion = "v1",
+                extensionInstanceId = authorization.ExtensionInstanceId,
+                credential = enrollment.Credential,
+                credentialGeneration = authorization.CredentialGeneration,
+                permissions = authorization.Permissions,
+                capabilities = authorization.Capabilities,
+                routingScope = authorization.RoutingScope == ExtensionRoutingScope.AllLocalRecordingNodes
+                    ? "all_local_recording_nodes"
+                    : "selected_recording_nodes",
+                boundOriginNodeIds = authorization.BoundOriginNodeIds,
+                approvedAtUtc = authorization.ApprovedAtUtc
+            });
+        }
+
+        private ExtensionEnrollmentService GetExtensionEnrollmentService()
+        {
+            if (_extensionEnrollment != null) return _extensionEnrollment;
+            lock (_extensionEnrollmentInitializationLock)
+            {
+                if (_extensionEnrollment != null) return _extensionEnrollment;
+                _extensionAuthorizations = new ExtensionAuthorizationStore(_extensionStateDirectory);
+                _extensionEnrollment = new ExtensionEnrollmentService(
+                    _extensionAuthorizations,
+                    _ => new ExtensionEnrollmentApprovalResult
+                    {
+                        Disposition = ExtensionEnrollmentApprovalDisposition.Unavailable
+                    });
+                return _extensionEnrollment;
+            }
         }
 
         private void HandleActiveRecordingExtensions(HttpListenerContext ctx)
