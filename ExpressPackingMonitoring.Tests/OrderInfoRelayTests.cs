@@ -22,12 +22,23 @@ public sealed class OrderInfoRelayTests
         string nodeId = Guid.NewGuid().ToString("D");
         try
         {
+            string stateDirectory = Path.Combine(directory, "state");
+            Directory.CreateDirectory(stateDirectory);
+            File.WriteAllText(
+                Path.Combine(stateDirectory, "computer-nicknames.json"),
+                JsonSerializer.Serialize(Enumerable.Range(1, 50).Select(index => new
+                {
+                    NodeId = Guid.NewGuid().ToString("D"),
+                    DisplayName = $"电脑{index + 1000}",
+                    Customized = false,
+                    UpdatedAtUtc = DateTime.UtcNow
+                })));
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
             using var server = new WebServer(
                 database,
                 port,
                 listenerHost: "127.0.0.1",
-                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupStateDirectory: stateDirectory,
                 mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
                 nodeId: nodeId,
                 nodeName: "本机录像主机",
@@ -63,6 +74,7 @@ public sealed class OrderInfoRelayTests
             Assert.True(deviceStatus.Online);
             Assert.Equal(1, deviceStatus.ReceivedCount);
             Assert.NotNull(deviceStatus.LastActivityUtc);
+            Assert.Single(server.GetOrderIntegrationDeviceStatuses());
 
             using var unconfiguredContent = new StringContent(
                 "{\"orders\":[{\"trackingNumber\":\"TEST-2\"}],\"targetNodeIds\":[\"other-node\"]}",

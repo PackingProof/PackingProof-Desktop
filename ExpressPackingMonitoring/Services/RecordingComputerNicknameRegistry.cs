@@ -6,6 +6,7 @@ namespace ExpressPackingMonitoring.Services;
 internal sealed class RecordingComputerNicknameRegistry
 {
     private const int MaxNameLength = 20;
+    internal const int MaxKnownComputers = 128;
     private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
     private readonly string _path;
     private readonly object _sync = new();
@@ -25,6 +26,8 @@ internal sealed class RecordingComputerNicknameRegistry
 
         lock (_sync)
         {
+            DateTime cutoff = DateTime.UtcNow - Retention;
+            _entries.RemoveAll(item => item.UpdatedAtUtc < cutoff);
             Entry? existing = _entries.FirstOrDefault(item =>
                 string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
             string assignedName;
@@ -52,6 +55,10 @@ internal sealed class RecordingComputerNicknameRegistry
                 Customized = customized,
                 UpdatedAtUtc = DateTime.UtcNow
             });
+            _entries = _entries
+                .OrderByDescending(item => item.UpdatedAtUtc)
+                .Take(MaxKnownComputers)
+                .ToList();
             try { Save(); } catch { }
             return assignedName;
         }

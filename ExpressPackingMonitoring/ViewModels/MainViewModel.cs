@@ -4476,10 +4476,17 @@ namespace ExpressPackingMonitoring.ViewModels
                         ? "手机录像设备"
                         : "电脑录像设备",
                     device.Online,
-                    device.LastActivityUtc.HasValue
-                        ? $"{device.LastActivityUtc.Value.ToLocalTime():HH:mm} 收到 {device.ReceivedCount} 条数据"
-                        : "暂未收到数据"))
+                    FormatOrderIntegrationDeviceActivity(device.LastActivityUtc, device.ReceivedCount)))
                 .ToArray();
+
+        internal static string FormatOrderIntegrationDeviceActivity(
+            DateTimeOffset? lastActivityUtc,
+            int processedCount)
+        {
+            return lastActivityUtc.HasValue
+                ? $"{lastActivityUtc.Value.ToLocalTime():HH:mm} 已处理 {processedCount} 条联动数据"
+                : "暂无联动数据";
+        }
 
         internal ExtensionCredentialDisplayResult RotateExtensionCredential(string extensionInstanceId)
         {

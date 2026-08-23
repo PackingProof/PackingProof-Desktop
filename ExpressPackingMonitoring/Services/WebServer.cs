@@ -2115,6 +2115,7 @@ namespace ExpressPackingMonitoring.Services
             IReadOnlyDictionary<string, OrderIntegrationActivity> activities =
                 _orderIntegrationActivities.GetSnapshot();
             var statuses = GetRecordingDevices("", includeKnown: true)
+                .Where(device => device.Online || activities.ContainsKey(device.NodeId))
                 .Select(device =>
                 {
                     activities.TryGetValue(device.NodeId, out OrderIntegrationActivity activity);
@@ -2138,11 +2139,13 @@ namespace ExpressPackingMonitoring.Services
             {
                 if (!knownNodeIds.Add(computer.NodeId)) continue;
                 activities.TryGetValue(computer.NodeId, out OrderIntegrationActivity activity);
+                bool online = onlineNodeIds.Contains(computer.NodeId);
+                if (!online && activity == null) continue;
                 statuses.Add(new OrderIntegrationDeviceStatus(
                     computer.NodeId,
                     computer.DisplayName,
                     "pc",
-                    onlineNodeIds.Contains(computer.NodeId),
+                    online,
                     activity?.LastActivityUtc,
                     activity?.ReceivedCount ?? 0));
             }

@@ -413,6 +413,7 @@ public sealed class RecordingDeviceCatalogTests
                 firstDatabase,
                 firstPort,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "first-state"),
                 nodeId: "first",
                 nodeName: "电脑",
                 deploymentPreset: DeploymentPresets.RecordingHost);
@@ -420,6 +421,7 @@ public sealed class RecordingDeviceCatalogTests
                 secondDatabase,
                 secondPort,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "second-state"),
                 nodeId: "second",
                 nodeName: "手机1",
                 deploymentPreset: DeploymentPresets.RecordingHost);
@@ -519,6 +521,7 @@ public sealed class RecordingDeviceCatalogTests
                 database,
                 successPort,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
                 nodeId: "success",
                 nodeName: "电脑",
                 deploymentPreset: DeploymentPresets.RecordingHost);

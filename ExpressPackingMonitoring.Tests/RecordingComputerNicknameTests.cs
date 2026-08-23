@@ -104,6 +104,29 @@ public sealed class RecordingComputerNicknameTests
         }
     }
 
+    [Fact]
+    public void RegistryCapsHistoricalAutomaticComputerEntries()
+    {
+        string directory = CreateTemporaryDirectory();
+        string path = Path.Combine(directory, "computer-nicknames.json");
+        try
+        {
+            var registry = new RecordingComputerNicknameRegistry(path);
+            for (int index = 0; index < RecordingComputerNicknameRegistry.MaxKnownComputers + 20; index++)
+                registry.Assign($"test-node-{index}", "电脑1", customized: false);
+
+            IReadOnlyList<RecordingComputerNicknameInfo> known = registry.GetKnown();
+
+            Assert.Equal(RecordingComputerNicknameRegistry.MaxKnownComputers, known.Count);
+            Assert.Contains(known, item => item.NodeId == $"test-node-{RecordingComputerNicknameRegistry.MaxKnownComputers + 19}");
+            Assert.DoesNotContain(known, item => item.NodeId == "test-node-0");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(" 电脑2 ", true, "电脑2")]
     [InlineData("", false, "")]

@@ -179,6 +179,7 @@ public sealed class MobileConnectionTests
                 requireAccessKey: true,
                 accessKey: accessKey,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(tempDirectory, "state"),
                 mobileConnectionUrlProvider: () => expectedUrl);
             server.Start();
 
@@ -250,7 +251,8 @@ public sealed class MobileConnectionTests
                 port,
                 requireAccessKey: true,
                 accessKey: accessKey,
-                listenerHost: "127.0.0.1");
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(tempDirectory, "state"));
             server.Start();
 
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
@@ -305,6 +307,7 @@ public sealed class MobileConnectionTests
                 requireAccessKey: true,
                 accessKey: accessKey,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(tempDirectory, "state"),
                 mobileConnectionUrlProvider: () => $"http://192.168.1.20:{port}/?key={accessKey}");
             server.Start();
 

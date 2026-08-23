@@ -157,6 +157,7 @@ public sealed class ExtensionApiV1ContractTests
                 requireAccessKey: true,
                 accessKey: AccessKey,
                 listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
                 nodeId: "fixture-host",
                 nodeName: "扩展契约测试主机");
             server.Start();

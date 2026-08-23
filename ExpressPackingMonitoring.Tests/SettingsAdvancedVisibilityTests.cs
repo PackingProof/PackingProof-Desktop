@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.ViewModels;
 using System.Xml.Linq;
 using Xunit;
 
@@ -221,9 +222,51 @@ public sealed class SettingsAdvancedVisibilityTests
             trigger => (string?)trigger.Attribute("Binding") == "{Binding Online}"
                 && (string?)trigger.Attribute("Value") == "True");
         Assert.Contains(
-            grid.Descendants(Presentation + "DataGridTextColumn"),
+            grid.Descendants(Presentation + "DataGridTemplateColumn"),
             column => (string?)column.Attribute("Header") == "最近活动"
-                && (string?)column.Attribute("Binding") == "{Binding ActivityText}");
+                && column.Descendants(Presentation + "TextBlock").Any(text =>
+                    (string?)text.Attribute("Text") == "{Binding ActivityText}"
+                    && (string?)text.Attribute("VerticalAlignment") == "Center"));
+        Assert.Equal("13", (string?)grid.Attribute("FontSize"));
+        Assert.Equal("Center", (string?)grid.Attribute("VerticalContentAlignment"));
+    }
+
+    [Fact]
+    public void ExtensionApiPlacesOrderIntegrationInstallImmediatelyAfterToggleAndUsesShortHint()
+    {
+        string xaml = LoadSettingsXaml().ToString(SaveOptions.DisableFormatting);
+        int toggle = xaml.IndexOf("Text=\"启用扩展 API\"", StringComparison.Ordinal);
+        int install = xaml.IndexOf("Text=\"安装订单联动\"", StringComparison.Ordinal);
+        int devices = xaml.IndexOf("Text=\"订单联动设备\"", StringComparison.Ordinal);
+
+        Assert.True(toggle >= 0 && install > toggle && devices > install);
+        Assert.Contains("允许经过授权的 ERP、称重设备和其他扩展连接", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("关闭时不启动扩展任务服务", xaml, StringComparison.Ordinal);
+
+        XDocument document = LoadSettingsXaml();
+        XElement installLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "安装订单联动");
+        XElement customLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "自定义订单脚本");
+        XElement installCard = installLabel.Ancestors(Presentation + "Border")
+            .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
+        XElement customCard = customLabel.Ancestors(Presentation + "Border")
+            .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
+        Assert.Same(installCard, customCard);
+        Assert.Contains("扩展 API 授权", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("已授权扩展", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OrderIntegrationDeviceActivityDescribesProcessingWithoutAmbiguousDirection()
+    {
+        string activity = MainViewModel.FormatOrderIntegrationDeviceActivity(DateTimeOffset.UtcNow, 3);
+
+        Assert.Contains("已处理 3 条联动数据", activity, StringComparison.Ordinal);
+        Assert.DoesNotContain("收到", activity, StringComparison.Ordinal);
+        Assert.Equal("暂无联动数据", MainViewModel.FormatOrderIntegrationDeviceActivity(null, 0));
     }
 
     [Fact]
