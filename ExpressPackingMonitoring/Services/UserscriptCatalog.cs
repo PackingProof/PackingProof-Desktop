@@ -31,7 +31,7 @@ internal sealed class UserscriptCatalog
     private readonly string _registryPath;
     private List<UserscriptDescriptor> _items;
 
-    internal UserscriptCatalog(string directory = null)
+    internal UserscriptCatalog(string? directory = null)
     {
         _directory = directory ?? AppPaths.UserscriptsDir;
         _registryPath = Path.Combine(_directory, RegistryFileName);
@@ -71,7 +71,7 @@ internal sealed class UserscriptCatalog
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source))).ToLowerInvariant();
         lock (_sync)
         {
-            UserscriptDescriptor existing = _items.FirstOrDefault(item => item.Sha256 == hash);
+            UserscriptDescriptor? existing = _items.FirstOrDefault(item => item.Sha256 == hash);
             if (existing != null) return existing;
             UserscriptDescriptor descriptor = InspectText(source, "custom-" + hash[..16], false);
             descriptor.FileName = Path.GetFileName(sourcePath);
@@ -91,7 +91,7 @@ internal sealed class UserscriptCatalog
         lock (_sync)
         {
             _items = Load();
-            UserscriptDescriptor item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
+            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
             return item != null && File.Exists(item.SourcePath) ? item.SourcePath : "";
         }
     }
@@ -100,7 +100,7 @@ internal sealed class UserscriptCatalog
     {
         lock (_sync)
         {
-            UserscriptDescriptor item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
+            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
             if (item == null) return false;
             _items.Remove(item);
             try { if (File.Exists(item.SourcePath)) File.Delete(item.SourcePath); } catch { }
