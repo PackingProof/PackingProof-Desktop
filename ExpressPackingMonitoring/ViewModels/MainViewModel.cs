@@ -3806,7 +3806,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async void RestartCameraWithRecordingStop()
+        private async void RestartCameraWithRecordingStop(string trigger)
         {
             if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
             {
@@ -3818,7 +3818,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _isRestartingCamera = true;
             try
             {
-                RuntimeLog.Warn("Camera", $"RestartCameraWithRecordingStop start recording={IsRecording}, failures={_consecutiveRestartFailures}");
+                RuntimeLog.Warn("Camera", $"RestartCameraWithRecordingStop start trigger={trigger}, recording={IsRecording}, failures={_consecutiveRestartFailures}");
                 if (IsRecording)
                 {
                     _stopReason = "摄像头重连";
@@ -4105,7 +4105,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                             return;
                         ShowToast("摄像头连接发生错误，尝试重连...", ToastSeverity.Warning);
-                        RestartCameraWithRecordingStop();
+                        RestartCameraWithRecordingStop("video-source-error");
                     });
                 };
 
@@ -4222,7 +4222,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                     return;
                 ShowToast("网络摄像头连接异常，尝试重连...", ToastSeverity.Warning);
-                RestartCameraWithRecordingStop();
+                RestartCameraWithRecordingStop("network-source-error");
             });
         }
 
@@ -4698,7 +4698,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
                                     ShowToast("摄像头信号丢失，尝试重连...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
-                                    RestartCameraWithRecordingStop();
+                                    RestartCameraWithRecordingStop("camera-frame-timeout");
                                 });
                             }
                         }
@@ -4712,7 +4712,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
                                     ShowToast("摄像头已断开，等待重新连接...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
-                                    RestartCameraWithRecordingStop();
+                                    RestartCameraWithRecordingStop("camera-source-stopped");
                                 });
                             }
                         }
@@ -4872,14 +4872,23 @@ namespace ExpressPackingMonitoring.ViewModels
             if (now - _lastPreviewWatchdogRestartAt < PreviewFreezeRestartCooldown) return;
 
             _lastPreviewWatchdogRestartAt = now;
-            RuntimeLog.Warn("Preview", $"Preview frozen for {sinceLastPreview.TotalSeconds:F1}s, restarting camera. recording={IsRecording}, queue={queueCount}, writeTask={writeTaskStatus}");
+            if (CameraReconnectPolicy.GetPreviewFreezeRecovery(sinceLastFrame, PreviewFreezeWarnThreshold)
+                == PreviewFreezeRecoveryAction.ResetPreviewPipeline)
+            {
+                RuntimeLog.Warn("Preview", $"Preview frozen for {sinceLastPreview.TotalSeconds:F1}s while camera frames remain fresh; resetting preview pipeline without camera restart. recording={IsRecording}, queue={queueCount}, writeTask={writeTaskStatus}");
+                LogResourceHealthIfDue("preview-reset", force: true);
+                _previewSessionGate.ClearCurrentPending();
+                return;
+            }
+
+            RuntimeLog.Warn("Preview", $"Preview frozen for {sinceLastPreview.TotalSeconds:F1}s with stale camera frames, restarting camera. recording={IsRecording}, queue={queueCount}, writeTask={writeTaskStatus}");
             LogResourceHealthIfDue("preview-restart", force: true);
             _previewSessionGate.ClearCurrentPending();
             _ = Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
                 ShowToast("预览画面卡住，正在重连摄像头...", ToastSeverity.Warning);
-                RestartCameraWithRecordingStop();
+                RestartCameraWithRecordingStop("preview-freeze-with-stale-camera-frame");
             });
         }
 

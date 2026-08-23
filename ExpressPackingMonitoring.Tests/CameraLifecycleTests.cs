@@ -35,6 +35,22 @@ public sealed class CameraLifecycleTests
     }
 
     [Fact]
+    public void CameraReconnectPolicy_DoesNotRestartHealthyCameraForPreviewOrEncoderBackpressure()
+    {
+        Assert.Equal(
+            PreviewFreezeRecoveryAction.ResetPreviewPipeline,
+            CameraReconnectPolicy.GetPreviewFreezeRecovery(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
+    public void CameraReconnectPolicy_AllowsRestartAfterCameraFramesActuallyStop()
+    {
+        Assert.Equal(
+            PreviewFreezeRecoveryAction.RestartCamera,
+            CameraReconnectPolicy.GetPreviewFreezeRecovery(TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(3)));
+    }
+
+    [Fact]
     public void PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession()
     {
         var gate = new PreviewSessionGate();

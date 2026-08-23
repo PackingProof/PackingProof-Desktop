@@ -21,6 +21,22 @@ internal static class CameraFrameProcessingPolicy
     }
 }
 
+internal enum PreviewFreezeRecoveryAction
+{
+    ResetPreviewPipeline,
+    RestartCamera
+}
+
+internal static class CameraReconnectPolicy
+{
+    public static PreviewFreezeRecoveryAction GetPreviewFreezeRecovery(
+        TimeSpan sinceLastFrame,
+        TimeSpan staleFrameThreshold) =>
+        sinceLastFrame <= staleFrameThreshold
+            ? PreviewFreezeRecoveryAction.ResetPreviewPipeline
+            : PreviewFreezeRecoveryAction.RestartCamera;
+}
+
 internal sealed class CameraFrameRateGate
 {
     private long _lastAcceptedTimestamp;
