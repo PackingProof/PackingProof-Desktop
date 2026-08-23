@@ -64,6 +64,9 @@ public sealed class SettingsContext
     public Action? CopyMobileConnectionUrl { get; init; }
     public Action? OpenUserscriptGuide { get; init; }
     public Action? ImportUserscript { get; init; }
+    public Func<IReadOnlyList<ExtensionAuthorizationDisplayItem>>? GetExtensionAuthorizations { get; init; }
+    public Func<string, ExtensionCredentialDisplayResult?>? RotateExtensionCredential { get; init; }
+    public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
     public Action<double?>? SetPreviewZoomScale { get; init; }
     public Action<CameraBarcodeGuideGeometry?>? SetPreviewGuideGeometry { get; init; }
     public Func<bool>? SuspendCameraForSetupWizard { get; init; }
@@ -88,6 +91,9 @@ public sealed class SettingsContext
             CopyMobileConnectionUrl = mainViewModel.CopyMobileConnectionUrl,
             OpenUserscriptGuide = mainViewModel.OpenUserscriptGuide,
             ImportUserscript = mainViewModel.ImportUserscript,
+            GetExtensionAuthorizations = mainViewModel.GetExtensionAuthorizations,
+            RotateExtensionCredential = mainViewModel.RotateExtensionCredential,
+            RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,
             SetPreviewZoomScale = value => mainViewModel.PreviewZoomScale = value,
             SetPreviewGuideGeometry = value => mainViewModel.PreviewGuideGeometry = value,
             SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
@@ -103,3 +109,17 @@ public sealed class SettingsContext
         };
     }
 }
+
+public sealed record ExtensionAuthorizationDisplayItem(
+    string ExtensionInstanceId,
+    string DisplayName,
+    string Version,
+    string Source,
+    string PermissionsText,
+    string BindingText,
+    int CredentialGeneration,
+    DateTimeOffset UpdatedAtUtc);
+
+public sealed record ExtensionCredentialDisplayResult(
+    string Credential,
+    int CredentialGeneration);

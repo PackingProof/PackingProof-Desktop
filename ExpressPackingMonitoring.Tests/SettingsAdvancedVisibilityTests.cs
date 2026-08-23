@@ -171,6 +171,28 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
+    public void ExtensionAuthorizations_UseManagementGridWithSafeActions()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement grid = Assert.Single(
+            document.Descendants(Presentation + "DataGrid"),
+            element => ((string?)element.Attribute("ItemsSource"))?.Contains(
+                "ExtensionAuthorizations",
+                StringComparison.Ordinal) == true);
+
+        XElement[] columns = grid.Descendants(Presentation + "DataGridTemplateColumn").ToArray();
+        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "扩展");
+        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "权限与绑定");
+        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "管理");
+        Assert.Contains(grid.Descendants(Presentation + "Button"), button =>
+            (string?)button.Attribute("Content") == "轮换凭据"
+            && (string?)button.Attribute("Click") == "RotateExtensionCredential_Click");
+        Assert.Contains(grid.Descendants(Presentation + "Button"), button =>
+            (string?)button.Attribute("Content") == "撤销"
+            && (string?)button.Attribute("Style") == "{StaticResource DangerButtonStyle}");
+    }
+
+    [Fact]
     public void SettingRows_HighlightOnlyWhileEnabledAndPurposeHintIsRemoved()
     {
         XDocument document = LoadSettingsXaml();

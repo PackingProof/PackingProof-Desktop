@@ -4430,6 +4430,42 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        internal IReadOnlyList<ExtensionAuthorizationDisplayItem> GetExtensionAuthorizations()
+        {
+            if (_extensionAuthorizationStore == null)
+            {
+                string extensionDirectory = Path.Combine(AppPaths.MobileBackupStateDir, "extensions");
+                if (!Directory.Exists(extensionDirectory))
+                    return [];
+                _extensionAuthorizationStore = new ExtensionAuthorizationStore(AppPaths.MobileBackupStateDir);
+            }
+            return _extensionAuthorizationStore.GetAll(includeRevoked: false)
+                .Select(value => new ExtensionAuthorizationDisplayItem(
+                    value.ExtensionInstanceId,
+                    value.DisplayName,
+                    value.Version,
+                    value.Source,
+                    string.Join("、", value.Permissions),
+                    value.RoutingScope == ExtensionRoutingScope.AllLocalRecordingNodes
+                        ? "所有本机录像工位"
+                        : string.Join("、", value.BoundOriginNodeIds),
+                    value.CredentialGeneration,
+                    value.UpdatedAtUtc))
+                .ToArray();
+        }
+
+        internal ExtensionCredentialDisplayResult RotateExtensionCredential(string extensionInstanceId)
+        {
+            ExtensionEnrollmentCredential rotated = _extensionAuthorizationStore?.RotateCredential(extensionInstanceId)
+                ?? throw new InvalidOperationException("扩展授权尚未加载");
+            return new ExtensionCredentialDisplayResult(
+                rotated.Credential,
+                rotated.Authorization.CredentialGeneration);
+        }
+
+        internal bool RevokeExtensionAuthorization(string extensionInstanceId) =>
+            _extensionAuthorizationStore?.Revoke(extensionInstanceId) == true;
+
         private Mat BitmapToMat(Bitmap bitmap)
         {
             if (bitmap.PixelFormat == PixelFormat.Format24bppRgb)

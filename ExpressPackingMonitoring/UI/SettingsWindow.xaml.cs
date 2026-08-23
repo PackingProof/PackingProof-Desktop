@@ -167,6 +167,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
         public ObservableCollection<UserscriptDescriptor> CustomUserscripts { get; } = new();
+        public ObservableCollection<ExtensionAuthorizationDisplayItem> ExtensionAuthorizations { get; } = new();
         private const string FeedbackEmail = "PackingProof@outlook.com";
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -192,6 +193,7 @@ namespace ExpressPackingMonitoring.UI
 
             this.DataContext = this;
             RefreshCustomUserscripts();
+            RefreshExtensionAuthorizations();
             if (Capabilities.IsRecordingDevice)
                 SyncVoiceEngineComboBoxFromConfig();
             if (Capabilities.CanUseScanner)
@@ -2329,6 +2331,56 @@ namespace ExpressPackingMonitoring.UI
             CustomUserscripts.Clear();
             foreach (UserscriptDescriptor script in new UserscriptCatalog().GetCustomScripts())
                 CustomUserscripts.Add(script);
+        }
+
+        private void RefreshExtensionAuthorizations()
+        {
+            ExtensionAuthorizations.Clear();
+            foreach (ExtensionAuthorizationDisplayItem item in
+                     Context.GetExtensionAuthorizations?.Invoke() ?? [])
+                ExtensionAuthorizations.Add(item);
+        }
+
+        private void RotateExtensionCredential_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { CommandParameter: ExtensionAuthorizationDisplayItem item }) return;
+            if (!AppDialog.Confirm(
+                    this,
+                    $"确定轮换“{item.DisplayName}”的连接凭据吗？旧凭据会立即失效，扩展必须保存新凭据后才能继续连接",
+                    "轮换扩展凭据",
+                    AppDialogSeverity.Warning,
+                    "轮换"))
+                return;
+            try
+            {
+                ExtensionCredentialDisplayResult result = Context.RotateExtensionCredential?.Invoke(item.ExtensionInstanceId)
+                    ?? throw new InvalidOperationException("当前无法轮换扩展凭据");
+                if (!ClipboardHelper.TrySetDataObject(result.Credential, out Exception error))
+                    throw new InvalidOperationException($"新凭据已生成，但复制失败：{error.Message}");
+                RefreshExtensionAuthorizations();
+                AppDialog.Information(this, "新凭据已复制到剪贴板，请立即粘贴到扩展中。关闭此提示后程序不会再次显示完整凭据", "凭据已轮换");
+            }
+            catch (Exception ex)
+            {
+                AppDialog.Error(this, $"轮换扩展凭据失败：{ex.Message}", "轮换失败");
+            }
+        }
+
+        private void RevokeExtensionAuthorization_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { CommandParameter: ExtensionAuthorizationDisplayItem item }) return;
+            if (!AppDialog.Confirm(
+                    this,
+                    $"确定撤销“{item.DisplayName}”的授权吗？撤销后该扩展会立即停止接收新任务",
+                    "撤销扩展授权",
+                    AppDialogSeverity.Warning,
+                    "撤销"))
+                return;
+            if (Context.RevokeExtensionAuthorization?.Invoke(item.ExtensionInstanceId) == true)
+            {
+                RefreshExtensionAuthorizations();
+                Context.ShowToast?.Invoke("扩展授权已撤销", ToastSeverity.Success);
+            }
         }
 
         private void ShowMobileConnection_Click(object sender, RoutedEventArgs e)

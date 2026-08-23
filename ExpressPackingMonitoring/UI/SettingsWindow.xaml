@@ -3435,6 +3435,54 @@
                                 </StackPanel>
                             </Border>
 
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="已授权扩展" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,10"/>
+                                    <TextBlock Text="授权扩展会一直保留到手动撤销；轮换凭据后旧凭据立即失效"
+                                               Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8"
+                                            Background="{DynamicResource ControlBackground}">
+                                        <DataGrid ItemsSource="{Binding ExtensionAuthorizations}" AutoGenerateColumns="False"
+                                                  CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
+                                                  Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
+                                                  RowHeight="72" MinHeight="48" MaxHeight="300" SelectionMode="Single"
+                                                  PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel" CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}" CellStyle="{StaticResource StorageGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Header="扩展" Width="2*">
+                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                                        <StackPanel Margin="12,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Style="{StaticResource FieldHintStyle}"><Run Text="版本 "/><Run Text="{Binding Version}"/><Run Text=" · "/><Run Text="{Binding Source}"/></TextBlock>
+                                                        </StackPanel>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="权限与绑定" Width="2*">
+                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                                        <StackPanel Margin="12,0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding PermissionsText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding PermissionsText}"/>
+                                                            <TextBlock Text="{Binding BindingText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding BindingText}"/>
+                                                        </StackPanel>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="管理" Width="190">
+                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                            <Button Content="轮换凭据" Margin="0,0,8,0" Padding="10,5" CommandParameter="{Binding}"
+                                                                    Click="RotateExtensionCredential_Click" Style="{StaticResource SecondaryButtonStyle}"/>
+                                                            <Button Content="撤销" Width="60" Height="32" CommandParameter="{Binding}"
+                                                                    Click="RevokeExtensionAuthorization_Click" Style="{StaticResource DangerButtonStyle}"/>
+                                                        </StackPanel>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
                             <Border Style="{StaticResource SectionCardStyle}"
                                     Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
