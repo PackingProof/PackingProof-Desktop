@@ -144,6 +144,7 @@
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ConnectedClientRegistry.cs" />
+    <Compile Include="Services\ExtensionScanTaskBroker.cs" />
     <Compile Include="Services\ClipboardHelper.cs" />
     <Compile Include="Services\FfmpegWorkLimiter.cs" />
     <Compile Include="Services\FeedbackMailLauncher.cs" />
