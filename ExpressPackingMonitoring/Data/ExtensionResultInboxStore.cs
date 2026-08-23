@@ -34,6 +34,9 @@ internal sealed record ExtensionResultSubmission
     internal string ResultId { get; init; } = "";
     internal string DeliveryId { get; init; } = "";
     internal string TaskId { get; init; } = "";
+    internal string OriginNodeId { get; init; } = "";
+    internal string RecordingSessionId { get; init; } = "";
+    internal string TrackingNumber { get; init; } = "";
     internal string Capability { get; init; } = "";
     internal long Revision { get; init; }
     internal ExtensionScanResultStatus Status { get; init; }
@@ -53,6 +56,9 @@ internal sealed record ExtensionResultInboxItem
     internal string ResultId { get; init; } = "";
     internal string DeliveryId { get; init; } = "";
     internal string TaskId { get; init; } = "";
+    internal string OriginNodeId { get; init; } = "";
+    internal string RecordingSessionId { get; init; } = "";
+    internal string TrackingNumber { get; init; } = "";
     internal string Capability { get; init; } = "";
     internal long Revision { get; init; }
     internal ExtensionScanResultStatus Status { get; init; }
@@ -113,6 +119,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             {
                 if (!string.Equals(latest.ExtensionInstanceId, normalized.ExtensionInstanceId, StringComparison.Ordinal)
                     || !string.Equals(latest.TaskId, normalized.TaskId, StringComparison.Ordinal)
+                    || !string.Equals(latest.OriginNodeId, normalized.OriginNodeId, StringComparison.Ordinal)
+                    || !string.Equals(latest.RecordingSessionId, normalized.RecordingSessionId, StringComparison.Ordinal)
+                    || !string.Equals(latest.TrackingNumber, normalized.TrackingNumber, StringComparison.Ordinal)
                     || !string.Equals(latest.Capability, normalized.Capability, StringComparison.Ordinal))
                 {
                     transaction.Rollback();
@@ -310,6 +319,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 ResultId TEXT NOT NULL,
                 DeliveryId TEXT NOT NULL,
                 TaskId TEXT NOT NULL,
+                OriginNodeId TEXT NOT NULL,
+                RecordingSessionId TEXT NOT NULL,
+                TrackingNumber TEXT NOT NULL,
                 Capability TEXT NOT NULL,
                 Revision INTEGER NOT NULL,
                 Status TEXT NOT NULL,
@@ -330,6 +342,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 DeliveryId TEXT PRIMARY KEY,
                 ExtensionInstanceId TEXT NOT NULL,
                 TaskId TEXT NOT NULL,
+                OriginNodeId TEXT NOT NULL,
+                RecordingSessionId TEXT NOT NULL,
+                TrackingNumber TEXT NOT NULL,
                 Capability TEXT NOT NULL,
                 LatestRevision INTEGER NOT NULL,
                 LatestPayloadFingerprint TEXT NOT NULL,
@@ -337,6 +352,12 @@ internal sealed class ExtensionResultInboxStore : IDisposable
                 LatestInboxId INTEGER,
                 UpdatedAtUtc TEXT NOT NULL
             );");
+        EnsureColumn("ExtensionResultInbox", "OriginNodeId", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionResultInbox", "RecordingSessionId", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionResultInbox", "TrackingNumber", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionDeliveryRevisions", "OriginNodeId", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionDeliveryRevisions", "RecordingSessionId", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("ExtensionDeliveryRevisions", "TrackingNumber", "TEXT NOT NULL DEFAULT ''");
         Execute("CREATE INDEX IF NOT EXISTS IX_ExtensionResultInbox_State_NextAttempt ON ExtensionResultInbox(State, NextAttemptAtUtc, CreatedAtUtc);");
     }
 
@@ -350,10 +371,12 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.CommandText = @"
             INSERT INTO ExtensionResultInbox (
                 ExtensionInstanceId, ProviderId, ResultId, DeliveryId, TaskId,
+                OriginNodeId, RecordingSessionId, TrackingNumber,
                 Capability, Revision, Status, ObservedAtUtc, PayloadJson,
                 PayloadFingerprint, State, CreatedAtUtc, UpdatedAtUtc)
             VALUES (
                 @extensionId, @providerId, @resultId, @deliveryId, @taskId,
+                @originNodeId, @recordingSessionId, @trackingNumber,
                 @capability, @revision, @status, @observedAt, @payload,
                 @fingerprint, @state, @now, @now);
             SELECT last_insert_rowid();";
@@ -373,10 +396,12 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.Transaction = transaction;
         command.CommandText = @"
             INSERT INTO ExtensionDeliveryRevisions (
-                DeliveryId, ExtensionInstanceId, TaskId, Capability, LatestRevision,
+                DeliveryId, ExtensionInstanceId, TaskId, OriginNodeId,
+                RecordingSessionId, TrackingNumber, Capability, LatestRevision,
                 LatestPayloadFingerprint, LatestResultId, LatestInboxId, UpdatedAtUtc)
             VALUES (
-                @deliveryId, @extensionId, @taskId, @capability, @revision,
+                @deliveryId, @extensionId, @taskId, @originNodeId,
+                @recordingSessionId, @trackingNumber, @capability, @revision,
                 @fingerprint, @resultId, @inboxId, @now)
             ON CONFLICT(DeliveryId) DO UPDATE SET
                 LatestRevision = excluded.LatestRevision,
@@ -397,6 +422,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.Parameters.AddWithValue("@resultId", submission.ResultId);
         command.Parameters.AddWithValue("@deliveryId", submission.DeliveryId);
         command.Parameters.AddWithValue("@taskId", submission.TaskId);
+        command.Parameters.AddWithValue("@originNodeId", submission.OriginNodeId);
+        command.Parameters.AddWithValue("@recordingSessionId", submission.RecordingSessionId);
+        command.Parameters.AddWithValue("@trackingNumber", submission.TrackingNumber);
         command.Parameters.AddWithValue("@capability", submission.Capability);
         command.Parameters.AddWithValue("@revision", submission.Revision);
         command.Parameters.AddWithValue("@status", submission.Status.ToString());
@@ -410,7 +438,8 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         using SqliteCommand command = _connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = @"
-            SELECT ExtensionInstanceId, TaskId, Capability, LatestRevision,
+            SELECT ExtensionInstanceId, TaskId, OriginNodeId, RecordingSessionId,
+                   TrackingNumber, Capability, LatestRevision,
                    LatestPayloadFingerprint, LatestResultId, LatestInboxId
             FROM ExtensionDeliveryRevisions
             WHERE DeliveryId = @deliveryId;";
@@ -422,10 +451,13 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             reader.GetString(0),
             reader.GetString(1),
             reader.GetString(2),
-            reader.GetInt64(3),
+            reader.GetString(3),
             reader.GetString(4),
             reader.GetString(5),
-            reader.IsDBNull(6) ? null : reader.GetInt64(6));
+            reader.GetInt64(6),
+            reader.GetString(7),
+            reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetInt64(9));
     }
 
     private BusinessResult? ReadBusinessResult(
@@ -455,6 +487,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.Transaction = transaction;
         command.CommandText = @"
             SELECT Id, ExtensionInstanceId, ProviderId, ResultId, DeliveryId, TaskId,
+                   OriginNodeId, RecordingSessionId, TrackingNumber,
                    Capability, Revision, Status, ObservedAtUtc, PayloadJson,
                    PayloadFingerprint, State, AttemptCount, NextAttemptAtUtc,
                    LastError, CreatedAtUtc, UpdatedAtUtc
@@ -464,7 +497,7 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         using SqliteDataReader reader = command.ExecuteReader();
         if (!reader.Read())
             return null;
-        if (!Enum.TryParse(reader.GetString(8), out ExtensionScanResultStatus status))
+        if (!Enum.TryParse(reader.GetString(11), out ExtensionScanResultStatus status))
             throw new InvalidDataException("扩展结果状态无法识别");
         return new ExtensionResultInboxItem
         {
@@ -474,18 +507,21 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             ResultId = reader.GetString(3),
             DeliveryId = reader.GetString(4),
             TaskId = reader.GetString(5),
-            Capability = reader.GetString(6),
-            Revision = reader.GetInt64(7),
+            OriginNodeId = reader.GetString(6),
+            RecordingSessionId = reader.GetString(7),
+            TrackingNumber = reader.GetString(8),
+            Capability = reader.GetString(9),
+            Revision = reader.GetInt64(10),
             Status = status,
-            ObservedAtUtc = Parse(reader.GetString(9)),
-            PayloadJson = reader.GetString(10),
-            PayloadFingerprint = reader.GetString(11),
-            State = reader.GetString(12),
-            AttemptCount = reader.GetInt32(13),
-            NextAttemptAtUtc = reader.IsDBNull(14) ? null : Parse(reader.GetString(14)),
-            LastError = reader.GetString(15),
-            CreatedAtUtc = Parse(reader.GetString(16)),
-            UpdatedAtUtc = Parse(reader.GetString(17))
+            ObservedAtUtc = Parse(reader.GetString(12)),
+            PayloadJson = reader.GetString(13),
+            PayloadFingerprint = reader.GetString(14),
+            State = reader.GetString(15),
+            AttemptCount = reader.GetInt32(16),
+            NextAttemptAtUtc = reader.IsDBNull(17) ? null : Parse(reader.GetString(17)),
+            LastError = reader.GetString(18),
+            CreatedAtUtc = Parse(reader.GetString(19)),
+            UpdatedAtUtc = Parse(reader.GetString(20))
         };
     }
 
@@ -500,6 +536,11 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         string resultId = NormalizeIdentifier(submission.ResultId, "结果 ID");
         string deliveryId = NormalizeIdentifier(submission.DeliveryId, "投递 ID");
         string taskId = NormalizeIdentifier(submission.TaskId, "任务 ID");
+        string originNodeId = NormalizeIdentifier(submission.OriginNodeId, "来源节点 ID");
+        string recordingSessionId = NormalizeIdentifier(submission.RecordingSessionId, "录像会话 ID");
+        string trackingNumber = submission.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
+        if (trackingNumber.Length is < 1 or > 128 || trackingNumber.Any(char.IsControl))
+            throw new InvalidDataException("快递单号格式无效");
         string capability = submission.Capability?.Trim().ToLowerInvariant() ?? "";
         if (!ExtensionScanCapabilities.Supported.Contains(capability))
             throw new InvalidDataException("结果能力不受支持");
@@ -521,6 +562,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
             resultId,
             deliveryId,
             taskId,
+            originNodeId,
+            recordingSessionId,
+            trackingNumber,
             capability,
             submission.Revision,
             submission.Status,
@@ -598,6 +642,26 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         command.ExecuteNonQuery();
     }
 
+    private void EnsureColumn(string tableName, string columnName, string definition)
+    {
+        using SqliteCommand check = _connection.CreateCommand();
+        check.CommandText = $"PRAGMA table_info('{tableName.Replace("'", "''")}');";
+        using SqliteDataReader reader = check.ExecuteReader();
+        bool exists = false;
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                exists = true;
+                break;
+            }
+        }
+        reader.Close();
+        if (exists)
+            return;
+        Execute($"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};");
+    }
+
     private static string Format(DateTimeOffset value) => value.UtcDateTime.ToString("O");
 
     private static DateTimeOffset Parse(string value) =>
@@ -611,6 +675,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
         string ResultId,
         string DeliveryId,
         string TaskId,
+        string OriginNodeId,
+        string RecordingSessionId,
+        string TrackingNumber,
         string Capability,
         long Revision,
         ExtensionScanResultStatus Status,
@@ -621,6 +688,9 @@ internal sealed class ExtensionResultInboxStore : IDisposable
     private sealed record DeliveryRevision(
         string ExtensionInstanceId,
         string TaskId,
+        string OriginNodeId,
+        string RecordingSessionId,
+        string TrackingNumber,
         string Capability,
         long LatestRevision,
         string LatestPayloadFingerprint,

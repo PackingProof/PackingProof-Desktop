@@ -1,6 +1,7 @@
 using System.IO;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -158,6 +159,51 @@ public sealed class ExtensionResultInboxStoreTests
         }));
     }
 
+    [Fact]
+    public void Initialize_AddsTrustedCorrelationColumnsToEarlierInboxSchema()
+    {
+        string directory = CreateTempDirectory();
+        string databasePath = Path.Combine(directory, "videos.db");
+        var time = new MutableTimeProvider(Utc(8, 0, 0));
+        try
+        {
+            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using SqliteCommand command = connection.CreateCommand();
+                command.CommandText = @"
+                    CREATE TABLE ExtensionResultInbox (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT, ExtensionInstanceId TEXT NOT NULL,
+                        ProviderId TEXT NOT NULL, ResultId TEXT NOT NULL, DeliveryId TEXT NOT NULL,
+                        TaskId TEXT NOT NULL, Capability TEXT NOT NULL, Revision INTEGER NOT NULL,
+                        Status TEXT NOT NULL, ObservedAtUtc TEXT NOT NULL, PayloadJson TEXT NOT NULL,
+                        PayloadFingerprint TEXT NOT NULL, State TEXT NOT NULL,
+                        AttemptCount INTEGER NOT NULL DEFAULT 0, NextAttemptAtUtc TEXT,
+                        LastError TEXT NOT NULL DEFAULT '', CreatedAtUtc TEXT NOT NULL,
+                        UpdatedAtUtc TEXT NOT NULL, UNIQUE (ExtensionInstanceId, ProviderId, ResultId),
+                        UNIQUE (DeliveryId, Revision));
+                    CREATE TABLE ExtensionDeliveryRevisions (
+                        DeliveryId TEXT PRIMARY KEY, ExtensionInstanceId TEXT NOT NULL,
+                        TaskId TEXT NOT NULL, Capability TEXT NOT NULL, LatestRevision INTEGER NOT NULL,
+                        LatestPayloadFingerprint TEXT NOT NULL, LatestResultId TEXT NOT NULL,
+                        LatestInboxId INTEGER, UpdatedAtUtc TEXT NOT NULL);";
+                command.ExecuteNonQuery();
+            }
+            SqliteTestPool.ClearPoolFor(directory);
+
+            using var migrated = new ExtensionResultInboxStore(databasePath, time);
+            ExtensionResultInboxAcceptResult accepted = migrated.Accept(Submission(time));
+            Assert.Equal(ExtensionResultInboxDisposition.Accepted, accepted.Disposition);
+            ExtensionResultInboxItem item = RequireNotNull(migrated.Get(accepted.InboxId!.Value));
+            Assert.Equal("recording-session-001", item.RecordingSessionId);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static ExtensionResultSubmission Submission(MutableTimeProvider time) => new()
     {
         ExtensionInstanceId = "scale-extension-001",
@@ -165,6 +211,9 @@ public sealed class ExtensionResultInboxStoreTests
         ResultId = "stable-result-001",
         DeliveryId = "delivery-result-001",
         TaskId = "scan-task-result-001",
+        OriginNodeId = "recording-node-001",
+        RecordingSessionId = "recording-session-001",
+        TrackingNumber = "YT123456",
         Capability = ExtensionScanCapabilities.MeasurementCapture,
         Revision = 1,
         Status = ExtensionScanResultStatus.Completed,
