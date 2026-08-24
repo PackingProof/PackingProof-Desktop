@@ -179,7 +179,8 @@ GET /api/extensions/v1/capabilities
   "features": {
     "signedScanTasks": true,
     "recordingSearch": true,
-    "recordingDownload": true
+    "recordingDownload": true,
+    "recordingDelivery": true
   }
 }
 ```
@@ -232,7 +233,7 @@ Content-Type: application/json
 
 完整的最小 JavaScript 客户端见 [`examples/extension-v1-minimal.js`](examples/extension-v1-minimal.js)。示例只包含注册、签名、心跳、任务领取、确认和结果提交，不包含任何 ERP 页面解析或业务系统代码，也不会自动保存凭据。
 
-需要检索录像的机器人申请 `recordings.search` 和 `recordings.download`。用户批准后凭据由机器人保存在自己的受保护状态中，不应要求用户复制网页访问密钥，也不得把扩展凭据写进源码。
+需要检索录像的机器人申请 `recordings.search` 和 `recordings.download`。需要由主机生成超限交付副本时，还应申请 `recordings.delivery`；该权限必须与录像查询、下载权限同时批准。用户批准后凭据由机器人保存在自己的受保护状态中，不应要求用户复制网页访问密钥，也不得把扩展凭据写进源码。
 
 ### 串口电子秤适配器示例
 
@@ -390,7 +391,7 @@ GET /api/extensions/v1/recording-queries/{queryId}
 | `failed` | 查询或文件准备失败 |
 | `expired` | 临时任务已经过期 |
 
-同一单号可能返回多段录像，每段录像有独立的 `status`、`progress`、`videoCodec` 和 `downloadUrl`。单次最多返回 20 段；超过时 `truncated=true` 并通过 `totalMatches` 告知完整数量。本地录像不会复制；仅存在于已确认 NAS 归档中的录像会先复制到 Web cache。某一段准备失败不会阻止其他已经就绪的录像下载。
+同一单号可能返回多段录像，每段录像有独立的 `status`、`progress`、`durationSeconds`、`fileSizeBytes`、`videoCodec`、`fileName` 和 `downloadUrl`。单次最多返回 20 段；超过时 `truncated=true` 并通过 `totalMatches` 告知完整数量。本地录像不会复制；仅存在于已确认 NAS 归档中的录像会先复制到 Web cache。某一段准备失败不会阻止其他已经就绪的录像下载。
 
 ```json
 {
@@ -421,6 +422,33 @@ GET /api/extensions/v1/recording-queries/{queryId}/recordings/{recordingId}/down
 ```
 
 服务端返回原始录像，不自动转码。机器人可根据 `videoCodec` 决定聊天平台是否接受；下载中断后任务恢复为 `ready`，可以重新签名下载。查询和临时缓存默认保留一小时，真实文件路径、UNC 地址和 NAS 凭据永远不会出现在响应中。
+
+### 超限录像交付副本
+
+当原始录像超过聊天平台限制时，机器人可以根据自己的设置请求主机生成副本。机器人必须先用查询响应中的 `fileSizeBytes` 和 `durationSeconds` 判断是否需要请求；未超限时应继续下载原片。主机不接受 FFmpeg 命令行、码率或 CRF 等自由参数，只接受固定预设和目标大小：
+
+```http
+POST /api/extensions/v1/recording-queries/{queryId}/recordings/{recordingId}/deliveries
+Content-Type: application/json
+
+{"profile":"source_codec_target_size","maxFileSizeMb":190}
+```
+
+预设 `source_codec_target_size` 保持源视频编码并降低码率；`h265_target_size` 明确要求 H.265。目标大小范围为 1 到 200 MB。主机按实际时长和目标字节数计算本次转码码率，使用双遍编码并校验最终文件大小；无法压入限制时返回 `delivery_size_limit_unreachable`，不会切割录像或修改原片。
+
+创建接口返回 `202` 和 `deliveryId`。机器人根据 `Retry-After` 轮询：
+
+```http
+GET /api/extensions/v1/recording-queries/{queryId}/recordings/{recordingId}/deliveries/{deliveryId}
+```
+
+状态为 `queued`、`transcoding`、`ready`、`downloading`、`completed`、`failed` 或 `expired`。`ready` 响应包含最终 `fileSizeBytes`、`durationSeconds`、`videoCodec`、`fileName` 和 `downloadUrl`。下载仍需签名：
+
+```http
+GET /api/extensions/v1/recording-queries/{queryId}/recordings/{recordingId}/deliveries/{deliveryId}/download
+```
+
+副本位于主机现有转码缓存目录的查询专用子目录，文件名为原文件名加 `_转码.mp4`，不使用哈希名。副本使用 `.partial` 原子发布并随查询任务在最长一小时后清理。
 
 NAS 临时副本受 Web cache 容量限制；空间不足或单个录像超过限制时，该录像返回 `archive_cache_limit_exceeded`，不会删除原始录像或已确认归档。
 
@@ -529,6 +557,15 @@ Content-Type: application/json
 - `tracking_number_invalid`
 - `recording_query_not_found`
 - `recording_download_not_ready`
+- `recording_delivery_not_found`
+- `recording_delivery_not_ready`
+- `recording_delivery_invalid`
+- `delivery_duration_unavailable`
+- `delivery_profile_unsupported`
+- `delivery_ffmpeg_unavailable`
+- `delivery_cache_limit_exceeded`
+- `delivery_transcode_failed`
+- `delivery_size_limit_unreachable`
 - `archive_cache_limit_exceeded`
 
 收到 `extension_auth_revoked` 或 `extension_auth_generation_mismatch` 后应停止使用旧凭据，由用户重新授权或录入轮换后的凭据；不要无限重试。

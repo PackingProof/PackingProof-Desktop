@@ -227,6 +227,7 @@ namespace ExpressPackingMonitoring.Services
         private ExtensionScanTaskBroker _extensionScanTaskBroker;
         private ExtensionScanResultSubmissionCoordinator _extensionScanResultCoordinator;
         private readonly ExtensionRecordingQueryService _extensionRecordingQueries;
+        private readonly ExtensionRecordingDeliveryService _extensionRecordingDeliveries;
         private Action _extensionResultAvailable;
         private readonly ConnectedClientRegistry _connectedClients;
         private readonly MobileAppUpdatePolicyProvider _mobileAppUpdatePolicy =
@@ -385,10 +386,18 @@ namespace ExpressPackingMonitoring.Services
             Port = port;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
             if (_extensionApiEnabled)
+            {
                 _extensionRecordingQueries = new ExtensionRecordingQueryService(
                     _db,
                     AppPaths.CacheDir,
                     _transCacheMaxBytes);
+                _extensionRecordingDeliveries = new ExtensionRecordingDeliveryService(
+                    _extensionRecordingQueries,
+                    AppPaths.TranscodeCacheDir,
+                    _transCacheMaxBytes,
+                    _ffmpegWorkLimiter,
+                    CleanWebCache);
+            }
             _listener = CreateListener(port, listenerHost);
             MigrateLegacyOrderInfoCache();
             LoadOrderInfoCacheFromDatabase();
@@ -1338,6 +1347,18 @@ namespace ExpressPackingMonitoring.Services
                         break;
                     case "/api/extensions/v1/recording-queries" when method == "POST":
                         HandleCreateExtensionRecordingQuery(ctx);
+                        break;
+                    case var p when method == "POST"
+                        && TryParseExtensionRecordingDeliveryCollectionPath(p, out _, out _):
+                        HandleCreateExtensionRecordingDelivery(ctx, p);
+                        break;
+                    case var p when method == "GET"
+                        && TryParseExtensionRecordingDeliveryDownloadPath(p, out _, out _, out _):
+                        HandleExtensionRecordingDeliveryDownload(ctx, p);
+                        break;
+                    case var p when method == "GET"
+                        && TryParseExtensionRecordingDeliveryPath(p, out _, out _, out _):
+                        HandleGetExtensionRecordingDelivery(ctx, p);
                         break;
                     case var p when method == "GET"
                         && TryParseExtensionRecordingDownloadPath(p, out _, out _):
@@ -3203,7 +3224,8 @@ namespace ExpressPackingMonitoring.Services
                     recordingMetadataWrite = true,
                     watermarkFields = true,
                     recordingSearch = true,
-                    recordingDownload = true
+                    recordingDownload = true,
+                    recordingDelivery = true
                 },
                 limits = new
                 {
@@ -3344,6 +3366,12 @@ namespace ExpressPackingMonitoring.Services
             public string TrackingNumber { get; set; } = "";
         }
 
+        private sealed class ExtensionRecordingDeliveryRequest
+        {
+            public string Profile { get; set; } = "";
+            public int MaxFileSizeMb { get; set; }
+        }
+
         private void HandleCreateExtensionRecordingQuery(HttpListenerContext ctx)
         {
             if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsSearch, out ExtensionAuthorizationContext authorization)) return;
@@ -3399,6 +3427,76 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
+        private void HandleCreateExtensionRecordingDelivery(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsDelivery, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingDeliveries == null
+                || !TryParseExtensionRecordingDeliveryCollectionPath(path, out string queryId, out long recordingId))
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_delivery_not_found", error = "录像交付副本不存在或已过期" });
+                return;
+            }
+            try
+            {
+                ExtensionRecordingDeliveryRequest request = ReadJsonBody<ExtensionRecordingDeliveryRequest>(ctx);
+                ExtensionRecordingDeliverySnapshot result = _extensionRecordingDeliveries.Create(
+                    authorization.ExtensionInstanceId,
+                    queryId,
+                    recordingId,
+                    request.Profile,
+                    request.MaxFileSizeMb);
+                ctx.Response.Headers.Add("Retry-After", "1");
+                SendJson(ctx, 202, result);
+            }
+            catch (FileNotFoundException)
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_delivery_not_ready", error = "录像不存在、尚未准备完成或已过期" });
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException)
+            {
+                SendJson(ctx, 400, new { errorCode = "recording_delivery_invalid", error = ex.Message });
+            }
+        }
+
+        private void HandleGetExtensionRecordingDelivery(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsDelivery, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingDeliveries == null
+                || !TryParseExtensionRecordingDeliveryPath(path, out string queryId, out long recordingId, out string deliveryId)
+                || !_extensionRecordingDeliveries.TryGet(authorization.ExtensionInstanceId, queryId, recordingId, deliveryId, out ExtensionRecordingDeliverySnapshot snapshot))
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_delivery_not_found", error = "录像交付副本不存在或已过期" });
+                return;
+            }
+            if (snapshot.Status is "queued" or "transcoding" or "downloading") ctx.Response.Headers.Add("Retry-After", "1");
+            SendJson(ctx, 200, snapshot);
+        }
+
+        private void HandleExtensionRecordingDeliveryDownload(HttpListenerContext ctx, string path)
+        {
+            if (!TryGetExtensionAuthorization(ctx, ExtensionPermissions.RecordingsDelivery, out ExtensionAuthorizationContext authorization)) return;
+            if (_extensionRecordingDeliveries == null
+                || !TryParseExtensionRecordingDeliveryDownloadPath(path, out string queryId, out long recordingId, out string deliveryId)
+                || !_extensionRecordingDeliveries.TryBeginDownload(
+                    authorization.ExtensionInstanceId,
+                    queryId,
+                    recordingId,
+                    deliveryId,
+                    out string filePath,
+                    out _))
+            {
+                SendJson(ctx, 404, new { errorCode = "recording_delivery_not_ready", error = "交付副本尚未准备完成或已过期" });
+                return;
+            }
+            bool completed = false;
+            try { completed = ServeFileWithRange(ctx, filePath, inline: false); }
+            finally
+            {
+                _extensionRecordingDeliveries.FinishDownload(deliveryId, completed);
+                if (completed) _extensionAuthorizations?.RecordBusinessActivity(authorization.ExtensionInstanceId, 1);
+            }
+        }
+
         private static bool TryParseExtensionRecordingQueryPath(string path, out string queryId)
         {
             queryId = "";
@@ -3422,6 +3520,58 @@ namespace ExpressPackingMonitoring.Services
                 || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out recordingId)
                 || !string.Equals(parts[3], "download", StringComparison.OrdinalIgnoreCase)) return false;
             queryId = parts[0];
+            return recordingId > 0;
+        }
+
+        private static bool TryParseExtensionRecordingDeliveryCollectionPath(string path, out string queryId, out long recordingId)
+        {
+            queryId = "";
+            recordingId = 0;
+            const string prefix = "/api/extensions/v1/recording-queries/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            string[] parts = path[prefix.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 4 || !Guid.TryParseExact(parts[0], "N", out _)
+                || !string.Equals(parts[1], "recordings", StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out recordingId)
+                || !string.Equals(parts[3], "deliveries", StringComparison.OrdinalIgnoreCase)) return false;
+            queryId = parts[0];
+            return recordingId > 0;
+        }
+
+        private static bool TryParseExtensionRecordingDeliveryPath(string path, out string queryId, out long recordingId, out string deliveryId)
+        {
+            queryId = "";
+            recordingId = 0;
+            deliveryId = "";
+            const string prefix = "/api/extensions/v1/recording-queries/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            string[] parts = path[prefix.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 5 || !Guid.TryParseExact(parts[0], "N", out _)
+                || !string.Equals(parts[1], "recordings", StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out recordingId)
+                || !string.Equals(parts[3], "deliveries", StringComparison.OrdinalIgnoreCase)
+                || !Guid.TryParseExact(parts[4], "N", out _)) return false;
+            queryId = parts[0];
+            deliveryId = parts[4];
+            return recordingId > 0;
+        }
+
+        private static bool TryParseExtensionRecordingDeliveryDownloadPath(string path, out string queryId, out long recordingId, out string deliveryId)
+        {
+            queryId = "";
+            recordingId = 0;
+            deliveryId = "";
+            const string prefix = "/api/extensions/v1/recording-queries/";
+            if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            string[] parts = path[prefix.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 6 || !Guid.TryParseExact(parts[0], "N", out _)
+                || !string.Equals(parts[1], "recordings", StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out recordingId)
+                || !string.Equals(parts[3], "deliveries", StringComparison.OrdinalIgnoreCase)
+                || !Guid.TryParseExact(parts[4], "N", out _)
+                || !string.Equals(parts[5], "download", StringComparison.OrdinalIgnoreCase)) return false;
+            queryId = parts[0];
+            deliveryId = parts[4];
             return recordingId > 0;
         }
 
@@ -6001,6 +6151,7 @@ namespace ExpressPackingMonitoring.Services
             if (Interlocked.Exchange(ref _serverResourcesDisposed, 1) != 0)
                 return;
             try { _clipService.Dispose(); } catch { }
+            try { _extensionRecordingDeliveries?.Dispose(); } catch { }
             try { _extensionRecordingQueries?.Dispose(); } catch { }
             try { _connectedClients.Dispose(); } catch { }
             _requestSlots.Dispose();

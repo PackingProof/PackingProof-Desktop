@@ -27,6 +27,8 @@ public sealed class ExtensionRecordingQueryServiceTests : IDisposable
         ExtensionRecordingSnapshot recording = Assert.Single(ready.Recordings);
         Assert.Equal("ready", recording.Status);
         Assert.Equal(4, recording.FileSizeBytes);
+        Assert.Equal(60, recording.DurationSeconds);
+        Assert.Equal("local.mp4", recording.FileName);
         Assert.False(Directory.Exists(Path.Combine(_directory, "cache", "extension-recording-queries", created.QueryId)));
         Assert.True(service.TryBeginDownload(created.QueryId, recording.RecordingId, "extension-owner", out string downloadPath));
         Assert.Equal(videoPath, downloadPath);
@@ -92,5 +94,29 @@ public sealed class ExtensionRecordingQueryServiceTests : IDisposable
     {
         SqliteTestPool.ClearPoolFor(_directory);
         try { Directory.Delete(_directory, recursive: true); } catch { }
+    }
+}
+
+public sealed class ExtensionRecordingDeliveryBitrateTests
+{
+    [Fact]
+    public void TryCalculate_UsesTargetSizeAndActualDuration()
+    {
+        const long targetBytes = 190L * 1024 * 1024;
+
+        Assert.True(ExtensionRecordingDeliveryBitrate.TryCalculate(60, targetBytes, out ExtensionRecordingDeliveryBitrate? oneMinute));
+        Assert.True(ExtensionRecordingDeliveryBitrate.TryCalculate(120, targetBytes, out ExtensionRecordingDeliveryBitrate? twoMinutes));
+
+        Assert.NotNull(oneMinute);
+        Assert.NotNull(twoMinutes);
+        Assert.True(oneMinute.VideoBitsPerSecond > twoMinutes.VideoBitsPerSecond);
+        Assert.InRange(oneMinute.AudioBitsPerSecond, 32_000, 128_000);
+    }
+
+    [Fact]
+    public void TryCalculate_RejectsMissingDurationAndImpossibleBudget()
+    {
+        Assert.False(ExtensionRecordingDeliveryBitrate.TryCalculate(0, 190L * 1024 * 1024, out _));
+        Assert.False(ExtensionRecordingDeliveryBitrate.TryCalculate(3600, 1024 * 1024, out _));
     }
 }

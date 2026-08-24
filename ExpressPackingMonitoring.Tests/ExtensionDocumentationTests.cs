@@ -21,6 +21,9 @@ public sealed class ExtensionDocumentationTests
         Assert.Contains("POST /api/extensions/v1/scan-results", document);
         Assert.Contains("POST /api/extensions/v1/recording-queries", document);
         Assert.Contains("recordings.download", document);
+        Assert.Contains("recordings.delivery", document);
+        Assert.Contains("source_codec_target_size", document);
+        Assert.Contains("_转码.mp4", document);
         Assert.Contains("extension_auth_replay_detected", document);
         Assert.Contains("examples/extension-v1-minimal.js", document);
         Assert.Contains("examples/extension-v1-serial-scale.js", document);

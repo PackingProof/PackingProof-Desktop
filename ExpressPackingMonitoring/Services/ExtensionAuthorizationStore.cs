@@ -16,6 +16,7 @@ internal static class ExtensionPermissions
     internal const string RecordingFieldsWrite = "recording-fields.write";
     internal const string RecordingsSearch = "recordings.search";
     internal const string RecordingsDownload = "recordings.download";
+    internal const string RecordingsDelivery = "recordings.delivery";
 
     internal static readonly IReadOnlySet<string> Supported = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -25,7 +26,8 @@ internal static class ExtensionPermissions
         RecordingsActiveRead,
         RecordingFieldsWrite,
         RecordingsSearch,
-        RecordingsDownload
+        RecordingsDownload,
+        RecordingsDelivery
     };
 }
 
@@ -325,6 +327,12 @@ internal sealed class ExtensionAuthorizationStore
         if (permissions.Contains(ExtensionPermissions.RecordingsDownload, StringComparer.Ordinal)
             && !permissions.Contains(ExtensionPermissions.RecordingsSearch, StringComparer.Ordinal))
             throw new InvalidDataException("录像下载权限必须与录像查询权限同时批准");
+        if (permissions.Contains(ExtensionPermissions.RecordingsDelivery, StringComparer.Ordinal)
+            && (!permissions.Contains(ExtensionPermissions.RecordingsSearch, StringComparer.Ordinal)
+                || !permissions.Contains(ExtensionPermissions.RecordingsDownload, StringComparer.Ordinal)))
+        {
+            throw new InvalidDataException("录像交付副本权限必须同时批准录像查询和下载权限");
+        }
         if (capabilities.Contains(ExtensionScanCapabilities.MeasurementCapture, StringComparer.Ordinal))
         {
             if (!permissions.Contains(ExtensionPermissions.RecordingFieldsWrite, StringComparer.Ordinal))

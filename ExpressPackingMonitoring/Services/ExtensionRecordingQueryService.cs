@@ -93,6 +93,38 @@ internal sealed class ExtensionRecordingQueryService : IDisposable
         }
     }
 
+    internal bool TryGetPreparedRecording(
+        string queryId,
+        long recordingId,
+        string ownerId,
+        out ExtensionPreparedRecording? recording)
+    {
+        recording = null;
+        if (!_queries.TryGetValue(queryId, out QueryState? state)
+            || !string.Equals(state.OwnerId, ownerId, StringComparison.Ordinal))
+            return false;
+        lock (state.Gate)
+        {
+            if (state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+            {
+                state.Status = "expired";
+                return false;
+            }
+            QueryRecording? item = state.Recordings.FirstOrDefault(value => value.RecordingId == recordingId);
+            if (item == null || item.Status is not ("ready" or "completed") || !File.Exists(item.PreparedPath))
+                return false;
+            recording = new ExtensionPreparedRecording(
+                state.QueryId,
+                item.RecordingId,
+                item.PreparedPath,
+                item.FileName,
+                item.VideoCodec,
+                item.DurationSeconds,
+                state.ExpiresAtUtc);
+            return true;
+        }
+    }
+
     internal static string NormalizeTrackingNumber(string value)
     {
         string normalized = value?.Trim() ?? "";
@@ -362,3 +394,12 @@ internal sealed record ExtensionRecordingQuerySnapshot(
 internal sealed record ExtensionRecordingSnapshot(
     long RecordingId, string Status, int Progress, DateTime RecordedAt, double DurationSeconds,
     long FileSizeBytes, string VideoCodec, string FileName, string? DownloadUrl, string ErrorCode);
+
+internal sealed record ExtensionPreparedRecording(
+    string QueryId,
+    long RecordingId,
+    string PreparedPath,
+    string FileName,
+    string VideoCodec,
+    double DurationSeconds,
+    DateTimeOffset ExpiresAt);

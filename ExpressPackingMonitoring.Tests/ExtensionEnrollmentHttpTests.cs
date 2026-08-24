@@ -519,7 +519,7 @@ public sealed class ExtensionEnrollmentHttpTests
             using HttpResponseMessage enrollment = await client.PostAsync(
                 "/api/extensions/v1/enroll",
                 JsonContent(RequestJson(
-                    [ExtensionPermissions.RecordingsSearch, ExtensionPermissions.RecordingsDownload],
+                    [ExtensionPermissions.RecordingsSearch, ExtensionPermissions.RecordingsDownload, ExtensionPermissions.RecordingsDelivery],
                     [])),
                 TestContext.Current.CancellationToken);
             enrollment.EnsureSuccessStatusCode();
@@ -561,6 +561,20 @@ public sealed class ExtensionEnrollmentHttpTests
             {
                 JsonElement recording = Assert.Single(readyPayload.RootElement.GetProperty("recordings").EnumerateArray());
                 Assert.Equal("h264", recording.GetProperty("videoCodec").GetString());
+                Assert.Equal(60, recording.GetProperty("durationSeconds").GetDouble());
+                Assert.Equal(expectedVideo.Length, recording.GetProperty("fileSizeBytes").GetInt64());
+                Assert.Equal("recording.mp4", recording.GetProperty("fileName").GetString());
+                string deliveryPath = $"/api/extensions/v1/recording-queries/{queryId}/recordings/{recordId}/deliveries";
+                string deliveryBody = JsonSerializer.Serialize(new { profile = "source_codec_target_size", maxFileSizeMb = 190 });
+                using HttpResponseMessage deliveryCreated = await client.SendAsync(
+                    SignedRequest(HttpMethod.Post, deliveryPath, deliveryBody, credential, generation, new string('d', 32)),
+                    TestContext.Current.CancellationToken);
+                Assert.Equal(HttpStatusCode.Accepted, deliveryCreated.StatusCode);
+                using JsonDocument deliveryPayload = JsonDocument.Parse(
+                    await deliveryCreated.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+                Assert.Equal(queryId, deliveryPayload.RootElement.GetProperty("queryId").GetString());
+                Assert.Equal(recordId, deliveryPayload.RootElement.GetProperty("recordingId").GetInt64());
+                Assert.Equal("recording_转码.mp4", deliveryPayload.RootElement.GetProperty("fileName").GetString());
                 string downloadPath = recording.GetProperty("downloadUrl").GetString()!;
                 using HttpResponseMessage downloaded = await client.SendAsync(
                     SignedRequest(HttpMethod.Get, downloadPath, "", credential, generation, new string('a', 32)),
