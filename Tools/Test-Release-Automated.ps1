@@ -94,9 +94,13 @@ try {
     $webProtectionSetupVersion = Get-AppConfigVersion "CurrentWebProtectionSetupVersion"
     $webAccessKey = "0123456789abcdef0123456789abcdef"
     $wpfProcess = $null
+    $noCameraFallbackStorage = $null
     try {
         $noCameraPort = Get-FreeTcpPort
         $noCameraStorage = Join-Path $wpfDataRoot "recordings"
+        $noCameraFallbackStorage = Join-Path (
+            [System.IO.Path]::GetTempPath()) (
+            "PackingProof-release-recordings-$PID-$([Guid]::NewGuid().ToString('N'))")
         $noCameraConfig = @{
             WorkstationRole = "PrintStation"
             FirstUseWizardCompleted = $true
@@ -108,11 +112,18 @@ try {
             RequireWebAccessKey = $true
             WebAccessKey = $webAccessKey
             WebServerPort = $noCameraPort
-            StorageLocations = @(@{
-                Path = $noCameraStorage
-                ReserveGB = 0
-                Priority = 1
-            })
+            StorageLocations = @(
+                @{
+                    Path = $noCameraStorage
+                    ReserveGB = 0
+                    Priority = 1
+                },
+                @{
+                    Path = $noCameraFallbackStorage
+                    ReserveGB = 0
+                    Priority = 2
+                }
+            )
             Language = "zh-Hans"
             WindowCloseBehavior = "Exit"
         } | ConvertTo-Json -Depth 4
@@ -175,6 +186,9 @@ try {
     }
     finally {
         if ($wpfProcess -and -not $wpfProcess.HasExited) { Stop-Process -Id $wpfProcess.Id -Force -ErrorAction SilentlyContinue }
+        if ($noCameraFallbackStorage -and (Test-Path -LiteralPath $noCameraFallbackStorage)) {
+            Remove-Item -LiteralPath $noCameraFallbackStorage -Recurse -Force -ErrorAction SilentlyContinue
+        }
         $env:EPM_USER_DATA_DIR = $previousUserDataDir
         $env:EPM_INSTANCE_SCOPE = $previousInstanceScope
         $env:EPM_DISABLE_LAN_ACCESS_SETUP = $previousDisableLanAccessSetup
