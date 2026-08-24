@@ -229,9 +229,9 @@ public sealed class MobileConnectionTests
     }
 
     [Fact]
-    public void ExtensionApiRequiresAccessKeyWhenProtectionIsEnabled()
+    public void ExtensionCapabilitiesDoesNotRequireAccessKeyWhenProtectionIsEnabled()
     {
-        Assert.True(WebServer.RequiresAccessKey("/api/extensions/v1/capabilities"));
+        Assert.False(WebServer.RequiresAccessKey("/api/extensions/v1/capabilities"));
         Assert.True(WebServer.RequiresAccessKey("/API/EXTENSIONS/V1/ORDERS"));
     }
 
@@ -258,9 +258,9 @@ public sealed class MobileConnectionTests
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
-            using HttpResponseMessage unauthorized = await client.GetAsync(
+            using HttpResponseMessage capabilities = await client.GetAsync(
                 "/api/extensions/v1/capabilities", cancellationToken);
-            Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, capabilities.StatusCode);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/extensions/v1/orders");
             request.Headers.Add("X-EPM-Access-Key", accessKey);
