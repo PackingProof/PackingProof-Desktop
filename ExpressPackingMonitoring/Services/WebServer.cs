@@ -805,8 +805,9 @@ namespace ExpressPackingMonitoring.Services
             if (!includeUrlAcl)
                 return firewallCommand;
 
-            string urlAclCommand = $"(echo [LAN-STEP] urlacl-delete & netsh http delete urlacl url={url} & "
-                + $"echo [LAN-STEP] urlacl-add & netsh http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\" "
+            string netsh = QuoteCmdExecutable(GetWindowsSystemExecutablePath("netsh.exe"));
+            string urlAclCommand = $"(echo [LAN-STEP] urlacl-delete & {netsh} http delete urlacl url={url} & "
+                + $"echo [LAN-STEP] urlacl-add & {netsh} http add urlacl url={url} sddl=\"D:(A;;GX;;;{userSid})\" "
                 + $"|| exit /b {UrlAclAddFailureExitCode})";
             return $"{urlAclCommand} && ({firewallCommand})";
         }
@@ -816,13 +817,32 @@ namespace ExpressPackingMonitoring.Services
             if (port <= 0 || port > 65535)
                 throw new ArgumentOutOfRangeException(nameof(port));
 
-            string tcpRule = $"echo [LAN-STEP] firewall-tcp-delete & netsh advfirewall firewall delete rule name=\"{FirewallRuleName}\" & "
-                + $"echo [LAN-STEP] firewall-tcp-add & netsh advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port} "
+            string netsh = QuoteCmdExecutable(GetWindowsSystemExecutablePath("netsh.exe"));
+            string tcpRule = $"echo [LAN-STEP] firewall-tcp-delete & {netsh} advfirewall firewall delete rule name=\"{FirewallRuleName}\" & "
+                + $"echo [LAN-STEP] firewall-tcp-add & {netsh} advfirewall firewall add rule name=\"{FirewallRuleName}\" dir=in action=allow protocol=TCP localport={port} "
                 + $"|| exit /b {TcpFirewallAddFailureExitCode}";
-            string udpRule = $"echo [LAN-STEP] firewall-udp-delete & netsh advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" & "
-                + $"echo [LAN-STEP] firewall-udp-add & netsh advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port} "
+            string udpRule = $"echo [LAN-STEP] firewall-udp-delete & {netsh} advfirewall firewall delete rule name=\"{UdpFirewallRuleName}\" & "
+                + $"echo [LAN-STEP] firewall-udp-add & {netsh} advfirewall firewall add rule name=\"{UdpFirewallRuleName}\" dir=in action=allow protocol=UDP localport={UdpDiscoveryProtocol.Port} "
                 + $"|| exit /b {UdpFirewallAddFailureExitCode}";
             return $"({tcpRule}) && ({udpRule})";
+        }
+
+        internal static string GetWindowsSystemExecutablePath(string executableName)
+        {
+            if (string.IsNullOrWhiteSpace(executableName) || Path.GetFileName(executableName) != executableName)
+                throw new ArgumentException("系统程序名称无效", nameof(executableName));
+
+            string systemDirectory = Environment.SystemDirectory;
+            return string.IsNullOrWhiteSpace(systemDirectory)
+                ? executableName
+                : Path.Combine(systemDirectory, executableName);
+        }
+
+        private static string QuoteCmdExecutable(string executablePath)
+        {
+            if (executablePath.Contains('"'))
+                throw new ArgumentException("系统程序路径包含无效字符", nameof(executablePath));
+            return $"\"{executablePath}\"";
         }
 
         internal static bool HasExpectedFirewallRule(int port)
@@ -938,7 +958,7 @@ namespace ExpressPackingMonitoring.Services
                 RuntimeLog.Info("Web", $"LAN access setup elevation requested alreadyElevated={alreadyElevated}");
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "cmd.exe",
+                    FileName = GetWindowsSystemExecutablePath("cmd.exe"),
                     Arguments = BuildElevatedCmdArguments(arguments, outputPath),
                     Verb = "runas",
                     UseShellExecute = true,
@@ -1005,7 +1025,7 @@ namespace ExpressPackingMonitoring.Services
         internal static string BuildElevatedCmdArguments(string arguments, string outputPath)
         {
             string command = BuildElevatedCmdCommand(arguments, outputPath);
-            return $"/D /S /C \"{command.Replace("\"", "\"\"")}\"";
+            return $"/D /S /C \"{command}\"";
         }
 
         internal static string ResolveLanSetupFailureStep(int exitCode, string output) =>

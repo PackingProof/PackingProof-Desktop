@@ -5,6 +5,7 @@ using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
+using System.Diagnostics;
 using System.Text.Json;
 using Xunit;
 
@@ -633,9 +634,12 @@ public sealed class ConfigurationAndScannerTests
     public void BuildAccessSetupCommand_UsesLanguageIndependentUserSid()
     {
         string command = WebServer.BuildAccessSetupCommand(5280, "S-1-5-21-1000");
+        string netshPath = WebServer.GetWindowsSystemExecutablePath("netsh.exe");
 
         Assert.Contains("url=http://+:5280/", command);
         Assert.Contains("sddl=\"D:(A;;GX;;;S-1-5-21-1000)\"", command);
+        Assert.Contains($"\"{netshPath}\" http", command);
+        Assert.Contains($"\"{netshPath}\" advfirewall", command);
         Assert.Contains("localport=5280", command);
         Assert.Contains("delete urlacl", command);
         Assert.Contains("firewall delete rule", command);
@@ -647,6 +651,56 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains($"exit /b {WebServer.TcpFirewallAddFailureExitCode}", command);
         Assert.Contains($"exit /b {WebServer.UdpFirewallAddFailureExitCode}", command);
         Assert.DoesNotContain("user=Everyone", command, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void WindowsSystemExecutables_DoNotDependOnPathEnvironment()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string cmdPath = WebServer.GetWindowsSystemExecutablePath("cmd.exe");
+        string netshPath = WebServer.GetWindowsSystemExecutablePath("netsh.exe");
+
+        Assert.True(Path.IsPathFullyQualified(cmdPath));
+        Assert.True(Path.IsPathFullyQualified(netshPath));
+        Assert.True(File.Exists(cmdPath));
+        Assert.True(File.Exists(netshPath));
+    }
+
+    [Fact]
+    public void WindowsSystemExecutables_RunNetshByAbsolutePath()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string outputPath = Path.Combine(
+            Path.GetTempPath(),
+            $"PackingProof netsh 测试 {Guid.NewGuid():N}.log");
+        try
+        {
+            string netshPath = WebServer.GetWindowsSystemExecutablePath("netsh.exe");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = WebServer.GetWindowsSystemExecutablePath("cmd.exe"),
+                Arguments = WebServer.BuildElevatedCmdArguments(
+                    $"\"{netshPath}\" advfirewall show currentprofile",
+                    outputPath),
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            using Process process = Process.Start(startInfo)!;
+            Assert.NotNull(process);
+            Assert.True(process.WaitForExit(5000));
+            Assert.Equal(0, process.ExitCode);
+            Assert.True(File.Exists(outputPath));
+            Assert.NotEmpty(File.ReadAllText(outputPath));
+        }
+        finally
+        {
+            try { File.Delete(outputPath); } catch { }
+        }
     }
 
     [Fact]
@@ -692,9 +746,45 @@ public sealed class ConfigurationAndScannerTests
             @"C:\Temp\lan repair.log");
 
         Assert.StartsWith("/D /S /C \"", arguments, StringComparison.Ordinal);
-        Assert.Contains("name=\"\"PackingProof Test\"\"", arguments);
-        Assert.Contains("\"\"C:\\Temp\\lan repair.log\"\" 2>&1", arguments);
+        Assert.Contains("name=\"PackingProof Test\"", arguments);
+        Assert.Contains("\"C:\\Temp\\lan repair.log\" 2>&1", arguments);
+        Assert.DoesNotContain("\"\"PackingProof Test\"\"", arguments);
+        Assert.DoesNotContain("\"\"C:\\Temp\\lan repair.log\"\"", arguments);
         Assert.EndsWith("\"", arguments, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElevatedLanSetupArguments_ExecuteWithQuotedUnicodeOutputPathOnWindows()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        string outputPath = Path.Combine(
+            Path.GetTempPath(),
+            $"PackingProof 参数测试 {Guid.NewGuid():N}.log");
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = WebServer.GetWindowsSystemExecutablePath("cmd.exe"),
+                Arguments = WebServer.BuildElevatedCmdArguments(
+                    "echo [LAN-STEP] quote-test & exit /b 11",
+                    outputPath),
+                UseShellExecute = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            using Process process = Process.Start(startInfo)!;
+            Assert.NotNull(process);
+            Assert.True(process.WaitForExit(5000));
+            Assert.Equal(11, process.ExitCode);
+            Assert.True(File.Exists(outputPath));
+            Assert.Contains("[LAN-STEP] quote-test", File.ReadAllText(outputPath));
+        }
+        finally
+        {
+            try { File.Delete(outputPath); } catch { }
+        }
     }
 
     [Theory]
