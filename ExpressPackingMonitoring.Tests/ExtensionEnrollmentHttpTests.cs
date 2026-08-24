@@ -649,6 +649,7 @@ public sealed class ExtensionEnrollmentHttpTests
             LanRequestCategory.Heartbeat,
             WebServer.ClassifyRequest("POST", "/api/extensions/v1/heartbeat"));
         Assert.False(WebServer.RequiresAccessKey("/api/extensions/v1/enroll"));
+        Assert.False(WebServer.RequiresAccessKey("/api/extensions/v1/capabilities"));
     }
 
     private static string RequestJson(

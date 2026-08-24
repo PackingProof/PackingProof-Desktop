@@ -1532,7 +1532,8 @@ namespace ExpressPackingMonitoring.Services
 
         internal static bool RequiresAccessKey(string path)
         {
-            if (string.Equals(path, "/api/extensions/v1/enroll", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(path, "/api/extensions/v1/enroll", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "/api/extensions/v1/capabilities", StringComparison.OrdinalIgnoreCase))
                 return false;
             return path == ""
                 || path.StartsWith("/api/videos", StringComparison.OrdinalIgnoreCase)
