@@ -43,8 +43,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private VideoDatabase _db;
         private ArchiveService _archiveService;
 
-        /// <summary>启动时缓存的可用 GPU 编码器列表</summary>
-        public static List<GpuEncoderOption> CachedEncoderOptions { get; private set; }
+        /// <summary>启动时缓存的已验证实际编码器列表</summary>
+        public static List<VideoEncoderOption> CachedEncoderOptions { get; private set; }
 
         /// <summary>启动时通过试编码验证的所有编码器名称（包括 H.264 和 H.265）</summary>
         public static HashSet<string> ValidatedEncoders { get; private set; } = new();
@@ -695,9 +695,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
             LoadConfig();
             InitializeCameraBarcodeRecognition();
-            // 在起动时后台探测可用 GPU 编码器并缓存
+            // 编码器性能必须以摄像头实际规格测试，因此这里只加载有效缓存。
+            // 缓存版本变化后的强制重检会在摄像头启动后执行。
             Task.Run(() => {
-                _isEncoderDetectRunning = true;
                 try
                 {
                     if (Config.IsEncoderDetected
@@ -710,42 +710,19 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     else
                     {
-                        EncoderDetectionResult detection = DetectAvailableEncodersSync();
-                        CachedEncoderOptions = detection.Options;
-                        ValidatedEncoders = detection.ValidatedEncoders;
-
-                        // 保存到配置中
-                        Config.EncoderOptionsCache = detection.Options;
-                        Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
-                        Config.IsEncoderDetected = detection.Succeeded;
-                        Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
-                        UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
+                        CachedEncoderOptions = [];
+                        ValidatedEncoders = new HashSet<string>();
+                        Config.IsEncoderDetected = false;
+                        Config.EncoderOptionsCache = [];
+                        Config.ValidatedEncodersCache = [];
+                        Config.EffectiveVideoEncoder = "";
                     }
 
-                    bool av1FallbackApplied = EncodingHelper.ApplyUnsupportedAv1Fallback(Config, ValidatedEncoders);
-                    string driverWarningMessage = BuildEncoderDriverWarningMessage(Config);
                     SaveConfig();
-                    if (av1FallbackApplied)
-                    {
-                        Application.Current?.Dispatcher.BeginInvoke(() =>
-                            ShowToast("当前电脑无法实时使用 AV1，已改用 H.265", ToastSeverity.Warning));
-                    }
-                    if (!string.IsNullOrWhiteSpace(driverWarningMessage))
-                    {
-                        Application.Current?.Dispatcher.BeginInvoke(() =>
-                            AppDialog.Warning(
-                                null,
-                                driverWarningMessage,
-                                "显卡驱动版本过低"));
-                    }
                 }
                 catch (Exception ex)
                 {
                     RuntimeLog.Error("EncoderDetect", "Startup encoder detection failed", ex);
-                }
-                finally
-                {
-                    _isEncoderDetectRunning = false;
                 }
             });
             InitDatabase();
@@ -3031,13 +3008,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
                             AppPaths.MobileBackupStateDir);
+                        string extensionNodeId = Config.NodeId;
+                        string extensionNodeName = Config.NodeName;
                         server.ConfigureExtensionEnrollment(
                             _extensionAuthorizationStore,
                             request => ExtensionEnrollmentApprovalPrompt.Show(
-                                Application.Current?.MainWindow,
+                                null,
                                 request,
-                                Config.NodeId,
-                                Config.NodeName));
+                                extensionNodeId,
+                                extensionNodeName));
                         newExtensionRuntime = new ExtensionRuntime(
                             _db,
                             _dbFilePath,
@@ -4155,6 +4134,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 Volatile.Write(ref _archiveCameraActive, 1);
                 _cameraEverConnected = true;
                 RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
+                ScheduleRequiredEncoderDetection();
             }
             catch (Exception ex)
             {
@@ -4215,6 +4195,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _actualCameraHeight = e.Height;
             _actualCameraFps = e.Fps;
             RuntimeLog.Info("Camera", $"Network camera stream ready {e.Width}x{e.Height}@{e.Fps}");
+            ScheduleRequiredEncoderDetection();
         }
 
         private void NetworkCameraSource_SourceError(object sender, NetworkCameraErrorEventArgs e)
@@ -4372,6 +4353,37 @@ namespace ExpressPackingMonitoring.ViewModels
                 Config,
                 _webServer.GetRecordingDevices(MonitorAccessAddress, includeKnown: true));
             RefreshUserscriptStatus();
+        }
+
+        private void ScheduleRequiredEncoderDetection()
+        {
+            NativeCameraMode targetMode = new(
+                Math.Max(1, _actualCameraWidth),
+                Math.Max(1, _actualCameraHeight),
+                Math.Max(1, _actualCameraFps));
+            IEnumerable<string> validatedEncoders = ValidatedEncoders.Count > 0
+                ? ValidatedEncoders
+                : Config.ValidatedEncodersCache ?? [];
+            if (TryResolveCachedEncoder(Config, validatedEncoders, targetMode, out _)
+                || _isEncoderDetectRunning)
+            {
+                return;
+            }
+
+            _ = DetectAndRecommendRecordingProfileAsync(Config, [targetMode]).ContinueWith(task =>
+            {
+                if (task.IsFaulted || task.Result?.Success != true)
+                {
+                    string message = task.Result?.Message ?? "编码器检测失败，请在设置中重新检测";
+                    _ = Application.Current?.Dispatcher.BeginInvoke(() =>
+                        ShowToast(message, ToastSeverity.Error));
+                }
+                else
+                {
+                    _ = Application.Current?.Dispatcher.BeginInvoke(() =>
+                        ShowToast("编码器检测完成", ToastSeverity.Success));
+                }
+            });
         }
 
         public void ImportUserscript()
