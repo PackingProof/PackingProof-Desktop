@@ -45,7 +45,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [InlineData("摄像头", "Capabilities.CanUseCamera")]
     [InlineData("麦克风", "Capabilities.CanRecordAudio")]
     [InlineData("录制声音", "Capabilities.CanRecordAudio")]
-    [InlineData("视频编码格式", "Capabilities.CanRecordPcVideo")]
+    [InlineData("视频编码器", "Capabilities.CanRecordPcVideo")]
     [InlineData("启用录像水印", "Capabilities.CanRecordPcVideo")]
     [InlineData("配置向导", "Capabilities.CanUseCamera")]
     [InlineData("订单备注播报", "Capabilities.IsRecordingDevice")]
@@ -88,10 +88,26 @@ public sealed class SettingsCapabilityVisibilityTests
             headers);
     }
 
+    [Fact]
+    public void EncoderSettingsUseOneActualEncoderSelectorWithoutLegacyFormatOrHardwareSelectors()
+    {
+        XDocument document = LoadSettingsXaml();
+
+        Assert.Single(
+            document.Descendants(Presentation + "ComboBox"),
+            element => (string?)element.Attribute(Xaml + "Name") == "VideoEncoderComboBox");
+        Assert.DoesNotContain(
+            document.Descendants(Presentation + "ComboBox"),
+            element => (string?)element.Attribute(Xaml + "Name") is "VideoCodecComboBox" or "GpuEncoderComboBox");
+        Assert.DoesNotContain(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") is "视频编码格式" or "硬件加速");
+    }
+
     [Theory]
     [InlineData("麦克风", "设备与外观")]
     [InlineData("录制声音", "录像设置")]
-    [InlineData("视频编码格式", "录像设置")]
+    [InlineData("视频编码器", "录像设置")]
     [InlineData("接收第三方水印", "录像设置")]
     [InlineData("订单备注播报", "声音与播报")]
     [InlineData("播报商品件数", "声音与播报")]

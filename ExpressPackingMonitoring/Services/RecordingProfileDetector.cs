@@ -39,7 +39,7 @@ internal static class RecordingProfileDetector
 {
     internal const int TargetFps = 15;
     internal const double RequiredEncodingSpeed = 1.20;
-    internal const int BenchmarkCacheSchemaVersion = 2;
+    internal const int BenchmarkCacheSchemaVersion = AppConfig.CurrentEncoderBenchmarkCacheSchemaVersion;
     internal const int BenchmarkFrameCount = 180;
     internal const int BenchmarkInputFps = 60;
     private const int BenchmarkTimeoutMs = 12_000;
@@ -184,7 +184,8 @@ internal static class RecordingProfileDetector
                 && string.Equals(entry.Encoder, encoder, StringComparison.OrdinalIgnoreCase)
                 && entry.VideoCqp == videoCqp
                 && entry.Width == benchmark.Mode.Width
-                && entry.Height == benchmark.Mode.Height);
+                && entry.Height == benchmark.Mode.Height
+                && entry.Fps == benchmark.Mode.Fps);
             config.RecordingBenchmarkCache.Add(new RecordingBenchmarkCacheEntry
             {
                 SchemaVersion = BenchmarkCacheSchemaVersion,
@@ -192,6 +193,7 @@ internal static class RecordingProfileDetector
                 VideoCqp = videoCqp,
                 Width = benchmark.Mode.Width,
                 Height = benchmark.Mode.Height,
+                Fps = benchmark.Mode.Fps,
                 CompletedSuccessfully = benchmark.CompletedSuccessfully,
                 EncodedFrames = benchmark.EncodedFrames,
                 ElapsedSeconds = benchmark.ElapsedSeconds,
@@ -220,7 +222,8 @@ internal static class RecordingProfileDetector
                 && string.Equals(candidate.Encoder, encoder, StringComparison.OrdinalIgnoreCase)
                 && candidate.VideoCqp == videoCqp
                 && candidate.Width == mode.Width
-                && candidate.Height == mode.Height)
+                && candidate.Height == mode.Height
+                && candidate.Fps == mode.Fps)
             .OrderByDescending(candidate => candidate.TestedAt)
             .FirstOrDefault()!;
         return entry != null;
@@ -344,7 +347,7 @@ internal static class RecordingProfileDetector
         string encoderArgs = MainViewModel.BuildFFmpegEncoderArgs(
             mode.Width,
             mode.Height,
-            TargetFps,
+            mode.Fps,
             encoder,
             videoCqp);
         var startInfo = new ProcessStartInfo

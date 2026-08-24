@@ -2362,41 +2362,33 @@
                                     </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          ToolTip="H.265/HEVC 体积更小，但部分电脑或浏览器可能无法直接播放；H.264 兼容性更好">
+                                          ToolTip="只显示已在当前摄像头规格下通过编码和性能检测的实际编码器">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="视频编码格式" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="影响录像体积和播放兼容性"
+                                            <TextBlock Text="视频编码器" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="自动推荐优先硬件 H.265，再选硬件 H.264"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox x:Name="VideoCodecComboBox"
-                                                  Grid.Column="2"
-                                                  SelectedValuePath="Value"
-                                                  DisplayMemberPath="DisplayName"
-                                                  Cursor="Hand"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          ToolTip="优先使用显卡进行视频编码，可降低 CPU 占用；如果录像异常，可改为自动或 CPU">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="硬件加速" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="用显卡帮忙录像，降低电脑占用"
+                                        <StackPanel Grid.Column="2">
+                                            <ComboBox x:Name="VideoEncoderComboBox"
+                                                      SelectedValuePath="Value"
+                                                      DisplayMemberPath="DisplayName"
+                                                      Cursor="Hand"/>
+                                            <Button x:Name="RestoreAutomaticEncoderButton"
+                                                    Content="恢复自动推荐"
+                                                    Click="RestoreAutomaticEncoder_Click"
+                                                    Margin="0,8,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                            <TextBlock x:Name="EncoderRecommendationText"
+                                                       Margin="0,8,0,0"
+                                                       TextWrapping="Wrap"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox x:Name="GpuEncoderComboBox"
-                                                  Grid.Column="2"
-                                                  SelectedValuePath="Value"
-                                                  DisplayMemberPath="DisplayName"
-                                                  Cursor="Hand"/>
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
@@ -3815,13 +3807,13 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="检测并推荐录制规格" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="检测本机性能并推荐稳定的摄像头原生规格"
+                                            <TextBlock Text="重新检测编码器" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="按当前摄像头规格重新验证全部实际编码器并比较性能"
                                                     Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <Button x:Name="DetectRecordingProfileButton"
                                                 Grid.Column="2"
-                                                Content="开始检测"
+                                                Content="重新检测"
                                                 Click="DetectRecordingProfile_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>

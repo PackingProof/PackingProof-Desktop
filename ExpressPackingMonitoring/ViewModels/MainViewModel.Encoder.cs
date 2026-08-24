@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 namespace ExpressPackingMonitoring.ViewModels
 {
     internal sealed record EncoderDetectionResult(
-        List<GpuEncoderOption> Options,
+        List<VideoEncoderOption> Options,
         HashSet<string> ValidatedEncoders,
         bool FfmpegAvailable,
         NvencDriverCompatibilityIssue? NvencDriverIssue)
@@ -29,7 +29,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
     public partial class MainViewModel
     {
-        internal const int CurrentEncoderDetectionCacheVersion = 3;
+        internal const int CurrentEncoderDetectionCacheVersion = AppConfig.CurrentEncoderSelectionCacheVersion;
         internal const string NvencDriverTooOldWarningCode = "nvenc_driver_too_old";
 
         private static string QueryFFmpegEncoders(string ffmpegPath)
@@ -69,7 +69,7 @@ namespace ExpressPackingMonitoring.ViewModels
             RecordingProfileRecommendation? recommendation =
                 await DetectAndRecommendRecordingProfileAsync(Config, null);
             ShowToast(
-                recommendation?.Message ?? "录制性能检测失败，已保留现有设置",
+                recommendation?.Message ?? "录制性能检测失败，录像已阻止，请重新检测",
                 recommendation?.Success == true ? ToastSeverity.Success : ToastSeverity.Error);
         }
 
@@ -107,84 +107,91 @@ namespace ExpressPackingMonitoring.ViewModels
                 return await Task.Run(() =>
                 {
                     EncoderDetectionResult detection = DetectAvailableEncodersSync();
-                    CachedEncoderOptions = detection.Options;
-                    ValidatedEncoders = detection.ValidatedEncoders;
+                    NativeCameraMode targetMode = ResolveEncoderBenchmarkMode(detectionConfig, nativeModes);
+                    int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(detectionConfig.VideoCqp);
+                    string ffmpegPath = AppPaths.FindFFmpeg();
 
-                    // 检测缓存属于设备能力，可立即持久化；推荐规格必须由设置页确认后再写入。
-                    Config.EncoderOptionsCache = detection.Options;
-                    Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
-                    Config.IsEncoderDetected = detection.Succeeded;
-                    Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
-                    detectionConfig.EncoderOptionsCache = detection.Options;
-                    detectionConfig.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
-                    detectionConfig.IsEncoderDetected = detection.Succeeded;
-                    detectionConfig.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
-                    UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
-                    if (!ReferenceEquals(Config, detectionConfig))
-                        UpdateEncoderDriverWarning(detectionConfig, detection.NvencDriverIssue);
+                    ApplyCapabilityDetection(detectionConfig, detection);
                     if (!detection.Succeeded)
                     {
-                        SaveConfig();
+                        if (ReferenceEquals(Config, detectionConfig))
+                            SaveConfig();
                         return new RecordingProfileRecommendation(
                             false,
                             null,
-                            "未检测到可用的 FFmpeg 编码器，已保留当前配置",
+                            "未检测到可用的 FFmpeg 编码器，录像已阻止，请检查 FFmpeg 后重新检测",
                             []);
                     }
 
-                    string codec = (detectionConfig.VideoCodec ?? "h264").Trim().ToLowerInvariant();
-                    if (codec is not ("h264" or "h265" or "av1"))
-                        codec = "h264";
-                    string encoder = EncodingHelper.ResolveFallbackEncoder(
-                        detectionConfig.GpuEncoder ?? "auto",
-                        codec,
-                        detection.ValidatedEncoders);
-                    if (!detection.ValidatedEncoders.Contains(encoder))
-                        encoder = detection.ValidatedEncoders.First();
-                    int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(detectionConfig.VideoCqp);
-                    string ffmpegPath = AppPaths.FindFFmpeg();
-                    RuntimeLog.Info(
-                        "RecordingProfile",
-                        $"manual ffmpeg={ffmpegPath}, encoder={encoder}, cqp={videoCqp}");
-                    RecordingProfileRecommendation recommendation = RecordingProfileDetector.Recommend(
-                        nativeModes,
-                        mode => RecordingProfileDetector.Benchmark(
+                    DateTime testedAt = DateTime.Now;
+                    var benchmarks = new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase);
+                    foreach (string encoder in detection.ValidatedEncoders.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+                    {
+                        RealtimeEncodingBenchmarkResult benchmark = RecordingProfileDetector.Benchmark(
                             ffmpegPath,
                             encoder,
                             videoCqp,
-                            mode));
-                    DateTime testedAt = DateTime.Now;
-                    RecordingProfileDetector.UpdateBenchmarkCache(
-                        detectionConfig,
-                        encoder,
-                        videoCqp,
-                        recommendation.Benchmarks,
-                        testedAt);
-                    if (!ReferenceEquals(Config, detectionConfig))
-                    {
+                            targetMode);
+                        benchmarks[encoder] = benchmark;
                         RecordingProfileDetector.UpdateBenchmarkCache(
-                            Config,
+                            detectionConfig,
                             encoder,
                             videoCqp,
-                            recommendation.Benchmarks,
+                            [benchmark],
                             testedAt);
-                    }
-                    SaveConfig();
-                    foreach (RealtimeEncodingBenchmarkResult benchmark in recommendation.Benchmarks)
-                    {
                         RuntimeLog.Info(
                             "RecordingProfile",
-                            $"manual mode={benchmark.Mode.Width}x{benchmark.Mode.Height}@{benchmark.Mode.Fps}, encoder={encoder}, stable={benchmark.Stable}, detail={benchmark.Detail}");
+                            $"encoder={encoder}, mode={targetMode.Width}x{targetMode.Height}@{targetMode.Fps}, stable={benchmark.SupportsFrameRate(targetMode.Fps)}, detail={benchmark.Detail}");
                     }
 
-                    if (recommendation.Success && recommendation.Mode is NativeCameraMode recommendedMode)
+                    List<EncodingHelper.EncoderCandidate> candidates = BuildEncoderCandidates(
+                        detection.ValidatedEncoders,
+                        benchmarks,
+                        targetMode);
+                    EncodingHelper.EncoderSelection? selection = EncodingHelper.SelectEncoder(
+                        candidates,
+                        detectionConfig.VideoEncoderSelectionMode,
+                        detectionConfig.ManualVideoEncoder);
+                    List<VideoEncoderOption> options = BuildVisibleEncoderOptions(candidates, selection, targetMode.Fps);
+                    AppendEncoderPerformanceLog(
+                        targetMode,
+                        videoCqp,
+                        candidates,
+                        selection,
+                        selection == null ? "没有可用于当前选择模式的编码器" : null);
+                    if (selection == null)
                     {
-                        RuntimeLog.Info(
-                            "RecordingProfile",
-                            $"manual recommended={recommendedMode.Width}x{recommendedMode.Height}@{recommendedMode.Fps}, encoder={encoder}");
+                        ApplyEncoderSelection(detectionConfig, options, null);
+                        CachedEncoderOptions = options;
+                        ValidatedEncoders = detection.ValidatedEncoders;
+                        if (ReferenceEquals(Config, detectionConfig))
+                            SaveConfig();
+                        return new RecordingProfileRecommendation(
+                            false,
+                            null,
+                            string.Equals(detectionConfig.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
+                                ? "手动选择的编码器不再满足当前录像规格，请重新选择编码器"
+                                : "未检测到可自动使用的 H.264 或 H.265 编码器，请手动选择已验证的编码器",
+                            []);
                     }
 
-                    return recommendation;
+                    ApplyEncoderSelection(detectionConfig, options, selection);
+                    CachedEncoderOptions = options;
+                    ValidatedEncoders = detection.ValidatedEncoders;
+                    if (ReferenceEquals(Config, detectionConfig))
+                        SaveConfig();
+                    RuntimeLog.Info(
+                        "RecordingProfile",
+                        $"selected={selection.Encoder}, manual={selection.IsManual}, meetsHeadroom={selection.MeetsRealtimeRequirement}, reason={selection.Reason}");
+
+                    RealtimeEncodingBenchmarkResult selectedBenchmark = benchmarks[selection.Encoder];
+                    return new RecordingProfileRecommendation(
+                        selection.MeetsRealtimeRequirement,
+                        selection.MeetsRealtimeRequirement ? targetMode : null,
+                        selection.MeetsRealtimeRequirement
+                            ? $"编码器检测完成：{EncodingHelper.GetEncoderLabel(selection.Encoder)}"
+                            : $"{selection.Reason}：{EncodingHelper.GetEncoderLabel(selection.Encoder)}",
+                        [selectedBenchmark]);
                 });
             }
             catch (Exception ex)
@@ -195,6 +202,210 @@ namespace ExpressPackingMonitoring.ViewModels
             finally
             {
                 _isEncoderDetectRunning = false;
+            }
+        }
+
+        private NativeCameraMode ResolveEncoderBenchmarkMode(
+            AppConfig detectionConfig,
+            IReadOnlyList<NativeCameraMode> nativeModes)
+        {
+            NativeCameraMode configured = new(
+                Math.Max(1, detectionConfig.FrameWidth),
+                Math.Max(1, detectionConfig.FrameHeight),
+                Math.Max(1, detectionConfig.Fps));
+            NativeCameraMode? selectedNativeMode = nativeModes
+                .Where(mode => mode.Width > 0 && mode.Height > 0 && mode.Fps > 0)
+                .OrderBy(mode => Math.Abs(mode.Width - configured.Width)
+                    + Math.Abs(mode.Height - configured.Height)
+                    + Math.Abs(mode.Fps - configured.Fps))
+                .Select(mode => (NativeCameraMode?)mode)
+                .FirstOrDefault();
+            if (selectedNativeMode is NativeCameraMode mode)
+                return mode;
+
+            if (_actualCameraWidth > 0 && _actualCameraHeight > 0 && _actualCameraFps > 0)
+                return new NativeCameraMode(_actualCameraWidth, _actualCameraHeight, _actualCameraFps);
+
+            return configured;
+        }
+
+        private static void ApplyCapabilityDetection(AppConfig config, EncoderDetectionResult detection)
+        {
+            config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+            config.IsEncoderDetected = detection.Succeeded;
+            config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+            UpdateEncoderDriverWarning(config, detection.NvencDriverIssue);
+        }
+
+        private static void ApplyEncoderSelection(
+            AppConfig config,
+            List<VideoEncoderOption> options,
+            EncodingHelper.EncoderSelection? selection)
+        {
+            config.EncoderOptionsCache = options;
+            config.EffectiveVideoEncoder = selection?.Encoder ?? "";
+        }
+
+        internal static List<EncodingHelper.EncoderCandidate> BuildEncoderCandidates(
+            IEnumerable<string> validatedEncoders,
+            IReadOnlyDictionary<string, RealtimeEncodingBenchmarkResult> benchmarks,
+            NativeCameraMode targetMode)
+        {
+            return validatedEncoders
+                .Where(EncodingHelper.IsKnownEncoder)
+                .Select(encoder =>
+                {
+                    if (!benchmarks.TryGetValue(encoder, out RealtimeEncodingBenchmarkResult? benchmark)
+                        || benchmark == null)
+                    {
+                        return new EncodingHelper.EncoderCandidate(
+                            encoder,
+                            EncodingHelper.GetCodecFromEncoder(encoder),
+                            EncodingHelper.IsHardwareEncoder(encoder),
+                            0,
+                            false);
+                    }
+
+                    return new EncodingHelper.EncoderCandidate(
+                        encoder,
+                        EncodingHelper.GetCodecFromEncoder(encoder),
+                        EncodingHelper.IsHardwareEncoder(encoder),
+                        benchmark.MeasuredEncodingFps,
+                        benchmark.SupportsFrameRate(targetMode.Fps));
+                })
+                .ToList();
+        }
+
+        internal static List<VideoEncoderOption> BuildVisibleEncoderOptions(
+            IEnumerable<EncodingHelper.EncoderCandidate> candidates,
+            EncodingHelper.EncoderSelection? selection,
+            int targetFps)
+        {
+            List<EncodingHelper.EncoderCandidate> all = candidates.ToList();
+            List<EncodingHelper.EncoderCandidate> visible = all
+                .Where(candidate => candidate.MeetsRealtimeRequirement)
+                .ToList();
+            if (visible.Count == 0)
+            {
+                EncodingHelper.EncoderCandidate? fallback = all.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Encoder, selection?.Encoder, StringComparison.OrdinalIgnoreCase));
+                fallback ??= EncodingHelper.SelectEncoder(all, "auto", "") is { } automaticFallback
+                    ? all.FirstOrDefault(candidate => string.Equals(
+                        candidate.Encoder,
+                        automaticFallback.Encoder,
+                        StringComparison.OrdinalIgnoreCase))
+                    : null;
+                if (fallback != null)
+                    visible.Add(fallback);
+            }
+
+            return visible
+                .OrderByDescending(candidate => string.Equals(candidate.Encoder, selection?.Encoder, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(candidate => candidate.MeetsRealtimeRequirement)
+                .ThenByDescending(candidate => candidate.MeasuredEncodingFps)
+                .ThenBy(candidate => candidate.Encoder, StringComparer.OrdinalIgnoreCase)
+                .Select(candidate => new VideoEncoderOption
+                {
+                    Value = candidate.Encoder,
+                    Codec = candidate.Codec,
+                    IsHardware = candidate.IsHardware,
+                    MeasuredEncodingFps = candidate.MeasuredEncodingFps,
+                    MeetsRealtimeRequirement = candidate.MeetsRealtimeRequirement,
+                    PerformanceText = candidate.MeetsRealtimeRequirement
+                        ? $"{candidate.MeasuredEncodingFps:F1} FPS，满足 {targetFps} FPS 的 20% 余量"
+                        : $"{candidate.MeasuredEncodingFps:F1} FPS，未满足 {targetFps} FPS 的 20% 余量",
+                    DisplayName =
+                        $"{EncodingHelper.GetEncoderLabel(candidate.Encoder)} ({candidate.Encoder}) · " +
+                        $"{candidate.MeasuredEncodingFps:F1} FPS"
+                })
+                .ToList();
+        }
+
+        internal static bool TryResolveCachedEncoder(
+            AppConfig config,
+            IEnumerable<string> validatedEncoders,
+            NativeCameraMode targetMode,
+            out EncodingHelper.EncoderSelection? selection)
+        {
+            selection = null;
+            if (!config.IsEncoderDetected
+                || config.EncoderDetectionCacheVersion != CurrentEncoderDetectionCacheVersion)
+            {
+                return false;
+            }
+
+            int cqp = RecordingProfileDetector.NormalizeVideoCqp(config.VideoCqp);
+            List<string> encoders = validatedEncoders
+                .Where(EncodingHelper.IsKnownEncoder)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (encoders.Count == 0)
+                return false;
+
+            var benchmarks = new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase);
+            foreach (string encoder in encoders)
+            {
+                if (!RecordingProfileDetector.TryGetCachedBenchmark(config, encoder, cqp, targetMode, out RecordingBenchmarkCacheEntry cached))
+                    return false;
+
+                benchmarks[encoder] = new RealtimeEncodingBenchmarkResult(
+                    targetMode,
+                    cached.CompletedSuccessfully,
+                    cached.ElapsedSeconds,
+                    cached.EncodedFrames,
+                    cached.MeasuredEncodingFps,
+                    RecordingProfileDetector.RequiredEncodingSpeed,
+                    "cached");
+            }
+
+            selection = EncodingHelper.SelectEncoder(
+                BuildEncoderCandidates(encoders, benchmarks, targetMode),
+                config.VideoEncoderSelectionMode,
+                config.ManualVideoEncoder);
+            return selection != null;
+        }
+
+        internal static void AppendEncoderPerformanceLog(
+            NativeCameraMode targetMode,
+            int videoCqp,
+            IEnumerable<EncodingHelper.EncoderCandidate> candidates,
+            EncodingHelper.EncoderSelection? selection,
+            string? failureReason)
+        {
+            try
+            {
+                var log = new StringBuilder();
+                log.AppendLine();
+                log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 实际编码器性能检测 ===");
+                log.AppendLine(
+                    $"目标规格: {targetMode.Width}x{targetMode.Height}@{targetMode.Fps} FPS, CQP={videoCqp}, " +
+                    $"实时余量要求={RecordingProfileDetector.RequiredEncodingSpeed:P0}");
+                foreach (EncodingHelper.EncoderCandidate candidate in candidates
+                             .OrderBy(candidate => candidate.Encoder, StringComparer.OrdinalIgnoreCase))
+                {
+                    log.AppendLine(
+                        $"候选 {candidate.Encoder}: 硬件={candidate.IsHardware}, 格式={candidate.Codec}, " +
+                        $"实测={candidate.MeasuredEncodingFps:F1} FPS, " +
+                        $"满足20%余量={candidate.MeetsRealtimeRequirement}");
+                }
+
+                if (selection != null)
+                {
+                    log.AppendLine(
+                        $"最终选择: {selection.Encoder}, 手动={selection.IsManual}, " +
+                        $"满足20%余量={selection.MeetsRealtimeRequirement}, 原因={selection.Reason}");
+                }
+                else
+                {
+                    log.AppendLine($"最终选择: 无, 原因={failureReason ?? "未找到可用编码器"}");
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(AppPaths.EncoderDetectLogPath)!);
+                File.AppendAllText(AppPaths.EncoderDetectLogPath, log.ToString(), Encoding.UTF8);
+            }
+            catch
+            {
+                // 日志不可写不能影响检测结果。
             }
         }
 
@@ -261,10 +472,6 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             ArgumentNullException.ThrowIfNull(config);
             if (!string.Equals(
-                    EncodingHelper.NormalizeGpuSetting(config.GpuEncoder),
-                    "nvidia",
-                    StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(
                     config.EncoderDriverWarningCode,
                     NvencDriverTooOldWarningCode,
                     StringComparison.Ordinal))
@@ -288,7 +495,7 @@ namespace ExpressPackingMonitoring.ViewModels
             return
                 "已检测到 NVIDIA 显卡驱动与当前 FFmpeg 的 NVENC 版本不兼容。\n\n" +
                 detailText + "\n\n" +
-                "程序已自动改用 CPU 软编码，录像仍可继续。请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器";
+                "请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器";
         }
 
         private static bool WaitForEncoderProbeExit(Process process, int timeoutMs)
@@ -323,13 +530,9 @@ namespace ExpressPackingMonitoring.ViewModels
         internal static EncoderDetectionResult DetectAvailableEncodersSync(string? ffmpegPath)
         {
             var log = new StringBuilder();
-            log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === GPU 编码器检测开始 ===");
+            log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 实际 FFmpeg 编码器能力检测开始 ===");
 
-            var list = new List<GpuEncoderOption>
-            {
-                new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（优先独显）" },
-                new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
-            };
+            var list = new List<VideoEncoderOption>();
             var validated = new HashSet<string>();
             NvencDriverCompatibilityIssue? nvencDriverIssue = null;
 
@@ -346,9 +549,9 @@ namespace ExpressPackingMonitoring.ViewModels
             string output = QueryFFmpegEncoders(ffmpegPath);
             log.AppendLine($"ffmpeg -encoders 输出长度: {output.Length}");
 
-            foreach (string encoder in new[] { "libx264", "libx265" })
+            foreach (string encoder in new[] { "libx264", "libx265", "libsvtav1", "libaom-av1" })
             {
-                bool inList = output.Contains(encoder, StringComparison.Ordinal);
+                bool inList = IsEncoderListed(output, encoder);
                 log.AppendLine($"\n=== CPU {encoder} ===");
                 log.AppendLine($"  ffmpeg -encoders 包含: {inList}");
                 if (!inList)
@@ -374,11 +577,9 @@ namespace ExpressPackingMonitoring.ViewModels
             foreach (var (gpu, label, encs) in gpuGroups)
             {
                 log.AppendLine($"\n=== {label} ===");
-                bool anyPassed = false;
-
                 foreach (var enc in encs)
                 {
-                    bool inList = output.Contains(enc);
+                    bool inList = IsEncoderListed(output, enc);
                     log.AppendLine($"  --- {enc} ---");
                     log.AppendLine($"    ffmpeg -encoders 包含: {inList}");
 
@@ -395,7 +596,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (testOk)
                     {
                         validated.Add(enc);
-                        anyPassed = true;
                     }
                     else if (enc.EndsWith("_nvenc", StringComparison.OrdinalIgnoreCase))
                     {
@@ -403,15 +603,32 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                 }
 
-                if (anyPassed)
-                    list.Insert(list.Count - 1, new GpuEncoderOption { Value = gpu, DisplayName = label });
             }
 
-            log.AppendLine($"\nGPU 选项: {string.Join(", ", list.Select(e => e.Value))}");
+            list.AddRange(validated
+                .OrderBy(encoder => encoder, StringComparer.OrdinalIgnoreCase)
+                .Select(encoder => new VideoEncoderOption
+                {
+                    Value = encoder,
+                    Codec = EncodingHelper.GetCodecFromEncoder(encoder),
+                    IsHardware = EncodingHelper.IsHardwareEncoder(encoder),
+                    DisplayName = EncodingHelper.GetEncoderLabel(encoder)
+                }));
+
+            log.AppendLine($"\n已验证实际编码器: {string.Join(", ", list.Select(e => e.Value))}");
             log.AppendLine($"已验证编码器: {string.Join(", ", validated)}");
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 检测结束 ===");
             WriteEncoderLog(log);
             return new EncoderDetectionResult(list, validated, true, nvencDriverIssue);
+        }
+
+        private static bool IsEncoderListed(string output, string encoder)
+        {
+            return !string.IsNullOrWhiteSpace(output)
+                && Regex.IsMatch(
+                    output,
+                    $@"(?m)^\s*[VAS\.][A-Z\.]{5}\s+{Regex.Escape(encoder)}(?:\s|$)",
+                    RegexOptions.CultureInvariant);
         }
 
         private static void WriteEncoderLog(StringBuilder log)
