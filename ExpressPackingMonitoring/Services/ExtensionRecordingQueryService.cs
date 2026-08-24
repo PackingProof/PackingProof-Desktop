@@ -145,6 +145,12 @@ internal sealed class ExtensionRecordingQueryService : IDisposable
             PagedVideoResult result = _database.QueryVideosPaged(
                 null, null, state.TrackingNumber, 1, MaxResults, includeDeleted: false,
                 searchMode: VideoSearchMode.ExactOrderIdentifiers);
+            if (result.Total == 0)
+            {
+                result = _database.QueryVideosPaged(
+                    null, null, state.TrackingNumber, 1, MaxResults, includeDeleted: false,
+                    searchMode: VideoSearchMode.OrderIdentifierContains);
+            }
             lock (state.Gate) state.TotalMatches = result.Total;
             if (result.Records.Count == 0)
             {

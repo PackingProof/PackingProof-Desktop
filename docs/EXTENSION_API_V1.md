@@ -362,7 +362,7 @@ POST /api/extensions/v1/scan-results
 
 聊天机器人应通过 PackingProof 查询录像，不能读取 `videos.db`，也不能获取本地或 NAS 真实路径。v1 支持机器人与 PackingProof 运行在同一台电脑或同一局域网；公网机器人需要另行部署安全中继，不在本接口范围内。
 
-创建精确单号查询：
+创建单号查询。主机先精确匹配订单标识；没有结果时，才在订单号、快递单号和来源订单号中按包含关系回退匹配。不会搜索文件名、备注、商品或其他非订单字段：
 
 ```http
 POST /api/extensions/v1/recording-queries
@@ -387,7 +387,7 @@ GET /api/extensions/v1/recording-queries/{queryId}
 | `ready` | 至少一段录像可以下载 |
 | `downloading` | 机器人正在下载 |
 | `completed` | 所有可用录像下载完成 |
-| `not_found` | 没有精确匹配的录像 |
+| `not_found` | 没有匹配的录像 |
 | `failed` | 查询或文件准备失败 |
 | `expired` | 临时任务已经过期 |
 

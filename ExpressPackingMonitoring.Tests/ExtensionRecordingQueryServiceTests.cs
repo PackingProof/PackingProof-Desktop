@@ -59,6 +59,22 @@ public sealed class ExtensionRecordingQueryServiceTests : IDisposable
         Assert.True(service.TryBeginDownload(created.QueryId, recording.RecordingId, "extension-owner", out _));
     }
 
+    [Fact]
+    public async Task IdentifierContainsMatch_IsUsedWhenExactQueryHasNoResult()
+    {
+        string videoPath = Path.Combine(_directory, "contains.mp4");
+        await File.WriteAllBytesAsync(videoPath, [1, 2, 3, 4], TestContext.Current.CancellationToken);
+        using var database = new VideoDatabase(Path.Combine(_directory, "contains.db"));
+        AddCompleted(database, "ORDER-6974412900385-01", videoPath, archivePath: "");
+        using var service = new ExtensionRecordingQueryService(database, Path.Combine(_directory, "cache"));
+
+        ExtensionRecordingQuerySnapshot created = service.Create("extension-owner", "6974412900385");
+        ExtensionRecordingQuerySnapshot ready = await WaitForTerminalAsync(service, created.QueryId, "extension-owner");
+
+        Assert.Equal("ready", ready.Status);
+        Assert.Single(ready.Recordings);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("AB")]
