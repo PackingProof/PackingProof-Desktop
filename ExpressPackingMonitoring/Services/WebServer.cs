@@ -1272,6 +1272,9 @@ namespace ExpressPackingMonitoring.Services
                     || (IsLegacyExtensionPath(path, method) && HasExtensionSignatureIntent(ctx));
                 if (isSignedExtensionRequest && !TryAuthorizeExtensionRequest(ctx, out int extensionAuthStatus, out string extensionAuthCode))
                 {
+                    RuntimeLog.Warn(
+                        "ExtensionApi",
+                        $"Authorization rejected method={method}, path={path}, status={extensionAuthStatus}, errorCode={extensionAuthCode}");
                     SendJson(ctx, extensionAuthStatus, new
                     {
                         errorCode = extensionAuthCode,
@@ -3207,6 +3210,9 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleExtensionCapabilities(HttpListenerContext ctx)
         {
+            RuntimeLog.Info(
+                "ExtensionApi",
+                $"Capabilities requested enabled={_extensionApiEnabled}, enrollmentConfigured={_extensionEnrollment != null}, preset={_deploymentPreset}");
             SendJson(ctx, 200, new
             {
                 apiVersion = "v1",

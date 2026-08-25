@@ -198,6 +198,10 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                         localException);
                 }
             }
+
+            RuntimeLog.Info(
+                "NoCamera",
+                $"LAN service started port={_config.WebServerPort}, extensionApiEnabled={_config.EnableExtensionApi}, access={(IsLanAvailable ? "lan" : "loopback")}");
         }
         catch (Exception ex)
         {

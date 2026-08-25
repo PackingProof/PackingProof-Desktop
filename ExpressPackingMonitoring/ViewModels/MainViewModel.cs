@@ -3089,7 +3089,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 QueueRecordingWorkstationHeartbeat(force: true);
                 RuntimeLog.Info(
                     "Web",
-                    $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}, orderReceiverOnly={orderReceiverOnly}");
+                    $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}, orderReceiverOnly={orderReceiverOnly}, extensionApiEnabled={Config.EnableExtensionApi}");
                 return true;
             }
             catch (Exception ex)
