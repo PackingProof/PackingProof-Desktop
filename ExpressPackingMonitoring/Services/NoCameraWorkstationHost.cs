@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.UI;
 using System.IO;
 
 namespace ExpressPackingMonitoring.Services;
@@ -13,6 +14,8 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private readonly Action<int> _repairLanAccess;
     private VideoDatabase? _database;
     private WebServer? _server;
+    private ExtensionAuthorizationStore? _extensionAuthorizationStore;
+    private ExtensionRuntime? _extensionRuntime;
     private ArchiveService? _archiveService;
     private bool _disposed;
     private bool _archiveTargetUnavailable;
@@ -111,6 +114,17 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         {
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
+            if (_config.EnableExtensionApi)
+            {
+                _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(_stateDirectory);
+                _extensionRuntime = new ExtensionRuntime(
+                    _database,
+                    _databasePath,
+                    _config.NodeId,
+                    _extensionAuthorizationStore,
+                    (_, _) => { },
+                    _ => { });
+            }
             DisposeArchiveService();
             _archiveTargetUnavailable = false;
             _archiveUnavailableRoot = "";
@@ -255,10 +269,27 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             deploymentPreset: DeploymentPresets.MobileBackupHost,
             backupDeviceEnrollmentApprover: request =>
                 BackupDeviceEnrollmentRequested?.Invoke(request)
-                ?? BackupDeviceEnrollmentApprovalDecision.Unavailable)
+                ?? BackupDeviceEnrollmentApprovalDecision.Unavailable,
+            extensionApiEnabled: _config.EnableExtensionApi)
         {
             EnableOrderInfoLog = _config.EnableOrderInfoLog
         };
+        if (_config.EnableExtensionApi
+            && _extensionAuthorizationStore != null
+            && _extensionRuntime != null)
+        {
+            server.ConfigureExtensionEnrollment(
+                _extensionAuthorizationStore,
+                request => ExtensionEnrollmentApprovalPrompt.Show(
+                    null,
+                    request,
+                    _config.NodeId,
+                    _config.NodeName));
+            server.ConfigureExtensionTaskApi(
+                _extensionRuntime.Broker,
+                _extensionRuntime.Coordinator,
+                _extensionRuntime.ProcessAvailableResults);
+        }
         server.MobileAppUpdateAvailable += update =>
         {
             try { MobileAppUpdateAvailable?.Invoke(update); } catch { }
@@ -282,8 +313,52 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     {
         try { _server?.Dispose(); } catch { }
         _server = null;
+        try { _extensionRuntime?.Dispose(); } catch { }
+        _extensionRuntime = null;
         IsLanAvailable = false;
     }
+
+    internal IReadOnlyList<ExtensionAuthorizationDisplayItem> GetExtensionAuthorizations()
+    {
+        if (_extensionAuthorizationStore == null)
+        {
+            string extensionDirectory = Path.Combine(_stateDirectory, "extensions");
+            if (!Directory.Exists(extensionDirectory))
+                return [];
+            _extensionAuthorizationStore = new ExtensionAuthorizationStore(_stateDirectory);
+        }
+
+        return _extensionAuthorizationStore.GetAll(includeRevoked: false)
+            .Select(value => new ExtensionAuthorizationDisplayItem(
+                value.ExtensionInstanceId,
+                value.DisplayName,
+                string.IsNullOrWhiteSpace(value.RuntimeVersion) ? value.Version : value.RuntimeVersion,
+                value.Source,
+                string.Join("、", value.Permissions),
+                value.RoutingScope == ExtensionRoutingScope.AllLocalRecordingNodes
+                    ? "所有本机录像工位"
+                    : string.Join("、", value.BoundOriginNodeIds),
+                value.CredentialGeneration,
+                value.UpdatedAtUtc,
+                value.LastSeenUtc.HasValue
+                    && DateTimeOffset.UtcNow - value.LastSeenUtc.Value <= TimeSpan.FromSeconds(45),
+                value.LastBusinessActivityUtc.HasValue
+                    ? $"{value.LastBusinessActivityUtc.Value.ToLocalTime():HH:mm} 收到 {value.LastBusinessDataCount} 条数据"
+                    : "暂未收到数据"))
+            .ToArray();
+    }
+
+    internal ExtensionCredentialDisplayResult RotateExtensionCredential(string extensionInstanceId)
+    {
+        ExtensionEnrollmentCredential rotated = _extensionAuthorizationStore?.RotateCredential(extensionInstanceId)
+            ?? throw new InvalidOperationException("扩展授权尚未加载");
+        return new ExtensionCredentialDisplayResult(
+            rotated.Credential,
+            rotated.Authorization.CredentialGeneration);
+    }
+
+    internal bool RevokeExtensionAuthorization(string extensionInstanceId) =>
+        _extensionAuthorizationStore?.Revoke(extensionInstanceId) == true;
 
     private void OnArchiveTargetAvailabilityChanged(bool available, string root)
     {

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text.Json;
 using System.Xml.Linq;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
@@ -403,6 +404,51 @@ public sealed class NoCameraWorkstationTests
                     $"127.0.0.1:{port}",
                     TestContext.Current.CancellationToken);
             Assert.True(order.Sent, order.ErrorMessage);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task HostEnablesExtensionApiWhenConfigured()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        var config = new AppConfig
+        {
+            WebServerPort = port,
+            WebAccessKey = AccessKey,
+            EnableExtensionApi = true,
+            NodeId = Guid.NewGuid().ToString("D"),
+            NodeName = "备份主机",
+            StorageLocations = [new StorageLocation { Path = Path.Combine(directory, "recordings"), Priority = 1 }]
+        };
+
+        try
+        {
+            using var host = new NoCameraWorkstationHost(
+                config,
+                Path.Combine(directory, "videos.db"),
+                Path.Combine(directory, "state"));
+
+            await host.StartAsync(
+                requestLanAccess: false,
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            using HttpResponseMessage response = await client.GetAsync(
+                "/api/extensions/v1/capabilities",
+                TestContext.Current.CancellationToken);
+            using JsonDocument payload = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(payload.RootElement.GetProperty("extensionApiEnabled").GetBoolean());
+            Assert.True(payload.RootElement.GetProperty("features").GetProperty("recordingSearch").GetBoolean());
+            Assert.True(payload.RootElement.GetProperty("features").GetProperty("recordingDownload").GetBoolean());
+            Assert.True(payload.RootElement.GetProperty("features").GetProperty("recordingDelivery").GetBoolean());
         }
         finally
         {
