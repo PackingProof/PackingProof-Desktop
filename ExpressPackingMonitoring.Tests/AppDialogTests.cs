@@ -190,8 +190,7 @@ public sealed class AppDialogTests
         Assert.Contains("\"移除\"", settingsSource, StringComparison.Ordinal);
         Assert.Contains("\"继续保存\"", settingsSource, StringComparison.Ordinal);
         Assert.Contains("\"返回设置\"", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("\"使用建议方案\"", settingsSource, StringComparison.Ordinal);
-        Assert.Contains("\"取消保存\"", settingsSource, StringComparison.Ordinal);
+        Assert.Contains("当前选择未通过编码器检测", settingsSource, StringComparison.Ordinal);
     }
 
     [Fact]

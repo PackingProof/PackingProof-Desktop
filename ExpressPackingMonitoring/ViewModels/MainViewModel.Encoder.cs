@@ -16,6 +16,8 @@ namespace ExpressPackingMonitoring.ViewModels
     internal sealed record EncoderDetectionResult(
         List<GpuEncoderOption> Options,
         HashSet<string> ValidatedEncoders,
+        Dictionary<string, double> PerformanceScores,
+        List<EncoderPerformanceCacheEntry> PerformanceResults,
         bool FfmpegAvailable,
         NvencDriverCompatibilityIssue? NvencDriverIssue)
     {
@@ -29,7 +31,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
     public partial class MainViewModel
     {
-        internal const int CurrentEncoderDetectionCacheVersion = 3;
+        internal const int CurrentEncoderDetectionCacheVersion = 4;
+        internal const int EncoderScoreSchemaVersion = 1;
+        internal const int EncoderScoreCqp = 30;
+        internal static readonly NativeCameraMode EncoderScoreMode = new(1280, 720, 15);
         internal const string NvencDriverTooOldWarningCode = "nvenc_driver_too_old";
 
         private static string QueryFFmpegEncoders(string ffmpegPath)
@@ -109,14 +114,17 @@ namespace ExpressPackingMonitoring.ViewModels
                     EncoderDetectionResult detection = DetectAvailableEncodersSync();
                     CachedEncoderOptions = detection.Options;
                     ValidatedEncoders = detection.ValidatedEncoders;
+                    EncoderPerformanceScores = detection.PerformanceScores;
 
                     // 检测缓存属于设备能力，可立即持久化；推荐规格必须由设置页确认后再写入。
                     Config.EncoderOptionsCache = detection.Options;
                     Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                    Config.EncoderPerformanceCache = detection.PerformanceResults;
                     Config.IsEncoderDetected = detection.Succeeded;
                     Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
                     detectionConfig.EncoderOptionsCache = detection.Options;
                     detectionConfig.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                    detectionConfig.EncoderPerformanceCache = detection.PerformanceResults;
                     detectionConfig.IsEncoderDetected = detection.Succeeded;
                     detectionConfig.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
                     UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
@@ -135,12 +143,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     string codec = (detectionConfig.VideoCodec ?? "h264").Trim().ToLowerInvariant();
                     if (codec is not ("h264" or "h265" or "av1"))
                         codec = "h264";
-                    string encoder = EncodingHelper.ResolveFallbackEncoder(
+                    if (!EncodingHelper.TryResolveEncoder(
                         detectionConfig.GpuEncoder ?? "auto",
                         codec,
-                        detection.ValidatedEncoders);
-                    if (!detection.ValidatedEncoders.Contains(encoder))
-                        encoder = detection.ValidatedEncoders.First();
+                        detection.ValidatedEncoders,
+                        detection.PerformanceScores,
+                        out string encoder))
+                    {
+                        SaveConfig();
+                        return new RecordingProfileRecommendation(false, null, "当前选择未通过编码器检测", []);
+                    }
                     int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(detectionConfig.VideoCqp);
                     string ffmpegPath = AppPaths.FindFFmpeg();
                     RuntimeLog.Info(
@@ -288,7 +300,7 @@ namespace ExpressPackingMonitoring.ViewModels
             return
                 "已检测到 NVIDIA 显卡驱动与当前 FFmpeg 的 NVENC 版本不兼容。\n\n" +
                 detailText + "\n\n" +
-                "程序已自动改用 CPU 软编码，录像仍可继续。请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器";
+                "请升级 NVIDIA 显卡驱动，然后在设置中重新检测编码器或选择其他可用编码器";
         }
 
         private static bool WaitForEncoderProbeExit(Process process, int timeoutMs)
@@ -325,12 +337,10 @@ namespace ExpressPackingMonitoring.ViewModels
             var log = new StringBuilder();
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === GPU 编码器检测开始 ===");
 
-            var list = new List<GpuEncoderOption>
-            {
-                new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（优先独显）" },
-                new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
-            };
+            var list = new List<GpuEncoderOption>();
             var validated = new HashSet<string>();
+            var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var performanceResults = new List<EncoderPerformanceCacheEntry>();
             NvencDriverCompatibilityIssue? nvencDriverIssue = null;
 
             log.AppendLine($"FFmpeg 路径: {ffmpegPath}");
@@ -340,13 +350,13 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 log.AppendLine("FFmpeg 不存在，跳过检测");
                 WriteEncoderLog(log);
-                return new EncoderDetectionResult(list, validated, false, null);
+                return new EncoderDetectionResult(list, validated, scores, performanceResults, false, null);
             }
 
             string output = QueryFFmpegEncoders(ffmpegPath);
             log.AppendLine($"ffmpeg -encoders 输出长度: {output.Length}");
 
-            foreach (string encoder in new[] { "libx264", "libx265" })
+            foreach (string encoder in new[] { "libx264", "libx265", "libsvtav1" })
             {
                 bool inList = output.Contains(encoder, StringComparison.Ordinal);
                 log.AppendLine($"\n=== CPU {encoder} ===");
@@ -396,24 +406,76 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         validated.Add(enc);
                         anyPassed = true;
+                        RealtimeEncodingBenchmarkResult benchmark = RecordingProfileDetector.Benchmark(
+                            ffmpegPath, enc, EncoderScoreCqp, EncoderScoreMode);
+                        if (benchmark.CompletedSuccessfully && benchmark.MeasuredEncodingFps > 0)
+                            scores[enc] = benchmark.MeasuredEncodingFps;
+                        performanceResults.Add(CreateEncoderPerformanceResult(gpu, enc, benchmark));
                     }
                     else if (enc.EndsWith("_nvenc", StringComparison.OrdinalIgnoreCase))
                     {
                         nvencDriverIssue ??= ParseNvencDriverCompatibilityIssue(testDetail);
+                        performanceResults.Add(CreateEncoderPerformanceFailure(gpu, enc, testDetail));
                     }
+                    else
+                        performanceResults.Add(CreateEncoderPerformanceFailure(gpu, enc, testDetail));
                 }
 
-                if (anyPassed)
-                    list.Insert(list.Count - 1, new GpuEncoderOption { Value = gpu, DisplayName = label });
+                if (anyPassed && encs.Any(scores.ContainsKey))
+                    list.Add(new GpuEncoderOption { Value = gpu, DisplayName = label });
             }
+
+            if (scores.Count > 0)
+                list.Insert(0, new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（按实测性能）" });
+            if (validated.Any(encoder => encoder is "libx264" or "libx265" or "libsvtav1"))
+                list.Add(new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" });
 
             log.AppendLine($"\nGPU 选项: {string.Join(", ", list.Select(e => e.Value))}");
             log.AppendLine($"已验证编码器: {string.Join(", ", validated)}");
+            log.AppendLine($"性能评分: {string.Join(", ", scores.Select(pair => $"{pair.Key}={pair.Value:F2}fps"))}");
             log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] === 检测结束 ===");
             WriteEncoderLog(log);
-            return new EncoderDetectionResult(list, validated, true, nvencDriverIssue);
+            return new EncoderDetectionResult(list, validated, scores, performanceResults, true, nvencDriverIssue);
         }
 
+        private static EncoderPerformanceCacheEntry CreateEncoderPerformanceResult(
+            string gpu,
+            string encoder,
+            RealtimeEncodingBenchmarkResult benchmark)
+        {
+            return new EncoderPerformanceCacheEntry
+            {
+                SchemaVersion = EncoderScoreSchemaVersion,
+                Encoder = encoder,
+                Gpu = gpu,
+                Codec = EncodingHelper.GetCodecFromEncoder(encoder),
+                VideoCqp = EncoderScoreCqp,
+                Width = EncoderScoreMode.Width,
+                Height = EncoderScoreMode.Height,
+                CompletedSuccessfully = benchmark.CompletedSuccessfully,
+                MeasuredEncodingFps = benchmark.MeasuredEncodingFps,
+                TestedAt = DateTime.Now,
+                Detail = benchmark.Detail
+            };
+        }
+
+        private static EncoderPerformanceCacheEntry CreateEncoderPerformanceFailure(
+            string gpu,
+            string encoder,
+            string detail) =>
+            new()
+            {
+                SchemaVersion = EncoderScoreSchemaVersion,
+                Encoder = encoder,
+                Gpu = gpu,
+                Codec = EncodingHelper.GetCodecFromEncoder(encoder),
+                VideoCqp = EncoderScoreCqp,
+                Width = EncoderScoreMode.Width,
+                Height = EncoderScoreMode.Height,
+                CompletedSuccessfully = false,
+                TestedAt = DateTime.Now,
+                Detail = detail
+            };
         private static void WriteEncoderLog(StringBuilder log)
         {
             try

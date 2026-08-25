@@ -459,7 +459,18 @@ namespace ExpressPackingMonitoring.Audio
             if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
             var validated = new HashSet<string>(config.ValidatedEncodersCache ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
             string gpu = EncodingHelper.NormalizeGpuSetting(config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto");
-            return EncodingHelper.ResolveFallbackEncoder(gpu, codec, validated);
+            var scores = (config.EncoderPerformanceCache ?? [])
+                .Where(entry => entry.SchemaVersion == MainViewModel.EncoderScoreSchemaVersion
+                    && entry.CompletedSuccessfully
+                    && entry.VideoCqp == MainViewModel.EncoderScoreCqp
+                    && entry.Width == MainViewModel.EncoderScoreMode.Width
+                    && entry.Height == MainViewModel.EncoderScoreMode.Height
+                    && entry.MeasuredEncodingFps > 0)
+                .GroupBy(entry => entry.Encoder, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.OrderByDescending(entry => entry.TestedAt).First().MeasuredEncodingFps, StringComparer.OrdinalIgnoreCase);
+            return EncodingHelper.TryResolveEncoder(gpu, codec, validated, scores, out string encoder)
+                ? encoder
+                : "";
         }
 
         private static (bool Exited, int ExitCode, string Stderr) WriteSyntheticMkv(string ffmpegPath, string mkvPath, int seconds, ProbeVideoOptions video)

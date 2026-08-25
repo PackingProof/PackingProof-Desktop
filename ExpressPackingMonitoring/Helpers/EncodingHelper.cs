@@ -1,5 +1,4 @@
 #nullable disable
-using ExpressPackingMonitoring.Config;
 using System;
 using System.Collections.Generic;
 using ExpressPackingMonitoring.ViewModels;
@@ -61,7 +60,7 @@ namespace ExpressPackingMonitoring.Helpers
             };
         }
 
-        public static string ResolveRequestedEncoder(string gpu, string codec)
+        private static string ResolveRequestedEncoder(string gpu, string codec)
         {
             gpu = NormalizeGpuSetting(gpu ?? "auto");
             return (gpu, codec) switch
@@ -87,68 +86,104 @@ namespace ExpressPackingMonitoring.Helpers
             };
         }
 
-        public static string ResolveFallbackEncoder(string gpu, string codec, HashSet<string> validated)
+        public static bool TryResolveEncoder(
+            string gpu,
+            string codec,
+            ISet<string> validated,
+            IReadOnlyDictionary<string, double> scores,
+            out string encoder)
         {
             validated ??= new HashSet<string>();
-            string cpuEncoder = GetCpuFallbackEncoder(codec);
-
             gpu = NormalizeGpuSetting(gpu ?? "auto");
+            codec = NormalizeCodec(codec);
+            encoder = "";
+
+            if (gpu == "cpu")
+            {
+                string requested = ResolveRequestedEncoder(gpu, codec);
+                if (validated.Contains(requested))
+                {
+                    encoder = requested;
+                    return true;
+                }
+                return false;
+            }
+
             if (gpu != "auto")
             {
                 string requested = ResolveRequestedEncoder(gpu, codec);
-                if (requested == cpuEncoder || validated.Contains(requested))
-                    return requested;
-                if (validated.Contains(cpuEncoder))
-                    return cpuEncoder;
-                return "libx264";
+                if (validated.Contains(requested))
+                {
+                    encoder = requested;
+                    return true;
+                }
+                return false;
             }
 
-            foreach (var candidateGpu in new[] { "nvidia", "amd", "intel" })
+            IEnumerable<string> candidates = HardwareEncodersForCodec(codec)
+                .Where(validated.Contains)
+                .Where(candidate => scores != null
+                    && scores.TryGetValue(candidate, out double score)
+                    && score > 0);
+            if (codec == "h265" && !candidates.Any())
             {
-                string candidate = ResolveRequestedEncoder(candidateGpu, codec);
-                if (validated.Contains(candidate))
-                    return candidate;
+                candidates = HardwareEncodersForCodec("h264")
+                    .Where(validated.Contains)
+                    .Where(candidate => scores != null
+                        && scores.TryGetValue(candidate, out double score)
+                        && score > 0);
             }
 
-            if (validated.Contains(cpuEncoder))
-                return cpuEncoder;
-
-            if (codec == "av1" && validated.Count == 0)
-                return "libx265";
-
-            return "libx264";
-        }
-
-        public static string GetCpuFallbackEncoder(string codec)
-        {
-            return codec switch
-            {
-                "h265" or "av1" => "libx265",
-                _ => "libx264"
-            };
-        }
-
-        public static bool ApplyUnsupportedAv1Fallback(AppConfig config, ISet<string> validated)
-        {
-            ArgumentNullException.ThrowIfNull(config);
-            validated ??= new HashSet<string>();
-            if (!string.Equals(config.VideoCodec?.Trim(), "av1", StringComparison.OrdinalIgnoreCase))
+            string best = candidates
+                .OrderByDescending(candidate => scores![candidate])
+                .ThenBy(candidate => candidate, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (best == null)
                 return false;
 
-            bool hasHardwareAv1 = new[] { "av1_nvenc", "av1_amf", "av1_qsv" }
-                .Any(validated.Contains);
-            if (hasHardwareAv1)
-                return false;
-
-            config.VideoCodec = "h265";
-            config.GpuEncoder = "auto";
+            encoder = best;
             return true;
         }
 
-        public static void ApplyEncoderSelectionToConfig(AppConfig config, string encoder)
+        public static bool IsExactSelectionAvailable(
+            string gpu,
+            string codec,
+            ISet<string> validated,
+            IReadOnlyDictionary<string, double> scores)
         {
-            config.VideoCodec = GetCodecFromEncoder(encoder);
-            config.GpuEncoder = NormalizeGpuSetting(encoder);
+            validated ??= new HashSet<string>();
+            gpu = NormalizeGpuSetting(gpu ?? "auto");
+            codec = NormalizeCodec(codec);
+            if (gpu == "auto")
+            {
+                return HardwareEncodersForCodec(codec).Any(encoder =>
+                    validated.Contains(encoder)
+                    && scores != null
+                    && scores.TryGetValue(encoder, out double score)
+                    && score > 0);
+            }
+
+            string requested = ResolveRequestedEncoder(gpu, codec);
+            if (!validated.Contains(requested))
+                return false;
+            return gpu == "cpu"
+                || scores != null && scores.TryGetValue(requested, out double score) && score > 0;
         }
+
+        public static string NormalizeCodec(string codec) =>
+            codec?.Trim().ToLowerInvariant() switch
+            {
+                "h264" or "h265" or "av1" => codec.Trim().ToLowerInvariant(),
+                _ => "h264"
+            };
+
+        public static IReadOnlyList<string> HardwareEncodersForCodec(string codec) =>
+            NormalizeCodec(codec) switch
+            {
+                "h265" => ["hevc_nvenc", "hevc_amf", "hevc_qsv"],
+                "av1" => ["av1_nvenc", "av1_amf", "av1_qsv"],
+                _ => ["h264_nvenc", "h264_amf", "h264_qsv"]
+            };
+
     }
 }

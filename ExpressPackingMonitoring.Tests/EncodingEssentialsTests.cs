@@ -8,74 +8,106 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class EncodingEssentialsTests
 {
     [Fact]
-    public void Av1WithoutValidatedHardware_FallsBackToCpuH265()
+    public void AutoH265_SelectsHighestScoredHardwareH265()
     {
         var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "libx264",
-            "libx265"
+            "hevc_nvenc", "hevc_qsv"
+        };
+        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["hevc_nvenc"] = 120,
+            ["hevc_qsv"] = 175
         };
 
-        Assert.Equal("libx265", EncodingHelper.ResolveFallbackEncoder("auto", "av1", validated));
-        Assert.Equal("libx265", EncodingHelper.GetCpuFallbackEncoder("av1"));
+        Assert.True(EncodingHelper.TryResolveEncoder("auto", "h265", validated, scores, out string encoder));
+        Assert.Equal("hevc_qsv", encoder);
     }
 
-    [Theory]
-    [InlineData("av1_nvenc")]
-    [InlineData("av1_amf")]
-    [InlineData("av1_qsv")]
-    public void Av1WithValidatedHardware_PreservesAv1(string encoder)
+    [Fact]
+    public void AutoH265_UsesHighestScoredHardwareH264WhenNoHardwareH265Exists()
     {
         var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "libx264",
-            "libx265",
-            encoder
+            "libx265", "h264_nvenc", "h264_amf"
+        };
+        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["h264_nvenc"] = 90,
+            ["h264_amf"] = 130
         };
 
-        Assert.Equal(encoder, EncodingHelper.ResolveFallbackEncoder("auto", "av1", validated));
+        Assert.True(EncodingHelper.TryResolveEncoder("auto", "h265", validated, scores, out string encoder));
+        Assert.Equal("h264_amf", encoder);
     }
 
     [Fact]
-    public void UnsupportedAv1Configuration_IsPersistentlyMigratedToH265Auto()
+    public void ExplicitHardwareH265_DoesNotFallBackToCpuH265()
     {
-        var config = new AppConfig
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            VideoCodec = "av1",
-            GpuEncoder = "cpu"
+            "libx265", "h264_nvenc"
         };
 
-        bool changed = EncodingHelper.ApplyUnsupportedAv1Fallback(
-            config,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "libx264", "libx265" });
-
-        Assert.True(changed);
-        Assert.Equal("h265", config.VideoCodec);
-        Assert.Equal("auto", config.GpuEncoder);
+        Assert.False(EncodingHelper.TryResolveEncoder("nvidia", "h265", validated,
+            new Dictionary<string, double> { ["h264_nvenc"] = 100 }, out string encoder));
+        Assert.Empty(encoder);
     }
 
     [Fact]
-    public void ValidatedHardwareAv1Configuration_IsNotMigrated()
+    public void ExplicitCpuH265_IsAllowedOnlyWhenValidated()
     {
-        var config = new AppConfig
+        Assert.True(EncodingHelper.TryResolveEncoder("cpu", "h265",
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "libx265" }, null, out string encoder));
+        Assert.Equal("libx265", encoder);
+    }
+
+    [Fact]
+    public void AutoSelection_RequiresValidPerformanceScore()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "hevc_nvenc" };
+        Assert.False(EncodingHelper.TryResolveEncoder("auto", "h265", validated,
+            new Dictionary<string, double>(), out _));
+    }
+
+    [Fact]
+    public void EqualScores_UseStableEncoderNameTieBreak()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "hevc_nvenc", "hevc_amf" };
+        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
-            VideoCodec = "av1",
-            GpuEncoder = "nvidia"
+            ["hevc_nvenc"] = 100,
+            ["hevc_amf"] = 100
+        };
+        Assert.True(EncodingHelper.TryResolveEncoder("auto", "h265", validated, scores, out string encoder));
+        Assert.Equal("hevc_amf", encoder);
+    }
+
+    [Fact]
+    public void ExactUiAvailability_DoesNotPresentH265WhenOnlyHardwareH264Exists()
+    {
+        var validated = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "h264_nvenc" };
+        var scores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["h264_nvenc"] = 100
         };
 
-        bool changed = EncodingHelper.ApplyUnsupportedAv1Fallback(
-            config,
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "av1_nvenc" });
-
-        Assert.False(changed);
-        Assert.Equal("av1", config.VideoCodec);
-        Assert.Equal("nvidia", config.GpuEncoder);
+        Assert.False(EncodingHelper.IsExactSelectionAvailable("auto", "h265", validated, scores));
+        Assert.True(EncodingHelper.IsExactSelectionAvailable("auto", "h264", validated, scores));
     }
 
     [Fact]
     public void EncoderDetectionCacheVersion_IsBumpedForEssentialsBaseline()
     {
-        Assert.True(MainViewModel.CurrentEncoderDetectionCacheVersion >= 2);
+        Assert.True(MainViewModel.CurrentEncoderDetectionCacheVersion >= 4);
+    }
+
+    [Fact]
+    public void NewConfiguration_DefaultsToScoredHardwareAutoAndH265()
+    {
+        var config = new AppConfig();
+        Assert.Equal("auto", config.GpuEncoder);
+        Assert.Equal("h265", config.VideoCodec);
     }
 
     [Fact]
@@ -99,7 +131,8 @@ public sealed class EncodingEssentialsTests
         Assert.Contains("需要 13.1", message, StringComparison.Ordinal);
         Assert.Contains("当前驱动仅提供 13.0", message, StringComparison.Ordinal);
         Assert.Contains("610.0", message, StringComparison.Ordinal);
-        Assert.Contains("已自动改用 CPU 软编码", message, StringComparison.Ordinal);
+        Assert.False(message?.Contains("自动改用 CPU", StringComparison.Ordinal) == true);
+        Assert.Contains("选择其他可用编码器", message, StringComparison.Ordinal);
     }
 
     [Theory]

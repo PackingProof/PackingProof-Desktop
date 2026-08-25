@@ -604,6 +604,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 _currentVideoCodec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
                 _currentVideoEncoder = ResolveEncoder();
 
+                if (string.IsNullOrWhiteSpace(_currentVideoEncoder))
+                {
+                    RuntimeLog.Error("Recording", $"Encoder selection rejected. gpu={Config.GpuEncoder}, codec={Config.VideoCodec}");
+                    ShowToast("当前选择未通过编码器检测", ToastSeverity.Error);
+                    AppDialog.Error(null, "当前选择未通过编码器检测，请重新检测或选择设置列表中的可用编码器", "无法开始录制");
+                    ClearCurrentAudioLogPath(audioLogPath);
+                    return;
+                }
+
                 string ffmpegPath = FindFFmpeg();
                 if (string.IsNullOrEmpty(ffmpegPath))
                 {
@@ -747,28 +756,15 @@ namespace ExpressPackingMonitoring.ViewModels
             int h = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
             int fps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
             string encoder = ResolveEncoder();
+            if (string.IsNullOrWhiteSpace(encoder))
+            {
+                RuntimeLog.Error("FFmpeg", $"Encoder selection rejected. gpu={Config.GpuEncoder}, codec={Config.VideoCodec}");
+                return;
+            }
             bool hasAudio = withDirectAudio;
             string requestedEncoder = encoder;
-            string? firstError = null;
-            bool fallbackAttempted = false;
 
             var (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
-            if (!ok && !token.IsCancellationRequested)
-            {
-                firstError = err;
-                string fallbackEncoder = GetCpuEncoder();
-                if (!withDirectAudio
-                    && !string.Equals(encoder, fallbackEncoder, StringComparison.OrdinalIgnoreCase))
-                {
-                    RuntimeLog.Warn("FFmpeg", $"Encoder failed, retrying CPU. requested={encoder}, fallback={fallbackEncoder}, error={err}");
-                    WriteAudioDiagnostic($"视频编码器启动失败，改用 CPU 软编码重试: requested={encoder}, fallback={fallbackEncoder}, error={err}");
-                    try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
-
-                    encoder = fallbackEncoder;
-                    fallbackAttempted = true;
-                    (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
-                }
-            }
             
             if (ok)
             {
@@ -785,9 +781,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 DeleteAudioTempFile(StopAudioRecording());
                 try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
-                string errorDetail = string.IsNullOrWhiteSpace(firstError) || string.Equals(firstError, err, StringComparison.Ordinal)
-                    ? err
-                    : $"{firstError}\nCPU 软编码重试: {err}";
+                string errorDetail = err;
 
                 RuntimeLog.Error("FFmpeg", $"Recording failed. requested={requestedEncoder}, final={encoder}, file={Path.GetFileName(filePath)}, error={errorDetail}");
 
@@ -822,12 +816,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     ShowToast("录制启动失败", ToastSeverity.Error);
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
-                    string fallbackNote = fallbackAttempted
-                        ? $"已自动尝试 CPU 软编码（最终编码器: {EncodingHelper.GetEncoderLabel(encoder)}）；若仍失败，请检查摄像头画面和存储路径"
-                        : "视频编码中途失败（可能已写出部分画面），视频未保存为有效录像。请检查显卡驱动、编码器可用性和存储空间";
                     AppDialog.Error(
                         null,
-                        $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n{fallbackNote}",
+                        $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n请重新检测编码器、检查显卡驱动，或选择设置列表中的其他可用编码器",
                         "录制失败");
                 });
             }
@@ -854,11 +845,6 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Error("Recording", "Failed to mark recording failure in database", ex);
             }
-        }
-
-        private string GetCpuEncoder()
-        {
-            return EncodingHelper.GetCpuFallbackEncoder(Config.VideoCodec?.ToLowerInvariant() ?? "h264");
         }
 
         private void EnqueueLatestFrameForRecording()
@@ -3016,10 +3002,14 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             string codec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
             if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
-            return EncodingHelper.ResolveFallbackEncoder(
+            return EncodingHelper.TryResolveEncoder(
                 Config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto",
                 codec,
-                ValidatedEncoders ?? new HashSet<string>());
+                ValidatedEncoders ?? new HashSet<string>(),
+                EncoderPerformanceScores,
+                out string encoder)
+                ? encoder
+                : "";
         }
     }
 }

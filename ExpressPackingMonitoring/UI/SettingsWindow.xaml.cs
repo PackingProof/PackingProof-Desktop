@@ -831,10 +831,16 @@ namespace ExpressPackingMonitoring.UI
             string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
                 ? gpuOption.Value
                 : Config.GpuEncoder ?? "auto";
-            string encoder = EncodingHelper.ResolveFallbackEncoder(
+            if (!EncodingHelper.TryResolveEncoder(
                 gpu,
                 codec,
-                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>(),
+                MainViewModel.EncoderPerformanceScores,
+                out string encoder))
+            {
+                recommendedMode = default;
+                return false;
+            }
             return RecordingProfileDetector.TryRecommendFromCache(
                 Config,
                 encoder,
@@ -845,12 +851,26 @@ namespace ExpressPackingMonitoring.UI
 
         private void LoadGpuEncoders()
         {
-            var encoders = MainViewModel.CachedEncoderOptions
-                ?? new List<GpuEncoderOption>
-                {
-                    new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（优先独显）" },
-                    new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
-                };
+            var validated = MainViewModel.ValidatedEncoders ?? new HashSet<string>();
+            var scores = MainViewModel.EncoderPerformanceScores ?? new Dictionary<string, double>();
+            bool HasScoredHardware(string gpu) => EncodingHelper.HardwareEncodersForCodec("h264")
+                .Concat(EncodingHelper.HardwareEncodersForCodec("h265"))
+                .Concat(EncodingHelper.HardwareEncodersForCodec("av1"))
+                .Where(encoder => EncodingHelper.NormalizeGpuSetting(encoder) == gpu)
+                .Any(encoder => validated.Contains(encoder)
+                    && scores.TryGetValue(encoder, out double score)
+                    && score > 0);
+            var available = MainViewModel.CachedEncoderOptions ?? [];
+            var encoders = available
+                .Where(option => option.Value == "auto"
+                    ? scores.Any(pair => pair.Value > 0
+                        && EncodingHelper.HardwareEncodersForCodec("h264").Concat(
+                            EncodingHelper.HardwareEncodersForCodec("h265")).Concat(
+                            EncodingHelper.HardwareEncodersForCodec("av1")).Contains(pair.Key))
+                    : option.Value == "cpu"
+                        ? validated.Any(encoder => encoder is "libx264" or "libx265" or "libsvtav1")
+                        : HasScoredHardware(option.Value))
+                .ToList();
             GpuEncoderComboBox.ItemsSource = encoders;
             string normalized = NormalizeGpuSetting(Config.GpuEncoder ?? "auto");
             var match = encoders.FirstOrDefault(e => e.Value == normalized)
@@ -860,15 +880,28 @@ namespace ExpressPackingMonitoring.UI
 
         private void LoadVideoCodecs()
         {
-            var items = new[]
-            {
-                new GpuEncoderOption { Value = "h264", DisplayName = "H.264 (兼容性好)" },
-                new GpuEncoderOption { Value = "h265", DisplayName = "H.265 / HEVC (体积更小)" },
-                new GpuEncoderOption { Value = "av1",  DisplayName = "AV1 (极致压缩，推荐)" }
-            };
+            string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption selectedGpu
+                ? selectedGpu.Value
+                : NormalizeGpuSetting(Config.GpuEncoder ?? "auto");
+            var validated = MainViewModel.ValidatedEncoders ?? new HashSet<string>();
+            var scores = MainViewModel.EncoderPerformanceScores ?? new Dictionary<string, double>();
+            bool Available(string codec) => EncodingHelper.IsExactSelectionAvailable(
+                gpu, codec, validated, scores);
+            var items = new List<GpuEncoderOption>();
+            if (Available("h264")) items.Add(new GpuEncoderOption { Value = "h264", DisplayName = "H.264 (兼容性好)" });
+            if (Available("h265")) items.Add(new GpuEncoderOption { Value = "h265", DisplayName = "H.265 / HEVC (体积更小)" });
+            if (Available("av1")) items.Add(new GpuEncoderOption { Value = "av1", DisplayName = "AV1 (极致压缩)" });
             VideoCodecComboBox.ItemsSource = items;
             string current = Config.VideoCodec?.ToLowerInvariant() ?? "h264";
-            VideoCodecComboBox.SelectedItem = items.FirstOrDefault(i => i.Value == current) ?? items[0];
+            VideoCodecComboBox.SelectedItem = items.FirstOrDefault(i => i.Value == current)
+                ?? items.FirstOrDefault(i => i.Value == "h265")
+                ?? items.FirstOrDefault();
+        }
+
+        private void GpuEncoderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (VideoCodecComboBox != null)
+                LoadVideoCodecs();
         }
 
         private static string NormalizeGpuSetting(string setting) => EncodingHelper.NormalizeGpuSetting(setting);
@@ -2065,10 +2098,13 @@ namespace ExpressPackingMonitoring.UI
             string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
                 ? gpuOption.Value
                 : Config.GpuEncoder ?? "auto";
-            string encoder = EncodingHelper.ResolveFallbackEncoder(
+            if (!EncodingHelper.TryResolveEncoder(
                 gpu,
                 codec,
-                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>(),
+                MainViewModel.EncoderPerformanceScores,
+                out string encoder))
+                return true;
             var selectedMode = new NativeCameraMode(resolution.Width, resolution.Height, fps);
             int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(Config.VideoCqp);
             if (!RecordingProfileDetector.TryGetCachedBenchmark(
@@ -2480,57 +2516,12 @@ namespace ExpressPackingMonitoring.UI
             string gpu = NormalizeGpuSetting(Config.GpuEncoder ?? "auto");
             var validated = MainViewModel.ValidatedEncoders ?? new HashSet<string>();
 
-            string requestedEncoder = EncodingHelper.ResolveRequestedEncoder(gpu, codec);
-            string fallbackEncoder = EncodingHelper.ResolveFallbackEncoder(gpu, codec, validated);
-
-            if (fallbackEncoder == requestedEncoder)
-            {
-                if (!string.Equals(NormalizeGpuSetting(Config.GpuEncoder ?? "auto"), NormalizeGpuSetting(fallbackEncoder), StringComparison.OrdinalIgnoreCase)
-                    && gpu != "auto")
-                {
-                    string fallbackGpu = NormalizeGpuSetting(fallbackEncoder);
-                    Config.GpuEncoder = string.IsNullOrEmpty(fallbackGpu) ? "cpu" : fallbackGpu;
-                }
+            if (EncodingHelper.TryResolveEncoder(gpu, codec, validated,
+                    MainViewModel.EncoderPerformanceScores, out _))
                 return true;
-            }
 
-            string requestedLabel = EncodingHelper.GetEncoderLabel(requestedEncoder);
-            string fallbackLabel = EncodingHelper.GetEncoderLabel(fallbackEncoder);
-
-            // 该编解码器完全不可用：保存前直接改成可用方案
-            if (codec != EncodingHelper.GetCodecFromEncoder(fallbackEncoder))
-            {
-                bool useFallback = AppDialog.Confirm(
-                    this,
-                    $"当前设备或 FFmpeg 不支持 {EncodingHelper.GetCodecLabel(codec)}。\n\n" +
-                    $"请求方案: {requestedLabel}\n" +
-                    $"建议切换到: {fallbackLabel}\n\n" +
-                    $"是否在保存时自动改为 {fallbackLabel}？",
-                    "编码器不可用",
-                    AppDialogSeverity.Warning,
-                    confirmText: "使用建议方案",
-                    cancelText: "取消保存",
-                    isDangerous: false);
-
-                if (!useFallback)
-                    return false;
-
-                EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
-                SyncEncoderComboboxes(fallbackEncoder);
-                return true;
-            }
-
-            // 同一编解码器可用，但会回退到别的实现
-            AppDialog.Information(
-                this,
-                $"当前选择的 {requestedLabel} 不可用。\n\n" +
-                $"保存后实际会回退到: {fallbackLabel}\n\n" +
-                $"设置将按可用方案保存",
-                "编码器将自动回退");
-
-            EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
-            SyncEncoderComboboxes(fallbackEncoder);
-            return true;
+            AppDialog.Error(this, "当前选择未通过编码器检测，请重新检测或选择列表中的可用编码器", "编码器不可用");
+            return false;
         }
 
         private bool ValidateOrderIdRegexBeforeSave()
@@ -2544,19 +2535,6 @@ namespace ExpressPackingMonitoring.UI
                 "单号判断规则错误");
             return false;
         }
-
-        private void SyncEncoderComboboxes(string encoder)
-        {
-            string codec = EncodingHelper.GetCodecFromEncoder(encoder);
-            string gpu = NormalizeGpuSetting(encoder);
-
-            if (VideoCodecComboBox.ItemsSource is IEnumerable<GpuEncoderOption> codecs)
-                VideoCodecComboBox.SelectedItem = codecs.FirstOrDefault(i => i.Value == codec);
-
-            if (GpuEncoderComboBox.ItemsSource is IEnumerable<GpuEncoderOption> gpus)
-                GpuEncoderComboBox.SelectedItem = gpus.FirstOrDefault(i => i.Value == gpu);
-        }
-
 
         private void OpenRepository_Click(object sender, RoutedEventArgs e)
         {

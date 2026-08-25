@@ -91,6 +91,21 @@ namespace ExpressPackingMonitoring.Config
         public DateTime TestedAt { get; set; }
     }
 
+    public sealed class EncoderPerformanceCacheEntry
+    {
+        public int SchemaVersion { get; set; }
+        public string Encoder { get; set; } = "";
+        public string Gpu { get; set; } = "";
+        public string Codec { get; set; } = "";
+        public int VideoCqp { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public bool CompletedSuccessfully { get; set; }
+        public double MeasuredEncodingFps { get; set; }
+        public DateTime TestedAt { get; set; }
+        public string Detail { get; set; } = "";
+    }
+
     public class AppConfig
     {
         public const int CurrentVoiceSettingsVersion = 2;
@@ -210,7 +225,7 @@ namespace ExpressPackingMonitoring.Config
         public string AudioDeviceMoniker { get; set; } = "";
         public int AudioSyncOffsetMs { get; set; } = 0;
         public double BarcodeCooldownSeconds { get; set; } = 2.0;
-        public string GpuEncoder { get; set; } = "nvidia";
+        public string GpuEncoder { get; set; } = "auto";
         public string VideoCodec { get; set; } = "h265"; // "h264" or "h265"
         public int VideoCqp { get; set; } = 30;
 
@@ -264,6 +279,7 @@ namespace ExpressPackingMonitoring.Config
         public List<GpuEncoderOption> EncoderOptionsCache { get; set; } = new();
         public List<string> ValidatedEncodersCache { get; set; } = new();
         public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
+        public List<EncoderPerformanceCacheEntry> EncoderPerformanceCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
         public int EncoderDetectionCacheVersion { get; set; } = 0;
         public string EncoderDriverWarningCode { get; set; } = "";

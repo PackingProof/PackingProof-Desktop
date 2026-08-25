@@ -48,6 +48,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>启动时通过试编码验证的所有编码器名称（包括 H.264 和 H.265）</summary>
         public static HashSet<string> ValidatedEncoders { get; private set; } = new();
+        public static Dictionary<string, double> EncoderPerformanceScores { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
 
         private VideoCaptureDevice _videoSource;
         private NetworkCameraSource _networkCameraSource;
@@ -707,29 +708,34 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         CachedEncoderOptions = Config.EncoderOptionsCache;
                         ValidatedEncoders = new HashSet<string>(Config.ValidatedEncodersCache);
+                        EncoderPerformanceScores = (Config.EncoderPerformanceCache ?? [])
+                            .Where(entry => entry.SchemaVersion == EncoderScoreSchemaVersion
+                                && entry.CompletedSuccessfully
+                                && entry.Width == EncoderScoreMode.Width
+                                && entry.Height == EncoderScoreMode.Height
+                                && entry.VideoCqp == EncoderScoreCqp
+                                && entry.MeasuredEncodingFps > 0)
+                            .GroupBy(entry => entry.Encoder, StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(group => group.Key, group => group.OrderByDescending(entry => entry.TestedAt).First().MeasuredEncodingFps, StringComparer.OrdinalIgnoreCase);
                     }
                     else
                     {
                         EncoderDetectionResult detection = DetectAvailableEncodersSync();
                         CachedEncoderOptions = detection.Options;
                         ValidatedEncoders = detection.ValidatedEncoders;
+                        EncoderPerformanceScores = detection.PerformanceScores;
 
                         // 保存到配置中
                         Config.EncoderOptionsCache = detection.Options;
                         Config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+                        Config.EncoderPerformanceCache = detection.PerformanceResults;
                         Config.IsEncoderDetected = detection.Succeeded;
                         Config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
                         UpdateEncoderDriverWarning(Config, detection.NvencDriverIssue);
                     }
 
-                    bool av1FallbackApplied = EncodingHelper.ApplyUnsupportedAv1Fallback(Config, ValidatedEncoders);
                     string driverWarningMessage = BuildEncoderDriverWarningMessage(Config);
                     SaveConfig();
-                    if (av1FallbackApplied)
-                    {
-                        Application.Current?.Dispatcher.BeginInvoke(() =>
-                            ShowToast("当前电脑无法实时使用 AV1，已改用 H.265", ToastSeverity.Warning));
-                    }
                     if (!string.IsNullOrWhiteSpace(driverWarningMessage))
                     {
                         Application.Current?.Dispatcher.BeginInvoke(() =>

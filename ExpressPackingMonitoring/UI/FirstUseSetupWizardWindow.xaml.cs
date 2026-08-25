@@ -636,12 +636,16 @@ public partial class FirstUseSetupWizardWindow : Window
                 string codec = (_config.VideoCodec ?? "h264").Trim().ToLowerInvariant();
                 if (codec is not ("h264" or "h265" or "av1"))
                     codec = "h264";
-                string encoder = EncodingHelper.ResolveFallbackEncoder(
+                if (!EncodingHelper.TryResolveEncoder(
                     _config.GpuEncoder ?? "auto",
                     codec,
-                    encoderDetection.ValidatedEncoders);
-                if (!encoderDetection.ValidatedEncoders.Contains(encoder))
-                    encoder = encoderDetection.ValidatedEncoders.First();
+                    encoderDetection.ValidatedEncoders,
+                    encoderDetection.PerformanceScores,
+                    out string encoder))
+                {
+                    return (encoderDetection, encoder: "", videoCqp: RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp),
+                        ffmpegPath: AppPaths.FindFFmpeg(), recommendation: new RecordingProfileRecommendation(false, null, "当前选择未通过编码器检测", []));
+                }
                 int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp);
                 string ffmpegPath = AppPaths.FindFFmpeg();
                 RecordingProfileRecommendation recommendation = RecordingProfileDetector.Recommend(
@@ -657,7 +661,9 @@ public partial class FirstUseSetupWizardWindow : Window
             _config.EncoderOptionsCache = detection.encoderDetection.Options;
             _config.ValidatedEncodersCache =
                 detection.encoderDetection.ValidatedEncoders.ToList();
+            _config.EncoderPerformanceCache = detection.encoderDetection.PerformanceResults;
             _config.IsEncoderDetected = detection.encoderDetection.Succeeded;
+            _config.EncoderDetectionCacheVersion = MainViewModel.CurrentEncoderDetectionCacheVersion;
             RecordingProfileDetector.UpdateBenchmarkCache(
                 _config,
                 detection.encoder,

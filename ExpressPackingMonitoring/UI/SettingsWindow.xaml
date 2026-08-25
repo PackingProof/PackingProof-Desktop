@@ -2393,6 +2393,7 @@
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <ComboBox x:Name="GpuEncoderComboBox"
+                                                  SelectionChanged="GpuEncoderComboBox_SelectionChanged"
                                                   Grid.Column="2"
                                                   SelectedValuePath="Value"
                                                   DisplayMemberPath="DisplayName"
