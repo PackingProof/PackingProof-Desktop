@@ -103,6 +103,12 @@ PackingProof 将**快递单号、订单信息和打包录像关联起来**：
 </tr>
 </table>
 
+## QQ 机器人查询录像
+
+[PackingProof QQBot](https://github.com/PackingProof/PackingProof-QQBot) 是基于本项目扩展 API 的独立参考实现。连接后，客服或同事可以在 QQ 私聊或已授权的 QQ 群中发送快递单号，由机器人查询 PackingProof 录像、回复录像时间与大小，并将视频直接发回 QQ。
+
+QQBot 不读取数据库、录像目录或 NAS 凭据，只通过用户授权的扩展 API 查询、下载录像和请求超限交付副本。机器人需要单独下载和运行，不包含在 PackingProof Desktop 安装包中。
+
 ## 工作流程
 
 <div align="center">
