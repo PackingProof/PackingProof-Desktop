@@ -631,6 +631,21 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
+    [InlineData("SF6048285539252", BarcodeFormat.CODE_39, "SF6048285539252")]
+    [InlineData("JT0025164133000", BarcodeFormat.CODE_93, "JT0025164133000")]
+    [InlineData("A123456789012B", BarcodeFormat.CODABAR, "123456789012")]
+    public void Decoder_GuideRegionRecognizesCommonShippingLinearFormats(
+        string encodedValue,
+        BarcodeFormat format,
+        string expectedTrackingNumber)
+    {
+        using Mat frame = CreateFrameWithBarcode(encodedValue, format, inGuide: true);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        Assert.Equal(expectedTrackingNumber, decoder.DecodeGuideRegion(frame));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void PairingQrDecoderPreservesCompleteConnectionLink(bool rotate90)

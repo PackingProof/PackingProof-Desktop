@@ -534,7 +534,9 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     private static readonly HashSet<BarcodeFormat> AllowedFormats =
     [
         BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.CODE_93,
+        BarcodeFormat.CODABAR
     ];
 
     private readonly BarcodeReaderGeneric _fastReader = new()
