@@ -274,7 +274,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
-        private volatile bool _isEncoderDetectRunning = true; // 是否正在进行 GPU 编码器检测
+        private volatile bool _isEncoderDetectRunning; // 是否正在进行编码器检测
         private string _workstationPrintStatusText = "未连接";
         private string _workstationStatusToolTip = "";
         private string _orderIntegrationStatusText = "暂未收到订单";
@@ -697,34 +697,32 @@ namespace ExpressPackingMonitoring.ViewModels
             InitializeCameraBarcodeRecognition();
             // 编码器性能必须以摄像头实际规格测试，因此这里只加载有效缓存。
             // 缓存版本变化后的强制重检会在摄像头启动后执行。
-            Task.Run(() => {
-                try
+            try
+            {
+                if (Config.IsEncoderDetected
+                    && Config.EncoderDetectionCacheVersion == CurrentEncoderDetectionCacheVersion
+                    && Config.EncoderOptionsCache != null
+                    && Config.ValidatedEncodersCache != null)
                 {
-                    if (Config.IsEncoderDetected
-                        && Config.EncoderDetectionCacheVersion == CurrentEncoderDetectionCacheVersion
-                        && Config.EncoderOptionsCache != null
-                        && Config.ValidatedEncodersCache != null)
-                    {
-                        CachedEncoderOptions = Config.EncoderOptionsCache;
-                        ValidatedEncoders = new HashSet<string>(Config.ValidatedEncodersCache);
-                    }
-                    else
-                    {
-                        CachedEncoderOptions = [];
-                        ValidatedEncoders = new HashSet<string>();
-                        Config.IsEncoderDetected = false;
-                        Config.EncoderOptionsCache = [];
-                        Config.ValidatedEncodersCache = [];
-                        Config.EffectiveVideoEncoder = "";
-                    }
+                    CachedEncoderOptions = Config.EncoderOptionsCache;
+                    ValidatedEncoders = new HashSet<string>(Config.ValidatedEncodersCache);
+                }
+                else
+                {
+                    CachedEncoderOptions = [];
+                    ValidatedEncoders = new HashSet<string>();
+                    Config.IsEncoderDetected = false;
+                    Config.EncoderOptionsCache = [];
+                    Config.ValidatedEncodersCache = [];
+                    Config.EffectiveVideoEncoder = "";
+                }
 
-                    SaveConfig();
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Error("EncoderDetect", "Startup encoder detection failed", ex);
-                }
-            });
+                SaveConfig();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("EncoderDetect", "Startup encoder cache initialization failed", ex);
+            }
             InitDatabase();
             InitializeRecordingTransfers();
             RefreshTodayStats();
@@ -2049,11 +2047,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void OpenSettings(bool selectRecordingCache)
         {
-            if (_isEncoderDetectRunning)
-            {
-                ShowToast("处理中：编码器环境检测中，请稍后打开设置...", ToastSeverity.Information);
-                return;
-            }
             try
             {
                 var clonedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();

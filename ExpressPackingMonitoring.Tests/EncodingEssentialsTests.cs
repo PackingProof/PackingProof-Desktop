@@ -9,6 +9,25 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class EncodingEssentialsTests
 {
     [Fact]
+    public void EncoderDetection_DoesNotStartPermanentlyBusyOrBlockSettings()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..",
+            "ExpressPackingMonitoring", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("private volatile bool _isEncoderDetectRunning;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "if (_isEncoderDetectRunning)\r\n            {\r\n                ShowToast(\"处理中：编码器环境检测中",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "if (_isEncoderDetectRunning)\n            {\n                ShowToast(\"处理中：编码器环境检测中",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AutomaticSelection_PrefersHardwareH265OverFasterHardwareH264()
     {
         EncodingHelper.EncoderSelection? selection = EncodingHelper.SelectEncoder(
