@@ -543,9 +543,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     : Config.ValidatedEncodersCache ?? [];
                 if (!TryResolveCachedEncoder(Config, validatedEncoders, encoderTargetMode, out EncodingHelper.EncoderSelection? encoderSelection))
                 {
-                    string message = _isEncoderDetectRunning
-                        ? "正在检测当前摄像头规格的编码器性能，检测完成后即可录像"
-                        : string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
+                    string message = string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
                         ? "手动选择的编码器已失效或性能不足，录像已阻止。请重新选择并检测"
                         : "编码器检测尚未完成或当前规格未通过性能验证，请重新检测";
                     ShowToast(message, ToastSeverity.Warning);
