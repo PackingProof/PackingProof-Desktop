@@ -28,6 +28,21 @@ public sealed class EncodingEssentialsTests
     }
 
     [Fact]
+    public void EncoderDetection_AllEntryPointsUseSharedPolicyService()
+    {
+        string root = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..");
+        string mainEncoder = File.ReadAllText(Path.Combine(
+            root, "ExpressPackingMonitoring", "ViewModels", "MainViewModel.Encoder.cs"));
+        string wizard = File.ReadAllText(Path.Combine(
+            root, "ExpressPackingMonitoring", "UI", "FirstUseSetupWizardWindow.xaml.cs"));
+
+        Assert.Contains("EncoderProfileDetectionService.DetectAsync", mainEncoder, StringComparison.Ordinal);
+        Assert.Contains("EncoderProfileDetectionService.DetectAsync", wizard, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainViewModel.DetectAvailableEncodersSync()", wizard, StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordingProfileDetector.Benchmark(", wizard, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AutomaticSelection_PrefersHardwareH265OverFasterHardwareH264()
     {
         EncodingHelper.EncoderSelection? selection = EncodingHelper.SelectEncoder(

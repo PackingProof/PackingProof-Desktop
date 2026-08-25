@@ -275,6 +275,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
         private bool _pendingCameraRestart = false; // 录制中修改了摄像头配置，录制结束后重启
         private volatile bool _isEncoderDetectRunning; // 是否正在进行编码器检测
+        private readonly SemaphoreSlim _encoderDetectionGate = new(1, 1);
         private string _workstationPrintStatusText = "未连接";
         private string _workstationStatusToolTip = "";
         private string _orderIntegrationStatusText = "暂未收到订单";
@@ -2043,6 +2044,14 @@ namespace ExpressPackingMonitoring.ViewModels
             return false;
         }
 
+        private void RefreshEncoderCachesFromConfig()
+        {
+            CachedEncoderOptions = Config.EncoderOptionsCache ?? [];
+            ValidatedEncoders = new HashSet<string>(
+                Config.ValidatedEncodersCache ?? [],
+                StringComparer.OrdinalIgnoreCase);
+        }
+
         public void OpenSettings() => OpenSettings(selectRecordingCache: false);
 
         private void OpenSettings(bool selectRecordingCache)
@@ -2130,6 +2139,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         return false;
                     // 必须先切换到 nextConfig，录制结束后的 RestartCamera 才会读取新的网络摄像头地址/协议。
                     Config = nextConfig;
+                    RefreshEncoderCachesFromConfig();
                     RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);
@@ -2273,6 +2283,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!SaveConfig(nextConfig, notifyUser: true))
                     return;
                 Config = nextConfig;
+                RefreshEncoderCachesFromConfig();
                 ResetCameraBarcodeRecognition();
                 ApplyGlobalKeyboardConfig();
                 if (_globalKeyHook != null)

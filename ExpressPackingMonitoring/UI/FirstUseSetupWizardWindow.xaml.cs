@@ -615,122 +615,20 @@ public partial class FirstUseSetupWizardWindow : Window
                 });
             }
 
-            var detection = await Task.Run(() =>
-            {
-                EncoderDetectionResult encoderDetection =
-                    MainViewModel.DetectAvailableEncodersSync();
-                if (!encoderDetection.Succeeded)
-                {
-                    return (
-                        encoderDetection,
-                        encoder: "",
-                        videoCqp: RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp),
-                        ffmpegPath: AppPaths.FindFFmpeg(),
-                        recommendation: new RecordingProfileRecommendation(
-                            false,
-                            null,
-                            "未检测到可用的 FFmpeg 编码器",
-                            []),
-                        options: new List<VideoEncoderOption>(),
-                        benchmarks: new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase));
-                }
-
-                int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp);
-                string ffmpegPath = AppPaths.FindFFmpeg();
-                NativeCameraMode targetMode = nativeModes
-                    .OrderBy(mode => Math.Abs(mode.Width - _config.FrameWidth)
-                        + Math.Abs(mode.Height - _config.FrameHeight)
-                        + Math.Abs(mode.Fps - _config.Fps))
-                    .FirstOrDefault(new NativeCameraMode(
-                        Math.Max(1, _config.FrameWidth),
-                        Math.Max(1, _config.FrameHeight),
-                        Math.Max(1, _config.Fps)));
-                var benchmarks = new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase);
-                foreach (string candidateEncoder in encoderDetection.ValidatedEncoders)
-                {
-                    benchmarks[candidateEncoder] = RecordingProfileDetector.Benchmark(
-                        ffmpegPath,
-                        candidateEncoder,
-                        videoCqp,
-                        targetMode);
-                }
-                List<EncodingHelper.EncoderCandidate> candidates = MainViewModel.BuildEncoderCandidates(
-                    encoderDetection.ValidatedEncoders,
-                    benchmarks,
-                    targetMode);
-                EncodingHelper.EncoderSelection selection = EncodingHelper.SelectEncoder(
-                    candidates,
-                    _config.VideoEncoderSelectionMode,
-                    _config.ManualVideoEncoder);
-                MainViewModel.AppendEncoderPerformanceLog(
-                    targetMode,
-                    videoCqp,
-                    candidates,
-                    selection,
-                    selection == null ? "没有可用于当前选择模式的编码器" : null);
-                if (selection == null)
-                {
-                    return (
-                        encoderDetection,
-                        encoder: "",
-                        videoCqp,
-                        ffmpegPath,
-                        recommendation: new RecordingProfileRecommendation(
-                            false,
-                            null,
-                            "手动选择的编码器不再满足当前录像规格，请重新选择编码器",
-                            []),
-                        options: new List<VideoEncoderOption>(),
-                        benchmarks);
-                }
-                List<VideoEncoderOption> options = MainViewModel.BuildVisibleEncoderOptions(
-                    candidates,
-                    selection,
-                    targetMode.Fps);
-                RealtimeEncodingBenchmarkResult selectedBenchmark = benchmarks[selection.Encoder];
-                return (
-                    encoderDetection,
-                    encoder: selection.Encoder,
-                    videoCqp,
-                    ffmpegPath,
-                    recommendation: new RecordingProfileRecommendation(
-                        selection.MeetsRealtimeRequirement,
-                        selection.MeetsRealtimeRequirement ? targetMode : null,
-                        selection.MeetsRealtimeRequirement
-                            ? $"编码器检测完成：{EncodingHelper.GetEncoderLabel(selection.Encoder)}"
-                            : selection.Reason,
-                        [selectedBenchmark]),
-                    options,
-                    benchmarks);
-            });
-
-            _config.EncoderOptionsCache = detection.options;
-            _config.ValidatedEncodersCache =
-                detection.encoderDetection.ValidatedEncoders.ToList();
-            _config.IsEncoderDetected = detection.encoderDetection.Succeeded;
-            _config.EncoderDetectionCacheVersion = MainViewModel.CurrentEncoderDetectionCacheVersion;
-            _config.EffectiveVideoEncoder = detection.encoder;
-            foreach ((string encoder, RealtimeEncodingBenchmarkResult benchmark) in detection.benchmarks)
-            {
-                RecordingProfileDetector.UpdateBenchmarkCache(
-                    _config,
-                    encoder,
-                    detection.videoCqp,
-                    [benchmark],
-                    DateTime.Now);
-            }
+            RecordingProfileRecommendation recommendation =
+                await EncoderProfileDetectionService.DetectAsync(_config, nativeModes);
             RuntimeLog.Info(
                 "RecordingProfile",
-                $"wizard ffmpeg={detection.ffmpegPath}, encoder={detection.encoder}, cqp={detection.videoCqp}");
-            foreach (RealtimeEncodingBenchmarkResult benchmark in detection.recommendation.Benchmarks)
+                $"wizard ffmpeg={AppPaths.FindFFmpeg()}, encoder={_config.EffectiveVideoEncoder}, cqp={RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp)}");
+            foreach (RealtimeEncodingBenchmarkResult benchmark in recommendation.Benchmarks)
             {
                 RuntimeLog.Info(
                     "RecordingProfile",
-                    $"wizard mode={benchmark.Mode.Width}x{benchmark.Mode.Height}@{benchmark.Mode.Fps}, encoder={detection.encoder}, stable={benchmark.Stable}, detail={benchmark.Detail}");
+                    $"wizard mode={benchmark.Mode.Width}x{benchmark.Mode.Height}@{benchmark.Mode.Fps}, encoder={_config.EffectiveVideoEncoder}, stable={benchmark.Stable}, detail={benchmark.Detail}");
             }
 
-            if (detection.recommendation.Success
-                && detection.recommendation.Mode is NativeCameraMode mode)
+            if (recommendation.Success
+                && recommendation.Mode is NativeCameraMode mode)
             {
                 _config.FrameWidth = mode.Width;
                 _config.FrameHeight = mode.Height;
@@ -738,24 +636,33 @@ public partial class FirstUseSetupWizardWindow : Window
                 _evaluatedCameraMoniker = GetSelectedCameraConfigKey();
                 RealtimeEncodingBenchmarkResult benchmark =
                     RecordingProfileDetector.FindBenchmark(
-                        detection.recommendation.Benchmarks,
+                        recommendation.Benchmarks,
                         mode);
-                RecordingProfileStatusText.Text = "检测完成，已生成录制规格建议";
+                bool meetsRealtimeRequirement = benchmark?.SupportsFrameRate(mode.Fps) == true;
+                RecordingProfileStatusText.Text = meetsRealtimeRequirement
+                    ? "检测完成，已生成录制规格建议"
+                    : "检测完成，当前设备性能余量不足";
                 RecordingProfileStatusText.Foreground =
-                    (System.Windows.Media.Brush)FindResource("AccentGreen");
-                RecordingProfileResultTitle.Text = "已自动选择录制配置";
+                    (System.Windows.Media.Brush)FindResource(
+                        meetsRealtimeRequirement ? "AccentGreen" : "AccentOrange");
+                RecordingProfileResultTitle.Text = meetsRealtimeRequirement
+                    ? "已自动选择录制配置"
+                    : "已选择实测最快的编码器";
                 RecordingProfileResultTitle.Foreground =
-                    (System.Windows.Media.Brush)FindResource("AccentGreen");
+                    (System.Windows.Media.Brush)FindResource(
+                        meetsRealtimeRequirement ? "AccentGreen" : "AccentOrange");
                 RecordingProfileResultText.Text =
                     $"分辨率：{mode.Width}×{mode.Height}\n" +
                     $"原生帧率：{mode.Fps} FPS\n" +
-                    $"编码器：{EncodingHelper.GetEncoderLabel(detection.encoder)}\n" +
+                    $"编码器：{EncodingHelper.GetEncoderLabel(_config.EffectiveVideoEncoder)}\n" +
                     $"实测最大编码速度：{benchmark?.MeasuredEncodingFps ?? 0:F1} FPS\n" +
-                    "结论：已满足 20% 实时余量";
+                    (meetsRealtimeRequirement
+                        ? "结论：已满足 20% 实时余量"
+                        : "结论：未满足 20% 实时余量，录像可能丢帧");
                 RecordingProfileResultPanel.Visibility = Visibility.Visible;
                 RuntimeLog.Info(
                     "RecordingProfile",
-                    $"wizard recommended={mode.Width}x{mode.Height}@{mode.Fps}, encoder={detection.encoder}");
+                    $"wizard recommended={mode.Width}x{mode.Height}@{mode.Fps}, encoder={_config.EffectiveVideoEncoder}");
                 return true;
             }
 
@@ -769,8 +676,8 @@ public partial class FirstUseSetupWizardWindow : Window
             }
             _evaluatedCameraMoniker = GetSelectedCameraConfigKey();
             RecordingProfileStatusText.Text = fallback is NativeCameraMode
-                ? $"{detection.recommendation.Message}，已采用可用的原生配置，仍可继续"
-                : $"{detection.recommendation.Message}，已保留程序默认配置，仍可继续";
+                ? $"{recommendation.Message}，已采用可用的原生配置，仍可继续"
+                : $"{recommendation.Message}，已保留程序默认配置，仍可继续";
             RecordingProfileStatusText.Foreground =
                 (System.Windows.Media.Brush)FindResource("AccentOrange");
             RecordingProfileResultTitle.Text = "性能建议未完成";
@@ -785,7 +692,7 @@ public partial class FirstUseSetupWizardWindow : Window
             RecordingProfileRetryButton.Visibility = Visibility.Visible;
             RuntimeLog.Info(
                 "RecordingProfile",
-                $"wizard fallback={_config.FrameWidth}x{_config.FrameHeight}@{_config.Fps}, reason={detection.recommendation.Message}");
+                $"wizard fallback={_config.FrameWidth}x{_config.FrameHeight}@{_config.Fps}, reason={recommendation.Message}");
             return true;
         }
         catch (Exception ex)
