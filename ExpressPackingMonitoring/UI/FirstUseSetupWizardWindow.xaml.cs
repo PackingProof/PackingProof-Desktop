@@ -630,95 +630,40 @@ public partial class FirstUseSetupWizardWindow : Window
                             false,
                             null,
                             "未检测到可用的 FFmpeg 编码器",
-                            []),
-                        options: new List<VideoEncoderOption>(),
-                        benchmarks: new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase));
+                            []));
                 }
 
+                string codec = (_config.VideoCodec ?? "h264").Trim().ToLowerInvariant();
+                if (codec is not ("h264" or "h265" or "av1"))
+                    codec = "h264";
+                string encoder = EncodingHelper.ResolveFallbackEncoder(
+                    _config.GpuEncoder ?? "auto",
+                    codec,
+                    encoderDetection.ValidatedEncoders);
+                if (!encoderDetection.ValidatedEncoders.Contains(encoder))
+                    encoder = encoderDetection.ValidatedEncoders.First();
                 int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(_config.VideoCqp);
                 string ffmpegPath = AppPaths.FindFFmpeg();
-                NativeCameraMode targetMode = nativeModes
-                    .OrderBy(mode => Math.Abs(mode.Width - _config.FrameWidth)
-                        + Math.Abs(mode.Height - _config.FrameHeight)
-                        + Math.Abs(mode.Fps - _config.Fps))
-                    .FirstOrDefault(new NativeCameraMode(
-                        Math.Max(1, _config.FrameWidth),
-                        Math.Max(1, _config.FrameHeight),
-                        Math.Max(1, _config.Fps)));
-                var benchmarks = new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase);
-                foreach (string candidateEncoder in encoderDetection.ValidatedEncoders)
-                {
-                    benchmarks[candidateEncoder] = RecordingProfileDetector.Benchmark(
+                RecordingProfileRecommendation recommendation = RecordingProfileDetector.Recommend(
+                    nativeModes,
+                    mode => RecordingProfileDetector.Benchmark(
                         ffmpegPath,
-                        candidateEncoder,
+                        encoder,
                         videoCqp,
-                        targetMode);
-                }
-                List<EncodingHelper.EncoderCandidate> candidates = MainViewModel.BuildEncoderCandidates(
-                    encoderDetection.ValidatedEncoders,
-                    benchmarks,
-                    targetMode);
-                EncodingHelper.EncoderSelection selection = EncodingHelper.SelectEncoder(
-                    candidates,
-                    _config.VideoEncoderSelectionMode,
-                    _config.ManualVideoEncoder);
-                MainViewModel.AppendEncoderPerformanceLog(
-                    targetMode,
-                    videoCqp,
-                    candidates,
-                    selection,
-                    selection == null ? "没有可用于当前选择模式的编码器" : null);
-                if (selection == null)
-                {
-                    return (
-                        encoderDetection,
-                        encoder: "",
-                        videoCqp,
-                        ffmpegPath,
-                        recommendation: new RecordingProfileRecommendation(
-                            false,
-                            null,
-                            "手动选择的编码器不再满足当前录像规格，请重新选择编码器",
-                            []),
-                        options: new List<VideoEncoderOption>(),
-                        benchmarks);
-                }
-                List<VideoEncoderOption> options = MainViewModel.BuildVisibleEncoderOptions(
-                    candidates,
-                    selection,
-                    targetMode.Fps);
-                RealtimeEncodingBenchmarkResult selectedBenchmark = benchmarks[selection.Encoder];
-                return (
-                    encoderDetection,
-                    encoder: selection.Encoder,
-                    videoCqp,
-                    ffmpegPath,
-                    recommendation: new RecordingProfileRecommendation(
-                        selection.MeetsRealtimeRequirement,
-                        selection.MeetsRealtimeRequirement ? targetMode : null,
-                        selection.MeetsRealtimeRequirement
-                            ? $"编码器检测完成：{EncodingHelper.GetEncoderLabel(selection.Encoder)}"
-                            : selection.Reason,
-                        [selectedBenchmark]),
-                    options,
-                    benchmarks);
+                        mode));
+                return (encoderDetection, encoder, videoCqp, ffmpegPath, recommendation);
             });
 
-            _config.EncoderOptionsCache = detection.options;
+            _config.EncoderOptionsCache = detection.encoderDetection.Options;
             _config.ValidatedEncodersCache =
                 detection.encoderDetection.ValidatedEncoders.ToList();
             _config.IsEncoderDetected = detection.encoderDetection.Succeeded;
-            _config.EncoderDetectionCacheVersion = MainViewModel.CurrentEncoderDetectionCacheVersion;
-            _config.EffectiveVideoEncoder = detection.encoder;
-            foreach ((string encoder, RealtimeEncodingBenchmarkResult benchmark) in detection.benchmarks)
-            {
-                RecordingProfileDetector.UpdateBenchmarkCache(
-                    _config,
-                    encoder,
-                    detection.videoCqp,
-                    [benchmark],
-                    DateTime.Now);
-            }
+            RecordingProfileDetector.UpdateBenchmarkCache(
+                _config,
+                detection.encoder,
+                detection.videoCqp,
+                detection.recommendation.Benchmarks,
+                DateTime.Now);
             RuntimeLog.Info(
                 "RecordingProfile",
                 $"wizard ffmpeg={detection.ffmpegPath}, encoder={detection.encoder}, cqp={detection.videoCqp}");

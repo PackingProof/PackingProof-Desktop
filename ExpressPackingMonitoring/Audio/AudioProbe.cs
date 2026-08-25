@@ -1,6 +1,5 @@
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Config;
-using ExpressPackingMonitoring.Services;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -172,14 +171,6 @@ namespace ExpressPackingMonitoring.Audio
         {
             var config = LoadConfig();
             var video = ParseVideoOptions(args, config);
-            if (video.FromConfig && !EncodingHelper.IsKnownEncoder(video.Encoder))
-            {
-                File.WriteAllText(
-                    logPath,
-                    "Audio probe requires a validated effective video encoder. Please run encoder detection first.\r\n",
-                    Encoding.UTF8);
-                return false;
-            }
             using var enumerator = new MMDeviceEnumerator();
             var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
             using var device = ResolveAudioEndpoint(config, devices);
@@ -464,17 +455,11 @@ namespace ExpressPackingMonitoring.Audio
 
         private static string ResolveProbeEncoder(AppConfig config)
         {
-            NativeCameraMode targetMode = new(
-                Math.Max(1, config.FrameWidth),
-                Math.Max(1, config.FrameHeight),
-                Math.Max(1, config.Fps));
-            return MainViewModel.TryResolveCachedEncoder(
-                    config,
-                    config.ValidatedEncodersCache ?? [],
-                    targetMode,
-                    out EncodingHelper.EncoderSelection? selection)
-                ? selection!.Encoder
-                : "";
+            string codec = config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
+            if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
+            var validated = new HashSet<string>(config.ValidatedEncodersCache ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+            string gpu = EncodingHelper.NormalizeGpuSetting(config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto");
+            return EncodingHelper.ResolveFallbackEncoder(gpu, codec, validated);
         }
 
         private static (bool Exited, int ExitCode, string Stderr) WriteSyntheticMkv(string ffmpegPath, string mkvPath, int seconds, ProbeVideoOptions video)

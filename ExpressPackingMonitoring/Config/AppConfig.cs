@@ -37,15 +37,10 @@ namespace ExpressPackingMonitoring.Config
         }
     }
 
-    public sealed class VideoEncoderOption
+    public class GpuEncoderOption
     {
         public string Value { get; set; } = "";
         public string DisplayName { get; set; } = "";
-        public string Codec { get; set; } = "";
-        public bool IsHardware { get; set; }
-        public double MeasuredEncodingFps { get; set; }
-        public bool MeetsRealtimeRequirement { get; set; }
-        public string PerformanceText { get; set; } = "";
     }
 
     // 存储节点模型
@@ -89,7 +84,6 @@ namespace ExpressPackingMonitoring.Config
         public int VideoCqp { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
-        public int Fps { get; set; }
         public bool CompletedSuccessfully { get; set; }
         public int EncodedFrames { get; set; }
         public double ElapsedSeconds { get; set; }
@@ -107,9 +101,6 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentBackupConnectionSchemaVersion = 1;
         public const int CurrentWebProtectionSetupVersion = 1;
         public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
-        // 实际编码器选择和基准结果必须成对升级，不能复用旧的“格式 + 厂商”缓存。
-        public const int CurrentEncoderSelectionCacheVersion = 5;
-        public const int CurrentEncoderBenchmarkCacheSchemaVersion = 4;
 
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
@@ -219,13 +210,8 @@ namespace ExpressPackingMonitoring.Config
         public string AudioDeviceMoniker { get; set; } = "";
         public int AudioSyncOffsetMs { get; set; } = 0;
         public double BarcodeCooldownSeconds { get; set; } = 2.0;
-        // 旧版将视频格式和硬件厂商分开保存，会产生不存在的编码器组合。
-        // 保留字段仅用于读取旧配置，运行时不再以它们拼接编码器。
         public string GpuEncoder { get; set; } = "nvidia";
-        public string VideoCodec { get; set; } = "h265";
-        public string VideoEncoderSelectionMode { get; set; } = "auto";
-        public string ManualVideoEncoder { get; set; } = "";
-        public string EffectiveVideoEncoder { get; set; } = "";
+        public string VideoCodec { get; set; } = "h265"; // "h264" or "h265"
         public int VideoCqp { get; set; } = 30;
 
         // 全局键盘监听（后台接收扫码枪）
@@ -275,7 +261,7 @@ namespace ExpressPackingMonitoring.Config
         public List<string> TtsBreakWords { get; set; } = new();
 
         // 缓存的检测结果
-        public List<VideoEncoderOption> EncoderOptionsCache { get; set; } = new();
+        public List<GpuEncoderOption> EncoderOptionsCache { get; set; } = new();
         public List<string> ValidatedEncodersCache { get; set; } = new();
         public List<RecordingBenchmarkCacheEntry> RecordingBenchmarkCache { get; set; } = new();
         public bool IsEncoderDetected { get; set; } = false;
@@ -288,50 +274,6 @@ namespace ExpressPackingMonitoring.Config
         public static bool NormalizeAfterLoad(AppConfig config)
         {
             bool changed = false;
-
-            string encoderSelectionMode = config.VideoEncoderSelectionMode?.Trim().ToLowerInvariant() ?? "auto";
-            if (encoderSelectionMode is not ("auto" or "manual"))
-                encoderSelectionMode = "auto";
-            if (!string.Equals(config.VideoEncoderSelectionMode, encoderSelectionMode, StringComparison.Ordinal))
-            {
-                config.VideoEncoderSelectionMode = encoderSelectionMode;
-                changed = true;
-            }
-
-            string manualVideoEncoder = config.ManualVideoEncoder?.Trim().ToLowerInvariant() ?? "";
-            if (!string.Equals(config.ManualVideoEncoder, manualVideoEncoder, StringComparison.Ordinal))
-            {
-                config.ManualVideoEncoder = manualVideoEncoder;
-                changed = true;
-            }
-
-            string effectiveVideoEncoder = config.EffectiveVideoEncoder?.Trim().ToLowerInvariant() ?? "";
-            if (!string.Equals(config.EffectiveVideoEncoder, effectiveVideoEncoder, StringComparison.Ordinal))
-            {
-                config.EffectiveVideoEncoder = effectiveVideoEncoder;
-                changed = true;
-            }
-
-            config.EncoderOptionsCache ??= [];
-            config.ValidatedEncodersCache ??= [];
-            config.RecordingBenchmarkCache ??= [];
-            bool hasEncoderCache = config.IsEncoderDetected
-                || config.EncoderOptionsCache.Count > 0
-                || config.ValidatedEncodersCache.Count > 0
-                || config.RecordingBenchmarkCache.Count > 0;
-            bool encoderCacheExpired = hasEncoderCache
-                && config.EncoderDetectionCacheVersion != CurrentEncoderSelectionCacheVersion;
-            if (encoderCacheExpired)
-            {
-                // 本次升级的旧缓存既没有实际编码器，也不包含帧率，绝不能继续用于录像。
-                config.EncoderOptionsCache = [];
-                config.ValidatedEncodersCache = [];
-                config.RecordingBenchmarkCache = [];
-                config.IsEncoderDetected = false;
-                config.EffectiveVideoEncoder = "";
-                config.EncoderDetectionCacheVersion = CurrentEncoderSelectionCacheVersion;
-                changed = true;
-            }
 
             string normalizedPreset = DeploymentPresets.Normalize(config.DeploymentPreset);
             if (string.IsNullOrEmpty(normalizedPreset)

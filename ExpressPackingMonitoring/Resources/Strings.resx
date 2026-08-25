@@ -54,7 +54,6 @@
   <data name="发货模式" xml:space="preserve"><value>Shipping mode</value></data>
   <data name="退货模式" xml:space="preserve"><value>Return mode</value></data>
   <data name="重新检测" xml:space="preserve"><value>Detect again</value></data>
-  <data name="重新检测编码器" xml:space="preserve"><value>Re-detect encoders</value></data>
   <data name="检查更新" xml:space="preserve"><value>Check for updates</value></data>
   <data name="播放选区" xml:space="preserve"><value>Play selection</value></data>
   <data name="生成并下载" xml:space="preserve"><value>Create and download</value></data>
@@ -240,11 +239,6 @@
   <data name="使用在线语音时的警告提示声音" xml:space="preserve"><value>Warning sound when using online voice</value></data>
   <data name="使用在线语音时的普通提示声音" xml:space="preserve"><value>Normal prompt sound when using online voice</value></data>
   <data name="视频编码格式" xml:space="preserve"><value>Video encoding format</value></data>
-  <data name="视频编码器" xml:space="preserve"><value>Video encoder</value></data>
-  <data name="自动推荐优先硬件 H.265，再选硬件 H.264" xml:space="preserve"><value>Automatic recommendation prefers hardware H.265, then hardware H.264</value></data>
-  <data name="恢复自动推荐" xml:space="preserve"><value>Restore automatic recommendation</value></data>
-  <data name="只显示已在当前摄像头规格下通过编码和性能检测的实际编码器" xml:space="preserve"><value>Only actual encoders that pass encoding and performance tests for the current camera specification are shown</value></data>
-  <data name="按当前摄像头规格重新验证全部实际编码器并比较性能" xml:space="preserve"><value>Re-validate all actual encoders and compare performance for the current camera specification</value></data>
   <data name="视频文件被清理后，列表里仍显示这条记录" xml:space="preserve"><value>After the video file is cleaned, this record is still displayed in the list</value></data>
   <data name="输入一段文字，试听当前播报效果" xml:space="preserve"><value>Enter a piece of text to listen to the current broadcast effect</value></data>
   <data name="数值越小，对手动输入越严格" xml:space="preserve"><value>The smaller the value, the stricter the manual input</value></data>

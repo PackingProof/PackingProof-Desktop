@@ -65,21 +65,6 @@ function Add-UniqueEncoder {
     }
 }
 
-function Test-FFmpegEncoderListed {
-    param(
-        [string]$ExecutablePath,
-        [string]$Encoder
-    )
-
-    $output = & $ExecutablePath -hide_banner -encoders 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        return $false
-    }
-
-    $pattern = "(?m)^\s*[VAS\.][A-Z\.]{5}\s+$([regex]::Escape($Encoder))(?:\s|$)"
-    return [regex]::IsMatch(($output -join "`n"), $pattern)
-}
-
 Add-UniqueEncoder -List $requiredEncoders -Encoder "libx264"
 Add-UniqueEncoder -List $requiredEncoders -Encoder "libx265"
 
@@ -96,23 +81,17 @@ $hasIntel = @($adapters | Where-Object {
 if ($hasNvidia) {
     Add-UniqueEncoder -List $requiredEncoders -Encoder "h264_nvenc"
     Add-UniqueEncoder -List $requiredEncoders -Encoder "hevc_nvenc"
-    if (Test-FFmpegEncoderListed -ExecutablePath $ffmpegPath -Encoder "av1_nvenc") {
-        Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_nvenc"
-    }
+    Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_nvenc"
 }
 if ($hasAmd) {
     Add-UniqueEncoder -List $requiredEncoders -Encoder "h264_amf"
     Add-UniqueEncoder -List $requiredEncoders -Encoder "hevc_amf"
-    if (Test-FFmpegEncoderListed -ExecutablePath $ffmpegPath -Encoder "av1_amf") {
-        Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_amf"
-    }
+    Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_amf"
 }
 if ($hasIntel) {
     Add-UniqueEncoder -List $requiredEncoders -Encoder "h264_qsv"
     Add-UniqueEncoder -List $requiredEncoders -Encoder "hevc_qsv"
-    if (Test-FFmpegEncoderListed -ExecutablePath $ffmpegPath -Encoder "av1_qsv") {
-        Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_qsv"
-    }
+    Add-UniqueEncoder -List $optionalEncoders -Encoder "av1_qsv"
 }
 
 $adapterNames = @($adapters | ForEach-Object { $_.Name })

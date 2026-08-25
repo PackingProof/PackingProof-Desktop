@@ -1,24 +1,24 @@
 #nullable disable
+using ExpressPackingMonitoring.Config;
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using ExpressPackingMonitoring.ViewModels;
 
 namespace ExpressPackingMonitoring.Helpers
 {
     internal static class EncodingHelper
     {
-        internal sealed record EncoderCandidate(
-            string Encoder,
-            string Codec,
-            bool IsHardware,
-            double MeasuredEncodingFps,
-            bool MeetsRealtimeRequirement);
-
-        internal sealed record EncoderSelection(
-            string Encoder,
-            bool MeetsRealtimeRequirement,
-            bool IsManual,
-            string Reason);
+        public static string NormalizeGpuSetting(string setting)
+        {
+            return (setting?.Trim().ToLowerInvariant()) switch
+            {
+                "h264_nvenc" or "hevc_nvenc" or "av1_nvenc" or "nvidia" => "nvidia",
+                "h264_amf" or "hevc_amf" or "av1_amf" or "amd" => "amd",
+                "h264_qsv" or "hevc_qsv" or "av1_qsv" or "intel" => "intel",
+                "libx264" or "libx265" or "libsvtav1" or "cpu" => "cpu",
+                _ => setting ?? "auto"
+            };
+        }
 
         public static string GetCodecFromEncoder(string encoder)
         {
@@ -26,7 +26,7 @@ namespace ExpressPackingMonitoring.Helpers
             {
                 "libx264" or "h264_nvenc" or "h264_amf" or "h264_qsv" => "h264",
                 "libx265" or "hevc_nvenc" or "hevc_amf" or "hevc_qsv" => "h265",
-                "libsvtav1" or "libaom-av1" or "av1_nvenc" or "av1_amf" or "av1_qsv" => "av1",
+                "libsvtav1" or "av1_nvenc" or "av1_amf" or "av1_qsv" => "av1",
                 _ => "h264"
             };
         }
@@ -51,102 +51,104 @@ namespace ExpressPackingMonitoring.Helpers
                 "libx264" => "C 264",
                 "hevc_nvenc" => "N 265",
                 "hevc_amf" => "A 265",
-                "hevc_qsv" => "I 265",
-                "libx265" => "C 265",
+                "hevc_qsv" => "I 265)",
+                "libx265" => "C 265)",
                 "av1_nvenc" => "N AV1",
                 "av1_amf" => "A AV1",
                 "av1_qsv" => "I AV1",
                 "libsvtav1" => "C AV1",
-                "libaom-av1" => "C AV1 (libaom)",
                 _ => encoder
             };
         }
 
-        public static bool IsKnownEncoder(string encoder)
+        public static string ResolveRequestedEncoder(string gpu, string codec)
         {
-            return (encoder?.Trim().ToLowerInvariant()) switch
+            gpu = NormalizeGpuSetting(gpu ?? "auto");
+            return (gpu, codec) switch
             {
-                "h264_nvenc" or "hevc_nvenc" or "av1_nvenc"
-                    or "h264_amf" or "hevc_amf" or "av1_amf"
-                    or "h264_qsv" or "hevc_qsv" or "av1_qsv"
-                    or "libx264" or "libx265" or "libsvtav1" or "libaom-av1" => true,
-                _ => false
+                ("nvidia", "h264") => "h264_nvenc",
+                ("nvidia", "h265") => "hevc_nvenc",
+                ("nvidia", "av1") => "av1_nvenc",
+                ("amd", "h264") => "h264_amf",
+                ("amd", "h265") => "hevc_amf",
+                ("amd", "av1") => "av1_amf",
+                ("intel", "h264") => "h264_qsv",
+                ("intel", "h265") => "hevc_qsv",
+                ("intel", "av1") => "av1_qsv",
+                ("cpu", "h264") => "libx264",
+                ("cpu", "h265") => "libx265",
+                ("cpu", "av1") => "libsvtav1",
+                _ => codec switch
+                {
+                    "h265" => "hevc_nvenc",
+                    "av1" => "av1_nvenc",
+                    _ => "h264_nvenc"
+                }
             };
         }
 
-        public static bool IsHardwareEncoder(string encoder)
+        public static string ResolveFallbackEncoder(string gpu, string codec, HashSet<string> validated)
         {
-            return IsKnownEncoder(encoder)
-                && !(encoder!.StartsWith("lib", StringComparison.OrdinalIgnoreCase));
-        }
+            validated ??= new HashSet<string>();
+            string cpuEncoder = GetCpuFallbackEncoder(codec);
 
-        public static EncoderSelection SelectEncoder(
-            IEnumerable<EncoderCandidate> candidates,
-            string selectionMode,
-            string manualEncoder)
-        {
-            List<EncoderCandidate> all = candidates?
-                .Where(candidate => IsKnownEncoder(candidate.Encoder))
-                .ToList()
-                ?? [];
-            bool manual = string.Equals(selectionMode, "manual", StringComparison.OrdinalIgnoreCase);
-            string normalizedManual = manualEncoder?.Trim().ToLowerInvariant() ?? "";
-            if (manual)
+            gpu = NormalizeGpuSetting(gpu ?? "auto");
+            if (gpu != "auto")
             {
-                EncoderCandidate selected = all.FirstOrDefault(candidate =>
-                    string.Equals(candidate.Encoder, normalizedManual, StringComparison.OrdinalIgnoreCase));
-                if (selected == null || !selected.MeetsRealtimeRequirement)
-                    return null;
-
-                return new EncoderSelection(
-                    selected.Encoder,
-                    true,
-                    true,
-                    "已保留手动选择的编码器");
+                string requested = ResolveRequestedEncoder(gpu, codec);
+                if (requested == cpuEncoder || validated.Contains(requested))
+                    return requested;
+                if (validated.Contains(cpuEncoder))
+                    return cpuEncoder;
+                return "libx264";
             }
 
-            List<EncoderCandidate> automatic = all
-                .Where(candidate => candidate.Codec is "h264" or "h265")
-                .ToList();
-            List<EncoderCandidate> qualified = automatic
-                .Where(candidate => candidate.MeetsRealtimeRequirement)
-                .ToList();
+            foreach (var candidateGpu in new[] { "nvidia", "amd", "intel" })
+            {
+                string candidate = ResolveRequestedEncoder(candidateGpu, codec);
+                if (validated.Contains(candidate))
+                    return candidate;
+            }
 
-            EncoderCandidate preferred = PickFastest(qualified.Where(candidate =>
-                candidate.IsHardware && candidate.Codec == "h265"));
-            if (preferred != null)
-                return CreateAutomaticSelection(preferred, "已选择实测最快的硬件 H.265 编码器");
+            if (validated.Contains(cpuEncoder))
+                return cpuEncoder;
 
-            preferred = PickFastest(qualified.Where(candidate =>
-                candidate.IsHardware && candidate.Codec == "h264"));
-            if (preferred != null)
-                return CreateAutomaticSelection(preferred, "已选择实测最快的硬件 H.264 编码器");
+            if (codec == "av1" && validated.Count == 0)
+                return "libx265";
 
-            preferred = PickFastest(qualified.Where(candidate => !candidate.IsHardware));
-            if (preferred != null)
-                return CreateAutomaticSelection(preferred, "没有满足余量的硬件编码器，已选择实测最快的 CPU 编码器");
-
-            preferred = PickFastest(automatic);
-            return preferred == null
-                ? null
-                : new EncoderSelection(
-                    preferred.Encoder,
-                    false,
-                    false,
-                    "没有编码器满足 20% 实时余量，已选择实测最快的编码器");
+            return "libx264";
         }
 
-        private static EncoderCandidate PickFastest(IEnumerable<EncoderCandidate> candidates)
+        public static string GetCpuFallbackEncoder(string codec)
         {
-            return candidates
-                .OrderByDescending(candidate => candidate.MeasuredEncodingFps)
-                .ThenBy(candidate => candidate.Encoder, StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault();
+            return codec switch
+            {
+                "h265" or "av1" => "libx265",
+                _ => "libx264"
+            };
         }
 
-        private static EncoderSelection CreateAutomaticSelection(EncoderCandidate candidate, string reason)
+        public static bool ApplyUnsupportedAv1Fallback(AppConfig config, ISet<string> validated)
         {
-            return new EncoderSelection(candidate.Encoder, true, false, reason);
+            ArgumentNullException.ThrowIfNull(config);
+            validated ??= new HashSet<string>();
+            if (!string.Equals(config.VideoCodec?.Trim(), "av1", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            bool hasHardwareAv1 = new[] { "av1_nvenc", "av1_amf", "av1_qsv" }
+                .Any(validated.Contains);
+            if (hasHardwareAv1)
+                return false;
+
+            config.VideoCodec = "h265";
+            config.GpuEncoder = "auto";
+            return true;
+        }
+
+        public static void ApplyEncoderSelectionToConfig(AppConfig config, string encoder)
+        {
+            config.VideoCodec = GetCodecFromEncoder(encoder);
+            config.GpuEncoder = NormalizeGpuSetting(encoder);
         }
     }
 }

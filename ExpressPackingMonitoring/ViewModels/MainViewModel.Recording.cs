@@ -534,32 +534,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                NativeCameraMode encoderTargetMode = new(
-                    _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth,
-                    _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight,
-                    _actualCameraFps > 0 ? _actualCameraFps : Config.Fps);
-                IEnumerable<string> validatedEncoders = ValidatedEncoders.Count > 0
-                    ? ValidatedEncoders
-                    : Config.ValidatedEncodersCache ?? [];
-                if (!TryResolveCachedEncoder(Config, validatedEncoders, encoderTargetMode, out EncodingHelper.EncoderSelection? encoderSelection))
-                {
-                    string message = string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
-                        ? "手动选择的编码器已失效或性能不足，录像已阻止。请重新选择并检测"
-                        : "编码器检测尚未完成或当前规格未通过性能验证，请重新检测";
-                    ShowToast(message, ToastSeverity.Warning);
-                    if (!_isEncoderDetectRunning)
-                        _ = DetectAndRecommendRecordingProfileAsync(Config, [encoderTargetMode]);
-                    return;
-                }
-                string selectedEncoder = encoderSelection!.Encoder;
-                Config.EffectiveVideoEncoder = selectedEncoder;
-                if (!encoderSelection.MeetsRealtimeRequirement)
-                {
-                    ShowToast(
-                        "当前没有编码器满足 20% 实时余量，已使用实测最快的 H.264/H.265 编码器，录像可能丢帧",
-                        ToastSeverity.Warning);
-                }
-
                 if (!await EnsureRecordingCacheSpaceForNewRecordingAsync())
                     return;
 
@@ -620,15 +594,15 @@ namespace ExpressPackingMonitoring.ViewModels
                         fileName);
                 string audioFilePath = Path.ChangeExtension(filePath, ".wav");
                 string audioLogPath = Path.ChangeExtension(filePath, ".audio.log");
-                RuntimeLog.Info("Recording", $"Start requested order={CurrentOrderId}, mode={CurrentMode}, file={fileName}, encoder={selectedEncoder}, reason={encoderSelection.Reason}");
+                RuntimeLog.Info("Recording", $"Start requested order={CurrentOrderId}, mode={CurrentMode}, file={fileName}, codec={Config.VideoCodec}");
                 _currentAudioLogPath = audioLogPath;
                 _audioFailedForCurrentRecording = false;
                 _currentVideoFilePath = filePath;
                 _stopReason = "手动";
                 _recordingOrderId = CurrentOrderId;
                 _recordingMode = CurrentMode;
-                _currentVideoCodec = EncodingHelper.GetCodecFromEncoder(selectedEncoder);
-                _currentVideoEncoder = selectedEncoder;
+                _currentVideoCodec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
+                _currentVideoEncoder = ResolveEncoder();
 
                 string ffmpegPath = FindFFmpeg();
                 if (string.IsNullOrEmpty(ffmpegPath))
@@ -671,7 +645,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 _writeTask = Task.Run(() => BackgroundFFmpegRecordingLoop(
                     filePath,
                     ffmpegPath,
-                    selectedEncoder,
                     _writeCts.Token,
                     useDirectAac,
                     useDirectAac ? _currentAudioPipeName : null));
@@ -766,7 +739,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private void BackgroundFFmpegRecordingLoop(
             string filePath,
             string ffmpegPath,
-            string encoder,
             CancellationToken token,
             bool withDirectAudio = false,
             string? audioPipeName = null)
@@ -774,10 +746,29 @@ namespace ExpressPackingMonitoring.ViewModels
             int w = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
             int h = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
             int fps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
+            string encoder = ResolveEncoder();
             bool hasAudio = withDirectAudio;
             string requestedEncoder = encoder;
+            string? firstError = null;
+            bool fallbackAttempted = false;
 
             var (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
+            if (!ok && !token.IsCancellationRequested)
+            {
+                firstError = err;
+                string fallbackEncoder = GetCpuEncoder();
+                if (!withDirectAudio
+                    && !string.Equals(encoder, fallbackEncoder, StringComparison.OrdinalIgnoreCase))
+                {
+                    RuntimeLog.Warn("FFmpeg", $"Encoder failed, retrying CPU. requested={encoder}, fallback={fallbackEncoder}, error={err}");
+                    WriteAudioDiagnostic($"视频编码器启动失败，改用 CPU 软编码重试: requested={encoder}, fallback={fallbackEncoder}, error={err}");
+                    try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
+
+                    encoder = fallbackEncoder;
+                    fallbackAttempted = true;
+                    (ok, err) = RunFFmpegPipeline(filePath, ffmpegPath, token, w, h, fps, encoder, hasAudio, audioPipeName);
+                }
+            }
             
             if (ok)
             {
@@ -794,7 +785,9 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 DeleteAudioTempFile(StopAudioRecording());
                 try { if (File.Exists(filePath) && new FileInfo(filePath).Length == 0) File.Delete(filePath); } catch { }
-                string errorDetail = err;
+                string errorDetail = string.IsNullOrWhiteSpace(firstError) || string.Equals(firstError, err, StringComparison.Ordinal)
+                    ? err
+                    : $"{firstError}\nCPU 软编码重试: {err}";
 
                 RuntimeLog.Error("FFmpeg", $"Recording failed. requested={requestedEncoder}, final={encoder}, file={Path.GetFileName(filePath)}, error={errorDetail}");
 
@@ -829,9 +822,12 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     ShowToast("录制启动失败", ToastSeverity.Error);
                     SpeakWarning(DefaultSpeechCatalog.RecordingFailed);
+                    string fallbackNote = fallbackAttempted
+                        ? $"已自动尝试 CPU 软编码（最终编码器: {EncodingHelper.GetEncoderLabel(encoder)}）；若仍失败，请检查摄像头画面和存储路径"
+                        : "视频编码中途失败（可能已写出部分画面），视频未保存为有效录像。请检查显卡驱动、编码器可用性和存储空间";
                     AppDialog.Error(
                         null,
-                        $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n程序没有切换到其他编码器。请重新检测编码器后再试",
+                        $"当前设置的编码器无法完成录制，视频未保存。\n\n请求编码器: {EncodingHelper.GetEncoderLabel(requestedEncoder)}\n错误详情: {errorDetail}\n\n{fallbackNote}",
                         "录制失败");
                 });
             }
@@ -858,6 +854,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Error("Recording", "Failed to mark recording failure in database", ex);
             }
+        }
+
+        private string GetCpuEncoder()
+        {
+            return EncodingHelper.GetCpuFallbackEncoder(Config.VideoCodec?.ToLowerInvariant() ?? "h264");
         }
 
         private void EnqueueLatestFrameForRecording()
@@ -1146,7 +1147,6 @@ namespace ExpressPackingMonitoring.ViewModels
             else if (encoder == "av1_amf") args += $" -c:v av1_amf -pix_fmt yuv420p -quality balanced -rc cqp -qp_i {cqp} -qp_p {cqp} -g {gop}";
             else if (encoder == "av1_qsv") args += $" -c:v av1_qsv -pix_fmt nv12 -preset medium -global_quality {cqp} -g {gop}";
             else if (encoder == "libsvtav1") args += $" -c:v libsvtav1 -pix_fmt yuv420p -preset {GetCpuAv1Preset(w, h, fps)} -crf {cqp} -svtav1-params tune=0 -g {gop}";
-            else if (encoder == "libaom-av1") args += $" -c:v libaom-av1 -pix_fmt yuv420p -cpu-used 8 -crf {cqp} -b:v 0 -g {gop}";
             else args += $" -c:v {encoder} -pix_fmt yuv420p -g {gop}";
 
             return args.TrimStart();
@@ -2278,14 +2278,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
-                    Arguments = BuildMkvToMp4Args(
-                        mkvPath,
-                        audioPath,
-                        mp4Path,
-                        Config.AudioSyncOffsetMs,
-                        EncodingHelper.IsKnownEncoder(Config.EffectiveVideoEncoder)
-                            ? EncodingHelper.GetCodecFromEncoder(Config.EffectiveVideoEncoder)
-                            : null),
+                    Arguments = BuildMkvToMp4Args(mkvPath, audioPath, mp4Path, Config.AudioSyncOffsetMs, Config.VideoCodec),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardError = true,
@@ -3019,5 +3012,14 @@ namespace ExpressPackingMonitoring.ViewModels
             return AppPaths.FindFFmpeg();
         }
 
+        private string ResolveEncoder()
+        {
+            string codec = Config.VideoCodec?.Trim().ToLowerInvariant() ?? "h264";
+            if (codec != "h264" && codec != "h265" && codec != "av1") codec = "h264";
+            return EncodingHelper.ResolveFallbackEncoder(
+                Config.GpuEncoder?.Trim().ToLowerInvariant() ?? "auto",
+                codec,
+                ValidatedEncoders ?? new HashSet<string>());
+        }
     }
 }

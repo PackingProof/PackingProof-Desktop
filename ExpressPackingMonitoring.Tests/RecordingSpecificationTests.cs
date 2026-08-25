@@ -320,9 +320,9 @@ public sealed class RecordingSpecificationTests
             "libx264",
             30,
             [
-                Benchmark(new NativeCameraMode(3840, 2160, 20), 10),
-                Benchmark(new NativeCameraMode(2560, 1440, 20), 30),
-                Benchmark(new NativeCameraMode(1920, 1080, 20), 80)
+                Benchmark(new NativeCameraMode(3840, 2160, 15), 10),
+                Benchmark(new NativeCameraMode(2560, 1440, 15), 30),
+                Benchmark(new NativeCameraMode(1920, 1080, 15), 80)
             ],
             testedAt);
 
@@ -339,37 +339,6 @@ public sealed class RecordingSpecificationTests
 
         Assert.True(found);
         Assert.Equal(new NativeCameraMode(2560, 1440, 20), recommended);
-    }
-
-    [Fact]
-    public void BenchmarkCache_DoesNotMatchDifferentFrameRate()
-    {
-        var config = new AppConfig();
-        RecordingProfileDetector.UpdateBenchmarkCache(
-            config,
-            "libx264",
-            25,
-            [Benchmark(new NativeCameraMode(1920, 1080, 15), 80)],
-            DateTime.Now);
-
-        Assert.False(RecordingProfileDetector.TryGetCachedBenchmark(
-            config,
-            "libx264",
-            25,
-            new NativeCameraMode(1920, 1080, 30),
-            out _));
-    }
-
-    [Fact]
-    public void RecordingFailurePath_DoesNotRetryWithCpuEncoder()
-    {
-        string source = File.ReadAllText(
-            Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring", "ViewModels", "MainViewModel.Recording.cs"));
-
-        Assert.DoesNotContain("retrying CPU", source, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("GetCpuEncoder", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("fallbackAttempted", source, StringComparison.Ordinal);
-        Assert.Contains("程序没有切换到其他编码器", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -538,19 +507,6 @@ public sealed class RecordingSpecificationTests
             measuredFps,
             RecordingProfileDetector.RequiredEncodingSpeed,
             "");
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory != null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "ExpressPackingMonitoring.sln")))
-                return directory.FullName;
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("未找到仓库根目录");
     }
 
     private static string CreateTempDirectory()

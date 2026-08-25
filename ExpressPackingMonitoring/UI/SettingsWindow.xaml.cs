@@ -210,8 +210,9 @@ namespace ExpressPackingMonitoring.UI
 
             if (Capabilities.CanRecordPcVideo)
             {
-                // 实际编码器使用缓存，可立即加载
-                LoadVideoEncoders();
+                // GPU编码器使用缓存，可立即加载
+                LoadGpuEncoders();
+                LoadVideoCodecs();
                 if (Config.ZoomScale < 1.2 || Config.ZoomScale > 4.0) Config.ZoomScale = 1.5;
             }
 
@@ -821,69 +822,56 @@ namespace ExpressPackingMonitoring.UI
             IReadOnlyList<NativeCameraMode> nativeModes,
             out NativeCameraMode recommendedMode)
         {
-            NativeCameraMode targetMode = nativeModes.FirstOrDefault(new NativeCameraMode(
-                Math.Max(1, Config.FrameWidth),
-                Math.Max(1, Config.FrameHeight),
-                Math.Max(1, Config.Fps)));
-            if (!MainViewModel.TryResolveCachedEncoder(
-                    Config,
-                    MainViewModel.ValidatedEncoders.Count > 0
-                        ? MainViewModel.ValidatedEncoders
-                        : Config.ValidatedEncodersCache ?? [],
-                    targetMode,
-                    out EncodingHelper.EncoderSelection selection))
-            {
-                recommendedMode = default;
-                return false;
-            }
+            string codec = VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption
+                ? codecOption.Value
+                : Config.VideoCodec ?? "h264";
+            codec = codec.Trim().ToLowerInvariant();
+            if (codec is not ("h264" or "h265" or "av1"))
+                codec = "h264";
+            string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
+                ? gpuOption.Value
+                : Config.GpuEncoder ?? "auto";
+            string encoder = EncodingHelper.ResolveFallbackEncoder(
+                gpu,
+                codec,
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
             return RecordingProfileDetector.TryRecommendFromCache(
                 Config,
-                selection!.Encoder,
+                encoder,
                 RecordingProfileDetector.NormalizeVideoCqp(Config.VideoCqp),
                 nativeModes,
                 out recommendedMode);
         }
 
-        private void LoadVideoEncoders()
+        private void LoadGpuEncoders()
         {
-            var encoders = MainViewModel.CachedEncoderOptions is { Count: > 0 }
-                ? MainViewModel.CachedEncoderOptions
-                : Config.EncoderOptionsCache ?? new List<VideoEncoderOption>();
-            VideoEncoderComboBox.ItemsSource = encoders;
-            string selectedEncoder = string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
-                ? Config.ManualVideoEncoder
-                : Config.EffectiveVideoEncoder;
-            var match = encoders.FirstOrDefault(e => string.Equals(e.Value, selectedEncoder, StringComparison.OrdinalIgnoreCase));
-            if (match == null && !string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase))
-                match = encoders.FirstOrDefault();
-            VideoEncoderComboBox.SelectedItem = match;
-            RestoreAutomaticEncoderButton.IsEnabled = string.Equals(
-                Config.VideoEncoderSelectionMode,
-                "manual",
-                StringComparison.OrdinalIgnoreCase);
-
-            NativeCameraMode targetMode = new(
-                Math.Max(1, Config.FrameWidth),
-                Math.Max(1, Config.FrameHeight),
-                Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
-                ? MainViewModel.ValidatedEncoders
-                : Config.ValidatedEncodersCache ?? [];
-            if (MainViewModel.TryResolveCachedEncoder(Config, validatedEncoders, targetMode, out EncodingHelper.EncoderSelection selection))
-            {
-                EncoderRecommendationText.Text =
-                    $"{selection!.Reason}。{EncodingHelper.GetEncoderLabel(selection.Encoder)}，" +
-                    (selection.MeetsRealtimeRequirement ? "满足 20% 实时余量" : "性能余量不足，请降低录像规格");
-            }
-            else if (string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase))
-            {
-                EncoderRecommendationText.Text = "手动选择的编码器已失效。录像将被阻止，请重新选择或恢复自动推荐";
-            }
-            else
-            {
-                EncoderRecommendationText.Text = "当前录像规格尚未完成性能检测。检测完成前不能开始录像";
-            }
+            var encoders = MainViewModel.CachedEncoderOptions
+                ?? new List<GpuEncoderOption>
+                {
+                    new GpuEncoderOption { Value = "auto", DisplayName = "自动检测（优先独显）" },
+                    new GpuEncoderOption { Value = "cpu", DisplayName = "CPU 软编码" }
+                };
+            GpuEncoderComboBox.ItemsSource = encoders;
+            string normalized = NormalizeGpuSetting(Config.GpuEncoder ?? "auto");
+            var match = encoders.FirstOrDefault(e => e.Value == normalized)
+                     ?? encoders.FirstOrDefault();
+            GpuEncoderComboBox.SelectedItem = match;
         }
+
+        private void LoadVideoCodecs()
+        {
+            var items = new[]
+            {
+                new GpuEncoderOption { Value = "h264", DisplayName = "H.264 (兼容性好)" },
+                new GpuEncoderOption { Value = "h265", DisplayName = "H.265 / HEVC (体积更小)" },
+                new GpuEncoderOption { Value = "av1",  DisplayName = "AV1 (极致压缩，推荐)" }
+            };
+            VideoCodecComboBox.ItemsSource = items;
+            string current = Config.VideoCodec?.ToLowerInvariant() ?? "h264";
+            VideoCodecComboBox.SelectedItem = items.FirstOrDefault(i => i.Value == current) ?? items[0];
+        }
+
+        private static string NormalizeGpuSetting(string setting) => EncodingHelper.NormalizeGpuSetting(setting);
 
         private void BtnBrowsePath_Click(object sender, RoutedEventArgs e)
         {
@@ -1722,6 +1710,9 @@ namespace ExpressPackingMonitoring.UI
             if (Capabilities.CanUseCamera && !ValidateCameraIdleNoSleepPeriods())
                 return false;
 
+            if (Capabilities.CanRecordPcVideo && !ConfirmCachedRecordingProfileRisk())
+                return false;
+
             if (Capabilities.CanRecordPcVideo)
             {
                 if (!TryNormalizeComputerNickname(Config.NodeName, out string normalizedNickname))
@@ -1831,8 +1822,15 @@ namespace ExpressPackingMonitoring.UI
                 }
             }
 
-            if (Capabilities.CanRecordPcVideo)
-                CaptureVideoEncoderSelection();
+            if (Capabilities.CanRecordPcVideo && GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOpt)
+            {
+                Config.GpuEncoder = gpuOpt.Value;
+            }
+
+            if (Capabilities.CanRecordPcVideo && VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOpt)
+            {
+                Config.VideoCodec = codecOpt.Value;
+            }
 
             // 保存断句关键词
             if (Capabilities.IsRecordingDevice)
@@ -2058,12 +2056,20 @@ namespace ExpressPackingMonitoring.UI
                 return true;
             }
 
+            string codec = VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption
+                ? codecOption.Value
+                : Config.VideoCodec ?? "h264";
+            codec = codec.Trim().ToLowerInvariant();
+            if (codec is not ("h264" or "h265" or "av1"))
+                codec = "h264";
+            string gpu = GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption
+                ? gpuOption.Value
+                : Config.GpuEncoder ?? "auto";
+            string encoder = EncodingHelper.ResolveFallbackEncoder(
+                gpu,
+                codec,
+                MainViewModel.ValidatedEncoders ?? new HashSet<string>());
             var selectedMode = new NativeCameraMode(resolution.Width, resolution.Height, fps);
-            string encoder = VideoEncoderComboBox.SelectedItem is VideoEncoderOption option
-                ? option.Value
-                : Config.EffectiveVideoEncoder;
-            if (!EncodingHelper.IsKnownEncoder(encoder))
-                return true;
             int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(Config.VideoCqp);
             if (!RecordingProfileDetector.TryGetCachedBenchmark(
                     Config,
@@ -2099,8 +2105,10 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            CaptureSelectedRecordingMode();
-            CaptureVideoEncoderSelection();
+            if (GpuEncoderComboBox.SelectedItem is GpuEncoderOption gpuOption)
+                Config.GpuEncoder = gpuOption.Value;
+            if (VideoCodecComboBox.SelectedItem is GpuEncoderOption codecOption)
+                Config.VideoCodec = codecOption.Value;
 
             DetectRecordingProfileButton.IsEnabled = false;
             DetectRecordingProfileButton.Content = AppLanguage.Translate("正在检测，请稍候");
@@ -2143,7 +2151,6 @@ namespace ExpressPackingMonitoring.UI
                 }
                 RecordingProfileRecommendation recommendation =
                     await Context.DetectRecordingProfileAsync(Config, nativeModes);
-                LoadVideoEncoders();
                 if (recommendation?.Success != true
                     || recommendation.Mode is not NativeCameraMode recommendedMode)
                 {
@@ -2198,7 +2205,7 @@ namespace ExpressPackingMonitoring.UI
             finally
             {
                 DetectRecordingProfileButton.IsEnabled = true;
-                DetectRecordingProfileButton.Content = AppLanguage.Translate("重新检测");
+                DetectRecordingProfileButton.Content = AppLanguage.Translate("开始检测");
             }
         }
 
@@ -2469,111 +2476,61 @@ namespace ExpressPackingMonitoring.UI
 
         private bool ValidateEncoderSelectionBeforeSave()
         {
-            if (VideoEncoderComboBox.SelectedItem is not VideoEncoderOption option)
-            {
-                AppDialog.Warning(
-                    this,
-                    "当前摄像头规格没有可用编码器，请先重新检测",
-                    "编码器未就绪");
-                return false;
-            }
+            string codec = (Config.VideoCodec ?? "h264").Trim().ToLowerInvariant();
+            string gpu = NormalizeGpuSetting(Config.GpuEncoder ?? "auto");
+            var validated = MainViewModel.ValidatedEncoders ?? new HashSet<string>();
 
-            CaptureVideoEncoderSelection();
-            NativeCameraMode targetMode = new(
-                Math.Max(1, Config.FrameWidth),
-                Math.Max(1, Config.FrameHeight),
-                Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
-                ? MainViewModel.ValidatedEncoders
-                : Config.ValidatedEncodersCache ?? [];
-            if (!MainViewModel.TryResolveCachedEncoder(
-                    Config,
-                    validatedEncoders,
-                    targetMode,
-                    out EncodingHelper.EncoderSelection selection))
-            {
-                AppDialog.Warning(
-                    this,
-                    "分辨率、帧率、画质或编码器选择已变化，当前规格尚未完成全部编码器的性能检测。请先点击“重新检测”",
-                    "需要重新检测编码器");
-                return false;
-            }
+            string requestedEncoder = EncodingHelper.ResolveRequestedEncoder(gpu, codec);
+            string fallbackEncoder = EncodingHelper.ResolveFallbackEncoder(gpu, codec, validated);
 
-            if (!option.MeetsRealtimeRequirement)
+            if (fallbackEncoder == requestedEncoder)
             {
-                if (selection!.IsManual)
+                if (!string.Equals(NormalizeGpuSetting(Config.GpuEncoder ?? "auto"), NormalizeGpuSetting(fallbackEncoder), StringComparison.OrdinalIgnoreCase)
+                    && gpu != "auto")
                 {
-                    AppDialog.Warning(
-                        this,
-                        "手动选择的编码器不满足 20% 实时余量，请重新选择编码器或降低录像规格后重新检测",
-                        "编码器性能不足");
-                    return false;
+                    string fallbackGpu = NormalizeGpuSetting(fallbackEncoder);
+                    Config.GpuEncoder = string.IsNullOrEmpty(fallbackGpu) ? "cpu" : fallbackGpu;
                 }
-
-                if (!AppDialog.Confirm(
-                        this,
-                        "自动推荐已选择当前规格下实测最快的 H.264/H.265 编码器，但它不满足 20% 实时余量，录像可能丢帧或卡顿。是否仍然保存？",
-                        "编码器性能不足",
-                        AppDialogSeverity.Warning,
-                        confirmText: "仍然保存",
-                        cancelText: "返回调整",
-                        isDangerous: false))
-                {
-                    return false;
-                }
+                return true;
             }
 
+            string requestedLabel = EncodingHelper.GetEncoderLabel(requestedEncoder);
+            string fallbackLabel = EncodingHelper.GetEncoderLabel(fallbackEncoder);
+
+            // 该编解码器完全不可用：保存前直接改成可用方案
+            if (codec != EncodingHelper.GetCodecFromEncoder(fallbackEncoder))
+            {
+                bool useFallback = AppDialog.Confirm(
+                    this,
+                    $"当前设备或 FFmpeg 不支持 {EncodingHelper.GetCodecLabel(codec)}。\n\n" +
+                    $"请求方案: {requestedLabel}\n" +
+                    $"建议切换到: {fallbackLabel}\n\n" +
+                    $"是否在保存时自动改为 {fallbackLabel}？",
+                    "编码器不可用",
+                    AppDialogSeverity.Warning,
+                    confirmText: "使用建议方案",
+                    cancelText: "取消保存",
+                    isDangerous: false);
+
+                if (!useFallback)
+                    return false;
+
+                EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
+                SyncEncoderComboboxes(fallbackEncoder);
+                return true;
+            }
+
+            // 同一编解码器可用，但会回退到别的实现
+            AppDialog.Information(
+                this,
+                $"当前选择的 {requestedLabel} 不可用。\n\n" +
+                $"保存后实际会回退到: {fallbackLabel}\n\n" +
+                $"设置将按可用方案保存",
+                "编码器将自动回退");
+
+            EncodingHelper.ApplyEncoderSelectionToConfig(Config, fallbackEncoder);
+            SyncEncoderComboboxes(fallbackEncoder);
             return true;
-        }
-
-        private void CaptureSelectedRecordingMode()
-        {
-            if (ResComboBox.SelectedItem is ResOption resolution)
-            {
-                Config.FrameWidth = resolution.Width;
-                Config.FrameHeight = resolution.Height;
-            }
-            if (FpsComboBox.SelectedItem is ComboBoxItem fpsItem && fpsItem.Tag is int fps)
-                Config.Fps = fps;
-        }
-
-        private void CaptureVideoEncoderSelection()
-        {
-            if (VideoEncoderComboBox.SelectedItem is not VideoEncoderOption option)
-                return;
-
-            bool isCurrentAutomaticChoice = string.Equals(
-                option.Value,
-                Config.EffectiveVideoEncoder,
-                StringComparison.OrdinalIgnoreCase)
-                && string.Equals(Config.VideoEncoderSelectionMode, "auto", StringComparison.OrdinalIgnoreCase);
-            if (!isCurrentAutomaticChoice)
-            {
-                Config.VideoEncoderSelectionMode = "manual";
-                Config.ManualVideoEncoder = option.Value;
-            }
-            Config.EffectiveVideoEncoder = option.Value;
-            RestoreAutomaticEncoderButton.IsEnabled = string.Equals(
-                Config.VideoEncoderSelectionMode,
-                "manual",
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void RestoreAutomaticEncoder_Click(object sender, RoutedEventArgs e)
-        {
-            Config.VideoEncoderSelectionMode = "auto";
-            Config.ManualVideoEncoder = "";
-            NativeCameraMode targetMode = new(
-                Math.Max(1, Config.FrameWidth),
-                Math.Max(1, Config.FrameHeight),
-                Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
-                ? MainViewModel.ValidatedEncoders
-                : Config.ValidatedEncodersCache ?? [];
-            if (MainViewModel.TryResolveCachedEncoder(Config, validatedEncoders, targetMode, out EncodingHelper.EncoderSelection selection))
-                Config.EffectiveVideoEncoder = selection!.Encoder;
-            RestoreAutomaticEncoderButton.IsEnabled = false;
-            LoadVideoEncoders();
         }
 
         private bool ValidateOrderIdRegexBeforeSave()
@@ -2587,6 +2544,19 @@ namespace ExpressPackingMonitoring.UI
                 "单号判断规则错误");
             return false;
         }
+
+        private void SyncEncoderComboboxes(string encoder)
+        {
+            string codec = EncodingHelper.GetCodecFromEncoder(encoder);
+            string gpu = NormalizeGpuSetting(encoder);
+
+            if (VideoCodecComboBox.ItemsSource is IEnumerable<GpuEncoderOption> codecs)
+                VideoCodecComboBox.SelectedItem = codecs.FirstOrDefault(i => i.Value == codec);
+
+            if (GpuEncoderComboBox.ItemsSource is IEnumerable<GpuEncoderOption> gpus)
+                GpuEncoderComboBox.SelectedItem = gpus.FirstOrDefault(i => i.Value == gpu);
+        }
+
 
         private void OpenRepository_Click(object sender, RoutedEventArgs e)
         {

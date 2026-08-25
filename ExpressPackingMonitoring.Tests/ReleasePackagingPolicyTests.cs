@@ -221,8 +221,6 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("h264_qsv", encoderScript, StringComparison.Ordinal);
         Assert.Contains("hevc_qsv", encoderScript, StringComparison.Ordinal);
         Assert.Contains("EPM_REQUIRED_ENCODERS", encoderScript, StringComparison.Ordinal);
-        Assert.Contains("Test-FFmpegEncoderListed", encoderScript, StringComparison.Ordinal);
-        Assert.Contains("-hide_banner -encoders", encoderScript, StringComparison.Ordinal);
         Assert.Contains("ExpressPackingMonitoring.EncodingIntegrationTests", solution, StringComparison.Ordinal);
     }
 

@@ -12,7 +12,7 @@
 
 ## FFmpeg 兼容基线
 
-- 正式基线固定为 FFmpeg 4.4.1 Essentials，以兼容 Win7 老显卡的 NVENC API 11.1。AV1 仅在当前 FFmpeg 列出编码器、试编码通过且满足当前录像规格实时余量时作为手动选项出现；正式基线不支持时不显示，绝不回退改写为 H.265。暂不实施 8.0.1 + 4.4.1 双基线。
+- 正式基线固定为 FFmpeg 4.4.1 Essentials，以兼容 Win7 老显卡的 NVENC API 11.1。AV1 不作为产品能力，选择 AV1 时回退 H.265；暂不实施 8.0.1 + 4.4.1 双基线。
 - 高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe`，官方不保证该自定义环境。
 - 禁止假设 CLI 参数跨版本通用：FFmpeg 8.x 已移除 RTSP `-stimeout`；4.4.x 的 RTSP `-timeout` 会挂起，因此网络摄像头不传 socket 超时参数，由应用层 15 秒连接超时和断流看门狗兜底。`-fps_mode` 仅 5.1+ 可用，旧版回退 `-vsync passthrough`。参数策略集中在 `NetworkCameraSource.BuildArguments`。
 - 修改任何 FFmpeg 调用前，必须使用 `Tools/ffmpeg-baseline.json` 锁定的 4.4.1 和至少一个其他受支持主版本（如 8.0.1）验证受影响流程；同步更新 `NetworkCameraSourceTests` 参数断言和随包 FFmpeg 参数识别测试。
