@@ -684,6 +684,7 @@
   <data name="数据统计" xml:space="preserve"><value>数据统计</value></data>
   <data name="录像回放" xml:space="preserve"><value>录像回放</value></data>
   <data name="记录局域网服务和设备备份的详细信息" xml:space="preserve"><value>记录局域网服务和设备备份的详细信息</value></data>
+  <data name="可能包含订单内容和文件路径，仅在深度排查时开启" xml:space="preserve"><value>可能包含订单内容和文件路径，仅在深度排查时开启</value></data>
   <data name="暂不可用" xml:space="preserve"><value>暂不可用</value></data>
   <data name="设备连接服务启用失败，请检查配置文件权限" xml:space="preserve"><value>设备连接服务启用失败，请检查配置文件权限</value></data>
   <data name="正在启动设备连接服务..." xml:space="preserve"><value>正在启动设备连接服务...</value></data>

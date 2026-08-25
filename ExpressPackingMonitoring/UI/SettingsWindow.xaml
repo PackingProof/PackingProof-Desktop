@@ -3415,7 +3415,7 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="详细调试日志" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="调试日志" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="可能包含订单内容和文件路径，仅在深度排查时开启"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
