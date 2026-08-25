@@ -78,45 +78,121 @@ namespace ExpressPackingMonitoring.ViewModels
             IReadOnlyList<NativeCameraMode>? selectedNativeModes)
         {
             ArgumentNullException.ThrowIfNull(detectionConfig);
-            await _encoderDetectionGate.WaitAsync();
+            if (_isEncoderDetectRunning)
+                return null;
+
             _isEncoderDetectRunning = true;
+            IReadOnlyList<NativeCameraMode> nativeModes = selectedNativeModes ?? [];
+            if (nativeModes.Count == 0)
+            {
+                if (IsNetworkCameraConfigured())
+                {
+                    nativeModes = _networkCameraSource?.NativeModes ?? [];
+                }
+                else
+                {
+                    try
+                    {
+                        nativeModes = RecordingProfileDetector.GetNativeModes(_videoSource?.VideoCapabilities);
+                    }
+                    catch
+                    {
+                        nativeModes = [];
+                    }
+                }
+            }
+
             try
             {
-                IReadOnlyList<NativeCameraMode> nativeModes = selectedNativeModes ?? [];
-                if (nativeModes.Count == 0)
+                return await Task.Run(() =>
                 {
-                    if (_actualCameraWidth > 0 && _actualCameraHeight > 0 && _actualCameraFps > 0)
-                    {
-                        nativeModes = [new NativeCameraMode(
-                            _actualCameraWidth,
-                            _actualCameraHeight,
-                            _actualCameraFps)];
-                    }
-                    else if (IsNetworkCameraConfigured())
-                    {
-                        nativeModes = _networkCameraSource?.NativeModes ?? [];
-                    }
-                    else
-                    {
-                        try
-                        {
-                            nativeModes = RecordingProfileDetector.GetNativeModes(_videoSource?.VideoCapabilities);
-                        }
-                        catch
-                        {
-                            nativeModes = [];
-                        }
-                    }
-                }
+                    EncoderDetectionResult detection = DetectAvailableEncodersSync();
+                    NativeCameraMode targetMode = ResolveEncoderBenchmarkMode(detectionConfig, nativeModes);
+                    int videoCqp = RecordingProfileDetector.NormalizeVideoCqp(detectionConfig.VideoCqp);
+                    string ffmpegPath = AppPaths.FindFFmpeg();
 
-                RecordingProfileRecommendation recommendation =
-                    await EncoderProfileDetectionService.DetectAsync(detectionConfig, nativeModes);
-                if (ReferenceEquals(Config, detectionConfig))
-                {
-                    RefreshEncoderCachesFromConfig();
-                    SaveConfig();
-                }
-                return recommendation;
+                    ApplyCapabilityDetection(detectionConfig, detection);
+                    if (!detection.Succeeded)
+                    {
+                        if (ReferenceEquals(Config, detectionConfig))
+                            SaveConfig();
+                        return new RecordingProfileRecommendation(
+                            false,
+                            null,
+                            "未检测到可用的 FFmpeg 编码器，录像已阻止，请检查 FFmpeg 后重新检测",
+                            []);
+                    }
+
+                    DateTime testedAt = DateTime.Now;
+                    var benchmarks = new Dictionary<string, RealtimeEncodingBenchmarkResult>(StringComparer.OrdinalIgnoreCase);
+                    foreach (string encoder in detection.ValidatedEncoders.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+                    {
+                        RealtimeEncodingBenchmarkResult benchmark = RecordingProfileDetector.Benchmark(
+                            ffmpegPath,
+                            encoder,
+                            videoCqp,
+                            targetMode);
+                        benchmarks[encoder] = benchmark;
+                        RecordingProfileDetector.UpdateBenchmarkCache(
+                            detectionConfig,
+                            encoder,
+                            videoCqp,
+                            [benchmark],
+                            testedAt);
+                        RuntimeLog.Info(
+                            "RecordingProfile",
+                            $"encoder={encoder}, mode={targetMode.Width}x{targetMode.Height}@{targetMode.Fps}, stable={benchmark.SupportsFrameRate(targetMode.Fps)}, detail={benchmark.Detail}");
+                    }
+
+                    List<EncodingHelper.EncoderCandidate> candidates = BuildEncoderCandidates(
+                        detection.ValidatedEncoders,
+                        benchmarks,
+                        targetMode);
+                    EncodingHelper.EncoderSelection? selection = EncodingHelper.SelectEncoder(
+                        candidates,
+                        detectionConfig.VideoEncoderSelectionMode,
+                        detectionConfig.ManualVideoEncoder);
+                    List<VideoEncoderOption> options = BuildVisibleEncoderOptions(candidates, selection, targetMode.Fps);
+                    AppendEncoderPerformanceLog(
+                        targetMode,
+                        videoCqp,
+                        candidates,
+                        selection,
+                        selection == null ? "没有可用于当前选择模式的编码器" : null);
+                    if (selection == null)
+                    {
+                        ApplyEncoderSelection(detectionConfig, options, null);
+                        CachedEncoderOptions = options;
+                        ValidatedEncoders = detection.ValidatedEncoders;
+                        if (ReferenceEquals(Config, detectionConfig))
+                            SaveConfig();
+                        return new RecordingProfileRecommendation(
+                            false,
+                            null,
+                            string.Equals(detectionConfig.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
+                                ? "手动选择的编码器不再满足当前录像规格，请重新选择编码器"
+                                : "未检测到可自动使用的 H.264 或 H.265 编码器，请手动选择已验证的编码器",
+                            []);
+                    }
+
+                    ApplyEncoderSelection(detectionConfig, options, selection);
+                    CachedEncoderOptions = options;
+                    ValidatedEncoders = detection.ValidatedEncoders;
+                    if (ReferenceEquals(Config, detectionConfig))
+                        SaveConfig();
+                    RuntimeLog.Info(
+                        "RecordingProfile",
+                        $"selected={selection.Encoder}, manual={selection.IsManual}, meetsHeadroom={selection.MeetsRealtimeRequirement}, reason={selection.Reason}");
+
+                    RealtimeEncodingBenchmarkResult selectedBenchmark = benchmarks[selection.Encoder];
+                    return new RecordingProfileRecommendation(
+                        selection.MeetsRealtimeRequirement,
+                        selection.MeetsRealtimeRequirement ? targetMode : null,
+                        selection.MeetsRealtimeRequirement
+                            ? $"编码器检测完成：{EncodingHelper.GetEncoderLabel(selection.Encoder)}"
+                            : $"{selection.Reason}：{EncodingHelper.GetEncoderLabel(selection.Encoder)}",
+                        [selectedBenchmark]);
+                });
             }
             catch (Exception ex)
             {
@@ -126,8 +202,48 @@ namespace ExpressPackingMonitoring.ViewModels
             finally
             {
                 _isEncoderDetectRunning = false;
-                _encoderDetectionGate.Release();
             }
+        }
+
+        private NativeCameraMode ResolveEncoderBenchmarkMode(
+            AppConfig detectionConfig,
+            IReadOnlyList<NativeCameraMode> nativeModes)
+        {
+            NativeCameraMode configured = new(
+                Math.Max(1, detectionConfig.FrameWidth),
+                Math.Max(1, detectionConfig.FrameHeight),
+                Math.Max(1, detectionConfig.Fps));
+            NativeCameraMode? selectedNativeMode = nativeModes
+                .Where(mode => mode.Width > 0 && mode.Height > 0 && mode.Fps > 0)
+                .OrderBy(mode => Math.Abs(mode.Width - configured.Width)
+                    + Math.Abs(mode.Height - configured.Height)
+                    + Math.Abs(mode.Fps - configured.Fps))
+                .Select(mode => (NativeCameraMode?)mode)
+                .FirstOrDefault();
+            if (selectedNativeMode is NativeCameraMode mode)
+                return mode;
+
+            if (_actualCameraWidth > 0 && _actualCameraHeight > 0 && _actualCameraFps > 0)
+                return new NativeCameraMode(_actualCameraWidth, _actualCameraHeight, _actualCameraFps);
+
+            return configured;
+        }
+
+        private static void ApplyCapabilityDetection(AppConfig config, EncoderDetectionResult detection)
+        {
+            config.ValidatedEncodersCache = detection.ValidatedEncoders.ToList();
+            config.IsEncoderDetected = detection.Succeeded;
+            config.EncoderDetectionCacheVersion = CurrentEncoderDetectionCacheVersion;
+            UpdateEncoderDriverWarning(config, detection.NvencDriverIssue);
+        }
+
+        private static void ApplyEncoderSelection(
+            AppConfig config,
+            List<VideoEncoderOption> options,
+            EncodingHelper.EncoderSelection? selection)
+        {
+            config.EncoderOptionsCache = options;
+            config.EffectiveVideoEncoder = selection?.Encoder ?? "";
         }
 
         internal static List<EncodingHelper.EncoderCandidate> BuildEncoderCandidates(

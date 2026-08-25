@@ -827,9 +827,9 @@ namespace ExpressPackingMonitoring.UI
                 Math.Max(1, Config.Fps)));
             if (!MainViewModel.TryResolveCachedEncoder(
                     Config,
-                    Config.ValidatedEncodersCache is { Count: > 0 }
-                        ? Config.ValidatedEncodersCache
-                        : MainViewModel.ValidatedEncoders,
+                    MainViewModel.ValidatedEncoders.Count > 0
+                        ? MainViewModel.ValidatedEncoders
+                        : Config.ValidatedEncodersCache ?? [],
                     targetMode,
                     out EncodingHelper.EncoderSelection selection))
             {
@@ -846,9 +846,9 @@ namespace ExpressPackingMonitoring.UI
 
         private void LoadVideoEncoders()
         {
-            var encoders = Config.EncoderOptionsCache is { Count: > 0 }
-                ? Config.EncoderOptionsCache
-                : MainViewModel.CachedEncoderOptions ?? new List<VideoEncoderOption>();
+            var encoders = MainViewModel.CachedEncoderOptions is { Count: > 0 }
+                ? MainViewModel.CachedEncoderOptions
+                : Config.EncoderOptionsCache ?? new List<VideoEncoderOption>();
             VideoEncoderComboBox.ItemsSource = encoders;
             string selectedEncoder = string.Equals(Config.VideoEncoderSelectionMode, "manual", StringComparison.OrdinalIgnoreCase)
                 ? Config.ManualVideoEncoder
@@ -866,9 +866,9 @@ namespace ExpressPackingMonitoring.UI
                 Math.Max(1, Config.FrameWidth),
                 Math.Max(1, Config.FrameHeight),
                 Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = Config.ValidatedEncodersCache is { Count: > 0 }
-                ? Config.ValidatedEncodersCache
-                : MainViewModel.ValidatedEncoders;
+            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
+                ? MainViewModel.ValidatedEncoders
+                : Config.ValidatedEncodersCache ?? [];
             if (MainViewModel.TryResolveCachedEncoder(Config, validatedEncoders, targetMode, out EncodingHelper.EncoderSelection selection))
             {
                 EncoderRecommendationText.Text =
@@ -2483,9 +2483,9 @@ namespace ExpressPackingMonitoring.UI
                 Math.Max(1, Config.FrameWidth),
                 Math.Max(1, Config.FrameHeight),
                 Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = Config.ValidatedEncodersCache is { Count: > 0 }
-                ? Config.ValidatedEncodersCache
-                : MainViewModel.ValidatedEncoders;
+            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
+                ? MainViewModel.ValidatedEncoders
+                : Config.ValidatedEncodersCache ?? [];
             if (!MainViewModel.TryResolveCachedEncoder(
                     Config,
                     validatedEncoders,
@@ -2567,9 +2567,9 @@ namespace ExpressPackingMonitoring.UI
                 Math.Max(1, Config.FrameWidth),
                 Math.Max(1, Config.FrameHeight),
                 Math.Max(1, Config.Fps));
-            IEnumerable<string> validatedEncoders = Config.ValidatedEncodersCache is { Count: > 0 }
-                ? Config.ValidatedEncodersCache
-                : MainViewModel.ValidatedEncoders;
+            IEnumerable<string> validatedEncoders = MainViewModel.ValidatedEncoders.Count > 0
+                ? MainViewModel.ValidatedEncoders
+                : Config.ValidatedEncodersCache ?? [];
             if (MainViewModel.TryResolveCachedEncoder(Config, validatedEncoders, targetMode, out EncodingHelper.EncoderSelection selection))
                 Config.EffectiveVideoEncoder = selection!.Encoder;
             RestoreAutomaticEncoderButton.IsEnabled = false;
