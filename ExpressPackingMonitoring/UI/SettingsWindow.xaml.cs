@@ -1707,8 +1707,8 @@ namespace ExpressPackingMonitoring.UI
         {
             if (await SaveAndApplyAsync())
             {
-                DialogResult = true;
-                Close();
+                if (IsLoaded)
+                    Close();
             }
         }
 

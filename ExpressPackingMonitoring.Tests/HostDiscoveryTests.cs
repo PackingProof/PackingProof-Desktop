@@ -141,6 +141,30 @@ public sealed class HostDiscoveryTests
     }
 
     [Fact]
+    public async Task ConnectionResetDuringNodeProbeIsTreatedAsUnavailable()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        CancellationToken token = TestContext.Current.CancellationToken;
+        Task resetTask = Task.Run(async () =>
+        {
+            using TcpClient accepted = await listener.AcceptTcpClientAsync(token);
+            await using NetworkStream stream = accepted.GetStream();
+            byte[] requestBuffer = new byte[2048];
+            _ = await stream.ReadAsync(requestBuffer, token);
+            accepted.Client.LingerState = new LingerOption(enable: true, seconds: 0);
+        }, token);
+
+        PackingProofNodeInfo? node = await WorkstationNetwork.GetNodeInfoAsync(
+            $"127.0.0.1:{port}",
+            token);
+        await resetTask;
+
+        Assert.Null(node);
+    }
+
+    [Fact]
     public async Task DiscoveryValidatesSavedAddressFirstAndReturnsEveryUniqueHost()
     {
         string savedNodeId = Guid.NewGuid().ToString("D");

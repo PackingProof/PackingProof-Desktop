@@ -394,6 +394,7 @@ public static class WorkstationNetwork
             return node;
         }
         catch (Exception ex) when (ex is HttpRequestException
+            or IOException
             or TaskCanceledException
             or JsonException
             or InvalidOperationException)

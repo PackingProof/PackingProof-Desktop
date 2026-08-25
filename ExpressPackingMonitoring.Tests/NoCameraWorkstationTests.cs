@@ -412,6 +412,21 @@ public sealed class NoCameraWorkstationTests
     }
 
     [Fact]
+    public void SettingsOkDoesNotSetDialogResultAfterAsynchronousApply()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml.cs");
+        int start = source.IndexOf("private async void BtnOk_Click", StringComparison.Ordinal);
+        int end = source.IndexOf("private async void BtnApply_Click", start, StringComparison.Ordinal);
+        string handler = source[start..end];
+
+        Assert.Contains("if (IsLoaded)", handler, StringComparison.Ordinal);
+        Assert.DoesNotContain("DialogResult", handler, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task HostEnablesExtensionApiWhenConfigured()
     {
         string directory = CreateTempDirectory();
