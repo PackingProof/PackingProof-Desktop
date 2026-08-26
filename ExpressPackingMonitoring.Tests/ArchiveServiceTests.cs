@@ -1033,21 +1033,42 @@ public sealed class ArchiveServiceTests : IDisposable
 
         Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
         provider.Unreachable = false;
-        await Task.Delay(60);
+        await WaitUntilAsync(
+            async () => await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken) == 1,
+            TimeSpan.FromSeconds(2));
 
-        Assert.Equal(
-            1,
-            await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken));
         int verifiedAfterFirstRound = _database.QueryVideos(null, null)
             .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
         Assert.Equal(1, verifiedAfterFirstRound);
         Assert.Equal(0, await service.ProcessPendingOnceAsync(CancellationToken.None));
 
-        await Task.Delay(60);
-        Assert.Equal(2, await service.ProcessPendingOnceAsync(CancellationToken.None));
+        int completed = 0;
+        await WaitUntilAsync(
+            async () =>
+            {
+                completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+                return completed == 2;
+            },
+            TimeSpan.FromSeconds(2));
+        Assert.Equal(2, completed);
         verifiedAfterFirstRound = _database.QueryVideos(null, null)
             .Count(record => record.ArchiveStatus == VideoArchiveStatus.Verified);
         Assert.Equal(3, verifiedAfterFirstRound);
+    }
+
+    private static async Task WaitUntilAsync(
+        Func<Task<bool>> condition,
+        TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (await condition())
+                return;
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Fail($"条件在 {timeout.TotalSeconds:F0} 秒内未满足");
     }
 
     [Fact]
