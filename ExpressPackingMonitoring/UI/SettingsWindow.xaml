@@ -46,7 +46,7 @@
                         BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"/>
-                <Grid Margin="0">
+                                      <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="34"/>
@@ -1404,6 +1404,57 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别确认时间" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更短" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=CameraSameBarcodeConfirmationSlider, Path=Value, StringFormat={}{0:F1} 秒}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更长" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="CameraSameBarcodeConfirmationSlider"
+                                                    Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="0.5"
+                                                    Maximum="10"
+                                                    TickFrequency="0.5"
+                                                    Value="{Binding Config.CameraSameBarcodeConfirmationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别确认次数" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="需要识别到几次才触发，次数越少响应越快"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="CameraSameBarcodeConfirmationHitsComboBox"
+                                                  Grid.Column="2"
+                                                  SelectedValue="{Binding Config.CameraSameBarcodeConfirmationHits}"
+                                                  SelectedValuePath="Tag"
+                                                  Cursor="Hand">
+                                            <ComboBoxItem Content="1 次（最快）" Tag="1"/>
+                                            <ComboBoxItem Content="2 次（推荐）" Tag="2"/>
+                                            <ComboBoxItem Content="3 次（更稳）" Tag="3"/>
+                                            <ComboBoxItem Content="4 次（最稳）" Tag="4"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="同码消失时间" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="触发开始录像后，原单号离开画面多久才允许再次触发"
                                                        Style="{StaticResource FieldHintStyle}"/>
@@ -1541,113 +1592,10 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="识别确认时间" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="识别到条码后，在该时间内达到确认次数即可触发开始、切换或停录"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更短" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=CameraSameBarcodeConfirmationSlider, Path=Value, StringFormat={}{0:F1} 秒}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更长" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="CameraSameBarcodeConfirmationSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="0.5"
-                                                    Maximum="10"
-                                                    TickFrequency="0.5"
-                                                    Value="{Binding Config.CameraSameBarcodeConfirmationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="识别确认次数" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="需要识别到几次才触发，次数越少响应越快"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <ComboBox x:Name="CameraSameBarcodeConfirmationHitsComboBox"
-                                                  Grid.Column="2"
-                                                  SelectedValue="{Binding Config.CameraSameBarcodeConfirmationHits}"
-                                                  SelectedValuePath="Tag"
-                                                  Cursor="Hand">
-                                            <ComboBoxItem Content="1 次（最快）" Tag="1"/>
-                                            <ComboBoxItem Content="2 次（推荐）" Tag="2"/>
-                                            <ComboBoxItem Content="3 次（更稳）" Tag="3"/>
-                                            <ComboBoxItem Content="4 次（最稳）" Tag="4"/>
-                                        </ComboBox>
-                                    </Grid>
                                 </StackPanel>
                             </Border>
 
-                            <!-- 基础扫码设置 -->
-                            <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                                <StackPanel>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          ToolTip="正则表达式用于过滤非法扫码内容。不了解正则时请不要修改">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="单号判断规则" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="用于判断扫码内容是不是有效单号"
-                                                    Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <TextBox Grid.Column="2"
-                                                HorizontalAlignment="Stretch"
-                                                Text="{Binding Config.OrderIdRegex}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
-                                          ToolTip="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="扫码间隔保护" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="防止扫码枪连续触发太快"
-                                                    Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=BarcodeCooldownSlider, Path=Value, StringFormat={}{0:F1} 秒}"
-                                                        Style="{StaticResource SliderValueTextStyle}"
-                                                        HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="BarcodeCooldownSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="0.5"
-                                                    Maximum="10"
-                                                    TickFrequency="0.5"
-                                                    Value="{Binding Config.BarcodeCooldownSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- 扫码枪识别模式 -->
+                             <!-- 扫码枪识别模式 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}">
@@ -1819,8 +1767,52 @@
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+                             </Border>
+
+                             <!-- 扫码间隔保护（放在本页最后） -->
+                             <Border Style="{StaticResource SectionCardStyle}"
+                                     Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                 <StackPanel>
+                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                           ToolTip="正则表达式用于过滤非法扫码内容。不了解正则时请不要修改">
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="*"/>
+                                             <ColumnDefinition Width="24"/>
+                                             <ColumnDefinition Width="260"/>
+                                         </Grid.ColumnDefinitions>
+                                         <StackPanel Margin="0,0,16,0">
+                                             <TextBlock Text="单号判断规则" Style="{StaticResource FieldLabelStyle}"/>
+                                             <TextBlock Text="用于判断扫码内容是不是有效单号" Style="{StaticResource FieldHintStyle}"/>
+                                         </StackPanel>
+                                         <TextBox Grid.Column="2" HorizontalAlignment="Stretch" Text="{Binding Config.OrderIdRegex}"/>
+                                     </Grid>
+
+                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                           ToolTip="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换">
+                                         <Grid.ColumnDefinitions>
+                                             <ColumnDefinition Width="*"/>
+                                             <ColumnDefinition Width="24"/>
+                                             <ColumnDefinition Width="260"/>
+                                         </Grid.ColumnDefinitions>
+                                         <StackPanel Margin="0,0,16,0">
+                                             <TextBlock Text="扫码间隔保护" Style="{StaticResource FieldLabelStyle}"/>
+                                             <TextBlock Text="防止扫码枪连续触发太快" Style="{StaticResource FieldHintStyle}"/>
+                                         </StackPanel>
+                                         <StackPanel Grid.Column="2">
+                                             <Grid>
+                                                 <TextBlock Text="更灵敏" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                 <TextBlock Text="{Binding ElementName=BarcodeCooldownSlider, Path=Value, StringFormat={}{0:F1} 秒}"
+                                                            Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/>
+                                                 <TextBlock Text="更稳妥" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                             </Grid>
+                                             <Slider x:Name="BarcodeCooldownSlider" Style="{StaticResource SettingsSliderStyle}"
+                                                     Minimum="0.5" Maximum="10" TickFrequency="0.5"
+                                                     Value="{Binding Config.BarcodeCooldownSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                         </StackPanel>
+                                     </Grid>
+                                 </StackPanel>
+                             </Border>
+                         </StackPanel>
                     </ScrollViewer>
                 </Border>
             </TabItem>
@@ -2914,80 +2906,6 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          ToolTip="系统语音不需要网络；联网语音声音更自然；离线语音使用本地模型，需要额外运行依赖"
-                                          IsEnabled="{Binding IsChecked, ElementName=SoundPromptCheckBox, TargetNullValue=False}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="语音引擎" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="选择提醒声音使用系统语音、联网语音还是离线语音"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <ComboBox x:Name="VoiceEngineComboBox"
-                                                  Grid.Column="2"
-                                                  Width="220"
-                                                  HorizontalAlignment="Left"
-                                                  SelectedValuePath="Tag"
-                                                  SelectionChanged="VoiceEngineComboBox_SelectionChanged">
-                                            <ComboBoxItem Content="系统语音" Tag="System"/>
-                                            <ComboBoxItem Content="联网语音" Tag="Edge"/>
-                                            <ComboBoxItem Content="离线语音" Tag="Kokoro"/>
-                                        </ComboBox>
-                                    </Grid>
-
-                                    <Grid Margin="0">
-                                        <Grid.Style>
-                                            <Style TargetType="Grid" BasedOn="{StaticResource AdvancedSettingRowStyle}">
-                                                <Setter Property="IsEnabled" Value="False"/>
-                                                <Setter Property="Margin" Value="0"/>
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                            <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Edge"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="IsEnabled" Value="True"/>
-                                                    </MultiDataTrigger>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                            <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Kokoro"/>
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="IsEnabled" Value="True"/>
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Grid.Style>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="语速" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="调整播报快慢"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更慢" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding ElementName=AiTtsSpeedSlider, Path=Value, StringFormat={}{0:F1} 倍}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更快" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider x:Name="AiTtsSpeedSlider"
-                                                    Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="0.5"
-                                                    Maximum="2.0"
-                                                    TickFrequency="0.1"
-                                                    Value="{Binding Config.AiTtsSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        </StackPanel>
-                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -3001,25 +2919,46 @@
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding Config.ShowAdvancedSettings}" Value="True"/>
                                                     <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                    <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Edge"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                                <Setter Property="IsEnabled" Value="True"/>
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding Config.ShowAdvancedSettings}" Value="True"/>
-                                                    <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                    <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Kokoro"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                                 <Setter Property="IsEnabled" Value="True"/>
                                             </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Border.Style>
-                                <StackPanel>
-                                    <Grid ToolTip="Kokoro 声线编号由本地模型决定；不了解时保持默认即可">
+                                 </Border.Style>
+                                 <StackPanel>
+                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                           ToolTip="系统语音不需要网络；联网语音声音更自然；离线语音使用本地模型，需要额外运行依赖"
+                                           IsEnabled="{Binding IsChecked, ElementName=SoundPromptCheckBox, TargetNullValue=False}">
+                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
+                                         <StackPanel Margin="0,0,16,0">
+                                             <TextBlock Text="语音引擎" Style="{StaticResource FieldLabelStyle}"/>
+                                             <TextBlock Text="选择提醒声音使用系统语音、联网语音还是离线语音" Style="{StaticResource FieldHintStyle}"/>
+                                         </StackPanel>
+                                         <ComboBox x:Name="VoiceEngineComboBox" Grid.Column="2" Width="220" HorizontalAlignment="Left"
+                                                   SelectedValuePath="Tag" SelectionChanged="VoiceEngineComboBox_SelectionChanged">
+                                             <ComboBoxItem Content="系统语音" Tag="System"/>
+                                             <ComboBoxItem Content="联网语音" Tag="Edge"/>
+                                             <ComboBoxItem Content="离线语音" Tag="Kokoro"/>
+                                         </ComboBox>
+                                     </Grid>
+
+                                      <Grid>
+                                         <Grid.Style>
+                                             <Style TargetType="Grid" BasedOn="{StaticResource AdvancedSettingRowStyle}">
+                                                  <Setter Property="IsEnabled" Value="False"/>
+                                                 <Style.Triggers>
+                                                     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/><Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Edge"/></MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True"/></MultiDataTrigger>
+                                                     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/><Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Kokoro"/></MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True"/></MultiDataTrigger>
+                                                 </Style.Triggers>
+                                             </Style>
+                                         </Grid.Style>
+                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
+                                         <StackPanel Margin="0,0,16,0"><TextBlock Text="语速" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="调整播报快慢" Style="{StaticResource FieldHintStyle}"/></StackPanel>
+                                         <StackPanel Grid.Column="2"><Grid><TextBlock Text="更慢" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/><TextBlock Text="{Binding ElementName=AiTtsSpeedSlider, Path=Value, StringFormat={}{0:F1} 倍}" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/><TextBlock Text="更快" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/></Grid><Slider x:Name="AiTtsSpeedSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0.5" Maximum="2.0" TickFrequency="0.1" Value="{Binding Config.AiTtsSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
+                                     </Grid>
+
+                                     <Grid ToolTip="Kokoro 声线编号由本地模型决定；不了解时保持默认即可">
                                         <Grid.Style>
                                             <Style TargetType="Grid" BasedOn="{StaticResource AdvancedSettingRowStyle}">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -3618,9 +3557,43 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource SectionCardStyle}">
+                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <TextBlock Text="订单联动设备" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="扩展 API 授权" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理"
+                                               Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8"
+                                            Background="{DynamicResource ControlBackground}">
+                                        <DataGrid ItemsSource="{Binding ExtensionAuthorizations}" AutoGenerateColumns="False"
+                                                  CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
+                                                  Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
+                                                  RowHeight="72" MinHeight="48" MaxHeight="300" SelectionMode="Single"
+                                                  PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel" CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}" CellStyle="{StaticResource StorageGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Header="扩展" Width="2*">
+                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                                        <StackPanel Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
+                                                            <Ellipse Width="8" Height="8" Margin="0,0,9,0">
+                                                                <Ellipse.Style><Style TargetType="Ellipse"><Setter Property="Fill" Value="{DynamicResource TextTertiary}"/><Style.Triggers><DataTrigger Binding="{Binding Online}" Value="True"><Setter Property="Fill" Value="{DynamicResource AccentGreen}"/></DataTrigger></Style.Triggers></Style></Ellipse.Style>
+                                                            </Ellipse>
+                                                            <StackPanel><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Style="{StaticResource FieldHintStyle}"><Run Text="版本 "/><Run Text="{Binding Version}"/><Run Text=" · "/><Run Text="{Binding Source}"/></TextBlock></StackPanel>
+                                                        </StackPanel>
+                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="权限与绑定" Width="2*"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Margin="12,0" VerticalAlignment="Center"><TextBlock Text="{Binding PermissionsText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding PermissionsText}"/><TextBlock Text="{Binding BindingText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding BindingText}"/><TextBlock Text="{Binding ActivityText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Header="管理" Width="190"><DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><Button Content="轮换凭据" Margin="0,0,8,0" Padding="10,5" CommandParameter="{Binding}" Click="RotateExtensionCredential_Click" Style="{StaticResource SecondaryButtonStyle}"/><Button Content="撤销" Width="60" Height="32" CommandParameter="{Binding}" Click="RevokeExtensionAuthorization_Click" Style="{StaticResource DangerButtonStyle}"/></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                             <Border Style="{StaticResource SectionCardStyle}">
+                                 <StackPanel>
+                                     <TextBlock Text="订单联动设备" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
                                     <TextBlock Text="显示可接收联动数据的录像设备；绿点表示当前在线"
                                                Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>
                                     <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8"
@@ -3670,68 +3643,6 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource SectionCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="扩展 API 授权" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,4"/>
-                                    <TextBlock Text="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理"
-                                               Style="{StaticResource FieldHintStyle}" Margin="0,0,0,12"/>
-                                    <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8"
-                                            Background="{DynamicResource ControlBackground}">
-                                        <DataGrid ItemsSource="{Binding ExtensionAuthorizations}" AutoGenerateColumns="False"
-                                                  CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
-                                                  Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
-                                                  RowHeight="72" MinHeight="48" MaxHeight="300" SelectionMode="Single"
-                                                  PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel" CanUserSortColumns="False"
-                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
-                                                  RowStyle="{StaticResource StorageGridRowStyle}" CellStyle="{StaticResource StorageGridCellStyle}">
-                                            <DataGrid.Columns>
-                                                <DataGridTemplateColumn Header="扩展" Width="2*">
-                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
-                                                        <StackPanel Orientation="Horizontal" Margin="12,0" VerticalAlignment="Center">
-                                                            <Ellipse Width="8" Height="8" Margin="0,0,9,0">
-                                                                <Ellipse.Style>
-                                                                    <Style TargetType="Ellipse">
-                                                                        <Setter Property="Fill" Value="{DynamicResource TextTertiary}"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Online}" Value="True">
-                                                                                <Setter Property="Fill" Value="{DynamicResource AccentGreen}"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Ellipse.Style>
-                                                            </Ellipse>
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                                                <TextBlock Style="{StaticResource FieldHintStyle}"><Run Text="版本 "/><Run Text="{Binding Version}"/><Run Text=" · "/><Run Text="{Binding Source}"/></TextBlock>
-                                                            </StackPanel>
-                                                        </StackPanel>
-                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
-                                                <DataGridTemplateColumn Header="权限与绑定" Width="2*">
-                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
-                                                        <StackPanel Margin="12,0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding PermissionsText}" TextTrimming="CharacterEllipsis" ToolTip="{Binding PermissionsText}"/>
-                                                            <TextBlock Text="{Binding BindingText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis" ToolTip="{Binding BindingText}"/>
-                                                            <TextBlock Text="{Binding ActivityText}" Style="{StaticResource FieldHintStyle}" TextTrimming="CharacterEllipsis"/>
-                                                        </StackPanel>
-                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
-                                                <DataGridTemplateColumn Header="管理" Width="190">
-                                                    <DataGridTemplateColumn.CellTemplate><DataTemplate>
-                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                            <Button Content="轮换凭据" Margin="0,0,8,0" Padding="10,5" CommandParameter="{Binding}"
-                                                                    Click="RotateExtensionCredential_Click" Style="{StaticResource SecondaryButtonStyle}"/>
-                                                            <Button Content="撤销" Width="60" Height="32" CommandParameter="{Binding}"
-                                                                    Click="RevokeExtensionAuthorization_Click" Style="{StaticResource DangerButtonStyle}"/>
-                                                        </StackPanel>
-                                                    </DataTemplate></DataGridTemplateColumn.CellTemplate>
-                                                </DataGridTemplateColumn>
-                                            </DataGrid.Columns>
-                                        </DataGrid>
-                                    </Border>
-                                </StackPanel>
-                            </Border>
 
             </StackPanel>
         </ScrollViewer>
