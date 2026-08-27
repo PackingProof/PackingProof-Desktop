@@ -4450,7 +4450,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 Mat frame = BitmapToMat(eventArgs.Frame);
-                if (Config.EnableEventRecordingBuffer)
+                if (ShouldCaptureEventRecordingBufferFrame())
                     UpdatePreRecordBuffer(frame);
                 if (acceptedForPreview)
                     HandleCameraFrame(frame);
@@ -4475,7 +4475,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             }
 
-            if (Config.EnableEventRecordingBuffer)
+            if (ShouldCaptureEventRecordingBufferFrame())
                 UpdatePreRecordBuffer(e.Frame);
             if (acceptedForPreview)
                 HandleCameraFrame(e.Frame);
@@ -4497,6 +4497,18 @@ namespace ExpressPackingMonitoring.ViewModels
             double next = current <= 0 ? sampleFps : current * 0.8 + sampleFps * 0.2;
             Volatile.Write(ref _cameraSourceFpsEstimate, next);
             Interlocked.Increment(ref _cameraSourceSampleCount);
+        }
+
+        private bool ShouldCaptureEventRecordingBufferFrame()
+        {
+            if (!Config.EnableEventRecordingBuffer)
+                return false;
+
+            // 连续扫码始终维护预录；同码停录仅在未开始录制或已触发收尾时维护，
+            // 收尾阶段从触发时刻立即积累，后续扫码可获得这段真实画面。
+            return !Config.EnableSameBarcodeStopRecording
+                || !Volatile.Read(ref _isRecording)
+                || _sameCodePostRollCts is { IsCancellationRequested: false };
         }
 
         private int GetEffectiveRecordingFps()
