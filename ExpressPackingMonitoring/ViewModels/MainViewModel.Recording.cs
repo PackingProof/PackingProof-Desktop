@@ -38,6 +38,7 @@ namespace ExpressPackingMonitoring.ViewModels
             CancellationTokenSource oldCts;
             BlockingCollection<Mat> oldQueue;
             Task oldWriteTask;
+            Process? oldFfmpegProcess;
             string? audioFilePath;
             bool directAacForThisRecording;
             bool audioFailedForThisRecording;
@@ -48,6 +49,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 oldCts = _writeCts;
                 oldQueue = _videoWriteQueue;
                 oldWriteTask = _writeTask;
+                oldFfmpegProcess = _currentFfmpegProcess;
                 _writeCts = null;
                 _videoWriteQueue = null;
                 _writeTask = null;
@@ -73,9 +75,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         Debug.WriteLine("[MainVM] FFmpeg 正常停止超时，执行强杀...");
                         try 
                         {
-                            if (_currentFfmpegProcess != null && !_currentFfmpegProcess.HasExited)
+                            if (oldFfmpegProcess != null && !oldFfmpegProcess.HasExited)
                             {
-                                _currentFfmpegProcess.Kill();
+                                oldFfmpegProcess.Kill();
                                 Debug.WriteLine("[MainVM] 僵尸 FFmpeg 已强杀！");
                             }
                         } 
@@ -128,7 +130,8 @@ namespace ExpressPackingMonitoring.ViewModels
             _currentVideoEncoder = null;
             _currentRecordId = 0;
             _currentArchivePath = "";
-            _currentFfmpegProcess = null;
+            if (ReferenceEquals(_currentFfmpegProcess, oldFfmpegProcess))
+                _currentFfmpegProcess = null;
             _recordingOrderId = null;
             _recordingSessionId = null;
             _recordingWatermarkSnapshot = WatermarkSnapshot.Empty;
@@ -562,17 +565,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
                 bool useDirectAac = startAudioAfterVideo && Config.EnableDirectAacRecording;
 
-                // 1. 彻底清理环境：如果系统残留了任何挂死的 ffmpeg，全部清掉
-                _ = Task.Run(() => {
-                    try {
-                        foreach (var p in Process.GetProcessesByName("ffmpeg")) 
-                        {
-                            if ((DateTime.Now - p.StartTime).TotalMinutes > 2) p.Kill();
-                        }
-                    } catch { }
-                });
-
-                // 2. 初始化路径和文件名
+                // 1. 初始化路径和文件名
                 string baseFolder;
                 try
                 {
@@ -1055,6 +1048,8 @@ namespace ExpressPackingMonitoring.ViewModels
             firstTimestamp = null;
             timestamps = new List<DateTime>();
             var result = new List<Mat>();
+            long snapshotBytes = 0;
+            int blackFrames = 0;
             if (!Config.EnableEventRecordingBuffer || Config.PreRecordBufferMB <= 0)
                 return result;
             lock (_eventBufferLock)
@@ -1073,21 +1068,17 @@ namespace ExpressPackingMonitoring.ViewModels
                         result.Add(item.Frame);
                         timestamps.Add(item.Timestamp);
                         firstTimestamp ??= item.Timestamp;
+                        snapshotBytes += item.Bytes;
+                        if (item.Mean <= 4)
+                            blackFrames++;
                     }
                     node = next;
                 }
                 if (result.Count > 0)
                 {
-                    int blackFrames = 0;
-                    foreach (Mat frame in result)
-                    {
-                        Scalar channels = Cv2.Mean(frame);
-                        if ((channels.Val0 + channels.Val1 + channels.Val2) / 3.0 <= 4)
-                            blackFrames++;
-                    }
                     RuntimeLog.Info(
                         "Recording",
-                        $"Pre-record snapshot frames={result.Count}, blackFrames={blackFrames}, bytes={result.Sum(frame => (long)frame.Rows * frame.Cols * Math.Max(1, frame.ElemSize()))}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
+                        $"Pre-record snapshot frames={result.Count}, blackFrames={blackFrames}, bytes={snapshotBytes}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
                 }
             }
             return result;

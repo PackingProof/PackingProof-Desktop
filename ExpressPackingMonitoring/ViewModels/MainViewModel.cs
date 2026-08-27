@@ -1420,21 +1420,20 @@ namespace ExpressPackingMonitoring.ViewModels
             CurrentOrderId = upperResult;
             _sameCodePostRollCts?.Cancel();
             if (IsRecording) _stopReason = "扫码切换";
-            List<Mat>? pendingPreRecordFrames = null;
-            DateTime? pendingPreRecordStartTime = null;
-            List<DateTime> pendingPreRecordTimestamps = new();
-            if (Config.EnableEventRecordingBuffer)
-                pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime, out pendingPreRecordTimestamps);
             if (!await _recorderLock.WaitAsync(0))
             {
-                RuntimeLog.Warn("Scan", $"Recording switch skipped because recorder lock is busy, order={upperResult}, preRecordFrames={pendingPreRecordFrames?.Count ?? 0}");
-                if (pendingPreRecordFrames != null)
-                    foreach (Mat frame in pendingPreRecordFrames) frame.Dispose();
-                _pendingPreRecordStartTime = null;
+                RuntimeLog.Warn("Scan", $"Recording switch skipped because recorder lock is busy, order={upperResult}");
                 return;
             }
             try
             {
+                // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。
+                List<Mat>? pendingPreRecordFrames = null;
+                DateTime? pendingPreRecordStartTime = null;
+                List<DateTime> pendingPreRecordTimestamps = new();
+                if (Config.EnableEventRecordingBuffer)
+                    pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime, out pendingPreRecordTimestamps);
+
                 // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×3）
                 _alertService?.InterruptAudio();
                 if (IsRecording)

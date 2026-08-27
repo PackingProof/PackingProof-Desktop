@@ -669,28 +669,47 @@ public partial class MainViewModel
                     if (path.Length == 0)
                         continue;
                     long size = 0;
-                    if (File.Exists(path))
+                    using (VideoLifecycleCoordinator.EnterAsync(
+                               tasks[0].LocalVideoRecordId,
+                               CancellationToken.None).GetAwaiter().GetResult())
                     {
-                        size = new FileInfo(path).Length;
-                        RecordingTransferService? transferService = _recordingTransferService;
-                        bool remotelyVerified = transferService != null;
-                        foreach (RecordingTransferTask task in tasks)
+                        // 候选来自锁外快照。进入录像生命周期锁后重新读取并确认，
+                        // 防止归档、替换或恢复任务在远端校验期间改变文件所有权。
+                        VideoRecord? current = _db.GetVideoById(tasks[0].LocalVideoRecordId);
+                        if (current == null
+                            || current.IsDeleted
+                            || !string.Equals(
+                                Path.GetFullPath(current.FilePath ?? ""),
+                                path,
+                                StringComparison.OrdinalIgnoreCase)
+                            || !_db.IsLocalVideoFileFullyVerifiedForCacheDeletion(path))
                         {
-                            if (!remotelyVerified)
-                                break;
-                            remotelyVerified = transferService!
-                                .VerifyRemoteRecordForCleanupAsync(task, size)
-                                .GetAwaiter()
-                                .GetResult();
-                        }
-                        if (!remotelyVerified)
-                        {
-                            RuntimeLog.Warn(
-                                "RecordingTransfer",
-                                $"Cache retained because fresh host verification was unavailable records={tasks.Count}");
                             continue;
                         }
-                        File.Delete(path);
+
+                        if (File.Exists(path))
+                        {
+                            size = new FileInfo(path).Length;
+                            RecordingTransferService? transferService = _recordingTransferService;
+                            bool remotelyVerified = transferService != null;
+                            foreach (RecordingTransferTask task in tasks)
+                            {
+                                if (!remotelyVerified)
+                                    break;
+                                remotelyVerified = transferService!
+                                    .VerifyRemoteRecordForCleanupAsync(task, size)
+                                    .GetAwaiter()
+                                    .GetResult();
+                            }
+                            if (!remotelyVerified)
+                            {
+                                RuntimeLog.Warn(
+                                    "RecordingTransfer",
+                                    $"Cache retained because fresh host verification was unavailable records={tasks.Count}");
+                                continue;
+                            }
+                            File.Delete(path);
+                        }
                     }
                     foreach (RecordingTransferTask task in tasks)
                     {
