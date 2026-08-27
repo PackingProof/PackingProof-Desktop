@@ -2389,7 +2389,7 @@ namespace ExpressPackingMonitoring.UI
                 ? bufferMb * 1024d * 1024d / (width * height * 3d * fps)
                 : 0;
             string size = bufferMb >= 1024 ? $"{bufferMb / 1024d:0.#} GB" : $"{bufferMb:0} MB";
-            PreRecordEstimateText.Text = $"约 {seconds:0.0} 秒（占用 {size} 内存）";
+            PreRecordEstimateText.Text = $"约 {seconds:0.0} 秒 / {size} 内存";
         }
 
         private void UpdateEventRecordingBufferControlState()

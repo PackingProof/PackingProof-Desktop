@@ -1301,18 +1301,6 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="扫码预录" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="扫码前保留画面，占用运行内存" Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="EventRecordingBufferToggle" Grid.Column="2" IsChecked="{Binding Config.EnableEventRecordingBuffer, Mode=TwoWay}" Checked="EventRecordingBufferToggle_Changed" Unchecked="EventRecordingBufferToggle_Changed" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="打包模式" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock x:Name="PackingModeHintText"
                                                        Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单"
@@ -1327,13 +1315,26 @@
                                         </ComboBox>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="扫码预录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="扫码前保留画面，占用运行内存" Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="EventRecordingBufferToggle" Grid.Column="2" IsChecked="{Binding Config.EnableEventRecordingBuffer, Mode=TwoWay}" Checked="EventRecordingBufferToggle_Changed" Unchecked="EventRecordingBufferToggle_Changed" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid x:Name="PreRecordBufferRow" Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0"><TextBlock Text="扫码前预录时长" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="占用内存越大，可提前保留的画面越久" Style="{StaticResource FieldHintStyle}"/></StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <Grid>
                                                 <TextBlock Text="较短" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock x:Name="PreRecordEstimateText" Text="约 0 秒（占用 0 MB 内存）" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/>
+                                                <TextBlock x:Name="PreRecordEstimateText" Text="约 0 秒 / 0 MB 内存" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/>
                                                 <TextBlock Text="较长" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
                                             </Grid>
                                             <Slider x:Name="PreRecordBufferSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0" Maximum="1024" TickFrequency="64" IsSnapToTickEnabled="True" ValueChanged="PreRecordBufferSlider_ValueChanged" Value="{Binding Config.PreRecordBufferMB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
