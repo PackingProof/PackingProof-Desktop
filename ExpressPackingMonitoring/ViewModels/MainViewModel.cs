@@ -55,7 +55,20 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _networkCameraStartedAt = DateTime.MinValue;
         private Task _cameraForceStopTask;
         private Mat _latestFrame;
+        private long _latestFrameSequence;
         private readonly object _frameLock = new object();
+        private readonly object _eventBufferLock = new();
+        private readonly object _recordingFrameOrderLock = new();
+        private readonly LinkedList<PreRecordFrame> _preRecordFrames = new();
+        private long _preRecordBytes;
+        private long _preRecordDroppedFrames;
+        private long _preRecordSequence;
+        private int _preRecordWidth;
+        private int _preRecordHeight;
+        private List<Mat>? _pendingPreRecordFrames;
+        private List<DateTime>? _pendingPreRecordTimestamps;
+        private DateTime? _pendingPreRecordStartTime;
+        private const long PreRecordBufferHardMaxBytes = 8L * 1024 * 1024 * 1024;
 
         private BlockingCollection<Mat> _videoWriteQueue;
         private Task _writeTask;
@@ -68,6 +81,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _actualCameraWidth;
         private int _actualCameraHeight;
         private int _actualCameraFps = 15; // 摄像头硬件实际帧率
+        private double _cameraSourceFpsEstimate;
+        private long _cameraSourceLastTimestamp;
+        private int _cameraSourceSampleCount;
         private readonly object _audioLock = new object();
         private NAudio.CoreAudioApi.WasapiCapture _audioCapture;
         private NAudio.Wave.WaveFileWriter _audioWriter;
@@ -185,6 +201,16 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _shutdownPrepared;
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
+        private CancellationTokenSource? _sameCodePostRollCts;
+
+        private sealed class PreRecordFrame
+        {
+            public required Mat Frame { get; init; }
+            public required DateTime Timestamp { get; init; }
+            public required long Bytes { get; init; }
+            public required long Sequence { get; init; }
+            public required double Mean { get; init; }
+        }
         private readonly CameraBarcodeFailedStartSuppression _cameraStartFailedSuppression = new();
         private Process _currentFfmpegProcess;
         private TaskCompletionSource<long> _firstRecordingFrameWritten;
@@ -243,6 +269,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _lastScanTime;
         private DateTime _lastMotionTime;
         private DateTime _recordStartTime;
+        private double _activePreRecordSeconds;
+        private DateTime _recordingGracePeriodStartTime;
         private enum ZoomPhase { None, ZoomingIn, Holding, ZoomingOut }
         private ZoomPhase _zoomPhase = ZoomPhase.None;
         private DateTime _zoomPhaseStartTime;
@@ -496,8 +524,15 @@ namespace ExpressPackingMonitoring.ViewModels
             get => _config;
             set
             {
+                bool wasEventBufferEnabled = _config?.EnableEventRecordingBuffer == true;
                 if (SetProperty(ref _config, value))
                 {
+                    if (wasEventBufferEnabled && !value.EnableEventRecordingBuffer)
+                    {
+                        ClearPreRecordBuffer();
+                        ClearPendingEventRecordingFrames();
+                        RuntimeLog.Info("Recording", "Event recording buffer disabled; released pre-record frames");
+                    }
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
                     OnPropertyChanged(nameof(IsRecordingWorkstation));
                     OnPropertyChanged(nameof(IsMainConnectionVisible));
@@ -1333,10 +1368,31 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-               try
+                try
                 {
                     _stopReason = "同码停录";
-                    PauseSpeechForRecording();
+                    if (Config.EnableEventRecordingBuffer && Config.SameCodePostRecordSeconds > 0)
+                    {
+                        // 同码重复识别只允许首次触发收尾，避免反复重置定时器导致无限录制。
+                        CancellationTokenSource? pendingPostRoll = _sameCodePostRollCts;
+                        if (pendingPostRoll != null && !pendingPostRoll.IsCancellationRequested)
+                        {
+                            RuntimeLog.Info("Recording", "Same-code post-roll already pending; duplicate stop trigger ignored");
+                            ShowToast("已触发停录，正在录制收尾画面", ToastSeverity.Information);
+                            return;
+                        }
+
+                        // 收尾是异步的，先给用户即时反馈；否则语音会等到收尾结束后才播报。
+                        // 在暂停录制期间的 AI 语音生成前入队，避免 PauseForRecording 阻塞这条提示。
+                        Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
+                        PauseSpeechForRecording();
+                        _sameCodePostRollCts?.Cancel();
+                        var postRollCts = _sameCodePostRollCts = new CancellationTokenSource();
+                        RuntimeLog.Info("Recording", $"Same-code post-roll scheduled seconds={Config.SameCodePostRecordSeconds:F1}");
+                        _ = CompleteSameCodePostRollAsync(postRollCts);
+                        ShowToast($"已触发停录，将继续录制 {Config.SameCodePostRecordSeconds:F1} 秒");
+                        return;
+                    }
                     await InternalStopRecordingAsync();
                     QueuePostStopMux("同码停录");
                     CurrentOrderId = "";
@@ -1362,8 +1418,21 @@ namespace ExpressPackingMonitoring.ViewModels
             StartInputCooldown();
 
             CurrentOrderId = upperResult;
+            _sameCodePostRollCts?.Cancel();
             if (IsRecording) _stopReason = "扫码切换";
-            if (!await _recorderLock.WaitAsync(0)) return;
+            List<Mat>? pendingPreRecordFrames = null;
+            DateTime? pendingPreRecordStartTime = null;
+            List<DateTime> pendingPreRecordTimestamps = new();
+            if (Config.EnableEventRecordingBuffer)
+                pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime, out pendingPreRecordTimestamps);
+            if (!await _recorderLock.WaitAsync(0))
+            {
+                RuntimeLog.Warn("Scan", $"Recording switch skipped because recorder lock is busy, order={upperResult}, preRecordFrames={pendingPreRecordFrames?.Count ?? 0}");
+                if (pendingPreRecordFrames != null)
+                    foreach (Mat frame in pendingPreRecordFrames) frame.Dispose();
+                _pendingPreRecordStartTime = null;
+                return;
+            }
             try
             {
                 // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×3）
@@ -1374,6 +1443,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Info("Recording", "连续扫码切换，暂缓音视频合成，等待 stop 或手动停止");
                     await InternalStopRecordingAsync();
                 }
+                _pendingPreRecordFrames = pendingPreRecordFrames;
+                _pendingPreRecordTimestamps = pendingPreRecordTimestamps;
+                _pendingPreRecordStartTime = pendingPreRecordStartTime;
                 await InternalStartRecordingAsync();
                 PublishExtensionScanTaskIfRecordingStarted(upperResult);
                 QueuePrintedRefundCheck(upperResult, CurrentMode);
@@ -1434,12 +1506,45 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 Debug.WriteLine($"[HandleScan] 严重异常: {ex.Message}");
+                RuntimeLog.Error("Scan", $"Recording switch failed order={upperResult}", ex);
             }
             finally
             {
                 if (!IsRecording)
                     ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
+            }
+        }
+
+        private async Task CompleteSameCodePostRollAsync(CancellationTokenSource owner)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5)), owner.Token);
+                if (_isDisposed) return;
+                await _recorderLock.WaitAsync(owner.Token);
+                try
+                {
+                    // 新单号切换会取消本次收尾；即使收尾任务已先拿到串行锁，
+                    // 也不得再停止随后启动的新录像。
+                    if (!owner.IsCancellationRequested
+                        && ReferenceEquals(_sameCodePostRollCts, owner)
+                        && IsRecording)
+                    {
+                        await InternalStopRecordingAsync();
+                        QueuePostStopMux("同码停录");
+                        CurrentOrderId = "";
+                        ScanInputText = "";
+                    }
+                }
+                finally { _recorderLock.Release(); }
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                if (ReferenceEquals(_sameCodePostRollCts, owner))
+                    _sameCodePostRollCts = null;
+                owner.Dispose();
             }
         }
 
@@ -1472,7 +1577,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 _recordingOrderId,
                 Config.EnableSameBarcodeStopRecording,
                 _isInputOnCooldown,
-                Config.OrderIdRegex);
+                Config.OrderIdRegex,
+                sameCodePostRollPending: _sameCodePostRollCts is { IsCancellationRequested: false });
 
         private static string GetBarcodeDecisionText(BarcodeRecordingDecisionAction action) => action switch
         {
@@ -3991,6 +4097,9 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _cameraFrameReady.BeginSession();
                 _cameraFrameRateGate.Reset();
+                Interlocked.Exchange(ref _cameraSourceLastTimestamp, 0);
+                Volatile.Write(ref _cameraSourceFpsEstimate, 0);
+                Interlocked.Exchange(ref _cameraSourceSampleCount, 0);
                 var dispatcher = Application.Current?.Dispatcher;
                 void ClearPreview()
                 {
@@ -4015,7 +4124,17 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task<bool> WaitForCameraFrameAsync(TimeSpan timeout)
         {
-            if (_isDisposed || !await _cameraFrameReady.WaitAsync(timeout))
+            if (_isDisposed)
+                return false;
+
+            // 摄像头已在持续采集时直接复用最新帧，避免扫码启动被一次性的就绪信号误判为超时
+            lock (_frameLock)
+            {
+                if (_latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty())
+                    return true;
+            }
+
+            if (!await _cameraFrameReady.WaitAsync(timeout))
                 return false;
 
             lock (_frameLock)
@@ -4041,6 +4160,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 int previewSessionId = BeginPreviewSession(clearFrame: true);
+                ClearPreRecordBuffer();
+                ClearPendingEventRecordingFrames();
 
                 if (IsNetworkCameraConfigured())
                 {
@@ -4264,6 +4385,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (ReferenceEquals(_networkCameraSource, networkSource))
                     _networkCameraSource = null;
                 lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                ClearPreRecordBuffer();
+                ClearPendingEventRecordingFrames();
                 BeginPreviewSession(clearFrame: true);
                 RuntimeLog.Info("Camera", "StopNetworkCamera completed");
                 return true;
@@ -4307,6 +4430,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 _cameraForceStopTask = null;
             }
             lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+            ClearPreRecordBuffer();
+            ClearPendingEventRecordingFrames();
             BeginPreviewSession(clearFrame: true);
             Volatile.Write(ref _archiveCameraActive, 0);
             RuntimeLog.Info("Camera", "StopCamera completed");
@@ -4317,12 +4442,20 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
-            if (!_cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps))
+            UpdateCameraSourceFpsEstimate();
+            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps);
+            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
                 return;
 
             try
             {
-                HandleCameraFrame(BitmapToMat(eventArgs.Frame));
+                Mat frame = BitmapToMat(eventArgs.Frame);
+                if (Config.EnableEventRecordingBuffer)
+                    UpdatePreRecordBuffer(frame);
+                if (acceptedForPreview)
+                    HandleCameraFrame(frame);
+                else
+                    frame.Dispose();
             }
             catch (Exception ex)
             {
@@ -4334,13 +4467,45 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
-            if (!_cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps))
+            UpdateCameraSourceFpsEstimate();
+            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps);
+            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
             {
                 e.Frame.Dispose();
                 return;
             }
 
-            HandleCameraFrame(e.Frame);
+            if (Config.EnableEventRecordingBuffer)
+                UpdatePreRecordBuffer(e.Frame);
+            if (acceptedForPreview)
+                HandleCameraFrame(e.Frame);
+            else
+                e.Frame.Dispose();
+        }
+
+        private void UpdateCameraSourceFpsEstimate()
+        {
+            long now = Stopwatch.GetTimestamp();
+            long previous = Interlocked.Exchange(ref _cameraSourceLastTimestamp, now);
+            if (previous <= 0) return;
+
+            double interval = (now - previous) / (double)Stopwatch.Frequency;
+            if (interval < 0.01 || interval > 1.0) return;
+
+            double sampleFps = 1.0 / interval;
+            double current = Volatile.Read(ref _cameraSourceFpsEstimate);
+            double next = current <= 0 ? sampleFps : current * 0.8 + sampleFps * 0.2;
+            Volatile.Write(ref _cameraSourceFpsEstimate, next);
+            Interlocked.Increment(ref _cameraSourceSampleCount);
+        }
+
+        private int GetEffectiveRecordingFps()
+        {
+            double estimated = Volatile.Read(ref _cameraSourceFpsEstimate);
+            int samples = Volatile.Read(ref _cameraSourceSampleCount);
+            if (samples >= 5 && estimated >= 1 && estimated <= 120)
+                return Math.Clamp((int)Math.Round(estimated), 1, 120);
+            return _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
         }
 
         private void HandleCameraFrame(Mat frame)
@@ -4352,6 +4517,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     _latestFrame?.Dispose();
                     _latestFrame = frame;
+                    Interlocked.Increment(ref _latestFrameSequence);
                 }
                 _cameraFrameReady.Signal();
             }
@@ -4543,6 +4709,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private async Task VideoProcessLoop(CancellationToken token)
         {
             int frameTickCounter = 0;
+            long lastProcessedFrameSequence = 0;
 
             try
             {
@@ -4552,7 +4719,24 @@ namespace ExpressPackingMonitoring.ViewModels
                     int processingFps = CameraFrameProcessingPolicy.GetProcessingFps(IsRecording, _actualCameraFps);
                     double frameDurationMs = 1000.0 / processingFps;
                     DateTime startTime = DateTime.Now; Mat currentFrame = null;
-                    lock (_frameLock) { if (_latestFrame != null && !_latestFrame.IsDisposed) currentFrame = _latestFrame.Clone(); }
+                    long currentFrameSequence;
+                    lock (_frameLock)
+                    {
+                        currentFrameSequence = _latestFrameSequence;
+                        if (_latestFrame != null && !_latestFrame.IsDisposed)
+                            currentFrame = _latestFrame.Clone();
+                    }
+
+                    // _latestFrame 可能在摄像头下一帧到来前被循环多次读取。
+                    // 录像只处理真正新到达的帧，避免把同一画面重复写入造成卡顿/闪烁。
+                    if (currentFrame != null && currentFrameSequence == lastProcessedFrameSequence)
+                    {
+                        currentFrame.Dispose();
+                        await Task.Delay(Math.Max(1, (int)Math.Round(frameDurationMs)), token);
+                        continue;
+                    }
+                    if (currentFrame != null)
+                        lastProcessedFrameSequence = currentFrameSequence;
 
                     // 检测摄像头是否已断开：_latestFrame 是旧帧不会自动清除，必须用 _lastFrameTime 判断
                     if (currentFrame != null && _cameraEverConnected && !_isCameraSleeping)
@@ -4698,7 +4882,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (previewFrameDue)
                             PublishPreviewFrameIfDue(processedFrame);
 
-                        bool handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
+                        bool handedToRecorder;
+                        lock (_recordingFrameOrderLock)
+                            handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
                         if (processedFrame != currentFrame)
                         {
                             if (!handedToRecorder) processedFrame.Dispose();
@@ -4769,11 +4955,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (IsRecording)
                     {
                         double elapsedSec = (DateTime.Now - _recordStartTime).TotalSeconds;
+                        double activeElapsedSec = _recordingGracePeriodStartTime == DateTime.MinValue
+                            ? elapsedSec
+                            : (DateTime.Now - _recordingGracePeriodStartTime).TotalSeconds;
                         double motionIdleSec = (DateTime.Now - _lastMotionTime).TotalSeconds;
                         double warnSec = Config.TimeoutWarningSeconds;
 
                         // 录制前 5 秒为采集期，跳过超时与预警检测
-                        bool inGracePeriod = elapsedSec < 5.0;
+                        bool inGracePeriod = activeElapsedSec < 5.0;
+                        bool sameCodePostRollPending = _sameCodePostRollCts is { IsCancellationRequested: false };
 
                         double autoStopTotalSec = Config.AutoStopMinutes * 60.0;
                         double maxDurTotalSec = Config.MaxDurationMinutes * 60.0;
@@ -4816,7 +5006,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             });
                         }
 
-                        if (!inGracePeriod && Config.EnableAutoStop && (DateTime.Now - _lastMotionTime).TotalSeconds >= Config.AutoStopMinutes * 60.0)
+                        if (!inGracePeriod && !sameCodePostRollPending && Config.EnableAutoStop && (DateTime.Now - _lastMotionTime).TotalSeconds >= Config.AutoStopMinutes * 60.0)
                         { 
                             _stopReason = "静止超时"; 
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => { 
@@ -4829,7 +5019,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             }); 
                         }
 
-                        if (!inGracePeriod && Config.EnableMaxDuration && elapsedSec >= Config.MaxDurationMinutes * 60.0)
+                        if (!inGracePeriod && !sameCodePostRollPending && Config.EnableMaxDuration && elapsedSec >= Config.MaxDurationMinutes * 60.0)
                         { 
                             _stopReason = "时长超时"; 
                             _ = Application.Current.Dispatcher.InvokeAsync(async () => { 
@@ -5295,6 +5485,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             StopCamera();
+            ClearPreRecordBuffer();
             try { _videoTask?.Wait(1000); } catch { }
             _cts?.Dispose();
             lock (_videoLock)

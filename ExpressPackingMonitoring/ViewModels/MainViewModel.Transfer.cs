@@ -37,6 +37,9 @@ public partial class MainViewModel
     private readonly object _recordingCacheMaintenanceLock = new();
     private string _recordingCacheInventoryRoot = "";
     private bool _recordingCacheInventoryInitialized;
+    private DateTime _recordingCacheSnapshotAt = DateTime.MinValue;
+    private bool _recordingCacheCanFit;
+    private bool _recordingCacheSnapshotAvailable;
 
     public ICommand OpenBoundHostCommand { get; private set; } = null!;
     public ICommand RetryRecordingTransfersCommand { get; private set; } = null!;
@@ -729,6 +732,9 @@ public partial class MainViewModel
                     || snapshot.RemainingBytes
                     < RecordingWorkstationCachePolicy.RecordingAndPackagingHeadroomBytes;
                 PublishRecordingCacheStatus(snapshot, canFit, warning);
+                _recordingCacheCanFit = canFit;
+                _recordingCacheSnapshotAvailable = true;
+                _recordingCacheSnapshotAt = DateTime.Now;
                 return new RecordingCacheMaintenanceResult(
                     true,
                     canFit,
@@ -739,6 +745,9 @@ public partial class MainViewModel
             }
             catch (Exception ex)
             {
+                _recordingCacheCanFit = false;
+                _recordingCacheSnapshotAvailable = false;
+                _recordingCacheSnapshotAt = DateTime.Now;
                 RuntimeLog.Warn(
                     "RecordingTransfer",
                     $"Cache maintenance failed: {ex.Message}");

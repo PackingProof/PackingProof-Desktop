@@ -72,7 +72,8 @@ internal static class BarcodeRecordingDecisionPolicy
         string? recordingOrderId,
         bool sameBarcodeStopEnabled,
         bool inputOnCooldown,
-        string? orderIdRegex)
+        string? orderIdRegex,
+        bool sameCodePostRollPending = false)
     {
         if (!canProcess)
             return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.CannotProcess, value);
@@ -110,7 +111,13 @@ internal static class BarcodeRecordingDecisionPolicy
             if (current.Length == 0)
                 return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.RecordingOrderMissing, normalized);
             if (!string.Equals(normalized, current, StringComparison.Ordinal))
+            {
+                // 收尾期间的新单号应立即抢占切换；旧片段由收尾逻辑保留已录到的停止动作。
+                // 仅对合法单号开放该例外，其他输入仍按同码停录模式拦截。
+                if (sameCodePostRollPending && IsOrderScan(normalized, orderIdRegex))
+                    return Create(BarcodeRecordingDecisionAction.Switch, BarcodeRecordingDecisionReason.Ready, normalized);
                 return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.RecordingOrderMismatch, normalized);
+            }
 
             return Create(BarcodeRecordingDecisionAction.Stop, BarcodeRecordingDecisionReason.SameCodeMatched, normalized);
         }

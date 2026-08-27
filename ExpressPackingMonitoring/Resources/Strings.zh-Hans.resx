@@ -222,6 +222,24 @@
   <data name="全局键盘监听" xml:space="preserve"><value>全局键盘监听</value></data>
   <data name="软件在后台也能扫码开始录制" xml:space="preserve"><value>软件在后台也能扫码开始录制</value></data>
   <data name="扫码间隔保护" xml:space="preserve"><value>扫码间隔保护</value></data>
+  <data name="扫码事件预录" xml:space="preserve"><value>扫码事件预录</value></data>
+  <data name="扫码前保留画面，占用运行内存" xml:space="preserve"><value>扫码前保留画面，占用运行内存</value></data>
+  <data name="扫码前预录时长" xml:space="preserve"><value>扫码前预录时长</value></data>
+  <data name="占用内存越大，可提前保留的画面越久" xml:space="preserve"><value>占用内存越大，可提前保留的画面越久</value></data>
+  <data name="约 0 秒（占用 0 MB 内存）" xml:space="preserve"><value>约 0 秒（占用 0 MB 内存）</value></data>
+  <data name="按当前画面规格自动换算，录像规格变化时会实时更新" xml:space="preserve"><value>按当前画面规格自动换算，录像规格变化时会实时更新</value></data>
+  <data name="较短" xml:space="preserve"><value>较短</value></data>
+  <data name="较长" xml:space="preserve"><value>较长</value></data>
+  <data name="保留扫码前画面，并支持同码停录收尾" xml:space="preserve"><value>保留扫码前画面，并支持同码停录收尾</value></data>
+  <data name="启用" xml:space="preserve"><value>启用</value></data>
+  <data name="扫码前预录" xml:space="preserve"><value>扫码前预录</value></data>
+  <data name="新单录像向前保留的画面时长" xml:space="preserve"><value>新单录像向前保留的画面时长</value></data>
+  <data name="扫码前预录容量" xml:space="preserve"><value>扫码前预录容量</value></data>
+  <data name="按当前画面规格换算可提前保留的时长" xml:space="preserve"><value>按当前画面规格换算可提前保留的时长</value></data>
+  <data name="更少" xml:space="preserve"><value>更少</value></data>
+  <data name="更多" xml:space="preserve"><value>更多</value></data>
+  <data name="同码停录收尾" xml:space="preserve"><value>同码停录收尾</value></data>
+  <data name="同码停录后继续保留的画面时长" xml:space="preserve"><value>同码停录后继续保留的画面时长</value></data>
   <data name="扫码内容至少达到这个长度才会提交。全局键盘监听和无回车窗口内识别都会用到" xml:space="preserve"><value>扫码内容至少达到这个长度才会提交。全局键盘监听和无回车窗口内识别都会用到</value></data>
   <data name="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换" xml:space="preserve"><value>扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换</value></data>
   <data name="扫码枪没开自动回车时打开。需要软件窗口在前台" xml:space="preserve"><value>扫码枪没开自动回车时打开。需要软件窗口在前台</value></data>

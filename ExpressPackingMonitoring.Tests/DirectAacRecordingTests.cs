@@ -43,6 +43,16 @@ public sealed class DirectAacRecordingTests
     }
 
     [Fact]
+    public void VideoInput_UsesConfiguredFrameRateInsteadOfArrivalWallClock()
+    {
+        string args = MainViewModel.BuildFFmpegArgs(
+            1280, 720, 30, "recording.mkv", "libx264", false, 25);
+
+        Assert.Contains("-framerate 30", args);
+        Assert.DoesNotContain("use_wallclock_as_timestamps", args);
+    }
+
+    [Fact]
     public void EmbeddedAudioConversion_StreamCopiesBothTracks()
     {
         string args = MainViewModel.BuildMkvToMp4Args(

@@ -984,6 +984,86 @@ public sealed class ConfigurationAndScannerTests
         Assert.False(config.EnableWebServer);
     }
 
+    [Fact]
+    public void NormalizeAfterLoad_DefaultsUnsetPreRecordBufferFromSystemMemory()
+    {
+        var config = new AppConfig
+        {
+            FrameWidth = 2560,
+            FrameHeight = 1440,
+            Fps = 30,
+            PreRecordBufferMB = -1,
+            PreRecordSeconds = 0
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(
+            PreRecordBufferPolicy.GetRecommendedDefaultMb(PreRecordBufferPolicy.GetPhysicalMemoryBytes()),
+            config.PreRecordBufferMB);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2048)]
+    public void NormalizeAfterLoad_ClampsPreRecordBufferToDynamicMaximum(int input)
+    {
+        var config = new AppConfig { PreRecordBufferMB = input };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(
+            PreRecordBufferPolicy.ClampConfiguredMb(
+                input,
+                config.FrameWidth,
+                config.FrameHeight,
+                config.Fps,
+                PreRecordBufferPolicy.GetPhysicalMemoryBytes()),
+            config.PreRecordBufferMB);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_MigratesLegacyPreRecordSeconds()
+    {
+        var config = new AppConfig
+        {
+            FrameWidth = 1280,
+            FrameHeight = 720,
+            Fps = 15,
+            PreRecordBufferMB = 0,
+            PreRecordSeconds = 2
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.InRange(config.PreRecordBufferMB, 79, 80);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_PreservesExplicitZeroToDisablePreRecord()
+    {
+        var config = new AppConfig { PreRecordBufferMB = 0, PreRecordSeconds = 0 };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(0, config.PreRecordBufferMB);
+    }
+
+    [Theory]
+    [InlineData(4, 0, 0)]
+    [InlineData(7, 0, 512)]
+    [InlineData(8, 0, 512)]
+    [InlineData(16, 64, 1024)]
+    [InlineData(31, 192, 2048)]
+    [InlineData(32, 192, 2048)]
+    public void PreRecordBufferPolicy_UsesLinearMemoryTiers(int memoryGb, int expectedDefaultMb, int expectedMaximumMb)
+    {
+        ulong bytes = (ulong)memoryGb * 1024UL * 1024 * 1024;
+
+        Assert.Equal(expectedDefaultMb, PreRecordBufferPolicy.GetRecommendedDefaultMb(bytes));
+        Assert.Equal(expectedMaximumMb, PreRecordBufferPolicy.GetRamMaximumMb(bytes));
+    }
+
     [Theory]
     [InlineData(new double[] { 20, 25, 30, 20 }, 5, true)]
     [InlineData(new double[] { 20, 250, 20, 250 }, 5, false)]

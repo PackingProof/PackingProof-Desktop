@@ -499,6 +499,59 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void RecordingDecisionPolicy_NewOrderDuringSameCodePostRollSwitchesImmediately()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "SF123456789012",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: true,
+            recordingOrderId: "YT123456789012",
+            sameBarcodeStopEnabled: true,
+            inputOnCooldown: false,
+            orderIdRegex: "^[a-zA-Z0-9-]{12,25}$",
+            sameCodePostRollPending: true);
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Switch, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.Ready, decision.Reason);
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_DifferentOrderWithoutPostRollStillMismatch()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "SF123456789012",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: true,
+            recordingOrderId: "YT123456789012",
+            sameBarcodeStopEnabled: true,
+            inputOnCooldown: false,
+            orderIdRegex: "^[a-zA-Z0-9-]{12,25}$");
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Ignore, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.RecordingOrderMismatch, decision.Reason);
+    }
+
+    [Fact]
+    public void RecordingDecisionPolicy_SameOrderDuringPostRollStillStopsOnce()
+    {
+        BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(
+            "YT123456789012",
+            fromCamera: false,
+            canProcess: true,
+            isRecording: true,
+            recordingOrderId: "YT123456789012",
+            sameBarcodeStopEnabled: true,
+            inputOnCooldown: false,
+            orderIdRegex: "^[a-zA-Z0-9-]{12,25}$",
+            sameCodePostRollPending: true);
+
+        Assert.Equal(BarcodeRecordingDecisionAction.Stop, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.SameCodeMatched, decision.Reason);
+    }
+
+    [Fact]
     public void RecordingDecisionPolicy_CommandCodeOnCooldownDoesNotRetrigger()
     {
         BarcodeRecordingDecision decision = BarcodeRecordingDecisionPolicy.Evaluate(

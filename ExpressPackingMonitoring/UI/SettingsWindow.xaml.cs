@@ -84,6 +84,17 @@ namespace ExpressPackingMonitoring.UI
             Binding.DoNothing;
     }
 
+    public sealed class PreRecordBufferSizeLabelConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            int mb = Math.Max(0, (int)Math.Round(System.Convert.ToDouble(value, CultureInfo.InvariantCulture)));
+            return mb >= 1024 && mb % 1024 == 0 ? $"{mb / 1024} GB" : $"{mb} MB";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
+    }
+
     public sealed class AnyTrueConverter : IMultiValueConverter
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
@@ -207,6 +218,8 @@ namespace ExpressPackingMonitoring.UI
                 SyncVoiceEngineComboBoxFromConfig();
             if (Capabilities.CanUseScanner)
                 SyncPackingModeComboBoxFromConfig();
+            UpdateEventRecordingBufferControlState();
+            UpdatePreRecordEstimateText();
 
             if (Capabilities.CanRecordPcVideo)
             {
@@ -2324,6 +2337,71 @@ namespace ExpressPackingMonitoring.UI
                     ? "识别或扫描面单条码开始录制，再次识别同一条码停止录制"
                     : "推荐连续打包模式，识别或扫描下一张面单时自动保存上一单";
             }
+            UpdateEventRecordingBufferControlState();
+        }
+
+        private void EventRecordingBufferToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateEventRecordingBufferControlState();
+        }
+
+        private void PreRecordBufferSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            UpdatePreRecordEstimateText();
+        }
+
+        private void VideoFormat_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdatePreRecordEstimateText();
+        }
+
+        private void UpdatePreRecordEstimateText()
+        {
+            if (PreRecordEstimateText == null || PreRecordBufferSlider == null)
+                return;
+
+            int width = Config?.FrameWidth ?? 0;
+            int height = Config?.FrameHeight ?? 0;
+            if (ResComboBox?.SelectedItem is ResOption resolution)
+            {
+                width = resolution.Width;
+                height = resolution.Height;
+            }
+
+            int fps = Config?.Fps ?? 0;
+            if (FpsComboBox?.SelectedItem is ComboBoxItem fpsItem && fpsItem.Tag is int selectedFps)
+                fps = selectedFps;
+
+            double bufferMb = Math.Max(0, PreRecordBufferSlider.Value);
+            int maximumMb = PreRecordBufferPolicy.GetMaximumMb(
+                width,
+                height,
+                fps,
+                PreRecordBufferPolicy.GetPhysicalMemoryBytes());
+            PreRecordBufferSlider.Maximum = maximumMb;
+            if (bufferMb > maximumMb)
+            {
+                bufferMb = maximumMb;
+                PreRecordBufferSlider.Value = maximumMb;
+                Config.PreRecordBufferMB = maximumMb;
+            }
+            double seconds = width > 0 && height > 0 && fps > 0
+                ? bufferMb * 1024d * 1024d / (width * height * 3d * fps)
+                : 0;
+            string size = bufferMb >= 1024 ? $"{bufferMb / 1024d:0.#} GB" : $"{bufferMb:0} MB";
+            PreRecordEstimateText.Text = $"约 {seconds:0.0} 秒（占用 {size} 内存）";
+        }
+
+        private void UpdateEventRecordingBufferControlState()
+        {
+            if (Config == null) return;
+
+            bool bufferEnabled = Config.EnableEventRecordingBuffer;
+            bool sameCodeMode = Config.EnableSameBarcodeStopRecording;
+            if (PreRecordBufferRow != null)
+                PreRecordBufferRow.IsEnabled = bufferEnabled;
+            if (SameCodePostRecordRow != null)
+                SameCodePostRecordRow.IsEnabled = bufferEnabled && sameCodeMode;
         }
 
         private void InstallTool_Click(object sender, RoutedEventArgs e)

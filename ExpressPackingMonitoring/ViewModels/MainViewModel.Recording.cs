@@ -120,6 +120,8 @@ namespace ExpressPackingMonitoring.ViewModels
             RuntimeLog.Info("Recording", $"Stop requested id={recordId}, reason={stopReason}, file={Path.GetFileName(filePath ?? "")}");
 
             _recordStartTime = DateTime.MinValue;
+            _activePreRecordSeconds = 0;
+            _recordingGracePeriodStartTime = DateTime.MinValue;
             _currentScanRecord = null;
             _currentVideoFilePath = null;
             _currentVideoCodec = null;
@@ -534,8 +536,28 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (!await EnsureRecordingCacheSpaceForNewRecordingAsync())
+                if (Config.EnableEventRecordingBuffer)
+                {
+                    TimeSpan snapshotAge = DateTime.Now - _recordingCacheSnapshotAt;
+                    if (_recordingCacheSnapshotAvailable
+                        && _recordingCacheSnapshotAt != DateTime.MinValue
+                        && snapshotAge <= TimeSpan.FromSeconds(30)
+                        && !_recordingCacheCanFit)
+                    {
+                        ShowToast("本地缓存空间不足，无法开始录像", ToastSeverity.Warning);
+                        return;
+                    }
+                    RuntimeLog.Info(
+                        "Recording",
+                        _recordingCacheSnapshotAt == DateTime.MinValue
+                            ? "Event recording buffer enabled; cache snapshot unavailable, skipped synchronous maintenance"
+                            : $"Event recording buffer enabled; used cache snapshot ageMs={(long)snapshotAge.TotalMilliseconds}, available={_recordingCacheSnapshotAvailable}, canFit={_recordingCacheCanFit}");
+                }
+                else if (!await EnsureRecordingCacheSpaceForNewRecordingAsync())
+                {
                     return;
+                }
+                RuntimeLog.Info("Recording", $"Start pipeline cache check completed elapsedMs={startupWatch.ElapsedMilliseconds}");
 
                 bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
                 bool useDirectAac = startAudioAfterVideo && Config.EnableDirectAacRecording;
@@ -633,11 +655,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     int recordingWidth = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
                     int recordingHeight = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
-                    int recordingFps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
+                    int recordingFps = GetEffectiveRecordingFps();
                     int queueCapacity = RecordingBufferPolicy.CalculateVideoQueueCapacity(
                         recordingWidth,
                         recordingHeight,
                         recordingFps);
+                    if (_pendingPreRecordFrames is { Count: > 0 })
+                        queueCapacity = Math.Max(queueCapacity, _pendingPreRecordFrames.Count + 6);
                     _videoWriteQueue = new BlockingCollection<Mat>(queueCapacity);
                     _writeCts = new CancellationTokenSource();
                     _lastRecordingQueueWarnAt = DateTime.MinValue;
@@ -658,9 +682,59 @@ namespace ExpressPackingMonitoring.ViewModels
                     useDirectAac,
                     useDirectAac ? _currentAudioPipeName : null));
 
+                // 先建立实时录制保护基准，再公开 IsRecording 状态并向队列灌入预录帧，
+                // 避免超时线程在状态切换或大缓冲入队期间使用预录起点误停录。
+                _recordingGracePeriodStartTime = DateTime.Now;
+                _lastMotionTime = _recordingGracePeriodStartTime;
                 IsRecording = true;
-                _recordStartTime = DateTime.Now;
-                EnqueueLatestFrameForRecording();
+                _pendingPreRecordStartTime = null;
+                List<Mat>? preRecordFrames = _pendingPreRecordFrames;
+                List<DateTime>? preRecordTimestamps = _pendingPreRecordTimestamps;
+                _pendingPreRecordFrames = null;
+                _pendingPreRecordTimestamps = null;
+                int timelineFps = GetEffectiveRecordingFps();
+                int usablePreRecordFrameCount = preRecordFrames?.Count(frame => !IsBlackCameraFrame(frame)) ?? 0;
+                _activePreRecordSeconds = usablePreRecordFrameCount > 0 && timelineFps > 0
+                    ? Math.Clamp(usablePreRecordFrameCount / (double)timelineFps, 0, 5)
+                    : 0;
+                // 数据库时间线必须匹配最终视频的帧数/FPS，不能使用环形缓存中
+                // 低处理频率帧的墙上时间跨度，否则会把 5 秒视频记成 12 秒以上。
+                _recordStartTime = DateTime.Now - TimeSpan.FromSeconds(_activePreRecordSeconds);
+                lock (_recordingFrameOrderLock)
+                {
+                    if (preRecordFrames != null)
+                    {
+                        for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
+                        {
+                            Mat preFrame = preRecordFrames[preFrameIndex];
+                            try
+                            {
+                                if (IsBlackCameraFrame(preFrame))
+                                {
+                                    preFrame.Dispose();
+                                    continue;
+                                }
+                                if (Config.EnableWatermark)
+                                {
+                                    // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
+                                    DateTime watermarkTime = DateTime.Now;
+                                    // 时间戳与帧一一对应，由快照阶段保存到并行列表。
+                                    if (preRecordTimestamps != null && preFrameIndex < preRecordTimestamps.Count)
+                                        watermarkTime = preRecordTimestamps[preFrameIndex];
+                                    ApplyWatermarkToFrame(preFrame, watermarkTime, _recordingOrderId, Array.Empty<string>());
+                                }
+                                if (!TryEnqueueFrameForRecording(preFrame))
+                                    preFrame.Dispose();
+                            }
+                            catch
+                            {
+                                preFrame.Dispose();
+                            }
+                        }
+                        RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
+                    }
+                    EnqueueLatestFrameForRecording();
+                }
                 _lastMotionTime = DateTime.Now;
                 _autoStopWarned = false;
                 _maxDurationWarned = false;
@@ -728,6 +802,23 @@ namespace ExpressPackingMonitoring.ViewModels
                     archivePath,
                     _recordingSessionId) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");
+                if (Config.EnableEventRecordingBuffer && !string.IsNullOrWhiteSpace(_recordingSessionId))
+                {
+                    _db?.UpsertRecordingExtensionFields(
+                        _recordingSessionId,
+                        "packingproof.event-recording",
+                        "",
+                        "",
+                        0,
+                        new Dictionary<string, string>
+                        {
+                            ["preRecordSeconds"] = _activePreRecordSeconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture),
+                            ["configuredPreRecordBufferMB"] = Config.PreRecordBufferMB.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            ["configuredPreRecordSeconds"] = EstimatePreRecordSeconds().ToString("F1", System.Globalization.CultureInfo.InvariantCulture),
+                            ["sameCodePostRecordSeconds"] = Config.SameCodePostRecordSeconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                        },
+                        DateTime.UtcNow);
+                }
 
                 ShowToast("开始录像", ToastSeverity.Information);
                 Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
@@ -741,6 +832,9 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             finally
             {
+                // 启动失败或首帧检查回滚时，不能把已复制的预录帧留在待注入列表中
+                if (!IsRecording)
+                    ClearPendingEventRecordingFrames();
                 IsBusy = false;
             }
         }
@@ -754,7 +848,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             int w = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
             int h = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
-            int fps = _actualCameraFps > 0 ? _actualCameraFps : Config.Fps;
+            int fps = GetEffectiveRecordingFps();
             string encoder = ResolveEncoder();
             if (string.IsNullOrWhiteSpace(encoder))
             {
@@ -849,6 +943,14 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void EnqueueLatestFrameForRecording()
         {
+            lock (_recordingFrameOrderLock)
+            {
+                EnqueueLatestFrameForRecordingCore();
+            }
+        }
+
+        private void EnqueueLatestFrameForRecordingCore()
+        {
             try
             {
                 BlockingCollection<Mat>? queue = _videoWriteQueue;
@@ -874,6 +976,167 @@ namespace ExpressPackingMonitoring.ViewModels
                     frame.Dispose();
             }
             catch { }
+        }
+
+        private void UpdatePreRecordBuffer(Mat frame)
+        {
+            if (!Config.EnableEventRecordingBuffer || frame == null || frame.IsDisposed || frame.Empty())
+                return;
+            if (GetPreRecordBufferMaxBytes() <= 0)
+                return;
+            try
+            {
+                Mat clone = frame.Clone();
+                long bytes = (long)clone.Rows * clone.Cols * Math.Max(1, clone.ElemSize());
+                lock (_eventBufferLock)
+                {
+                    if ((_preRecordWidth > 0 && _preRecordHeight > 0)
+                        && (_preRecordWidth != clone.Cols || _preRecordHeight != clone.Rows))
+                    {
+                        foreach (PreRecordFrame oldFrame in _preRecordFrames)
+                            oldFrame.Frame.Dispose();
+                        _preRecordFrames.Clear();
+                        _preRecordBytes = 0;
+                        RuntimeLog.Info("Recording", $"Pre-record buffer reset after frame size change {_preRecordWidth}x{_preRecordHeight}->{clone.Cols}x{clone.Rows}");
+                    }
+                    _preRecordWidth = clone.Cols;
+                    _preRecordHeight = clone.Rows;
+                    double mean = 0;
+                    try
+                    {
+                        Scalar channels = Cv2.Mean(clone);
+                        mean = (channels.Val0 + channels.Val1 + channels.Val2) / 3.0;
+                    }
+                    catch { }
+                    _preRecordFrames.AddLast(new PreRecordFrame
+                    {
+                        Frame = clone,
+                        Timestamp = DateTime.Now,
+                        Bytes = bytes,
+                        Sequence = Interlocked.Increment(ref _preRecordSequence),
+                        Mean = mean
+                    });
+                    _preRecordBytes += bytes;
+                    long maxBytes = GetPreRecordBufferMaxBytes();
+                    while (_preRecordFrames.First != null && _preRecordBytes > maxBytes)
+                    {
+                        PreRecordFrame old = _preRecordFrames.First.Value;
+                        _preRecordFrames.RemoveFirst();
+                        _preRecordBytes -= old.Bytes;
+                        old.Frame.Dispose();
+                        _preRecordDroppedFrames++;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Recording", $"Pre-record frame capture skipped: {ex.Message}");
+            }
+        }
+
+        private static bool IsBlackCameraFrame(Mat frame)
+        {
+            if (frame == null || frame.IsDisposed || frame.Empty())
+                return true;
+
+            try
+            {
+                Scalar mean = Cv2.Mean(frame);
+                return Math.Max(mean.Val0, Math.Max(mean.Val1, mean.Val2)) <= 4;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private List<Mat> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp, out List<DateTime> timestamps)
+        {
+            firstTimestamp = null;
+            timestamps = new List<DateTime>();
+            var result = new List<Mat>();
+            if (!Config.EnableEventRecordingBuffer || Config.PreRecordBufferMB <= 0)
+                return result;
+            lock (_eventBufferLock)
+            {
+                // 转移事件前帧的所有权，避免为 1GB 原始帧缓冲再复制一份造成瞬时内存峰值。
+                // 事件后新帧会继续进入环形缓冲，下一次扫码仍可获得最新预录窗口。
+                LinkedListNode<PreRecordFrame>? node = _preRecordFrames.First;
+                while (node != null)
+                {
+                    LinkedListNode<PreRecordFrame>? next = node.Next;
+                    PreRecordFrame item = node.Value;
+                    if (item.Timestamp <= eventTime)
+                    {
+                        _preRecordFrames.Remove(node);
+                        _preRecordBytes -= item.Bytes;
+                        result.Add(item.Frame);
+                        timestamps.Add(item.Timestamp);
+                        firstTimestamp ??= item.Timestamp;
+                    }
+                    node = next;
+                }
+                if (result.Count > 0)
+                {
+                    int blackFrames = 0;
+                    foreach (Mat frame in result)
+                    {
+                        Scalar channels = Cv2.Mean(frame);
+                        if ((channels.Val0 + channels.Val1 + channels.Val2) / 3.0 <= 4)
+                            blackFrames++;
+                    }
+                    RuntimeLog.Info(
+                        "Recording",
+                        $"Pre-record snapshot frames={result.Count}, blackFrames={blackFrames}, bytes={result.Sum(frame => (long)frame.Rows * frame.Cols * Math.Max(1, frame.ElemSize()))}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
+                }
+            }
+            return result;
+        }
+
+        private void ClearPreRecordBuffer()
+        {
+            lock (_eventBufferLock)
+            {
+                foreach (PreRecordFrame item in _preRecordFrames) item.Frame.Dispose();
+                _preRecordFrames.Clear();
+                _preRecordBytes = 0;
+                _preRecordWidth = 0;
+                _preRecordHeight = 0;
+            }
+        }
+
+        private void ClearPendingEventRecordingFrames()
+        {
+            List<Mat>? pending = _pendingPreRecordFrames;
+            _pendingPreRecordFrames = null;
+            _pendingPreRecordTimestamps = null;
+            _pendingPreRecordStartTime = null;
+            if (pending == null) return;
+            foreach (Mat frame in pending)
+            {
+                try { frame.Dispose(); } catch { }
+            }
+        }
+
+        private long GetPreRecordBufferMaxBytes()
+        {
+            int maximumMb = PreRecordBufferPolicy.GetMaximumMb(
+                _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth,
+                _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight,
+                GetEffectiveRecordingFps(),
+                PreRecordBufferPolicy.GetPhysicalMemoryBytes());
+            long configuredBytes = (long)Math.Clamp(Config.PreRecordBufferMB, 0, maximumMb) * 1024L * 1024L;
+            return Math.Clamp(configuredBytes, 0, PreRecordBufferHardMaxBytes);
+        }
+
+        private double EstimatePreRecordSeconds()
+        {
+            double width = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
+            double height = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
+            double fps = GetEffectiveRecordingFps();
+            if (width <= 0 || height <= 0 || fps <= 0)
+                return 0;
+            return GetPreRecordBufferMaxBytes() / (width * height * 3d * fps);
         }
 
         private (bool ok, string error) RunFFmpegPipeline(string filePath, string ffmpegPath, CancellationToken token,
@@ -1100,7 +1363,9 @@ namespace ExpressPackingMonitoring.ViewModels
             int videoCqp,
             string? audioPipeName = null)
         {
-            string args = $"-y -fflags +genpts -use_wallclock_as_timestamps 1 -f rawvideo -video_size {w}x{h} -pixel_format bgr24 -framerate {fps} -i pipe:0";
+            // rawvideo 的 -framerate 负责按固定帧率生成时间戳。不能使用 wallclock 时间戳，
+            // 否则预录帧会在短时间内批量写入而被 FFmpeg 当成快进视频。
+            string args = $"-y -fflags +genpts -f rawvideo -video_size {w}x{h} -pixel_format bgr24 -framerate {fps} -i pipe:0";
             if (withAudio)
             {
                 if (string.IsNullOrWhiteSpace(audioPipeName))
@@ -1267,6 +1532,37 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioWriteQueueFullReported = false;
                     _audioFailedForCurrentRecording = false;
                     _audioMonitorCts = new CancellationTokenSource();
+
+                    // 预录视频从事件前开始，而麦克风在录像启动后才有采样数据。
+                    // 用等长静音补齐音频起点，避免合成后整条音轨提前。
+                    double leadingSilenceSeconds = Math.Clamp(_activePreRecordSeconds, 0, 5);
+                    int leadingSilenceBytes = (int)Math.Min(
+                        int.MaxValue,
+                        leadingSilenceSeconds * targetFormat.AverageBytesPerSecond);
+                    leadingSilenceBytes -= leadingSilenceBytes % Math.Max(1, targetFormat.BlockAlign);
+                    if (leadingSilenceBytes > 0)
+                    {
+                        if (directAac)
+                            _audioInitialOffsetBytesRemaining += leadingSilenceBytes;
+                        else
+                        {
+                            byte[] silence = new byte[Math.Min(leadingSilenceBytes, targetFormat.AverageBytesPerSecond)];
+                            int remaining = leadingSilenceBytes;
+                            while (remaining > 0)
+                            {
+                                int count = Math.Min(remaining, silence.Length);
+                                byte[] chunk = count == silence.Length ? silence : new byte[count];
+                                if (!_audioWriteQueue!.TryAdd(chunk))
+                                {
+                                    MarkAudioWriteQueueFull();
+                                    break;
+                                }
+                                _audioBytesWritten += count;
+                                remaining -= count;
+                            }
+                        }
+                        WriteAudioDiagnostic($"预录音频起点补静音: seconds={leadingSilenceSeconds:F3}, bytes={leadingSilenceBytes}");
+                    }
                 }
 
                 if (directAac && !string.IsNullOrWhiteSpace(_currentVideoFilePath))

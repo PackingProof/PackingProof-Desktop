@@ -222,6 +222,24 @@
   <data name="全局键盘监听" xml:space="preserve"><value>Global keyboard listener</value></data>
   <data name="软件在后台也能扫码开始录制" xml:space="preserve"><value>The software can also scan the QR code to start recording in the background.</value></data>
   <data name="扫码间隔保护" xml:space="preserve"><value>Scan cooldown</value></data>
+  <data name="扫码事件预录" xml:space="preserve"><value>Scan event pre-recording</value></data>
+  <data name="扫码前保留画面，占用运行内存" xml:space="preserve"><value>Keep the moments before scanning; uses system memory</value></data>
+  <data name="扫码前预录时长" xml:space="preserve"><value>Pre-record duration before scan</value></data>
+  <data name="占用内存越大，可提前保留的画面越久" xml:space="preserve"><value>More memory keeps more video before scanning</value></data>
+  <data name="约 0 秒（占用 0 MB 内存）" xml:space="preserve"><value>About 0 seconds (uses 0 MB memory)</value></data>
+  <data name="按当前画面规格自动换算，录像规格变化时会实时更新" xml:space="preserve"><value>Automatically calculated from the current video format and updated when it changes</value></data>
+  <data name="较短" xml:space="preserve"><value>Shorter</value></data>
+  <data name="较长" xml:space="preserve"><value>Longer</value></data>
+  <data name="保留扫码前画面，并支持同码停录收尾" xml:space="preserve"><value>Keep the moments before scanning and support same-code stop roll-out</value></data>
+  <data name="启用" xml:space="preserve"><value>Enable</value></data>
+  <data name="扫码前预录" xml:space="preserve"><value>Pre-record before scan</value></data>
+  <data name="新单录像向前保留的画面时长" xml:space="preserve"><value>How much video to keep before a new order scan</value></data>
+  <data name="扫码前预录容量" xml:space="preserve"><value>Pre-record buffer size</value></data>
+  <data name="按当前画面规格换算可提前保留的时长" xml:space="preserve"><value>Estimated pre-record duration based on the current video format</value></data>
+  <data name="更少" xml:space="preserve"><value>Less</value></data>
+  <data name="更多" xml:space="preserve"><value>More</value></data>
+  <data name="同码停录收尾" xml:space="preserve"><value>Same-code stop roll-out</value></data>
+  <data name="同码停录后继续保留的画面时长" xml:space="preserve"><value>How much video to keep after same-code stop</value></data>
   <data name="扫码内容至少达到这个长度才会提交。全局键盘监听和无回车窗口内识别都会用到" xml:space="preserve"><value>The scanned code content will be submitted if it reaches at least this length. Both global keyboard monitoring and recognition within a carriage-enter-free window are used.</value></data>
   <data name="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换" xml:space="preserve"><value>The code scanner may send content multiple times in succession. This is used to avoid triggering the recording switch repeatedly.</value></data>
   <data name="扫码枪没开自动回车时打开。需要软件窗口在前台" xml:space="preserve"><value>Enable when the scanner does not send Enter. The application window must be in the foreground</value></data>

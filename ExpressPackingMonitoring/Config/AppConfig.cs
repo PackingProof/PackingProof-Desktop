@@ -193,6 +193,12 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableCameraIdle { get; set; } = false;
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
+        public bool EnableEventRecordingBuffer { get; set; } = false;
+        // 原始帧预录容量，按当前摄像头规格换算为预计秒数。0 表示不预录，只保留同码收尾
+        public int PreRecordBufferMB { get; set; } = -1;
+        // 旧版本兼容字段，不再用于运行时设置
+        public double PreRecordSeconds { get; set; }
+        public double SameCodePostRecordSeconds { get; set; } = 1.5;
         public string CameraBarcodeRecognitionSpeed { get; set; } = CameraBarcodeSpeed.Standard;
         public double CameraBarcodeGuideWidthRatio { get; set; } = 0.85;
         public double CameraBarcodeGuideHeightRatio { get; set; } = 0.85;
@@ -716,6 +722,49 @@ namespace ExpressPackingMonitoring.Config
             if (config.CameraSameBarcodeConfirmationHits != normalizedCameraSameBarcodeConfirmationHits)
             {
                 config.CameraSameBarcodeConfirmationHits = normalizedCameraSameBarcodeConfirmationHits;
+                changed = true;
+            }
+            int normalizedPreRecordBufferMB = config.PreRecordBufferMB;
+            if (normalizedPreRecordBufferMB < 0 || (normalizedPreRecordBufferMB == 0 && config.PreRecordSeconds > 0))
+            {
+                if (config.PreRecordSeconds <= 0)
+                {
+                    normalizedPreRecordBufferMB = PreRecordBufferPolicy.GetRecommendedDefaultMb(
+                        PreRecordBufferPolicy.GetPhysicalMemoryBytes());
+                }
+                else
+                {
+                // 旧版本只保存秒数，按当时的录像规格尽量保留用户意图；全新配置使用约 1 秒的默认容量
+                double legacySeconds = Math.Clamp(config.PreRecordSeconds, 0, 5);
+                long bytesPerSecond = (long)Math.Max(1, config.FrameWidth)
+                    * Math.Max(1, config.FrameHeight)
+                    * 3L
+                    * Math.Max(1, config.Fps);
+                long migratedBytes = legacySeconds > 0
+                    ? (long)Math.Ceiling(bytesPerSecond * legacySeconds)
+                    : 320L * 1024 * 1024;
+                normalizedPreRecordBufferMB = (int)Math.Clamp(
+                    (migratedBytes + (1024L * 1024) - 1) / (1024L * 1024),
+                    0,
+                    1024);
+                }
+            }
+            ulong physicalMemoryBytes = PreRecordBufferPolicy.GetPhysicalMemoryBytes();
+            normalizedPreRecordBufferMB = PreRecordBufferPolicy.ClampConfiguredMb(
+                normalizedPreRecordBufferMB,
+                config.FrameWidth,
+                config.FrameHeight,
+                config.Fps,
+                physicalMemoryBytes);
+            if (config.PreRecordBufferMB != normalizedPreRecordBufferMB)
+            {
+                config.PreRecordBufferMB = normalizedPreRecordBufferMB;
+                changed = true;
+            }
+            double normalizedSameCodePostRecordSeconds = Math.Clamp(config.SameCodePostRecordSeconds, 0, 5);
+            if (Math.Abs(config.SameCodePostRecordSeconds - normalizedSameCodePostRecordSeconds) > 0.001)
+            {
+                config.SameCodePostRecordSeconds = normalizedSameCodePostRecordSeconds;
                 changed = true;
             }
 

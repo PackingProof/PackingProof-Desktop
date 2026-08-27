@@ -109,6 +109,7 @@
     <Compile Include="Config\StorageLocationMetadata.cs" />
     <Compile Include="Config\StorageSpacePolicy.cs" />
     <Compile Include="Config\StorageVolumeInfo.cs" />
+    <Compile Include="Config\PreRecordBufferPolicy.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\ArchiveBackupStatePolicy.cs" />

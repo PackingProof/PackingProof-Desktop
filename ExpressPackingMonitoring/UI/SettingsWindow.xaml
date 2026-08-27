@@ -1294,6 +1294,48 @@
                             <!-- 基础扫码设置 -->
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="扫码事件预录" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="扫码前保留画面，占用运行内存" Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="EventRecordingBufferToggle" Grid.Column="2" IsChecked="{Binding Config.EnableEventRecordingBuffer, Mode=TwoWay}" Checked="EventRecordingBufferToggle_Changed" Unchecked="EventRecordingBufferToggle_Changed" VerticalAlignment="Center" HorizontalAlignment="Left" Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+                                    <Grid x:Name="PreRecordBufferRow" Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0"><TextBlock Text="扫码前预录时长" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="占用内存越大，可提前保留的画面越久" Style="{StaticResource FieldHintStyle}"/></StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="较短" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock x:Name="PreRecordEstimateText" Text="约 0 秒（占用 0 MB 内存）" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="较长" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="PreRecordBufferSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0" Maximum="1024" TickFrequency="64" IsSnapToTickEnabled="True" ValueChanged="PreRecordBufferSlider_ValueChanged" Value="{Binding Config.PreRecordBufferMB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid x:Name="SameCodePostRecordRow" Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0"><TextBlock Text="同码停录收尾" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="同码停录后继续保留的画面时长" Style="{StaticResource FieldHintStyle}"/></StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更早" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding ElementName=SameCodePostRecordSecondsSlider, Path=Value, StringFormat={}{0:F1} 秒}" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更晚" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider x:Name="SameCodePostRecordSecondsSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0" Maximum="5" TickFrequency="0.5" Value="{Binding Config.SameCodePostRecordSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 基础扫码设置 -->
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -2413,6 +2455,7 @@
                                         </StackPanel>
                                         <ComboBox x:Name="ResComboBox"
                                                   Grid.Column="2"
+                                                  SelectionChanged="VideoFormat_SelectionChanged"
                                                   DisplayMemberPath="Name"
                                                   Cursor="Hand"/>
                                     </Grid>
@@ -2430,6 +2473,7 @@
                                         </StackPanel>
                                         <ComboBox x:Name="FpsComboBox" Grid.Column="2"
                                                   Height="32"
+                                                  SelectionChanged="VideoFormat_SelectionChanged"
                                                   Cursor="Hand"/>
                                     </Grid>
 
