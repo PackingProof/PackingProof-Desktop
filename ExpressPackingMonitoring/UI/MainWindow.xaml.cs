@@ -236,9 +236,6 @@ namespace ExpressPackingMonitoring.UI
                 }
 
                 Title = AppLanguage.Format("Main.Title", AppVersion.Current);
-#if DEBUG
-                Title += " [摄像头对照调试：摄像头不触发录制]";
-#endif
 
                 Dispatcher.BeginInvoke(new Action(() =>
                 {

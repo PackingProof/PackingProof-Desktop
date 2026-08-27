@@ -2903,7 +2903,7 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="播报音量最大" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="播报时调为最大音量" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="每次播报前取消静音并将电脑音量调到最大"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
@@ -3404,7 +3404,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="录像网页访问密钥" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="保护开启时可全选复制；关闭保护后才能修改，修改后旧链接立即失效"
+                                            <TextBlock Text="关闭保护后才能修改，修改后旧链接立即失效"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <TextBox Grid.Column="2"

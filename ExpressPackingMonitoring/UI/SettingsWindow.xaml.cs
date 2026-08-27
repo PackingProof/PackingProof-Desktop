@@ -200,6 +200,7 @@ namespace ExpressPackingMonitoring.UI
             _isRecording = isRecording;
             Config = clonedConfig;
             AppConfig.NormalizeAfterLoad(Config);
+            Title = $"设置 {AppVersion.Current} ({AppVersion.CommitShortId})";
             _originalNodeName = Config.NodeName;
             _originalWebAccessKey = Config.WebAccessKey;
             InitializeComponent();
