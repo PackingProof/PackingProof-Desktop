@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -36,6 +37,9 @@ namespace ExpressPackingMonitoring.Audio
     public class SpeechService : IDisposable
     {
         private static readonly TimeSpan EdgeTtsTimeout = TimeSpan.FromSeconds(20);
+        private static readonly FieldInfo? EdgeTtsConnectionKeeperField = typeof(EdgeTTSClient).GetField(
+            "ConnectionKeeper",
+            BindingFlags.Instance | BindingFlags.NonPublic);
         private WindowsTtsBridge? _windowsTts;
         private OfflineTts? _kokoroTts;
         private readonly object _kokoroLock = new();
@@ -469,7 +473,7 @@ namespace ExpressPackingMonitoring.Audio
                 Path.GetFileNameWithoutExtension(outputPath) + ".tmp" + Path.GetExtension(outputPath));
             if (File.Exists(tempPath)) File.Delete(tempPath);
 
-            var client = new EdgeTTSClient(false, false, 0);
+            var client = CreateSingleUseEdgeTtsClient();
             try
             {
                 var synthesisTask = client.SynthesisAsync(text, voice, "+0Hz", ToEdgeRate(AiTtsSpeed), "+0%");
@@ -504,7 +508,7 @@ namespace ExpressPackingMonitoring.Audio
             }
             finally
             {
-                try { client.Dispose(); } catch { }
+                client.Dispose();
             }
 
             try
@@ -520,6 +524,25 @@ namespace ExpressPackingMonitoring.Audio
             {
                 TryDeleteFile(tempPath);
             }
+        }
+
+        internal static EdgeTTSClient CreateSingleUseEdgeTtsClient()
+        {
+            var client = new EdgeTTSClient(false, false, 0);
+            if (EdgeTtsConnectionKeeperField == null)
+                return client;
+
+            if (EdgeTtsConnectionKeeperField.GetValue(client) == null)
+            {
+                var connectionKeeper = new Timer(
+                    static _ => { },
+                    null,
+                    Timeout.Infinite,
+                    Timeout.Infinite);
+                EdgeTtsConnectionKeeperField.SetValue(client, connectionKeeper);
+            }
+
+            return client;
         }
 
         private static void TryDeleteFile(string path)

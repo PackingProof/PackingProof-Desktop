@@ -6,6 +6,14 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class SpeechShortBeepTests
 {
     [Fact]
+    public void CreateSingleUseEdgeTtsClient_DisposeDoesNotThrow()
+    {
+        using var client = SpeechService.CreateSingleUseEdgeTtsClient();
+
+        Assert.NotNull(client);
+    }
+
+    [Fact]
     public void BuildShortBeepWav_ReturnsValidShortWav()
     {
         byte[] wav = SpeechService.BuildShortBeepWav();
