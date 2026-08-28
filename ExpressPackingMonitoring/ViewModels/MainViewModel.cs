@@ -4709,15 +4709,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 : "暂无联动数据";
         }
 
-        internal ExtensionCredentialDisplayResult RotateExtensionCredential(string extensionInstanceId)
-        {
-            ExtensionEnrollmentCredential rotated = _extensionAuthorizationStore?.RotateCredential(extensionInstanceId)
-                ?? throw new InvalidOperationException("扩展授权尚未加载");
-            return new ExtensionCredentialDisplayResult(
-                rotated.Credential,
-                rotated.Authorization.CredentialGeneration);
-        }
-
         internal bool RevokeExtensionAuthorization(string extensionInstanceId) =>
             _extensionAuthorizationStore?.Revoke(extensionInstanceId) == true;
 

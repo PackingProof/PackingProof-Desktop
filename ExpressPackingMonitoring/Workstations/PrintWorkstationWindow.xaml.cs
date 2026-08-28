@@ -333,7 +333,6 @@ public partial class PrintWorkstationWindow : Window
             CopyMobileConnectionUrl = CopyMobileConnectionUrl,
             OpenUserscriptGuide = OpenUserscriptGuide,
             GetExtensionAuthorizations = _host.GetExtensionAuthorizations,
-            RotateExtensionCredential = _host.RotateExtensionCredential,
             RevokeExtensionAuthorization = _host.RevokeExtensionAuthorization,
             ShowToast = (message, severity) => ShowToast(message, severity),
             ToastSource = ToastState

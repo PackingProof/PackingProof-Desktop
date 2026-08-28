@@ -183,18 +183,33 @@ public sealed class SettingsAdvancedVisibilityTests
 
         XElement[] columns = grid.Descendants(Presentation + "DataGridTemplateColumn").ToArray();
         Assert.Contains(columns, column => (string?)column.Attribute("Header") == "扩展");
-        Assert.Contains(columns, column => (string?)column.Attribute("Header") == "权限与绑定");
+        Assert.Contains(columns, column =>
+            (string?)column.Attribute("Header") == "权限与绑定"
+            && (string?)column.Attribute("Width") == "1.5*");
         Assert.Contains(columns, column => (string?)column.Attribute("Header") == "管理");
-        Assert.Contains(grid.Descendants(Presentation + "Button"), button =>
-            (string?)button.Attribute("Content") == "轮换凭据"
-            && (string?)button.Attribute("Click") == "RotateExtensionCredential_Click");
+        Assert.DoesNotContain(grid.Descendants(Presentation + "Button"), button =>
+            (string?)button.Attribute("Content") == "轮换凭据");
         Assert.Contains(grid.Descendants(Presentation + "Button"), button =>
             (string?)button.Attribute("Content") == "撤销"
-            && (string?)button.Attribute("Style") == "{StaticResource DangerButtonStyle}");
+            && (string?)button.Attribute("Style") == "{StaticResource DeleteUserscriptButtonStyle}"
+            && (string?)button.Attribute("Width") == "72"
+            && (string?)button.Attribute("HorizontalAlignment") == "Center");
+        XElement displayName = Assert.Single(
+            grid.Descendants(Presentation + "TextBlock"),
+            text => (string?)text.Attribute("Text") == "{Binding DisplayName}");
+        XElement identityPanel = Assert.IsType<XElement>(displayName.Parent?.Parent);
+        Assert.Equal("Horizontal", (string?)identityPanel.Attribute("Orientation"));
+        Assert.Equal("Left", (string?)identityPanel.Attribute("HorizontalAlignment"));
+        Assert.Equal(Presentation + "Ellipse", identityPanel.Elements().First().Name);
         Assert.Contains(
             grid.Descendants(Presentation + "DataTrigger"),
             trigger => (string?)trigger.Attribute("Binding") == "{Binding Online}"
                 && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(
+            grid.Descendants(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Fill"
+                && (string?)setter.Attribute("Value") == "{DynamicResource TextSecondary}");
+        Assert.DoesNotContain("TextTertiary", grid.ToString(), StringComparison.Ordinal);
         Assert.Contains(
             grid.Descendants(Presentation + "TextBlock"),
             text => (string?)text.Attribute("Text") == "{Binding ActivityText}");
@@ -205,6 +220,7 @@ public sealed class SettingsAdvancedVisibilityTests
         string timerBody = code[timerStart..nextMethod];
         Assert.Contains("RefreshExtensionAuthorizations();", timerBody, StringComparison.Ordinal);
         Assert.Contains("RefreshOrderIntegrationDevices();", timerBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("RotateExtensionCredential_Click", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -221,6 +237,11 @@ public sealed class SettingsAdvancedVisibilityTests
             grid.Descendants(Presentation + "DataTrigger"),
             trigger => (string?)trigger.Attribute("Binding") == "{Binding Online}"
                 && (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(
+            grid.Descendants(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Fill"
+                && (string?)setter.Attribute("Value") == "{DynamicResource TextSecondary}");
+        Assert.DoesNotContain("TextTertiary", grid.ToString(), StringComparison.Ordinal);
         Assert.Contains(
             grid.Descendants(Presentation + "DataGridTemplateColumn"),
             column => (string?)column.Attribute("Header") == "最近活动"
