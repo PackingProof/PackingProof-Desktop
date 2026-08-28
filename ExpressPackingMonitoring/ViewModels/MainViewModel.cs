@@ -70,8 +70,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _lastPreRecordUiPublishTicks;
         private int _preRecordUiPublishQueued;
         private long _preRecordUiPublishVersion;
-        private List<Mat>? _pendingPreRecordFrames;
-        private List<DateTime>? _pendingPreRecordTimestamps;
+        private List<Mat> _pendingPreRecordFrames;
+        private List<DateTime> _pendingPreRecordTimestamps;
         private DateTime? _pendingPreRecordStartTime;
         private const long PreRecordBufferHardMaxBytes = 8L * 1024 * 1024 * 1024;
 
@@ -206,7 +206,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _shutdownPrepared;
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
-        private CancellationTokenSource? _sameCodePostRollCts;
+        private CancellationTokenSource _sameCodePostRollCts;
 
         private sealed class PreRecordFrame
         {
@@ -1410,7 +1410,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (Config.EnableEventRecordingBuffer && Config.SameCodePostRecordSeconds > 0)
                     {
                         // 同码重复识别只允许首次触发收尾，避免反复重置定时器导致无限录制。
-                        CancellationTokenSource? pendingPostRoll = _sameCodePostRollCts;
+                        CancellationTokenSource pendingPostRoll = _sameCodePostRollCts;
                         if (pendingPostRoll != null && !pendingPostRoll.IsCancellationRequested)
                         {
                             RuntimeLog.Info("Recording", "Same-code post-roll already pending; duplicate stop trigger ignored");
@@ -1464,7 +1464,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。
-                List<Mat>? pendingPreRecordFrames = null;
+                List<Mat> pendingPreRecordFrames = null;
                 DateTime? pendingPreRecordStartTime = null;
                 List<DateTime> pendingPreRecordTimestamps = new();
                 if (Config.EnableEventRecordingBuffer)
