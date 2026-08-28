@@ -607,6 +607,20 @@
                                         <controls:SmoothProgressBar.Style>
                                             <Style TargetType="controls:SmoothProgressBar">
                                                 <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="controls:SmoothProgressBar">
+                                                            <Border x:Name="PART_Track"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="3.5">
+                                                                <Border x:Name="PART_Indicator"
+                                                                        HorizontalAlignment="Left"
+                                                                        Background="{TemplateBinding Foreground}"
+                                                                        CornerRadius="3.5"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsPreRecordBufferRolling}" Value="True">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -615,7 +629,7 @@
                                             </Style>
                                         </controls:SmoothProgressBar.Style>
                                     </controls:SmoothProgressBar>
-                                    <Border Background="{DynamicResource BorderStrong}" CornerRadius="2" ClipToBounds="True">
+                                    <Border Background="{DynamicResource BorderStrong}" CornerRadius="3.5" ClipToBounds="True">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -626,7 +640,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <Rectangle>
+                                        <Rectangle RadiusX="3.5" RadiusY="3.5">
                                             <Rectangle.Style>
                                                 <Style TargetType="Rectangle">
                                                     <Style.Triggers>

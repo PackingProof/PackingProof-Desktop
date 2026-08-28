@@ -761,6 +761,11 @@ namespace ExpressPackingMonitoring.Config
                 config.PreRecordBufferMB = normalizedPreRecordBufferMB;
                 changed = true;
             }
+            if (config.PreRecordSeconds != 0)
+            {
+                config.PreRecordSeconds = 0;
+                changed = true;
+            }
             double normalizedSameCodePostRecordSeconds = Math.Clamp(config.SameCodePostRecordSeconds, 0, 5);
             if (Math.Abs(config.SameCodePostRecordSeconds - normalizedSameCodePostRecordSeconds) > 0.001)
             {

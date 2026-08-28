@@ -1037,6 +1037,27 @@ public sealed class ConfigurationAndScannerTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.InRange(config.PreRecordBufferMB, 79, 80);
+        Assert.Equal(0, config.PreRecordSeconds);
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_DoesNotRestoreLegacySecondsAfterBufferIsDisabled()
+    {
+        var config = new AppConfig
+        {
+            FrameWidth = 1280,
+            FrameHeight = 720,
+            Fps = 15,
+            PreRecordBufferMB = 64,
+            PreRecordSeconds = 2
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+        config.PreRecordBufferMB = 0;
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(0, config.PreRecordBufferMB);
+        Assert.Equal(0, config.PreRecordSeconds);
     }
 
     [Fact]

@@ -112,6 +112,21 @@ public sealed class MainWindowStatsBarTests
         Assert.DoesNotContain("<Setter Property=\"FontSize\" Value=\"20\"/>", xaml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PreRecordProgress_UsesRoundedTrackAndIndicators()
+    {
+        string xaml = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("ExpressPackingMonitoring"),
+                "UI",
+                "MainWindow.xaml"));
+
+        Assert.Contains("x:Name=\"PART_Track\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PART_Indicator\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius=\"3.5\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Rectangle RadiusX=\"3.5\" RadiusY=\"3.5\">", xaml, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryPath(params string[] parts)
     {
         System.IO.DirectoryInfo? directory = new(System.AppContext.BaseDirectory);

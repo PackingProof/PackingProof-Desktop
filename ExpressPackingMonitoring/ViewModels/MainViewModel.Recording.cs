@@ -1175,8 +1175,11 @@ namespace ExpressPackingMonitoring.ViewModels
             double progress = enabled && capacity > 0
                 ? Math.Clamp(frameCount * 100d / rollingThresholdFrames, 0, 100)
                 : 0;
+            int configuredFps = Config?.Fps ?? 0;
+            if (configuredFps <= 0)
+                configuredFps = _actualCameraFps;
             double bufferedSeconds = enabled
-                ? frameCount / (double)Math.Max(1, GetEffectiveRecordingFps())
+                ? CalculatePreRecordBufferedSeconds(frameCount, configuredFps)
                 : 0;
             bool capturing = enabled && ShouldCaptureEventRecordingBufferFrame();
             string status = !enabled
@@ -1223,6 +1226,13 @@ namespace ExpressPackingMonitoring.ViewModels
             return maxBytes <= 0 ? 0 : Math.Max(1, (int)Math.Min(int.MaxValue, maxBytes / bytesPerFrame));
         }
 
+        internal static double CalculatePreRecordBufferedSeconds(int frameCount, int configuredFps)
+        {
+            if (frameCount <= 0 || configuredFps <= 0)
+                return 0;
+            return frameCount / (double)configuredFps;
+        }
+
         private void ClearPendingEventRecordingFrames()
         {
             List<Mat>? pending = _pendingPreRecordFrames;
@@ -1238,12 +1248,15 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private long GetPreRecordBufferMaxBytes()
         {
-            int maximumMb = PreRecordBufferPolicy.GetMaximumMb(
-                _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth,
-                _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight,
-                GetEffectiveRecordingFps(),
+            return CalculatePreRecordBufferMaxBytes(
+                Config.PreRecordBufferMB,
                 PreRecordBufferPolicy.GetPhysicalMemoryBytes());
-            long configuredBytes = (long)Math.Clamp(Config.PreRecordBufferMB, 0, maximumMb) * 1024L * 1024L;
+        }
+
+        internal static long CalculatePreRecordBufferMaxBytes(int configuredMb, ulong physicalMemoryBytes)
+        {
+            int maximumMb = PreRecordBufferPolicy.GetRamMaximumMb(physicalMemoryBytes);
+            long configuredBytes = (long)Math.Clamp(configuredMb, 0, maximumMb) * 1024L * 1024L;
             return Math.Clamp(configuredBytes, 0, PreRecordBufferHardMaxBytes);
         }
 
