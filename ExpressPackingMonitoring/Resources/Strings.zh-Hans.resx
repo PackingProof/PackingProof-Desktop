@@ -989,4 +989,8 @@
   <data name="Extension.Access.RecordingsDownload" xml:space="preserve"><value>• 下载查询到的原始录像文件</value></data>
   <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• 未识别权限：{0}</value></data>
   <data name="Extension.Access.None" xml:space="preserve"><value>• 不申请可用接口</value></data>
+  <data name="扫码预录制" xml:space="preserve"><value>扫码预录制</value></data>
+  <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>约 0 秒 / 0 MB 内存</value></data>
+  <data name="播报时调为最大音量" xml:space="preserve"><value>播报时调为最大音量</value></data>
+  <data name="关闭保护后才能修改，修改后旧链接立即失效" xml:space="preserve"><value>关闭保护后才能修改，修改后旧链接立即失效</value></data>
  </root>

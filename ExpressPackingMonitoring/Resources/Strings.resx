@@ -1008,4 +1008,8 @@
   <data name="Extension.Access.RecordingsDownload" xml:space="preserve"><value>• Download original recording files returned by a search</value></data>
   <data name="Extension.Access.UnknownPermission" xml:space="preserve"><value>• Unknown permission: {0}</value></data>
   <data name="Extension.Access.None" xml:space="preserve"><value>• No usable API access requested</value></data>
+  <data name="扫码预录制" xml:space="preserve"><value>Scan pre-recording</value></data>
+  <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>About 0 seconds / 0 MB memory</value></data>
+  <data name="播报时调为最大音量" xml:space="preserve"><value>Set volume to maximum during announcements</value></data>
+  <data name="关闭保护后才能修改，修改后旧链接立即失效" xml:space="preserve"><value>Turn protection off to edit; old links become invalid immediately after modification</value></data>
  </root>
