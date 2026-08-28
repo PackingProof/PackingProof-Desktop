@@ -163,7 +163,7 @@ internal static class BarcodeRecordingDecisionPolicy
             decision = Create(BarcodeRecordingDecisionAction.Stop, BarcodeRecordingDecisionReason.StopCommand, normalized);
             return true;
         }
-        decision = default;
+        decision = default!;
         return false;
     }
 
