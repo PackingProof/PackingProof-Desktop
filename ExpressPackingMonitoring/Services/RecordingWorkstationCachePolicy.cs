@@ -21,11 +21,13 @@ internal readonly record struct RecordingCacheSpaceSnapshot(
     long AvailableBytes,
     long ReserveBytes)
 {
+    public long PhysicalRemainingBytes => Math.Max(0, AvailableBytes - ReserveBytes);
+
     public long RemainingBytes => Math.Max(
         0,
         Math.Min(
             EffectiveLimitBytes - CacheBytes,
-            AvailableBytes - ReserveBytes));
+            PhysicalRemainingBytes));
 
     public double UsagePercent => EffectiveLimitBytes <= 0
         ? 100
@@ -50,7 +52,7 @@ internal static class RecordingWorkstationCachePolicy
     internal const long HardStopHeadroomBytes =
         StorageSpacePolicy.BytesPerGiB / 2;
     internal const double WarningWatermark = 0.80;
-    internal const double CleanupWatermark = 0.90;
+    internal const double CleanupWatermark = 0.80;
     internal const double CleanupTargetWatermark = 0.70;
 
     internal static RecordingCacheDriveCandidate? SelectPreferredDrive(
@@ -105,12 +107,7 @@ internal static class RecordingWorkstationCachePolicy
         IEnumerable<RecordingCacheCleanupItem> verifiedItems)
     {
         requiredHeadroomBytes = Math.Max(0, requiredHeadroomBytes);
-        bool needsCleanup =
-            snapshot.CacheBytes + requiredHeadroomBytes > snapshot.EffectiveLimitBytes
-            || snapshot.AvailableBytes - snapshot.ReserveBytes < requiredHeadroomBytes
-            || (snapshot.EffectiveLimitBytes > 0
-                && snapshot.CacheBytes >= snapshot.EffectiveLimitBytes * CleanupWatermark);
-        if (!needsCleanup)
+        if (!RequiresCleanup(snapshot, requiredHeadroomBytes))
         {
             return new RecordingCacheCleanupPlan(
                 Array.Empty<long>(),
@@ -138,6 +135,29 @@ internal static class RecordingWorkstationCachePolicy
         }
 
         return new RecordingCacheCleanupPlan(selected, targetBytes, projectedBytes);
+    }
+
+    internal static bool RequiresCleanup(
+        RecordingCacheSpaceSnapshot snapshot,
+        long requiredHeadroomBytes)
+    {
+        requiredHeadroomBytes = Math.Max(0, requiredHeadroomBytes);
+        return
+            snapshot.CacheBytes + requiredHeadroomBytes > snapshot.EffectiveLimitBytes
+            || snapshot.AvailableBytes - snapshot.ReserveBytes < requiredHeadroomBytes
+            || (snapshot.EffectiveLimitBytes > 0
+                && snapshot.CacheBytes >= snapshot.EffectiveLimitBytes * CleanupWatermark);
+    }
+
+    internal static bool HasRequiredPhysicalHeadroom(
+        long availableBytes,
+        long reserveBytes,
+        long requiredHeadroomBytes)
+    {
+        availableBytes = Math.Max(0, availableBytes);
+        reserveBytes = Math.Max(0, reserveBytes);
+        requiredHeadroomBytes = Math.Max(0, requiredHeadroomBytes);
+        return availableBytes - reserveBytes >= requiredHeadroomBytes;
     }
 
     internal static IReadOnlyList<RecordingCacheDriveCandidate> EnumerateLocalFixedDrives()

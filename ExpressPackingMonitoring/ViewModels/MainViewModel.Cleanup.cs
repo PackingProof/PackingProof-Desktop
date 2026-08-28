@@ -57,7 +57,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 .RecordingAndPackagingHeadroomBytes);
                     if (IsRecording
                         && (!result.IsAvailable
-                            || result.Snapshot.RemainingBytes
+                            || result.Snapshot.PhysicalRemainingBytes
                             < RecordingWorkstationCachePolicy
                                 .HardStopHeadroomBytes))
                     {

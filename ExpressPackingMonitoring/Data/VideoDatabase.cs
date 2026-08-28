@@ -1340,6 +1340,28 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        public long GetLocalVideoFileInventoryBytes(string rootPath)
+        {
+            string normalizedRoot = Path.GetFullPath(rootPath)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                + Path.DirectorySeparatorChar;
+            string escapedPrefix = normalizedRoot
+                .Replace("~", "~~", StringComparison.Ordinal)
+                .Replace("%", "~%", StringComparison.Ordinal)
+                .Replace("_", "~_", StringComparison.Ordinal)
+                + "%";
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT COALESCE(SUM(FileSizeBytes), 0)
+                    FROM LocalVideoFileInventory
+                    WHERE FilePath LIKE @rootPrefix ESCAPE '~';";
+                cmd.Parameters.AddWithValue("@rootPrefix", escapedPrefix);
+                return Convert.ToInt64(cmd.ExecuteScalar());
+            }
+        }
+
         public void ReplaceLocalVideoFileInventory(
             string rootPath,
             IEnumerable<StorageVideoFile> files)
@@ -1386,11 +1408,14 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
-        public bool IsLocalVideoFileFullyVerifiedForCacheDeletion(string filePath)
+        public bool IsLocalVideoFileFullyVerifiedForCacheDeletion(
+            string filePath,
+            int minimumVerificationVersion = 0)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 return false;
             string normalizedPath = Path.GetFullPath(filePath);
+            minimumVerificationVersion = Math.Max(0, minimumVerificationVersion);
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
@@ -1403,6 +1428,10 @@ namespace ExpressPackingMonitoring.Data
                                OR q.State <> 'Uploaded'
                                OR q.RemoteVideoRecordId IS NULL
                                OR q.RemoteVideoRecordId <= 0
+                               OR (@minimumVersion > 0 AND (
+                                   q.VerificationVersion < @minimumVersion
+                                   OR TRIM(COALESCE(q.VerificationReceipt, '')) = ''
+                               ))
                            THEN 1 ELSE 0 END)
                     FROM VideoRecords v
                     LEFT JOIN RecordingTransferQueue q
@@ -1411,6 +1440,7 @@ namespace ExpressPackingMonitoring.Data
                       AND v.SourceType = 'pc'
                       AND v.FilePath = @filePath;";
                 cmd.Parameters.AddWithValue("@filePath", normalizedPath);
+                cmd.Parameters.AddWithValue("@minimumVersion", minimumVerificationVersion);
                 using var reader = cmd.ExecuteReader();
                 return reader.Read()
                     && reader.GetInt64(0) > 0

@@ -579,6 +579,131 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
+    public void CacheCleanupCandidateBatch_IsBoundedAndSkipsUnverifiedSharedFiles()
+    {
+        string directory = CreateTempDirectory();
+        string otherDirectory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            using var store = new RecordingTransferQueueStore(databasePath);
+            string nodeId = Guid.NewGuid().ToString("D");
+            DateTime now = DateTime.UtcNow;
+
+            long AddRecording(
+                string name,
+                DateTime createdAt,
+                bool verified,
+                string? recordingDirectory = null)
+            {
+                string path = Path.Combine(recordingDirectory ?? directory, name);
+                if (!File.Exists(path))
+                    File.WriteAllBytes(path, new byte[128]);
+                long recordId = database.InsertVideoRecord(
+                    name,
+                    "发货",
+                    "",
+                    "",
+                    path,
+                    createdAt.ToLocalTime());
+                database.UpdateVideoRecordOnStop(
+                    recordId,
+                    createdAt.AddMinutes(1).ToLocalTime(),
+                    60,
+                    128,
+                    "手动");
+                store.Enqueue(
+                    recordId,
+                    path,
+                    $"session-{recordId}",
+                    nodeId,
+                    "http://host",
+                    createdAt);
+                if (verified)
+                {
+                    RecordingTransferTask task = store.GetReady(
+                            now.AddHours(1),
+                            100)
+                        .Single(item => item.LocalVideoRecordId == recordId);
+                    long remoteId = 1000 + recordId;
+                    store.MarkUploaded(
+                        task.Id,
+                        remoteId,
+                        BackupRequestAuthentication.CurrentVersion,
+                        "verified-receipt",
+                        now);
+                    database.MarkVideoUploaded(recordId, remoteId);
+                }
+                return recordId;
+            }
+
+            _ = AddRecording(
+                "outside-root.mp4",
+                now.AddMinutes(-20),
+                true,
+                otherDirectory);
+            long firstEligible = AddRecording("eligible-1.mp4", now.AddMinutes(-10), true);
+            _ = AddRecording("eligible-2.mp4", now.AddMinutes(-9), true);
+            _ = AddRecording("shared.mp4", now.AddMinutes(-8), true);
+            _ = AddRecording("shared.mp4", now.AddMinutes(-7), false);
+            for (int index = 0; index < 12; index++)
+            {
+                _ = AddRecording(
+                    "many-shared.mp4",
+                    now.AddMinutes(-7).AddSeconds(index),
+                    true);
+            }
+            long oldVerification = AddRecording("old-verification.mp4", now.AddMinutes(-6), true);
+            RecordingTransferTask oldTask = store.GetUploadedWithLocalCache()
+                .Single(item => item.LocalVideoRecordId == oldVerification);
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+                       $"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    UPDATE RecordingTransferQueue
+                    SET VerificationVersion = 0
+                    WHERE Id = @id;";
+                command.Parameters.AddWithValue("@id", oldTask.Id);
+                command.ExecuteNonQuery();
+            }
+
+            RecordingTransferTask single = Assert.Single(
+                store.GetCacheCleanupCandidateBatch(
+                    directory,
+                    1,
+                    BackupRequestAuthentication.CurrentVersion));
+            Assert.Equal(firstEligible, single.LocalVideoRecordId);
+
+            RecordingTransferTask[] batch = store.GetCacheCleanupCandidateBatch(
+                    directory,
+                    10,
+                    BackupRequestAuthentication.CurrentVersion)
+                .ToArray();
+            Assert.Equal(2, batch.Length);
+            Assert.DoesNotContain(batch, task =>
+                string.Equals(
+                    Path.GetFileName(task.LocalFilePath),
+                    "shared.mp4",
+                    StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(batch, task =>
+                string.Equals(
+                    Path.GetFileName(task.LocalFilePath),
+                    "many-shared.mp4",
+                    StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(batch, task =>
+                task.LocalVideoRecordId == oldVerification);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+            DeleteTempDirectory(otherDirectory);
+        }
+    }
+
+    [Fact]
     public void CachePoliciesSelectOnlyTheExpectedUploadedRecordings()
     {
         DateTime now = new(2026, 7, 29, 12, 0, 0, DateTimeKind.Local);

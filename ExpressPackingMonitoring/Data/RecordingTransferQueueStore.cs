@@ -82,6 +82,14 @@ internal sealed class RecordingTransferQueueStore : IDisposable
         EnsureColumn("VerificationReceipt", "TEXT DEFAULT ''");
         Execute("CREATE UNIQUE INDEX IF NOT EXISTS IX_RecordingTransferQueue_LocalVideoRecordId ON RecordingTransferQueue(LocalVideoRecordId);");
         Execute("CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_State_UpdatedAt ON RecordingTransferQueue(State, UpdatedAt);");
+        Execute(@"
+            CREATE INDEX IF NOT EXISTS IX_RecordingTransferQueue_CacheCleanup
+            ON RecordingTransferQueue(CreatedAt, Id, LocalVideoRecordId)
+            WHERE State = 'Uploaded'
+              AND CacheDeletedAt IS NULL
+              AND RemoteVideoRecordId IS NOT NULL
+              AND RemoteVideoRecordId > 0
+              AND VerificationReceipt <> '';");
     }
 
     public bool Enqueue(
@@ -229,6 +237,139 @@ internal sealed class RecordingTransferQueueStore : IDisposable
             var result = new List<RecordingTransferTask>();
             while (reader.Read())
                 result.Add(Read(reader));
+            return result;
+        }
+    }
+
+    public IReadOnlyList<RecordingTransferTask> GetCacheCleanupCandidateBatch(
+        string rootPath,
+        int limit,
+        int minimumVerificationVersion)
+    {
+        string normalizedRoot = Path.GetFullPath(rootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        string escapedRootPrefix = normalizedRoot
+            .Replace("~", "~~", StringComparison.Ordinal)
+            .Replace("%", "~%", StringComparison.Ordinal)
+            .Replace("_", "~_", StringComparison.Ordinal)
+            + "%";
+        limit = Math.Clamp(limit, 1, 128);
+        minimumVerificationVersion = Math.Max(0, minimumVerificationVersion);
+        lock (_lock)
+        {
+            var candidatePaths = new List<string>(limit);
+            using (var paths = _connection.CreateCommand())
+            {
+                paths.CommandText = @"
+                    SELECT v.FilePath
+                    FROM RecordingTransferQueue q
+                    JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                    JOIN LocalVideoFileInventory i ON i.FilePath = v.FilePath
+                    WHERE q.State = 'Uploaded'
+                      AND q.CacheDeletedAt IS NULL
+                      AND q.RemoteVideoRecordId IS NOT NULL
+                      AND q.RemoteVideoRecordId > 0
+                      AND q.VerificationVersion >= @minimumVersion
+                      AND q.VerificationReceipt <> ''
+                      AND TRIM(q.VerificationReceipt) <> ''
+                      AND v.IsDeleted = 0
+                      AND v.SourceType = 'pc'
+                      AND v.FilePath LIKE @rootPrefix ESCAPE '~'
+                      AND v.StorageState = 'Uploaded'
+                      AND v.RemoteVideoRecordId IS NOT NULL
+                      AND v.RemoteVideoRecordId > 0
+                      AND (
+                          SELECT COUNT(1)
+                          FROM VideoRecords fileRecord
+                          WHERE fileRecord.IsDeleted = 0
+                            AND fileRecord.SourceType = 'pc'
+                            AND fileRecord.FilePath = v.FilePath
+                      ) <= @resultLimit
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM VideoRecords sibling
+                          LEFT JOIN RecordingTransferQueue siblingQueue
+                            ON siblingQueue.LocalVideoRecordId = sibling.Id
+                          WHERE sibling.IsDeleted = 0
+                            AND sibling.SourceType = 'pc'
+                            AND sibling.FilePath = v.FilePath
+                            AND (
+                                sibling.StorageState <> 'Uploaded'
+                                OR sibling.RemoteVideoRecordId IS NULL
+                                OR sibling.RemoteVideoRecordId <= 0
+                                OR siblingQueue.State <> 'Uploaded'
+                                OR siblingQueue.RemoteVideoRecordId IS NULL
+                                OR siblingQueue.RemoteVideoRecordId <= 0
+                                OR siblingQueue.VerificationVersion < @minimumVersion
+                                OR TRIM(COALESCE(siblingQueue.VerificationReceipt, '')) = ''
+                            )
+                      )
+                    ORDER BY q.CreatedAt ASC, q.Id ASC
+                    LIMIT @scanLimit;";
+                paths.Parameters.AddWithValue("@minimumVersion", minimumVerificationVersion);
+                paths.Parameters.AddWithValue("@rootPrefix", escapedRootPrefix);
+                paths.Parameters.AddWithValue("@resultLimit", limit);
+                paths.Parameters.AddWithValue("@scanLimit", limit * 4);
+                using var reader = paths.ExecuteReader();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (reader.Read() && candidatePaths.Count < limit)
+                {
+                    string path = reader.GetString(0);
+                    if (seen.Add(path))
+                        candidatePaths.Add(path);
+                }
+            }
+
+            if (candidatePaths.Count == 0)
+                return Array.Empty<RecordingTransferTask>();
+
+            using var cmd = _connection.CreateCommand();
+            var placeholders = new List<string>(candidatePaths.Count);
+            for (int index = 0; index < candidatePaths.Count; index++)
+            {
+                string parameterName = $"@path{index}";
+                placeholders.Add(parameterName);
+                cmd.Parameters.AddWithValue(parameterName, candidatePaths[index]);
+            }
+            cmd.CommandText = $@"
+                SELECT q.Id, q.LocalVideoRecordId, q.LocalFilePath, q.FileSha256,
+                       q.SourceSessionId, q.TargetNodeId, q.TargetAddress, q.State,
+                       q.ServerOffset, q.RetryCount, q.LastError, q.NextAttemptAt,
+                       q.RemoteVideoRecordId, q.VerificationVersion,
+                       q.VerificationReceipt, q.CacheDeletedAt,
+                       q.CreatedAt, q.UpdatedAt, v.FilePath
+                FROM RecordingTransferQueue q
+                JOIN VideoRecords v ON v.Id = q.LocalVideoRecordId
+                WHERE v.IsDeleted = 0
+                  AND v.SourceType = 'pc'
+                  AND v.FilePath IN ({string.Join(", ", placeholders)})
+                  AND q.State = 'Uploaded'
+                  AND q.CacheDeletedAt IS NULL
+                ORDER BY q.CreatedAt ASC, q.Id ASC;";
+            using var tasksReader = cmd.ExecuteReader();
+            var tasksByPath = new Dictionary<string, List<RecordingTransferTask>>(
+                StringComparer.OrdinalIgnoreCase);
+            while (tasksReader.Read())
+            {
+                string path = tasksReader.GetString(18);
+                if (!tasksByPath.TryGetValue(path, out List<RecordingTransferTask>? tasks))
+                {
+                    tasks = [];
+                    tasksByPath[path] = tasks;
+                }
+                tasks.Add(Read(tasksReader));
+            }
+            var result = new List<RecordingTransferTask>(limit);
+            foreach (string path in candidatePaths)
+            {
+                if (!tasksByPath.TryGetValue(path, out List<RecordingTransferTask>? tasks)
+                    || result.Count + tasks.Count > limit)
+                {
+                    continue;
+                }
+                result.AddRange(tasks);
+            }
             return result;
         }
     }

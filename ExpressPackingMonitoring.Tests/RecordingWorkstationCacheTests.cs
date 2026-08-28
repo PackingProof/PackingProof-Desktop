@@ -89,6 +89,20 @@ public sealed class RecordingWorkstationCacheTests
     }
 
     [Fact]
+    public void CalculateSpace_SeparatesConfiguredLimitFromPhysicalEmergencyHeadroom()
+    {
+        RecordingCacheSpaceSnapshot snapshot =
+            RecordingWorkstationCachePolicy.CalculateSpace(
+                cacheBytes: 99 * GiB,
+                configuredLimitBytes: 100 * GiB,
+                availableBytes: 100 * GiB,
+                reserveBytes: 20 * GiB);
+
+        Assert.Equal(GiB, snapshot.RemainingBytes);
+        Assert.Equal(80 * GiB, snapshot.PhysicalRemainingBytes);
+    }
+
+    [Fact]
     public void CreateCleanupPlan_DeletesOldestVerifiedFilesToWideLowWatermark()
     {
         DateTime now = new(2026, 7, 30, 12, 0, 0, DateTimeKind.Utc);
@@ -137,6 +151,49 @@ public sealed class RecordingWorkstationCacheTests
         Assert.Equal([7L], plan.ItemIds);
         Assert.Equal(70 * GiB, plan.TargetCacheBytes);
         Assert.True(plan.ProjectedCacheBytes > plan.TargetCacheBytes);
+    }
+
+    [Theory]
+    [InlineData(50, 100, 50, 20, false)]
+    [InlineData(79, 100, 50, 20, false)]
+    [InlineData(80, 100, 50, 20, true)]
+    [InlineData(90, 100, 50, 20, true)]
+    [InlineData(99, 100, 21, 20, true)]
+    public void RequiresCleanup_OnlyEntersVerifiedFileScanWhenNeeded(
+        int cacheGb,
+        int limitGb,
+        int availableGb,
+        int reserveGb,
+        bool expected)
+    {
+        RecordingCacheSpaceSnapshot snapshot =
+            RecordingWorkstationCachePolicy.CalculateSpace(
+                cacheGb * GiB,
+                limitGb * GiB,
+                availableGb * GiB,
+                reserveGb * GiB);
+
+        Assert.Equal(
+            expected,
+            RecordingWorkstationCachePolicy.RequiresCleanup(snapshot, 2 * GiB));
+    }
+
+    [Theory]
+    [InlineData(22, 20, 2, true)]
+    [InlineData(21, 20, 2, false)]
+    [InlineData(1, 20, 2, false)]
+    public void PhysicalHeadroomGate_UsesOnlyDriveSpaceAndReserve(
+        int availableGb,
+        int reserveGb,
+        int requiredGb,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            RecordingWorkstationCachePolicy.HasRequiredPhysicalHeadroom(
+                availableGb * GiB,
+                reserveGb * GiB,
+                requiredGb * GiB));
     }
 
     [Fact]
@@ -251,15 +308,21 @@ public sealed class RecordingWorkstationCacheTests
             "ViewModels",
             "MainViewModel.Transfer.cs");
 
-        int preflightMaintenance = recording.IndexOf(
-            "RunRecordingCacheMaintenance(",
-            recording.IndexOf("EnsureRecordingCacheSpaceForNewRecordingAsync", StringComparison.Ordinal),
-            StringComparison.Ordinal);
+        int preflightGate = recording.IndexOf(
+            "EnsureRecordingStorageHeadroomForNewRecording", StringComparison.Ordinal);
         int preflightDialog = recording.IndexOf(
             "AppDialog.Confirm(",
-            preflightMaintenance,
+            preflightGate,
             StringComparison.Ordinal);
-        Assert.True(preflightMaintenance >= 0 && preflightMaintenance < preflightDialog);
+        Assert.True(preflightGate >= 0 && preflightGate < preflightDialog);
+        Assert.Contains(
+            "RecordingWorkstationCachePolicy.HasRequiredPhysicalHeadroom(",
+            recording,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "RunRecordingCacheMaintenance(",
+            recording,
+            StringComparison.Ordinal);
 
         int runtimeMaintenance = cleanup.IndexOf(
             "RunRecordingCacheMaintenance(",
@@ -269,8 +332,10 @@ public sealed class RecordingWorkstationCacheTests
             runtimeMaintenance,
             StringComparison.Ordinal);
         Assert.True(runtimeMaintenance >= 0 && runtimeMaintenance < runtimeStop);
+        Assert.Contains("result.Snapshot.PhysicalRemainingBytes", cleanup, StringComparison.Ordinal);
 
-        Assert.Contains("_recordingTransferStore.GetUploadedWithLocalCache()", transfer, StringComparison.Ordinal);
+        Assert.Contains("GetCacheCleanupCandidateBatch(", transfer, StringComparison.Ordinal);
+        Assert.Contains("RecordingCacheCleanupBatchSize", transfer, StringComparison.Ordinal);
         Assert.Contains("task.RemoteVideoRecordId is not long remoteRecordId", transfer, StringComparison.Ordinal);
         Assert.Contains(".OrderBy(item => item.CreatedAt)", ReadRepositoryFile(
             "ExpressPackingMonitoring",
@@ -392,6 +457,8 @@ public sealed class RecordingWorkstationCacheTests
             Assert.Contains(files, file =>
                 string.Equals(file.FilePath, otherPath, StringComparison.OrdinalIgnoreCase)
                 && file.FileSizeBytes == 30);
+            Assert.Equal(40, database.GetLocalVideoFileInventoryBytes(root));
+            Assert.Equal(30, database.GetLocalVideoFileInventoryBytes(otherRoot));
             database.Dispose();
         }
         finally
@@ -446,12 +513,17 @@ public sealed class RecordingWorkstationCacheTests
             "ViewModels",
             "MainViewModel.Transfer.cs");
 
-        Assert.Contains("GetRecordingCacheInventoryBytes(cachePath)", transfer, StringComparison.Ordinal);
+        Assert.Contains("GetLocalVideoFileInventoryBytes(cachePath)", transfer, StringComparison.Ordinal);
         Assert.Contains("ReconcileRecordingCacheInventory(cachePath)", transfer, StringComparison.Ordinal);
         Assert.Contains("forceReconcile", transfer, StringComparison.Ordinal);
         Assert.DoesNotContain("GetVideoBytes(cachePath)", transfer, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetUploadedWithLocalCache()", transfer, StringComparison.Ordinal);
+        Assert.Contains("GetCacheCleanupCandidateBatch(", transfer, StringComparison.Ordinal);
+        Assert.Contains("RecordingCacheCleanupBatchSize = 32", transfer, StringComparison.Ordinal);
+        Assert.Contains("RecordingCacheReconcileInterval", transfer, StringComparison.Ordinal);
+        Assert.Contains("Cache inventory reused from database", transfer, StringComparison.Ordinal);
         Assert.Contains(
-            "_db.IsLocalVideoFileFullyVerifiedForCacheDeletion(path)",
+            "_db.IsLocalVideoFileFullyVerifiedForCacheDeletion(",
             transfer,
             StringComparison.Ordinal);
     }

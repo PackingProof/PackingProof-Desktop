@@ -469,25 +469,45 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async Task<bool> EnsureRecordingCacheSpaceForNewRecordingAsync()
+        private bool EnsureRecordingStorageHeadroomForNewRecording()
         {
             if (!IsRecordingWorkstation)
                 return true;
 
-            RecordingCacheMaintenanceResult result = await Task.Run(
-                () => RunRecordingCacheMaintenance(
-                    RecordingWorkstationCachePolicy
-                        .RecordingAndPackagingHeadroomBytes));
-            if (result.IsAvailable && result.CanFitRequiredHeadroom)
-                return true;
+            try
+            {
+                StorageLocation location =
+                    RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)
+                    ?? throw new IOException("尚未设置本地缓存位置");
+                string cachePath = Path.GetFullPath(location.Path);
+                string? root = Path.GetPathRoot(cachePath);
+                if (string.IsNullOrWhiteSpace(root))
+                    throw new IOException("无法确定本地缓存所在磁盘");
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady)
+                    throw new IOException("本地缓存所在磁盘未就绪");
+                long reserveBytes =
+                    StorageSpacePolicy.GetEffectiveReserveBytes(location, drive);
+                if (RecordingWorkstationCachePolicy.HasRequiredPhysicalHeadroom(
+                        drive.AvailableFreeSpace,
+                        reserveBytes,
+                        RecordingWorkstationCachePolicy
+                            .RecordingAndPackagingHeadroomBytes))
+                {
+                    return true;
+                }
+                RuntimeLog.Warn(
+                    "Recording",
+                    $"Recording start rejected by physical storage gate available={drive.AvailableFreeSpace}, reserve={reserveBytes}");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn(
+                    "Recording",
+                    $"Recording start storage gate unavailable: {ex.Message}");
+            }
 
-            result = await Task.Run(
-                () => RunRecordingCacheMaintenance(
-                    RecordingWorkstationCachePolicy
-                        .RecordingAndPackagingHeadroomBytes,
-                    forceReconcile: true));
-            if (result.IsAvailable && result.CanFitRequiredHeadroom)
-                return true;
+            RunRecordingCacheCleanup();
 
             if (_recordingCacheBlockedDialogShown)
                 return false;
@@ -539,28 +559,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (Config.EnableEventRecordingBuffer)
-                {
-                    TimeSpan snapshotAge = DateTime.Now - _recordingCacheSnapshotAt;
-                    if (_recordingCacheSnapshotAvailable
-                        && _recordingCacheSnapshotAt != DateTime.MinValue
-                        && snapshotAge <= TimeSpan.FromSeconds(30)
-                        && !_recordingCacheCanFit)
-                    {
-                        ShowToast("本地缓存空间不足，无法开始录像", ToastSeverity.Warning);
-                        return;
-                    }
-                    RuntimeLog.Info(
-                        "Recording",
-                        _recordingCacheSnapshotAt == DateTime.MinValue
-                            ? "Event recording buffer enabled; cache snapshot unavailable, skipped synchronous maintenance"
-                            : $"Event recording buffer enabled; used cache snapshot ageMs={(long)snapshotAge.TotalMilliseconds}, available={_recordingCacheSnapshotAvailable}, canFit={_recordingCacheCanFit}");
-                }
-                else if (!await EnsureRecordingCacheSpaceForNewRecordingAsync())
+                if (!EnsureRecordingStorageHeadroomForNewRecording())
                 {
                     return;
                 }
-                RuntimeLog.Info("Recording", $"Start pipeline cache check completed elapsedMs={startupWatch.ElapsedMilliseconds}");
+                RuntimeLog.Info("Recording", $"Start storage gate completed elapsedMs={startupWatch.ElapsedMilliseconds}");
 
                 bool startAudioAfterVideo = Config.EnableAudioRecording && HasConfiguredAudioDevice();
                 bool useDirectAac = startAudioAfterVideo && Config.EnableDirectAacRecording;
