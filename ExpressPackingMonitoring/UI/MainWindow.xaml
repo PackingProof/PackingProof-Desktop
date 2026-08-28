@@ -591,7 +591,74 @@
                         </Grid>
                     </Grid>
                     <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,0,0,6">
-                        <TextBlock Text="本机录制动态" FontSize="18" FontWeight="Black" Foreground="{DynamicResource TextPrimary}"/>
+                        <StackPanel>
+                            <TextBlock Text="本机录制动态" FontSize="18" FontWeight="Black" Foreground="{DynamicResource TextPrimary}"/>
+                            <StackPanel Visibility="{Binding IsPreRecordBufferVisible, Converter={StaticResource BoolToVisibility}}" Margin="0,6,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding PreRecordBufferStatusText}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding PreRecordBufferFrameSummaryText}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
+                                </Grid>
+                                <Grid Height="7" Margin="0,4,0,0" ClipToBounds="True">
+                                    <controls:SmoothProgressBar Minimum="0" Maximum="100" TargetValue="{Binding PreRecordBufferProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0">
+                                        <controls:SmoothProgressBar.Style>
+                                            <Style TargetType="controls:SmoothProgressBar">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPreRecordBufferRolling}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </controls:SmoothProgressBar.Style>
+                                    </controls:SmoothProgressBar>
+                                    <Border Background="{DynamicResource BorderStrong}" CornerRadius="2" ClipToBounds="True">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPreRecordBufferRolling}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Rectangle>
+                                            <Rectangle.Style>
+                                                <Style TargetType="Rectangle">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPreRecordBufferRolling}" Value="True">
+                                                            <DataTrigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetProperty="(Shape.Fill).(Brush.RelativeTransform).(TranslateTransform.X)" From="-1.4" To="1.4" Duration="0:0:2.4" RepeatBehavior="Forever"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </DataTrigger.EnterActions>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Rectangle.Style>
+                                            <Rectangle.Fill>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <LinearGradientBrush.RelativeTransform>
+                                                        <TranslateTransform X="-1.4"/>
+                                                    </LinearGradientBrush.RelativeTransform>
+                                                    <GradientStop Color="{StaticResource Blue500Color}" Offset="0"/>
+                                                    <GradientStop Color="{StaticResource Blue500Color}" Offset="0.25"/>
+                                                    <GradientStop Color="{StaticResource WhiteColor}" Offset="0.5"/>
+                                                    <GradientStop Color="{StaticResource Blue500Color}" Offset="0.75"/>
+                                                    <GradientStop Color="{StaticResource Blue500Color}" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
                     </Border>
                     <ListView Grid.Row="2" ItemsSource="{Binding FilteredLogs}" AlternationCount="2" BorderThickness="0" Background="{StaticResource TransparentBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListView.ItemTemplate>

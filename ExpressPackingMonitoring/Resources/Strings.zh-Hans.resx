@@ -993,4 +993,8 @@
   <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>约 0 秒 / 0 MB 内存</value></data>
   <data name="播报时调为最大音量" xml:space="preserve"><value>播报时调为最大音量</value></data>
   <data name="关闭保护后才能修改，修改后旧链接立即失效" xml:space="preserve"><value>关闭保护后才能修改，修改后旧链接立即失效</value></data>
- </root>
+  <data name="Main.PreRecord.Status" xml:space="preserve"><value>已预录制 {0:0.0} 秒，持续更新中</value></data>
+  <data name="Main.PreRecord.FrameSummary" xml:space="preserve"><value>{0} / {1} 帧</value></data>
+  <data name="Main.PreRecord.Disabled" xml:space="preserve"><value>预录制缓存未开启</value></data>
+  <data name="Main.PreRecord.Waiting" xml:space="preserve"><value>预录制已用于当前录像，等待重新缓冲</value></data>
+</root>

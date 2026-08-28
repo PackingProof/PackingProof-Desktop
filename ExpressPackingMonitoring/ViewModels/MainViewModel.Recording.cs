@@ -5,6 +5,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.Localization;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -29,6 +30,7 @@ namespace ExpressPackingMonitoring.ViewModels
             IsBusy = true;
             BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止...";
             IsRecording = false; // 1. 立即改变 UI 状态
+            PublishPreRecordBufferStatus(force: true);
             _isScanning = false;
             _delayBeforeZooming = false;
             _zoomPhase = ZoomPhase.None;
@@ -683,6 +685,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _recordingGracePeriodStartTime = DateTime.Now;
                 _lastMotionTime = _recordingGracePeriodStartTime;
                 IsRecording = true;
+                PublishPreRecordBufferStatus(force: true);
                 _pendingPreRecordStartTime = null;
                 List<Mat>? preRecordFrames = _pendingPreRecordFrames;
                 List<DateTime>? preRecordTimestamps = _pendingPreRecordTimestamps;
@@ -818,7 +821,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     _currentScanRecord.IsActive = false;
                     _currentScanRecord.Duration = "失败";
                 }
-                _currentScanRecord = new ScanRecord(_recordingOrderId, "0s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
+                int initialDisplayedSeconds = Math.Max(0, (int)Math.Floor(_activePreRecordSeconds));
+                _currentScanRecord = new ScanRecord(_recordingOrderId, $"{initialDisplayedSeconds}s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
             }
             finally
@@ -988,6 +992,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             oldFrame.Frame.Dispose();
                         _preRecordFrames.Clear();
                         _preRecordBytes = 0;
+                        _preRecordDisplayCapacityFrames = 0;
+                        _preRecordDroppedFrames = 0;
+                        _preRecordBufferHasWrapped = false;
+                        _preRecordRollingTransitionPending = false;
                         RuntimeLog.Info("Recording", $"Pre-record buffer reset after frame size change {_preRecordWidth}x{_preRecordHeight}->{clone.Cols}x{clone.Rows}");
                     }
                     _preRecordWidth = clone.Cols;
@@ -1001,6 +1009,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     });
                     _preRecordBytes += bytes;
                     long maxBytes = GetPreRecordBufferMaxBytes();
+                    if (_preRecordDisplayCapacityFrames <= 0 && bytes > 0 && maxBytes > 0)
+                        _preRecordDisplayCapacityFrames = Math.Max(
+                            1,
+                            (int)Math.Min(int.MaxValue, maxBytes / bytes));
                     while (_preRecordFrames.First != null && _preRecordBytes > maxBytes)
                     {
                         PreRecordFrame old = _preRecordFrames.First.Value;
@@ -1008,8 +1020,10 @@ namespace ExpressPackingMonitoring.ViewModels
                         _preRecordBytes -= old.Bytes;
                         old.Frame.Dispose();
                         _preRecordDroppedFrames++;
+                        _preRecordBufferHasWrapped = true;
                     }
                 }
+                PublishPreRecordBufferStatus();
             }
             catch (Exception ex)
             {
@@ -1050,8 +1064,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Info(
                         "Recording",
                         $"Pre-record snapshot frames={result.Count}, bytes={snapshotBytes}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
+                    _preRecordDroppedFrames = 0;
+                    _preRecordBufferHasWrapped = false;
+                    _preRecordRollingTransitionPending = false;
                 }
             }
+            if (result.Count > 0)
+                PublishPreRecordBufferStatus(force: true);
             return result;
         }
 
@@ -1064,7 +1083,144 @@ namespace ExpressPackingMonitoring.ViewModels
                 _preRecordBytes = 0;
                 _preRecordWidth = 0;
                 _preRecordHeight = 0;
+                _preRecordDisplayCapacityFrames = 0;
+                _preRecordDroppedFrames = 0;
+                _preRecordBufferHasWrapped = false;
+                _preRecordRollingTransitionPending = false;
             }
+            PublishPreRecordBufferStatus(force: true);
+        }
+
+        private void RefreshPreRecordBufferCapacityAfterConfigChange()
+        {
+            long maxBytes = GetPreRecordBufferMaxBytes();
+            int removedFrames = 0;
+            int capacityFrames;
+            lock (_eventBufferLock)
+            {
+                long bytesPerFrame = _preRecordFrames.First?.Value.Bytes ?? 0;
+                _preRecordDisplayCapacityFrames = bytesPerFrame > 0 && maxBytes > 0
+                    ? Math.Max(1, (int)Math.Min(int.MaxValue, maxBytes / bytesPerFrame))
+                    : CalculatePreRecordBufferCapacityFrames();
+                _preRecordDroppedFrames = 0;
+                _preRecordBufferHasWrapped = false;
+                _preRecordRollingTransitionPending = false;
+
+                while (_preRecordFrames.First != null && _preRecordBytes > maxBytes)
+                {
+                    PreRecordFrame old = _preRecordFrames.First.Value;
+                    _preRecordFrames.RemoveFirst();
+                    _preRecordBytes -= old.Bytes;
+                    old.Frame.Dispose();
+                    removedFrames++;
+                }
+
+                if (removedFrames > 0)
+                {
+                    _preRecordDroppedFrames = removedFrames;
+                    _preRecordBufferHasWrapped = true;
+                }
+                capacityFrames = _preRecordDisplayCapacityFrames;
+            }
+            RuntimeLog.Info(
+                "Recording",
+                $"Pre-record capacity refreshed after config change capacityFrames={capacityFrames}, removedFrames={removedFrames}, maxBytes={maxBytes}");
+            PublishPreRecordBufferStatus(force: true);
+        }
+
+        private void PublishPreRecordBufferStatus(bool force = false)
+        {
+            long version = force
+                ? Interlocked.Increment(ref _preRecordUiPublishVersion)
+                : Volatile.Read(ref _preRecordUiPublishVersion);
+            if (!force
+                && Stopwatch.GetElapsedTime(Volatile.Read(ref _lastPreRecordUiPublishTicks)).TotalMilliseconds < 250)
+                return;
+            long now = Stopwatch.GetTimestamp();
+            if (force)
+                Interlocked.Exchange(ref _lastPreRecordUiPublishTicks, now);
+            else
+            {
+                long last = Volatile.Read(ref _lastPreRecordUiPublishTicks);
+                if (Interlocked.CompareExchange(ref _lastPreRecordUiPublishTicks, now, last) != last)
+                    return;
+            }
+            if (force)
+                Interlocked.Exchange(ref _preRecordUiPublishQueued, 0);
+            if (Interlocked.Exchange(ref _preRecordUiPublishQueued, 1) != 0)
+                return;
+
+            int frameCount;
+            long bytes;
+            lock (_eventBufferLock)
+            {
+                frameCount = _preRecordFrames.Count;
+                bytes = _preRecordBytes;
+                if (_preRecordDisplayCapacityFrames <= 0)
+                    _preRecordDisplayCapacityFrames = CalculatePreRecordBufferCapacityFrames();
+                if (frameCount > _preRecordDisplayCapacityFrames)
+                    _preRecordDisplayCapacityFrames = frameCount;
+            }
+            int capacity = _preRecordDisplayCapacityFrames;
+            long maxBytes = GetPreRecordBufferMaxBytes();
+            bool enabled = Config?.EnableEventRecordingBuffer == true && maxBytes > 0;
+            bool full = enabled && _preRecordBufferHasWrapped;
+            int rollingThresholdFrames = capacity > 0
+                ? Math.Max(1, (int)Math.Ceiling(capacity * 0.6))
+                : 0;
+            bool thresholdReached = enabled && rollingThresholdFrames > 0 && frameCount >= rollingThresholdFrames;
+            bool rolling = enabled && (full || _preRecordRollingTransitionPending);
+            if (thresholdReached && !rolling && !full)
+                _preRecordRollingTransitionPending = true;
+            double progress = enabled && capacity > 0
+                ? Math.Clamp(frameCount * 100d / rollingThresholdFrames, 0, 100)
+                : 0;
+            double bufferedSeconds = enabled
+                ? frameCount / (double)Math.Max(1, GetEffectiveRecordingFps())
+                : 0;
+            bool capturing = enabled && ShouldCaptureEventRecordingBufferFrame();
+            string status = !enabled
+                ? AppLanguage.Get("Main.PreRecord.Disabled")
+                : capturing
+                    ? AppLanguage.Format("Main.PreRecord.Status", bufferedSeconds)
+                    : AppLanguage.Get("Main.PreRecord.Waiting");
+            string frameSummary = enabled
+                ? AppLanguage.Format("Main.PreRecord.FrameSummary", frameCount, capacity)
+                : AppLanguage.Format("Main.PreRecord.FrameSummary", 0, 0);
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                Interlocked.Exchange(ref _preRecordUiPublishQueued, 0);
+                return;
+            }
+            dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    if (_isDisposed || version != Volatile.Read(ref _preRecordUiPublishVersion)) return;
+                    PreRecordBufferFrameCount = frameCount;
+                    PreRecordBufferCapacityFrames = capacity;
+                    PreRecordBufferProgress = progress;
+                    IsPreRecordBufferFull = full;
+                    IsPreRecordBufferRolling = rolling;
+                    PreRecordBufferStatusText = status;
+                    PreRecordBufferFrameSummaryText = frameSummary;
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _preRecordUiPublishQueued, 0);
+                }
+            });
+        }
+
+        private int CalculatePreRecordBufferCapacityFrames()
+        {
+            long maxBytes = GetPreRecordBufferMaxBytes();
+            int width = _actualCameraWidth > 0 ? _actualCameraWidth : Config.FrameWidth;
+            int height = _actualCameraHeight > 0 ? _actualCameraHeight : Config.FrameHeight;
+            long bytesPerFrame = (long)Math.Max(1, width) * Math.Max(1, height) * 3;
+            return maxBytes <= 0 ? 0 : Math.Max(1, (int)Math.Min(int.MaxValue, maxBytes / bytesPerFrame));
         }
 
         private void ClearPendingEventRecordingFrames()

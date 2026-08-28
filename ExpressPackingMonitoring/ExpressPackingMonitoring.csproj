@@ -241,6 +241,7 @@
     <Compile Include="UI\StatisticsWindow.xaml.cs" />
     <Compile Include="UI\StoragePathSelectionDialog.xaml.cs" />
     <Compile Include="UI\Controls\StatusCard.xaml.cs" />
+    <Compile Include="UI\Controls\SmoothProgressBar.cs" />
     <Compile Include="UI\UpdateAvailableDialog.xaml.cs" />
     <Compile Include="Workstations\PrintToolInstallGuide.cs" />
     <Compile Include="Workstations\WorkstationInstanceCoordinator.cs" />

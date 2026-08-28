@@ -1012,4 +1012,8 @@
   <data name="约 0 秒 / 0 MB 内存" xml:space="preserve"><value>About 0 seconds / 0 MB memory</value></data>
   <data name="播报时调为最大音量" xml:space="preserve"><value>Set volume to maximum during announcements</value></data>
   <data name="关闭保护后才能修改，修改后旧链接立即失效" xml:space="preserve"><value>Turn protection off to edit; old links become invalid immediately after modification</value></data>
- </root>
+  <data name="Main.PreRecord.Status" xml:space="preserve"><value>Pre-recorded {0:0.0} seconds, continuously updating</value></data>
+  <data name="Main.PreRecord.FrameSummary" xml:space="preserve"><value>{0} / {1} frames</value></data>
+  <data name="Main.PreRecord.Disabled" xml:space="preserve"><value>Pre-recording buffer is not active</value></data>
+  <data name="Main.PreRecord.Waiting" xml:space="preserve"><value>Pre-recording added to the current recording; waiting to buffer again</value></data>
+</root>

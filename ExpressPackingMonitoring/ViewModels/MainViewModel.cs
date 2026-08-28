@@ -62,9 +62,14 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly LinkedList<PreRecordFrame> _preRecordFrames = new();
         private long _preRecordBytes;
         private long _preRecordDroppedFrames;
+        private bool _preRecordBufferHasWrapped;
         private long _preRecordSequence;
         private int _preRecordWidth;
         private int _preRecordHeight;
+        private int _preRecordDisplayCapacityFrames;
+        private long _lastPreRecordUiPublishTicks;
+        private int _preRecordUiPublishQueued;
+        private long _preRecordUiPublishVersion;
         private List<Mat>? _pendingPreRecordFrames;
         private List<DateTime>? _pendingPreRecordTimestamps;
         private DateTime? _pendingPreRecordStartTime;
@@ -515,6 +520,23 @@ namespace ExpressPackingMonitoring.ViewModels
                     ClearPreviewOrderNotice();
             }
         }
+        private int _preRecordBufferFrameCount;
+        private int _preRecordBufferCapacityFrames;
+        private double _preRecordBufferProgress;
+        private bool _isPreRecordBufferFull;
+        private bool _isPreRecordBufferRolling;
+        private bool _preRecordRollingTransitionPending;
+        private string _preRecordBufferStatusText = "预录制缓存未开始";
+        private string _preRecordBufferFrameSummaryText = "0 / 0 帧";
+
+        public bool IsPreRecordBufferVisible => Config?.EnableEventRecordingBuffer == true;
+        public int PreRecordBufferFrameCount { get => _preRecordBufferFrameCount; private set => SetProperty(ref _preRecordBufferFrameCount, value); }
+        public int PreRecordBufferCapacityFrames { get => _preRecordBufferCapacityFrames; private set => SetProperty(ref _preRecordBufferCapacityFrames, value); }
+        public double PreRecordBufferProgress { get => _preRecordBufferProgress; private set => SetProperty(ref _preRecordBufferProgress, value); }
+        public bool IsPreRecordBufferFull { get => _isPreRecordBufferFull; private set => SetProperty(ref _isPreRecordBufferFull, value); }
+        public bool IsPreRecordBufferRolling { get => _isPreRecordBufferRolling; private set => SetProperty(ref _isPreRecordBufferRolling, value); }
+        public string PreRecordBufferStatusText { get => _preRecordBufferStatusText; private set => SetProperty(ref _preRecordBufferStatusText, value); }
+        public string PreRecordBufferFrameSummaryText { get => _preRecordBufferFrameSummaryText; private set => SetProperty(ref _preRecordBufferFrameSummaryText, value); }
         public bool IsShutdownInProgress { get => _isShutdownInProgress; private set => SetProperty(ref _isShutdownInProgress, value); }
         public double DiskUsagePercent { get => _diskUsagePercent; set => SetProperty(ref _diskUsagePercent, value); }
         public string DiskUsageText { get => _diskUsageText; set => SetProperty(ref _diskUsageText, value); }
@@ -524,6 +546,7 @@ namespace ExpressPackingMonitoring.ViewModels
             set
             {
                 bool wasEventBufferEnabled = _config?.EnableEventRecordingBuffer == true;
+                int previousPreRecordBufferMb = _config?.PreRecordBufferMB ?? 0;
                 if (SetProperty(ref _config, value))
                 {
                     if (wasEventBufferEnabled && !value.EnableEventRecordingBuffer)
@@ -532,6 +555,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         ClearPendingEventRecordingFrames();
                         RuntimeLog.Info("Recording", "Event recording buffer disabled; released pre-record frames");
                     }
+                    else if (value.EnableEventRecordingBuffer
+                        && (!wasEventBufferEnabled || previousPreRecordBufferMb != value.PreRecordBufferMB))
+                    {
+                        RefreshPreRecordBufferCapacityAfterConfigChange();
+                    }
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
                     OnPropertyChanged(nameof(IsRecordingWorkstation));
                     OnPropertyChanged(nameof(IsMainConnectionVisible));
@@ -539,6 +567,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(MainConnectionButtonToolTip));
                     OnPropertyChanged(nameof(ComputerDisplayName));
                     OnPropertyChanged(nameof(ScanInputPlaceholder));
+                    OnPropertyChanged(nameof(IsPreRecordBufferVisible));
+                    PublishPreRecordBufferStatus(force: true);
                 }
             }
         }
@@ -1227,6 +1257,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     Debug.WriteLine($"[Zoom] 手动开启录制触发缩放: ID={CurrentOrderId}, Delay={Config.ZoomDelaySeconds}");
 
+                    if (Config.EnableEventRecordingBuffer)
+                    {
+                        _pendingPreRecordFrames = SnapshotPreRecordFrames(
+                            DateTime.Now,
+                            out _pendingPreRecordStartTime,
+                            out _pendingPreRecordTimestamps);
+                    }
                     await InternalStartRecordingAsync();
                     ScanInputText = ""; // 启动录制后清空
 
