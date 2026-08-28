@@ -802,7 +802,7 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(1, provider.PublishAttempts);
 
         provider.Unreachable = false;
-        await Task.Delay(350);
+        await Task.Delay(350, TestContext.Current.CancellationToken);
         int third = await service.ProcessPendingOnceAsync(
             TestContext.Current.CancellationToken);
 
@@ -845,7 +845,7 @@ public sealed class ArchiveServiceTests : IDisposable
             new ArchiveWorkerOptions { AutomaticWorkerEnabled = false });
 
         Task<int> processing = service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
         Assert.False(processing.IsCompleted, "Worker 阻塞在慢 Provider 时不影响其他流程");
 
         // 模拟录像完成：新记录走完本地定稿流程，不经过 Provider
@@ -1089,7 +1089,7 @@ public sealed class ArchiveServiceTests : IDisposable
 
         await service.ProcessPendingOnceAsync(CancellationToken.None);
         unreachable.Unreachable = false;
-        await Task.Delay(40);
+        await Task.Delay(40, TestContext.Current.CancellationToken);
         Assert.Equal(1, await service.ProcessPendingOnceAsync(CancellationToken.None));
         Assert.True(unreachable.SawActiveThrottle);
     }
