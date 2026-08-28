@@ -209,7 +209,6 @@ namespace ExpressPackingMonitoring.ViewModels
             public required DateTime Timestamp { get; init; }
             public required long Bytes { get; init; }
             public required long Sequence { get; init; }
-            public required double Mean { get; init; }
         }
         private readonly CameraBarcodeFailedStartSuppression _cameraStartFailedSuppression = new();
         private Process _currentFfmpegProcess;

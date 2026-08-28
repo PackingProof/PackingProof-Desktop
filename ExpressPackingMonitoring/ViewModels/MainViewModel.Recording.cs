@@ -686,7 +686,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _pendingPreRecordFrames = null;
                 _pendingPreRecordTimestamps = null;
                 int timelineFps = GetEffectiveRecordingFps();
-                int usablePreRecordFrameCount = preRecordFrames?.Count(frame => !IsBlackCameraFrame(frame)) ?? 0;
+                int usablePreRecordFrameCount = preRecordFrames?.Count ?? 0;
                 _activePreRecordSeconds = usablePreRecordFrameCount > 0 && timelineFps > 0
                     ? Math.Clamp(usablePreRecordFrameCount / (double)timelineFps, 0, 5)
                     : 0;
@@ -702,11 +702,6 @@ namespace ExpressPackingMonitoring.ViewModels
                             Mat preFrame = preRecordFrames[preFrameIndex];
                             try
                             {
-                                if (IsBlackCameraFrame(preFrame))
-                                {
-                                    preFrame.Dispose();
-                                    continue;
-                                }
                                 if (Config.EnableWatermark)
                                 {
                                     // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
@@ -994,20 +989,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     _preRecordWidth = clone.Cols;
                     _preRecordHeight = clone.Rows;
-                    double mean = 0;
-                    try
-                    {
-                        Scalar channels = Cv2.Mean(clone);
-                        mean = (channels.Val0 + channels.Val1 + channels.Val2) / 3.0;
-                    }
-                    catch { }
                     _preRecordFrames.AddLast(new PreRecordFrame
                     {
                         Frame = clone,
                         Timestamp = DateTime.Now,
                         Bytes = bytes,
-                        Sequence = Interlocked.Increment(ref _preRecordSequence),
-                        Mean = mean
+                        Sequence = Interlocked.Increment(ref _preRecordSequence)
                     });
                     _preRecordBytes += bytes;
                     long maxBytes = GetPreRecordBufferMaxBytes();
@@ -1027,29 +1014,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private static bool IsBlackCameraFrame(Mat frame)
-        {
-            if (frame == null || frame.IsDisposed || frame.Empty())
-                return true;
-
-            try
-            {
-                Scalar mean = Cv2.Mean(frame);
-                return Math.Max(mean.Val0, Math.Max(mean.Val1, mean.Val2)) <= 4;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private List<Mat> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp, out List<DateTime> timestamps)
         {
             firstTimestamp = null;
             timestamps = new List<DateTime>();
             var result = new List<Mat>();
             long snapshotBytes = 0;
-            int blackFrames = 0;
             if (!Config.EnableEventRecordingBuffer || Config.PreRecordBufferMB <= 0)
                 return result;
             lock (_eventBufferLock)
@@ -1069,8 +1039,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         timestamps.Add(item.Timestamp);
                         firstTimestamp ??= item.Timestamp;
                         snapshotBytes += item.Bytes;
-                        if (item.Mean <= 4)
-                            blackFrames++;
                     }
                     node = next;
                 }
@@ -1078,7 +1046,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     RuntimeLog.Info(
                         "Recording",
-                        $"Pre-record snapshot frames={result.Count}, blackFrames={blackFrames}, bytes={snapshotBytes}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
+                        $"Pre-record snapshot frames={result.Count}, bytes={snapshotBytes}, coverageSeconds={(firstTimestamp.HasValue ? (eventTime - firstTimestamp.Value).TotalSeconds : 0):F2}, dropped={_preRecordDroppedFrames}");
                 }
             }
             return result;
