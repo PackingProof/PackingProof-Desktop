@@ -249,7 +249,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning),
                 pauseAudio: _speechService.PauseForRecording,
                 resumeAudio: _speechService.ResumeAfterRecording);
-            ScanCommand = new RelayCommand<string>(HandleScan);
+            ScanCommand = new AsyncRelayCommand<string>(scanResult => HandleScanAsync(scanResult));
             OpenSettingsCommand = new RelayCommand(OpenSettings);
             OpenPlaybackCommand = new RelayCommand(OpenPlaybackWindow);
             ToggleModeCommand = new RelayCommand(ToggleMode);
@@ -289,7 +289,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void OnGlobalBarcodeScanned(string barcode)
         {
             if (_isDisposed || _shutdownRequested) return;
-            HandleScan(barcode);
+            _ = HandleScanAsync(barcode);
         }
 
         private void InitializeCameraBarcodeRecognition()
@@ -402,7 +402,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (CanSubmitCameraBarcode())
                 {
-                    HandleScan(code, fromCamera: true);
+                    _ = HandleScanAsync(code, fromCamera: true);
                 }
             }));
         }
@@ -700,12 +700,22 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private void HandleScan(string scanResult)
+        private async Task HandleScanAsync(string scanResult, bool fromCamera = false)
         {
-            HandleScan(scanResult, fromCamera: false);
+            try
+            {
+                await HandleScanCoreAsync(scanResult, fromCamera);
+            }
+            catch (Exception exception)
+            {
+                RuntimeLog.Error(
+                    "Scan",
+                    $"Unhandled scan failure source={(fromCamera ? "camera" : "scanner/manual")}",
+                    exception);
+            }
         }
 
-        private async void HandleScan(string scanResult, bool fromCamera)
+        private async Task HandleScanCoreAsync(string scanResult, bool fromCamera)
         {
             NotifyUserActivity();
             BarcodeRecordingDecision decision = EvaluateBarcodeRecordingDecision(scanResult, fromCamera);
@@ -1048,7 +1058,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!string.IsNullOrWhiteSpace(pending) && !_isDisposed)
             {
                 RuntimeLog.Info("Scan", $"Processing queued scan after cooldown: {pending}");
-                HandleScan(pending);
+                _ = HandleScanAsync(pending);
             }
         }
 

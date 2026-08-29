@@ -256,6 +256,30 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void ScanEntryPointsUseTaskReturningExceptionBoundary()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Scanner.cs");
+
+        Assert.Contains(
+            "ScanCommand = new AsyncRelayCommand<string>(scanResult => HandleScanAsync(scanResult));",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "private async Task HandleScanAsync(string scanResult, bool fromCamera = false)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "private async Task HandleScanCoreAsync(string scanResult, bool fromCamera)",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("async void HandleScan", source, StringComparison.Ordinal);
+        Assert.Contains("Unhandled scan failure source=", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientUsesSingleDynamicUserscriptButton()
     {
         string xaml = ReadRepositoryFile(
