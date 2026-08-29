@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -221,6 +222,33 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("hevc_qsv", encoderScript, StringComparison.Ordinal);
         Assert.Contains("EPM_REQUIRED_ENCODERS", encoderScript, StringComparison.Ordinal);
         Assert.Contains("ExpressPackingMonitoring.EncodingIntegrationTests", solution, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseValidation_RequiredCoreTestsExist()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string releaseScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Test-Release.ps1"),
+            Encoding.UTF8);
+        Match requiredTestsBlock = Regex.Match(
+            releaseScript,
+            @"\$requiredCoreTests\s*=\s*@\((?<body>.*?)\r?\n\)",
+            RegexOptions.Singleline);
+
+        Assert.True(requiredTestsBlock.Success, "Could not find the required release test list.");
+
+        string[] requiredTests = Regex.Matches(requiredTestsBlock.Groups["body"].Value, "\"(?<name>[^\"]+)\"")
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+        HashSet<string> availableTests = typeof(ReleasePackagingPolicyTests).Assembly
+            .GetTypes()
+            .SelectMany(type => type.GetMethods()
+                .Select(method => $"{type.Name}.{method.Name}"))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEmpty(requiredTests);
+        Assert.All(requiredTests, requiredTest => Assert.Contains(requiredTest, availableTests));
     }
 
     [Fact]
