@@ -252,6 +252,19 @@ public sealed class ExtensionMarketWindowTests
         Assert.Equal(expected, ExtensionMarketWindow.GetMarketReadyStatus(isCached));
     }
 
+    [Fact]
+    public void ExternalAdapterRemovalPromptsBeforeTerminatingRunningProgram()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml.cs"));
+
+        Assert.Contains("ExtensionProcessManager.FindRunningProcesses", source, StringComparison.Ordinal);
+        Assert.Contains("终止并删除", source, StringComparison.Ordinal);
+        Assert.Contains("请手动退出程序后重试", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         foreach (string startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })

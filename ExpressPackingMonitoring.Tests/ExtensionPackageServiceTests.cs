@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Services.Extensions;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
@@ -9,6 +10,64 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class ExtensionPackageServiceTests
 {
+    [Fact]
+    public void RunningProcessDetectionRequiresExecutableInsideExactInstallDirectory()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "packingproof-extension-process-tests");
+        string installDirectory = Path.Combine(root, "sample.adapter", "1.0.0");
+
+        Assert.True(ExtensionProcessManager.IsExecutableInDirectory(
+            Path.Combine(installDirectory, "payload", "adapter.exe"),
+            installDirectory));
+        Assert.False(ExtensionProcessManager.IsExecutableInDirectory(
+            Path.Combine(root, "sample.adapter-other", "adapter.exe"),
+            installDirectory));
+        Assert.False(ExtensionProcessManager.IsExecutableInDirectory("", installDirectory));
+    }
+
+    [Fact]
+    public void RunningExtensionProcessCanBeDetectedAndTerminated()
+    {
+        string root = CreateTemporaryDirectory();
+        string installDirectory = Path.Combine(root, "sample.adapter", "1.0.0");
+        Directory.CreateDirectory(installDirectory);
+        string executablePath = Path.Combine(installDirectory, "adapter.exe");
+        File.Copy(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe"), executablePath);
+        using Process process = Process.Start(new ProcessStartInfo
+        {
+            FileName = executablePath,
+            Arguments = "/d /q /k",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        })!;
+
+        try
+        {
+            IReadOnlyList<RunningExtensionProcess> running = [];
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                running = ExtensionProcessManager.FindRunningProcesses(installDirectory)
+                    .Where(candidate => candidate.ProcessId == process.Id)
+                    .ToList();
+                return running.Count > 0;
+            }, TimeSpan.FromSeconds(3)));
+
+            Assert.True(ExtensionProcessManager.TryTerminateProcesses(
+                installDirectory,
+                running,
+                out string error), error);
+            Assert.True(process.WaitForExit(5000));
+        }
+        finally
+        {
+            if (!process.HasExited) process.Kill();
+            Directory.Delete(root, true);
+        }
+    }
+
     [Fact]
     public void RejectsPathTraversalBeforeExtraction()
     {

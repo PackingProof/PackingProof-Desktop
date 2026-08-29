@@ -335,20 +335,69 @@ public partial class ExtensionMarketWindow : Window
         }
     }
 
-    private void Remove_Click(object sender, RoutedEventArgs e)
+    private async void Remove_Click(object sender, RoutedEventArgs e)
     {
         if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
         InstalledExtensionRecord? installed = _installationService.GetInstalled()
             .FirstOrDefault(value => value.Id == selected.Item.Id);
         if (installed == null) return;
+
+        IReadOnlyList<RunningExtensionProcess> runningProcesses = installed.Type == "external-adapter"
+            ? ExtensionProcessManager.FindRunningProcesses(installed.InstallDirectory)
+            : [];
+        string processList = string.Join("、", runningProcesses
+            .Take(3)
+            .Select(process => $"{process.ProcessName}（PID {process.ProcessId}）"));
+        if (runningProcesses.Count > 3) processList += $"等 {runningProcesses.Count} 个进程";
         string message = installed.Type == "userscript"
             ? "这会删除 PackingProof 保存的脚本源文件，但无法替你从浏览器脚本管理器中卸载已经安装的副本"
-            : "这只会删除 PackingProof 管理的安装目录，不会删除扩展自己保存的配置、凭据或业务数据";
-        if (!AppDialog.Confirm(this, message + "\n\n确定继续吗？", "删除扩展", AppDialogSeverity.Warning, "确认删除"))
+            : runningProcesses.Count > 0
+                ? $"检测到扩展仍在运行：{processList}\n\n删除前需要终止这些程序。PackingProof 只会终止安装目录内的扩展程序，不会删除扩展自己保存的配置、凭据或业务数据"
+                : "这只会删除 PackingProof 管理的安装目录，不会删除扩展自己保存的配置、凭据或业务数据";
+        string confirmText = runningProcesses.Count > 0 ? "终止并删除" : "确认删除";
+        if (!AppDialog.Confirm(this, message + "\n\n确定继续吗？", "删除扩展", AppDialogSeverity.Warning, confirmText))
             return;
-        _installationService.Remove(installed.Id);
-        RefreshDisplayItems();
-        UpdateActionState(selected);
+
+        SetBusy(true, runningProcesses.Count > 0 ? "正在终止并删除扩展" : "正在删除扩展");
+        try
+        {
+            if (runningProcesses.Count > 0)
+            {
+                (bool terminated, string error) = await Task.Run(() =>
+                {
+                    bool success = ExtensionProcessManager.TryTerminateProcesses(
+                        installed.InstallDirectory,
+                        runningProcesses,
+                        out string terminationError);
+                    return (success, terminationError);
+                });
+                if (!terminated)
+                {
+                    AppDialog.Error(this, $"无法终止正在运行的扩展程序：\n{error}\n\n请手动退出程序后重试", "无法删除扩展");
+                    return;
+                }
+            }
+
+            await Task.Run(() => _installationService.Remove(installed.Id));
+            RefreshDisplayItems();
+            UpdateActionState(selected);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppDialog.Error(
+                this,
+                $"扩展文件仍被其他程序占用，或当前账户没有删除权限。请退出扩展及相关程序后重试\n\n详细信息：{ex.Message}",
+                "无法删除扩展");
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Error(this, $"删除扩展失败：{ex.Message}", "无法删除扩展");
+        }
+        finally
+        {
+            SetBusy(false);
+            ShowMarketReadyStatus();
+        }
     }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e)

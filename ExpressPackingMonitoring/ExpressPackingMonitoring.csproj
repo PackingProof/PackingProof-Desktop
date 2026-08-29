@@ -163,6 +163,7 @@
     <Compile Include="Services\Extensions\ExtensionMarketClient.cs" />
     <Compile Include="Services\Extensions\ExtensionMarketModels.cs" />
     <Compile Include="Services\Extensions\ExtensionPackageService.cs" />
+    <Compile Include="Services\Extensions\ExtensionProcessManager.cs" />
     <Compile Include="Services\ClipboardHelper.cs" />
     <Compile Include="Services\FfmpegWorkLimiter.cs" />
     <Compile Include="Services\FeedbackMailLauncher.cs" />
