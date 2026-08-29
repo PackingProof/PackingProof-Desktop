@@ -277,8 +277,25 @@ public sealed class ExtensionMarketWindowTests
             2,
             source.Split("OpenInstalledExtensionDirectory(result.Record);", StringSplitOptions.None).Length - 1);
         Assert.Contains("if (record.Type != \"external-adapter\") return;", source, StringComparison.Ordinal);
-        Assert.Contains("WindowsShellFileLocator.Locate(manifestPath)", source, StringComparison.Ordinal);
+        Assert.Contains("OpenInstalledExtensionLocation(record);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("new ProcessStartInfo(\"explorer.exe\")", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstalledUserscriptCanLocateManagedSourceFile()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml.cs"));
+
+        Assert.Contains(
+            "OpenFolderButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("OpenInstalledExtensionLocation(installed);", source, StringComparison.Ordinal);
+        Assert.Contains("GetInstalledLocationPath(record)", source, StringComparison.Ordinal);
+        Assert.Contains("WindowsShellFileLocator.Locate(locationPath)", source, StringComparison.Ordinal);
     }
 
     [Fact]

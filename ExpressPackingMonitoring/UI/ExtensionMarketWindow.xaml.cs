@@ -164,8 +164,7 @@ public partial class ExtensionMarketWindow : Window
         InstallOtherVersionButton.IsEnabled = selectedDetails != null
             && selectedRelease != null
             && GetOtherAvailableReleases(selectedDetails, selectedRelease).Count > 0;
-        bool external = installed?.Type == "external-adapter";
-        OpenFolderButton.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
+        OpenFolderButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -418,7 +417,7 @@ public partial class ExtensionMarketWindow : Window
         if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
         InstalledExtensionRecord? installed = _installationService.GetInstalled()
             .FirstOrDefault(value => value.Id == selected.Item.Id);
-        if (installed != null) OpenInstalledExtensionDirectory(installed);
+        if (installed != null) OpenInstalledExtensionLocation(installed);
     }
 
     private void ShowInstallResult(ExtensionInstallResult result)
@@ -437,10 +436,17 @@ public partial class ExtensionMarketWindow : Window
     private void OpenInstalledExtensionDirectory(InstalledExtensionRecord record)
     {
         if (record.Type != "external-adapter") return;
-        string manifestPath = Path.Combine(record.InstallDirectory, "manifest.json");
-        FileLocationResult result = WindowsShellFileLocator.Locate(manifestPath);
+        OpenInstalledExtensionLocation(record);
+    }
+
+    private void OpenInstalledExtensionLocation(InstalledExtensionRecord record)
+    {
+        string locationPath = _installationService.GetInstalledLocationPath(record);
+        FileLocationResult result = locationPath.Length == 0
+            ? FileLocationResult.Invalid
+            : WindowsShellFileLocator.Locate(locationPath);
         if (result is not (FileLocationResult.Selected or FileLocationResult.OpenedFolder))
-            AppDialog.Error(this, "扩展已安装，但无法定位安装目录，请尝试重新安装", "无法打开安装目录");
+            AppDialog.Error(this, "扩展已安装，但无法定位本地文件，请尝试重新安装", "无法打开目录");
     }
 
     private void RefreshDisplayItems()

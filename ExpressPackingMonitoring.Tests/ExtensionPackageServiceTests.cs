@@ -225,6 +225,13 @@ public sealed class ExtensionPackageServiceTests
             Assert.Equal("userscript", result.Record.Type);
             Assert.Equal("1.0", result.Record.Version);
             Assert.Single(catalog.GetCustomScripts());
+            string installedPath = installation.GetInstalledLocationPath(result.Record);
+            Assert.Equal(catalog.GetSourcePath(result.Record.ManagedItemId), installedPath);
+            Assert.True(File.Exists(installedPath));
+            Assert.StartsWith(
+                Path.GetFullPath(scripts) + Path.DirectorySeparatorChar,
+                Path.GetFullPath(installedPath),
+                StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

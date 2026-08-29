@@ -51,6 +51,15 @@ internal sealed class ExtensionInstallationService
         lock (Sync) return LoadRegistry();
     }
 
+    internal string GetInstalledLocationPath(InstalledExtensionRecord record)
+    {
+        if (record.Type == "userscript")
+            return _userscripts.GetSourcePath(record.ManagedItemId);
+        return record.Type == "external-adapter" && record.InstallDirectory.Length > 0
+            ? Path.Combine(record.InstallDirectory, "manifest.json")
+            : "";
+    }
+
     internal ExtensionInstallResult Install(
         string packagePath,
         string displayName,
