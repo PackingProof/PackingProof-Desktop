@@ -265,6 +265,22 @@ public sealed class ExtensionMarketWindowTests
         Assert.Contains("请手动退出程序后重试", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ExternalAdapterInstallOpensExtractedDirectoryWithoutLaunchingPayload()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml.cs"));
+
+        Assert.Equal(
+            2,
+            source.Split("OpenInstalledExtensionDirectory(result.Record);", StringSplitOptions.None).Length - 1);
+        Assert.Contains("if (record.Type != \"external-adapter\") return;", source, StringComparison.Ordinal);
+        Assert.Contains("WindowsShellFileLocator.Locate(manifestPath)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProcessStartInfo(\"explorer.exe\")", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         foreach (string startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })

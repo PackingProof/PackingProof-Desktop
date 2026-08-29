@@ -1,9 +1,9 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Services.Extensions;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -249,6 +249,7 @@ public partial class ExtensionMarketWindow : Window
                 _selectedDetails.Extension.Type,
                 release.Sha256));
             ShowInstallResult(result);
+            OpenInstalledExtensionDirectory(result.Record);
             RefreshDisplayItems();
             UpdateActionState(selected);
             restoreReadyStatus = true;
@@ -303,6 +304,7 @@ public partial class ExtensionMarketWindow : Window
             ExtensionInstallResult result = await Task.Run(() =>
                 _installationService.Install(dialog.FileName, inspection.Manifest.Id));
             ShowInstallResult(result);
+            OpenInstalledExtensionDirectory(result.Record);
             RefreshDisplayItems();
         }
         catch (Exception ex)
@@ -405,10 +407,7 @@ public partial class ExtensionMarketWindow : Window
         if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
         InstalledExtensionRecord? installed = _installationService.GetInstalled()
             .FirstOrDefault(value => value.Id == selected.Item.Id);
-        if (installed == null || !Directory.Exists(installed.InstallDirectory)) return;
-        var startInfo = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
-        startInfo.ArgumentList.Add(installed.InstallDirectory);
-        Process.Start(startInfo);
+        if (installed != null) OpenInstalledExtensionDirectory(installed);
     }
 
     private void ShowInstallResult(ExtensionInstallResult result)
@@ -420,8 +419,17 @@ public partial class ExtensionMarketWindow : Window
             this,
             result.Record.Type == "userscript"
                 ? "扩展脚本已导入，可在安装订单联动中选择" + warnings
-                : "外部扩展已安装。PackingProof 不会自动运行它，你可以使用“打开目录”查看说明" + warnings,
+                : "外部扩展已安装。PackingProof 不会自动运行它，关闭此提示后将打开安装目录" + warnings,
             "安装完成");
+    }
+
+    private void OpenInstalledExtensionDirectory(InstalledExtensionRecord record)
+    {
+        if (record.Type != "external-adapter") return;
+        string manifestPath = Path.Combine(record.InstallDirectory, "manifest.json");
+        FileLocationResult result = WindowsShellFileLocator.Locate(manifestPath);
+        if (result is not (FileLocationResult.Selected or FileLocationResult.OpenedFolder))
+            AppDialog.Error(this, "扩展已安装，但无法定位安装目录，请尝试重新安装", "无法打开安装目录");
     }
 
     private void RefreshDisplayItems()
