@@ -201,6 +201,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("_cameraIdleWatchdogTask = Task.Run(", mediaSource, StringComparison.Ordinal);
         Assert.DoesNotContain("Task.Run(CameraIdleWatchdog)", mediaSource, StringComparison.Ordinal);
         Assert.Contains("if (_isDisposed", cameraSource, StringComparison.Ordinal);
+        Assert.Contains("Camera idle watchdog failed", cameraSource, StringComparison.Ordinal);
         Assert.DoesNotContain("_cameraIdleWatchdogTask?.Wait", mainSource, StringComparison.Ordinal);
     }
 

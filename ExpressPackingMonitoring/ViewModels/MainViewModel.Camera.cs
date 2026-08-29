@@ -236,6 +236,10 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
             }
+            catch (Exception exception)
+            {
+                RuntimeLog.Error("Camera", "Camera idle watchdog failed", exception);
+            }
         }
 
         private DateTime _lastFrameTime = DateTime.MinValue;
