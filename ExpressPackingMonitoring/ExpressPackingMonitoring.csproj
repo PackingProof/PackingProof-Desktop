@@ -165,6 +165,7 @@
     <Compile Include="Services\FeedbackMailLauncher.cs" />
     <Compile Include="Services\IArchiveProvider.cs" />
     <Compile Include="Services\LanRequestRateLimiter.cs" />
+    <Compile Include="Services\LegacyOrderPushDeduplicator.cs" />
     <Compile Include="Services\LocalCopyCleanupPolicy.cs" />
     <Compile Include="Services\LocalMissingRepair.cs" />
     <Compile Include="Services\ManualCleanupService.cs" />

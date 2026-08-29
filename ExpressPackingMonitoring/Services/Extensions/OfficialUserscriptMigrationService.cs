@@ -130,6 +130,16 @@ internal sealed class OfficialUserscriptMigrationService
         && string.Equals(client.DisplayName, CurrentDisplayName, StringComparison.Ordinal)
         && !Version.TryParse(client.AppVersion?.Trim(), out _);
 
+    internal static bool HasConcurrentLegacyAndCurrentScripts(
+        IEnumerable<ConnectedClientInfo>? clients) =>
+        (clients ?? [])
+            .Where(client => string.Equals(client.ClientType, "userscript", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(client.DisplayName, CurrentDisplayName, StringComparison.Ordinal))
+            .GroupBy(client => client.RemoteAddress, StringComparer.OrdinalIgnoreCase)
+            .Any(group => group.Select(client => client.ClientId).Distinct(StringComparer.Ordinal).Count() > 1
+                && group.Any(IsEarlyOfficialHeartbeat)
+                && group.Any(client => Version.TryParse(client.AppVersion?.Trim(), out _)));
+
     internal string ResolveRequestedScriptId(string? requestedId)
     {
         if (!string.Equals(requestedId, LegacyRequestId, StringComparison.Ordinal))

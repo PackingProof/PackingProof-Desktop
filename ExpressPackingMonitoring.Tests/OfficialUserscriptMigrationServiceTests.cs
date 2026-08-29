@@ -50,6 +50,23 @@ public sealed class OfficialUserscriptMigrationServiceTests
     }
 
     [Fact]
+    public void ConcurrentLegacyAndCurrentScriptsRequireSameAddressAndDifferentClients()
+    {
+        ConnectedClientInfo legacy = Client("legacy-script", "192.168.1.20", "");
+        ConnectedClientInfo current = Client("current-script", "192.168.1.20", "2.15.1");
+
+        Assert.True(OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts([legacy, current]));
+        Assert.False(OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts([
+            legacy,
+            current with { RemoteAddress = "192.168.1.21" }
+        ]));
+        Assert.False(OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts([
+            legacy,
+            current with { ClientId = legacy.ClientId }
+        ]));
+    }
+
+    [Fact]
     public async Task ConcurrentMigrationInstallsSignedCandidateOnlyOnce()
     {
         string root = CreateTemporaryDirectory();
@@ -121,6 +138,18 @@ public sealed class OfficialUserscriptMigrationServiceTests
             "// ==UserScript==\n// @name PackingProof 快递助手订单联动\n// @namespace https://github.com/PackingProof\n// @version 2.15\n// PACKING_PROOF_CONNECT_TARGETS\n// PACKING_PROOF_UPDATE_URLS\n// ==/UserScript==\n");
         return packagePath;
     }
+
+    private static ConnectedClientInfo Client(string clientId, string address, string version) => new(
+        clientId,
+        "userscript",
+        OfficialUserscriptMigrationService.CurrentDisplayName,
+        address,
+        DateTimeOffset.UtcNow,
+        clientId,
+        "",
+        0,
+        [],
+        version);
 
     private static void WriteEntry(ZipArchive archive, string name, string content)
     {

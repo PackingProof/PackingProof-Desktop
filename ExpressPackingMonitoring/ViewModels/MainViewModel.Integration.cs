@@ -868,9 +868,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 .FirstOrDefault(window => window.IsActive);
             bool officialInstalled = new ExtensionInstallationService().GetInstalled().Any(record =>
                 string.Equals(record.Id, ExtensionMarketOfficialUserscriptPackageSource.ExtensionId, StringComparison.Ordinal));
-            bool earlyOfficialScript = _webServer?.GetConnectedClients().Any(
-                    OfficialUserscriptMigrationService.IsEarlyOfficialHeartbeat) == true;
-            if (earlyOfficialScript)
+            IReadOnlyList<ConnectedClientInfo> connectedClients = _webServer?.GetConnectedClients() ?? [];
+            bool earlyOfficialScript = connectedClients.Any(OfficialUserscriptMigrationService.IsEarlyOfficialHeartbeat);
+            bool duplicateOfficialScripts = OfficialUserscriptMigrationService.HasConcurrentLegacyAndCurrentScripts(connectedClients);
+            if (duplicateOfficialScripts)
+            {
+                AppDialog.Warning(
+                    owner,
+                    "检测到同一电脑正在同时运行新版和旧版订单联动脚本。Desktop 已自动忽略短时间内的重复订单，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”",
+                    "检测到重复脚本");
+            }
+            else if (earlyOfficialScript)
             {
                 AppDialog.Warning(
                     owner,

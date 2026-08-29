@@ -153,12 +153,6 @@ namespace ExpressPackingMonitoring.Services
             public string Error { get; set; } = "";
         }
 
-        private sealed class OrderBroadcastRequest
-        {
-            public List<OrderInfo> Orders { get; set; } = [];
-            public List<string> TargetNodeIds { get; set; } = [];
-        }
-
         private sealed class OrderExtensionRequest
         {
             public string ProviderId { get; set; } = "";
@@ -277,6 +271,7 @@ namespace ExpressPackingMonitoring.Services
 
         // SQLite 是订单信息唯一持久化来源；此字典仅用于运行时快速查询。
         private readonly Dictionary<string, OrderInfo> _orderInfoCache = new();
+        private readonly LegacyOrderPushDeduplicator _legacyOrderPushDeduplicator = new();
         private readonly object _orderInfoLock = new();
         private readonly ConcurrentDictionary<string, PendingOrderLookup> _pendingOrderLookups = new();
         private readonly ConcurrentDictionary<HttpListenerContext, byte[]> _authenticatedRequestBodies = new();
@@ -3126,7 +3121,7 @@ namespace ExpressPackingMonitoring.Services
                     OrderInfoRelay.SendAsync,
                     device =>
                     {
-                        var (_, testCount) = AcceptOrderInfos(items);
+                        var (_, testCount) = AcceptOrderInfos(items, deduplicateLegacyPush: true);
                         return new OrderInfoRelayResult(
                             device.NodeId,
                             device.NodeName,
@@ -3171,7 +3166,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ValidateOrderInfoItems(items);
 
-                (int count, int testCount) = AcceptOrderInfos(items);
+                (int count, int testCount) = AcceptOrderInfos(items, deduplicateLegacyPush: true);
 
                 if (EnableOrderInfoLog)
                 {
@@ -4186,12 +4181,15 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items)
+        private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items, bool deduplicateLegacyPush = false)
         {
+            using LegacyOrderPushDeduplicator.LegacyOrderPushDeduplication deduplication = _legacyOrderPushDeduplicator.Begin(deduplicateLegacyPush ? items : []);
+            if (deduplicateLegacyPush) items = deduplication.AcceptedItems;
             var realItems = items.Where(item => !item.IsTest).ToList();
             int count = StoreOrderInfos(realItems, preserveConfirmedRefund: true);
             int testCount = items.Count(item => item.IsTest);
-            try { OrderInfoReceived?.Invoke(items); } catch { }
+            if (items.Count > 0) try { OrderInfoReceived?.Invoke(items); } catch { }
+            deduplication.Complete();
             return (count, testCount);
         }
 

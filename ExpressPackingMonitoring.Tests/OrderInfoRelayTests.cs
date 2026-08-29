@@ -14,6 +14,53 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class OrderInfoRelayTests
 {
     [Fact]
+    public async Task LegacyOrderEndpoint_IgnoresImmediateSemanticDuplicate()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"epm-order-dedup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"));
+            int eventCount = 0;
+            server.OrderInfoReceived += _ => Interlocked.Increment(ref eventCount);
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            const string payload = "[{\"trackingNumber\":\"YT-DUP-1\",\"buyerMessage\":\"轻放\"}]";
+            using HttpResponseMessage first = await client.PostAsync(
+                "/api/orderinfo",
+                new StringContent(payload, Encoding.UTF8, "application/json"),
+                TestContext.Current.CancellationToken);
+            using HttpResponseMessage duplicate = await client.PostAsync(
+                "/api/orderinfo",
+                new StringContent(payload, Encoding.UTF8, "application/json"),
+                TestContext.Current.CancellationToken);
+            using JsonDocument firstBody = JsonDocument.Parse(
+                await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            using JsonDocument duplicateBody = JsonDocument.Parse(
+                await duplicate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, duplicate.StatusCode);
+            Assert.Equal(1, firstBody.RootElement.GetProperty("receivedCount").GetInt32());
+            Assert.Equal(0, duplicateBody.RootElement.GetProperty("receivedCount").GetInt32());
+            Assert.Equal(1, Volatile.Read(ref eventCount));
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task BroadcastEndpoint_DeliversToLocalRecordingHost()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"epm-order-relay-{Guid.NewGuid():N}");
