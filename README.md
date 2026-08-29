@@ -109,11 +109,16 @@ PackingProof 将**快递单号、订单信息和打包录像关联起来**：
 </tr>
 </table>
 
-## QQ 机器人查询录像
+## 扩展市场
 
-[PackingProof QQBot](https://github.com/PackingProof/PackingProof-QQBot) 是基于本项目扩展 API 的独立参考实现。连接后，客服或同事可以在 QQ 私聊或已授权的 QQ 群中发送快递单号，由机器人查询 PackingProof 录像、回复录像时间与大小，并将视频直接发回 QQ。
+PackingProof 已支持官方[扩展市场](https://gitee.com/PackingProof/PackingProof-Extensions)，可以安装用户脚本和外部适配器。扩展通过市场独立发布和更新，不再随 Desktop 安装包捆绑
 
-QQBot 不读取数据库、录像目录或 NAS 凭据，只通过用户授权的扩展 API 查询、下载录像和请求超限交付副本。机器人需要单独下载和运行，不包含在 PackingProof Desktop 安装包中。
+目前已经支持的扩展包括：
+
+* [快递助手订单联动](https://gitee.com/PackingProof/PackingProof-KDZS)：从快递助手页面同步订单、备注和退款状态
+* [PackingProof QQBot](https://gitee.com/PackingProof/PackingProof-QQBot)：通过 QQ 私聊或群聊按快递单号查询并发送打包录像
+
+外部适配器应通过用户授权的扩展 API 访问 PackingProof，不得直接读取数据库、录像目录或 NAS 凭据。Desktop 安装后不会自动运行外部程序，市场收录也不代表对第三方程序作安全保证
 
 ## 工作流程
 
@@ -224,7 +229,7 @@ PackingProof_Setup_vX.Y.Z.exe
 
 打印页面中的订单发生变化时，脚本会将订单信息同步给 PackingProof。
 
-如果要开发 ERP、称重设备或第三方油猴脚本，请参阅 [扩展接口与第三方脚本开发规范](docs/EXTENSION_API_V1.md)。
+如果要开发 ERP、称重设备或第三方油猴脚本，请参阅 [扩展 API 与第三方脚本开发规范](docs/EXTENSION_API_V1.md)。如果要投稿市场扩展，请参阅 [PackingProof-Extensions 投稿指南](https://gitee.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md)
 
 扫码开始打包后，软件可以播报买家留言、卖家备注和商品信息。
 
