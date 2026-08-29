@@ -3470,7 +3470,7 @@
                                             HorizontalAlignment="Left"/>
                                 </Grid>
 
-                                <Grid Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
+                                <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
@@ -3480,7 +3480,6 @@
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid ItemsSource="{Binding CustomUserscripts}"
-                                                  IsEnabled="{Binding ElementName=ExtensionApiToggle, Path=IsChecked}"
                                                   AutoGenerateColumns="False"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"

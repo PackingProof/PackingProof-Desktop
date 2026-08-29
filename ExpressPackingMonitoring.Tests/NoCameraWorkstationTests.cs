@@ -111,6 +111,8 @@ public sealed class NoCameraWorkstationTests
             "UserscriptGuideNavigation.TryOpen(_host.LanAccessUrl",
             source,
             StringComparison.Ordinal);
+        Assert.Contains("OpenExtensionMarket = OpenExtensionMarket", source, StringComparison.Ordinal);
+        Assert.Contains("new ExtensionMarketWindow { Owner = owner }", source, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "PrintToolInstallGuide.CreateLocalGuide(LocalOrderAddress)",
             source,

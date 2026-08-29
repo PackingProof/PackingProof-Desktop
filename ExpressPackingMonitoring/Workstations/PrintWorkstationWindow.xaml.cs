@@ -332,6 +332,7 @@ public partial class PrintWorkstationWindow : Window
             ShowMobileConnection = ShowMobileConnection,
             CopyMobileConnectionUrl = CopyMobileConnectionUrl,
             OpenUserscriptGuide = OpenUserscriptGuide,
+            OpenExtensionMarket = OpenExtensionMarket,
             GetExtensionAuthorizations = _host.GetExtensionAuthorizations,
             RevokeExtensionAuthorization = _host.RevokeExtensionAuthorization,
             ShowToast = (message, severity) => ShowToast(message, severity),
@@ -718,6 +719,12 @@ public partial class PrintWorkstationWindow : Window
             _host.GetRecordingDevices(includeKnown: true));
         RefreshDeviceSummary();
         ShowToast("已打开订单联动安装向导");
+    }
+
+    private static void OpenExtensionMarket(Window owner)
+    {
+        var window = new ExtensionMarketWindow { Owner = owner };
+        window.ShowDialog();
     }
 
     private async void SendTestOrder_Click(object sender, RoutedEventArgs e)

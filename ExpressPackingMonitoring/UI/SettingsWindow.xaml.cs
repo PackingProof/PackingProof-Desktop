@@ -2434,7 +2434,6 @@ namespace ExpressPackingMonitoring.UI
 
         private void RemoveUserscript_Click(object sender, RoutedEventArgs e)
         {
-            if (!Config.EnableExtensionApi) return;
             if (sender is not Button { CommandParameter: UserscriptDescriptor script }) return;
             if (!AppDialog.Confirm(
                     this,

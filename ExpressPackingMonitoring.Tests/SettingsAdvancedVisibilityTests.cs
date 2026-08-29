@@ -165,6 +165,9 @@ public sealed class SettingsAdvancedVisibilityTests
             grid.Descendants(Presentation + "Button"),
             button => (string?)button.Attribute("Content") == "删除"
                 && (string?)button.Attribute("Style") == "{StaticResource DeleteUserscriptButtonStyle}");
+        Assert.Null(grid.Attribute("IsEnabled"));
+        XElement managementSection = grid.Ancestors(Presentation + "Grid").First();
+        Assert.Null(managementSection.Attribute("Visibility"));
         XElement developmentHint = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
             text => (string?)text.Attribute("Text") == "开发第三方脚本时，可参考官方开发手册或 API 扩展文档");
@@ -293,9 +296,7 @@ public sealed class SettingsAdvancedVisibilityTests
         XElement customGrid = Assert.Single(
             document.Descendants(Presentation + "DataGrid"),
             element => ((string?)element.Attribute("ItemsSource"))?.Contains("CustomUserscripts", StringComparison.Ordinal) == true);
-        Assert.Equal(
-            "{Binding ElementName=ExtensionApiToggle, Path=IsChecked}",
-            (string?)customGrid.Attribute("IsEnabled"));
+        Assert.Null((string?)customGrid.Attribute("IsEnabled"));
         Assert.Contains("扩展 API 授权", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("已授权扩展", xaml, StringComparison.Ordinal);
     }
