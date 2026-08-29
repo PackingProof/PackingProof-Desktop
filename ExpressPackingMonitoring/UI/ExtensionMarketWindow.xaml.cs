@@ -59,9 +59,7 @@ public partial class ExtensionMarketWindow : Window
                 installed.TryGetValue(item.Id, out InstalledExtensionRecord? record);
                 _items.Add(new ExtensionMarketDisplayItem(item, record));
             }
-            SourceStatusText.Text = _session.IsCached
-                ? "网络市场暂不可用，正在显示最近一次已验签缓存"
-                : "市场目录签名验证通过，下载时优先使用 Gitee";
+            ShowMarketReadyStatus();
             if (_items.Count > 0) CatalogList.SelectedIndex = 0;
         }
         catch (OperationCanceledException)
@@ -81,6 +79,7 @@ public partial class ExtensionMarketWindow : Window
     private async void CatalogList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_session == null || CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        bool restoreReadyStatus = false;
         SetBusy(true, "正在读取扩展详情");
         try
         {
@@ -94,6 +93,7 @@ public partial class ExtensionMarketWindow : Window
                 ?? _selectedDetails.Versions
                     .FirstOrDefault(value => value.Status == "available")?.Release;
             ShowDetails(selected);
+            restoreReadyStatus = true;
         }
         catch (Exception ex)
         {
@@ -101,11 +101,13 @@ public partial class ExtensionMarketWindow : Window
             _selectedRelease = null;
             InstallButton.IsEnabled = false;
             InstallOtherVersionButton.IsEnabled = false;
+            SourceStatusText.Text = $"读取扩展详情失败：{ex.Message}";
             AppDialog.Error(this, $"读取扩展详情失败：{ex.Message}", "读取失败");
         }
         finally
         {
             SetBusy(false);
+            if (restoreReadyStatus) ShowMarketReadyStatus();
         }
     }
 
@@ -215,6 +217,9 @@ public partial class ExtensionMarketWindow : Window
             return;
 
         string packagePath = "";
+        bool restoreReadyStatus = false;
+        selected.SetDownloading(true);
+        CatalogList.Items.Refresh();
         SetBusy(true, "正在下载扩展包", showProgress: true);
         try
         {
@@ -223,6 +228,8 @@ public partial class ExtensionMarketWindow : Window
             var progress = new Progress<ExtensionPackageProgress>(value =>
             {
                 SourceStatusText.Text = value.Message;
+                DownloadStatusText.Text = value.Message;
+                DownloadProgressText.Text = FormatDownloadProgress(value.Received, value.Total);
                 DownloadProgress.IsIndeterminate = value.Total <= 0;
                 if (value.Total > 0)
                 {
@@ -244,18 +251,24 @@ public partial class ExtensionMarketWindow : Window
             ShowInstallResult(result);
             RefreshDisplayItems();
             UpdateActionState(selected);
+            restoreReadyStatus = true;
         }
         catch (OperationCanceledException)
         {
+            restoreReadyStatus = true;
         }
         catch (Exception ex)
         {
+            SourceStatusText.Text = $"安装扩展失败：{ex.Message}";
             AppDialog.Error(this, $"安装扩展失败：{ex.Message}", "安装失败");
         }
         finally
         {
             TryDeleteDownloadedPackage(packagePath);
+            selected.SetDownloading(false);
+            CatalogList.Items.Refresh();
             SetBusy(false);
+            if (restoreReadyStatus) ShowMarketReadyStatus();
         }
     }
 
@@ -402,20 +415,59 @@ public partial class ExtensionMarketWindow : Window
             .Select(value => value.Release)
             .ToList();
 
+    internal static string GetMarketReadyStatus(bool isCached) => isCached
+        ? "网络市场暂不可用，正在显示最近一次已验签缓存"
+        : "市场目录签名验证通过，下载时优先使用 Gitee";
+
+    internal static string FormatDownloadProgress(long received, long total)
+    {
+        long safeReceived = Math.Max(0, received);
+        if (total <= 0)
+            return safeReceived > 0 ? FormatFileSize(safeReceived) : "";
+
+        long safeTotal = Math.Max(0, total);
+        double percentage = Math.Clamp(safeReceived * 100d / safeTotal, 0, 100);
+        return $"{FormatFileSize(safeReceived)} / {FormatFileSize(safeTotal)} · {percentage:0}%";
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double size = bytes;
+        int unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? $"{size:0} {units[unitIndex]}"
+            : $"{size:0.0} {units[unitIndex]}";
+    }
+
     private void SetBusy(bool busy, string? message = null, bool showProgress = false)
     {
-        CatalogList.IsEnabled = !busy;
+        CatalogList.IsHitTestVisible = !busy;
         InstallLocalButton.IsEnabled = !busy;
         RefreshButton.IsEnabled = !busy;
         InstallButton.IsEnabled = false;
         InstallOtherVersionButton.IsEnabled = false;
-        DownloadProgress.Visibility = showProgress ? Visibility.Visible : Visibility.Collapsed;
+        DownloadProgressPanel.Visibility = showProgress ? Visibility.Visible : Visibility.Collapsed;
         DownloadProgress.IsIndeterminate = showProgress;
+        DownloadStatusText.Text = showProgress ? message ?? "正在下载扩展包" : "";
+        DownloadProgressText.Text = "";
         if (message != null) SourceStatusText.Text = message;
         if (!busy
             && CatalogList.SelectedItem is ExtensionMarketDisplayItem selected
             && _selectedDetails != null)
             UpdateActionState(selected);
+    }
+
+    private void ShowMarketReadyStatus()
+    {
+        if (_session != null)
+            SourceStatusText.Text = GetMarketReadyStatus(_session.IsCached);
     }
 
     private static void TryDeleteDownloadedPackage(string path)
@@ -430,6 +482,9 @@ public partial class ExtensionMarketWindow : Window
 
 internal sealed class ExtensionMarketDisplayItem
 {
+    private InstalledExtensionRecord? _installed;
+    private bool _isDownloading;
+
     internal ExtensionMarketDisplayItem(ExtensionMarketCatalogItem item, InstalledExtensionRecord? installed)
     {
         Item = item;
@@ -449,10 +504,24 @@ internal sealed class ExtensionMarketDisplayItem
 
     internal void UpdateInstalled(InstalledExtensionRecord? installed)
     {
-        StatusText = installed == null
+        _installed = installed;
+        UpdateStatus();
+    }
+
+    internal void SetDownloading(bool downloading)
+    {
+        _isDownloading = downloading;
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
+    {
+        StatusText = _isDownloading
+            ? "下载中"
+            : _installed == null
             ? "未安装"
             : !string.IsNullOrWhiteSpace(Item.LatestVersion)
-                && installed.Version != Item.LatestVersion
+                && _installed.Version != Item.LatestVersion
                     ? "待更新"
                     : "已安装";
     }
