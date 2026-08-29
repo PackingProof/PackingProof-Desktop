@@ -287,6 +287,9 @@ public sealed class SettingsAdvancedVisibilityTests
             document.Descendants(Presentation + "Button"),
             element => (string?)element.Attribute("Content") == "安装自定义扩展");
         Assert.Null((string?)marketButton.Attribute("IsEnabled"));
+        XElement marketRow = marketButton.Ancestors(Presentation + "Grid")
+            .First(element => (string?)element.Attribute("Style") == "{StaticResource SettingRowStyle}");
+        Assert.Null((string?)marketRow.Attribute("Visibility"));
         XElement customGrid = Assert.Single(
             document.Descendants(Presentation + "DataGrid"),
             element => ((string?)element.Attribute("ItemsSource"))?.Contains("CustomUserscripts", StringComparison.Ordinal) == true);

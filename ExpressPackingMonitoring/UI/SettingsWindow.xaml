@@ -3463,8 +3463,7 @@
                                               Style="{StaticResource ToggleSwitchStyle}"/>
                                 </Grid>
 
-                                <Grid Style="{StaticResource SettingRowStyle}"
-                                      Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
+                                <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="24"/>
