@@ -442,13 +442,18 @@ internal sealed class ExtensionMarketDisplayItem
     public string Badge => Item.SourceAvailability == "closed-source"
         ? "闭源外部程序"
         : Item.Type == "external-adapter" ? "外部程序" : "";
-    public string LatestVersionText => string.IsNullOrWhiteSpace(Item.LatestVersion)
-        ? "最新版 暂无"
-        : $"最新版 {Item.LatestVersion}";
-    public string InstalledVersionText { get; private set; } = "未安装";
+    public string AuthorText => string.IsNullOrWhiteSpace(Item.Publisher.DisplayName)
+        ? Item.Publisher.Id
+        : Item.Publisher.DisplayName;
+    public string StatusText { get; private set; } = "未安装";
 
     internal void UpdateInstalled(InstalledExtensionRecord? installed)
     {
-        InstalledVersionText = installed == null ? "未安装" : $"已安装 {installed.Version}";
+        StatusText = installed == null
+            ? "未安装"
+            : !string.IsNullOrWhiteSpace(Item.LatestVersion)
+                && installed.Version != Item.LatestVersion
+                    ? "待更新"
+                    : "已安装";
     }
 }

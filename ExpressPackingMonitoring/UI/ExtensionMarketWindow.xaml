@@ -10,6 +10,13 @@
         Background="{DynamicResource WindowBackground}"
         Foreground="{DynamicResource TextPrimary}"
         FontFamily="Microsoft YaHei UI, Segoe UI">
+    <Window.Resources>
+        <Style x:Key="MarketMetadataTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+    </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -110,32 +117,39 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Name}"
-                                           FontWeight="SemiBold"
-                                           FontSize="15"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2">
+                                    <TextBlock Text="{Binding Name}"
+                                               MaxWidth="240"
+                                               FontWeight="SemiBold"
+                                               FontSize="15"
+                                               Foreground="{DynamicResource TextPrimary}"
+                                               TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{Binding Badge}"
-                                               Grid.Column="1"
                                                Margin="8,0,0,0"
                                                Foreground="{DynamicResource AccentOrange}"
-                                               FontWeight="SemiBold"/>
+                                               FontSize="12"
+                                               FontWeight="Normal"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <TextBlock Text="{Binding Summary}"
                                            Grid.Row="1"
                                            Grid.ColumnSpan="2"
                                            Margin="0,5,0,0"
-                                           TextWrapping="Wrap"
+                                           FontSize="12"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Summary}"
                                            Foreground="{DynamicResource TextSecondary}"/>
-                                <TextBlock Text="{Binding LatestVersionText}"
+                                <TextBlock Text="{Binding AuthorText}"
                                            Grid.Row="2"
                                            Margin="0,5,0,0"
-                                           Foreground="{DynamicResource AccentBlue}"/>
-                                <TextBlock Text="{Binding InstalledVersionText}"
+                                           Style="{StaticResource MarketMetadataTextStyle}"/>
+                                <TextBlock Text="{Binding StatusText}"
                                            Grid.Row="2"
                                            Grid.Column="1"
                                            Margin="8,5,0,0"
                                            HorizontalAlignment="Right"
-                                           Foreground="{DynamicResource TextSecondary}"/>
+                                           Style="{StaticResource MarketMetadataTextStyle}"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -162,17 +176,17 @@
                                    FontWeight="Bold"/>
                         <WrapPanel Margin="0,6,0,0">
                             <TextBlock x:Name="PublisherText"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                                       Style="{StaticResource MarketMetadataTextStyle}"/>
                             <TextBlock x:Name="LatestVersionText"
-                                       Margin="18,0,0,0"
-                                       FontWeight="SemiBold"/>
+                                       Margin="14,0,0,0"
+                                       Style="{StaticResource MarketMetadataTextStyle}"/>
                             <TextBlock x:Name="InstalledVersionText"
-                                       Margin="18,0,0,0"
-                                       Foreground="{DynamicResource AccentBlue}"/>
+                                       Margin="14,0,0,0"
+                                       Style="{StaticResource MarketMetadataTextStyle}"/>
                         </WrapPanel>
                         <TextBlock x:Name="CompatibilityText"
                                    Margin="0,6,0,0"
-                                   Foreground="{DynamicResource TextSecondary}"/>
+                                   Style="{StaticResource MarketMetadataTextStyle}"/>
                     </StackPanel>
                     <Border x:Name="RiskPanel"
                             Grid.Row="1"

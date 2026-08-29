@@ -49,12 +49,22 @@ public sealed class ExtensionMarketWindowTests
 
         Assert.Contains(
             list.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding LatestVersionText}"
+            element => (string?)element.Attribute("Text") == "{Binding AuthorText}"
                 && (string?)element.Attribute("Grid.Column") == null);
         Assert.Contains(
             list.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "{Binding InstalledVersionText}"
+            element => (string?)element.Attribute("Text") == "{Binding StatusText}"
                 && (string?)element.Attribute("Grid.Column") == "1");
+        XElement summary = Assert.Single(
+            list.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding Summary}");
+        Assert.Equal("NoWrap", (string?)summary.Attribute("TextWrapping"));
+        Assert.Equal("CharacterEllipsis", (string?)summary.Attribute("TextTrimming"));
+        XElement badge = Assert.Single(
+            list.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding Badge}");
+        Assert.Equal(Presentation + "StackPanel", badge.Parent?.Name);
+        Assert.Null((string?)badge.Attribute("Grid.Column"));
     }
 
     [Fact]
@@ -76,6 +86,11 @@ public sealed class ExtensionMarketWindowTests
         Assert.Contains(
             versionsRow.Elements(Presentation + "TextBlock"),
             element => (string?)element.Attribute(Xaml + "Name") == "InstalledVersionText");
+        Assert.All(
+            versionsRow.Elements(Presentation + "TextBlock"),
+            element => Assert.Equal(
+                "{StaticResource MarketMetadataTextStyle}",
+                (string?)element.Attribute("Style")));
 
         XElement otherVersions = Assert.Single(
             document.Descendants(Presentation + "Button"),
@@ -134,14 +149,24 @@ public sealed class ExtensionMarketWindowTests
     }
 
     [Fact]
-    public void CatalogItemShowsLatestOnLeftAndInstalledVersionOnRight()
+    public void CatalogItemShowsAuthorOnLeftAndInstallStatusOnRight()
     {
         var item = new ExtensionMarketDisplayItem(
-            new ExtensionMarketCatalogItem { LatestVersion = "2.0.0" },
+            new ExtensionMarketCatalogItem
+            {
+                LatestVersion = "2.0.0",
+                Publisher = new ExtensionMarketPublisher { DisplayName = "PackingProof" }
+            },
             new InstalledExtensionRecord { Version = "1.5.0" });
 
-        Assert.Equal("最新版 2.0.0", item.LatestVersionText);
-        Assert.Equal("已安装 1.5.0", item.InstalledVersionText);
+        Assert.Equal("PackingProof", item.AuthorText);
+        Assert.Equal("待更新", item.StatusText);
+
+        item.UpdateInstalled(new InstalledExtensionRecord { Version = "2.0.0" });
+        Assert.Equal("已安装", item.StatusText);
+
+        item.UpdateInstalled(null);
+        Assert.Equal("未安装", item.StatusText);
     }
 
     private static string FindRepositoryFile(params string[] parts)
