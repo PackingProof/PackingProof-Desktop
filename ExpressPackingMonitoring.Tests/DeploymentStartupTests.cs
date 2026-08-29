@@ -199,6 +199,26 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void EncoderDetectionCommandUsesTaskReturningHandler()
+    {
+        string encoderSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Encoder.cs");
+        string scannerSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Scanner.cs");
+
+        Assert.Contains("public async Task ResetEncoderDetectAsync()", encoderSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("async void ResetEncoderDetect", encoderSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);",
+            scannerSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientUsesSingleDynamicUserscriptButton()
     {
         string xaml = ReadRepositoryFile(

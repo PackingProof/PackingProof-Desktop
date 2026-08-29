@@ -255,7 +255,7 @@ namespace ExpressPackingMonitoring.ViewModels
             ToggleModeCommand = new RelayCommand(ToggleMode);
             ToggleRecordingCommand = new RelayCommand(ToggleRecording);
             OpenStatsCommand = new RelayCommand(OpenStatsWindow);
-            ResetEncoderDetectCommand = new RelayCommand(ResetEncoderDetect);
+            ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);
             CopyMonitorAddressCommand = new RelayCommand(CopyMonitorAddress);
             SwitchWorkstationCommand = new RelayCommand(SwitchWorkstation);
             ClearScanInputCommand = new RelayCommand(() => ScanInputText = "");

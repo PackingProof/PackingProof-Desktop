@@ -69,7 +69,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { return ""; }
         }
 
-        public async void ResetEncoderDetect()
+        public async Task ResetEncoderDetectAsync()
         {
             RecordingProfileRecommendation? recommendation =
                 await DetectAndRecommendRecordingProfileAsync(Config, null);
