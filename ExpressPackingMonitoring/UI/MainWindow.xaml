@@ -7,6 +7,7 @@
         Title="打包监控" Height="850" Width="1350"
         Background="{DynamicResource WindowBackground}" WindowState="Maximized" Closing="Window_Closing"
         Icon="/app.ico"
+        UseLayoutRounding="True" SnapsToDevicePixels="True"
         FontFamily="Microsoft YaHei UI, Segoe UI">
 
     <Window.DataContext>
@@ -556,7 +557,7 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="16,12">
+            <Border Grid.Column="1" Background="{DynamicResource PanelBackground}" CornerRadius="10" Padding="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -566,14 +567,14 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <!-- 行1条形码: 清除/发货/退货 -->
-                    <Grid Grid.Row="0" Margin="0,0,0,6" Height="60">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Barcode1Label}" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" TextAlignment="Center" Width="20" LineHeight="18" Margin="0,0,4,0"/>
-                        <Grid Grid.Column="1">
-                            <Image Source="{Binding Barcode1Image}" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    <Grid Grid.Row="0" Margin="0,0,0,6" Height="78">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{Binding Barcode1Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,4"/>
+                        <Grid Grid.Row="1">
+                            <Image Source="{Binding Barcode1Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
@@ -1003,14 +1004,14 @@
 
                     <!-- 行2条形码: 开录/停录 -->
                     <Border Grid.Row="4" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,6,0,0">
-                        <Grid Height="60">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Barcode2Label}" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" TextAlignment="Center" Width="20" LineHeight="18" Margin="0,0,4,0"/>
-                            <Grid Grid.Column="1">
-                                <Image Source="{Binding Barcode2Image}" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <Grid Height="78">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="{Binding Barcode2Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,4"/>
+                            <Grid Grid.Row="1">
+                                <Image Source="{Binding Barcode2Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">

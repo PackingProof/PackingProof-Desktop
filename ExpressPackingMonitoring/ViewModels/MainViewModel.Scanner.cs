@@ -41,6 +41,8 @@ namespace ExpressPackingMonitoring.ViewModels
             Application.Current?.Dispatcher?.BeginInvoke(new Action(RefreshBarcodes), System.Windows.Threading.DispatcherPriority.Background);
         }
 
+        public void RefreshBarcodesForDpiChange() => ScheduleRefreshBarcodes();
+
         public void ResumeVideoPreviewUpdatesAfterWindowMove()
         {
             SuppressVideoPreviewUpdates = false;
@@ -64,12 +66,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!_barcode1OnCooldown)
                 {
                     Barcode1Label = label1;
-                    Barcode1Image = BarcodeHelper.Generate(cmd1, 70, 3);
+                    Barcode1Image = BarcodeHelper.Generate(cmd1, 52, 3);
                 }
                 if (!_barcode2OnCooldown)
                 {
                     Barcode2Label = label2;
-                    Barcode2Image = BarcodeHelper.Generate(cmd2, 70, 3);
+                    Barcode2Image = BarcodeHelper.Generate(cmd2, 52, 3);
                 }
             }
             catch { }

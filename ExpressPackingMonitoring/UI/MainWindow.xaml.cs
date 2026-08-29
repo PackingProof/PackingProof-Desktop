@@ -151,6 +151,8 @@ namespace ExpressPackingMonitoring.UI
                 UpdateStatsBarVisibility();
                 UpdateTopBarCompactState();
             };
+            DpiChanged += (_, _) =>
+                (DataContext as MainViewModel)?.RefreshBarcodesForDpiChange();
             if (DataContext is MainViewModel statsViewModel)
             {
                 statsViewModel.PropertyChanged += OnStatsViewModelPropertyChanged;

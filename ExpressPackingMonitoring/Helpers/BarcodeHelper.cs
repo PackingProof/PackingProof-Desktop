@@ -12,6 +12,8 @@ namespace ExpressPackingMonitoring.Helpers
     /// </summary>
     public static class BarcodeHelper
     {
+        internal const int QuietZoneModules = 10;
+
         // Code 128B 编码表：每个字符对应 6 组宽度（bar, space, bar, space, bar, space）
         private static readonly int[][] Patterns = {
             new[]{2,1,2,2,2,2}, new[]{2,2,2,1,2,2}, new[]{2,2,2,2,2,1}, new[]{1,2,1,2,2,3},
@@ -74,52 +76,79 @@ namespace ExpressPackingMonitoring.Helpers
             allCodes.Add(checkValue);
 
             // 计算总宽度
-            int totalModules = 0;
-            foreach (var code in allCodes)
-                foreach (var w in Patterns[code]) totalModules += w;
-            foreach (var w in StopPattern) totalModules += w;
-            totalModules += 4; // quiet zone (2 modules each side)
-
-            int imgWidth = totalModules * moduleWidth;
-            int imgHeight = height;
+            int totalModules = CalculateTotalModules(allCodes);
+            double dpiScale = GetDpiScale();
+            (int pixelWidth, int pixelHeight, double moduleWidthDip, double heightDip) =
+                CalculateRasterMetrics(totalModules, height, moduleWidth, dpiScale);
             Brush background = ResolveBrush("BarcodeBackground");
             Brush foreground = ResolveBrush("BarcodeForeground");
 
             var visual = new DrawingVisual();
             using (var dc = visual.RenderOpen())
             {
-                dc.DrawRectangle(background, null, new Rect(0, 0, imgWidth, imgHeight));
+                dc.DrawRectangle(background, null, new Rect(0, 0, pixelWidth / dpiScale, heightDip));
 
-                int x = 2 * moduleWidth; // quiet zone
+                double x = QuietZoneModules * moduleWidthDip;
                 // Draw all code patterns
                 foreach (var code in allCodes)
-                    x = DrawPattern(dc, Patterns[code], x, imgHeight, moduleWidth, foreground);
+                    x = DrawPattern(dc, Patterns[code], x, heightDip, moduleWidthDip, foreground);
                 // Draw stop pattern
-                DrawPattern(dc, StopPattern, x, imgHeight, moduleWidth, foreground);
+                DrawPattern(dc, StopPattern, x, heightDip, moduleWidthDip, foreground);
             }
 
-            var rtb = new RenderTargetBitmap(imgWidth, imgHeight, 96, 96, PixelFormats.Pbgra32);
+            double dpi = 96 * dpiScale;
+            var rtb = new RenderTargetBitmap(pixelWidth, pixelHeight, dpi, dpi, PixelFormats.Pbgra32);
             rtb.Render(visual);
             rtb.Freeze();
             return rtb;
+        }
+
+        internal static int CalculateTotalModules(IEnumerable<int> codes)
+        {
+            int totalModules = QuietZoneModules * 2;
+            foreach (int code in codes)
+                foreach (int width in Patterns[code])
+                    totalModules += width;
+            foreach (int width in StopPattern)
+                totalModules += width;
+            return totalModules;
+        }
+
+        internal static (int PixelWidth, int PixelHeight, double ModuleWidthDip, double HeightDip)
+            CalculateRasterMetrics(int totalModules, int height, int moduleWidth, double dpiScale)
+        {
+            dpiScale = dpiScale > 0 ? dpiScale : 1;
+            int physicalModuleWidth = Math.Max(1, (int)Math.Floor(moduleWidth * dpiScale));
+            int pixelHeight = Math.Max(1, (int)Math.Round(height * dpiScale));
+            return (
+                totalModules * physicalModuleWidth,
+                pixelHeight,
+                physicalModuleWidth / dpiScale,
+                pixelHeight / dpiScale);
+        }
+
+        private static double GetDpiScale()
+        {
+            Visual visual = Application.Current?.MainWindow;
+            return visual == null ? 1 : VisualTreeHelper.GetDpi(visual).DpiScaleX;
         }
 
         private static Brush ResolveBrush(string resourceKey) =>
             Application.Current?.TryFindResource(resourceKey) as Brush
             ?? throw new InvalidOperationException($"Missing brush resource: {resourceKey}");
 
-        private static int DrawPattern(
+        private static double DrawPattern(
             DrawingContext dc,
             int[] pattern,
-            int x,
-            int height,
-            int moduleWidth,
+            double x,
+            double height,
+            double moduleWidth,
             Brush foreground)
         {
             bool isBar = true;
             foreach (var w in pattern)
             {
-                int pixelWidth = w * moduleWidth;
+                double pixelWidth = w * moduleWidth;
                 if (isBar)
                     dc.DrawRectangle(foreground, null, new Rect(x, 0, pixelWidth, height));
                 x += pixelWidth;

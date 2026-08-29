@@ -464,11 +464,11 @@
   <data name="Main.ClientMobileApp" xml:space="preserve"><value>Mobile app</value></data>
   <data name="Main.ClientOther" xml:space="preserve"><value>Other device</value></data>
   <data name="Main.Title" xml:space="preserve"><value>Packing Monitor {0}</value></data>
-  <data name="Main.BarcodeClear" xml:space="preserve"><value>C\nL\nR</value></data>
-  <data name="Main.BarcodeReturn" xml:space="preserve"><value>R\nE\nT</value></data>
-  <data name="Main.BarcodeShipping" xml:space="preserve"><value>S\nH\nI\nP</value></data>
-  <data name="Main.BarcodeStop" xml:space="preserve"><value>S\nT\nO\nP</value></data>
-  <data name="Main.BarcodeStart" xml:space="preserve"><value>S\nT\nA\nR\nT</value></data>
+  <data name="Main.BarcodeClear" xml:space="preserve"><value>Scan: Clear input</value></data>
+  <data name="Main.BarcodeReturn" xml:space="preserve"><value>Scan: Return mode</value></data>
+  <data name="Main.BarcodeShipping" xml:space="preserve"><value>Scan: Shipping mode</value></data>
+  <data name="Main.BarcodeStop" xml:space="preserve"><value>Scan: Stop recording</value></data>
+  <data name="Main.BarcodeStart" xml:space="preserve"><value>Scan: Start recording</value></data>
   <data name="编码器检测失败，已保留现有设置" xml:space="preserve"><value>Encoder detection failed, existing settings retained</value></data>
   <data name="部分历史录像转换失败，已保留原文件" xml:space="preserve"><value>The conversion of some historical videos failed and the original files have been retained.</value></data>
   <data name="部分视频合成失败，已保留原文件" xml:space="preserve"><value>Part of the video synthesis failed, the original file has been retained</value></data>

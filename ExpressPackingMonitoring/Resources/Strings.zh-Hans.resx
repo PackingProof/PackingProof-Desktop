@@ -464,11 +464,11 @@
   <data name="Main.ClientMobileApp" xml:space="preserve"><value>手机 APP</value></data>
   <data name="Main.ClientOther" xml:space="preserve"><value>其他设备</value></data>
   <data name="Main.Title" xml:space="preserve"><value>快递打包监控 {0}</value></data>
-  <data name="Main.BarcodeClear" xml:space="preserve"><value>清\n除</value></data>
-  <data name="Main.BarcodeReturn" xml:space="preserve"><value>退\n货</value></data>
-  <data name="Main.BarcodeShipping" xml:space="preserve"><value>发\n货</value></data>
-  <data name="Main.BarcodeStop" xml:space="preserve"><value>停\n录</value></data>
-  <data name="Main.BarcodeStart" xml:space="preserve"><value>开\n录</value></data>
+  <data name="Main.BarcodeClear" xml:space="preserve"><value>扫码清空输入</value></data>
+  <data name="Main.BarcodeReturn" xml:space="preserve"><value>扫码切换退货</value></data>
+  <data name="Main.BarcodeShipping" xml:space="preserve"><value>扫码切换发货</value></data>
+  <data name="Main.BarcodeStop" xml:space="preserve"><value>扫码停止录像</value></data>
+  <data name="Main.BarcodeStart" xml:space="preserve"><value>扫码开始录像</value></data>
   <data name="编码器检测失败，已保留现有设置" xml:space="preserve"><value>编码器检测失败，已保留现有设置</value></data>
   <data name="部分历史录像转换失败，已保留原文件" xml:space="preserve"><value>部分历史录像转换失败，已保留原文件</value></data>
   <data name="部分视频合成失败，已保留原文件" xml:space="preserve"><value>部分视频合成失败，已保留原文件</value></data>
