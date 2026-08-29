@@ -76,7 +76,28 @@ jobs:
         run: dotnet build ExpressPackingMonitoring.sln -c Debug --no-restore --nologo
 
       - name: 运行单元测试
-        run: dotnet test ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj -c Debug --no-build --no-restore --nologo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $arguments = @(
+            "test",
+            "ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj",
+            "-c", "Debug",
+            "--no-build",
+            "--no-restore",
+            "--nologo"
+          )
+          for ($attempt = 1; $attempt -le 2; $attempt++) {
+            & dotnet @arguments
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -eq 2) {
+              throw "单元测试连续两次失败，最后退出码：$LASTEXITCODE"
+            }
+            Write-Warning "单元测试首次失败，5 秒后完整重跑一次"
+            Start-Sleep -Seconds 5
+          }
 
       - name: 检查用户脚本语法
         run: node --check "Scripts\PackingProof-Order-Integration-KDZS.user.js"

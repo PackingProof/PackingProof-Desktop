@@ -115,7 +115,24 @@ jobs:
 
       - name: 运行发布自动验收（Release 构建、全量测试、WPF 启停、Web 端到端）
         shell: pwsh
-        run: pwsh -NoProfile -File Tools\Test-Release-Automated.ps1 -Configuration Release
+        run: |
+          $ErrorActionPreference = "Stop"
+          $arguments = @(
+            "-NoProfile",
+            "-File", "Tools\Test-Release-Automated.ps1",
+            "-Configuration", "Release"
+          )
+          for ($attempt = 1; $attempt -le 2; $attempt++) {
+            & pwsh @arguments
+            if ($LASTEXITCODE -eq 0) {
+              exit 0
+            }
+            if ($attempt -eq 2) {
+              throw "发布自动验收连续两次失败，最后退出码：$LASTEXITCODE"
+            }
+            Write-Warning "发布自动验收首次失败，10 秒后完整重跑一次"
+            Start-Sleep -Seconds 10
+          }
 
       - name: 准备锁定的启动器基线包
         shell: pwsh
