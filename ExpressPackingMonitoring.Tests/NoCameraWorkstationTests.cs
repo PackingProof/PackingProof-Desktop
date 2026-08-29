@@ -292,6 +292,26 @@ public sealed class NoCameraWorkstationTests
     }
 
     [Fact]
+    public void MobileBackupHostSettingsReuseStorageUsageAndCleanupServices()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Workstations",
+            "PrintWorkstationWindow.xaml.cs");
+
+        Assert.Contains(
+            "PreviewManualCleanupAsync = _host.PreviewManualCleanupAsync",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RunManualCleanupAsync = _host.RunManualCleanupAsync",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("await _host.GetStorageUsageAsync()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetDiskUsage(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SharedSettingsWindowDoesNotRetainMainViewModel()
     {
         Type[] fieldTypes = typeof(SettingsWindow)

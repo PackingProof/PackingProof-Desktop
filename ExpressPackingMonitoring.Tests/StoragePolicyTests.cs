@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Services;
 using System.IO;
 using System.Text.Json;
 using Xunit;
@@ -7,6 +8,38 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class StoragePolicyTests
 {
+    [Fact]
+    public void StorageUsageCalculator_CountsOnlyManagedLocalVideoFiles()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            $"packingproof-storage-usage-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory, "one.mp4"), new byte[100]);
+            File.WriteAllBytes(Path.Combine(directory, "two.mkv"), new byte[200]);
+            File.WriteAllBytes(Path.Combine(directory, "ignore.txt"), new byte[400]);
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = directory, Priority = 0 }
+                ]
+            };
+
+            StorageUsageSnapshot snapshot = StorageUsageCalculator.Scan(config);
+
+            Assert.Equal(300, snapshot.VideoBytes);
+            Assert.True(snapshot.CapacityBytes >= snapshot.VideoBytes);
+            Assert.InRange(snapshot.UsagePercent, 0, 0.001);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void ClassifyStorageLocation_UncShortCircuitsToNetwork()
     {

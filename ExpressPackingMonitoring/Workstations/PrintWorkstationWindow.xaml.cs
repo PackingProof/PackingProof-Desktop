@@ -320,7 +320,7 @@ public partial class PrintWorkstationWindow : Window
         _playbackWindow.Show();
     }
 
-    private void OpenSettings_Click(object sender, RoutedEventArgs e)
+    private async void OpenSettings_Click(object sender, RoutedEventArgs e)
     {
         AppConfig clonedConfig =
             JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(_config)) ?? new AppConfig();
@@ -335,14 +335,16 @@ public partial class PrintWorkstationWindow : Window
             GetExtensionAuthorizations = _host.GetExtensionAuthorizations,
             RevokeExtensionAuthorization = _host.RevokeExtensionAuthorization,
             ShowToast = (message, severity) => ShowToast(message, severity),
+            PreviewManualCleanupAsync = _host.PreviewManualCleanupAsync,
+            RunManualCleanupAsync = _host.RunManualCleanupAsync,
             ToastSource = ToastState
         };
-        (double diskUsagePercent, string diskUsageText) = GetDiskUsage(_host.StoragePath);
+        StorageUsageSnapshot usage = await _host.GetStorageUsageAsync();
         var window = new SettingsWindow(
             context,
             clonedConfig,
-            diskUsagePercent,
-            diskUsageText)
+            usage.UsagePercent,
+            StorageUsageCalculator.Format(usage, _host.Database))
         {
             Owner = this
         };
@@ -683,28 +685,6 @@ public partial class PrintWorkstationWindow : Window
         }
 
         return true;
-    }
-
-    private static (double Percent, string Text) GetDiskUsage(string storagePath)
-    {
-        try
-        {
-            string? root = Path.GetPathRoot(Path.GetFullPath(storagePath));
-            if (string.IsNullOrWhiteSpace(root)) return (0, "暂不可用");
-            var drive = new DriveInfo(root);
-            if (drive.TotalSize <= 0) return (0, "暂不可用");
-            double percent = Math.Clamp(
-                (drive.TotalSize - drive.AvailableFreeSpace) * 100d / drive.TotalSize,
-                0,
-                100);
-            double usedGB = (drive.TotalSize - drive.AvailableFreeSpace) / 1024d / 1024d / 1024d;
-            double totalGB = drive.TotalSize / 1024d / 1024d / 1024d;
-            return (percent, $"{usedGB:F1} / {totalGB:F1} GB");
-        }
-        catch
-        {
-            return (0, "暂不可用");
-        }
     }
 
     private void CloseChildWindows()

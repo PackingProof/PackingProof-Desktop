@@ -77,31 +77,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (fullScan)
                 {
-                    var scannedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var loc in Config.StorageLocations)
-                    {
-                        if (string.IsNullOrWhiteSpace(loc.Path)) continue;
-                        string normalizedPath = Path.IsPathRooted(loc.Path) ? loc.Path : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, loc.Path);
-                        if (StorageLocationResolver.IsBackupLocation(loc)) continue;
-                        if (!Directory.Exists(normalizedPath)) continue;
-
-                        long storageCapacity = 0;
-                        try
-                        {
-                            if (StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume)
-                                && scannedRoots.Add(volume.RootPath))
-                            {
-                                long locVideoBytes = 0;
-                                foreach (var fi in EnumerateVideoFiles(normalizedPath))
-                                    locVideoBytes += fi.Length;
-                                totalCurrentBytes += locVideoBytes;
-                                long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(loc, volume);
-                                storageCapacity = Math.Max(0, volume.AvailableFreeSpace - reserveBytes) + locVideoBytes;
-                            }
-                        }
-                        catch { }
-                        totalCapacityBytes += storageCapacity;
-                    }
+                    StorageUsageSnapshot snapshot = StorageUsageCalculator.Scan(Config);
+                    totalCurrentBytes = snapshot.VideoBytes;
+                    totalCapacityBytes = snapshot.CapacityBytes;
 
                     _lastFullDiskCleanup = DateTime.Now;
                     _lastKnownDiskTotalBytes = totalCurrentBytes;
@@ -304,23 +282,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private IReadOnlyList<string> GetManagedLocalRoots()
-        {
-            var roots = new List<string>();
-            if (Config.StorageLocations == null)
-                return roots;
-            foreach (StorageLocation location in Config.StorageLocations)
-            {
-                if (string.IsNullOrWhiteSpace(location.Path))
-                    continue;
-                string normalized = Path.IsPathRooted(location.Path)
-                    ? location.Path
-                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, location.Path);
-                if (!StorageVolumeInfo.IsConfirmedLocal(normalized))
-                    continue;
-                roots.Add(normalized);
-            }
-            return roots;
-        }
+            => StorageUsageCalculator.GetManagedLocalRoots(Config);
 
         /// <summary>
         /// 硬循环兜底（最后降级策略）：正常 GC 后仍无法满足保留要求、
@@ -871,31 +833,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void UpdateDiskUsageText(long totalCurrentBytes, long totalCapacityBytes)
         {
-            double totalUsedGB = totalCurrentBytes / 1073741824.0;
-            double totalCapacityGB = totalCapacityBytes / 1073741824.0;
-            string estimateText = "";
-            try
-            {
-                var (dbTotalBytes, dbTotalSec) = _db?.GetGlobalSizeAndDuration() ?? (0, 0);
-                if (dbTotalBytes > 0 && dbTotalSec > 0)
-                {
-                    double bytesPerSec = dbTotalBytes / dbTotalSec;
-                    if (totalCapacityBytes > 0)
-                    {
-                        double retentionHours = totalCapacityBytes / bytesPerSec / 3600.0;
-                        estimateText = retentionHours >= 1
-                            ? $"，预计循环可录 {retentionHours:F0} 小时"
-                            : $"，预计循环可录 {retentionHours * 60:F0} 分钟";
-                    }
-                }
-            }
-            catch { }
+            var snapshot = new StorageUsageSnapshot(totalCurrentBytes, totalCapacityBytes);
 
             _ = Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 if (_isDisposed) return;
-                DiskUsagePercent = totalCapacityGB > 0 ? Math.Min(100.0, (totalUsedGB / totalCapacityGB) * 100.0) : 0;
-                DiskUsageText = $"{totalUsedGB:F1} / {totalCapacityGB:F1} GB{estimateText}";
+                DiskUsagePercent = snapshot.UsagePercent;
+                DiskUsageText = StorageUsageCalculator.Format(snapshot, _db);
             });
         }
 

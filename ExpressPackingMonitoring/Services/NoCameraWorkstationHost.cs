@@ -20,6 +20,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private bool _disposed;
     private bool _archiveTargetUnavailable;
     private string _archiveUnavailableRoot = "";
+    private int _manualCleanupRunning;
 
     public NoCameraWorkstationHost(
         AppConfig config,
@@ -95,6 +96,45 @@ internal sealed class NoCameraWorkstationHost : IDisposable
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
     }
+
+    public Task<ManualCleanupPreview> PreviewManualCleanupAsync(ManualCleanupOptions options)
+    {
+        if (_database == null)
+            return Task.FromException<ManualCleanupPreview>(
+                new InvalidOperationException("数据库不可用，无法清理"));
+        var service = new ManualCleanupService(_database);
+        IReadOnlyList<string> roots = StorageUsageCalculator.GetManagedLocalRoots(_config);
+        return Task.Run(() => service.Preview(options, roots));
+    }
+
+    public Task<ManualCleanupResult> RunManualCleanupAsync(
+        ManualCleanupOptions options,
+        Func<ManualCleanupPrompt, bool> unarchivedDecider)
+    {
+        if (_database == null)
+            return Task.FromException<ManualCleanupResult>(
+                new InvalidOperationException("数据库不可用，无法清理"));
+        if (Interlocked.CompareExchange(ref _manualCleanupRunning, 1, 0) != 0)
+            return Task.FromException<ManualCleanupResult>(
+                new InvalidOperationException("手动清理正在进行，请稍后再试"));
+
+        var service = new ManualCleanupService(_database);
+        IReadOnlyList<string> roots = StorageUsageCalculator.GetManagedLocalRoots(_config);
+        return Task.Run(() =>
+        {
+            try
+            {
+                return service.Run(options, roots, unarchivedDecider);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _manualCleanupRunning, 0);
+            }
+        });
+    }
+
+    public Task<StorageUsageSnapshot> GetStorageUsageAsync() =>
+        Task.Run(() => StorageUsageCalculator.Scan(_config));
 
     public void UpdateConfig(AppConfig config)
     {

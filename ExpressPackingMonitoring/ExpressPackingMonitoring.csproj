@@ -198,6 +198,7 @@
     <Compile Include="Services\VideoLifecycleCoordinator.cs" />
     <Compile Include="Services\ShortLivedSnapshotCache.cs" />
     <Compile Include="Services\StorageLocationResolver.cs" />
+    <Compile Include="Services\StorageUsageCalculator.cs" />
     <Compile Include="Services\TaskbarIdentityService.cs" />
     <Compile Include="Services\VideoClipService.cs" />
     <Compile Include="Services\PlaybackFileResolver.cs" />
