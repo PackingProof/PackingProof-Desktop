@@ -9,7 +9,7 @@ namespace ExpressPackingMonitoring.Services.Extensions;
 internal sealed class ExtensionMarketClient
 {
     internal const string GiteeRegistryBase = "https://gitee.com/PackingProof/PackingProof-Extensions/raw/main/registry/";
-    internal const string GithubRegistryBase = "https://raw.githubusercontent.com/PackingProof/PackingProof-Extensions/main/registry/";
+    internal const string GithubRegistryBase = "https://github.com/PackingProof/PackingProof-Extensions/raw/refs/heads/main/registry/";
     private const string CatalogFileName = "catalog.v1.json";
     private const string SignatureFileName = "catalog.v1.sig";
     private const string PublicKeyId = "ffa7e958e397fdce";
