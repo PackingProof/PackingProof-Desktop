@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -244,22 +245,33 @@ public sealed class LauncherBaselineScriptTests
     private static ProcessResult RunPowerShell(string command, string workingDirectory)
     {
         string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(command));
-        var startInfo = new ProcessStartInfo("pwsh.exe")
+        for (int attempt = 1; ; attempt++)
         {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-EncodedCommand");
-        startInfo.ArgumentList.Add(encoded);
-        using Process process = Process.Start(startInfo)!;
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        return new ProcessResult(process.ExitCode, output, error);
+            var startInfo = new ProcessStartInfo("pwsh.exe")
+            {
+                WorkingDirectory = workingDirectory,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-EncodedCommand");
+            startInfo.ArgumentList.Add(encoded);
+
+            try
+            {
+                using Process process = Process.Start(startInfo)!;
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+                return new ProcessResult(process.ExitCode, output, error);
+            }
+            catch (Win32Exception exception) when (exception.NativeErrorCode == 87 && attempt < 3)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(100));
+            }
+        }
     }
 
     private static string ComputeSha256(string path)
