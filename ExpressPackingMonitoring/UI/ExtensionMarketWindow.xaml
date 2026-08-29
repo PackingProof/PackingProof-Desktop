@@ -126,11 +126,16 @@
                                            Margin="0,5,0,0"
                                            TextWrapping="Wrap"
                                            Foreground="{DynamicResource TextSecondary}"/>
-                                <TextBlock Text="{Binding InstalledText}"
+                                <TextBlock Text="{Binding LatestVersionText}"
                                            Grid.Row="2"
-                                           Grid.ColumnSpan="2"
                                            Margin="0,5,0,0"
                                            Foreground="{DynamicResource AccentBlue}"/>
+                                <TextBlock Text="{Binding InstalledVersionText}"
+                                           Grid.Row="2"
+                                           Grid.Column="1"
+                                           Margin="8,5,0,0"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{DynamicResource TextSecondary}"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -155,7 +160,17 @@
                                    Text="请选择一个扩展"
                                    FontSize="22"
                                    FontWeight="Bold"/>
-                        <TextBlock x:Name="PublisherText"
+                        <WrapPanel Margin="0,6,0,0">
+                            <TextBlock x:Name="PublisherText"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <TextBlock x:Name="LatestVersionText"
+                                       Margin="18,0,0,0"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock x:Name="InstalledVersionText"
+                                       Margin="18,0,0,0"
+                                       Foreground="{DynamicResource AccentBlue}"/>
+                        </WrapPanel>
+                        <TextBlock x:Name="CompatibilityText"
                                    Margin="0,6,0,0"
                                    Foreground="{DynamicResource TextSecondary}"/>
                     </StackPanel>
@@ -173,24 +188,22 @@
                     <ScrollViewer Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" LineHeight="22"/>
-                            <TextBlock x:Name="VersionText"
-                                       Margin="0,18,0,0"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock x:Name="CompatibilityText"
-                                       Margin="0,6,0,0"
-                                       Foreground="{DynamicResource TextSecondary}"/>
-                            <TextBlock x:Name="InstallStatusText"
-                                       Margin="0,12,0,0"
-                                       Foreground="{DynamicResource AccentBlue}"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,20,0,0">
+                    <WrapPanel Grid.Row="3" Margin="0,20,0,0">
                         <Button x:Name="InstallButton"
                                 Content="安装"
                                 MinWidth="92"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 IsEnabled="False"
                                 Click="Install_Click"/>
+                        <Button x:Name="InstallOtherVersionButton"
+                                Content="安装其他版本"
+                                MinWidth="118"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                IsEnabled="False"
+                                Click="InstallOtherVersion_Click"/>
                         <Button x:Name="OpenFolderButton"
                                 Content="打开目录"
                                 MinWidth="92"
@@ -202,10 +215,10 @@
                                 Content="删除"
                                 MinWidth="92"
                                 Margin="10,0,0,0"
-                                Style="{StaticResource SecondaryButtonStyle}"
+                                Style="{StaticResource DeleteButtonStyle}"
                                 Visibility="Collapsed"
                                 Click="Remove_Click"/>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </Border>
         </Grid>

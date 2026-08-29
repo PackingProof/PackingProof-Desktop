@@ -634,18 +634,7 @@
 
         <Style x:Key="DeleteUserscriptButtonStyle"
                TargetType="Button"
-               BasedOn="{StaticResource BaseButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource DangerActionHoverBackground}"/>
-                    <Setter Property="BorderBrush" Value="{DynamicResource DangerActionHoverBorder}"/>
-                    <Setter Property="Foreground" Value="{DynamicResource DangerActionHoverForeground}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+               BasedOn="{StaticResource DeleteButtonStyle}"/>
 
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13"/>

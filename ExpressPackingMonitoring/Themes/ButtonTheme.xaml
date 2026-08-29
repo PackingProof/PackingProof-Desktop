@@ -68,6 +68,19 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="DeleteButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DangerActionHoverBackground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource DangerActionHoverBorder}"/>
+                <Setter Property="Foreground" Value="{DynamicResource DangerActionHoverForeground}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background" Value="{DynamicResource AccentRed}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentRed}"/>

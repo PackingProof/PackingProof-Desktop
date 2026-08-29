@@ -1,3 +1,5 @@
+using ExpressPackingMonitoring.Services.Extensions;
+using ExpressPackingMonitoring.UI;
 using System.Xml.Linq;
 using Xunit;
 
@@ -44,6 +46,102 @@ public sealed class ExtensionMarketWindowTests
         Assert.Contains(
             document.Descendants(Presentation + "ColumnDefinition"),
             column => (string?)column.Attribute("Width") == "360");
+
+        Assert.Contains(
+            list.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding LatestVersionText}"
+                && (string?)element.Attribute("Grid.Column") == null);
+        Assert.Contains(
+            list.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding InstalledVersionText}"
+                && (string?)element.Attribute("Grid.Column") == "1");
+    }
+
+    [Fact]
+    public void DetailsKeepVersionsBesidePublisherAndReuseDeleteButtonStyle()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml"));
+        XElement publisher = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "PublisherText");
+        XElement versionsRow = Assert.IsType<XElement>(publisher.Parent);
+
+        Assert.Equal(Presentation + "WrapPanel", versionsRow.Name);
+        Assert.Contains(
+            versionsRow.Elements(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "LatestVersionText");
+        Assert.Contains(
+            versionsRow.Elements(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "InstalledVersionText");
+
+        XElement otherVersions = Assert.Single(
+            document.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute(Xaml + "Name") == "InstallOtherVersionButton");
+        Assert.Equal("False", (string?)otherVersions.Attribute("IsEnabled"));
+
+        XElement remove = Assert.Single(
+            document.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute(Xaml + "Name") == "RemoveButton");
+        Assert.Equal("{StaticResource DeleteButtonStyle}", (string?)remove.Attribute("Style"));
+
+        XDocument buttonTheme = XDocument.Load(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "Themes",
+            "ButtonTheme.xaml"));
+        XElement deleteStyle = Assert.Single(
+            buttonTheme.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "DeleteButtonStyle");
+        Assert.Contains(
+            deleteStyle.Descendants(Presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "IsMouseOver"
+                && (string?)trigger.Attribute("Value") == "True");
+
+        XDocument settings = XDocument.Load(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml"));
+        XElement userscriptDeleteStyle = Assert.Single(
+            settings.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "DeleteUserscriptButtonStyle");
+        Assert.Equal(
+            "{StaticResource DeleteButtonStyle}",
+            (string?)userscriptDeleteStyle.Attribute("BasedOn"));
+    }
+
+    [Fact]
+    public void OtherVersionSelectionExcludesLatestAndUnavailableVersions()
+    {
+        var latest = new ExtensionMarketRelease { Version = "2.0.0" };
+        var history = new ExtensionMarketRelease { Version = "1.5.0" };
+        var withdrawn = new ExtensionMarketRelease { Version = "1.0.0" };
+        var details = new ExtensionMarketDetails
+        {
+            Versions =
+            [
+                new ExtensionMarketVersionEntry { Release = latest, Status = "available" },
+                new ExtensionMarketVersionEntry { Release = history, Status = "available" },
+                new ExtensionMarketVersionEntry { Release = withdrawn, Status = "withdrawn" }
+            ]
+        };
+
+        ExtensionMarketRelease selected = Assert.Single(
+            ExtensionMarketWindow.GetOtherAvailableReleases(details, latest));
+
+        Assert.Same(history, selected);
+    }
+
+    [Fact]
+    public void CatalogItemShowsLatestOnLeftAndInstalledVersionOnRight()
+    {
+        var item = new ExtensionMarketDisplayItem(
+            new ExtensionMarketCatalogItem { LatestVersion = "2.0.0" },
+            new InstalledExtensionRecord { Version = "1.5.0" });
+
+        Assert.Equal("最新版 2.0.0", item.LatestVersionText);
+        Assert.Equal("已安装 1.5.0", item.InstalledVersionText);
     }
 
     private static string FindRepositoryFile(params string[] parts)

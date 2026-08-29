@@ -973,6 +973,7 @@
   <data name="刷新" xml:space="preserve"><value>刷新</value></data>
   <data name="请选择一个扩展" xml:space="preserve"><value>请选择一个扩展</value></data>
   <data name="安装" xml:space="preserve"><value>安装</value></data>
+  <data name="安装其他版本" xml:space="preserve"><value>安装其他版本</value></data>
   <data name="打开目录" xml:space="preserve"><value>打开目录</value></data>
   <data name="自定义扩展" xml:space="preserve"><value>自定义扩展</value></data>
   <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>从扩展市场或本地文件安装用户脚本和外部适配器</value></data>

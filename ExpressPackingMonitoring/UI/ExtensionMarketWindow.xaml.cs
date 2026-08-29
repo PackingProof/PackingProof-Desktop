@@ -7,6 +7,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -87,7 +89,10 @@ public partial class ExtensionMarketWindow : Window
                 selected.Item,
                 _operationCancellation?.Token ?? CancellationToken.None);
             _selectedRelease = _selectedDetails.Versions
-                .FirstOrDefault(value => value.Status == "available")?.Release;
+                .FirstOrDefault(value => value.Status == "available"
+                    && value.Release.Version == selected.Item.LatestVersion)?.Release
+                ?? _selectedDetails.Versions
+                    .FirstOrDefault(value => value.Status == "available")?.Release;
             ShowDetails(selected);
         }
         catch (Exception ex)
@@ -95,6 +100,7 @@ public partial class ExtensionMarketWindow : Window
             _selectedDetails = null;
             _selectedRelease = null;
             InstallButton.IsEnabled = false;
+            InstallOtherVersionButton.IsEnabled = false;
             AppDialog.Error(this, $"读取扩展详情失败：{ex.Message}", "读取失败");
         }
         finally
@@ -108,11 +114,10 @@ public partial class ExtensionMarketWindow : Window
         ExtensionMarketDetails details = _selectedDetails!;
         ExtensionNameText.Text = details.Extension.Name;
         PublisherText.Text = $"作者：{details.Publisher.DisplayName}";
+        LatestVersionText.Text = _selectedRelease == null
+            ? "最新版本：暂无"
+            : $"最新版本：{_selectedRelease.Version}";
         DescriptionText.Text = details.Extension.Description;
-        VersionText.Text = _selectedRelease == null ? "没有可安装版本" : $"最新版本：{_selectedRelease.Version}";
-        CompatibilityText.Text = _selectedRelease == null
-            ? ""
-            : $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本";
         bool external = details.Extension.Type == "external-adapter";
         bool closedSource = details.Extension.SourceAvailability == "closed-source";
         RiskPanel.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
@@ -131,9 +136,19 @@ public partial class ExtensionMarketWindow : Window
         InstallButton.IsEnabled = _selectedRelease != null && compatible;
         InstallButton.Content = installed == null ? "安装" :
             installed.Version == _selectedRelease?.Version ? "重新安装" : "更新";
-        InstallStatusText.Text = installed == null
-            ? compatible ? "尚未安装" : "当前 PackingProof 版本过低，无法安装"
-            : $"已安装版本：{installed.Version}";
+        InstalledVersionText.Text = installed == null
+            ? "尚未安装"
+            : $"已安装：{installed.Version}";
+        CompatibilityText.Text = _selectedRelease == null
+            ? "没有可安装版本"
+            : compatible
+                ? $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本"
+                : $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本，当前版本无法安装";
+        ExtensionMarketDetails? selectedDetails = _selectedDetails;
+        ExtensionMarketRelease? selectedRelease = _selectedRelease;
+        InstallOtherVersionButton.IsEnabled = selectedDetails != null
+            && selectedRelease != null
+            && GetOtherAvailableReleases(selectedDetails, selectedRelease).Count > 0;
         bool external = installed?.Type == "external-adapter";
         OpenFolderButton.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
         RemoveButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
@@ -141,7 +156,51 @@ public partial class ExtensionMarketWindow : Window
 
     private async void Install_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedDetails == null || _selectedRelease == null
+        if (_selectedRelease == null) return;
+        await InstallReleaseAsync(_selectedRelease);
+    }
+
+    private void InstallOtherVersion_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDetails == null || _selectedRelease == null) return;
+        IReadOnlyList<ExtensionMarketRelease> releases = GetOtherAvailableReleases(
+            _selectedDetails,
+            _selectedRelease);
+        if (releases.Count == 0) return;
+
+        InstalledExtensionRecord? installed = CatalogList.SelectedItem is ExtensionMarketDisplayItem selected
+            ? _installationService.GetInstalled().FirstOrDefault(value => value.Id == selected.Item.Id)
+            : null;
+        var menu = new ContextMenu
+        {
+            Placement = PlacementMode.Bottom,
+            PlacementTarget = InstallOtherVersionButton,
+            Background = (Brush)FindResource("PanelBackground"),
+            BorderBrush = (Brush)FindResource("BorderDefault"),
+            Foreground = (Brush)FindResource("TextPrimary")
+        };
+        foreach (ExtensionMarketRelease release in releases)
+        {
+            bool compatible = IsCompatible(release.Compatibility.MinPackingProofVersion);
+            string installedSuffix = installed?.Version == release.Version ? "（已安装）" : "";
+            var item = new MenuItem
+            {
+                Header = $"{release.Version}{installedSuffix}  ·  需要 PackingProof {release.Compatibility.MinPackingProofVersion}+",
+                IsEnabled = compatible,
+                ToolTip = compatible ? null : "当前 PackingProof 版本过低"
+            };
+            ExtensionMarketRelease selectedRelease = release;
+            item.Click += async (_, _) => await InstallReleaseAsync(selectedRelease);
+            menu.Items.Add(item);
+        }
+
+        InstallOtherVersionButton.ContextMenu = menu;
+        menu.IsOpen = true;
+    }
+
+    private async Task InstallReleaseAsync(ExtensionMarketRelease release)
+    {
+        if (_selectedDetails == null
             || CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
         bool external = _selectedDetails.Extension.Type == "external-adapter";
         bool closedSource = _selectedDetails.Extension.SourceAvailability == "closed-source";
@@ -172,16 +231,16 @@ public partial class ExtensionMarketWindow : Window
                 }
             });
             packagePath = await _marketClient.DownloadPackageAsync(
-                _selectedRelease,
+                release,
                 progress,
                 _operationCancellation.Token);
             ExtensionInstallResult result = await Task.Run(() => _installationService.Install(
                 packagePath,
                 _selectedDetails.Extension.Name,
                 _selectedDetails.Extension.Id,
-                _selectedRelease.Version,
+                release.Version,
                 _selectedDetails.Extension.Type,
-                _selectedRelease.Sha256));
+                release.Sha256));
             ShowInstallResult(result);
             RefreshDisplayItems();
             UpdateActionState(selected);
@@ -334,12 +393,22 @@ public partial class ExtensionMarketWindow : Window
         };
     }
 
+    internal static IReadOnlyList<ExtensionMarketRelease> GetOtherAvailableReleases(
+        ExtensionMarketDetails details,
+        ExtensionMarketRelease latestRelease) =>
+        details.Versions
+            .Where(value => value.Status == "available"
+                && value.Release.Version != latestRelease.Version)
+            .Select(value => value.Release)
+            .ToList();
+
     private void SetBusy(bool busy, string? message = null, bool showProgress = false)
     {
         CatalogList.IsEnabled = !busy;
         InstallLocalButton.IsEnabled = !busy;
         RefreshButton.IsEnabled = !busy;
-        InstallButton.IsEnabled = !busy && _selectedRelease != null;
+        InstallButton.IsEnabled = false;
+        InstallOtherVersionButton.IsEnabled = false;
         DownloadProgress.Visibility = showProgress ? Visibility.Visible : Visibility.Collapsed;
         DownloadProgress.IsIndeterminate = showProgress;
         if (message != null) SourceStatusText.Text = message;
@@ -373,10 +442,13 @@ internal sealed class ExtensionMarketDisplayItem
     public string Badge => Item.SourceAvailability == "closed-source"
         ? "闭源外部程序"
         : Item.Type == "external-adapter" ? "外部程序" : "";
-    public string InstalledText { get; private set; } = "";
+    public string LatestVersionText => string.IsNullOrWhiteSpace(Item.LatestVersion)
+        ? "最新版 暂无"
+        : $"最新版 {Item.LatestVersion}";
+    public string InstalledVersionText { get; private set; } = "未安装";
 
     internal void UpdateInstalled(InstalledExtensionRecord? installed)
     {
-        InstalledText = installed == null ? "" : $"已安装 {installed.Version}";
+        InstalledVersionText = installed == null ? "未安装" : $"已安装 {installed.Version}";
     }
 }
