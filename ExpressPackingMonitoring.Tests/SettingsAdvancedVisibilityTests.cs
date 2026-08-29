@@ -256,14 +256,15 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
-    public void OrderIntegrationCardPlacesExtensionToggleAfterInstallAndKeepsMarketIndependent()
+    public void OrderIntegrationCardPlacesApiThenMarketThenInstallAndKeepsSidebarShortcut()
     {
         string xaml = LoadSettingsXaml().ToString(SaveOptions.DisableFormatting);
         int toggle = xaml.IndexOf("Text=\"启用扩展 API\"", StringComparison.Ordinal);
         int install = xaml.IndexOf("Text=\"安装订单联动\"", StringComparison.Ordinal);
+        int market = xaml.IndexOf("Text=\"扩展市场\"", StringComparison.Ordinal);
         int devices = xaml.IndexOf("Text=\"订单联动设备\"", StringComparison.Ordinal);
 
-        Assert.True(install >= 0 && toggle > install && devices > toggle);
+        Assert.True(toggle >= 0 && market > toggle && install > market && devices > install);
         Assert.Contains("允许经过授权的 ERP、称重设备和其他扩展连接", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("关闭时不启动扩展任务服务", xaml, StringComparison.Ordinal);
 
@@ -271,24 +272,36 @@ public sealed class SettingsAdvancedVisibilityTests
         XElement installLabel = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "安装订单联动");
-        XElement customLabel = Assert.Single(
+        XElement marketLabel = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "自定义扩展");
+            element => (string?)element.Attribute("Text") == "扩展市场");
         XElement installCard = installLabel.Ancestors(Presentation + "Border")
-            .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
-        XElement customCard = customLabel.Ancestors(Presentation + "Border")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
         XElement toggleLabel = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "启用扩展 API");
         XElement toggleCard = toggleLabel.Ancestors(Presentation + "Border")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
-        Assert.Same(installCard, customCard);
         Assert.Same(installCard, toggleCard);
+        Assert.Equal("扩展与联动", (string?)Assert.Single(marketLabel.Ancestors(Presentation + "TabItem")).Attribute("Header"));
 
+        XElement[] marketButtons = document.Descendants(Presentation + "Button")
+            .Where(element => (string?)element.Attribute("Content") == "扩展市场")
+            .ToArray();
+        Assert.Equal(2, marketButtons.Length);
         XElement marketButton = Assert.Single(
-            document.Descendants(Presentation + "Button"),
-            element => (string?)element.Attribute("Content") == "安装自定义扩展");
+            marketButtons,
+            element => element.Ancestors(Presentation + "TabItem").Any());
+        XElement sidebarButton = Assert.Single(
+            marketButtons,
+            element => (string?)element.Attribute(Xaml + "Name") == "SidebarExtensionMarketButton");
+        Assert.Equal("2", (string?)sidebarButton.Attribute("Grid.Row"));
+        Assert.Equal("OpenExtensionMarket_Click", (string?)sidebarButton.Attribute("Click"));
+        Assert.DoesNotContain(sidebarButton.Ancestors(), element => element.Name == Presentation + "TabItem");
+        XElement advancedButton = Assert.Single(
+            document.Descendants(Presentation + "ToggleButton"),
+            element => (string?)element.Attribute(Xaml + "Name") == "AdvancedModeButton");
+        Assert.Equal("1", (string?)advancedButton.Attribute("Grid.Row"));
         Assert.Null((string?)marketButton.Attribute("IsEnabled"));
         XElement marketRow = marketButton.Ancestors(Presentation + "Grid")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SettingRowStyle}");
@@ -297,6 +310,12 @@ public sealed class SettingsAdvancedVisibilityTests
             document.Descendants(Presentation + "DataGrid"),
             element => ((string?)element.Attribute("ItemsSource"))?.Contains("CustomUserscripts", StringComparison.Ordinal) == true);
         Assert.Null((string?)customGrid.Attribute("IsEnabled"));
+        XElement diagnosticButton = Assert.Single(
+            document.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute("Content") == "导出诊断日志");
+        Assert.Equal("关于", (string?)Assert.Single(diagnosticButton.Ancestors(Presentation + "TabItem")).Attribute("Header"));
+        Assert.DoesNotContain("点击反馈问题", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("安装自定义扩展", xaml, StringComparison.Ordinal);
         Assert.Contains("扩展 API 授权", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("已授权扩展", xaml, StringComparison.Ordinal);
     }

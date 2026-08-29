@@ -903,7 +903,8 @@
   <data name="正在准备视频..." xml:space="preserve"><value>正在准备视频...</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>视频播放失败</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>视频解码失败</value></data>
-  <data name="点击反馈问题" xml:space="preserve"><value>点击反馈问题</value></data>
+  <data name="导出诊断日志" xml:space="preserve"><value>导出诊断日志</value></data>
+  <data name="导出日志、配置和数据库，便于定位问题" xml:space="preserve"><value>导出日志、配置和数据库，便于定位问题</value></data>
   <data name="网络摄像头（手动地址）" xml:space="preserve"><value>网络摄像头（手动地址）</value></data>
   <data name="网络摄像头地址" xml:space="preserve"><value>网络摄像头地址</value></data>
   <data name="例如：rtsp://账号:密码@192.168.1.64:554/stream" xml:space="preserve"><value>例如：rtsp://账号:密码@192.168.1.64:554/stream</value></data>
@@ -977,7 +978,6 @@
   <data name="打开目录" xml:space="preserve"><value>打开目录</value></data>
   <data name="自定义扩展" xml:space="preserve"><value>自定义扩展</value></data>
   <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>从扩展市场或本地文件安装用户脚本和外部适配器</value></data>
-  <data name="安装自定义扩展" xml:space="preserve"><value>安装自定义扩展</value></data>
   <data name="播报商品件数" xml:space="preserve"><value>播报商品件数</value></data>
   <data name="接收第三方水印" xml:space="preserve"><value>接收第三方水印</value></data>
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>允许称重等第三方程序把数据显示到录像水印中</value></data>

@@ -593,7 +593,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="FeedbackButtonStyle" TargetType="Button">
+        <Style x:Key="SidebarActionButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
@@ -974,17 +974,13 @@
                                                VerticalAlignment="Center"
                                                FontWeight="SemiBold"/>
                                 </ToggleButton>
-                                <Button x:Name="FeedbackButton"
+                                <Button x:Name="SidebarExtensionMarketButton"
                                         Grid.Row="2"
                                         Margin="0,8,0,0"
-                                        Click="Feedback_Click"
-                                        Style="{StaticResource FeedbackButtonStyle}"
-                                        AutomationProperties.Name="点击反馈问题">
-                                    <TextBlock Text="点击反馈问题"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"/>
-                                </Button>
+                                        Content="扩展市场"
+                                        Click="OpenExtensionMarket_Click"
+                                        Style="{StaticResource SidebarActionButtonStyle}"
+                                        AutomationProperties.Name="扩展市场"/>
                             </Grid>
                         </Border>
 
@@ -3414,25 +3410,6 @@
             <StackPanel>
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                <Grid Style="{StaticResource SettingRowStyle}"
-                                      Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="24"/>
-                                        <ColumnDefinition Width="260"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="安装订单联动" Style="{StaticResource FieldLabelStyle}"/>
-                                        <TextBlock Text="接收订单、备注和退款提醒"
-                                                   Style="{StaticResource FieldHintStyle}"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="2"
-                                            Content="安装订单联动"
-                                            Click="InstallTool_Click"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    HorizontalAlignment="Left"/>
-                                </Grid>
-
                                 <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -3459,13 +3436,32 @@
                                         <ColumnDefinition Width="260"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="自定义扩展" Style="{StaticResource FieldLabelStyle}"/>
+                                        <TextBlock Text="扩展市场" Style="{StaticResource FieldLabelStyle}"/>
                                         <TextBlock Text="从扩展市场或本地文件安装用户脚本和外部适配器"
                                                    Style="{StaticResource FieldHintStyle}"/>
                                     </StackPanel>
                                     <Button Grid.Column="2"
-                                            Content="安装自定义扩展"
+                                            Content="扩展市场"
                                             Click="OpenExtensionMarket_Click"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            HorizontalAlignment="Left"/>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}"
+                                      Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="260"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="安装订单联动" Style="{StaticResource FieldLabelStyle}"/>
+                                        <TextBlock Text="接收订单、备注和退款提醒"
+                                                   Style="{StaticResource FieldHintStyle}"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="2"
+                                            Content="安装订单联动"
+                                            Click="InstallTool_Click"
                                             Style="{StaticResource SecondaryButtonStyle}"
                                             HorizontalAlignment="Left"/>
                                 </Grid>
@@ -3846,6 +3842,24 @@
                                                     Style="{StaticResource SecondaryButtonStyle}"
                                                     Margin="0,0,8,8"/>
                                         </WrapPanel>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="导出诊断日志" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="导出日志、配置和数据库，便于定位问题"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="2"
+                                                Content="导出诊断日志"
+                                                Click="ExportDiagnosticLogs_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"/>
                                     </Grid>
 
                                     <Border Background="{DynamicResource ControlBackground}"

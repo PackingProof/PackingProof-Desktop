@@ -2589,16 +2589,16 @@ namespace ExpressPackingMonitoring.UI
             OpenExternalUrl("https://github.com/PackingProof/PackingProof-Desktop");
         }
 
-        private async void Feedback_Click(object sender, RoutedEventArgs e)
+        private async void ExportDiagnosticLogs_Click(object sender, RoutedEventArgs e)
         {
-            Button feedbackButton = sender as Button;
-            if (feedbackButton != null) feedbackButton.IsEnabled = false;
+            Button diagnosticButton = sender as Button;
+            if (diagnosticButton != null) diagnosticButton.IsEnabled = false;
             try
             {
                 bool confirmed = AppDialog.Confirm(
                     this,
                     $"将打包运行日志、配置和完整录像数据库（含订单明细、买家留言等隐私数据）到本地压缩包。\n确认继续吗？打包完成后可发送到反馈邮箱 {FeedbackEmail}",
-                    "反馈问题",
+                    "导出诊断日志",
                     AppDialogSeverity.Warning,
                     confirmText: "开始打包");
                 if (!confirmed) return;
@@ -2627,7 +2627,7 @@ namespace ExpressPackingMonitoring.UI
 
                 var info = new FileInfo(zipPath);
                 string message =
-                    $"反馈包已生成：\n{zipPath}\n\n" +
+                    $"诊断包已生成：\n{zipPath}\n\n" +
                     $"大小：{FormatBytes(info.Length)}\n" +
                     "已复制路径并打开所在文件夹。\n\n" +
                     $"点击“发送邮件”会尝试直接打开一封已带反馈模板和压缩包附件的新邮件（收件人 {FeedbackEmail}），填写问题后发送即可；若本机没有经典 Outlook，会退回邮件草稿或普通邮件（可能需要手动添加附件）。\n\n" +
@@ -2638,7 +2638,7 @@ namespace ExpressPackingMonitoring.UI
                 bool sendMail = AppDialog.Confirm(
                     this,
                     message,
-                    "反馈问题",
+                    "导出诊断日志",
                     AppDialogSeverity.Information,
                     confirmText: "发送邮件",
                     cancelText: "关闭",
@@ -2661,17 +2661,17 @@ namespace ExpressPackingMonitoring.UI
                         AppDialog.Error(
                             this,
                             $"未能打开邮件客户端，请手动发送到 {FeedbackEmail}（压缩包路径已复制到剪贴板，请作为附件添加）",
-                            "反馈问题");
+                            "导出诊断日志");
                     }
                 }
             }
             catch (Exception ex)
             {
-                AppDialog.Error(this, $"打包失败：{ex.Message}", "反馈问题");
+                AppDialog.Error(this, $"打包失败：{ex.Message}", "导出诊断日志");
             }
             finally
             {
-                if (feedbackButton != null) feedbackButton.IsEnabled = true;
+                if (diagnosticButton != null) diagnosticButton.IsEnabled = true;
             }
         }
 

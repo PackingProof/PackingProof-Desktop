@@ -903,7 +903,8 @@
   <data name="正在准备视频..." xml:space="preserve"><value>Preparing video...</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>Video playback failed</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>Video decoding failed</value></data>
-  <data name="点击反馈问题" xml:space="preserve"><value>Report a problem</value></data>
+  <data name="导出诊断日志" xml:space="preserve"><value>Export diagnostic logs</value></data>
+  <data name="导出日志、配置和数据库，便于定位问题" xml:space="preserve"><value>Export logs, settings, and the database for troubleshooting</value></data>
   <data name="网络摄像头（手动地址）" xml:space="preserve"><value>Network camera (manual URL)</value></data>
   <data name="网络摄像头地址" xml:space="preserve"><value>Network camera URL</value></data>
   <data name="例如：rtsp://账号:密码@192.168.1.64:554/stream" xml:space="preserve"><value>e.g. rtsp://user:password@192.168.1.64:554/stream</value></data>
@@ -977,7 +978,6 @@
   <data name="打开目录" xml:space="preserve"><value>Open folder</value></data>
   <data name="自定义扩展" xml:space="preserve"><value>Custom extensions</value></data>
   <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>Install userscripts and external adapters from the marketplace or a local file</value></data>
-  <data name="安装自定义扩展" xml:space="preserve"><value>Install custom extension</value></data>
   <data name="启用扩展 API" xml:space="preserve"><value>Enable extension API</value></data>
   <data name="允许经过授权的 ERP、称重设备和其他扩展连接" xml:space="preserve"><value>Allow authorized ERP systems, measuring devices, and other extensions to connect</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>Extension API authorizations</value></data>
