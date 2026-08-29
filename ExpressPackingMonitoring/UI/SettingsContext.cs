@@ -63,7 +63,7 @@ public sealed class SettingsContext
     public Action<Window>? ShowMobileConnection { get; init; }
     public Action? CopyMobileConnectionUrl { get; init; }
     public Action? OpenUserscriptGuide { get; init; }
-    public Action? ImportUserscript { get; init; }
+    public Action<Window>? OpenExtensionMarket { get; init; }
     public Func<IReadOnlyList<ExtensionAuthorizationDisplayItem>>? GetExtensionAuthorizations { get; init; }
     public Func<IReadOnlyList<OrderIntegrationDeviceDisplayItem>>? GetOrderIntegrationDevices { get; init; }
     public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
@@ -90,7 +90,7 @@ public sealed class SettingsContext
             ShowMobileConnection = mainViewModel.ShowMobileConnection,
             CopyMobileConnectionUrl = mainViewModel.CopyMobileConnectionUrl,
             OpenUserscriptGuide = mainViewModel.OpenUserscriptGuide,
-            ImportUserscript = mainViewModel.ImportUserscript,
+            OpenExtensionMarket = mainViewModel.OpenExtensionMarket,
             GetExtensionAuthorizations = mainViewModel.GetExtensionAuthorizations,
             GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,

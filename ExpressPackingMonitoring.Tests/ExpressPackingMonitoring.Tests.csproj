@@ -23,6 +23,7 @@
     <ProjectReference Include="..\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
     <None Include="..\Scripts\PackingProof-Order-Integration-KDZS.user.js" Link="Scripts\PackingProof-Order-Integration-KDZS.user.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\ExtensionApiV1\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\ExtensionMarket\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

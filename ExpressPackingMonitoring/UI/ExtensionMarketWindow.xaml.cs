@@ -1,0 +1,382 @@
+using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Services.Extensions;
+using Microsoft.Win32;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace ExpressPackingMonitoring.UI;
+
+public partial class ExtensionMarketWindow : Window
+{
+    private readonly ExtensionMarketClient _marketClient;
+    private readonly ExtensionInstallationService _installationService;
+    private readonly ExtensionPackageService _packageService;
+    private readonly ObservableCollection<ExtensionMarketDisplayItem> _items = new();
+    private CancellationTokenSource? _operationCancellation;
+    private ExtensionMarketSession? _session;
+    private ExtensionMarketDetails? _selectedDetails;
+    private ExtensionMarketRelease? _selectedRelease;
+
+    internal ExtensionMarketWindow()
+        : this(new ExtensionMarketClient(), new ExtensionInstallationService(), new ExtensionPackageService())
+    {
+    }
+
+    internal ExtensionMarketWindow(
+        ExtensionMarketClient marketClient,
+        ExtensionInstallationService installationService,
+        ExtensionPackageService packageService)
+    {
+        InitializeComponent();
+        _marketClient = marketClient;
+        _installationService = installationService;
+        _packageService = packageService;
+        CatalogList.ItemsSource = _items;
+        Loaded += async (_, _) => await RefreshMarketAsync();
+        Closed += (_, _) => _operationCancellation?.Cancel();
+    }
+
+    private async Task RefreshMarketAsync()
+    {
+        SetBusy(true, "正在读取经过签名的市场目录");
+        try
+        {
+            _operationCancellation?.Cancel();
+            _operationCancellation = new CancellationTokenSource();
+            _session = await _marketClient.LoadCatalogAsync(_operationCancellation.Token);
+            IReadOnlyDictionary<string, InstalledExtensionRecord> installed = _installationService
+                .GetInstalled()
+                .ToDictionary(value => value.Id, StringComparer.Ordinal);
+            _items.Clear();
+            foreach (ExtensionMarketCatalogItem item in _session.Catalog.Extensions)
+            {
+                installed.TryGetValue(item.Id, out InstalledExtensionRecord? record);
+                _items.Add(new ExtensionMarketDisplayItem(item, record));
+            }
+            SourceStatusText.Text = _session.IsCached
+                ? "网络市场暂不可用，正在显示最近一次已验签缓存"
+                : "市场目录签名验证通过，下载时优先使用 Gitee";
+            if (_items.Count > 0) CatalogList.SelectedIndex = 0;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            SourceStatusText.Text = ex.Message;
+            AppDialog.Error(this, ex.Message, "扩展市场不可用");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private async void CatalogList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_session == null || CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        SetBusy(true, "正在读取扩展详情");
+        try
+        {
+            _selectedDetails = await _marketClient.LoadDetailsAsync(
+                _session,
+                selected.Item,
+                _operationCancellation?.Token ?? CancellationToken.None);
+            _selectedRelease = _selectedDetails.Versions
+                .FirstOrDefault(value => value.Status == "available")?.Release;
+            ShowDetails(selected);
+        }
+        catch (Exception ex)
+        {
+            _selectedDetails = null;
+            _selectedRelease = null;
+            InstallButton.IsEnabled = false;
+            AppDialog.Error(this, $"读取扩展详情失败：{ex.Message}", "读取失败");
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private void ShowDetails(ExtensionMarketDisplayItem selected)
+    {
+        ExtensionMarketDetails details = _selectedDetails!;
+        ExtensionNameText.Text = details.Extension.Name;
+        PublisherText.Text = $"作者：{details.Publisher.DisplayName}";
+        DescriptionText.Text = details.Extension.Description;
+        VersionText.Text = _selectedRelease == null ? "没有可安装版本" : $"最新版本：{_selectedRelease.Version}";
+        CompatibilityText.Text = _selectedRelease == null
+            ? ""
+            : $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本";
+        bool external = details.Extension.Type == "external-adapter";
+        bool closedSource = details.Extension.SourceAvailability == "closed-source";
+        RiskPanel.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
+        RiskText.Text = closedSource
+            ? "⚠ 闭源外部程序。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源"
+            : "⚠ 外部程序由用户手动运行。PackingProof 不会自动启动，也无法限制它访问网络、文件或其他系统资源";
+        UpdateActionState(selected);
+    }
+
+    private void UpdateActionState(ExtensionMarketDisplayItem selected)
+    {
+        InstalledExtensionRecord? installed = _installationService.GetInstalled()
+            .FirstOrDefault(value => value.Id == selected.Item.Id);
+        bool compatible = _selectedRelease != null
+            && IsCompatible(_selectedRelease.Compatibility.MinPackingProofVersion);
+        InstallButton.IsEnabled = _selectedRelease != null && compatible;
+        InstallButton.Content = installed == null ? "安装" :
+            installed.Version == _selectedRelease?.Version ? "重新安装" : "更新";
+        InstallStatusText.Text = installed == null
+            ? compatible ? "尚未安装" : "当前 PackingProof 版本过低，无法安装"
+            : $"已安装版本：{installed.Version}";
+        bool external = installed?.Type == "external-adapter";
+        OpenFolderButton.Visibility = external ? Visibility.Visible : Visibility.Collapsed;
+        RemoveButton.Visibility = installed != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void Install_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDetails == null || _selectedRelease == null
+            || CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        bool external = _selectedDetails.Extension.Type == "external-adapter";
+        bool closedSource = _selectedDetails.Extension.SourceAvailability == "closed-source";
+        if (external && !AppDialog.Confirm(
+                this,
+                closedSource
+                    ? "这是闭源外部程序。PackingProof 无法审查其代码，也不会限制程序访问网络、文件或其他系统资源。确认下载并安装吗？"
+                    : "这是需要用户手动运行的外部程序。PackingProof 不会自动启动，也无法限制程序访问系统资源。确认下载并安装吗？",
+                "安装外部扩展",
+                AppDialogSeverity.Warning,
+                "确认安装"))
+            return;
+
+        string packagePath = "";
+        SetBusy(true, "正在下载扩展包", showProgress: true);
+        try
+        {
+            _operationCancellation?.Cancel();
+            _operationCancellation = new CancellationTokenSource();
+            var progress = new Progress<ExtensionPackageProgress>(value =>
+            {
+                SourceStatusText.Text = value.Message;
+                DownloadProgress.IsIndeterminate = value.Total <= 0;
+                if (value.Total > 0)
+                {
+                    DownloadProgress.Maximum = value.Total;
+                    DownloadProgress.Value = Math.Min(value.Received, value.Total);
+                }
+            });
+            packagePath = await _marketClient.DownloadPackageAsync(
+                _selectedRelease,
+                progress,
+                _operationCancellation.Token);
+            ExtensionInstallResult result = await Task.Run(() => _installationService.Install(
+                packagePath,
+                _selectedDetails.Extension.Name,
+                _selectedDetails.Extension.Id,
+                _selectedRelease.Version,
+                _selectedDetails.Extension.Type,
+                _selectedRelease.Sha256));
+            ShowInstallResult(result);
+            RefreshDisplayItems();
+            UpdateActionState(selected);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Error(this, $"安装扩展失败：{ex.Message}", "安装失败");
+        }
+        finally
+        {
+            TryDeleteDownloadedPackage(packagePath);
+            SetBusy(false);
+        }
+    }
+
+    private async void InstallLocal_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Filter = "PackingProof 扩展 (*.ppx)|*.ppx|油猴脚本 (*.user.js)|*.user.js",
+            Multiselect = false,
+            CheckFileExists = true,
+            Title = "安装本地扩展"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.FileName.EndsWith(".user.js", StringComparison.OrdinalIgnoreCase))
+        {
+            ImportLegacyUserscript(dialog.FileName);
+            return;
+        }
+        try
+        {
+            ExtensionPackageInspection inspection = _packageService.Inspect(dialog.FileName);
+            string warning = inspection.Manifest.Type == "external-adapter"
+                ? "该 PPX 未经过市场审核，并且包含需要用户手动运行的外部程序。PackingProof 无法限制程序访问系统资源"
+                : "该 PPX 未经过市场审核。请只安装来自可信开发者的扩展";
+            if (!AppDialog.Confirm(
+                    this,
+                    warning + "\n\n是否继续安装？",
+                    "安装未经市场审核的扩展",
+                    AppDialogSeverity.Warning,
+                    "继续安装"))
+                return;
+            ExtensionInstallResult result = await Task.Run(() =>
+                _installationService.Install(dialog.FileName, inspection.Manifest.Id));
+            ShowInstallResult(result);
+            RefreshDisplayItems();
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Error(this, $"安装本地扩展失败：{ex.Message}", "安装失败");
+        }
+    }
+
+    private void ImportLegacyUserscript(string fileName)
+    {
+        try
+        {
+            var catalog = new UserscriptCatalog();
+            UserscriptDescriptor descriptor = catalog.Import(fileName);
+            if (descriptor.Warnings.Count > 0 && !AppDialog.Confirm(
+                    this,
+                    $"脚本存在以下维护或安全提示：\n· {string.Join("\n· ", descriptor.Warnings)}\n\n是否仍然导入？",
+                    "导入未经市场审核的脚本",
+                    AppDialogSeverity.Warning,
+                    "确认导入"))
+            {
+                catalog.Remove(descriptor.Id);
+                return;
+            }
+            AppDialog.Information(this, "脚本已导入，可在安装订单联动中选择", "导入成功");
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Error(this, $"导入脚本失败：{ex.Message}", "导入失败");
+        }
+    }
+
+    private void Remove_Click(object sender, RoutedEventArgs e)
+    {
+        if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        InstalledExtensionRecord? installed = _installationService.GetInstalled()
+            .FirstOrDefault(value => value.Id == selected.Item.Id);
+        if (installed == null) return;
+        string message = installed.Type == "userscript"
+            ? "这会删除 PackingProof 保存的脚本源文件，但无法替你从浏览器脚本管理器中卸载已经安装的副本"
+            : "这只会删除 PackingProof 管理的安装目录，不会删除扩展自己保存的配置、凭据或业务数据";
+        if (!AppDialog.Confirm(this, message + "\n\n确定继续吗？", "删除扩展", AppDialogSeverity.Warning, "确认删除"))
+            return;
+        _installationService.Remove(installed.Id);
+        RefreshDisplayItems();
+        UpdateActionState(selected);
+    }
+
+    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        InstalledExtensionRecord? installed = _installationService.GetInstalled()
+            .FirstOrDefault(value => value.Id == selected.Item.Id);
+        if (installed == null || !Directory.Exists(installed.InstallDirectory)) return;
+        var startInfo = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+        startInfo.ArgumentList.Add(installed.InstallDirectory);
+        Process.Start(startInfo);
+    }
+
+    private void ShowInstallResult(ExtensionInstallResult result)
+    {
+        string warnings = result.Warnings.Count == 0
+            ? ""
+            : $"\n\n提示：\n· {string.Join("\n· ", result.Warnings)}";
+        AppDialog.Information(
+            this,
+            result.Record.Type == "userscript"
+                ? "扩展脚本已导入，可在安装订单联动中选择" + warnings
+                : "外部扩展已安装。PackingProof 不会自动运行它，你可以使用“打开目录”查看说明" + warnings,
+            "安装完成");
+    }
+
+    private void RefreshDisplayItems()
+    {
+        IReadOnlyDictionary<string, InstalledExtensionRecord> installed = _installationService.GetInstalled()
+            .ToDictionary(value => value.Id, StringComparer.Ordinal);
+        foreach (ExtensionMarketDisplayItem item in _items)
+        {
+            installed.TryGetValue(item.Item.Id, out InstalledExtensionRecord? record);
+            item.UpdateInstalled(record);
+        }
+        CatalogList.Items.Refresh();
+    }
+
+    private static bool IsCompatible(string minimumVersion)
+    {
+        if (!Version.TryParse(NormalizeVersion(minimumVersion), out Version? minimum)) return false;
+        return Version.TryParse(NormalizeVersion(AppVersion.Current), out Version? current)
+            && current >= minimum;
+    }
+
+    private static string NormalizeVersion(string value)
+    {
+        string normalized = value.Trim().TrimStart('v', 'V').Split('-', '+')[0];
+        string[] parts = normalized.Split('.');
+        return parts.Length switch
+        {
+            1 => normalized + ".0.0",
+            2 => normalized + ".0",
+            _ => normalized
+        };
+    }
+
+    private void SetBusy(bool busy, string? message = null, bool showProgress = false)
+    {
+        CatalogList.IsEnabled = !busy;
+        InstallLocalButton.IsEnabled = !busy;
+        RefreshButton.IsEnabled = !busy;
+        InstallButton.IsEnabled = !busy && _selectedRelease != null;
+        DownloadProgress.Visibility = showProgress ? Visibility.Visible : Visibility.Collapsed;
+        DownloadProgress.IsIndeterminate = showProgress;
+        if (message != null) SourceStatusText.Text = message;
+        if (!busy
+            && CatalogList.SelectedItem is ExtensionMarketDisplayItem selected
+            && _selectedDetails != null)
+            UpdateActionState(selected);
+    }
+
+    private static void TryDeleteDownloadedPackage(string path)
+    {
+        try { if (path.Length > 0 && File.Exists(path)) File.Delete(path); } catch { }
+    }
+
+    private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshMarketAsync();
+
+    private void Close_Click(object sender, RoutedEventArgs e) => Close();
+}
+
+internal sealed class ExtensionMarketDisplayItem
+{
+    internal ExtensionMarketDisplayItem(ExtensionMarketCatalogItem item, InstalledExtensionRecord? installed)
+    {
+        Item = item;
+        UpdateInstalled(installed);
+    }
+
+    internal ExtensionMarketCatalogItem Item { get; }
+    public string Name => Item.Name;
+    public string Summary => Item.Summary;
+    public string Badge => Item.SourceAvailability == "closed-source"
+        ? "闭源外部程序"
+        : Item.Type == "external-adapter" ? "外部程序" : "";
+    public string InstalledText { get; private set; } = "";
+
+    internal void UpdateInstalled(InstalledExtensionRecord? installed)
+    {
+        InstalledText = installed == null ? "" : $"已安装 {installed.Version}";
+    }
+}

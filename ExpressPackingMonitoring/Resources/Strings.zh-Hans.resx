@@ -966,6 +966,17 @@
   <data name="自定义订单脚本" xml:space="preserve"><value>自定义订单脚本</value></data>
   <data name="导入第三方油猴脚本，导入后可在安装向导中选择" xml:space="preserve"><value>导入第三方油猴脚本，导入后可在安装向导中选择</value></data>
   <data name="导入自定义脚本" xml:space="preserve"><value>导入自定义脚本</value></data>
+  <data name="PackingProof 扩展市场" xml:space="preserve"><value>PackingProof 扩展市场</value></data>
+  <data name="扩展市场" xml:space="preserve"><value>扩展市场</value></data>
+  <data name="正在读取经过签名的市场目录" xml:space="preserve"><value>正在读取经过签名的市场目录</value></data>
+  <data name="安装本地扩展" xml:space="preserve"><value>安装本地扩展</value></data>
+  <data name="刷新" xml:space="preserve"><value>刷新</value></data>
+  <data name="请选择一个扩展" xml:space="preserve"><value>请选择一个扩展</value></data>
+  <data name="安装" xml:space="preserve"><value>安装</value></data>
+  <data name="打开目录" xml:space="preserve"><value>打开目录</value></data>
+  <data name="自定义扩展" xml:space="preserve"><value>自定义扩展</value></data>
+  <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>从扩展市场或本地文件安装用户脚本和外部适配器</value></data>
+  <data name="安装自定义扩展" xml:space="preserve"><value>安装自定义扩展</value></data>
   <data name="播报商品件数" xml:space="preserve"><value>播报商品件数</value></data>
   <data name="接收第三方水印" xml:space="preserve"><value>接收第三方水印</value></data>
   <data name="允许称重等第三方程序把数据显示到录像水印中" xml:space="preserve"><value>允许称重等第三方程序把数据显示到录像水印中</value></data>

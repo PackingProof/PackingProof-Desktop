@@ -2426,14 +2426,9 @@ namespace ExpressPackingMonitoring.UI
             });
         }
 
-        private void ImportUserscript_Click(object sender, RoutedEventArgs e)
+        private void OpenExtensionMarket_Click(object sender, RoutedEventArgs e)
         {
-            if (!Config.EnableExtensionApi)
-            {
-                Context.ShowToast?.Invoke("请先启用扩展 API", ToastSeverity.Warning);
-                return;
-            }
-            Context.ImportUserscript?.Invoke();
+            Context.OpenExtensionMarket?.Invoke(this);
             RefreshCustomUserscripts();
         }
 

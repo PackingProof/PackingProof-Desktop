@@ -23,7 +23,9 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string TtsCacheDir = Path.Combine(CacheDir, "tts");
         public static readonly string GuideCacheDir = Path.Combine(CacheDir, "guide");
         public static readonly string FeedbackCacheDir = Path.Combine(CacheDir, "feedback");
+        public static readonly string ExtensionMarketCacheDir = Path.Combine(CacheDir, "extension-market");
         public static readonly string UserscriptsDir = Path.Combine(UserDataDir, "userscripts");
+        public static readonly string ExtensionsDir = Path.Combine(UserDataDir, "extensions");
 
         public static readonly string ConfigPath = Path.Combine(UserDataDir, "config.json");
         public static readonly string VideoDatabasePath = Path.Combine(UserDataDir, "videos.db");
@@ -56,7 +58,9 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(TtsCacheDir);
             Directory.CreateDirectory(GuideCacheDir);
             Directory.CreateDirectory(FeedbackCacheDir);
+            Directory.CreateDirectory(ExtensionMarketCacheDir);
             Directory.CreateDirectory(UserscriptsDir);
+            Directory.CreateDirectory(ExtensionsDir);
         }
 
         private static void MigrateMobileBackupState()

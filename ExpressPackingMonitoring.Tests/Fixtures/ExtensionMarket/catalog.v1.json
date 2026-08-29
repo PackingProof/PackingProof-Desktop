@@ -1,0 +1,25 @@
+{
+  "extensions": [
+    {
+      "details": "extensions/packingproof.qqbot.json",
+      "detailsSha256": "c87e43c3e8a43529b0d152a6e36f27bd2eecac3a8e8049007ac6fd0c36917fde",
+      "id": "packingproof.qqbot",
+      "latestVersion": "0.0.4",
+      "name": "PackingProof QQBot",
+      "publisher": {
+        "displayName": "PackingProof",
+        "id": "packingproof"
+      },
+      "riskLabels": [
+        "external-program"
+      ],
+      "sourceAvailability": "open-source",
+      "summary": "通过 QQ 私聊或群聊按单号查询并发送 PackingProof 打包录像",
+      "trust": "official",
+      "type": "external-adapter"
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceDigest": "b61f4cd9e7ad7fb1cee7e4336576836244fbcfd42391906e3fb83c239ef10aee",
+  "updatedAt": "2026-08-29T18:00:17+08:00"
+}

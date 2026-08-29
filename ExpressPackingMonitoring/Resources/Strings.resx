@@ -966,6 +966,17 @@
   <data name="自定义订单脚本" xml:space="preserve"><value>Custom order scripts</value></data>
   <data name="导入第三方油猴脚本，导入后可在安装向导中选择" xml:space="preserve"><value>Import third-party userscripts, then select one in the installation guide</value></data>
   <data name="导入自定义脚本" xml:space="preserve"><value>Import custom script</value></data>
+  <data name="PackingProof 扩展市场" xml:space="preserve"><value>PackingProof Extension Marketplace</value></data>
+  <data name="扩展市场" xml:space="preserve"><value>Extension Marketplace</value></data>
+  <data name="正在读取经过签名的市场目录" xml:space="preserve"><value>Loading the signed marketplace catalog</value></data>
+  <data name="安装本地扩展" xml:space="preserve"><value>Install local extension</value></data>
+  <data name="刷新" xml:space="preserve"><value>Refresh</value></data>
+  <data name="请选择一个扩展" xml:space="preserve"><value>Select an extension</value></data>
+  <data name="安装" xml:space="preserve"><value>Install</value></data>
+  <data name="打开目录" xml:space="preserve"><value>Open folder</value></data>
+  <data name="自定义扩展" xml:space="preserve"><value>Custom extensions</value></data>
+  <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>Install userscripts and external adapters from the marketplace or a local file</value></data>
+  <data name="安装自定义扩展" xml:space="preserve"><value>Install custom extension</value></data>
   <data name="启用扩展 API" xml:space="preserve"><value>Enable extension API</value></data>
   <data name="允许经过授权的 ERP、称重设备和其他扩展连接" xml:space="preserve"><value>Allow authorized ERP systems, measuring devices, and other extensions to connect</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>Extension API authorizations</value></data>

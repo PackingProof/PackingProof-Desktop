@@ -30,7 +30,6 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.ViewModels
 {
@@ -881,39 +880,10 @@ namespace ExpressPackingMonitoring.ViewModels
             RefreshUserscriptStatus();
         }
 
-        public void ImportUserscript()
+        public void OpenExtensionMarket(System.Windows.Window owner)
         {
-            var dialog = new OpenFileDialog
-            {
-                Filter = "油猴脚本 (*.user.js)|*.user.js|所有文件 (*.*)|*.*",
-                Multiselect = false,
-                CheckFileExists = true,
-                Title = "导入自定义油猴脚本"
-            };
-            if (dialog.ShowDialog() != true) return;
-            try
-            {
-                var catalog = new UserscriptCatalog();
-                UserscriptDescriptor descriptor = catalog.Import(dialog.FileName);
-                string warning = descriptor.Warnings.Count == 0
-                    ? ""
-                    : $"\n\n检查提示：\n· {string.Join("\n· ", descriptor.Warnings)}";
-                if (descriptor.Warnings.Count > 0 && !AppDialog.Confirm(
-                        null,
-                        $"脚本“{descriptor.Name}”已读取，但存在维护或安全提示：{warning}\n\n是否仍然导入？",
-                        "导入自定义脚本",
-                        AppDialogSeverity.Warning,
-                        "确认导入"))
-                {
-                    catalog.Remove(descriptor.Id);
-                    return;
-                }
-                ShowToast("自定义脚本已导入，可在安装订单联动中选择", ToastSeverity.Success);
-            }
-            catch (Exception ex)
-            {
-                AppDialog.Error(null, $"导入自定义脚本失败：{ex.Message}", "导入失败");
-            }
+            var window = new ExtensionMarketWindow { Owner = owner };
+            window.ShowDialog();
         }
 
         private void PublishExtensionScanTaskIfRecordingStarted(string trackingNumber)

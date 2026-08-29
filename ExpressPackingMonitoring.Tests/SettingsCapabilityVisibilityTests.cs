@@ -97,7 +97,7 @@ public sealed class SettingsCapabilityVisibilityTests
     [InlineData("播报商品件数", "声音与播报")]
     [InlineData("网页访问端口", "局域网与网页")]
     [InlineData("安装订单联动", "扩展与联动")]
-    [InlineData("自定义订单脚本", "扩展与联动")]
+    [InlineData("自定义扩展", "扩展与联动")]
     public void SettingsAreGroupedByUserPurpose(string label, string expectedTab)
     {
         XElement labelElement = Assert.Single(

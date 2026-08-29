@@ -253,7 +253,7 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
-    public void OrderIntegrationCardPlacesExtensionToggleAfterInstallAndGatesCustomScriptManagement()
+    public void OrderIntegrationCardPlacesExtensionToggleAfterInstallAndKeepsMarketIndependent()
     {
         string xaml = LoadSettingsXaml().ToString(SaveOptions.DisableFormatting);
         int toggle = xaml.IndexOf("Text=\"启用扩展 API\"", StringComparison.Ordinal);
@@ -270,7 +270,7 @@ public sealed class SettingsAdvancedVisibilityTests
             element => (string?)element.Attribute("Text") == "安装订单联动");
         XElement customLabel = Assert.Single(
             document.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "自定义订单脚本");
+            element => (string?)element.Attribute("Text") == "自定义扩展");
         XElement installCard = installLabel.Ancestors(Presentation + "Border")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}");
         XElement customCard = customLabel.Ancestors(Presentation + "Border")
@@ -283,12 +283,10 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.Same(installCard, customCard);
         Assert.Same(installCard, toggleCard);
 
-        XElement importButton = Assert.Single(
+        XElement marketButton = Assert.Single(
             document.Descendants(Presentation + "Button"),
-            element => (string?)element.Attribute("Content") == "导入自定义脚本");
-        Assert.Equal(
-            "{Binding ElementName=ExtensionApiToggle, Path=IsChecked}",
-            (string?)importButton.Attribute("IsEnabled"));
+            element => (string?)element.Attribute("Content") == "安装自定义扩展");
+        Assert.Null((string?)marketButton.Attribute("IsEnabled"));
         XElement customGrid = Assert.Single(
             document.Descendants(Presentation + "DataGrid"),
             element => ((string?)element.Attribute("ItemsSource"))?.Contains("CustomUserscripts", StringComparison.Ordinal) == true);
