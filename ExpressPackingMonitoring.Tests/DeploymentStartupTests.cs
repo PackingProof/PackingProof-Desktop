@@ -1660,10 +1660,7 @@ public sealed class DeploymentStartupTests
     public void RecordingWorkstationPlaybackUsesLocalDatabaseAndCacheLocation()
     {
         string mainSource = RepositorySource.ReadMainViewModel();
-        string recordingSource = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.Recording.cs");
+        string recordingSource = RepositorySource.ReadMainViewModel();
         int methodStart = mainSource.IndexOf(
             "private void OpenPlaybackWindow()",
             StringComparison.Ordinal);

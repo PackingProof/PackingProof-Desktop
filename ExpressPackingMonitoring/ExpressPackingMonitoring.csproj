@@ -221,6 +221,9 @@
     <Compile Include="ViewModels\MainViewModel.Integration.cs" />
     <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
     <Compile Include="ViewModels\MainViewModel.Recording.cs" />
+    <Compile Include="ViewModels\MainViewModel.Ffmpeg.cs" />
+    <Compile Include="ViewModels\MainViewModel.Audio.cs" />
+    <Compile Include="ViewModels\MainViewModel.Conversion.cs" />
     <Compile Include="ViewModels\MainViewModel.Transfer.cs" />
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalPrompt.cs" />

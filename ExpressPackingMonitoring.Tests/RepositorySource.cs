@@ -12,6 +12,16 @@ internal static class RepositorySource
                 .Select(File.ReadAllText));
     }
 
+    public static string ReadMainViewModelParts(params string[] partNames)
+    {
+        string directory = FindRepositoryDirectory();
+        return string.Join(
+            Environment.NewLine,
+            partNames.Select(partName => File.ReadAllText(Path.Combine(
+                directory,
+                $"MainViewModel.{partName}.cs"))));
+    }
+
     private static string FindRepositoryDirectory()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

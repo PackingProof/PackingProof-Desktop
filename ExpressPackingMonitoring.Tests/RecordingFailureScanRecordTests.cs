@@ -42,21 +42,9 @@ public sealed class RecordingFailureScanRecordTests
     }
 
     private static string LoadRecordingSource()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory != null)
-        {
-            string candidate = Path.Combine(
-                directory.FullName,
-                "ExpressPackingMonitoring",
-                "ViewModels",
-                "MainViewModel.Recording.cs");
-            if (File.Exists(candidate))
-                return File.ReadAllText(candidate);
-
-            directory = directory.Parent;
-        }
-
-        throw new FileNotFoundException("找不到 MainViewModel.Recording.cs");
-    }
+        => RepositorySource.ReadMainViewModelParts(
+            "Recording",
+            "Ffmpeg",
+            "Audio",
+            "Conversion");
 }

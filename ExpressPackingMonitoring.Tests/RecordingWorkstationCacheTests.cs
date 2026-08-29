@@ -295,10 +295,11 @@ public sealed class RecordingWorkstationCacheTests
     [Fact]
     public void RecordingWorkstationCacheFlow_CleansVerifiedFilesBeforeBlockingOrStopping()
     {
-        string recording = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.Recording.cs");
+        string recording = RepositorySource.ReadMainViewModelParts(
+            "Recording",
+            "Ffmpeg",
+            "Audio",
+            "Conversion");
         string cleanup = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "ViewModels",
@@ -363,10 +364,11 @@ public sealed class RecordingWorkstationCacheTests
     [Fact]
     public void CacheSpacePrompt_OpensTheCacheSettingsTabDirectly()
     {
-        string recording = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.Recording.cs");
+        string recording = RepositorySource.ReadMainViewModelParts(
+            "Recording",
+            "Ffmpeg",
+            "Audio",
+            "Conversion");
         string mainViewModel = RepositorySource.ReadMainViewModel();
         string settings = ReadRepositoryFile(
             "ExpressPackingMonitoring",
