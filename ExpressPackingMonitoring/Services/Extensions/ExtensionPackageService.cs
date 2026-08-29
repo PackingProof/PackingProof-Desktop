@@ -41,6 +41,7 @@ internal sealed class ExtensionPackageService
     private const double MaxCompressionRatio = 200;
     private static readonly Regex IdentifierPattern = new("^[a-z0-9][a-z0-9.-]{1,126}[a-z0-9]$", RegexOptions.CultureInvariant);
     private static readonly Regex SemverPattern = new("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", RegexOptions.CultureInvariant);
+    private static readonly Regex UserscriptVersionPattern = new("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", RegexOptions.CultureInvariant);
     private static readonly Regex WindowsReservedName = new("^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\\..*)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -145,7 +146,9 @@ internal sealed class ExtensionPackageService
             || manifest.Format != "packingproof-extension"
             || manifest.PackageFormatVersion != 1)
             throw new InvalidDataException("PPEXT manifest 格式或版本不受支持");
-        if (!IdentifierPattern.IsMatch(manifest.Id) || !SemverPattern.IsMatch(manifest.Version))
+        if (!IdentifierPattern.IsMatch(manifest.Id)
+            || manifest.Type == "userscript" && !UserscriptVersionPattern.IsMatch(manifest.Version)
+            || manifest.Type == "external-adapter" && !SemverPattern.IsMatch(manifest.Version))
             throw new InvalidDataException("PPEXT 扩展 ID 或版本格式无效");
         if (!SemverPattern.IsMatch(manifest.Compatibility.MinPackingProofVersion))
             throw new InvalidDataException("PPEXT 最低 PackingProof 版本格式无效");
@@ -159,6 +162,15 @@ internal sealed class ExtensionPackageService
             if (manifest.Installation.Mode != "userscript-import" || !payloadPath.EndsWith(".user.js", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("userscript 必须使用 .user.js payload");
             if (entries[payloadPath].Length > 1024 * 1024) throw new InvalidDataException("油猴脚本不能超过 1 MB");
+            using Stream scriptStream = entries[payloadPath].Open();
+            using var reader = new StreamReader(scriptStream, detectEncodingFromByteOrderMarks: true);
+            string script = reader.ReadToEnd();
+            string scriptVersion = Regex.Match(
+                script,
+                @"^//\s*@version\s+(?<version>[^\r\n]+)",
+                RegexOptions.Multiline | RegexOptions.CultureInvariant).Groups["version"].Value.Trim();
+            if (scriptVersion != manifest.Version)
+                throw new InvalidDataException("userscript @version 必须与 PPEXT manifest 一致");
         }
         else if (manifest.Installation.Mode != "manual-external")
         {

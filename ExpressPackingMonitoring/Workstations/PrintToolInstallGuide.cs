@@ -22,8 +22,6 @@ internal static class PrintToolInstallGuide
         string guideDir = AppPaths.GuideCacheDir;
         Directory.CreateDirectory(guideDir);
         string guidePath = Path.Combine(guideDir, TemplateFileName);
-        string sourceScriptPath = ResolveUserscriptPath();
-        string scriptPath = Path.Combine(guideDir, ScriptFileName);
         AppConfig config = WorkstationConfigStore.Load();
         string hostAddress = RecordingDeviceCatalog.NormalizeLanHttpAddress(monitorAddress, config.WebServerPort);
         if (hostAddress.Length == 0)
@@ -38,13 +36,21 @@ internal static class PrintToolInstallGuide
             receivers.GetKnownRecordingDevices(),
             connectedClients: null,
             includeOffline: true);
-        if (File.Exists(sourceScriptPath) && devices.Count > 0)
+        var catalog = new UserscriptCatalog();
+        var choices = new List<string>();
+        if (devices.Count > 0)
         {
-            string script = File.ReadAllText(sourceScriptPath, Encoding.UTF8);
-            File.WriteAllText(scriptPath, AddRecordingDevices(script, devices), Encoding.UTF8);
+            foreach (UserscriptDescriptor item in catalog.GetAll())
+            {
+                if (!File.Exists(item.SourcePath)) continue;
+                string script = File.ReadAllText(item.SourcePath, Encoding.UTF8);
+                string fileName = item.Id + ".user.js";
+                string scriptPath = Path.Combine(guideDir, fileName);
+                File.WriteAllText(scriptPath, AddRecordingDevices(script, devices), Encoding.UTF8);
+                choices.Add(BuildLocalScriptChoice(item, new Uri(scriptPath).AbsoluteUri));
+            }
         }
-        string scriptUrl = devices.Count > 0 && File.Exists(scriptPath) ? new Uri(scriptPath).AbsoluteUri : "";
-        string html = RenderForWeb(devices, scriptUrl);
+        string html = RenderForWeb(devices, "", string.Join("", choices));
         File.WriteAllText(guidePath, html, Encoding.UTF8);
         return guidePath;
     }
@@ -77,18 +83,6 @@ internal static class PrintToolInstallGuide
                 ? ""
                 : WebUtility.HtmlEncode(string.Join("、", devices.Select(device => new Uri(device.Address).Authority))), StringComparison.Ordinal)
             .Replace("{{deviceSummary}}", deviceSummary, StringComparison.Ordinal);
-    }
-
-    public static string ResolveUserscriptPath()
-    {
-        string[] candidates =
-        {
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Scripts", ScriptFileName)),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Scripts", ScriptFileName)),
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Scripts", ScriptFileName))
-        };
-
-        return candidates.FirstOrDefault(File.Exists) ?? candidates[0];
     }
 
     internal static string AddMonitorConnectPermission(string script, string monitorAddress)
@@ -318,8 +312,16 @@ internal static class PrintToolInstallGuide
     private static string BuildScriptLink(string scriptUrl)
     {
         return string.IsNullOrWhiteSpace(scriptUrl)
-            ? "<div class=\"warn\">未找到订单联动脚本文件，请确认发布包内包含 Scripts 文件夹。</div>"
+            ? "<div class=\"warn\">尚未安装订单联动扩展，请先在 PackingProof Desktop 扩展市场安装</div>"
             : $"<a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">安装订单联动</a>";
+    }
+
+    private static string BuildLocalScriptChoice(UserscriptDescriptor item, string scriptUrl)
+    {
+        bool hasWarning = item.Warnings.Count > 0;
+        string warning = hasWarning ? $"有提示：{string.Join("；", item.Warnings)}" : "可自动维护";
+        string warningClass = hasWarning ? " has-warning" : " is-maintainable";
+        return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\"><span>版本</span> {WebUtility.HtmlEncode(item.Version)} · <span>{WebUtility.HtmlEncode(warning)}</span></span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(scriptUrl)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
     }
 
     private const string MissingTemplateHtml = """

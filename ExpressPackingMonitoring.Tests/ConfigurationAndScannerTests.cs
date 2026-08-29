@@ -280,92 +280,6 @@ public sealed class ConfigurationAndScannerTests
     }
 
     [Fact]
-    public void RefundWorkerUserscript_IsolatesLookupFromUserPage()
-    {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
-        string script = File.ReadAllText(scriptPath);
-
-        Assert.Contains("// @grant        GM_openInTab", script);
-        Assert.Contains("// @grant        GM_getTabs", script);
-        Assert.Contains("const IS_REFUND_WORKER", script);
-        Assert.Contains("GM_openInTab(buildRefundWorkerUrl(), { active: false, setParent: false })", script);
-        Assert.Contains("【退款核验专用】请勿操作", script);
-        Assert.Contains("data-epm-refund-worker-overlay", script);
-        Assert.Contains("请勿操作或关闭此页面", script);
-        Assert.Contains("claimRefundWorkerLease()", script);
-        Assert.Contains("ownedHeartbeat.token !== REFUND_WORKER_TOKEN", script);
-        Assert.Contains("closeDuplicateRefundWorker()", script);
-        Assert.Contains("hasOpenRefundWorkerTab()", script);
-        Assert.Contains("saveRefundWorkerTabIdentity(true)", script);
-        Assert.Contains("if (!force && monitorReachable !== true) return", script);
-        Assert.Contains("maintainRefundWorker(monitorReachable)", script);
-        Assert.Contains("REFUND_WORKER_HEARTBEAT_INTERVAL_MS = 30000", script);
-        Assert.Contains("REFUND_WORKER_RECHECK_INTERVAL_MS = 30000", script);
-        Assert.Contains("const REFUND_WORKER_STALE_MS = 10 * 60 * 1000", script);
-        Assert.Contains("if (!event.persisted) releaseRefundWorkerLease()", script);
-        Assert.Contains("if (!IS_REFUND_WORKER) return;", script);
-        Assert.Contains("普通页面只负责订单推送，不再领取退款请求或切换筛选", script);
-        Assert.Contains("writeRefundWorkerHeartbeat();", script);
-        Assert.Contains("queryRequestedRefundSnapshot(pending.trackingNumbers || [])", script);
-        Assert.Contains("input.extendSearchSidInput", script);
-    }
-
-    [Fact]
-    public void OfficialUserscript_UsesSignedExtensionTasksWithLegacyFallback()
-    {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
-        string script = File.ReadAllText(scriptPath);
-
-        Assert.Contains("packingproof-extension-request-v1", script);
-        Assert.Contains("/api/extensions/v1/enroll", script);
-        Assert.Contains("/api/extensions/v1/scan-tasks/next?waitSeconds=20", script);
-        Assert.Contains("/api/extensions/v1/scan-results", script);
-        Assert.Contains("features?.signedScanTasks !== true", script);
-        Assert.Contains("if (!await startExtensionTaskPolling()) startOrderLookupPolling()", script);
-        Assert.Contains(".finally(() => startOrderLookupPolling())", script);
-        Assert.Contains("GM_setValue(EXTENSION_CREDENTIAL_KEY, state)", script);
-        Assert.Contains("appVersion: getScriptVersion()", script);
-        Assert.Contains("capabilities: ['orders.push', ...EXTENSION_CAPABILITIES]", script);
-        Assert.Contains("lastSuccessfulActivityAt: GM_getValue(CONNECTION_LAST_SUCCESS_AT_KEY, null)", script);
-        Assert.Contains("GM_setValue(CONNECTION_LAST_DATA_COUNT_KEY, Math.max(1, orders.length))", script);
-        Assert.DoesNotContain("const EXTENSION_CREDENTIAL =", script);
-    }
-
-    [Fact]
-    public void Userscript_BroadcastsToEveryConfiguredRecorderIndependently()
-    {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
-        string script = File.ReadAllText(scriptPath);
-
-        Assert.DoesNotContain("// @connect      *", script);
-        Assert.DoesNotContain("RTCPeerConnection", script);
-        Assert.DoesNotContain("start <= 254", script);
-        Assert.DoesNotContain("applyInstalledMonitorAddresses();", script);
-        Assert.DoesNotContain("切换上位机", script);
-        Assert.DoesNotContain("添加上位机", script);
-        Assert.DoesNotContain("移除上位机", script);
-        Assert.DoesNotContain("ensureMonitorAddress", script);
-        Assert.Contains("GM_registerMenuCommand('查看订单联动设备'", script);
-        Assert.Contains("GM_registerMenuCommand('发送测试订单到全部设备'", script);
-        Assert.Contains("GM_registerMenuCommand('立即发送当前订单'", script);
-        Assert.Contains("const PACKING_PROOF_RECORDERS = []", script);
-        Assert.Contains("Promise.allSettled(", script);
-        Assert.Contains("getOnlineRecorderEndpoints()", script);
-        Assert.Contains("/api/recording-devices", script);
-        Assert.Contains("/api/orderinfo/broadcast", script);
-        Assert.Contains("sendOrdersThroughHost(orders, devices)", script);
-        Assert.Contains("RECORDER_STATUS_TIMEOUT = 900", script);
-        Assert.Contains("OFFLINE_RECORDER_TIMEOUT = 1800", script);
-        Assert.Contains("deliveryPlan.map(item => sendOrderToRecorder(item.device, orders, item.timeout))", script);
-        Assert.Contains("console.warn(`[PackingProof] ${result.name}", script);
-        Assert.Contains("successfulCount: successful.length", script);
-        Assert.Contains("result.response?.protocol === 'packingproof'", script);
-        Assert.Contains("await pushToMonitor(buildTestOrder(), { isTest: true });", script);
-        Assert.DoesNotContain("// @connect      127.0.0.1", script);
-        Assert.DoesNotContain("// @connect      localhost", script);
-    }
-
-    [Fact]
     public void AddRecordingDevices_WritesEveryRecorderAndExactConnectPermission()
     {
         const string script = "// ==UserScript==\n// PACKING_PROOF_CONNECT_TARGETS\n// ==/UserScript==\nconst PACKING_PROOF_RECORDERS = [];\nconst PACKING_PROOF_HOST = null;";
@@ -423,17 +337,6 @@ public sealed class ConfigurationAndScannerTests
 
         Assert.Contains("// @connect      192.168.1.20", customized);
         Assert.Contains("// @connect      192.168.1.31", customized);
-    }
-
-    [Fact]
-    public void UserscriptTemplate_KeepsUpdateUrlsPlaceholderWithoutHardcodedUrls()
-    {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Scripts", "PackingProof-Order-Integration-KDZS.user.js");
-        string script = File.ReadAllText(scriptPath);
-
-        Assert.Contains("// PACKING_PROOF_UPDATE_URLS", script);
-        Assert.DoesNotContain("// @updateURL", script);
-        Assert.DoesNotContain("// @downloadURL", script);
     }
 
     [Fact]

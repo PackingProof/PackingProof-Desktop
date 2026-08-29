@@ -22,7 +22,7 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.Equal("Scale Demo", imported.Name);
         Assert.Equal("1.4", imported.Version);
         Assert.Contains(imported.Warnings, warning => warning.Contains("设备", StringComparison.Ordinal));
-        Assert.Contains(catalog.GetAll(source), item => item.Id == imported.Id);
+        Assert.Contains(catalog.GetAll(), item => item.Id == imported.Id);
     }
 
     [Fact]
@@ -63,20 +63,19 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.Contains(">安装</a>", normalHtml);
         Assert.DoesNotContain("安装此脚本", normalHtml);
         Assert.Contains(
-            "href=\"http://127.0.0.1:5280/PackingProof-Order-Integration-KDZS.user.js?scriptId=normal\"",
+            "href=\"http://127.0.0.1:5280/api/userscripts/normal/download\"",
             normalHtml,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("/api/userscripts/normal/download", normalHtml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void BuildUserscriptDownloadUrl_EndsPathWithUserscriptExtension()
+    public void BuildUserscriptDownloadUrl_UsesGenericUserscriptEndpoint()
     {
         string url = WebServer.BuildUserscriptDownloadUrl("http", "127.0.0.1:5280", "custom script");
 
         var uri = new Uri(url);
-        Assert.EndsWith(".user.js", uri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("?scriptId=custom%20script", uri.Query);
+        Assert.Equal("/api/userscripts/custom script/download", Uri.UnescapeDataString(uri.AbsolutePath));
+        Assert.Equal("", uri.Query);
     }
 
     public void Dispose()

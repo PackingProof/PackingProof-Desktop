@@ -17,6 +17,7 @@ public partial class ExtensionMarketWindow : Window
     private readonly ExtensionMarketClient _marketClient;
     private readonly ExtensionInstallationService _installationService;
     private readonly ExtensionPackageService _packageService;
+    private readonly string? _initialExtensionId;
     private readonly ObservableCollection<ExtensionMarketDisplayItem> _items = new();
     private CancellationTokenSource? _operationCancellation;
     private ExtensionMarketSession? _session;
@@ -24,19 +25,26 @@ public partial class ExtensionMarketWindow : Window
     private ExtensionMarketRelease? _selectedRelease;
 
     internal ExtensionMarketWindow()
-        : this(new ExtensionMarketClient(), new ExtensionInstallationService(), new ExtensionPackageService())
+        : this(new ExtensionMarketClient(), new ExtensionInstallationService(), new ExtensionPackageService(), null)
+    {
+    }
+
+    internal ExtensionMarketWindow(string initialExtensionId)
+        : this(new ExtensionMarketClient(), new ExtensionInstallationService(), new ExtensionPackageService(), initialExtensionId)
     {
     }
 
     internal ExtensionMarketWindow(
         ExtensionMarketClient marketClient,
         ExtensionInstallationService installationService,
-        ExtensionPackageService packageService)
+        ExtensionPackageService packageService,
+        string? initialExtensionId = null)
     {
         InitializeComponent();
         _marketClient = marketClient;
         _installationService = installationService;
         _packageService = packageService;
+        _initialExtensionId = initialExtensionId;
         CatalogList.ItemsSource = _items;
         Loaded += async (_, _) => await RefreshMarketAsync();
         Closed += (_, _) => _operationCancellation?.Cancel();
@@ -60,7 +68,12 @@ public partial class ExtensionMarketWindow : Window
                 _items.Add(new ExtensionMarketDisplayItem(item, record));
             }
             ShowMarketReadyStatus();
-            if (_items.Count > 0) CatalogList.SelectedIndex = 0;
+            if (_items.Count > 0)
+            {
+                CatalogList.SelectedItem = _initialExtensionId == null
+                    ? _items[0]
+                    : _items.FirstOrDefault(value => value.Item.Id == _initialExtensionId) ?? _items[0];
+            }
         }
         catch (OperationCanceledException)
         {

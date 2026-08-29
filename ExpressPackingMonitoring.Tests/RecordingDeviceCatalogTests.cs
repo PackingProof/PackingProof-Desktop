@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
@@ -366,6 +367,20 @@ public sealed class RecordingDeviceCatalogTests
         int port = GetFreeTcpPort();
         try
         {
+            string sourcePath = Path.Combine(directory, "order-integration.user.js");
+            File.WriteAllText(sourcePath, """
+                // ==UserScript==
+                // @name PackingProof Test Integration
+                // @namespace packingproof.test
+                // @version 1.0
+                // PACKING_PROOF_CONNECT_TARGETS
+                // PACKING_PROOF_UPDATE_URLS
+                // ==/UserScript==
+                const PACKING_PROOF_RECORDERS = [];
+                const PACKING_PROOF_HOST = null;
+                """, Encoding.UTF8);
+            string userscriptDirectory = Path.Combine(directory, "userscripts");
+            UserscriptDescriptor userscript = new UserscriptCatalog(userscriptDirectory).Import(sourcePath);
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
             using var server = new WebServer(
                 database,
@@ -376,12 +391,13 @@ public sealed class RecordingDeviceCatalogTests
                 mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
                 nodeId: Guid.NewGuid().ToString("D"),
                 nodeName: "手机备份主机",
-                deploymentPreset: DeploymentPresets.MobileBackupHost);
+                deploymentPreset: DeploymentPresets.MobileBackupHost,
+                userscriptDirectory: userscriptDirectory);
             server.Start();
 
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             using HttpResponseMessage response = await client.GetAsync(
-                "/kuaidizs-order-push.user.js",
+                $"/api/userscripts/{userscript.Id}/download",
                 TestContext.Current.CancellationToken);
             string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
             using JsonDocument payload = JsonDocument.Parse(body);

@@ -223,7 +223,40 @@ public sealed class ExtensionPackageServiceTests
                 new ExtensionPackageService());
             ExtensionInstallResult result = installation.Install(package, "Sample Demo");
             Assert.Equal("userscript", result.Record.Type);
+            Assert.Equal("1.0", result.Record.Version);
             Assert.Single(catalog.GetCustomScripts());
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void RejectsThreePartOrMismatchedUserscriptSourceVersion()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string threePartPackage = Path.Combine(root, "three-part.ppext");
+            using (ZipArchive archive = ZipFile.Open(threePartPackage, ZipArchiveMode.Create))
+            {
+                WriteEntry(archive, "manifest.json", Manifest(
+                    "sample.demo",
+                    "userscript",
+                    "payload/main.user.js",
+                    version: "1.0.0"));
+                WriteEntry(archive, "payload/main.user.js", "// ==UserScript==\n// @version 1.0.0\n// ==/UserScript==\n");
+            }
+            Assert.Throws<InvalidDataException>(() => new ExtensionPackageService().Inspect(threePartPackage));
+
+            string mismatchedPackage = Path.Combine(root, "mismatched.ppext");
+            using (ZipArchive archive = ZipFile.Open(mismatchedPackage, ZipArchiveMode.Create))
+            {
+                WriteEntry(archive, "manifest.json", Manifest("sample.demo", "userscript", "payload/main.user.js"));
+                WriteEntry(archive, "payload/main.user.js", "// ==UserScript==\n// @version 1.1\n// ==/UserScript==\n");
+            }
+            Assert.Throws<InvalidDataException>(() => new ExtensionPackageService().Inspect(mismatchedPackage));
         }
         finally
         {
@@ -263,13 +296,14 @@ public sealed class ExtensionPackageServiceTests
         string id,
         string type,
         string payload,
-        string minimumVersion = "0.0.62") => JsonSerializer.Serialize(new
+        string minimumVersion = "0.0.62",
+        string? version = null) => JsonSerializer.Serialize(new
     {
         schemaVersion = 1,
         format = "packingproof-extension",
         packageFormatVersion = 1,
         id,
-        version = "1.0.0",
+        version = version ?? (type == "userscript" ? "1.0" : "1.0.0"),
         type,
         installation = type == "userscript"
             ? (object)new { mode = "userscript-import", payloadPath = payload }

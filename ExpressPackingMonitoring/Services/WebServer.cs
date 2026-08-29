@@ -349,7 +349,8 @@ namespace ExpressPackingMonitoring.Services
             bool orderReceiverOnly = false,
             bool nodeNameCustomized = false,
             Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null,
-            bool extensionApiEnabled = false)
+            bool extensionApiEnabled = false,
+            string userscriptDirectory = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _isRecordingProvider = isRecordingProvider ?? (() => false);
@@ -427,7 +428,7 @@ namespace ExpressPackingMonitoring.Services
             // 放在状态目录子目录，避免被 MobileBackupService 只扫描顶层 *.json 的上传状态清理误删。
             _userscriptConfigRevision = new UserscriptConfigRevisionStore(
                 Path.Combine(resolvedMobileBackupStateDirectory, "userscript-config", "revision.json"));
-            _userscriptCatalog = new UserscriptCatalog();
+            _userscriptCatalog = new UserscriptCatalog(userscriptDirectory);
             if (string.Equals(_deploymentPreset, DeploymentPresets.RecordingHost, StringComparison.Ordinal))
                 _recordingComputerNicknames.RegisterHost(_nodeId, _nodeName, nodeNameCustomized);
             _connectedClients = new ConnectedClientRegistry();
@@ -1429,12 +1430,6 @@ namespace ExpressPackingMonitoring.Services
                     case "/kuaidizs-install-guide":
                         ServeInstallGuidePage(ctx);
                         break;
-                    case "/PackingProof-Order-Integration-KDZS.user.js":
-                        ServeUserscript(ctx, ctx.Request.QueryString["scriptId"]);
-                        break;
-                    case "/kuaidizs-order-push.user.js":
-                        ServeUserscript(ctx, UserscriptCatalog.OfficialId);
-                        break;
                     case var p when p.StartsWith("/api/userscripts/", StringComparison.OrdinalIgnoreCase)
                         && p.EndsWith("/download", StringComparison.OrdinalIgnoreCase):
                         ServeUserscript(ctx, p["/api/userscripts/".Length..^"/download".Length]);
@@ -1622,8 +1617,6 @@ namespace ExpressPackingMonitoring.Services
             || (path == "/api/order-lookup/result" && method == "POST")
             || (path == "/api/connections/heartbeat" && method == "POST")
             || (path == "/kuaidizs-install-guide" && method == "GET")
-            || (path == "/kuaidizs-order-push.user.js" && method == "GET")
-            || (path == "/PackingProof-Order-Integration-KDZS.user.js" && method == "GET")
             || (path.StartsWith("/api/userscripts/", StringComparison.OrdinalIgnoreCase)
                 && path.EndsWith("/download", StringComparison.OrdinalIgnoreCase)
                 && method == "GET");
@@ -5964,11 +5957,10 @@ namespace ExpressPackingMonitoring.Services
             string authority = ctx.Request.Url?.Authority ?? $"127.0.0.1:{ctx.Request.LocalEndPoint?.Port ?? 5280}";
             IReadOnlyList<RecordingDeviceInfo> devices = GetRecordingDevices(authority, includeKnown: true);
             string scheme = ctx.Request.Url?.Scheme ?? "http";
-            string scriptUrl = $"{scheme}://{authority}/PackingProof-Order-Integration-KDZS.user.js?scriptId={UserscriptCatalog.OfficialId}";
             var catalog = new UserscriptCatalog();
-            string choices = string.Join("", catalog.GetAll(PrintToolInstallGuide.ResolveUserscriptPath())
+            string choices = string.Join("", catalog.GetAll()
                 .Select(item => BuildUserscriptChoice(item, scheme, authority)));
-            string html = PrintToolInstallGuide.RenderForWeb(devices, scriptUrl, choices);
+            string html = PrintToolInstallGuide.RenderForWeb(devices, "", choices);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
             byte[] bytes = Encoding.UTF8.GetBytes(html);
@@ -5988,14 +5980,13 @@ namespace ExpressPackingMonitoring.Services
 
         internal static string BuildUserscriptDownloadUrl(string scheme, string authority, string scriptId)
         {
-            return $"{scheme}://{authority}/{PrintToolInstallGuide.ScriptFileName}?scriptId={Uri.EscapeDataString(scriptId)}";
+            return $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(scriptId)}/download";
         }
 
         private void ServeUserscript(HttpListenerContext ctx, string scriptId = null)
         {
-            string scriptPath = PrintToolInstallGuide.ResolveUserscriptPath();
-            string selectedId = string.IsNullOrWhiteSpace(scriptId) ? UserscriptCatalog.OfficialId : Uri.UnescapeDataString(scriptId);
-            scriptPath = _userscriptCatalog.GetSourcePath(selectedId, scriptPath);
+            string selectedId = string.IsNullOrWhiteSpace(scriptId) ? "" : Uri.UnescapeDataString(scriptId);
+            string scriptPath = _userscriptCatalog.GetSourcePath(selectedId);
             if (!File.Exists(scriptPath))
             {
                 SendJson(ctx, 404, new { error = "userscript not found" });
@@ -6034,7 +6025,7 @@ namespace ExpressPackingMonitoring.Services
             script = PrintToolInstallGuide.RewriteUserscriptVersion(script, revision);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "application/javascript; charset=utf-8";
-            UserscriptDescriptor descriptor = _userscriptCatalog.GetAll(PrintToolInstallGuide.ResolveUserscriptPath()).FirstOrDefault(item => item.Id == selectedId);
+            UserscriptDescriptor descriptor = _userscriptCatalog.GetAll().FirstOrDefault(item => item.Id == selectedId);
             string downloadName = descriptor?.FileName;
             if (string.IsNullOrWhiteSpace(downloadName)) downloadName = PrintToolInstallGuide.ScriptFileName;
             ctx.Response.Headers["Content-Disposition"] = $"inline; filename=\"{Path.GetFileName(downloadName)}\"";

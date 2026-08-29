@@ -156,7 +156,7 @@ function pushOrders(host, accessKey, orders) {
 
 用户导入脚本时，PackingProof 会读取元数据、校验 `.user.js` 文件格式、检查 `X.Y` 版本和维护占位符，并对包含命令行、数据库或 FFmpeg 等高风险文本的脚本显示警告。警告不会自动执行脚本；只有用户明确确认后才会保存。
 
-脚本保存在用户数据目录的 `userscripts` 子目录中，注册信息保存在同目录的 `registry.json`。导入相同 SHA-256 的脚本不会重复注册。第三方脚本的文件名、名称和命名空间会原样保留，官方脚本使用文件名 `PackingProof-Order-Integration-KDZS.user.js`，显示名为“PackingProof 快递助手订单联动”。
+脚本保存在用户数据目录的 `userscripts` 子目录中，注册信息保存在同目录的 `registry.json`。导入相同 SHA-256 的脚本不会重复注册。脚本文件名、名称和命名空间会原样保留；官方“PackingProof 快递助手订单联动”也通过扩展市场安装，不随 Desktop 发布包内置。
 
 用户可在安装向导中分别安装官方脚本或任意已导入的第三方脚本。每个脚本都有独立下载地址：
 

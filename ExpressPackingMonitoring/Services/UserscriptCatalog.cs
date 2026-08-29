@@ -15,7 +15,6 @@ public sealed class UserscriptDescriptor
     public string Version { get; set; } = "";
     public string Namespace { get; set; } = "";
     public string Author { get; set; } = "";
-    public bool IsOfficial { get; set; }
     public string SourcePath { get; set; } = "";
     public string Sha256 { get; set; } = "";
     public List<string> Warnings { get; set; } = new();
@@ -24,7 +23,6 @@ public sealed class UserscriptDescriptor
 
 internal sealed class UserscriptCatalog
 {
-    internal const string OfficialId = "official-kdzs";
     private const string RegistryFileName = "registry.json";
     private readonly object _sync = new();
     private readonly string _directory;
@@ -39,13 +37,12 @@ internal sealed class UserscriptCatalog
         _items = Load();
     }
 
-    internal IReadOnlyList<UserscriptDescriptor> GetAll(string officialPath)
+    internal IReadOnlyList<UserscriptDescriptor> GetAll()
     {
         lock (_sync)
         {
             _items = Load();
-            var official = Inspect(officialPath, OfficialId, true);
-            return new[] { official }.Concat(_items.Where(item => !item.IsOfficial)).ToList();
+            return _items.ToList();
         }
     }
 
@@ -54,7 +51,7 @@ internal sealed class UserscriptCatalog
         lock (_sync)
         {
             _items = Load();
-            return _items.Where(item => !item.IsOfficial).ToList();
+            return _items.ToList();
         }
     }
 
@@ -73,7 +70,7 @@ internal sealed class UserscriptCatalog
         {
             UserscriptDescriptor? existing = _items.FirstOrDefault(item => item.Sha256 == hash);
             if (existing != null) return existing;
-            UserscriptDescriptor descriptor = InspectText(source, "custom-" + hash[..16], false);
+            UserscriptDescriptor descriptor = InspectText(source, "custom-" + hash[..16]);
             descriptor.FileName = Path.GetFileName(sourcePath);
             descriptor.Sha256 = hash;
             descriptor.ImportedAt = DateTime.UtcNow;
@@ -85,13 +82,12 @@ internal sealed class UserscriptCatalog
         }
     }
 
-    internal string GetSourcePath(string id, string officialPath)
+    internal string GetSourcePath(string id)
     {
-        if (string.Equals(id, OfficialId, StringComparison.Ordinal)) return officialPath;
         lock (_sync)
         {
             _items = Load();
-            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
+            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id);
             return item != null && File.Exists(item.SourcePath) ? item.SourcePath : "";
         }
     }
@@ -100,7 +96,7 @@ internal sealed class UserscriptCatalog
     {
         lock (_sync)
         {
-            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id && !value.IsOfficial);
+            UserscriptDescriptor? item = _items.FirstOrDefault(value => value.Id == id);
             if (item == null) return false;
             _items.Remove(item);
             try { if (File.Exists(item.SourcePath)) File.Delete(item.SourcePath); } catch { }
@@ -109,12 +105,7 @@ internal sealed class UserscriptCatalog
         }
     }
 
-    internal static UserscriptDescriptor Inspect(string path, string id, bool official)
-    {
-        return InspectText(File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8) : "", id, official);
-    }
-
-    private static UserscriptDescriptor InspectText(string source, string id, bool official)
+    private static UserscriptDescriptor InspectText(string source, string id)
     {
         string Meta(string key) => Regex.Match(source, $@"^//\s*@{key}(?:\s+|\t+)(?<value>[^\r\n]+)", RegexOptions.Multiline).Groups["value"].Value.Trim();
         var warnings = new List<string>();
@@ -126,7 +117,7 @@ internal sealed class UserscriptCatalog
         return new UserscriptDescriptor
         {
             Id = id, Name = Meta("name"), Namespace = Meta("namespace"), Version = version,
-            Author = Meta("author"), IsOfficial = official, Warnings = warnings
+            Author = Meta("author"), Warnings = warnings
         };
     }
 

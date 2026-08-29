@@ -72,7 +72,6 @@ try {
 
     Write-Host "[1/7] Running release unit tests, JavaScript validation and Release build..."
     Invoke-Checked -FilePath "pwsh" -Arguments @("-NoProfile", "-File", $releaseTest, "-Configuration", $Configuration)
-    Invoke-Checked -FilePath "node" -Arguments @("--check", "Scripts\PackingProof-Order-Integration-KDZS.user.js")
     Invoke-Checked -FilePath "node" -Arguments @("--check", "docs\examples\extension-v1-minimal.js")
 
     Write-Host "[2/7] Running an isolated WPF startup and shutdown smoke test..."

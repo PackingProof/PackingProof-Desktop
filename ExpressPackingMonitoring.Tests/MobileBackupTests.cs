@@ -1561,6 +1561,20 @@ public sealed class MobileBackupTests
         string stateDirectory = Path.Combine(directory, "state");
         try
         {
+            string sourcePath = Path.Combine(directory, "order-integration.user.js");
+            File.WriteAllText(sourcePath, """
+                // ==UserScript==
+                // @name PackingProof Test Integration
+                // @namespace packingproof.test
+                // @version 2.14
+                // PACKING_PROOF_CONNECT_TARGETS
+                // PACKING_PROOF_UPDATE_URLS
+                // ==/UserScript==
+                const PACKING_PROOF_RECORDERS = [];
+                const PACKING_PROOF_HOST = null;
+                """, Encoding.UTF8);
+            string userscriptDirectory = Path.Combine(directory, "userscripts");
+            UserscriptDescriptor userscript = new UserscriptCatalog(userscriptDirectory).Import(sourcePath);
             var receivers = new MobileOrderReceiverRegistry(Path.Combine(stateDirectory, "order-receivers.json"));
             receivers.Register(IPAddress.Parse("192.168.31.205"));
             string registryPath = Path.Combine(stateDirectory, "order-receivers.json");
@@ -1576,7 +1590,8 @@ public sealed class MobileBackupTests
                 accessKey: AccessKey,
                 listenerHost: "127.0.0.1",
                 mobileConnectionUrlProvider: () => $"http://192.168.31.250:{port}/?key={AccessKey}",
-                mobileBackupStateDirectory: stateDirectory);
+                mobileBackupStateDirectory: stateDirectory,
+                userscriptDirectory: userscriptDirectory);
             server.Start();
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
@@ -1594,7 +1609,7 @@ public sealed class MobileBackupTests
                     && !device.GetProperty("online").GetBoolean());
 
             string script = await client.GetStringAsync(
-                $"/kuaidizs-order-push.user.js?connect=127.0.0.1:{port}",
+                $"/api/userscripts/{userscript.Id}/download?connect=127.0.0.1:{port}",
                 TestContext.Current.CancellationToken);
 
             Assert.Contains($"\"url\":\"http://192.168.31.250:{port}\"", script);
@@ -1602,10 +1617,10 @@ public sealed class MobileBackupTests
             Assert.Contains("// @connect      192.168.31.205", script);
             Assert.DoesNotContain("// @connect      127.0.0.1", script);
             Assert.Contains(
-                $"// @updateURL     http://192.168.31.250:{port}/PackingProof-Order-Integration-KDZS.user.js?scriptId=official-kdzs",
+                $"// @updateURL     http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download",
                 script);
             Assert.Contains(
-                $"// @downloadURL   http://192.168.31.250:{port}/PackingProof-Order-Integration-KDZS.user.js?scriptId=official-kdzs",
+                $"// @downloadURL   http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download",
                 script);
             Assert.DoesNotContain("// @updateURL     127.0.0.1", script);
 
@@ -1615,7 +1630,7 @@ public sealed class MobileBackupTests
                 File.Exists(Path.Combine(stateDirectory, "userscript-config", "revision.json")),
                 "配置修订号状态文件应位于状态目录子目录，避免被上传状态清理误删");
             string secondScript = await client.GetStringAsync(
-                $"/kuaidizs-order-push.user.js?connect=127.0.0.1:{port}",
+                $"/api/userscripts/{userscript.Id}/download?connect=127.0.0.1:{port}",
                 TestContext.Current.CancellationToken);
             Assert.Equal(versionLine, ExtractUserscriptVersion(secondScript));
         }

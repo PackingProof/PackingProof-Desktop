@@ -862,6 +862,17 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public void OpenUserscriptGuide()
         {
+            if (new UserscriptCatalog().GetAll().Count == 0)
+            {
+                var market = new ExtensionMarketWindow("packingproof.kdzs");
+                System.Windows.Window owner = Application.Current?.Windows
+                    .OfType<System.Windows.Window>()
+                    .FirstOrDefault(window => window.IsActive);
+                if (owner != null) market.Owner = owner;
+                market.ShowDialog();
+                return;
+            }
+
             if (_webServer == null || string.IsNullOrWhiteSpace(MonitorAccessAddress))
             {
                 ShowToast("局域网服务尚未就绪，暂时无法生成快递助手脚本", ToastSeverity.Warning);
