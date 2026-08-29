@@ -186,6 +186,7 @@
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
     <Compile Include="Services\OrderInfoRelay.cs" />
+    <Compile Include="Services\OrderInfo.cs" />
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
     <Compile Include="Services\RecordingProfileDetector.cs" />
     <Compile Include="Services\RecordingWorkstationCachePolicy.cs" />

@@ -51,7 +51,62 @@ public sealed class OrderInfoRelayTests
             Assert.Equal(HttpStatusCode.OK, duplicate.StatusCode);
             Assert.Equal(1, firstBody.RootElement.GetProperty("receivedCount").GetInt32());
             Assert.Equal(0, duplicateBody.RootElement.GetProperty("receivedCount").GetInt32());
+            Assert.True(duplicateBody.RootElement.GetProperty("duplicate").GetBoolean());
             Assert.Equal(1, Volatile.Read(ref eventCount));
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task BroadcastEndpoint_CoalescesDuplicateBeforeRelaying()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"epm-broadcast-dedup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        int port = GetFreeTcpPort();
+        string nodeId = Guid.NewGuid().ToString("D");
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupStateDirectory: Path.Combine(directory, "state"),
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                nodeId: nodeId,
+                nodeName: "本机录像主机",
+                deploymentPreset: DeploymentPresets.RecordingHost);
+            int eventCount = 0;
+            server.OrderInfoReceived += _ => Interlocked.Increment(ref eventCount);
+            server.Start();
+
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            string payload = $"{{\"orders\":[{{\"trackingNumber\":\"YT-BROADCAST-DUP\"}}],\"targetNodeIds\":[\"{nodeId}\"]}}";
+            using HttpResponseMessage first = await client.PostAsync(
+                "/api/orderinfo/broadcast",
+                new StringContent(payload, Encoding.UTF8, "application/json"),
+                TestContext.Current.CancellationToken);
+            using HttpResponseMessage duplicate = await client.PostAsync(
+                "/api/orderinfo/broadcast",
+                new StringContent(payload, Encoding.UTF8, "application/json"),
+                TestContext.Current.CancellationToken);
+            using JsonDocument firstBody = JsonDocument.Parse(
+                await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+            using JsonDocument duplicateBody = JsonDocument.Parse(
+                await duplicate.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, duplicate.StatusCode);
+            Assert.False(firstBody.RootElement.GetProperty("duplicate").GetBoolean());
+            Assert.True(duplicateBody.RootElement.GetProperty("duplicate").GetBoolean());
+            Assert.Equal(1, Volatile.Read(ref eventCount));
+            Assert.Equal(
+                1,
+                Assert.Single(server.GetOrderIntegrationDeviceStatuses(), status => status.NodeId == nodeId).ReceivedCount);
         }
         finally
         {

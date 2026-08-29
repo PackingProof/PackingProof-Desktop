@@ -36,28 +36,6 @@ namespace ExpressPackingMonitoring.Services
     /// 内嵌轻量 HTTP 服务器，供局域网客户端搜索、播放和下载视频。
     /// 基于 HttpListener，无需额外 NuGet 依赖。
     /// </summary>
-    /// <summary>订单附加信息（从快递助手页面推送）</summary>
-    public class OrderInfo
-    {
-        public string TrackingNumber { get; set; } = "";
-        public string OrderId { get; set; } = "";
-        public string BuyerMessage { get; set; } = "";
-        public string SellerMemo { get; set; } = "";
-        public string ProductInfo { get; set; } = "";
-        /// <summary>该订单中所有商品的总件数。</summary>
-        public int TotalItemCount { get; set; }
-        /// <summary>同一快递单号聚合后的订单数量。</summary>
-        public int MergedOrderCount { get; set; }
-        /// <summary>第三方来源标识，仅用于审计和兼容处理。</summary>
-        public string ProviderId { get; set; } = "";
-        public bool HasRefund { get; set; }
-        public bool IsPrintedRefund { get; set; }
-        public string RefundStatus { get; set; } = "";
-        public string RefundProductInfo { get; set; } = "";
-        public DateTime PushTime { get; set; } = DateTime.Now;
-        public bool IsTest { get; set; }
-    }
-
     internal sealed record MobileAppDownloadInfo(
         string Version,
         string DownloadUrl,
@@ -3114,34 +3092,44 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                IReadOnlyList<OrderInfoRelayResult> results = OrderInfoRelay.BroadcastAsync(
-                    devices,
-                    _nodeId,
-                    items,
-                    OrderInfoRelay.SendAsync,
-                    device =>
-                    {
-                        var (_, testCount) = AcceptOrderInfos(items, deduplicateLegacyPush: true);
-                        return new OrderInfoRelayResult(
-                            device.NodeId,
-                            device.NodeName,
-                            device.DeviceType,
-                            device.Address,
-                            true,
-                            200,
-                            testCount,
-                            items.Count);
-                    },
-                    _cts.Token).GetAwaiter().GetResult();
-                foreach (OrderInfoRelayResult result in results.Where(result => result.Ok))
+                LegacyOrderPushExecution<IReadOnlyList<OrderInfoRelayResult>> execution =
+                    _legacyOrderPushDeduplicator.Execute(
+                        ctx.Request.RemoteEndPoint?.Address.ToString(),
+                        LegacyOrderPushDeduplicator.CreateBroadcastScope(requestedTargetNodeIds),
+                        items,
+                        () => OrderInfoRelay.BroadcastAsync(
+                            devices,
+                            _nodeId,
+                            items,
+                            OrderInfoRelay.SendAsync,
+                            device =>
+                            {
+                                var (_, testCount) = AcceptOrderInfos(items);
+                                return new OrderInfoRelayResult(
+                                    device.NodeId,
+                                    device.NodeName,
+                                    device.DeviceType,
+                                    device.Address,
+                                    true,
+                                    200,
+                                    testCount,
+                                    items.Count);
+                            },
+                            _cts.Token).GetAwaiter().GetResult());
+                IReadOnlyList<OrderInfoRelayResult> results = execution.Result;
+                if (!execution.IsDuplicate)
                 {
-                    int receivedCount = result.ReceivedCount > 0 ? result.ReceivedCount : items.Count;
-                    _orderIntegrationActivities.RecordReceived(result.NodeId, receivedCount);
+                    foreach (OrderInfoRelayResult result in results.Where(result => result.Ok))
+                    {
+                        int receivedCount = result.ReceivedCount > 0 ? result.ReceivedCount : items.Count;
+                        _orderIntegrationActivities.RecordReceived(result.NodeId, receivedCount);
+                    }
                 }
                 SendJson(ctx, 200, new
                 {
                     success = results.Any(result => result.Ok),
                     ok = results.Any(result => result.Ok),
+                    duplicate = execution.IsDuplicate,
                     results
                 });
             }
@@ -3166,7 +3154,14 @@ namespace ExpressPackingMonitoring.Services
 
                 ValidateOrderInfoItems(items);
 
-                (int count, int testCount) = AcceptOrderInfos(items, deduplicateLegacyPush: true);
+                LegacyOrderPushExecution<(int Count, int TestCount)> execution =
+                    _legacyOrderPushDeduplicator.Execute(
+                        ctx.Request.RemoteEndPoint?.Address.ToString(),
+                        "direct",
+                        items,
+                        () => AcceptOrderInfos(items));
+                (int count, int testCount) = execution.Result;
+                if (execution.IsDuplicate) count = 0;
 
                 if (EnableOrderInfoLog)
                 {
@@ -3186,7 +3181,8 @@ namespace ExpressPackingMonitoring.Services
                     nodeName = _nodeName,
                     receivedCount = count,
                     count,
-                    testCount
+                    testCount,
+                    duplicate = execution.IsDuplicate
                 });
             }
             catch (Exception ex)
@@ -4181,15 +4177,12 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items, bool deduplicateLegacyPush = false)
+        private (int Count, int TestCount) AcceptOrderInfos(List<OrderInfo> items)
         {
-            using LegacyOrderPushDeduplicator.LegacyOrderPushDeduplication deduplication = _legacyOrderPushDeduplicator.Begin(deduplicateLegacyPush ? items : []);
-            if (deduplicateLegacyPush) items = deduplication.AcceptedItems;
             var realItems = items.Where(item => !item.IsTest).ToList();
             int count = StoreOrderInfos(realItems, preserveConfirmedRefund: true);
             int testCount = items.Count(item => item.IsTest);
             if (items.Count > 0) try { OrderInfoReceived?.Invoke(items); } catch { }
-            deduplication.Complete();
             return (count, testCount);
         }
 
