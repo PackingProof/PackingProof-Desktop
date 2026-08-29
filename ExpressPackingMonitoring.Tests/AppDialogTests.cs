@@ -125,7 +125,7 @@ public sealed class AppDialogTests
     public void ToastSeverity_IsPlumbedThroughAlertPipeline()
     {
         string alertService = ReadRepositoryFile("ExpressPackingMonitoring", "Services", "AlertService.cs");
-        string viewModel = ReadRepositoryFile("ExpressPackingMonitoring", "ViewModels", "MainViewModel.cs");
+        string viewModel = RepositorySource.ReadMainViewModel();
         string settingsContext = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "SettingsContext.cs");
 
         Assert.Contains("public enum ToastSeverity", alertService, StringComparison.Ordinal);
@@ -204,10 +204,7 @@ public sealed class AppDialogTests
             "ExpressPackingMonitoring",
             "UI",
             "MobileAppUpdatePromptWindow.xaml");
-        string mainViewModel = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainViewModel = RepositorySource.ReadMainViewModel();
 
         Assert.Contains("prompt.Show();", prompt, StringComparison.Ordinal);
         Assert.DoesNotContain("ShowDialog", prompt, StringComparison.Ordinal);
@@ -227,10 +224,7 @@ public sealed class AppDialogTests
             "ExpressPackingMonitoring",
             "UI",
             "BackupDeviceEnrollmentApprovalPrompt.cs");
-        string mainViewModel = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainViewModel = RepositorySource.ReadMainViewModel();
 
         string window = ReadRepositoryFile(
             "ExpressPackingMonitoring",

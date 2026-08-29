@@ -367,10 +367,7 @@ public sealed class RecordingWorkstationCacheTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.Recording.cs");
-        string mainViewModel = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainViewModel = RepositorySource.ReadMainViewModel();
         string settings = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",

@@ -214,6 +214,11 @@
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />
+    <Compile Include="ViewModels\MainViewModel.Scanner.cs" />
+    <Compile Include="ViewModels\MainViewModel.Notifications.cs" />
+    <Compile Include="ViewModels\MainViewModel.Settings.cs" />
+    <Compile Include="ViewModels\MainViewModel.Media.cs" />
+    <Compile Include="ViewModels\MainViewModel.Integration.cs" />
     <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
     <Compile Include="ViewModels\MainViewModel.Recording.cs" />
     <Compile Include="ViewModels\MainViewModel.Transfer.cs" />

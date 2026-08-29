@@ -446,10 +446,7 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "Workstations",
             "PrintWorkstationWindow.xaml.cs");
-        string recordingSource = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string recordingSource = RepositorySource.ReadMainViewModel();
         string mobileSwitch = mobileSource[mobileSource.IndexOf(
             "private async Task<bool> RunPurposeSwitchAsync",
             StringComparison.Ordinal)..];
@@ -624,10 +621,7 @@ public sealed class DeploymentStartupTests
     [Fact]
     public void PostStopMuxImmediatelyQueuesCompletedRecordingsForTransfer()
     {
-        string source = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string source = RepositorySource.ReadMainViewModel();
         int methodStart = source.IndexOf("private void QueuePostStopMux", StringComparison.Ordinal);
 
         Assert.True(methodStart >= 0);
@@ -658,10 +652,7 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.Transfer.cs");
-        string mainSource = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainSource = RepositorySource.ReadMainViewModel();
         string statusCard = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "UI",
@@ -1198,10 +1189,7 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "UI",
             "MainWindow.xaml.cs");
-        string mainViewModel = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainViewModel = RepositorySource.ReadMainViewModel();
         string transferSource = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "ViewModels",
@@ -1577,10 +1565,7 @@ public sealed class DeploymentStartupTests
     public void RecordingHostWindowExposesNodeAndUserscriptStatus()
     {
         string xaml = ReadRepositoryFile("ExpressPackingMonitoring", "UI", "MainWindow.xaml");
-        string source = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string source = RepositorySource.ReadMainViewModel();
 
         Assert.Contains("x:Name=\"BtnInstallUserscript\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Config.NodeName", source, StringComparison.Ordinal);
@@ -1674,10 +1659,7 @@ public sealed class DeploymentStartupTests
     [Fact]
     public void RecordingWorkstationPlaybackUsesLocalDatabaseAndCacheLocation()
     {
-        string mainSource = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string mainSource = RepositorySource.ReadMainViewModel();
         string recordingSource = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "ViewModels",

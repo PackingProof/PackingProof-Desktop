@@ -48,10 +48,7 @@ public sealed class NoCameraWorkstationTests
             "ExpressPackingMonitoring",
             "Workstations",
             "PrintWorkstationWindow.xaml.cs");
-        string viewModelSource = ReadRepositoryFile(
-            "ExpressPackingMonitoring",
-            "ViewModels",
-            "MainViewModel.cs");
+        string viewModelSource = RepositorySource.ReadMainViewModel();
 
         Assert.Contains(
             "_host.ArchiveBackupStatusChanged += OnArchiveBackupStatusChanged",
