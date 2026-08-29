@@ -28,7 +28,7 @@
 
 ## 打包与发布流程
 
-- 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致；发布脚本用 `InformationalVersion` 注入实际版本。
+- 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致；发布脚本统一将 `版本+commit.提交总数.短CommitID` 写入 EXE 的 `InformationalVersion`，并将完整 Commit ID 写入程序集元数据。Setup 与 AppPatch 文件名也必须带 `_commit.提交总数.短CommitID`；包内协议版本继续使用纯语义版本。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用：
 
 ```powershell

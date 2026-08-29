@@ -361,12 +361,21 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("WINDOWS_SIGN_CERT_THUMBPRINT", buildScript);
         Assert.Contains("Get-AuthenticodeSignature", buildScript);
         Assert.Contains("PackingProof_Setup_v$normalizedVersion.exe", buildScript);
+        Assert.Contains("[string]$OutputFileName", buildScript);
+        Assert.Contains("Installer output file name must be a leaf .exe name", buildScript);
         Assert.Contains("config.json", buildScript);
         Assert.Contains("videos.db", buildScript);
 
         Assert.Contains("OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}", innoScript);
-        Assert.Contains("PackingProof_Setup_$releaseTag.exe", publishScript);
+        Assert.Contains("PackingProof_Setup_$releaseTag$buildIdentitySuffix.exe", publishScript);
+        Assert.Contains("PackingProof_AppPatch_$releaseTag$buildIdentitySuffix.zip", publishScript);
+        Assert.Contains("-OutputFileName $setupFileName", publishScript);
         Assert.Contains("\"PackingProof+$packageVersion\"", publishScript);
+        Assert.Contains("git -C $repoRoot rev-list --count HEAD", publishScript);
+        Assert.Contains("commit.$CommitCount.$shortCommitId", publishScript);
+        Assert.Contains("-p:InformationalVersion=$informationalVersion", publishScript);
+        Assert.Contains("-p:IncludeSourceRevisionInInformationalVersion=false", publishScript);
+        Assert.Contains("-p:GitCommitId=$gitCommitId", publishScript);
         Assert.Contains("Build-Installer.ps1", publishScript);
         Assert.Contains("SmartScreen", publishScript);
         Assert.Contains("GitHub 默认上传", publishScript);

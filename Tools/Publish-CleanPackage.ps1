@@ -202,6 +202,33 @@ function Get-GitCommitId {
     return ""
 }
 
+function Get-GitCommitCount {
+    $count = (& git -C $repoRoot rev-list --count HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and "$count" -match '^\d+$') {
+        return "$count".Trim()
+    }
+
+    return ""
+}
+
+function Get-InformationalVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PackageVersion,
+        [string]$CommitCount,
+        [string]$CommitId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommitCount) -or
+        [string]::IsNullOrWhiteSpace($CommitId)) {
+        return $PackageVersion
+    }
+
+    $shortCommitId = $CommitId.Substring(0, [Math]::Min(8, $CommitId.Length))
+    $separator = if ($PackageVersion.Contains('+')) { '.' } else { '+' }
+    return "$PackageVersion${separator}commit.$CommitCount.$shortCommitId"
+}
+
 function ConvertTo-SafePathName {
     param([string]$Name)
 
@@ -1024,6 +1051,11 @@ function Resolve-LauncherBaselineExecutable {
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBuildArtifacts = Join-Path $outputFullPath ".build-artifacts"
 $gitCommitId = Get-GitCommitId
+$gitCommitCount = Get-GitCommitCount
+$informationalVersion = Get-InformationalVersion `
+    -PackageVersion $packageVersion `
+    -CommitCount $gitCommitCount `
+    -CommitId $gitCommitId
 $packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
@@ -1067,7 +1099,8 @@ Invoke-DotNetPublish -Arguments @(
     "-c", $Configuration,
     "-r", $Runtime,
     "--self-contained", "true",
-    "-p:InformationalVersion=$packageVersion",
+    "-p:InformationalVersion=$informationalVersion",
+    "-p:IncludeSourceRevisionInInformationalVersion=false",
     "-p:GitCommitId=$gitCommitId",
     "-p:PublishSingleFile=false",
     "--artifacts-path", $appBuildArtifacts,
@@ -1152,9 +1185,20 @@ foreach ($runtimeFile in $requiredAppRuntimeFiles) {
 
 $normalizedVersion = Get-NormalizedReleaseVersion $packageVersion
 $releaseTag = "v$normalizedVersion"
+$shortGitCommitId = if ([string]::IsNullOrWhiteSpace($gitCommitId)) {
+    ""
+} else {
+    $gitCommitId.Substring(0, [Math]::Min(8, $gitCommitId.Length))
+}
+$buildIdentitySuffix = if ([string]::IsNullOrWhiteSpace($gitCommitCount) -or
+    [string]::IsNullOrWhiteSpace($shortGitCommitId)) {
+    ""
+} else {
+    "_commit.$gitCommitCount.$shortGitCommitId"
+}
 $packageRoot = $packageArtifactRoot
 $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
-$appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
+$appPatchZipName = "PackingProof_AppPatch_$releaseTag$buildIdentitySuffix.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
 $legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$releaseTag.zip"
 $launcherPackageName = [string]$launcherBaseline.package.file
@@ -1165,7 +1209,7 @@ $launcherManifestName = "launcher_manifest_$releaseTag.json"
 $launcherManifestPath = Join-Path $packageRoot $launcherManifestName
 $releaseInfoName = "release_info_$releaseTag.txt"
 $releaseInfoPath = Join-Path $packageRoot $releaseInfoName
-$setupFileName = "PackingProof_Setup_$releaseTag.exe"
+$setupFileName = "PackingProof_Setup_$releaseTag$buildIdentitySuffix.exe"
 $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"
@@ -1243,6 +1287,7 @@ if (-not (Test-Path -LiteralPath $installerBuildScript -PathType Leaf)) {
     -SourceDir $outputFullPath `
     -Version $normalizedVersion `
     -OutputDir $packageRoot `
+    -OutputFileName $setupFileName `
     -InstallerCompression $InstallerCompression
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
     throw "Installer build failed: $setupPath"

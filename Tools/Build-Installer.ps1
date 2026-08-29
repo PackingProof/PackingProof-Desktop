@@ -5,6 +5,7 @@ param(
     [string]$Version,
     [Parameter(Mandatory = $true)]
     [string]$OutputDir,
+    [string]$OutputFileName = "",
     [string]$IsccPath = "",
     [ValidateSet("lzma2/normal", "lzma2/max", "lzma2/ultra64")]
     [string]$InstallerCompression = "lzma2/ultra64"
@@ -22,7 +23,16 @@ if ($normalizedVersion -notmatch "^\d+\.\d+\.\d+(?:\.\d+)?$") {
 }
 $versionParts = @($normalizedVersion.Split("."))
 $version4 = if ($versionParts.Count -eq 3) { "$normalizedVersion.0" } else { $normalizedVersion }
-$setupFileName = "PackingProof_Setup_v$normalizedVersion.exe"
+$generatedSetupFileName = "PackingProof_Setup_v$normalizedVersion.exe"
+$setupFileName = if ([string]::IsNullOrWhiteSpace($OutputFileName)) {
+    $generatedSetupFileName
+} else {
+    $OutputFileName.Trim()
+}
+if ([System.IO.Path]::GetFileName($setupFileName) -ne $setupFileName -or
+    [System.IO.Path]::GetExtension($setupFileName) -ine ".exe") {
+    throw "Installer output file name must be a leaf .exe name: $setupFileName"
+}
 $setupPath = Join-Path $outputFullPath $setupFileName
 
 if (-not (Test-Path -LiteralPath $installerScript -PathType Leaf)) {
@@ -78,7 +88,7 @@ $temporaryBuildRoot = Join-Path (
     [System.IO.Path]::GetTempPath()
 ) ("ExpressPackingMonitoring-Installer-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $temporaryBuildRoot | Out-Null
-$temporarySetupPath = Join-Path $temporaryBuildRoot $setupFileName
+$temporarySetupPath = Join-Path $temporaryBuildRoot $generatedSetupFileName
 
 $compilerArguments = @(
     "/Qp",
