@@ -219,6 +219,22 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void CameraReconnectUsesTaskReturningEntryPoint()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs");
+
+        Assert.Contains(
+            "private async Task RestartCameraWithRecordingStopAsync(string trigger)",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("async void RestartCameraWithRecordingStop", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeLog.Error(\"Camera\", $\"Camera restart failed", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientUsesSingleDynamicUserscriptButton()
     {
         string xaml = ReadRepositoryFile(

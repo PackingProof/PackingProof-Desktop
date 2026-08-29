@@ -71,7 +71,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async void RestartCameraWithRecordingStop(string trigger)
+        private async Task RestartCameraWithRecordingStopAsync(string trigger)
         {
             if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
             {
@@ -149,6 +149,10 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                     }
                 }
+            }
+            catch (Exception exception)
+            {
+                RuntimeLog.Error("Camera", $"Camera restart failed, trigger={trigger}", exception);
             }
             finally
             {
@@ -391,7 +395,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                             return;
                         ShowToast("摄像头连接发生错误，尝试重连...", ToastSeverity.Warning);
-                        RestartCameraWithRecordingStop("video-source-error");
+                        _ = RestartCameraWithRecordingStopAsync("video-source-error");
                     });
                 };
 
@@ -508,7 +512,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                     return;
                 ShowToast("网络摄像头连接异常，尝试重连...", ToastSeverity.Warning);
-                RestartCameraWithRecordingStop("network-source-error");
+                _ = RestartCameraWithRecordingStopAsync("network-source-error");
             });
         }
 
@@ -941,7 +945,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
                                     ShowToast("摄像头信号丢失，尝试重连...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
-                                    RestartCameraWithRecordingStop("camera-frame-timeout");
+                                    _ = RestartCameraWithRecordingStopAsync("camera-frame-timeout");
                                 });
                             }
                         }
@@ -955,7 +959,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 _ = Application.Current.Dispatcher.InvokeAsync(() => {
                                     ShowToast("摄像头已断开，等待重新连接...", ToastSeverity.Warning);
                                     SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
-                                    RestartCameraWithRecordingStop("camera-source-stopped");
+                                    _ = RestartCameraWithRecordingStopAsync("camera-source-stopped");
                                 });
                             }
                         }
@@ -1135,7 +1139,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
                 ShowToast("预览画面卡住，正在重连摄像头...", ToastSeverity.Warning);
-                RestartCameraWithRecordingStop("preview-freeze-with-stale-camera-frame");
+                _ = RestartCameraWithRecordingStopAsync("preview-freeze-with-stale-camera-frame");
             });
         }
 
