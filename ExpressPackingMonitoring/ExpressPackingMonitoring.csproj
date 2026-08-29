@@ -213,6 +213,7 @@
     <Compile Include="ViewModels\RecordingBufferPolicy.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
+    <Compile Include="ViewModels\MainViewModel.Camera.cs" />
     <Compile Include="ViewModels\MainViewModel.Encoder.cs" />
     <Compile Include="ViewModels\MainViewModel.Recording.cs" />
     <Compile Include="ViewModels\MainViewModel.Transfer.cs" />
