@@ -53,6 +53,9 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 
 - 使用启用 nullable 和 implicit usings 的 C#。公共成员使用 `PascalCase`，局部变量使用 `camelCase`，私有字段使用 `_camelCase`；保持现有 WPF/MVVM 风格。
 - 修改应聚焦且最小。不要夹带无关重构、格式化、依赖升级或功能；发现无关问题单独报告。
+- 生产 C# 文件原则上保持在 1000 行以内，超过 1000 行后新增独立职责时应优先抽取服务、策略、协调器、仓储或 ViewModel 分部；除架构守卫登记的历史例外外，单文件不得超过 2000 行。
+- `WebServer.cs`、`VideoDatabase.cs`、`SettingsWindow.xaml.cs` 是冻结规模的历史例外，只允许缩小，不得净增长。相关功能应按领域抽到可独立测试的类型中，禁止继续向例外文件堆叠路由、协议、查询或界面逻辑。
+- 不得通过压缩排版、合并语句、删除有价值的空行或拆成无职责边界的 `partial` 文件规避文件规模约束；拆分应形成可命名、可测试、依赖方向清晰的职责边界。
 - 保持 UTF-8，避免整文件重写、换行和编码抖动，尤其是中文、XAML、HTML 和 userscript。
 - 新界面复用默认字体 `Microsoft YaHei UI, Segoe UI` 以及现有字号、字重和控件风格；使用不同字体时必须明确说明理由。
 - 用户可见文本最后一句不以中文句号结尾；多句文案只移除末尾句号，中间句号保留。
