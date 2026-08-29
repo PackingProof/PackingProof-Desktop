@@ -16,6 +16,19 @@
             <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
         </Style>
+        <Style x:Key="MarketInstallStatusTextStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource MarketMetadataTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="已安装">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+                </Trigger>
+                <Trigger Property="Text" Value="待更新">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -117,20 +130,19 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" Grid.ColumnSpan="2">
-                                    <TextBlock Text="{Binding Name}"
-                                               MaxWidth="240"
-                                               FontWeight="SemiBold"
-                                               FontSize="15"
-                                               Foreground="{DynamicResource TextPrimary}"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Badge}"
-                                               Margin="8,0,0,0"
-                                               Foreground="{DynamicResource AccentOrange}"
-                                               FontSize="12"
-                                               FontWeight="Normal"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
+                                <TextBlock Text="{Binding Name}"
+                                           FontWeight="SemiBold"
+                                           FontSize="15"
+                                           Foreground="{DynamicResource TextPrimary}"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Badge}"
+                                           Grid.Column="1"
+                                           Margin="8,0,0,0"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{DynamicResource AccentOrange}"
+                                           FontSize="12"
+                                           FontWeight="Normal"
+                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding Summary}"
                                            Grid.Row="1"
                                            Grid.ColumnSpan="2"
@@ -149,7 +161,7 @@
                                            Grid.Column="1"
                                            Margin="8,5,0,0"
                                            HorizontalAlignment="Right"
-                                           Style="{StaticResource MarketMetadataTextStyle}"/>
+                                           Style="{StaticResource MarketInstallStatusTextStyle}"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

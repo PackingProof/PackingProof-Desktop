@@ -63,8 +63,28 @@ public sealed class ExtensionMarketWindowTests
         XElement badge = Assert.Single(
             list.Descendants(Presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "{Binding Badge}");
-        Assert.Equal(Presentation + "StackPanel", badge.Parent?.Name);
-        Assert.Null((string?)badge.Attribute("Grid.Column"));
+        Assert.Equal("1", (string?)badge.Attribute("Grid.Column"));
+        Assert.Equal("Right", (string?)badge.Attribute("HorizontalAlignment"));
+
+        XElement status = Assert.Single(
+            list.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding StatusText}");
+        Assert.Equal(
+            "{StaticResource MarketInstallStatusTextStyle}",
+            (string?)status.Attribute("Style"));
+        XElement statusStyle = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "MarketInstallStatusTextStyle");
+        Assert.Contains(
+            statusStyle.Descendants(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Foreground"
+                && (string?)setter.Attribute("Value") == "{DynamicResource TextMuted}");
+        Assert.Contains(
+            statusStyle.Descendants(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Value") == "{DynamicResource AccentGreen}");
+        Assert.Contains(
+            statusStyle.Descendants(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Value") == "{DynamicResource AccentOrange}");
     }
 
     [Fact]
