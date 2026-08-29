@@ -18,6 +18,10 @@
 <a href="https://github.com/PackingProof/PackingProof-Mobile/releases/latest">
   <img src="https://img.shields.io/badge/下载-Android%20版-695647?style=for-the-badge&logo=android&logoColor=white" height="38" alt="下载 Android 版">
 </a>
+&nbsp;
+<a href="https://testflight.apple.com/join/KR4qNs6t">
+  <img src="https://img.shields.io/badge/加入-iOS%20内测-0D96F6?style=for-the-badge&logo=apple&logoColor=white" height="38" alt="加入 iOS 内测">
+</a>
 
 <br><br>
 
@@ -30,6 +34,8 @@
 [![License](https://img.shields.io/github/license/PackingProof/PackingProof-Desktop?style=flat-square&color=695647)](LICENSE)
 
 </div>
+
+手机版同时支持 Android 与 iOS：Android 可下载 ARM64 正式签名 APK；iOS 请先安装 TestFlight，再点击上方链接加入内测。
 
 <br>
 

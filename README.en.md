@@ -18,6 +18,10 @@ Announce order notes, catch post-print refunds, and back up recordings from mult
 <a href="https://github.com/PackingProof/PackingProof-Mobile/releases/latest">
   <img src="https://img.shields.io/badge/Download-Android-695647?style=for-the-badge&logo=android&logoColor=white" height="38" alt="Download for Android">
 </a>
+&nbsp;
+<a href="https://testflight.apple.com/join/KR4qNs6t">
+  <img src="https://img.shields.io/badge/Join-iOS%20Beta-0D96F6?style=for-the-badge&logo=apple&logoColor=white" height="38" alt="Join the iOS TestFlight beta">
+</a>
 
 <br><br>
 
@@ -30,6 +34,8 @@ Announce order notes, catch post-print refunds, and back up recordings from mult
 [![License](https://img.shields.io/github/license/PackingProof/PackingProof-Desktop?style=flat-square&color=695647)](LICENSE)
 
 </div>
+
+The mobile app supports both Android and iOS: download the signed ARM64 APK for Android; for iOS, install TestFlight first, then open the link above to join the beta.
 
 <br>
 
