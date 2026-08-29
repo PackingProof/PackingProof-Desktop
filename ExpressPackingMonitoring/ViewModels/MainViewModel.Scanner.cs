@@ -253,7 +253,7 @@ namespace ExpressPackingMonitoring.ViewModels
             OpenSettingsCommand = new RelayCommand(OpenSettings);
             OpenPlaybackCommand = new RelayCommand(OpenPlaybackWindow);
             ToggleModeCommand = new RelayCommand(ToggleMode);
-            ToggleRecordingCommand = new RelayCommand(ToggleRecording);
+            ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);
             OpenStatsCommand = new RelayCommand(OpenStatsWindow);
             ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);
             CopyMonitorAddressCommand = new RelayCommand(CopyMonitorAddress);
@@ -616,7 +616,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         // ========================== 核心逻辑：恢复 MAN_ 前缀 ==========================
-        private async void ToggleRecording()
+        private async Task ToggleRecordingAsync()
         {
             NotifyUserActivity();
             if (IsBusy || _isDisposed || _shutdownRequested) return;
@@ -690,6 +690,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ToggleRecording] 严重异常: {ex.Message}");
+                RuntimeLog.Error("Recording", "Manual recording toggle failed", ex);
             }
             finally
             {
@@ -775,7 +776,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 case BarcodeRecordingDecisionReason.StartCommand:
                     StartInputCooldown();
-                    ToggleRecording();
+                    await ToggleRecordingAsync();
                     return;
                 case BarcodeRecordingDecisionReason.StopCommand:
                     StartInputCooldown();

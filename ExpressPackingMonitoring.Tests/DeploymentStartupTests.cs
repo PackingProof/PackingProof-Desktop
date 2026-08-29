@@ -235,6 +235,27 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void RecordingToggleUsesAsyncCommandAndAwaitedScanPath()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Scanner.cs");
+
+        Assert.Contains("private async Task ToggleRecordingAsync()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("async void ToggleRecording", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("await ToggleRecordingAsync();", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "RuntimeLog.Error(\"Recording\", \"Manual recording toggle failed\", ex);",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientUsesSingleDynamicUserscriptButton()
     {
         string xaml = ReadRepositoryFile(
