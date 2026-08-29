@@ -8,6 +8,7 @@ namespace ExpressPackingMonitoring.Services.Extensions;
 internal sealed class ExtensionPackageManifest
 {
     public int SchemaVersion { get; set; }
+    public string Format { get; set; } = "";
     public int PackageFormatVersion { get; set; }
     public string Id { get; set; } = "";
     public string Version { get; set; } = "";
@@ -45,14 +46,19 @@ internal sealed class ExtensionPackageService
 
     internal ExtensionPackageInspection Inspect(string packagePath)
     {
+        string extension = Path.GetExtension(packagePath);
+        if (!extension.Equals(".ppext", StringComparison.OrdinalIgnoreCase)
+            && !extension.Equals(".partial", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("仅支持 PackingProof .ppext 扩展包");
+
         FileInfo package = new(packagePath);
         if (!package.Exists || package.Length <= 0 || package.Length > MaxPackageBytes)
-            throw new InvalidDataException("PPX 文件不存在或大小超过 200 MB");
+            throw new InvalidDataException("PPEXT 文件不存在或大小超过 200 MB");
 
         using ZipArchive archive = ZipFile.OpenRead(packagePath);
         Dictionary<string, ZipArchiveEntry> entries = ValidateEntries(archive);
         if (!entries.TryGetValue("manifest.json", out ZipArchiveEntry? manifestEntry))
-            throw new InvalidDataException("PPX 根目录缺少 manifest.json");
+            throw new InvalidDataException("PPEXT 根目录缺少 manifest.json");
         if (manifestEntry.Length > 64 * 1024) throw new InvalidDataException("manifest.json 不能超过 64 KB");
         ExtensionPackageManifest manifest;
         using (Stream stream = manifestEntry.Open())
@@ -82,7 +88,7 @@ internal sealed class ExtensionPackageService
                 string normalized = NormalizeEntryPath(entry.FullName);
                 string targetPath = Path.GetFullPath(Path.Combine(destinationDirectory, normalized.Replace('/', Path.DirectorySeparatorChar)));
                 if (!targetPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException($"PPX 路径越界：{entry.FullName}");
+                    throw new InvalidDataException($"PPEXT 路径越界：{entry.FullName}");
                 if (entry.FullName.EndsWith("/", StringComparison.Ordinal))
                 {
                     Directory.CreateDirectory(targetPath);
@@ -92,7 +98,7 @@ internal sealed class ExtensionPackageService
                 using Stream source = entry.Open();
                 using FileStream target = new(targetPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
                 source.CopyTo(target);
-                if (target.Length != entry.Length) throw new InvalidDataException($"PPX 条目大小异常：{entry.FullName}");
+                if (target.Length != entry.Length) throw new InvalidDataException($"PPEXT 条目大小异常：{entry.FullName}");
             }
             return inspection;
         }
@@ -105,7 +111,7 @@ internal sealed class ExtensionPackageService
 
     private static Dictionary<string, ZipArchiveEntry> ValidateEntries(ZipArchive archive)
     {
-        if (archive.Entries.Count > MaxEntryCount) throw new InvalidDataException("PPX 文件数量超过 2000");
+        if (archive.Entries.Count > MaxEntryCount) throw new InvalidDataException("PPEXT 文件数量超过 2000");
         var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
         long expandedBytes = 0;
         foreach (ZipArchiveEntry entry in archive.Entries)
@@ -114,19 +120,19 @@ internal sealed class ExtensionPackageService
             foreach (string segment in normalized.Split('/'))
             {
                 if (segment.EndsWith('.') || segment.EndsWith(' ') || WindowsReservedName.IsMatch(segment))
-                    throw new InvalidDataException($"PPX 包含 Windows 不支持的文件名：{entry.FullName}");
+                    throw new InvalidDataException($"PPEXT 包含 Windows 不支持的文件名：{entry.FullName}");
             }
             int unixType = (entry.ExternalAttributes >> 16) & 0xF000;
             if (unixType == 0xA000 || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0)
-                throw new InvalidDataException($"PPX 不允许符号链接：{entry.FullName}");
+                throw new InvalidDataException($"PPEXT 不允许符号链接：{entry.FullName}");
             if (!entries.TryAdd(normalized, entry))
-                throw new InvalidDataException($"PPX 存在重复或大小写冲突路径：{entry.FullName}");
+                throw new InvalidDataException($"PPEXT 存在重复或大小写冲突路径：{entry.FullName}");
             expandedBytes = checked(expandedBytes + entry.Length);
-            if (expandedBytes > MaxExpandedBytes) throw new InvalidDataException("PPX 展开大小超过 500 MB");
+            if (expandedBytes > MaxExpandedBytes) throw new InvalidDataException("PPEXT 展开大小超过 500 MB");
             double ratio = entry.CompressedLength == 0
                 ? entry.Length == 0 ? 1 : double.PositiveInfinity
                 : (double)entry.Length / entry.CompressedLength;
-            if (ratio > MaxCompressionRatio) throw new InvalidDataException($"PPX 压缩比超过 200:1：{entry.FullName}");
+            if (ratio > MaxCompressionRatio) throw new InvalidDataException($"PPEXT 压缩比超过 200:1：{entry.FullName}");
         }
         return entries;
     }
@@ -135,17 +141,19 @@ internal sealed class ExtensionPackageService
         ExtensionPackageManifest manifest,
         IReadOnlyDictionary<string, ZipArchiveEntry> entries)
     {
-        if (manifest.SchemaVersion != 1 || manifest.PackageFormatVersion != 1)
-            throw new InvalidDataException("PPX manifest 版本不受支持");
+        if (manifest.SchemaVersion != 1
+            || manifest.Format != "packingproof-extension"
+            || manifest.PackageFormatVersion != 1)
+            throw new InvalidDataException("PPEXT manifest 格式或版本不受支持");
         if (!IdentifierPattern.IsMatch(manifest.Id) || !SemverPattern.IsMatch(manifest.Version))
-            throw new InvalidDataException("PPX 扩展 ID 或版本格式无效");
+            throw new InvalidDataException("PPEXT 扩展 ID 或版本格式无效");
         if (!SemverPattern.IsMatch(manifest.Compatibility.MinPackingProofVersion))
-            throw new InvalidDataException("PPX 最低 PackingProof 版本格式无效");
+            throw new InvalidDataException("PPEXT 最低 PackingProof 版本格式无效");
         if (manifest.Type is not ("userscript" or "external-adapter"))
-            throw new InvalidDataException("PPX 扩展类型不受支持");
+            throw new InvalidDataException("PPEXT 扩展类型不受支持");
         string payloadPath = NormalizeEntryPath(manifest.PayloadPath);
         if (!payloadPath.StartsWith("payload/", StringComparison.Ordinal) || !entries.ContainsKey(payloadPath))
-            throw new InvalidDataException("PPX payload 不存在或不在 payload/ 目录");
+            throw new InvalidDataException("PPEXT payload 不存在或不在 payload/ 目录");
         if (manifest.Type == "userscript")
         {
             if (manifest.Installation.Mode != "userscript-import" || !payloadPath.EndsWith(".user.js", StringComparison.OrdinalIgnoreCase))
@@ -167,7 +175,7 @@ internal sealed class ExtensionPackageService
             || normalized.Contains(':')
             || normalized.Split('/').Any(part => part.Length == 0 || part == ".." || part == "."))
         {
-            throw new InvalidDataException($"PPX 包含不安全路径：{value}");
+            throw new InvalidDataException($"PPEXT 包含不安全路径：{value}");
         }
         return normalized;
     }

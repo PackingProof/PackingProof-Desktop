@@ -64,7 +64,7 @@ internal sealed class ExtensionInstallationService
             using FileStream stream = File.OpenRead(packagePath);
             string actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream)).ToLowerInvariant();
             if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("安装前 PPX SHA-256 校验失败");
+                throw new InvalidDataException("安装前 PPEXT SHA-256 校验失败");
         }
         ExtensionPackageInspection initial = _packages.Inspect(packagePath);
         ValidateExpected(initial.Manifest, expectedId, expectedVersion, expectedType);
@@ -175,11 +175,11 @@ internal sealed class ExtensionInstallationService
         string? expectedType)
     {
         if (expectedId != null && manifest.Id != expectedId)
-            throw new InvalidDataException("PPX 扩展 ID 与市场记录不一致");
+            throw new InvalidDataException("PPEXT 扩展 ID 与市场记录不一致");
         if (expectedVersion != null && manifest.Version != expectedVersion)
-            throw new InvalidDataException("PPX 版本与市场记录不一致");
+            throw new InvalidDataException("PPEXT 版本与市场记录不一致");
         if (expectedType != null && manifest.Type != expectedType)
-            throw new InvalidDataException("PPX 类型与市场记录不一致");
+            throw new InvalidDataException("PPEXT 类型与市场记录不一致");
     }
 
     private static void ValidateCompatibility(string minimumVersion)
@@ -209,7 +209,7 @@ internal sealed class ExtensionInstallationService
         string root = Path.GetFullPath(stagingDirectory) + Path.DirectorySeparatorChar;
         string target = Path.GetFullPath(Path.Combine(stagingDirectory, payloadPath.Replace('/', Path.DirectorySeparatorChar)));
         if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(target))
-            throw new InvalidDataException("PPX payload 路径无效");
+            throw new InvalidDataException("PPEXT payload 路径无效");
         return target;
     }
 

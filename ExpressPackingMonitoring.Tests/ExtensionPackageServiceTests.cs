@@ -74,7 +74,7 @@ public sealed class ExtensionPackageServiceTests
         string root = CreateTemporaryDirectory();
         try
         {
-            string package = Path.Combine(root, "bad.ppx");
+            string package = Path.Combine(root, "bad.ppext");
             using (ZipArchive archive = ZipFile.Open(package, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest("sample.adapter", "external-adapter", "payload/adapter.exe"));
@@ -91,12 +91,42 @@ public sealed class ExtensionPackageServiceTests
     }
 
     [Fact]
+    public void RejectsLegacyExtensionAndMissingFormatMarker()
+    {
+        string root = CreateTemporaryDirectory();
+        try
+        {
+            string legacyPackage = Path.Combine(root, "legacy.ppx");
+            using (ZipArchive archive = ZipFile.Open(legacyPackage, ZipArchiveMode.Create))
+            {
+                WriteEntry(archive, "manifest.json", Manifest("sample.adapter", "external-adapter", "payload/adapter.exe"));
+                WriteEntry(archive, "payload/adapter.exe", "safe");
+            }
+            Assert.Throws<InvalidDataException>(() => new ExtensionPackageService().Inspect(legacyPackage));
+
+            string unmarkedPackage = Path.Combine(root, "unmarked.ppext");
+            using (ZipArchive archive = ZipFile.Open(unmarkedPackage, ZipArchiveMode.Create))
+            {
+                string manifest = Manifest("sample.adapter", "external-adapter", "payload/adapter.exe")
+                    .Replace("\"format\":\"packingproof-extension\",", "", StringComparison.Ordinal);
+                WriteEntry(archive, "manifest.json", manifest);
+                WriteEntry(archive, "payload/adapter.exe", "safe");
+            }
+            Assert.Throws<InvalidDataException>(() => new ExtensionPackageService().Inspect(unmarkedPackage));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public void RejectsSymbolicLinksAndSuspiciousCompressionRatios()
     {
         string root = CreateTemporaryDirectory();
         try
         {
-            string symlinkPackage = Path.Combine(root, "symlink.ppx");
+            string symlinkPackage = Path.Combine(root, "symlink.ppext");
             using (ZipArchive archive = ZipFile.Open(symlinkPackage, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest("sample.adapter", "external-adapter", "payload/adapter.exe"));
@@ -107,7 +137,7 @@ public sealed class ExtensionPackageServiceTests
             }
             Assert.Throws<InvalidDataException>(() => new ExtensionPackageService().Inspect(symlinkPackage));
 
-            string bombPackage = Path.Combine(root, "ratio.ppx");
+            string bombPackage = Path.Combine(root, "ratio.ppext");
             using (ZipArchive archive = ZipFile.Open(bombPackage, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest("sample.adapter", "external-adapter", "payload/adapter.exe"));
@@ -135,7 +165,7 @@ public sealed class ExtensionPackageServiceTests
         {
             Directory.CreateDirectory(Path.GetDirectoryName(externalState)!);
             File.WriteAllText(externalState, "keep", Encoding.UTF8);
-            string package = Path.Combine(root, "adapter.ppx");
+            string package = Path.Combine(root, "adapter.ppext");
             using (ZipArchive archive = ZipFile.Open(package, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest("sample.adapter", "external-adapter", "payload/adapter.cmd"));
@@ -170,7 +200,7 @@ public sealed class ExtensionPackageServiceTests
         string root = CreateTemporaryDirectory();
         try
         {
-            string package = Path.Combine(root, "script.ppx");
+            string package = Path.Combine(root, "script.ppext");
             using (ZipArchive archive = ZipFile.Open(package, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest("sample.demo", "userscript", "payload/main.user.js"));
@@ -207,7 +237,7 @@ public sealed class ExtensionPackageServiceTests
         string root = CreateTemporaryDirectory();
         try
         {
-            string package = Path.Combine(root, "future.ppx");
+            string package = Path.Combine(root, "future.ppext");
             using (ZipArchive archive = ZipFile.Open(package, ZipArchiveMode.Create))
             {
                 WriteEntry(archive, "manifest.json", Manifest(
@@ -236,6 +266,7 @@ public sealed class ExtensionPackageServiceTests
         string minimumVersion = "0.0.62") => JsonSerializer.Serialize(new
     {
         schemaVersion = 1,
+        format = "packingproof-extension",
         packageFormatVersion = 1,
         id,
         version = "1.0.0",

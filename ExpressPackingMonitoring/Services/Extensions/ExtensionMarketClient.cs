@@ -12,11 +12,11 @@ internal sealed class ExtensionMarketClient
     internal const string GithubRegistryBase = "https://github.com/PackingProof/PackingProof-Extensions/raw/refs/heads/main/registry/";
     private const string CatalogFileName = "catalog.v1.json";
     private const string SignatureFileName = "catalog.v1.sig";
-    private const string PublicKeyId = "ffa7e958e397fdce";
+    private const string PublicKeyId = "6d14589c4a213deb";
     private const string PublicKeyPem = """
         -----BEGIN PUBLIC KEY-----
-        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEr5W8xBTX+9oC+nf81m5h1Ta1zVbM
-        Z8i6KV8y4vWJjD6GuN0ZfXsg/DA2b5CMGShrHIVwokpgylS9YjzgkzP0kw==
+        MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEOlhap+0dM+SB6AcU0hdMV7vOn5jF
+        6V9r1l7kv0pf/eDAqgCL6MN15kW4wMSEyUBf+fcYIfLxMEV7McScdcQgIA==
         -----END PUBLIC KEY-----
         """;
     private static readonly HttpClient SharedClient = new() { Timeout = TimeSpan.FromMinutes(5) };

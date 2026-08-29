@@ -56,8 +56,8 @@ public sealed class ExtensionMarketClientTests
                 Sha256 = Convert.ToHexString(SHA256.HashData(good)).ToLowerInvariant(),
                 Downloads = new ExtensionMarketDownloads
                 {
-                    Gitee = new ExtensionMarketDownload { Provider = "gitee", Url = "https://gitee.com/example/demo.ppx" },
-                    Github = new ExtensionMarketDownload { Provider = "github", Url = "https://github.com/example/demo.ppx" }
+                    Gitee = new ExtensionMarketDownload { Provider = "gitee", Url = "https://gitee.com/example/demo.ppext" },
+                    Github = new ExtensionMarketDownload { Provider = "github", Url = "https://github.com/example/demo.ppext" }
                 }
             };
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;

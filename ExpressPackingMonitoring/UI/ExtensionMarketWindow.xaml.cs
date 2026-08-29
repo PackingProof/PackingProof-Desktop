@@ -276,7 +276,7 @@ public partial class ExtensionMarketWindow : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "PackingProof 扩展 (*.ppx)|*.ppx|油猴脚本 (*.user.js)|*.user.js",
+            Filter = "PackingProof 扩展 (*.ppext)|*.ppext|油猴脚本 (*.user.js)|*.user.js",
             Multiselect = false,
             CheckFileExists = true,
             Title = "安装本地扩展"
@@ -291,8 +291,8 @@ public partial class ExtensionMarketWindow : Window
         {
             ExtensionPackageInspection inspection = _packageService.Inspect(dialog.FileName);
             string warning = inspection.Manifest.Type == "external-adapter"
-                ? "该 PPX 未经过市场审核，并且包含需要用户手动运行的外部程序。PackingProof 无法限制程序访问系统资源"
-                : "该 PPX 未经过市场审核。请只安装来自可信开发者的扩展";
+                ? "该 PPEXT 未经过市场审核，并且包含需要用户手动运行的外部程序。PackingProof 无法限制程序访问系统资源"
+                : "该 PPEXT 未经过市场审核。请只安装来自可信开发者的扩展";
             if (!AppDialog.Confirm(
                     this,
                     warning + "\n\n是否继续安装？",
