@@ -152,7 +152,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await assert.doesNotReject(() => article.waitFor());
     assert.match(await page.locator('#resultsInfo').innerText(), /^第 \d+ \/ \d+ 页$/);
 
-    await article.getByRole('button', { name: '播放' }).click();
+    await article.getByRole('button', { name: '播放', exact: true }).click();
     await assert.doesNotReject(() => page.locator('#playerOverlay.active').waitFor());
     await page.waitForFunction(() => /\/api\/videos\/\d+\/play/.test(
       document.querySelector('#videoPlayer')?.getAttribute('src') || ''));
@@ -263,7 +263,7 @@ test('Web UI follows browser language and persists an explicit override', { skip
     const article = page.locator('article').filter({ hasText: 'AUTO_WEB_001' });
     await assert.doesNotReject(() => article.waitFor());
     assert.match(await page.locator('#resultsInfo').innerText(), /^Page \d+ of \d+$/);
-    await assert.doesNotReject(() => article.getByRole('button', { name: 'Play' }).waitFor());
+    await assert.doesNotReject(() => article.getByRole('button', { name: 'Play', exact: true }).waitFor());
     await assert.doesNotReject(() => article.getByRole('button', { name: 'Download' }).waitFor());
     assert.doesNotMatch(await article.innerText(), /发货|退货|文件存在|文件丢失|播放|下载/);
     assert.equal(await page.locator('#startDate').getAttribute('type'), 'text');
