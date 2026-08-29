@@ -1016,20 +1016,40 @@ public sealed class CameraBarcodeRecognitionTests
         service.BarcodeRecognized += recognized.Add;
         service.BarcodeConfirmed += confirmed.Add;
 
-        service.TrySubmitFrame(frame);
-        await Task.Delay(400, TestContext.Current.CancellationToken);
-        service.TrySubmitFrame(frame);
-        await Task.Delay(400, TestContext.Current.CancellationToken);
+        await SubmitAndWaitForStatusAsync(frame);
+        await SubmitAndWaitForStatusAsync(frame);
 
         Assert.Contains(command, recognized);
         Assert.Single(confirmed); // 第一帧立即确认，同码保持可见不重复
 
-        service.TrySubmitFrame(blank);
-        await Task.Delay(400, TestContext.Current.CancellationToken);
-        service.TrySubmitFrame(frame);
-        await Task.Delay(400, TestContext.Current.CancellationToken);
+        await SubmitAndWaitForStatusAsync(blank);
+        await SubmitAndWaitForStatusAsync(frame);
 
         Assert.Equal(2, confirmed.Count); // 离开画面后再次出现重新确认
+
+        async Task SubmitAndWaitForStatusAsync(Mat submittedFrame)
+        {
+            var processed = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            service.StatusChanged += OnStatusChanged;
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                    TestContext.Current.CancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                while (!service.TrySubmitFrame(submittedFrame))
+                    await Task.Delay(25, timeout.Token);
+                await processed.Task.WaitAsync(
+                    TimeSpan.FromSeconds(5),
+                    TestContext.Current.CancellationToken);
+            }
+            finally
+            {
+                service.StatusChanged -= OnStatusChanged;
+            }
+
+            void OnStatusChanged(CameraBarcodeRecognitionStatus _) => processed.TrySetResult();
+        }
     }
 
     [Theory]
