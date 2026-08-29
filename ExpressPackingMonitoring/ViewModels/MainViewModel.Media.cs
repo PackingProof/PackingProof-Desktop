@@ -419,7 +419,9 @@ namespace ExpressPackingMonitoring.ViewModels
             StartCamera();
             _videoTask = Task.Run(() => VideoProcessLoop(_cts.Token), _cts.Token);
             Task.Run(CheckDiskAndCleanup);
-            Task.Run(CameraIdleWatchdog);
+            _cameraIdleWatchdogTask = Task.Run(
+                () => CameraIdleWatchdogAsync(_cts.Token),
+                _cts.Token);
             // 正常启动时发现监听权限或防火墙规则缺失，会立即请求管理员授权。
             // 自动化临时运行模式禁用该系统级变更。
             _webServerStartupTask = RestartWebServerAsync(

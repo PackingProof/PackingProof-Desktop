@@ -178,6 +178,27 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void CameraIdleWatchdogUsesTrackedCancelableTask()
+    {
+        string cameraSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs");
+        string mediaSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Media.cs");
+
+        Assert.Contains(
+            "private async Task CameraIdleWatchdogAsync(CancellationToken cancellationToken)",
+            cameraSource,
+            StringComparison.Ordinal);
+        Assert.Contains("Task.Delay(10_000, cancellationToken)", cameraSource, StringComparison.Ordinal);
+        Assert.Contains("_cameraIdleWatchdogTask = Task.Run(", mediaSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Task.Run(CameraIdleWatchdog)", mediaSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ViewerClientUsesSingleDynamicUserscriptButton()
     {
         string xaml = ReadRepositoryFile(

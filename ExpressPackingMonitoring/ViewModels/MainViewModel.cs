@@ -167,6 +167,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _isCameraSleeping = false;
         private DateTime _lastActivityTime = DateTime.Now;
         public bool IsCameraSleeping { get => _isCameraSleeping; private set => SetProperty(ref _isCameraSleeping, value); }
+        private Task _cameraIdleWatchdogTask;
         private Task _videoTask;
         private object _videoLock = new object();
 
@@ -831,6 +832,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             StopCamera();
             ClearPreRecordBuffer();
+            try { _cameraIdleWatchdogTask?.Wait(1000); } catch { }
             try { _videoTask?.Wait(1000); } catch { }
             _cts?.Dispose();
             lock (_videoLock)

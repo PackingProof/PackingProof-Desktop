@@ -190,39 +190,45 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async void CameraIdleWatchdog()
+        private async Task CameraIdleWatchdogAsync(CancellationToken cancellationToken)
         {
-            while (!_isDisposed)
+            try
             {
-                await Task.Delay(10_000); // 每10秒检查一次
-                if (_isDisposed || _shutdownRequested) break;
-                if (!Config.EnableCameraIdle || Config.CameraIdleMinutes <= 0) continue;
-                if (_isSetupWizardActive) continue;
-                if (IsRecording || _isCameraSleeping) continue;
-
-                double idleMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
-                if (idleMinutes >= Config.CameraIdleMinutes && !Config.IsCameraIdleNoSleepTime(DateTime.Now))
+                while (!_isDisposed)
                 {
-                    await Application.Current.Dispatcher.InvokeAsync(() => {
-                        if (_isCameraSleeping
-                            || IsRecording
-                            || _isSetupWizardActive
-                            || Config.IsCameraIdleNoSleepTime(DateTime.Now)) return; // 再次检查防止竞态和跨入保护时段
-                        if (!StopCamera())
-                        {
-                            ShowToast("摄像头未能进入休眠，请重新插拔后重试", ToastSeverity.Warning);
-                            return;
-                        }
-                        IsCameraSleeping = true; // SetProperty 会同时更新字段并触发 PropertyChanged
-                        VideoFrame = null;
-                        ShowToast(AppLanguage.Format(
-                            "摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”",
-                            Config.CameraIdleMinutes), ToastSeverity.Information);
-                        Debug.WriteLine($"[Idle] 摄像头休眠: 空闲{idleMinutes:F1}分钟");
-                        RuntimeLog.Info("MkvRecover", "Camera idle, start pending MKV conversion");
-                        _mkvRecoveryTask = Task.Run(RecoverOrphanedMkvAsync);
-                    });
+                    await Task.Delay(10_000, cancellationToken); // 每10秒检查一次
+                    if (_isDisposed || _shutdownRequested) break;
+                    if (!Config.EnableCameraIdle || Config.CameraIdleMinutes <= 0) continue;
+                    if (_isSetupWizardActive) continue;
+                    if (IsRecording || _isCameraSleeping) continue;
+
+                    double idleMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
+                    if (idleMinutes >= Config.CameraIdleMinutes && !Config.IsCameraIdleNoSleepTime(DateTime.Now))
+                    {
+                        await Application.Current.Dispatcher.InvokeAsync(() => {
+                            if (_isCameraSleeping
+                                || IsRecording
+                                || _isSetupWizardActive
+                                || Config.IsCameraIdleNoSleepTime(DateTime.Now)) return; // 再次检查防止竞态和跨入保护时段
+                            if (!StopCamera())
+                            {
+                                ShowToast("摄像头未能进入休眠，请重新插拔后重试", ToastSeverity.Warning);
+                                return;
+                            }
+                            IsCameraSleeping = true; // SetProperty 会同时更新字段并触发 PropertyChanged
+                            VideoFrame = null;
+                            ShowToast(AppLanguage.Format(
+                                "摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”",
+                                Config.CameraIdleMinutes), ToastSeverity.Information);
+                            Debug.WriteLine($"[Idle] 摄像头休眠: 空闲{idleMinutes:F1}分钟");
+                            RuntimeLog.Info("MkvRecover", "Camera idle, start pending MKV conversion");
+                            _mkvRecoveryTask = Task.Run(RecoverOrphanedMkvAsync);
+                        });
+                    }
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
             }
         }
 
