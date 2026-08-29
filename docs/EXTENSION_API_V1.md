@@ -1,6 +1,18 @@
-# PackingProof 扩展接口 v1
+# PackingProof 扩展 API v1
 
 扩展接口供 ERP、油猴脚本、称重程序等局域网适配器使用。第三方程序只能通过 HTTP API 交换受限结构化数据，不得直接访问 PackingProof 的数据库、配置文件或执行目录。本文件是已经实现的 v1 协议，不包含未落地的路线图草案。
+
+## 本文与扩展市场的关系
+
+| 概念 | 职责 | 应阅读的位置 |
+| --- | --- | --- |
+| 扩展市场 | 扩展展示、审核、版本、下载地址、SHA-256 和签名索引 | [PackingProof-Extensions](https://gitee.com/PackingProof/PackingProof-Extensions)（[GitHub 备用链接](https://github.com/PackingProof/PackingProof-Extensions)） |
+| PPEXT | `userscript` 或 `external-adapter` 的安装与分发容器 | [PPEXT 与市场协议](https://gitee.com/PackingProof/PackingProof-Extensions/blob/main/docs/PROTOCOL_V1.md) |
+| 扩展 API | 扩展运行后申请授权并与 Desktop 交换业务数据 | 本文 |
+
+想把扩展投稿到官方市场，请阅读 [完整投稿教程](https://gitee.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md)（[GitHub 备用链接](https://github.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md)）。本文不重复市场的打包、Release、`submit` 和 PR 流程
+
+三者没有强制捆绑：本地 `.user.js` 可以不进入市场；不调用 API 的程序也可以打包为 PPEXT；需要 API 的市场扩展则同时遵守投稿规则和本文。安装扩展不会自动开启扩展 API，安装 `external-adapter` 也不会自动启动程序。市场签名与 SHA-256 只证明下载内容和已审核登记一致，不代表 PackingProof 可以保证外部程序行为安全
 
 v1 同时保留两类接口：
 
@@ -9,7 +21,7 @@ v1 同时保留两类接口：
 
 扩展 API 总开关默认关闭。关闭时不创建扩展凭据，不初始化任务代理、结果处理器或扩展后台定时器；旧版订单广播接口仍可继续工作。
 
-## 快速开始
+## API 快速开始
 
 1. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
 2. 扩展读取 `/api/extensions/v1/capabilities`，确认 `extensionApiEnabled=true` 和所需 feature
@@ -17,7 +29,7 @@ v1 同时保留两类接口：
 4. 扩展仅保存本次返回的独立凭据，后续请求使用 v1 签名，不使用录像网页访问密钥
 5. 用户可在“已授权扩展”中查看在线状态或撤销授权；需要更换凭据时，撤销后由扩展重新发起授权
 
-油猴脚本还可以从“安装自定义扩展”导入 `.user.js` 或 `.ppext`，再通过“安装订单联动”选择安装。导入和安装只负责维护脚本文件、地址及更新链接，不会绕过扩展授权。
+油猴脚本还可以从“安装自定义扩展”导入 `.user.js` 或 `.ppext`，再通过“安装订单联动”选择安装。导入和安装只负责维护脚本文件、地址及更新链接，不会绕过扩展授权。市场扩展建议把市场扩展 ID 同时用作 `providerId`，每台安装实例仍应生成独立的 `extensionInstanceId`
 
 PackingProof 不执行导入的脚本，也不会把脚本加载为桌面端插件。脚本只会被保存、检查、注入当前设备地址后提供给浏览器脚本管理器安装。
 
@@ -152,7 +164,9 @@ function pushOrders(host, accessKey, orders) {
 
 订单字段中的商品名称、备注、留言和第三方编号都按普通数据处理。不要拼接 SQL、Shell、PowerShell、FFmpeg 参数或本地文件路径，也不要把外部输入拼接成脚本代码。
 
-## 自定义脚本导入与发布流程
+## 自定义脚本的本地导入与安装
+
+本节只说明 Desktop 如何管理用户已经取得的脚本，不是官方市场投稿教程。向市场发布 userscript 时，请按 [完整投稿教程](https://gitee.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md#userscript) 制作 PPEXT、发布 Release 并提交登记 PR
 
 用户导入脚本时，PackingProof 会读取元数据、校验 `.user.js` 文件格式、检查 `X.Y` 版本和维护占位符，并对包含命令行、数据库或 FFmpeg 等高风险文本的脚本显示警告。警告不会自动执行脚本；只有用户明确确认后才会保存。
 
