@@ -22,6 +22,7 @@
 - 用户应从包根目录启动器进入。启动器立即启动主程序、后台检查并下载经过校验的 AppPatch 到 `cache\updates`，下次启动时安装。
 - 主程序可通过独立校验的 `launcher_package` 更新根启动器：等待旧进程退出、持有共享更新互斥体、只替换标准根启动器，失败时恢复旧文件。
 - AppPatch 是固定基线累计补丁，当前默认基线为 `0.0.18`；启动器基线与 AppPatch 基线相互独立。
+- AppPatch 只新增或覆盖清单中的文件，不删除已从新发布目录移除的路径。功能迁移不得把安装目录残留文件视为用户仍在使用该功能；确需删除发布文件时，应另行设计带安全白名单和回滚能力的删除清单。
 - 启动器基线由 `Tools/launcher-baseline.json` 锁定。普通应用发布复用锁定字节，不重建或重复上传 LauncherPatch。启动器逻辑输入变化时运行 `Tools/Publish-LauncherBaseline.ps1`、提交新锁并创建普通 `launcher-vX.Y.Z` 标签，不为该组件标签创建 Release。
 - AppPatch 与 LauncherPatch 是两个独立 ZIP，各自带手动安装器和说明；AppPatch 绝不能包含启动器。
 - 更新地址通过环境变量或 `.env` 配置；默认检查 GitHub latest release API。

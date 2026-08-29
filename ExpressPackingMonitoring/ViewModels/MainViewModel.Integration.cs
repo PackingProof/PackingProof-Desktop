@@ -26,6 +26,7 @@ using OpenCvSharp;
 using AForge.Video;
 using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Services.Extensions;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
@@ -862,12 +863,24 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public void OpenUserscriptGuide()
         {
-            if (new UserscriptCatalog().GetAll().Count == 0)
+            System.Windows.Window owner = Application.Current?.Windows
+                .OfType<System.Windows.Window>()
+                .FirstOrDefault(window => window.IsActive);
+            bool officialInstalled = new ExtensionInstallationService().GetInstalled().Any(record =>
+                string.Equals(record.Id, ExtensionMarketOfficialUserscriptPackageSource.ExtensionId, StringComparison.Ordinal));
+            bool earlyOfficialScript = _webServer?.GetConnectedClients().Any(
+                    OfficialUserscriptMigrationService.IsEarlyOfficialHeartbeat) == true;
+            if (earlyOfficialScript)
+            {
+                AppDialog.Warning(
+                    owner,
+                    "检测到正在运行的早期订单联动脚本。安装新版扩展后，请在油猴中删除“快递助手 → 打包监控联动”或“订单备注播报插件”，避免重复推送订单",
+                    "需要迁移旧脚本");
+            }
+            if ((earlyOfficialScript && !officialInstalled)
+                || new UserscriptCatalog().GetAll().Count == 0)
             {
                 var market = new ExtensionMarketWindow("packingproof.kdzs");
-                System.Windows.Window owner = Application.Current?.Windows
-                    .OfType<System.Windows.Window>()
-                    .FirstOrDefault(window => window.IsActive);
                 if (owner != null) market.Owner = owner;
                 market.ShowDialog();
                 return;

@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Services.Extensions;
 using System.Text;
 using Xunit;
 
@@ -52,8 +53,8 @@ public sealed class UserscriptCatalogTests : IDisposable
             Warnings = ["缺少设备占位符"]
         };
 
-        string normalHtml = WebServer.BuildUserscriptChoice(normal, "http", "127.0.0.1:5280");
-        string warningHtml = WebServer.BuildUserscriptChoice(warning, "http", "127.0.0.1:5280");
+        string normalHtml = OfficialUserscriptMigrationService.BuildChoice(normal, "http", "127.0.0.1:5280");
+        string warningHtml = OfficialUserscriptMigrationService.BuildChoice(warning, "http", "127.0.0.1:5280");
 
         Assert.Contains("class=\"script-choice is-maintainable\"", normalHtml);
         Assert.Contains("<span>版本</span> 1.0 · <span>可自动维护</span>", normalHtml);
@@ -71,7 +72,7 @@ public sealed class UserscriptCatalogTests : IDisposable
     [Fact]
     public void BuildUserscriptDownloadUrl_UsesGenericUserscriptEndpoint()
     {
-        string url = WebServer.BuildUserscriptDownloadUrl("http", "127.0.0.1:5280", "custom script");
+        string url = OfficialUserscriptMigrationService.BuildDownloadUrl("http", "127.0.0.1:5280", "custom script");
 
         var uri = new Uri(url);
         Assert.Equal("/api/userscripts/custom script/download", Uri.UnescapeDataString(uri.AbsolutePath));

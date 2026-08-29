@@ -19,6 +19,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpressPackingMonitoring.ViewModels;
+using ExpressPackingMonitoring.Services.Extensions;
 using Microsoft.Win32;
 
 namespace ExpressPackingMonitoring.Services
@@ -1430,9 +1431,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/kuaidizs-install-guide":
                         ServeInstallGuidePage(ctx);
                         break;
-                    case var p when p.StartsWith("/api/userscripts/", StringComparison.OrdinalIgnoreCase)
-                        && p.EndsWith("/download", StringComparison.OrdinalIgnoreCase):
-                        ServeUserscript(ctx, p["/api/userscripts/".Length..^"/download".Length]);
+                    case var p when method == "GET"
+                        && OfficialUserscriptMigrationService.TryParseDownloadPath(p, out string scriptId):
+                        ServeUserscript(ctx, scriptId);
                         break;
                     case "/api/orderinfo":
                         if (method == "POST")
@@ -1617,9 +1618,7 @@ namespace ExpressPackingMonitoring.Services
             || (path == "/api/order-lookup/result" && method == "POST")
             || (path == "/api/connections/heartbeat" && method == "POST")
             || (path == "/kuaidizs-install-guide" && method == "GET")
-            || (path.StartsWith("/api/userscripts/", StringComparison.OrdinalIgnoreCase)
-                && path.EndsWith("/download", StringComparison.OrdinalIgnoreCase)
-                && method == "GET");
+            || OfficialUserscriptMigrationService.IsDownloadPathAllowed(path, method);
 
         private bool TryAuthorizeMobileBackupRequest(
             HttpListenerContext ctx,
@@ -2129,6 +2128,7 @@ namespace ExpressPackingMonitoring.Services
                     heartbeat.DisplayName = assignedDisplayName;
                 }
                 _connectedClients.Heartbeat(heartbeat, remoteAddress);
+                OfficialUserscriptMigrationService.Shared.ObserveHeartbeat(heartbeat);
                 _mobileAppUpdatePolicy.RefreshInBackground();
                 NotifyMobileAppUpdateIfNeeded(heartbeat);
                 MobileAppUpdatePolicy updatePolicy = MobileAppUpdatePolicyProvider.MinimumPolicy;
@@ -5959,7 +5959,7 @@ namespace ExpressPackingMonitoring.Services
             string scheme = ctx.Request.Url?.Scheme ?? "http";
             var catalog = new UserscriptCatalog();
             string choices = string.Join("", catalog.GetAll()
-                .Select(item => BuildUserscriptChoice(item, scheme, authority)));
+                .Select(item => OfficialUserscriptMigrationService.BuildChoice(item, scheme, authority)));
             string html = PrintToolInstallGuide.RenderForWeb(devices, "", choices);
             ctx.Response.StatusCode = 200;
             ctx.Response.ContentType = "text/html; charset=utf-8";
@@ -5969,23 +5969,9 @@ namespace ExpressPackingMonitoring.Services
             ctx.Response.OutputStream.Close();
         }
 
-        internal static string BuildUserscriptChoice(UserscriptDescriptor item, string scheme, string authority)
-        {
-            string url = BuildUserscriptDownloadUrl(scheme, authority, item.Id);
-            bool hasWarning = item.Warnings.Count > 0;
-            string warning = hasWarning ? $"有提示：{string.Join("；", item.Warnings)}" : "可自动维护";
-            string warningClass = hasWarning ? " has-warning" : " is-maintainable";
-            return $"<div class=\"script-choice{warningClass}\"><div><strong>{WebUtility.HtmlEncode(item.Name)}</strong><span class=\"hint\"><span>版本</span> {WebUtility.HtmlEncode(item.Version)} · <span>{WebUtility.HtmlEncode(warning)}</span></span></div><a class=\"primary\" href=\"{WebUtility.HtmlEncode(url)}\" target=\"_blank\" rel=\"noopener\">安装</a></div>";
-        }
-
-        internal static string BuildUserscriptDownloadUrl(string scheme, string authority, string scriptId)
-        {
-            return $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(scriptId)}/download";
-        }
-
         private void ServeUserscript(HttpListenerContext ctx, string scriptId = null)
         {
-            string selectedId = string.IsNullOrWhiteSpace(scriptId) ? "" : Uri.UnescapeDataString(scriptId);
+            string selectedId = OfficialUserscriptMigrationService.Shared.ResolveRequestedScriptId(scriptId);
             string scriptPath = _userscriptCatalog.GetSourcePath(selectedId);
             if (!File.Exists(scriptPath))
             {
@@ -6015,7 +6001,7 @@ namespace ExpressPackingMonitoring.Services
                 Address = $"http://{primaryAuthority}"
             };
             script = PrintToolInstallGuide.AddRecordingDevices(script, devices, host);
-            string scriptUrl = BuildUserscriptDownloadUrl(
+            string scriptUrl = OfficialUserscriptMigrationService.BuildDownloadUrl(
                 ctx.Request.Url?.Scheme ?? "http",
                 primaryAuthority,
                 selectedId);
