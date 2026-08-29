@@ -250,8 +250,7 @@ public partial class ExtensionMarketWindow : Window
                 release.Sha256));
             ShowInstallResult(result);
             OpenInstalledExtensionDirectory(result.Record);
-            RefreshDisplayItems();
-            UpdateActionState(selected);
+            RefreshInstalledState(result.Record.Id);
             restoreReadyStatus = true;
         }
         catch (OperationCanceledException)
@@ -305,7 +304,7 @@ public partial class ExtensionMarketWindow : Window
                 _installationService.Install(dialog.FileName, inspection.Manifest.Id));
             ShowInstallResult(result);
             OpenInstalledExtensionDirectory(result.Record);
-            RefreshDisplayItems();
+            RefreshInstalledState(result.Record.Id);
         }
         catch (Exception ex)
         {
@@ -381,8 +380,7 @@ public partial class ExtensionMarketWindow : Window
             }
 
             await Task.Run(() => _installationService.Remove(installed.Id));
-            RefreshDisplayItems();
-            UpdateActionState(selected);
+            RefreshInstalledState(installed.Id);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -442,6 +440,17 @@ public partial class ExtensionMarketWindow : Window
             item.UpdateInstalled(record);
         }
         CatalogList.Items.Refresh();
+    }
+
+    private void RefreshInstalledState(string extensionId)
+    {
+        RefreshDisplayItems();
+        if (_selectedDetails != null
+            && CatalogList.SelectedItem is ExtensionMarketDisplayItem selected
+            && string.Equals(selected.Item.Id, extensionId, StringComparison.Ordinal))
+        {
+            UpdateActionState(selected);
+        }
     }
 
     private static bool IsCompatible(string minimumVersion)

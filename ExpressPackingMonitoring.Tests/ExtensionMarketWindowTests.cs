@@ -281,6 +281,23 @@ public sealed class ExtensionMarketWindowTests
         Assert.DoesNotContain("new ProcessStartInfo(\"explorer.exe\")", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void LocalPackageInstallRefreshesBothCatalogItemAndSelectedDetails()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml.cs"));
+        int localInstallStart = source.IndexOf("private async void InstallLocal_Click", StringComparison.Ordinal);
+        int nextMethod = source.IndexOf("private void ImportLegacyUserscript", localInstallStart, StringComparison.Ordinal);
+        string localInstall = source[localInstallStart..nextMethod];
+
+        Assert.Contains("RefreshInstalledState(result.Record.Id);", localInstall, StringComparison.Ordinal);
+        Assert.Contains("RefreshDisplayItems();", source, StringComparison.Ordinal);
+        Assert.Contains("UpdateActionState(selected);", source, StringComparison.Ordinal);
+        Assert.Contains("string.Equals(selected.Item.Id, extensionId", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         foreach (string startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
