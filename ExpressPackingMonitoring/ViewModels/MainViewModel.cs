@@ -182,22 +182,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private const double NetworkCameraConnectGraceSeconds = 20.0;
 
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
-        private sealed class PrintedRefundScanCheck
-        {
-            public Guid AlertId { get; } = Guid.NewGuid();
-            public string TrackingNumber { get; init; } = "";
-            public string Mode { get; init; } = "";
-            private int _alerted;
-
-            public bool TryMarkAlerted() => Interlocked.Exchange(ref _alerted, 1) == 0;
-        }
-
-        private static readonly TimeSpan PrintedRefundLookupInterval = TimeSpan.FromSeconds(5);
-        private static readonly TimeSpan PrintedRefundLookupTimeout = TimeSpan.FromSeconds(15);
-        private readonly object _printedRefundLookupLock = new();
-        private readonly List<PrintedRefundScanCheck> _pendingPrintedRefundChecks = new();
-        private Task _printedRefundLookupTask;
-        private DateTime _lastPrintedRefundLookupUtc = DateTime.MinValue;
+        private readonly PrintedRefundLookupCoordinator _printedRefundLookupCoordinator;
         private readonly SemaphoreSlim _mkvConvertLock = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim _mkvBatchLock = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim _shutdownLock = new SemaphoreSlim(1, 1);

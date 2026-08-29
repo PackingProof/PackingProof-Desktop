@@ -138,6 +138,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public MainViewModel()
         {
+            _printedRefundLookupCoordinator = new PrintedRefundLookupCoordinator(
+                () => _webServer is { } server
+                    ? new WebServerPrintedRefundOrderSource(server)
+                    : null,
+                CheckPrintedRefundAndAlert,
+                () => _isDisposed);
+
             // 跳过 XAML 设计器环境，避免 XDG0003 等设计时错误
             if (DesignerProperties.GetIsInDesignMode(new System.Windows.DependencyObject()))
             {
@@ -1090,14 +1097,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 .ToArray();
         }
 
-        internal static TimeSpan GetPrintedRefundLookupDelay(DateTime lastRequestUtc, DateTime nowUtc)
-        {
-            if (lastRequestUtc == DateTime.MinValue)
-                return TimeSpan.Zero;
-
-            TimeSpan remaining = PrintedRefundLookupInterval - (nowUtc - lastRequestUtc);
-            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
-        }
         public bool CanSwitchWorkstation => !IsRecording && !_purposeSwitchPending;
         public string SwitchWorkstationButtonText
         {
@@ -1105,104 +1104,11 @@ namespace ExpressPackingMonitoring.ViewModels
             private set => SetProperty(ref _switchWorkstationButtonText, value);
         }
 
-        internal static OrderInfo ResolvePrintedRefundOrderForAlert(
-            OrderLookupResult lookupResult,
-            string trackingNumber,
-            OrderInfo cachedOrder)
-        {
-            if (lookupResult?.Responded != true)
-                return cachedOrder;
-
-            return lookupResult.Orders?.FirstOrDefault(order =>
-                string.Equals(
-                    order?.TrackingNumber?.Trim(),
-                    trackingNumber?.Trim(),
-                    StringComparison.OrdinalIgnoreCase));
-        }
-
         private void QueuePrintedRefundCheck(string trackingNumber, string mode)
         {
             if (!Config.EnablePrintedRefundAlert || string.IsNullOrWhiteSpace(trackingNumber))
                 return;
-
-            var check = new PrintedRefundScanCheck
-            {
-                TrackingNumber = trackingNumber.Trim().ToUpperInvariant(),
-                Mode = mode
-            };
-
-            lock (_printedRefundLookupLock)
-            {
-                _pendingPrintedRefundChecks.Add(check);
-                if (_printedRefundLookupTask == null || _printedRefundLookupTask.IsCompleted)
-                    _printedRefundLookupTask = Task.Run(RunPrintedRefundLookupLoopAsync);
-            }
-        }
-
-        private async Task RunPrintedRefundLookupLoopAsync()
-        {
-            while (true)
-            {
-                TimeSpan delay;
-                lock (_printedRefundLookupLock)
-                {
-                    if (_isDisposed || _pendingPrintedRefundChecks.Count == 0)
-                    {
-                        _printedRefundLookupTask = null;
-                        return;
-                    }
-                    delay = GetPrintedRefundLookupDelay(_lastPrintedRefundLookupUtc, DateTime.UtcNow);
-                }
-
-                if (delay > TimeSpan.Zero)
-                    await Task.Delay(delay);
-
-                WebServer server = _webServer;
-                OrderLookupResult result = new() { Responded = false };
-                Dictionary<string, OrderInfo> cachedOrders = new(StringComparer.OrdinalIgnoreCase);
-                lock (_printedRefundLookupLock)
-                    _lastPrintedRefundLookupUtc = DateTime.UtcNow;
-
-                try
-                {
-                    if (server != null)
-                    {
-                        string[] trackingNumbers;
-                        lock (_printedRefundLookupLock)
-                        {
-                            trackingNumbers = _pendingPrintedRefundChecks
-                                .Select(x => x.TrackingNumber)
-                                .Distinct(StringComparer.OrdinalIgnoreCase)
-                                .ToArray();
-                        }
-                        foreach (string trackingNumber in trackingNumbers)
-                            cachedOrders[trackingNumber] = server.GetOrderInfo(trackingNumber);
-                        result = await server.RequestFreshOrderSnapshotAsync(PrintedRefundLookupTimeout, trackingNumbers);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Error("Scan", "Printed-refund snapshot request failed", ex);
-                }
-
-                List<PrintedRefundScanCheck> checks;
-                lock (_printedRefundLookupLock)
-                {
-                    checks = _pendingPrintedRefundChecks.ToList();
-                    _pendingPrintedRefundChecks.Clear();
-                }
-
-                foreach (PrintedRefundScanCheck check in checks)
-                {
-                    cachedOrders.TryGetValue(check.TrackingNumber, out OrderInfo cachedOrder);
-                    OrderInfo orderInfo = ResolvePrintedRefundOrderForAlert(result, check.TrackingNumber, cachedOrder);
-                    CheckPrintedRefundAndAlert(check, orderInfo, result.Responded ? "最新订单查询" : "请求失败后的最近缓存");
-                }
-
-                RuntimeLog.Info(
-                    "Scan",
-                    $"Printed-refund snapshot checked: responded={result.Responded}, returned={result.Orders.Count}, scans={checks.Count}");
-            }
+            _printedRefundLookupCoordinator.Queue(trackingNumber, mode);
         }
 
         private void CheckPrintedRefundAndAlert(PrintedRefundScanCheck check, OrderInfo orderInfo, string source)

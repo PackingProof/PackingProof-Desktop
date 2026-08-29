@@ -1160,9 +1160,9 @@ public sealed class ConfigurationAndScannerTests
     {
         DateTime now = new(2026, 7, 11, 12, 0, 0, DateTimeKind.Utc);
 
-        Assert.Equal(TimeSpan.Zero, MainViewModel.GetPrintedRefundLookupDelay(DateTime.MinValue, now));
-        Assert.Equal(TimeSpan.FromSeconds(3), MainViewModel.GetPrintedRefundLookupDelay(now.AddSeconds(-2), now));
-        Assert.Equal(TimeSpan.Zero, MainViewModel.GetPrintedRefundLookupDelay(now.AddSeconds(-5), now));
+        Assert.Equal(TimeSpan.Zero, PrintedRefundLookupCoordinator.GetLookupDelay(DateTime.MinValue, now));
+        Assert.Equal(TimeSpan.FromSeconds(3), PrintedRefundLookupCoordinator.GetLookupDelay(now.AddSeconds(-2), now));
+        Assert.Equal(TimeSpan.Zero, PrintedRefundLookupCoordinator.GetLookupDelay(now.AddSeconds(-5), now));
     }
 
     [Fact]
@@ -1184,7 +1184,8 @@ public sealed class ConfigurationAndScannerTests
         };
         var result = new OrderLookupResult { Responded = true, Orders = [latestNormal, cachedRefund] };
 
-        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+        OrderInfo? selected = PrintedRefundLookupCoordinator.ResolveOrder(result, "TRACK-1", cachedRefund);
+        Assert.NotNull(selected);
 
         Assert.Same(latestNormal, selected);
         Assert.False(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
@@ -1203,7 +1204,8 @@ public sealed class ConfigurationAndScannerTests
         };
         var result = new OrderLookupResult { Responded = true, Orders = [latestRefund, cachedNormal] };
 
-        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedNormal);
+        OrderInfo? selected = PrintedRefundLookupCoordinator.ResolveOrder(result, "TRACK-1", cachedNormal);
+        Assert.NotNull(selected);
 
         Assert.Same(latestRefund, selected);
         Assert.True(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
@@ -1220,7 +1222,7 @@ public sealed class ConfigurationAndScannerTests
         };
         var result = new OrderLookupResult { Responded = true, Orders = [] };
 
-        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+        OrderInfo? selected = PrintedRefundLookupCoordinator.ResolveOrder(result, "TRACK-1", cachedRefund);
 
         Assert.Null(selected);
         Assert.False(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
@@ -1237,7 +1239,8 @@ public sealed class ConfigurationAndScannerTests
         };
         var result = new OrderLookupResult { Responded = false, Orders = [] };
 
-        OrderInfo selected = MainViewModel.ResolvePrintedRefundOrderForAlert(result, "TRACK-1", cachedRefund);
+        OrderInfo? selected = PrintedRefundLookupCoordinator.ResolveOrder(result, "TRACK-1", cachedRefund);
+        Assert.NotNull(selected);
 
         Assert.Same(cachedRefund, selected);
         Assert.True(MainViewModel.ShouldAlertPrintedRefund("发货", true, selected));
