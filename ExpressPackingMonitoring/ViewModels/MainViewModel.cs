@@ -832,7 +832,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
             StopCamera();
             ClearPreRecordBuffer();
-            try { _cameraIdleWatchdogTask?.Wait(1000); } catch { }
             try { _videoTask?.Wait(1000); } catch { }
             _cts?.Dispose();
             lock (_videoLock)

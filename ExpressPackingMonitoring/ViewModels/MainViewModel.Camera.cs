@@ -210,7 +210,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (idleMinutes >= Config.CameraIdleMinutes && !Config.IsCameraIdleNoSleepTime(DateTime.Now))
                     {
                         await Application.Current.Dispatcher.InvokeAsync(() => {
-                            if (_isCameraSleeping
+                            if (_isDisposed
+                                || _shutdownRequested
+                                || _isCameraSleeping
                                 || IsRecording
                                 || _isSetupWizardActive
                                 || Config.IsCameraIdleNoSleepTime(DateTime.Now)) return; // 再次检查防止竞态和跨入保护时段

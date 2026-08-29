@@ -249,7 +249,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning),
                 pauseAudio: _speechService.PauseForRecording,
                 resumeAudio: _speechService.ResumeAfterRecording);
-            ScanCommand = new AsyncRelayCommand<string>(scanResult => HandleScanAsync(scanResult));
+            ScanCommand = new AsyncRelayCommand<string>(
+                scanResult => HandleScanAsync(scanResult),
+                AsyncRelayCommandOptions.AllowConcurrentExecutions);
             OpenSettingsCommand = new RelayCommand(OpenSettings);
             OpenPlaybackCommand = new RelayCommand(OpenPlaybackWindow);
             ToggleModeCommand = new RelayCommand(ToggleMode);

@@ -188,6 +188,10 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "ViewModels",
             "MainViewModel.Media.cs");
+        string mainSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.cs");
 
         Assert.Contains(
             "private async Task CameraIdleWatchdogAsync(CancellationToken cancellationToken)",
@@ -196,6 +200,8 @@ public sealed class DeploymentStartupTests
         Assert.Contains("Task.Delay(10_000, cancellationToken)", cameraSource, StringComparison.Ordinal);
         Assert.Contains("_cameraIdleWatchdogTask = Task.Run(", mediaSource, StringComparison.Ordinal);
         Assert.DoesNotContain("Task.Run(CameraIdleWatchdog)", mediaSource, StringComparison.Ordinal);
+        Assert.Contains("if (_isDisposed", cameraSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_cameraIdleWatchdogTask?.Wait", mainSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -264,9 +270,10 @@ public sealed class DeploymentStartupTests
             "MainViewModel.Scanner.cs");
 
         Assert.Contains(
-            "ScanCommand = new AsyncRelayCommand<string>(scanResult => HandleScanAsync(scanResult));",
+            "ScanCommand = new AsyncRelayCommand<string>(",
             source,
             StringComparison.Ordinal);
+        Assert.Contains("AsyncRelayCommandOptions.AllowConcurrentExecutions", source, StringComparison.Ordinal);
         Assert.Contains(
             "private async Task HandleScanAsync(string scanResult, bool fromCamera = false)",
             source,
