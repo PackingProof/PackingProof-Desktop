@@ -76,7 +76,7 @@
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>` 更新为本次版本，并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
-- 发布流程顺序：先在本地完成 Release 构建、全量测试与发布包生成并确认成功，再推送最新 `main` 提交到 GitHub 与 Gitee（含迁移过渡期的旧 Gitee 仓库），最后创建 `vX.Y.Z` 标签并同步推送各远端；标签必须指向编译验证通过的最终提交，禁止先推标签再编译
+- 发布流程顺序：先在本地完成 Release 构建、全量测试与发布包生成并确认成功，再推送最新 `main` 提交到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`，最后创建 `vX.Y.Z` 标签并同步推送；标签必须指向编译验证通过的最终提交，禁止先推标签再编译
 - 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、下载与更新说明准确、未验证事项逐项列出，且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容
@@ -91,7 +91,7 @@
 - 分别使用两个双击脚本从旧版本升级一次，确认文件校验成功、主程序更新失败可回滚、启动器只替换根入口，配置、数据库、录像和 `app/` 中非目标文件均保留
 - `update_vX.Y.Z.json` 的更新内容与最终发布说明一致，合并发布时包含尚未正式发布版本的有效改动
 - GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen。AppPatch 只生成并上传 `PackingProof_AppPatch_vX.Y.Z.zip`，不再生成旧别名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`
-- Gitee 用 `gitee` 命令行发布：先确认 `gitee auth status` 已登录，`gitee release create --tag vX.Y.Z --name "..." --notes "..."` 创建 Release，`gitee release upload vX.Y.Z <文件>...` 上传更新 JSON、可用的 AppPatch（只上传 `PackingProof_AppPatch_vX.Y.Z.zip`），以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页
+- Gitee 仅向组织仓库 `PackingProof/PackingProof-Desktop` 发布：先确认 `gitee auth status` 已登录，显式指定 `--repo PackingProof/PackingProof-Desktop` 和 `--target main` 创建 Release，再上传更新 JSON、可用的 AppPatch（只上传 `PackingProof_AppPatch_vX.Y.Z.zip`），以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页
 - 使用发布包执行一次 AppPatch 自动升级和 LauncherPatch 自动升级，确认配置、数据库和录像保留，启动器可以正常进入应用
 
 完成以上实机检查后，打包时可传入 `-ConfirmManualCoreChecks` 记录确认状态。未传入时打包脚本会给出警告并继续，发布结果需说明尚未验证的实机场景。

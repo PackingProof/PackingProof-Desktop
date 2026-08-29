@@ -37,7 +37,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - `-BaselineAppDir` 必须指向真实固定基线的 `app` 子目录并包含 `tools\ffmpeg.exe`。脚本从目录解析实际基线，并强制与更新清单和补丁清单一致，禁止手工伪造。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
-- 先完成 Release 构建、全量测试、自动验收和发布包校验，再依次推送 `main` 到 GitHub、Gitee 新仓库和旧 Gitee 仓库，最后创建并同步标签。禁止先推标签再编译。
+- 先完成 Release 构建、全量测试、自动验收和发布包校验，再推送 `main` 到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`，最后创建并同步标签。禁止先推标签再编译。
 - 发布前执行 `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`；未验证场景必须报告。
 - `RELEASE_CHECKLIST.md` 中的真实设备场景建议执行但不阻断发布；未验证项必须在交付和发布说明中明确列出。
 - 自动测试通过后仍要审计上一版本以来的完整变更，追踪录像、更新、授权、备份、删除和文件替换等关键路径；可信的正确性、数据安全、兼容性、性能或竞态问题均阻断发布，除非用户明确接受记录在案的例外。
@@ -52,6 +52,6 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 | 目标 | 上传资产 |
 | --- | --- |
 | GitHub | Setup、完整 7z、兼容 ZIP、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch |
-| Gitee `PackingProof/PackingProof-Desktop` 与 `chenjjian/ExpressPackingMonitoring` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup、完整 7z 或完整 ZIP |
+| Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup、完整 7z 或完整 ZIP |
 
-- Gitee 使用 CLI：先运行 `gitee auth status`，再分别对新旧仓库执行 `gitee release create` 和 `gitee release upload`，两个仓库都不得遗漏。
+- Gitee 使用 CLI：先运行 `gitee auth status`，再对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
