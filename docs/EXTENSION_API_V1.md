@@ -35,6 +35,8 @@ PackingProof 不执行导入的脚本，也不会把脚本加载为桌面端插�
 
 扩展市场还支持 `external-adapter` PPEXT。PackingProof 只验证签名市场索引、SHA-256、`packingproof-extension` 格式标识和包结构，再安全解包到用户数据目录；不会自动执行其中的程序。外部适配器是普通 Windows 程序，不受 PackingProof 沙箱限制，市场详情和安装确认页会明确提示其源码状态与系统访问风险。
 
+外部适配器可在包内 manifest 声明可选的 `launcher.path`（仅限 `payload/` 下的 `.exe`、`.cmd` 或 `.bat`）。市场安装后用户可点击“启动”直接运行；未声明时按钮保持灰色不可用，仍可打开目录手动运行。启动失败只提示用户，不会影响 Desktop 主程序
+
 ## 两种鉴权方式
 
 ### 扩展签名鉴权（推荐）
