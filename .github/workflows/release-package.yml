@@ -171,7 +171,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PackingProof_Setup_v${{ env.PACKAGE_VERSION }}
-          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof_Setup_v${{ env.PACKAGE_VERSION }}.exe
+          path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/PackingProof_Setup_v${{ env.PACKAGE_VERSION }}*.exe
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
@@ -179,7 +179,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PackingProof+${{ env.PACKAGE_VERSION }}.7z
-          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.7z
+          path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/PackingProof+v${{ env.PACKAGE_VERSION }}*.7z
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
@@ -187,7 +187,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: PackingProof+${{ env.PACKAGE_VERSION }}.zip
-          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/PackingProof+${{ env.PACKAGE_VERSION }}.zip
+          path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/PackingProof+v${{ env.PACKAGE_VERSION }}*.zip
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
@@ -195,14 +195,18 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release_info_v${{ env.PACKAGE_VERSION }}.txt
-          path: package/PackingProof+${{ env.PACKAGE_VERSION }}/release_info_v${{ env.PACKAGE_VERSION }}.txt
+          path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/release_info_v${{ env.PACKAGE_VERSION }}.txt
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
       - name: 输出工件清单与哈希
         shell: pwsh
         run: |
-          $root = "package\PackingProof+${{ env.PACKAGE_VERSION }}"
+          $roots = @(Get-ChildItem -Path "package\PackingProof+v${{ env.PACKAGE_VERSION }}*" -Directory)
+          if ($roots.Count -ne 1) {
+            throw "应当只生成一个发布目录，实际找到 $($roots.Count) 个：$($roots.FullName -join ', ')"
+          }
+          $root = $roots[0].FullName
           Get-ChildItem -LiteralPath $root -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             Write-Host ("{0}  {1,12:N0} bytes  SHA256={2}" -f $_.Name, $_.Length, $hash)

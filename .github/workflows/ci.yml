@@ -99,5 +99,9 @@ jobs:
             Start-Sleep -Seconds 5
           }
 
-      - name: 检查用户脚本语法
-        run: node --check "Scripts\PackingProof-Order-Integration-KDZS.user.js"
+      - name: 检查扩展 API 示例语法
+        shell: pwsh
+        run: |
+          node --check "docs\examples\extension-v1-minimal.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check "docs\examples\extension-v1-serial-scale.js"

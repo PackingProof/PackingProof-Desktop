@@ -1,1 +1,5 @@
 * text=auto eol=crlf
+
+# 市场目录签名覆盖原始字节，测试夹具禁止检出时转换行尾。
+ExpressPackingMonitoring.Tests/Fixtures/ExtensionMarket/catalog.v1.json -text
+ExpressPackingMonitoring.Tests/Fixtures/ExtensionMarket/catalog.v1.sig -text
