@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,7 @@ internal sealed class InstalledExtensionRecord
     public string ManagedItemId { get; set; } = "";
     public string InstallDirectory { get; set; } = "";
     public DateTimeOffset InstalledAt { get; set; }
+    public string LauncherPath { get; set; } = "";
 }
 
 internal sealed record ExtensionInstallResult(
@@ -168,12 +170,45 @@ internal sealed class ExtensionInstallationService
                 Version = inspection.Manifest.Version,
                 Type = inspection.Manifest.Type,
                 InstallDirectory = targetDirectory,
+                LauncherPath = inspection.Manifest.Launcher?.Path ?? "",
                 InstalledAt = DateTimeOffset.UtcNow
             };
             List<InstalledExtensionRecord> registry = LoadRegistry();
             ReplaceRecord(registry, record);
             SaveRegistry(registry);
             return new ExtensionInstallResult(record, inspection.Warnings);
+        }
+    }
+
+    internal bool TryLaunch(InstalledExtensionRecord record, out string error)
+    {
+        error = "";
+        if (record.Type != "external-adapter" || string.IsNullOrWhiteSpace(record.LauncherPath))
+        {
+            error = "此扩展没有声明可启动文件";
+            return false;
+        }
+        string root = Path.GetFullPath(record.InstallDirectory) + Path.DirectorySeparatorChar;
+        string target = Path.GetFullPath(Path.Combine(record.InstallDirectory, record.LauncherPath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(target))
+        {
+            error = "扩展启动文件不存在";
+            return false;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = target,
+                WorkingDirectory = Path.GetDirectoryName(target)!,
+                UseShellExecute = true
+            });
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+        {
+            error = ex.Message;
+            return false;
         }
     }
 

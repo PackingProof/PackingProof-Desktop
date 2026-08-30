@@ -14,11 +14,17 @@ internal sealed class ExtensionPackageManifest
     public string Version { get; set; } = "";
     public string Type { get; set; } = "";
     public ExtensionPackageInstallation Installation { get; set; } = new();
+    public ExtensionPackageLauncher? Launcher { get; set; }
     public ExtensionMarketCompatibility Compatibility { get; set; } = new();
 
     internal string PayloadPath => Installation.PayloadPath.Length > 0
         ? Installation.PayloadPath
         : Installation.SuggestedPath;
+}
+
+internal sealed class ExtensionPackageLauncher
+{
+    public string Path { get; set; } = "";
 }
 
 internal sealed class ExtensionPackageInstallation
@@ -175,6 +181,17 @@ internal sealed class ExtensionPackageService
         else if (manifest.Installation.Mode != "manual-external")
         {
             throw new InvalidDataException("external-adapter 必须使用手动外部程序安装方式");
+        }
+        if (manifest.Launcher != null)
+        {
+            if (manifest.Type != "external-adapter")
+                throw new InvalidDataException("仅 external-adapter 可以声明启动文件");
+            string launcherPath = NormalizeEntryPath(manifest.Launcher.Path);
+            if (!launcherPath.StartsWith("payload/", StringComparison.Ordinal)
+                || !entries.ContainsKey(launcherPath)
+                || !new[] { ".exe", ".cmd", ".bat" }.Any(extension => launcherPath.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidDataException("启动文件必须是 payload/ 下的 .exe、.cmd 或 .bat 文件");
+            manifest.Launcher.Path = launcherPath;
         }
     }
 

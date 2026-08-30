@@ -277,6 +277,13 @@
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 IsEnabled="False"
                                 Click="Install_Click"/>
+                        <Button x:Name="LaunchButton"
+                                Content="启动"
+                                MinWidth="92"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Visibility="Collapsed"
+                                Click="Launch_Click"/>
                         <Button x:Name="InstallOtherVersionButton"
                                 Content="安装其他版本"
                                 MinWidth="118"

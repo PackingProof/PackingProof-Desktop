@@ -149,8 +149,12 @@ public partial class ExtensionMarketWindow : Window
         bool compatible = _selectedRelease != null
             && IsCompatible(_selectedRelease.Compatibility.MinPackingProofVersion);
         InstallButton.IsEnabled = _selectedRelease != null && compatible;
-        InstallButton.Content = installed == null ? "安装" :
-            installed.Version == _selectedRelease?.Version ? "重新安装" : "更新";
+        bool canLaunch = installed?.Type == "external-adapter" && !string.IsNullOrWhiteSpace(installed.LauncherPath);
+        InstallButton.Content = installed == null ? "安装" : "更新";
+        InstallButton.Visibility = installed != null && installed.Version == _selectedRelease?.Version
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        LaunchButton.Visibility = canLaunch ? Visibility.Visible : Visibility.Collapsed;
         InstalledVersionText.Text = installed == null
             ? "尚未安装"
             : $"已安装：{installed.Version}";
@@ -176,6 +180,15 @@ public partial class ExtensionMarketWindow : Window
     {
         if (_selectedRelease == null) return;
         await InstallReleaseAsync(_selectedRelease);
+    }
+
+    private void Launch_Click(object sender, RoutedEventArgs e)
+    {
+        if (CatalogList.SelectedItem is not ExtensionMarketDisplayItem selected) return;
+        InstalledExtensionRecord? installed = _installationService.GetInstalled()
+            .FirstOrDefault(value => value.Id == selected.Item.Id);
+        if (installed != null && !_installationService.TryLaunch(installed, out string error))
+            AppDialog.Error(this, $"启动扩展失败：{error}", "启动失败");
     }
 
     private void InstallOtherVersion_Click(object sender, RoutedEventArgs e)

@@ -183,6 +183,7 @@
   <data name="警告播报声线" xml:space="preserve"><value>Warning voice</value></data>
   <data name="静止超时" xml:space="preserve"><value>Motion timeout</value></data>
   <data name="开机自启动" xml:space="preserve"><value>Start at boot</value></data>
+  <data name="启动" xml:space="preserve"><value>Start</value></data>
   <data name="开启后，超时、停录和订单信息会用语音提醒" xml:space="preserve"><value>When turned on, voice reminders will be given for timeouts, recording stops and order information.</value></data>
   <data name="每次播报前取消静音并将电脑音量调到最大" xml:space="preserve"><value>Unmute and set the computer volume to maximum before each announcement</value></data>
   <data name="开启后放大和恢复时会有平滑动画" xml:space="preserve"><value>When turned on, there will be smooth animation when zooming in and restoring.</value></data>
