@@ -922,7 +922,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
 
                     if (shouldReportQueueFull)
+                    {
                         WriteAudioDiagnostic($"{(_currentAudioUsesDirectAac ? "实时 AAC 管道" : "WAV")}写入队列已满，已标记本次音频异常");
+                        long lastFrameProgress = Volatile.Read(ref _lastRecordingFrameProcessedTimestamp);
+                        TimeSpan frameProgressAge = lastFrameProgress > 0
+                            ? Stopwatch.GetElapsedTime(lastFrameProgress)
+                            : TimeSpan.Zero;
+                        RuntimeLog.Warn(
+                            "Recording",
+                            $"Audio queue backpressure diagnostic: {BuildRecordingFramePipelineDiagnostic(frameProgressAge)}");
+                    }
 
                     if (shouldMonitor && (DateTime.Now - lastDataAt).TotalSeconds > 5)
                     {

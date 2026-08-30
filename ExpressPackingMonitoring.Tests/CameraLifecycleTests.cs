@@ -68,6 +68,47 @@ public sealed class CameraLifecycleTests
     }
 
     [Fact]
+    public void RecordingFramePipelineDiagnostics_CapturesStalledStageAndFrameIdentity()
+    {
+        var diagnostics = new RecordingFramePipelineDiagnostics();
+        diagnostics.Enter(
+            RecordingFramePipelineStage.Watermark,
+            frameSequence: 321,
+            timestamp: 1_000,
+            managedThreadId: 17);
+
+        RecordingFramePipelineSnapshot snapshot = diagnostics.Capture(
+            timestamp: 4_500,
+            timestampFrequency: 1_000);
+
+        Assert.Equal(RecordingFramePipelineStage.Watermark, snapshot.Stage);
+        Assert.Equal(TimeSpan.FromSeconds(3.5), snapshot.StageAge);
+        Assert.Equal(321, snapshot.FrameSequence);
+        Assert.Equal(17, snapshot.ManagedThreadId);
+        Assert.Contains("stage=Watermark", snapshot.ToLogText());
+        Assert.Contains("stageFrame=321", snapshot.ToLogText());
+    }
+
+    [Theory]
+    [InlineData(900, 1_000)]
+    [InlineData(2_000, 0)]
+    public void RecordingFramePipelineDiagnostics_InvalidClockSampleDoesNotReportNegativeAge(
+        long timestamp,
+        long timestampFrequency)
+    {
+        var diagnostics = new RecordingFramePipelineDiagnostics();
+        diagnostics.Enter(
+            RecordingFramePipelineStage.RecorderEnqueue,
+            frameSequence: 1,
+            timestamp: 1_000,
+            managedThreadId: 2);
+
+        RecordingFramePipelineSnapshot snapshot = diagnostics.Capture(timestamp, timestampFrequency);
+
+        Assert.Equal(TimeSpan.Zero, snapshot.StageAge);
+    }
+
+    [Fact]
     public void PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession()
     {
         var gate = new PreviewSessionGate();

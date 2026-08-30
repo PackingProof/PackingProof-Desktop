@@ -733,6 +733,12 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        private void MarkRecordingFramePipelineStage(RecordingFramePipelineStage stage, long frameSequence)
+        {
+            if (Volatile.Read(ref _isRecording))
+                _recordingFramePipelineDiagnostics.Enter(stage, frameSequence);
+        }
+
         private async Task VideoProcessLoop(CancellationToken token)
         {
             int frameTickCounter = 0;
@@ -747,6 +753,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     double frameDurationMs = 1000.0 / processingFps;
                     DateTime startTime = DateTime.Now; Mat currentFrame = null;
                     long currentFrameSequence;
+                    MarkRecordingFramePipelineStage(
+                        RecordingFramePipelineStage.AcquireLatestFrame,
+                        Volatile.Read(ref _latestFrameSequence));
                     lock (_frameLock)
                     {
                         currentFrameSequence = _latestFrameSequence;
@@ -758,6 +767,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 录像只处理真正新到达的帧，避免把同一画面重复写入造成卡顿/闪烁。
                     if (currentFrame != null && currentFrameSequence == lastProcessedFrameSequence)
                     {
+                        MarkRecordingFramePipelineStage(
+                            RecordingFramePipelineStage.WaitingForNextFrame,
+                            currentFrameSequence);
                         currentFrame.Dispose();
                         await Task.Delay(Math.Max(1, (int)Math.Round(frameDurationMs)), token);
                         continue;
@@ -779,13 +791,17 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     if (currentFrame != null && !currentFrame.Empty())
                     {
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PairingQr, currentFrameSequence);
                         TrySubmitCameraPairingQrFrame(currentFrame);
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.BarcodeRecognition, currentFrameSequence);
                         TrySubmitCameraBarcodeFrame(currentFrame);
                         Mat processedFrame = currentFrame;
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
 
                         if (Config.EnableSmartZoom || PreviewZoomScale.HasValue)
                         {
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.ZoomScale;
                             int zoomW = (int)(currentFrame.Width / effectiveScale);
                             int zoomH = (int)(currentFrame.Height / effectiveScale);
@@ -889,6 +905,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         // 非录制状态只为真正要发布的预览帧绘制水印，避免按摄像头满帧率克隆整帧。
                         if (Config.EnableWatermark && (IsRecording || previewFrameDue))
                         {
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Watermark, currentFrameSequence);
                             try
                             {
                                 if (processedFrame == currentFrame)
@@ -905,17 +922,24 @@ namespace ExpressPackingMonitoring.ViewModels
                             catch { }
                         }
 
-                        if (IsRecording && frameTickCounter % 30 == 0) TryPerformMotionDetection(currentFrame);
+                        if (IsRecording && frameTickCounter % 30 == 0)
+                        {
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.MotionDetection, currentFrameSequence);
+                            TryPerformMotionDetection(currentFrame);
+                        }
                         if (previewFrameDue)
+                        {
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);
                             PublishPreviewFrameIfDue(processedFrame);
+                        }
 
                         bool handedToRecorder;
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.RecorderEnqueue, currentFrameSequence);
                         lock (_recordingFrameOrderLock)
                         {
-                            if (IsRecording)
-                                Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
                             handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
                         }
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameCleanup, currentFrameSequence);
                         if (processedFrame != currentFrame)
                         {
                             if (!handedToRecorder) processedFrame.Dispose();
@@ -926,11 +950,20 @@ namespace ExpressPackingMonitoring.ViewModels
                             currentFrame.Dispose();
                         }
 
+                        if (IsRecording)
+                            Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
+                        MarkRecordingFramePipelineStage(RecordingFramePipelineStage.HealthCheck, currentFrameSequence);
                         CheckPreviewWatchdog();
                         LogResourceHealthIfDue("video-loop");
+                        MarkRecordingFramePipelineStage(
+                            RecordingFramePipelineStage.WaitingForNextFrame,
+                            currentFrameSequence);
                     }
                     else
                     {
+                        MarkRecordingFramePipelineStage(
+                            RecordingFramePipelineStage.NoFrame,
+                            Volatile.Read(ref _latestFrameSequence));
                         // 休眠期间不做任何自动重连操作
                         if (_isCameraSleeping || _isSetupWizardActive)
                         {

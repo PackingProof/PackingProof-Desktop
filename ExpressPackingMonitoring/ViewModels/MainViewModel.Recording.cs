@@ -687,6 +687,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
                 Interlocked.Exchange(ref _recordingFrameRecoveryRequested, 0);
                 IsRecording = true;
+                _recordingFramePipelineDiagnostics.Enter(
+                    RecordingFramePipelineStage.Startup,
+                    Volatile.Read(ref _latestFrameSequence));
                 StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
                 PublishPreRecordBufferStatus(force: true);
                 _pendingPreRecordStartTime = null;
@@ -713,6 +716,9 @@ namespace ExpressPackingMonitoring.ViewModels
                             {
                                 if (Config.EnableWatermark)
                                 {
+                                    _recordingFramePipelineDiagnostics.Enter(
+                                        RecordingFramePipelineStage.PreRecordWatermark,
+                                        preFrameIndex);
                                     // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
                                     DateTime watermarkTime = DateTime.Now;
                                     // 时间戳与帧一一对应，由快照阶段保存到并行列表。
@@ -720,6 +726,9 @@ namespace ExpressPackingMonitoring.ViewModels
                                         watermarkTime = preRecordTimestamps[preFrameIndex];
                                     ApplyWatermarkToFrame(preFrame, watermarkTime, _recordingOrderId, Array.Empty<string>());
                                 }
+                                _recordingFramePipelineDiagnostics.Enter(
+                                    RecordingFramePipelineStage.PreRecordEnqueue,
+                                    preFrameIndex);
                                 if (!TryEnqueueFrameForRecording(preFrame))
                                     preFrame.Dispose();
                             }
@@ -730,8 +739,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
                     }
+                    _recordingFramePipelineDiagnostics.Enter(
+                        RecordingFramePipelineStage.PreRecordEnqueue,
+                        Volatile.Read(ref _latestFrameSequence));
                     EnqueueLatestFrameForRecording();
                 }
+                _recordingFramePipelineDiagnostics.Enter(
+                    RecordingFramePipelineStage.WaitingForNextFrame,
+                    Volatile.Read(ref _latestFrameSequence));
                 _lastMotionTime = DateTime.Now;
                 _autoStopWarned = false;
                 _maxDurationWarned = false;
@@ -945,6 +960,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         RuntimeLog.Warn(
                             "Recording",
                             $"Recording frame progress stalled for {frameProgressAge.TotalSeconds:F1}s while camera callbacks may still be active; stopping recording and reconnecting camera");
+                        RuntimeLog.Warn(
+                            "Recording",
+                            $"Recording frame diagnostic: {BuildRecordingFramePipelineDiagnostic(frameProgressAge)}");
                         LogResourceHealthIfDue("recording-frame-stalled", force: true);
 
                         var dispatcher = Application.Current?.Dispatcher;
@@ -966,6 +984,39 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                 }
             }, token);
+        }
+
+        private string BuildRecordingFramePipelineDiagnostic(TimeSpan frameProgressAge)
+        {
+            RecordingFramePipelineSnapshot pipeline = _recordingFramePipelineDiagnostics.Capture();
+            int videoQueueCount = -1;
+            int videoQueueCapacity = -1;
+            int audioQueueCount = -1;
+            int audioQueueCapacity = -1;
+            try
+            {
+                videoQueueCount = _videoWriteQueue?.Count ?? -1;
+                videoQueueCapacity = _videoWriteQueue?.BoundedCapacity ?? -1;
+            }
+            catch
+            {
+            }
+            try
+            {
+                audioQueueCount = _audioWriteQueue?.Count ?? -1;
+                audioQueueCapacity = _audioWriteQueue?.BoundedCapacity ?? -1;
+            }
+            catch
+            {
+            }
+
+            double cameraFrameAge = _lastFrameTime == DateTime.MinValue
+                ? -1
+                : (DateTime.Now - _lastFrameTime).TotalSeconds;
+            string videoTaskStatus = _videoTask?.Status.ToString() ?? "null";
+            string writerTaskStatus = _writeTask?.Status.ToString() ?? "null";
+
+            return $"{pipeline.ToLogText()}, lastProgressAge={frameProgressAge.TotalSeconds:F1}s, latestFrame={Volatile.Read(ref _latestFrameSequence)}, cameraFrameAge={cameraFrameAge:F1}s, sourceFps={Volatile.Read(ref _cameraSourceFpsEstimate):F1}, frameSize={_actualCameraWidth}x{_actualCameraHeight}, encoder={_currentVideoEncoder}, videoTask={videoTaskStatus}, writerTask={writerTaskStatus}, videoQueue={videoQueueCount}/{videoQueueCapacity}, audioQueue={audioQueueCount}/{audioQueueCapacity}";
         }
 
         private void MarkCurrentRecordingFailed(string stopReason, string errorDetail, string filePath, string videoCodec, string videoEncoder)

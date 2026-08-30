@@ -150,6 +150,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _lastRecordingQueueWarnAt = DateTime.MinValue;
         private long _lastRecordingFrameProcessedTimestamp;
         private int _recordingFrameRecoveryRequested;
+        private readonly RecordingFramePipelineDiagnostics _recordingFramePipelineDiagnostics = new();
         private DateTime _lastResourceHealthLogAt = DateTime.MinValue;
         private DateTime _lastPreviewConvertErrorLogAt = DateTime.MinValue;
         private DateTime _lastVideoFrameErrorLogAt = DateTime.MinValue;

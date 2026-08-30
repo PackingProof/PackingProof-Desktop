@@ -31,6 +31,115 @@ internal static class RecordingFrameProgressPolicy
         && frameProgressAge >= StallThreshold;
 }
 
+internal enum RecordingFramePipelineStage
+{
+    Idle,
+    Startup,
+    PreRecordWatermark,
+    PreRecordEnqueue,
+    AcquireLatestFrame,
+    PairingQr,
+    BarcodeRecognition,
+    FrameMetadata,
+    SmartZoom,
+    Watermark,
+    MotionDetection,
+    PreviewPublish,
+    RecorderEnqueue,
+    FrameCleanup,
+    HealthCheck,
+    WaitingForNextFrame,
+    NoFrame
+}
+
+internal readonly record struct RecordingFramePipelineSnapshot(
+    RecordingFramePipelineStage Stage,
+    TimeSpan StageAge,
+    long FrameSequence,
+    int ManagedThreadId,
+    bool ThreadIsAlive,
+    string ThreadState)
+{
+    public string ToLogText() =>
+        $"stage={Stage}, stageAge={StageAge.TotalSeconds:F1}s, stageFrame={FrameSequence}, managedThread={ManagedThreadId}, threadAlive={ThreadIsAlive}, threadState={ThreadState}";
+}
+
+internal sealed class RecordingFramePipelineDiagnostics
+{
+    private int _stage;
+    private long _stageStartedTimestamp;
+    private long _frameSequence;
+    private int _managedThreadId;
+    private Thread? _thread;
+
+    public void Enter(RecordingFramePipelineStage stage, long frameSequence) =>
+        Enter(stage, frameSequence, Stopwatch.GetTimestamp(), Environment.CurrentManagedThreadId, Thread.CurrentThread);
+
+    internal void Enter(
+        RecordingFramePipelineStage stage,
+        long frameSequence,
+        long timestamp,
+        int managedThreadId) =>
+        Enter(stage, frameSequence, timestamp, managedThreadId, null);
+
+    public RecordingFramePipelineSnapshot Capture() =>
+        Capture(Stopwatch.GetTimestamp(), Stopwatch.Frequency);
+
+    internal RecordingFramePipelineSnapshot Capture(long timestamp, long timestampFrequency)
+    {
+        var stage = (RecordingFramePipelineStage)Volatile.Read(ref _stage);
+        long stageStartedTimestamp = Volatile.Read(ref _stageStartedTimestamp);
+        long frameSequence = Volatile.Read(ref _frameSequence);
+        int managedThreadId = Volatile.Read(ref _managedThreadId);
+        Thread? thread = Volatile.Read(ref _thread);
+
+        long elapsedTicks = timestampFrequency > 0
+            && stageStartedTimestamp > 0
+            && timestamp >= stageStartedTimestamp
+            ? timestamp - stageStartedTimestamp
+            : 0;
+        TimeSpan stageAge = timestampFrequency > 0
+            ? TimeSpan.FromSeconds(elapsedTicks / (double)timestampFrequency)
+            : TimeSpan.Zero;
+
+        bool threadIsAlive = false;
+        string threadState = "Unavailable";
+        if (thread != null)
+        {
+            try
+            {
+                threadIsAlive = thread.IsAlive;
+                threadState = thread.ThreadState.ToString();
+            }
+            catch
+            {
+            }
+        }
+
+        return new RecordingFramePipelineSnapshot(
+            stage,
+            stageAge,
+            frameSequence,
+            managedThreadId,
+            threadIsAlive,
+            threadState);
+    }
+
+    private void Enter(
+        RecordingFramePipelineStage stage,
+        long frameSequence,
+        long timestamp,
+        int managedThreadId,
+        Thread? thread)
+    {
+        Volatile.Write(ref _stageStartedTimestamp, timestamp);
+        Volatile.Write(ref _frameSequence, frameSequence);
+        Volatile.Write(ref _managedThreadId, managedThreadId);
+        Volatile.Write(ref _thread, thread);
+        Volatile.Write(ref _stage, (int)stage);
+    }
+}
+
 internal enum PreviewFreezeRecoveryAction
 {
     ResetPreviewPipeline,
