@@ -394,12 +394,15 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("videos.db", buildScript);
 
         Assert.Contains("OutputBaseFilename=PackingProof_Setup_v{#MyAppVersion}", innoScript);
-        Assert.Contains("PackingProof_Setup_$releaseTag$buildIdentitySuffix.exe", publishScript);
-        Assert.Contains("PackingProof_AppPatch_$releaseTag$buildIdentitySuffix.zip", publishScript);
+        Assert.Contains("PackingProof_Setup_v$artifactVersion.exe", publishScript);
+        Assert.Contains("PackingProof_AppPatch_$releaseTag.zip", publishScript);
         Assert.Contains("-OutputFileName $setupFileName", publishScript);
-        Assert.Contains("\"PackingProof+$packageVersion\"", publishScript);
-        Assert.Contains("git -C $repoRoot rev-list --count HEAD", publishScript);
-        Assert.Contains("commit.$CommitCount.$shortCommitId", publishScript);
+        Assert.Contains("\"PackingProof+v$artifactVersion\"", publishScript);
+        Assert.Contains("git -C $repoRoot describe --tags --match \"v[0-9]*\" --long --abbrev=8 HEAD", publishScript);
+        Assert.Contains("return \"-$($Matches['count'])-g$($Matches['commit'].ToLowerInvariant())$dirtySuffix\"", publishScript);
+        Assert.Contains("$isReleaseTagAtHead", publishScript);
+        Assert.Contains("if ($isReleaseTagAtHead)", publishScript);
+        Assert.DoesNotContain("commit.$CommitCount.$shortCommitId", publishScript);
         Assert.Contains("-p:InformationalVersion=$informationalVersion", publishScript);
         Assert.Contains("-p:IncludeSourceRevisionInInformationalVersion=false", publishScript);
         Assert.Contains("-p:GitCommitId=$gitCommitId", publishScript);

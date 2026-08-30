@@ -202,31 +202,40 @@ function Get-GitCommitId {
     return ""
 }
 
-function Get-GitCommitCount {
-    $count = (& git -C $repoRoot rev-list --count HEAD 2>$null)
-    if ($LASTEXITCODE -eq 0 -and "$count" -match '^\d+$') {
-        return "$count".Trim()
-    }
-
-    return ""
-}
-
-function Get-InformationalVersion {
+function Get-GitBuildSuffix {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PackageVersion,
-        [string]$CommitCount,
+        [string]$ReleaseTag,
         [string]$CommitId
     )
 
-    if ([string]::IsNullOrWhiteSpace($CommitCount) -or
-        [string]::IsNullOrWhiteSpace($CommitId)) {
-        return $PackageVersion
+    $worktreeStatus = @(& git -C $repoRoot status --porcelain 2>$null)
+    $isDirty = $LASTEXITCODE -ne 0 -or $worktreeStatus.Count -gt 0
+    $tagsAtHead = @(& git -C $repoRoot tag --points-at HEAD 2>$null)
+    $isReleaseTagAtHead = $LASTEXITCODE -eq 0 -and $tagsAtHead -contains $ReleaseTag
+
+    if ($isReleaseTagAtHead) {
+        return $(if ($isDirty) { "-dirty" } else { "" })
     }
 
-    $shortCommitId = $CommitId.Substring(0, [Math]::Min(8, $CommitId.Length))
-    $separator = if ($PackageVersion.Contains('+')) { '.' } else { '+' }
-    return "$PackageVersion${separator}commit.$CommitCount.$shortCommitId"
+    $description = (& git -C $repoRoot describe --tags --match "v[0-9]*" --long --abbrev=8 HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and
+        "$description" -match '-(?<count>\d+)-g(?<commit>[0-9a-fA-F]+)$') {
+        $dirtySuffix = if ($isDirty) { "-dirty" } else { "" }
+        return "-$($Matches['count'])-g$($Matches['commit'].ToLowerInvariant())$dirtySuffix"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($CommitId)) {
+        return $(if ($isDirty) { "-dirty" } else { "" })
+    }
+
+    $commitCount = (& git -C $repoRoot rev-list --count HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or "$commitCount" -notmatch '^\d+$') {
+        $commitCount = "0"
+    }
+    $shortCommitId = $CommitId.Substring(0, [Math]::Min(8, $CommitId.Length)).ToLowerInvariant()
+    $dirtySuffix = if ($isDirty) { "-dirty" } else { "" }
+    return "-$commitCount-g$shortCommitId$dirtySuffix"
 }
 
 function ConvertTo-SafePathName {
@@ -354,7 +363,13 @@ function Resolve-EffectivePatchBaseline {
 }
 
 $packageVersion = Get-PackageVersion
-$packageName = ConvertTo-SafePathName "PackingProof+$packageVersion"
+$normalizedVersion = Get-NormalizedReleaseVersion $packageVersion
+$releaseTag = "v$normalizedVersion"
+$gitCommitId = Get-GitCommitId
+$buildIdentitySuffix = Get-GitBuildSuffix -ReleaseTag $releaseTag -CommitId $gitCommitId
+$artifactVersion = "$normalizedVersion$buildIdentitySuffix"
+$informationalVersion = $artifactVersion
+$packageName = ConvertTo-SafePathName "PackingProof+v$artifactVersion"
 $defaultPackageVersionRoot = Join-Path $repoRoot "package\$packageName"
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
@@ -1050,12 +1065,6 @@ function Resolve-LauncherBaselineExecutable {
 
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBuildArtifacts = Join-Path $outputFullPath ".build-artifacts"
-$gitCommitId = Get-GitCommitId
-$gitCommitCount = Get-GitCommitCount
-$informationalVersion = Get-InformationalVersion `
-    -PackageVersion $packageVersion `
-    -CommitCount $gitCommitCount `
-    -CommitId $gitCommitId
 $packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
@@ -1183,22 +1192,9 @@ foreach ($runtimeFile in $requiredAppRuntimeFiles) {
     }
 }
 
-$normalizedVersion = Get-NormalizedReleaseVersion $packageVersion
-$releaseTag = "v$normalizedVersion"
-$shortGitCommitId = if ([string]::IsNullOrWhiteSpace($gitCommitId)) {
-    ""
-} else {
-    $gitCommitId.Substring(0, [Math]::Min(8, $gitCommitId.Length))
-}
-$buildIdentitySuffix = if ([string]::IsNullOrWhiteSpace($gitCommitCount) -or
-    [string]::IsNullOrWhiteSpace($shortGitCommitId)) {
-    ""
-} else {
-    "_commit.$gitCommitCount.$shortGitCommitId"
-}
 $packageRoot = $packageArtifactRoot
 $legacyAppFullZipPath = Join-Path $packageRoot "ExpressPackingMonitoring_AppFull_$releaseTag.zip"
-$appPatchZipName = "PackingProof_AppPatch_$releaseTag$buildIdentitySuffix.zip"
+$appPatchZipName = "PackingProof_AppPatch_$releaseTag.zip"
 $appPatchZipPath = Join-Path $packageRoot $appPatchZipName
 $legacyManualUpdateZipPath = Join-Path $packageRoot "PackingProof_ManualUpdate_$releaseTag.zip"
 $launcherPackageName = [string]$launcherBaseline.package.file
@@ -1209,7 +1205,7 @@ $launcherManifestName = "launcher_manifest_$releaseTag.json"
 $launcherManifestPath = Join-Path $packageRoot $launcherManifestName
 $releaseInfoName = "release_info_$releaseTag.txt"
 $releaseInfoPath = Join-Path $packageRoot $releaseInfoName
-$setupFileName = "PackingProof_Setup_$releaseTag$buildIdentitySuffix.exe"
+$setupFileName = "PackingProof_Setup_v$artifactVersion.exe"
 $setupPath = Join-Path $packageRoot $setupFileName
 $releaseUrlBase = Get-ReleaseUrlBase
 $releasePageTemplate = Get-ConfiguredValue -Key "RELEASE_PAGE_URL_TEMPLATE" -DefaultValue "$releaseUrlBase/tag/{tag}"

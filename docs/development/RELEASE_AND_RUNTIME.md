@@ -29,7 +29,7 @@
 
 ## 打包与发布流程
 
-- 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致；发布脚本统一将 `版本+commit.提交总数.短CommitID` 写入 EXE 的 `InformationalVersion`，并将完整 Commit ID 写入程序集元数据。Setup 与 AppPatch 文件名也必须带 `_commit.提交总数.短CommitID`；包内协议版本继续使用纯语义版本。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
+- 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用：
 
 ```powershell
