@@ -86,7 +86,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Warn("Camera", $"RestartCameraWithRecordingStop start trigger={trigger}, recording={IsRecording}, failures={_consecutiveRestartFailures}");
                 if (IsRecording)
                 {
-                    _stopReason = "摄像头重连";
+                    _stopReason = string.Equals(trigger, "recording-frame-stalled", StringComparison.Ordinal)
+                        ? "录像画面中断"
+                        : "摄像头重连";
                     RuntimeLog.Warn("Camera", "Camera reconnect requested while recording, stopping current recording before restart");
                     await SafeStopRecordingAsync();
 
@@ -909,7 +911,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
                         bool handedToRecorder;
                         lock (_recordingFrameOrderLock)
+                        {
+                            if (IsRecording)
+                                Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
                             handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
+                        }
                         if (processedFrame != currentFrame)
                         {
                             if (!handedToRecorder) processedFrame.Dispose();

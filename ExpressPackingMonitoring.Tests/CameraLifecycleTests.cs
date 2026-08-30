@@ -50,6 +50,23 @@ public sealed class CameraLifecycleTests
             CameraReconnectPolicy.GetPreviewFreezeRecovery(TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(3)));
     }
 
+    [Theory]
+    [InlineData(4.9, 4.0, false)]
+    [InlineData(5.0, 2.9, false)]
+    [InlineData(5.0, 3.0, true)]
+    [InlineData(60.0, 3.1, true)]
+    public void RecordingFrameProgressPolicy_RecoversOnlyAfterStartupGraceAndSustainedStall(
+        double recordingAgeSeconds,
+        double frameProgressAgeSeconds,
+        bool expected)
+    {
+        bool shouldRecover = RecordingFrameProgressPolicy.ShouldRecover(
+            TimeSpan.FromSeconds(recordingAgeSeconds),
+            TimeSpan.FromSeconds(frameProgressAgeSeconds));
+
+        Assert.Equal(expected, shouldRecover);
+    }
+
     [Fact]
     public void PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession()
     {

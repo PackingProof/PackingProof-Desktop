@@ -684,7 +684,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 避免超时线程在状态切换或大缓冲入队期间使用预录起点误停录。
                 _recordingGracePeriodStartTime = DateTime.Now;
                 _lastMotionTime = _recordingGracePeriodStartTime;
+                Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
+                Interlocked.Exchange(ref _recordingFrameRecoveryRequested, 0);
                 IsRecording = true;
+                StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
                 PublishPreRecordBufferStatus(force: true);
                 _pendingPreRecordStartTime = null;
                 List<Mat>? preRecordFrames = _pendingPreRecordFrames;
@@ -911,6 +914,58 @@ namespace ExpressPackingMonitoring.ViewModels
                         "录制失败");
                 });
             }
+        }
+
+        private void StartRecordingFrameProgressWatchdog(CancellationToken token, long recordingStartTimestamp)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!token.IsCancellationRequested)
+                    {
+                        await Task.Delay(1000, token).ConfigureAwait(false);
+                        if (token.IsCancellationRequested || !Volatile.Read(ref _isRecording))
+                            return;
+                        if (Volatile.Read(ref _recordingStartTimestamp) != recordingStartTimestamp)
+                            return;
+
+                        long lastProgress = Volatile.Read(ref _lastRecordingFrameProcessedTimestamp);
+                        if (lastProgress <= 0)
+                            continue;
+
+                        TimeSpan recordingAge = Stopwatch.GetElapsedTime(recordingStartTimestamp);
+                        TimeSpan frameProgressAge = Stopwatch.GetElapsedTime(lastProgress);
+                        if (!RecordingFrameProgressPolicy.ShouldRecover(recordingAge, frameProgressAge))
+                            continue;
+
+                        if (Interlocked.CompareExchange(ref _recordingFrameRecoveryRequested, 1, 0) != 0)
+                            return;
+
+                        RuntimeLog.Warn(
+                            "Recording",
+                            $"Recording frame progress stalled for {frameProgressAge.TotalSeconds:F1}s while camera callbacks may still be active; stopping recording and reconnecting camera");
+                        LogResourceHealthIfDue("recording-frame-stalled", force: true);
+
+                        var dispatcher = Application.Current?.Dispatcher;
+                        if (dispatcher != null)
+                        {
+                            _ = dispatcher.InvokeAsync(() =>
+                            {
+                                if (!_isDisposed
+                                    && !_shutdownRequested
+                                    && IsRecording
+                                    && Volatile.Read(ref _recordingStartTimestamp) == recordingStartTimestamp)
+                                    _ = RestartCameraWithRecordingStopAsync("recording-frame-stalled");
+                            });
+                        }
+                        return;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }, token);
         }
 
         private void MarkCurrentRecordingFailed(string stopReason, string errorDetail, string filePath, string videoCodec, string videoEncoder)

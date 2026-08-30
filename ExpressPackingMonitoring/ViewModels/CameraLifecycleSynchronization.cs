@@ -21,6 +21,16 @@ internal static class CameraFrameProcessingPolicy
     }
 }
 
+internal static class RecordingFrameProgressPolicy
+{
+    internal static readonly TimeSpan StartupGracePeriod = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan StallThreshold = TimeSpan.FromSeconds(3);
+
+    public static bool ShouldRecover(TimeSpan recordingAge, TimeSpan frameProgressAge) =>
+        recordingAge >= StartupGracePeriod
+        && frameProgressAge >= StallThreshold;
+}
+
 internal enum PreviewFreezeRecoveryAction
 {
     ResetPreviewPipeline,
