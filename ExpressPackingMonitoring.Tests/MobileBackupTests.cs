@@ -1608,19 +1608,22 @@ public sealed class MobileBackupTests
                 device => device.GetProperty("address").GetString() == "http://192.168.31.205:5280"
                     && !device.GetProperty("online").GetBoolean());
 
-            string script = await client.GetStringAsync(
-                $"/api/userscripts/{userscript.Id}/download?connect=127.0.0.1:{port}",
+            using HttpResponseMessage userscriptResponse = await client.GetAsync(
+                $"/api/userscripts/{userscript.Id}/download.user.js?connect=127.0.0.1:{port}",
                 TestContext.Current.CancellationToken);
+            string script = await userscriptResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
+            Assert.Equal(HttpStatusCode.OK, userscriptResponse.StatusCode);
+            Assert.Equal("application/javascript", userscriptResponse.Content.Headers.ContentType?.MediaType);
             Assert.Contains($"\"url\":\"http://192.168.31.250:{port}\"", script);
             Assert.Contains("\"url\":\"http://192.168.31.205:5280\"", script);
             Assert.Contains("// @connect      192.168.31.205", script);
             Assert.DoesNotContain("// @connect      127.0.0.1", script);
             Assert.Contains(
-                $"// @updateURL     http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download",
+                $"// @updateURL     http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download.user.js",
                 script);
             Assert.Contains(
-                $"// @downloadURL   http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download",
+                $"// @downloadURL   http://192.168.31.250:{port}/api/userscripts/{userscript.Id}/download.user.js",
                 script);
             Assert.DoesNotContain("// @updateURL     127.0.0.1", script);
 
@@ -1630,9 +1633,13 @@ public sealed class MobileBackupTests
                 File.Exists(Path.Combine(stateDirectory, "userscript-config", "revision.json")),
                 "配置修订号状态文件应位于状态目录子目录，避免被上传状态清理误删");
             string secondScript = await client.GetStringAsync(
-                $"/api/userscripts/{userscript.Id}/download?connect=127.0.0.1:{port}",
+                $"/api/userscripts/{userscript.Id}/download.user.js?connect=127.0.0.1:{port}",
                 TestContext.Current.CancellationToken);
             Assert.Equal(versionLine, ExtractUserscriptVersion(secondScript));
+            string legacyRouteScript = await client.GetStringAsync(
+                $"/api/userscripts/{userscript.Id}/download?connect=127.0.0.1:{port}",
+                TestContext.Current.CancellationToken);
+            Assert.Equal(versionLine, ExtractUserscriptVersion(legacyRouteScript));
         }
         finally
         {

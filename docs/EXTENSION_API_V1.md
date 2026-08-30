@@ -179,10 +179,10 @@ function pushOrders(host, accessKey, orders) {
 用户可在安装向导中分别安装官方脚本或任意已导入的第三方脚本。每个脚本都有独立下载地址：
 
 ```text
-/api/userscripts/{scriptId}/download
+/api/userscripts/{scriptId}/download.user.js
 ```
 
-下载响应是已经注入当前设备配置的 JavaScript，不是用户导入的原始文件。第三方脚本不得依赖固定的 `scriptId`；脚本 ID 由 PackingProof 为每个导入文件生成。
+`.user.js` 后缀用于让浏览器脚本管理器识别安装入口。下载响应是已经注入当前设备配置的 JavaScript，不是用户导入的原始文件。第三方脚本不得依赖固定的 `scriptId`；脚本 ID 由 PackingProof 为每个导入文件生成。旧版无后缀 `/download` 地址仅为已安装脚本继续更新而兼容保留，新安装入口不得继续生成该地址。
 
 ## 能力查询
 

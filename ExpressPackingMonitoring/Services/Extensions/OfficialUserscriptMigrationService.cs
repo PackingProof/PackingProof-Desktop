@@ -103,9 +103,13 @@ internal sealed class OfficialUserscriptMigrationService
         }
 
         const string prefix = "/api/userscripts/";
-        const string suffix = "/download";
-        if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            && path.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+        string? suffix = path.EndsWith("/download.user.js", StringComparison.OrdinalIgnoreCase)
+            ? "/download.user.js"
+            : path.EndsWith("/download", StringComparison.OrdinalIgnoreCase)
+                ? "/download"
+                : null;
+        if (suffix != null
+            && path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             && path.Length > prefix.Length + suffix.Length)
         {
             scriptId = path[prefix.Length..^suffix.Length];
@@ -202,7 +206,7 @@ internal sealed class OfficialUserscriptMigrationService
     }
 
     internal static string BuildDownloadUrl(string scheme, string authority, string scriptId) =>
-        $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(scriptId)}/download";
+        $"{scheme}://{authority}/api/userscripts/{Uri.EscapeDataString(scriptId)}/download.user.js";
 
     internal static string BuildChoice(UserscriptDescriptor item, string scheme, string authority)
     {

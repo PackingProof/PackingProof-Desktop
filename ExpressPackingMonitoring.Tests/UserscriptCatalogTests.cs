@@ -64,7 +64,7 @@ public sealed class UserscriptCatalogTests : IDisposable
         Assert.Contains(">安装</a>", normalHtml);
         Assert.DoesNotContain("安装此脚本", normalHtml);
         Assert.Contains(
-            "href=\"http://127.0.0.1:5280/api/userscripts/normal/download\"",
+            "href=\"http://127.0.0.1:5280/api/userscripts/normal/download.user.js\"",
             normalHtml,
             StringComparison.Ordinal);
     }
@@ -75,7 +75,8 @@ public sealed class UserscriptCatalogTests : IDisposable
         string url = OfficialUserscriptMigrationService.BuildDownloadUrl("http", "127.0.0.1:5280", "custom script");
 
         var uri = new Uri(url);
-        Assert.Equal("/api/userscripts/custom script/download", Uri.UnescapeDataString(uri.AbsolutePath));
+        Assert.Equal("/api/userscripts/custom script/download.user.js", Uri.UnescapeDataString(uri.AbsolutePath));
+        Assert.EndsWith(".user.js", uri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("", uri.Query);
     }
 

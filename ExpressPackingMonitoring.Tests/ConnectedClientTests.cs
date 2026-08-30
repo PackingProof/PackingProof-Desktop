@@ -279,6 +279,7 @@ public sealed class ConnectedClientTests
     [InlineData("/api/orderinfo", "POST", true)]
     [InlineData("/api/order-lookup/pending", "GET", true)]
     [InlineData("/api/connections/heartbeat", "POST", true)]
+    [InlineData("/api/userscripts/sample/download.user.js", "GET", true)]
     [InlineData("/api/userscripts/sample/download", "GET", true)]
     [InlineData("/PackingProof-Order-Integration-KDZS.user.js", "GET", true)]
     [InlineData("/kuaidizs-order-push.user.js", "GET", true)]

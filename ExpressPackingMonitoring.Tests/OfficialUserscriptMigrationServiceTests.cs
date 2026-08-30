@@ -13,6 +13,7 @@ public sealed class OfficialUserscriptMigrationServiceTests
     [Theory]
     [InlineData("/PackingProof-Order-Integration-KDZS.user.js", OfficialUserscriptMigrationService.LegacyRequestId)]
     [InlineData("/kuaidizs-order-push.user.js", OfficialUserscriptMigrationService.LegacyRequestId)]
+    [InlineData("/api/userscripts/custom-123/download.user.js", "custom-123")]
     [InlineData("/api/userscripts/custom-123/download", "custom-123")]
     public void DownloadRoutesRecognizeLegacyAndManagedPaths(string path, string expectedId)
     {
