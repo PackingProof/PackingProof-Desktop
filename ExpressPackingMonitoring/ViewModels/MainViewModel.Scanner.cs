@@ -270,22 +270,21 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void InitGlobalKeyboardHook()
         {
-            _globalKeyHook = new GlobalKeyboardHook();
+            _globalKeyboardRuntime = new GlobalKeyboardRuntimeController(
+                new GlobalKeyboardHook(),
+                OnGlobalBarcodeScanned);
             ApplyGlobalKeyboardConfig();
-            _globalKeyHook.BarcodeScanned += OnGlobalBarcodeScanned;
-            if (Config.EnableGlobalKeyboard)
-                _globalKeyHook.Start();
         }
 
         private void ApplyGlobalKeyboardConfig()
         {
-            _globalKeyHook?.ConfigureAutoSubmit(
-                Config.EnableScannerAutoSubmit,
-                Config.ScannerAutoSubmitMinLength,
-                Config.ScannerAutoSubmitQuietMs,
-                Config.ScannerAutoSubmitMaxAverageIntervalMs,
-                Config.ScannerAutoSubmitMaxKeyIntervalMs,
-                IsAutoSubmitScanCandidate);
+            _globalKeyboardRuntime?.Apply(Config, IsAutoSubmitScanCandidate);
+        }
+
+        internal void SetMainWindowInTray(bool isInTray, bool? sessionTrayOverride = null)
+        {
+            ApplyGlobalKeyboardConfig();
+            _globalKeyboardRuntime?.SetTrayState(isInTray, sessionTrayOverride);
         }
 
         private void OnGlobalBarcodeScanned(string barcode)

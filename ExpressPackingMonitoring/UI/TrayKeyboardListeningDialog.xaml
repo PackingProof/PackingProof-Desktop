@@ -1,7 +1,7 @@
-<Window x:Class="ExpressPackingMonitoring.UI.CloseBehaviorDialog"
+<Window x:Class="ExpressPackingMonitoring.UI.TrayKeyboardListeningDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="关闭窗口"
+        Title="托盘期间扫码监听"
         SizeToContent="Height"
         Width="430"
         WindowStyle="ToolWindow"
@@ -17,14 +17,14 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="关闭窗口后，你希望程序怎么做？"
+        <TextBlock Text="托盘期间继续监听扫码枪？"
                    FontSize="18"
                    FontWeight="SemiBold"
                    Foreground="{DynamicResource TextPrimary}"/>
 
         <TextBlock Grid.Row="1"
                    Margin="0,9,0,0"
-                   Text="最小化到托盘后，已有录像、设备备份和网页服务会继续运行；扫码枪是否继续监听由你的设置决定"
+                   Text="不监听只会停止扫码枪触发录像，网页服务、主机备份和已有录像仍会继续运行；恢复主界面后自动恢复监听"
                    TextWrapping="Wrap"
                    FontSize="13"
                    LineHeight="20"
@@ -40,14 +40,14 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,24,0,0">
-            <Button Content="最小化到托盘"
+            <Button Content="继续监听"
                     Style="{StaticResource PrimaryButtonStyle}"
                     Margin="0,0,10,0"
                     IsDefault="True"
-                    Click="Minimize_Click"/>
-            <Button Content="直接退出"
+                    Click="ContinueListening_Click"/>
+            <Button Content="不监听"
                     Style="{StaticResource SecondaryButtonStyle}"
-                    Click="Exit_Click"/>
+                    Click="PauseListening_Click"/>
         </StackPanel>
     </Grid>
 </Window>

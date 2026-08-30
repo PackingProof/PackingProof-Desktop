@@ -7,11 +7,27 @@ using System.Windows.Threading;
 
 namespace ExpressPackingMonitoring.Input
 {
+    internal interface IGlobalKeyboardHook : IDisposable
+    {
+        event Action<string>? BarcodeScanned;
+
+        void ConfigureAutoSubmit(
+            bool enabled,
+            int minLength,
+            int quietMs,
+            int maxAverageIntervalMs,
+            int maxKeyIntervalMs,
+            Func<string, bool>? isCandidate);
+
+        void Start();
+        void Stop();
+    }
+
     /// <summary>
     /// 全局键盘钩子：即使程序不在前台也能接收扫码枪的输入。
     /// 扫码枪特征：在极短时间内连续输入字符，最后以 Enter 结尾。
     /// </summary>
-    public class GlobalKeyboardHook : IDisposable
+    public class GlobalKeyboardHook : IGlobalKeyboardHook
     {
         private const int WH_KEYBOARD_LL = 13;
         private const int WM_KEYDOWN = 0x0100;

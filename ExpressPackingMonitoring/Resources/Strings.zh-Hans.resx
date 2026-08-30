@@ -221,6 +221,8 @@
   <data name="清除已保存的显卡编码检测结果，下次重新判断可用编码器" xml:space="preserve"><value>清除已保存的显卡编码检测结果，下次重新判断可用编码器</value></data>
   <data name="全局键盘监听" xml:space="preserve"><value>全局键盘监听</value></data>
   <data name="软件在后台也能扫码开始录制" xml:space="preserve"><value>软件在后台也能扫码开始录制</value></data>
+  <data name="托盘期间扫码监听" xml:space="preserve"><value>托盘期间扫码监听</value></data>
+  <data name="选择每次询问、继续监听或不监听；恢复主界面后自动继续监听" xml:space="preserve"><value>选择每次询问、继续监听或不监听；恢复主界面后自动继续监听</value></data>
   <data name="扫码间隔保护" xml:space="preserve"><value>扫码间隔保护</value></data>
   <data name="扫码事件预录" xml:space="preserve"><value>扫码事件预录</value></data>
   <data name="扫码前保留画面，占用运行内存" xml:space="preserve"><value>扫码前保留画面，占用运行内存</value></data>
@@ -679,6 +681,13 @@
   <data name="关闭窗口" xml:space="preserve"><value>关闭窗口</value></data>
   <data name="关闭窗口后，你希望程序怎么做？" xml:space="preserve"><value>关闭窗口后，你希望程序怎么做？</value></data>
   <data name="最小化到托盘后，录像、设备备份和网页服务会继续运行" xml:space="preserve"><value>最小化到托盘后，录像、设备备份和网页服务会继续运行</value></data>
+  <data name="最小化到托盘后，已有录像、设备备份和网页服务会继续运行；扫码枪是否继续监听由你的设置决定" xml:space="preserve"><value>最小化到托盘后，已有录像、设备备份和网页服务会继续运行；扫码枪是否继续监听由你的设置决定</value></data>
+  <data name="托盘期间继续监听扫码枪？" xml:space="preserve"><value>托盘期间继续监听扫码枪？</value></data>
+  <data name="继续监听" xml:space="preserve"><value>继续监听</value></data>
+  <data name="不监听" xml:space="preserve"><value>不监听</value></data>
+  <data name="继续监听：托盘期间扫码仍会触发录像" xml:space="preserve"><value>继续监听：托盘期间扫码仍会触发录像</value></data>
+  <data name="不监听只会停止扫码枪触发录像，网页服务、主机备份和已有录像仍会继续运行；恢复主界面后自动恢复监听" xml:space="preserve"><value>不监听只会停止扫码枪触发录像，网页服务、主机备份和已有录像仍会继续运行；恢复主界面后自动恢复监听</value></data>
+  <data name="托盘扫码监听选择保存失败，本次仍按你的选择执行，下次进入托盘时会再次询问：{0}" xml:space="preserve"><value>托盘扫码监听选择保存失败，本次仍按你的选择执行，下次进入托盘时会再次询问：{0}</value></data>
   <data name="不再提示，记住我的选择" xml:space="preserve"><value>不再提示，记住我的选择</value></data>
   <data name="最小化到托盘" xml:space="preserve"><value>最小化到托盘</value></data>
   <data name="直接退出" xml:space="preserve"><value>直接退出</value></data>

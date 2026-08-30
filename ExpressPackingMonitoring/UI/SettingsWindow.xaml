@@ -1604,6 +1604,28 @@
                                     </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}"
+                                          IsEnabled="{Binding ElementName=GlobalKeyboardCheckBox, Path=IsChecked}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="托盘期间扫码监听" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="选择每次询问、继续监听或不监听；恢复主界面后自动继续监听"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="2"
+                                                  SelectedValue="{Binding Config.TrayKeyboardListeningBehavior, Mode=TwoWay}"
+                                                  SelectedValuePath="Tag"
+                                                  Cursor="Hand">
+                                            <ComboBoxItem Tag="Ask" Content="每次询问"/>
+                                            <ComboBoxItem Tag="Continue" Content="继续监听"/>
+                                            <ComboBoxItem Tag="Pause" Content="不监听"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}"
                                         ToolTip="扫码枪没有自动回车时使用。只在软件窗口内识别，避免影响其他程序输入">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

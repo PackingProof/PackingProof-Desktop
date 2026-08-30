@@ -216,7 +216,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly SemaphoreSlim _webServerLifecycleLock = new(1, 1);
         private StatisticsWindow _statisticsWindow;
         private PlaybackWindow _playbackWindow;
-        private GlobalKeyboardHook _globalKeyHook;
+        private GlobalKeyboardRuntimeController _globalKeyboardRuntime;
         private CameraBarcodeRecognitionService _cameraBarcodeRecognition;
         private CancellationTokenSource _cameraBarcodeFeedbackCts;
         private readonly CameraPairingQrFrameDecoder _cameraPairingQrDecoder = new();
@@ -852,7 +852,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _speechService = null;
             _purposeSwitchCts.Cancel();
             _purposeSwitchCts.Dispose();
-            try { _globalKeyHook?.Dispose(); } catch { }
+            try { _globalKeyboardRuntime?.Dispose(); } catch { }
             try { _webServer?.Dispose(); } catch { }
             try { _extensionRuntime?.Dispose(); } catch { }
             _extensionRuntime = null;

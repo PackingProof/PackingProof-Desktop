@@ -17,6 +17,16 @@ namespace ExpressPackingMonitoring.Config
             value is MinimizeToTray or Exit ? value : Ask;
     }
 
+    public static class TrayKeyboardListeningBehaviors
+    {
+        public const string Ask = "Ask";
+        public const string Continue = "Continue";
+        public const string Pause = "Pause";
+
+        public static string Normalize(string? value) =>
+            value is Continue or Pause ? value : Ask;
+    }
+
     public partial class ScanRecord : ObservableObject
     {
         [ObservableProperty] private string _orderId;
@@ -237,6 +247,7 @@ namespace ExpressPackingMonitoring.Config
 
         // 全局键盘监听（后台接收扫码枪）
         public bool EnableGlobalKeyboard { get; set; } = true;
+        public string TrayKeyboardListeningBehavior { get; set; } = TrayKeyboardListeningBehaviors.Ask;
         public bool EnableScannerAutoSubmit { get; set; } = false;
         public int ScannerAutoSubmitMinLength { get; set; } = 12;
         public int ScannerAutoSubmitQuietMs { get; set; } = 220;
@@ -622,6 +633,14 @@ namespace ExpressPackingMonitoring.Config
             if (config.WindowCloseBehavior != normalizedCloseBehavior)
             {
                 config.WindowCloseBehavior = normalizedCloseBehavior;
+                changed = true;
+            }
+
+            string normalizedTrayKeyboardBehavior =
+                TrayKeyboardListeningBehaviors.Normalize(config.TrayKeyboardListeningBehavior);
+            if (config.TrayKeyboardListeningBehavior != normalizedTrayKeyboardBehavior)
+            {
+                config.TrayKeyboardListeningBehavior = normalizedTrayKeyboardBehavior;
                 changed = true;
             }
 

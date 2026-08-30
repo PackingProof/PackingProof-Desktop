@@ -221,6 +221,8 @@
   <data name="清除已保存的显卡编码检测结果，下次重新判断可用编码器" xml:space="preserve"><value>Clear the saved graphics card encoding detection results and re-judge the available encoders next time</value></data>
   <data name="全局键盘监听" xml:space="preserve"><value>Global keyboard listener</value></data>
   <data name="软件在后台也能扫码开始录制" xml:space="preserve"><value>The software can also scan the QR code to start recording in the background.</value></data>
+  <data name="托盘期间扫码监听" xml:space="preserve"><value>Scanner listening in the system tray</value></data>
+  <data name="选择每次询问、继续监听或不监听；恢复主界面后自动继续监听" xml:space="preserve"><value>Ask every time, keep listening, or stop listening in the tray; listening resumes when the main window is restored</value></data>
   <data name="扫码间隔保护" xml:space="preserve"><value>Scan cooldown</value></data>
   <data name="扫码事件预录" xml:space="preserve"><value>Scan event pre-recording</value></data>
   <data name="扫码前保留画面，占用运行内存" xml:space="preserve"><value>Keep the moments before scanning; uses system memory</value></data>
@@ -679,6 +681,13 @@
   <data name="关闭窗口" xml:space="preserve"><value>Close window</value></data>
   <data name="关闭窗口后，你希望程序怎么做？" xml:space="preserve"><value>What should the app do when you close the window?</value></data>
   <data name="最小化到托盘后，录像、设备备份和网页服务会继续运行" xml:space="preserve"><value>Recording, device backup, and web services continue running when minimized to the tray</value></data>
+  <data name="最小化到托盘后，已有录像、设备备份和网页服务会继续运行；扫码枪是否继续监听由你的设置决定" xml:space="preserve"><value>Existing recordings, device backups, and web services continue after minimizing to the tray; scanner listening follows your preference</value></data>
+  <data name="托盘期间继续监听扫码枪？" xml:space="preserve"><value>Continue listening to the scanner while in the tray?</value></data>
+  <data name="继续监听" xml:space="preserve"><value>Continue listening</value></data>
+  <data name="不监听" xml:space="preserve"><value>Stop listening</value></data>
+  <data name="继续监听：托盘期间扫码仍会触发录像" xml:space="preserve"><value>Continue listening: scanner input can still trigger recording while the app is in the tray</value></data>
+  <data name="不监听只会停止扫码枪触发录像，网页服务、主机备份和已有录像仍会继续运行；恢复主界面后自动恢复监听" xml:space="preserve"><value>Stopping listening only prevents scanner-triggered recording; web services, host backup, and existing recordings keep running. Listening resumes when the main window is restored</value></data>
+  <data name="托盘扫码监听选择保存失败，本次仍按你的选择执行，下次进入托盘时会再次询问：{0}" xml:space="preserve"><value>Could not save the tray scanner preference. Your choice will apply this time, and you will be asked again next time: {0}</value></data>
   <data name="不再提示，记住我的选择" xml:space="preserve"><value>Don't ask again; remember my choice</value></data>
   <data name="最小化到托盘" xml:space="preserve"><value>Minimize to tray</value></data>
   <data name="直接退出" xml:space="preserve"><value>Exit app</value></data>

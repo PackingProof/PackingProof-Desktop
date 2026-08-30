@@ -160,7 +160,9 @@ namespace ExpressPackingMonitoring.UI
             _closeBehaviorController = new WindowCloseBehaviorController(
                 this,
                 RequestExitFromTray,
-                enableCloseBehaviorPrompt);
+                enableCloseBehaviorPrompt,
+                (isInTray, sessionOverride) =>
+                    (DataContext as MainViewModel)?.SetMainWindowInTray(isInTray, sessionOverride));
             if (CameraBarcodeRuntimeOptions.ShadowMode)
             {
                 RuntimeLog.Warn(

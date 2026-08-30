@@ -117,6 +117,7 @@
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />
     <Compile Include="Input\GlobalKeyboardHook.cs" />
+    <Compile Include="Input\GlobalKeyboardRuntimeController.cs" />
     <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
     <Compile Include="Logging\RuntimeLog.cs" />
     <Compile Include="Localization\AppLanguage.cs" />
@@ -238,6 +239,7 @@
     <Compile Include="UI\ExtensionMarketWindow.xaml.cs" />
     <Compile Include="UI\ConfirmDialog.xaml.cs" />
     <Compile Include="UI\CloseBehaviorDialog.xaml.cs" />
+    <Compile Include="UI\TrayKeyboardListeningDialog.xaml.cs" />
     <Compile Include="UI\CameraBarcodeUpgradeDialog.xaml.cs" />
     <Compile Include="UI\DriveSelectionDialog.cs" />
     <Compile Include="UI\FirstUseSetupWizardWindow.xaml.cs" />

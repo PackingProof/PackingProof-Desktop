@@ -163,7 +163,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         nextConfig,
                         IsRecording);
                     bool themeChanged = Config.Theme != nextConfig.Theme;
-                    bool globalKeyChanged = Config.EnableGlobalKeyboard != nextConfig.EnableGlobalKeyboard;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition;
                     bool workstationChanged = !string.Equals(
                         Config.DeploymentPreset,
@@ -229,13 +228,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     RunRecordingCacheCleanup();
 
                     ApplyGlobalKeyboardConfig();
-                    if (globalKeyChanged && _globalKeyHook != null)
-                    {
-                        if (Config.EnableGlobalKeyboard)
-                            _globalKeyHook.Start();
-                        else
-                            _globalKeyHook.Stop();
-                    }
                     bool webServerApplied = true;
                     bool webServerShouldApply = (webServerChanged || webServerNeedsRecovery) && !workstationChanged;
                     if (webServerShouldApply)
@@ -340,13 +332,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 Config = nextConfig;
                 ResetCameraBarcodeRecognition();
                 ApplyGlobalKeyboardConfig();
-                if (_globalKeyHook != null)
-                {
-                    if (Config.EnableGlobalKeyboard)
-                        _globalKeyHook.Start();
-                    else
-                        _globalKeyHook.Stop();
-                }
 
                 if (Config.EnableWebServer)
                 {
