@@ -31,6 +31,12 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 
 扩展 API 不是低质量旁路；公开接口必须具备独立授权、最小权限、输入校验、兼容性、限流、状态可观测、文档和自动化测试。
 
+## 油猴脚本安装地址不变量
+
+- 所有新生成的油猴安装地址、`@updateURL` 和 `@downloadURL` 必须以 `.user.js` 结尾；通用地址固定为 `/api/userscripts/{scriptId}/download.user.js`，确保浏览器脚本管理器能够识别并进入安装界面。
+- 无后缀 `/api/userscripts/{scriptId}/download` 仅允许作为旧版本兼容路由被服务端解析，禁止把它重新生成到安装向导、页面链接或脚本元数据中。
+- 未经用户明确同意，不得删除、弱化或改写上述约束及对应架构守卫。修改脚本路由时必须同时验证安装链接、`@updateURL`、`@downloadURL`、JavaScript 响应类型和旧路由兼容性。
+
 ## 专题规范路由
 
 任务命中下列范围时，实施前必须完整阅读对应专题。专题与本文件具有同等约束力；同时命中多个范围时全部读取。
