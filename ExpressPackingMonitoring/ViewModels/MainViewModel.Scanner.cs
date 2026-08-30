@@ -680,7 +680,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             "missing-order-number",
                             "警告：没有单号",
                             DefaultSpeechCatalog.MissingOrderNumber,
-                            repeatCount: 3);
+                            repeatCount: 2);
                     }
 
                     // 语音播报完成后再暂停，避免"开始录制"被延迟
@@ -887,7 +887,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.EnableEventRecordingBuffer)
                     pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime, out pendingPreRecordTimestamps);
 
-                // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×3）
+                // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×2）
                 _alertService?.InterruptAudio();
                 if (IsRecording)
                 {
@@ -910,7 +910,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         $"duplicate-order-number:{upperResult}",
                         "警告：重复单号，请确认",
                         DefaultSpeechCatalog.DuplicateOrderNumber,
-                        repeatCount: 3);
+                        repeatCount: 2);
                 }
 
                 // 查询快递助手推送的订单信息，在预览画面持续提示并按设置播报
