@@ -332,7 +332,7 @@ internal sealed class ExtensionOrderSourceStore : IDisposable
 
     private static string JoinDistinct(IEnumerable<string> values, int maxLength)
     {
-        string joined = string.Join("；", values
+        string joined = string.Join(Environment.NewLine, values
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim())
             .Distinct(StringComparer.Ordinal));

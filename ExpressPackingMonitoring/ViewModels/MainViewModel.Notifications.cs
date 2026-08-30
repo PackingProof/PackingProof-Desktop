@@ -147,7 +147,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (announceTotalItemCount
                 && !orderInfo.HasRefund
                 && !orderInfo.IsPrintedRefund
-                && orderInfo.TotalItemCount > 0)
+                && orderInfo.TotalItemCount > 1)
             {
                 announcements.Add(new AlertSpeechFollowup
                 {

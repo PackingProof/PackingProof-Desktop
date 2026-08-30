@@ -103,7 +103,7 @@
   <data name="Speech.PrintedRefund" xml:space="preserve"><value>This order has a refund. {0}. Please verify it</value></data>
   <data name="Speech.BuyerMessage" xml:space="preserve"><value>Buyer message. {0}</value></data>
   <data name="Speech.SellerMemo" xml:space="preserve"><value>Seller note. {0}</value></data>
-  <data name="Speech.Product" xml:space="preserve"><value>Product. {0}</value></data>
+  <data name="Speech.Product" xml:space="preserve"><value>{0}</value></data>
   <data name="Speech.OrderTotalCount" xml:space="preserve"><value>Total items: {0}</value></data>
   <data name="安装订单备注插件" xml:space="preserve"><value>Install the order notes plugin</value></data>
   <data name="包含在线播放转码、剪辑预览和剪辑下载文件" xml:space="preserve"><value>Contains online playback transcoding, clip preview and clip download files</value></data>

@@ -49,7 +49,14 @@ namespace ExpressPackingMonitoring.Audio
 
         public static string CreateSellerMemoAnnouncement(string memo) => AppLanguage.Format("Speech.SellerMemo", memo);
 
-        public static string CreateProductAnnouncement(string productInfo) => AppLanguage.Format("Speech.Product", productInfo);
+        public static string CreateProductAnnouncement(string productInfo)
+        {
+            string numberedProducts = string.Join(Environment.NewLine,
+                (productInfo ?? "")
+                    .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select((product, index) => $"{index + 1}、{product}"));
+            return AppLanguage.Format("Speech.Product", numberedProducts);
+        }
 
         public static string CreateOrderTotalCountAnnouncement(int totalItemCount) =>
             AppLanguage.Format("Speech.OrderTotalCount", totalItemCount);

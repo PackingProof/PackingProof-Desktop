@@ -870,7 +870,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.AnnounceTotalItemCount
                     && !info.HasRefund
                     && !info.IsPrintedRefund
-                    && info.TotalItemCount > 0)
+                    && info.TotalItemCount > 1)
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateOrderTotalCountAnnouncement(info.TotalItemCount));
                 if (Config.AnnounceBuyerMessage && !string.IsNullOrWhiteSpace(info.BuyerMessage))
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateBuyerMessageAnnouncement(info.BuyerMessage));
