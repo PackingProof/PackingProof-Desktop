@@ -817,7 +817,27 @@ namespace ExpressPackingMonitoring.ViewModels
                         !info.IsTest
                         && string.Equals(info.TrackingNumber?.Trim(), activeOrderId?.Trim(), StringComparison.OrdinalIgnoreCase));
                     if (IsRecording && activeOrder != null)
+                    {
                         SetPreviewOrderNotice(activeOrder);
+                        if (Config.EnableOrderInfoAnnounce)
+                        {
+                            foreach (AlertSpeechFollowup announcement in BuildOrderInfoSpeechFollowups(
+                                         activeOrder,
+                                         Config.EnableOrderInfoAnnounce,
+                                         Config.AnnounceBuyerMessage,
+                                         Config.AnnounceSellerMemo,
+                                         Config.AnnounceProductInfo,
+                                         Config.AnnounceTotalItemCount))
+                            {
+                                PublishVoice(
+                                    announcement.Text,
+                                    announcement.VoiceStyle,
+                                    announcement.Sound,
+                                    repeatCount: 1,
+                                    interruptCurrent: false);
+                            }
+                        }
+                    }
 
                     if (hasTestOrder)
                     {
