@@ -154,7 +154,10 @@ public partial class ExtensionMarketWindow : Window
         InstallButton.Visibility = installed != null && installed.Version == _selectedRelease?.Version
             ? Visibility.Collapsed
             : Visibility.Visible;
-        LaunchButton.Visibility = canLaunch ? Visibility.Visible : Visibility.Collapsed;
+        LaunchButton.Visibility = installed?.Type == "external-adapter"
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        LaunchButton.IsEnabled = canLaunch;
         InstalledVersionText.Text = installed == null
             ? "尚未安装"
             : $"已安装：{installed.Version}";
