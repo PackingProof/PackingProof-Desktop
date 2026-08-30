@@ -35,8 +35,28 @@ public sealed class ExtensionMarketWindowTests
             setter => (string?)setter.Attribute("Property") == "HorizontalContentAlignment"
                 && (string?)setter.Attribute("Value") == "Stretch");
         Assert.Contains(
+            itemStyle.Elements(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Background"
+                && (string?)setter.Attribute("Value") == "{DynamicResource ControlBackground}");
+        Assert.Contains(
+            itemStyle.Elements(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "BorderBrush"
+                && (string?)setter.Attribute("Value") == "{DynamicResource BorderDefault}");
+        Assert.Contains(
             itemStyle.Descendants(Presentation + "Border"),
             border => (string?)border.Attribute("CornerRadius") == "8");
+        Assert.Contains(
+            itemStyle.Descendants(Presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "IsMouseOver"
+                && trigger.Descendants(Presentation + "Setter").Any(
+                    setter => (string?)setter.Attribute("Value") == "{DynamicResource ControlBackgroundHover}"));
+        Assert.Contains(
+            itemStyle.Descendants(Presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "IsSelected"
+                && trigger.Descendants(Presentation + "Setter").Any(
+                    setter => (string?)setter.Attribute("Value") == "{DynamicResource BadgePackBg}")
+                && trigger.Descendants(Presentation + "Setter").Any(
+                    setter => (string?)setter.Attribute("Value") == "{DynamicResource AccentBlue}"));
 
         XElement name = Assert.Single(
             list.Descendants(Presentation + "TextBlock"),
@@ -60,11 +80,9 @@ public sealed class ExtensionMarketWindowTests
             element => (string?)element.Attribute("Text") == "{Binding Summary}");
         Assert.Equal("NoWrap", (string?)summary.Attribute("TextWrapping"));
         Assert.Equal("CharacterEllipsis", (string?)summary.Attribute("TextTrimming"));
-        XElement badge = Assert.Single(
+        Assert.DoesNotContain(
             list.Descendants(Presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "{Binding Badge}");
-        Assert.Equal("1", (string?)badge.Attribute("Grid.Column"));
-        Assert.Equal("Right", (string?)badge.Attribute("HorizontalAlignment"));
 
         XElement status = Assert.Single(
             list.Descendants(Presentation + "TextBlock"),
@@ -148,6 +166,37 @@ public sealed class ExtensionMarketWindowTests
             element => Assert.Equal(
                 "{StaticResource MarketMetadataTextStyle}",
                 (string?)element.Attribute("Style")));
+
+        XElement separator = Assert.Single(
+            document.Descendants(Presentation + "Border"),
+            element => (string?)element.Attribute(Xaml + "Name") == "DetailsSeparator");
+        Assert.Equal("1", (string?)separator.Attribute("Height"));
+        Assert.Equal("{DynamicResource BorderDefault}", (string?)separator.Attribute("Background"));
+
+        XElement sourceTag = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "SourceTagText");
+        XElement typeTag = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "TypeTagText");
+        Assert.Equal("开源", (string?)sourceTag.Attribute("Text"));
+        Assert.Equal("脚本", (string?)typeTag.Attribute("Text"));
+        Assert.Equal("{DynamicResource AccentBlue}", (string?)typeTag.Attribute("Foreground"));
+        XElement tagBorderStyle = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "MarketTagBorderStyle");
+        Assert.Contains(
+            tagBorderStyle.Descendants(Presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Value") == "闭源"
+                && trigger.Descendants(Presentation + "Setter").Any(
+                    setter => (string?)setter.Attribute("Value") == "{DynamicResource AccentOrange}"));
+        XElement sourceTagTextStyle = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute(Xaml + "Key") == "MarketSourceTagTextStyle");
+        Assert.Contains(
+            sourceTagTextStyle.Descendants(Presentation + "Trigger"),
+            trigger => (string?)trigger.Attribute("Property") == "Tag"
+                && (string?)trigger.Attribute("Value") == "闭源");
 
         XElement otherVersions = Assert.Single(
             document.Descendants(Presentation + "Button"),
@@ -233,6 +282,29 @@ public sealed class ExtensionMarketWindowTests
 
         item.SetDownloading(false);
         Assert.Equal("已安装", item.StatusText);
+    }
+
+    [Theory]
+    [InlineData("open-source", "userscript", "开源", "脚本")]
+    [InlineData("closed-source", "userscript", "闭源", "脚本")]
+    [InlineData("open-source", "external-adapter", "开源", "适配器")]
+    [InlineData("closed-source", "external-adapter", "闭源", "适配器")]
+    public void CatalogItemMapsSourceAndTypeLabels(
+        string sourceAvailability,
+        string type,
+        string expectedSource,
+        string expectedType)
+    {
+        var item = new ExtensionMarketDisplayItem(
+            new ExtensionMarketCatalogItem
+            {
+                SourceAvailability = sourceAvailability,
+                Type = type
+            },
+            null);
+
+        Assert.Equal(expectedSource, item.SourceLabel);
+        Assert.Equal(expectedType, item.TypeLabel);
     }
 
     [Theory]

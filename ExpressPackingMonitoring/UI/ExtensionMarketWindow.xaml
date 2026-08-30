@@ -32,6 +32,27 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="MarketTagBorderStyle" TargetType="Border">
+            <Setter Property="Padding" Value="9,3"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentGreen}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="闭源">
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentOrange}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="MarketSourceTagTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource AccentGreen}"/>
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="闭源">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentOrange}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -87,8 +108,8 @@
                          SelectionChanged="CatalogList_SelectionChanged">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
-                            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource TransparentBrush}"/>
+                            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+                            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
                             <Setter Property="BorderThickness" Value="1"/>
                             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -134,18 +155,11 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Name}"
+                                           Grid.ColumnSpan="2"
                                            FontWeight="SemiBold"
                                            FontSize="15"
                                            Foreground="{DynamicResource TextPrimary}"
                                            TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding Badge}"
-                                           Grid.Column="1"
-                                           Margin="8,0,0,0"
-                                           HorizontalAlignment="Right"
-                                           Foreground="{DynamicResource AccentOrange}"
-                                           FontSize="12"
-                                           FontWeight="Normal"
-                                           VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding Summary}"
                                            Grid.Row="1"
                                            Grid.ColumnSpan="2"
@@ -181,14 +195,46 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <StackPanel>
-                        <TextBlock x:Name="ExtensionNameText"
-                                   Text="请选择一个扩展"
-                                   FontSize="22"
-                                   FontWeight="Bold"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="ExtensionNameText"
+                                       Text="请选择一个扩展"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel Grid.Column="1"
+                                        Margin="16,0,0,0"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <Border x:Name="SourceTagBorder"
+                                        Style="{StaticResource MarketTagBorderStyle}">
+                                    <TextBlock x:Name="SourceTagText"
+                                               Text="开源"
+                                               Tag="开源"
+                                               Style="{StaticResource MarketSourceTagTextStyle}"/>
+                                </Border>
+                                <Border Margin="8,0,0,0"
+                                        Padding="9,3"
+                                        CornerRadius="10"
+                                        Background="{DynamicResource ControlBackground}"
+                                        BorderBrush="{DynamicResource AccentBlue}"
+                                        BorderThickness="1">
+                                    <TextBlock x:Name="TypeTagText"
+                                               Text="脚本"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource AccentBlue}"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
                         <WrapPanel Margin="0,6,0,0">
                             <TextBlock x:Name="PublisherText"
                                        Style="{StaticResource MarketMetadataTextStyle}"/>
@@ -203,8 +249,13 @@
                                    Margin="0,6,0,0"
                                    Style="{StaticResource MarketMetadataTextStyle}"/>
                     </StackPanel>
-                    <Border x:Name="RiskPanel"
+                    <Border x:Name="DetailsSeparator"
                             Grid.Row="1"
+                            Height="1"
+                            Margin="0,18,0,0"
+                            Background="{DynamicResource BorderDefault}"/>
+                    <Border x:Name="RiskPanel"
+                            Grid.Row="2"
                             Margin="0,16,0,0"
                             Padding="12"
                             CornerRadius="8"
@@ -214,12 +265,12 @@
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource TextOnAccent}"/>
                     </Border>
-                    <ScrollViewer Grid.Row="2" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="3" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" LineHeight="22"/>
                         </StackPanel>
                     </ScrollViewer>
-                    <WrapPanel Grid.Row="3" Margin="0,20,0,0">
+                    <WrapPanel Grid.Row="4" Margin="0,20,0,0">
                         <Button x:Name="InstallButton"
                                 Content="安装"
                                 MinWidth="92"

@@ -159,6 +159,10 @@ public partial class ExtensionMarketWindow : Window
             : compatible
                 ? $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本"
                 : $"需要 PackingProof {_selectedRelease.Compatibility.MinPackingProofVersion} 或更高版本，当前版本无法安装";
+        SourceTagText.Text = selected.SourceLabel;
+        SourceTagText.Tag = selected.SourceLabel;
+        SourceTagBorder.Tag = selected.SourceLabel;
+        TypeTagText.Text = selected.TypeLabel;
         ExtensionMarketDetails? selectedDetails = _selectedDetails;
         ExtensionMarketRelease? selectedRelease = _selectedRelease;
         InstallOtherVersionButton.IsEnabled = selectedDetails != null
@@ -579,9 +583,8 @@ internal sealed class ExtensionMarketDisplayItem
     internal ExtensionMarketCatalogItem Item { get; }
     public string Name => Item.Name;
     public string Summary => Item.Summary;
-    public string Badge => Item.SourceAvailability == "closed-source"
-        ? "闭源外部程序"
-        : Item.Type == "external-adapter" ? "外部程序" : "";
+    public string SourceLabel => Item.SourceAvailability == "closed-source" ? "闭源" : "开源";
+    public string TypeLabel => Item.Type == "external-adapter" ? "适配器" : "脚本";
     public string AuthorText => string.IsNullOrWhiteSpace(Item.Publisher.DisplayName)
         ? Item.Publisher.Id
         : Item.Publisher.DisplayName;

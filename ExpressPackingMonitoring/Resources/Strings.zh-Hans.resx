@@ -1009,4 +1009,8 @@
   <data name="Main.PreRecord.FrameSummary" xml:space="preserve"><value>{0} / {1} 帧</value></data>
   <data name="Main.PreRecord.Disabled" xml:space="preserve"><value>预录制缓存未开启</value></data>
   <data name="Main.PreRecord.Waiting" xml:space="preserve"><value>预录制已用于当前录像，等待重新缓冲</value></data>
+  <data name="开源" xml:space="preserve"><value>开源</value></data>
+  <data name="闭源" xml:space="preserve"><value>闭源</value></data>
+  <data name="脚本" xml:space="preserve"><value>脚本</value></data>
+  <data name="适配器" xml:space="preserve"><value>适配器</value></data>
 </root>

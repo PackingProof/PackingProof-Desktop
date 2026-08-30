@@ -1028,4 +1028,8 @@
   <data name="Main.PreRecord.FrameSummary" xml:space="preserve"><value>{0} / {1} frames</value></data>
   <data name="Main.PreRecord.Disabled" xml:space="preserve"><value>Pre-recording buffer is not active</value></data>
   <data name="Main.PreRecord.Waiting" xml:space="preserve"><value>Pre-recording added to the current recording; waiting to buffer again</value></data>
+  <data name="开源" xml:space="preserve"><value>Open source</value></data>
+  <data name="闭源" xml:space="preserve"><value>Closed source</value></data>
+  <data name="脚本" xml:space="preserve"><value>Script</value></data>
+  <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
 </root>
