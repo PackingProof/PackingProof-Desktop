@@ -313,7 +313,6 @@ PackingProof_Setup_vX.Y.Z.exe
 | ---------------------------------------------- | --------------------------------------- |
 | `PackingProof_Setup_vX.Y.Z.exe`                | 推荐，大多数用户选择这个                |
 | `PackingProof+vX.Y.Z.7z`                       | 体积较小的免安装版本                    |
-| `PackingProof+vX.Y.Z.zip`                      | 可使用 Windows 原生解压，也适合故障恢复 |
 | `PackingProof_AppPatch_vX.Y.Z.zip`             | 手动更新主程序（过渡期同时提供旧名兼容副本） |
 | `PackingProof_LauncherPatch_vX.Y.Z.zip`        | 手动更新根目录启动器                    |
 
@@ -374,7 +373,7 @@ PackingProof_LauncherPatch_vX.Y.Z.zip
 
 如果提示当前安装版本低于补丁基线，请下载新版 Setup 进行原位置覆盖安装。
 
-也可以使用完整 ZIP 版本进行故障恢复。
+也可以使用完整 7z 版本进行故障恢复。
 
 请不要删除：
 

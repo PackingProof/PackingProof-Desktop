@@ -4,7 +4,7 @@
 
 ## 运行时与发布包布局
 
-- 发布脚本生成目录包和匹配的 ZIP。清爽包根目录主要包含 `ExpressPackingMonitoring.exe` 与 `app\`；应用负载、依赖、Web 文件、LibVLC 和 `tools\ffmpeg.exe` 位于 `app\`。
+- 发布脚本默认生成目录包和匹配的 7z；完整 ZIP 仅在传入 `-IncludeFullZip` 时作为本地兼容产物生成，不上传到 Release。清爽包根目录主要包含 `ExpressPackingMonitoring.exe` 与 `app\`；应用负载、依赖、Web 文件、LibVLC 和 `tools\ffmpeg.exe` 位于 `app\`。
 - 运行时数据统一存放在 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。发布包不得包含 `config.json`、`videos.db`、缓存、日志、录像或其他本机状态。
 - `ffmpeg.exe` 可从 `app\tools\ffmpeg.exe`、应用运行目录或系统 `PATH` 解析。AppPatch 不携带 FFmpeg，因此应用逻辑必须兼容用户机器长期保留的旧版本。
 - LibVLC 收录播放所需的解码、解封装、字幕、滤镜和输出插件，只排除 `access_output`、`mux`、`services_discovery`、`stream_out`、`visualization`、`lua`；规则集中在 `ExpressPackingMonitoring.csproj`。发布时移除设计时程序集。
@@ -52,7 +52,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 | 目标 | 上传资产 |
 | --- | --- |
-| GitHub | Setup、完整 7z、兼容 ZIP、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch |
-| Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup、完整 7z 或完整 ZIP |
+| GitHub | Setup、完整 7z、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch |
+| Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup 或完整 7z |
 
 - Gitee 使用 CLI：先运行 `gitee auth status`，再对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
