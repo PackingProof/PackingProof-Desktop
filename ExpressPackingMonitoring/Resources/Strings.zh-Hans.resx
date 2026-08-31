@@ -1022,4 +1022,5 @@
   <data name="闭源" xml:space="preserve"><value>闭源</value></data>
   <data name="脚本" xml:space="preserve"><value>脚本</value></data>
   <data name="适配器" xml:space="preserve"><value>适配器</value></data>
+  <data name="作者：" xml:space="preserve"><value>作者：</value></data>
 </root>

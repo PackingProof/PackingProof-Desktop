@@ -53,6 +53,24 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="MarketTitleLinkStyle" TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="TextDecorations" Value="{x:Null}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="MarketMetadataLinkStyle" TargetType="Hyperlink">
+            <Setter Property="Foreground" Value="{DynamicResource AccentBlue}"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="TextDecorations" Value="{x:Null}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -206,11 +224,17 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="ExtensionNameText"
-                                       Text="请选择一个扩展"
                                        FontSize="22"
                                        FontWeight="Bold"
                                        TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center">
+                                <Hyperlink x:Name="ExtensionNameLink"
+                                           Style="{StaticResource MarketTitleLinkStyle}"
+                                           IsEnabled="False"
+                                           RequestNavigate="ExternalLink_RequestNavigate">
+                                    <Run x:Name="ExtensionNameRun" Text="请选择一个扩展"/>
+                                </Hyperlink>
+                            </TextBlock>
                             <StackPanel Grid.Column="1"
                                         Margin="16,0,0,0"
                                         Orientation="Horizontal"
@@ -235,16 +259,39 @@
                                 </Border>
                             </StackPanel>
                         </Grid>
-                        <WrapPanel Margin="0,6,0,0">
-                            <TextBlock x:Name="PublisherText"
-                                       Style="{StaticResource MarketMetadataTextStyle}"/>
-                            <TextBlock x:Name="LatestVersionText"
-                                       Margin="14,0,0,0"
-                                       Style="{StaticResource MarketMetadataTextStyle}"/>
-                            <TextBlock x:Name="InstalledVersionText"
-                                       Margin="14,0,0,0"
-                                       Style="{StaticResource MarketMetadataTextStyle}"/>
-                        </WrapPanel>
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel>
+                                <TextBlock x:Name="PublisherText"
+                                           Style="{StaticResource MarketMetadataTextStyle}">
+                                    <Run Text="作者："/>
+                                    <Hyperlink x:Name="PublisherLink"
+                                               Style="{StaticResource MarketMetadataLinkStyle}"
+                                               IsEnabled="False"
+                                               RequestNavigate="ExternalLink_RequestNavigate">
+                                        <Run x:Name="PublisherNameRun"/>
+                                    </Hyperlink>
+                                </TextBlock>
+                                <TextBlock x:Name="LatestVersionText"
+                                           Margin="14,0,0,0"
+                                           Style="{StaticResource MarketMetadataTextStyle}"/>
+                                <TextBlock x:Name="InstalledVersionText"
+                                           Margin="14,0,0,0"
+                                           Style="{StaticResource MarketMetadataTextStyle}"/>
+                            </WrapPanel>
+                            <Button x:Name="RemoveButton"
+                                    Grid.Column="1"
+                                    Content="删除"
+                                    MinWidth="72"
+                                    Margin="16,0,0,0"
+                                    HorizontalAlignment="Right"
+                                    Style="{StaticResource DeleteButtonStyle}"
+                                    Visibility="Collapsed"
+                                    Click="Remove_Click"/>
+                        </Grid>
                         <TextBlock x:Name="CompatibilityText"
                                    Margin="0,6,0,0"
                                    Style="{StaticResource MarketMetadataTextStyle}"/>
@@ -298,13 +345,6 @@
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Visibility="Collapsed"
                                 Click="OpenFolder_Click"/>
-                        <Button x:Name="RemoveButton"
-                                Content="删除"
-                                MinWidth="92"
-                                Margin="10,0,0,0"
-                                Style="{StaticResource DeleteButtonStyle}"
-                                Visibility="Collapsed"
-                                Click="Remove_Click"/>
                     </WrapPanel>
                 </Grid>
             </Border>

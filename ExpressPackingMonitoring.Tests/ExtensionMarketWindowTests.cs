@@ -207,6 +207,25 @@ public sealed class ExtensionMarketWindowTests
             document.Descendants(Presentation + "Button"),
             element => (string?)element.Attribute(Xaml + "Name") == "RemoveButton");
         Assert.Equal("{StaticResource DeleteButtonStyle}", (string?)remove.Attribute("Style"));
+        Assert.Equal("1", (string?)remove.Attribute("Grid.Column"));
+        Assert.Equal(versionsRow.Parent, remove.Parent);
+
+        XElement titleLink = Assert.Single(
+            document.Descendants(Presentation + "Hyperlink"),
+            element => (string?)element.Attribute(Xaml + "Name") == "ExtensionNameLink");
+        XElement publisherLink = Assert.Single(
+            document.Descendants(Presentation + "Hyperlink"),
+            element => (string?)element.Attribute(Xaml + "Name") == "PublisherLink");
+        Assert.Equal("ExternalLink_RequestNavigate", (string?)titleLink.Attribute("RequestNavigate"));
+        Assert.Equal("ExternalLink_RequestNavigate", (string?)publisherLink.Attribute("RequestNavigate"));
+
+        XElement install = Assert.Single(
+            document.Descendants(Presentation + "Button"),
+            element => (string?)element.Attribute(Xaml + "Name") == "InstallButton");
+        XElement actionRow = Assert.IsType<XElement>(install.Parent);
+        Assert.Equal(Presentation + "WrapPanel", actionRow.Name);
+        Assert.DoesNotContain(actionRow.Elements(Presentation + "Button"), element =>
+            (string?)element.Attribute(Xaml + "Name") == "RemoveButton");
 
         XDocument buttonTheme = XDocument.Load(FindRepositoryFile(
             "ExpressPackingMonitoring",
@@ -305,6 +324,29 @@ public sealed class ExtensionMarketWindowTests
 
         Assert.Equal(expectedSource, item.SourceLabel);
         Assert.Equal(expectedType, item.TypeLabel);
+    }
+
+    [Theory]
+    [InlineData("https://example.com/project", true)]
+    [InlineData("http://example.com/author", true)]
+    [InlineData("file:///C:/secret.txt", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("", false)]
+    public void ExternalLinksOnlyAllowHttpAndHttps(string value, bool expected)
+    {
+        Assert.Equal(expected, ExtensionMarketWindow.TryCreateExternalUri(value) != null);
+    }
+
+    [Fact]
+    public void InstalledLatestVersionShowsReinstallAction()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "ExtensionMarketWindow.xaml.cs"));
+
+        Assert.Contains("? \"重新安装\"", source, StringComparison.Ordinal);
+        Assert.Contains("InstallButton.Visibility = Visibility.Visible;", source, StringComparison.Ordinal);
     }
 
     [Theory]

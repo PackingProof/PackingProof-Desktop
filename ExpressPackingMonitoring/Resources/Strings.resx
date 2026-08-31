@@ -1042,4 +1042,5 @@
   <data name="闭源" xml:space="preserve"><value>Closed source</value></data>
   <data name="脚本" xml:space="preserve"><value>Script</value></data>
   <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
+  <data name="作者：" xml:space="preserve"><value>Author: </value></data>
 </root>

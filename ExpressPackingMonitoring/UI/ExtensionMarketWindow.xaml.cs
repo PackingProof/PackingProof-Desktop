@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Navigation;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -127,8 +128,12 @@ public partial class ExtensionMarketWindow : Window
     private void ShowDetails(ExtensionMarketDisplayItem selected)
     {
         ExtensionMarketDetails details = _selectedDetails!;
-        ExtensionNameText.Text = details.Extension.Name;
-        PublisherText.Text = $"作者：{details.Publisher.DisplayName}";
+        ExtensionNameRun.Text = details.Extension.Name;
+        ExtensionNameLink.NavigateUri = TryCreateExternalUri(details.Extension.Homepage);
+        ExtensionNameLink.IsEnabled = ExtensionNameLink.NavigateUri != null;
+        PublisherNameRun.Text = details.Publisher.DisplayName;
+        PublisherLink.NavigateUri = TryCreateExternalUri(details.Publisher.Homepage);
+        PublisherLink.IsEnabled = PublisherLink.NavigateUri != null;
         LatestVersionText.Text = _selectedRelease == null
             ? "最新版本：暂无"
             : $"最新版本：{_selectedRelease.Version}";
@@ -150,10 +155,12 @@ public partial class ExtensionMarketWindow : Window
             && IsCompatible(_selectedRelease.Compatibility.MinPackingProofVersion);
         InstallButton.IsEnabled = _selectedRelease != null && compatible;
         bool canLaunch = installed?.Type == "external-adapter" && !string.IsNullOrWhiteSpace(installed.LauncherPath);
-        InstallButton.Content = installed == null ? "安装" : "更新";
-        InstallButton.Visibility = installed != null && installed.Version == _selectedRelease?.Version
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        InstallButton.Content = installed == null
+            ? "安装"
+            : installed.Version == _selectedRelease?.Version
+                ? "重新安装"
+                : "更新";
+        InstallButton.Visibility = Visibility.Visible;
         LaunchButton.Visibility = installed?.Type == "external-adapter"
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -581,6 +588,25 @@ public partial class ExtensionMarketWindow : Window
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshMarketAsync();
+
+    private void ExternalLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            UpdateCheckService.OpenDownloadPage(e.Uri.AbsoluteUri);
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Error(this, $"无法打开链接：{ex.Message}", "打开链接失败");
+        }
+    }
+
+    internal static Uri? TryCreateExternalUri(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)) return null;
+        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps ? uri : null;
+    }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }
