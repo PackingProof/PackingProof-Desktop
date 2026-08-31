@@ -208,7 +208,13 @@ public sealed class ExtensionMarketWindowTests
             element => (string?)element.Attribute(Xaml + "Name") == "RemoveButton");
         Assert.Equal("{StaticResource DeleteButtonStyle}", (string?)remove.Attribute("Style"));
         Assert.Equal("1", (string?)remove.Attribute("Grid.Column"));
-        Assert.Equal(versionsRow.Parent, remove.Parent);
+        Assert.Equal("Center", (string?)remove.Attribute("VerticalAlignment"));
+        Assert.Equal(versionsRow.Parent?.Parent, remove.Parent);
+
+        XElement compatibility = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute(Xaml + "Name") == "CompatibilityText");
+        Assert.Equal(versionsRow.Parent, compatibility.Parent);
 
         XElement titleLink = Assert.Single(
             document.Descendants(Presentation + "Hyperlink"),
