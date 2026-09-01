@@ -16,7 +16,16 @@ internal enum CameraBarcodeRecognitionState
     Visible
 }
 
-internal sealed record CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState State, string Code = "");
+internal sealed record CameraBarcodeGeometry(double X, double Y, double Width, double Height)
+{
+    public double CenterX => X + Width / 2.0;
+    public double CenterY => Y + Height / 2.0;
+}
+
+internal sealed record CameraBarcodeRecognitionStatus(
+    CameraBarcodeRecognitionState State,
+    string Code = "",
+    CameraBarcodeGeometry? Geometry = null);
 
 internal sealed record CameraBarcodeObservation(
     string CandidateCode = "",
@@ -568,6 +577,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     private readonly DecodeWorkspace _guideWorkspace = new();
     private readonly DecodeWorkspace _fullFrameWorkspace = new();
     private bool _disposed;
+    internal CameraBarcodeGeometry? LastGeometry { get; private set; }
 
     internal int PixelBufferAllocationCount =>
         _guideWorkspace.Buffers.AllocationCount + _fullFrameWorkspace.Buffers.AllocationCount;
@@ -583,6 +593,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         Func<string, bool>? isValid,
         CameraBarcodeGuideGeometry geometry)
     {
+        LastGeometry = null;
         if (frame == null || frame.IsDisposed || frame.Empty())
             return null;
 
@@ -591,10 +602,27 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             return null;
 
         using Mat cropped = new(frame, guide);
-        return isValid == null
-            ? DecodeSingle(cropped, _guideWorkspace)
-            : DecodeBest(cropped, _guideWorkspace, isValid, guide);
+        if (isValid == null)
+            return DecodeSingle(cropped, _guideWorkspace);
+        string? decoded = DecodeBest(cropped, _guideWorkspace, isValid, guide);
+        if (decoded != null)
+        {
+            DecodedCandidate? candidate = _lastBestCandidate;
+            if (candidate?.Geometry is CameraBarcodeGeometry local)
+            {
+                double scaleX = guide.Width / (double)cropped.Width;
+                double scaleY = guide.Height / (double)cropped.Height;
+                LastGeometry = new CameraBarcodeGeometry(
+                    guide.X + local.X * scaleX,
+                    guide.Y + local.Y * scaleY,
+                    local.Width * scaleX,
+                    local.Height * scaleY);
+            }
+        }
+        return decoded;
     }
+
+    private DecodedCandidate? _lastBestCandidate;
 
     internal static Rect GetGuideRect(int width, int height)
         => GetGuideRect(width, height, CameraBarcodeGuideGeometry.Default);
@@ -713,8 +741,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         buffers.EnsureSize(length);
         Marshal.Copy(source.Data, buffers.Pixels, 0, length);
 
-        double centerX = referenceRect.X + referenceRect.Width / 2.0;
-        double centerY = referenceRect.Y + referenceRect.Height / 2.0;
+        double centerX = source.Width / 2.0;
+        double centerY = source.Height / 2.0;
         var candidates = new List<DecodedCandidate>(4);
         DecodedCandidate? fallback = null;
 
@@ -748,14 +776,21 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
 
             DecodedCandidate? bestValid = SelectBest(candidates, isValid, requireValid: true);
             if (bestValid != null)
+            {
+                _lastBestCandidate = bestValid;
                 return bestValid.Value.Code;
+            }
 
             if (phase == 1)
-                return SelectBest(candidates, null, requireValid: false)?.Code;
+            {
+                _lastBestCandidate = SelectBest(candidates, null, requireValid: false);
+                return _lastBestCandidate?.Code;
+            }
 
             fallback = SelectBest(candidates, null, requireValid: false);
         }
 
+        _lastBestCandidate = fallback;
         return fallback?.Code;
     }
 
@@ -804,7 +839,10 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
                 distanceSquared = dx * dx + dy * dy;
             }
 
-            candidates.Add(new DecodedCandidate(normalized, distanceSquared, area));
+            CameraBarcodeGeometry? geometry = TryGetBounds(result, orientation, sourceWidth, sourceHeight, out double x, out double y, out double width, out double height)
+                ? new CameraBarcodeGeometry(x, y, width, height)
+                : null;
+            candidates.Add(new DecodedCandidate(normalized, distanceSquared, area, geometry));
         }
     }
 
@@ -871,6 +909,33 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         return true;
     }
 
+    private static bool TryGetBounds(
+        Result result,
+        int orientation,
+        int sourceWidth,
+        int sourceHeight,
+        out double x,
+        out double y,
+        out double width,
+        out double height)
+    {
+        x = y = width = height = 0;
+        ResultPoint[]? points = result.ResultPoints;
+        if (points == null || points.Length == 0) return false;
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
+        foreach (ResultPoint point in points)
+        {
+            (double pointX, double pointY) = MapToOriginal(point.X, point.Y, orientation, sourceWidth, sourceHeight);
+            minX = Math.Min(minX, pointX);
+            minY = Math.Min(minY, pointY);
+            maxX = Math.Max(maxX, pointX);
+            maxY = Math.Max(maxY, pointY);
+        }
+        x = minX; y = minY; width = Math.Max(0, maxX - minX); height = Math.Max(0, maxY - minY);
+        return width > 0 && height > 0;
+    }
+
     private static (double X, double Y) MapToOriginal(
         double x,
         double y,
@@ -890,7 +955,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     private readonly record struct DecodedCandidate(
         string Code,
         double DistanceSquared,
-        double Area);
+        double Area,
+        CameraBarcodeGeometry? Geometry);
 
     private Mat PrepareDecodeSize(Mat gray, Mat scaled)
     {
@@ -1503,7 +1569,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 observation.KeepDecoding ? now.AddSeconds(2.5).UtcTicks : 0);
 
             CameraBarcodeRecognitionStatus status =
-                CreateStatus(observation, _reportVisibleCodes);
+                CreateStatus(observation, _reportVisibleCodes, _decoder.LastGeometry);
             if (observation.ConfirmedCode.Length > 0)
             {
                 long dropped = Interlocked.Read(ref _droppedFrames);
@@ -1580,27 +1646,31 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
     internal static CameraBarcodeRecognitionStatus CreateStatus(
         CameraBarcodeObservation observation,
-        bool reportVisibleCodes)
+        bool reportVisibleCodes,
+        CameraBarcodeGeometry? geometry = null)
     {
         if (observation.ConfirmedCode.Length > 0)
         {
             return new CameraBarcodeRecognitionStatus(
                 CameraBarcodeRecognitionState.Confirmed,
-                observation.ConfirmedCode);
+                observation.ConfirmedCode,
+                geometry);
         }
 
         if (reportVisibleCodes && observation.VisibleCode.Length > 0)
         {
             return new CameraBarcodeRecognitionStatus(
                 CameraBarcodeRecognitionState.Visible,
-                observation.VisibleCode);
+                observation.VisibleCode,
+                geometry);
         }
 
         if (observation.CandidateCode.Length > 0)
         {
             return new CameraBarcodeRecognitionStatus(
                 CameraBarcodeRecognitionState.Candidate,
-                observation.CandidateCode);
+                observation.CandidateCode,
+                geometry);
         }
 
         return new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle);

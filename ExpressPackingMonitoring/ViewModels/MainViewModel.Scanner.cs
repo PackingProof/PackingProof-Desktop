@@ -447,6 +447,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (status.State == CameraBarcodeRecognitionState.Confirmed)
             {
+                if (status.Geometry != null)
+                    _lastBarcodeGeometry = status.Geometry;
                 _cameraBarcodeFeedbackCts?.Cancel();
                 var cts = _cameraBarcodeFeedbackCts = new CancellationTokenSource();
                 IsCameraBarcodeCandidate = false;
@@ -871,6 +873,8 @@ namespace ExpressPackingMonitoring.ViewModels
             StartInputCooldown();
 
             CurrentOrderId = upperResult;
+            if (!fromCamera)
+                _lastBarcodeGeometry = null;
             _sameCodePostRollCts?.Cancel();
             if (IsRecording) _stopReason = "扫码切换";
             if (!await _recorderLock.WaitAsync(0))

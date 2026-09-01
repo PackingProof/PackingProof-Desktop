@@ -680,7 +680,7 @@ public sealed class CameraBarcodeRecognitionTests
         using Mat frame = CreateFrameWithBarcode("YT123456789012", BarcodeFormat.CODE_128, inGuide: true);
         using var decoder = new CameraBarcodeFrameDecoder();
 
-        Assert.Equal("YT123456789012", decoder.DecodeGuideRegion(frame));
+        Assert.Equal("YT123456789012", decoder.DecodeGuideRegion(frame, _ => true));
     }
 
     [Theory]

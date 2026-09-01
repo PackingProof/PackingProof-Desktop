@@ -803,12 +803,17 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.ZoomScale;
-                            int zoomW = (int)(currentFrame.Width / effectiveScale);
-                            int zoomH = (int)(currentFrame.Height / effectiveScale);
-                            if (zoomW <= 0 || zoomW > currentFrame.Width) zoomW = currentFrame.Width;
-                            if (zoomH <= 0 || zoomH > currentFrame.Height) zoomH = currentFrame.Height;
-
-                            var currentZoomRect = new OpenCvSharp.Rect((currentFrame.Width - zoomW) / 2, (currentFrame.Height - zoomH) / 2, zoomW, zoomH)
+                            CameraBarcodeGeometry? barcodeGeometry = _lastBarcodeGeometry;
+                            double boundedScale = GetBoundedZoomScale(
+                                currentFrame.Width,
+                                currentFrame.Height,
+                                effectiveScale,
+                                barcodeGeometry);
+                            var currentZoomRect = CreateZoomRect(
+                                    currentFrame.Width,
+                                    currentFrame.Height,
+                                    effectiveScale,
+                                    barcodeGeometry)
                                 .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
 
                             if (currentZoomRect.Width > 0 && currentZoomRect.Height > 0 && _zoomPhase == ZoomPhase.None)
@@ -837,7 +842,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = 1.0 + (effectiveScale - 1.0) * SmoothStep(t);
+                                    animatedScale = 1.0 + (boundedScale - 1.0) * SmoothStep(t);
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {
@@ -847,7 +852,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 }
                                 else if (_zoomPhase == ZoomPhase.Holding)
                                 {
-                                    animatedScale = effectiveScale;
+                                    animatedScale = boundedScale;
                                     applyZoom = true;
                                     if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds >= Config.ZoomDurationSeconds * 1000.0)
                                     {
@@ -859,7 +864,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = effectiveScale - (effectiveScale - 1.0) * SmoothStep(t);
+                                    animatedScale = boundedScale - (boundedScale - 1.0) * SmoothStep(t);
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {
@@ -876,8 +881,11 @@ namespace ExpressPackingMonitoring.ViewModels
                                     int animH = (int)(currentFrame.Height / animatedScale);
                                     if (animW > 0 && animH > 0 && animW <= currentFrame.Width && animH <= currentFrame.Height)
                                     {
-                                        var animRect = new OpenCvSharp.Rect(
-                                            (currentFrame.Width - animW) / 2, (currentFrame.Height - animH) / 2, animW, animH)
+                                        var animRect = CreateZoomRect(
+                                                currentFrame.Width,
+                                                currentFrame.Height,
+                                                animatedScale,
+                                                barcodeGeometry)
                                             .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
                                         if (animRect.Width > 0 && animRect.Height > 0)
                                         {
@@ -1414,6 +1422,37 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Error("Recording", "Video frame enqueue exception", ex);
                 return false;
             }
+        }
+
+        private static double GetBoundedZoomScale(
+            int frameWidth,
+            int frameHeight,
+            double requestedScale,
+            CameraBarcodeGeometry? barcode)
+        {
+            double scale = Math.Max(1.0, requestedScale);
+            if (barcode == null || barcode.Width <= 0 || barcode.Height <= 0)
+                return scale;
+
+            const double safetyMargin = 1.15;
+            double widthLimit = frameWidth / (barcode.Width * safetyMargin);
+            double heightLimit = frameHeight / (barcode.Height * safetyMargin);
+            return Math.Max(1.0, Math.Min(scale, Math.Min(widthLimit, heightLimit)));
+        }
+
+        private static OpenCvSharp.Rect CreateZoomRect(
+            int frameWidth,
+            int frameHeight,
+            double scale,
+            CameraBarcodeGeometry? barcode)
+        {
+            int width = Math.Clamp((int)Math.Round(frameWidth / Math.Max(1.0, scale)), 1, frameWidth);
+            int height = Math.Clamp((int)Math.Round(frameHeight / Math.Max(1.0, scale)), 1, frameHeight);
+            double centerX = barcode?.CenterX ?? frameWidth / 2.0;
+            double centerY = barcode?.CenterY ?? frameHeight / 2.0;
+            int left = Math.Clamp((int)Math.Round(centerX - width / 2.0), 0, frameWidth - width);
+            int top = Math.Clamp((int)Math.Round(centerY - height / 2.0), 0, frameHeight - height);
+            return new OpenCvSharp.Rect(left, top, width, height);
         }
 
     }
