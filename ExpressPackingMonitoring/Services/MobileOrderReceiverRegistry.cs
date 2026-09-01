@@ -54,10 +54,15 @@ internal sealed class MobileOrderReceiverRegistry
                 normalizedNodeId = existing?.NodeId ?? CreateFallbackNodeId(address);
             string normalizedNodeName = nodeName?.Trim() ?? "";
             if (IsAutomaticName(normalizedNodeName))
-                normalizedNodeName = existing != null
-                    && (IsAssignedMobileName(existing.NodeName) || !IsAutomaticName(existing.NodeName))
+            {
+                bool sameStableDevice = existing != null
+                    && (requestedNodeId.Length == 0
+                        || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
+                normalizedNodeName = sameStableDevice
+                    && (IsAssignedMobileName(existing!.NodeName) || !IsAutomaticName(existing.NodeName))
                     ? existing.NodeName
-                    : CreateNextMobileName();
+                    : CreateNextMobileName(existing?.NodeName);
+            }
             int normalizedPort = orderReceiverPort is > 0 and <= 65535
                 ? orderReceiverPort.Value
                 : existing?.Port is > 0 and <= 65535
@@ -127,11 +132,13 @@ internal sealed class MobileOrderReceiverRegistry
         }
     }
 
-    private string CreateNextMobileName()
+    private string CreateNextMobileName(string? reservedName = null)
     {
-        int nextNumber = _entries
+        IEnumerable<string> names = _entries
             .Select(item => item.NodeName?.Trim() ?? "")
-            .Where(name => name.StartsWith("手机", StringComparison.Ordinal))
+            .Append(reservedName?.Trim() ?? "")
+            .Where(name => name.StartsWith("手机", StringComparison.Ordinal));
+        int nextNumber = names
             .Select(name => int.TryParse(name["手机".Length..], out int number) ? number : 0)
             .DefaultIfEmpty(0)
             .Max() + 1;
