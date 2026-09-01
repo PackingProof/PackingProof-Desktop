@@ -27,9 +27,9 @@ public sealed class MobileOrderReceiverRegistryTests
                 "mobile-device-0001",
                 "设备 ABCDEF");
 
-            Assert.Equal("手机1", first?.NodeName);
-            Assert.Equal("手机2", second?.NodeName);
-            Assert.Equal("手机1", reconnected?.NodeName);
+            Assert.Equal("从机1", first?.NodeName);
+            Assert.Equal("从机2", second?.NodeName);
+            Assert.Equal("从机1", reconnected?.NodeName);
         }
         finally
         {
@@ -54,8 +54,25 @@ public sealed class MobileOrderReceiverRegistryTests
                 "mobile-device-0002",
                 "本机");
 
-            Assert.Equal("手机1", first?.NodeName);
-            Assert.Equal("手机2", second?.NodeName);
+            Assert.Equal("从机1", first?.NodeName);
+            Assert.Equal("从机2", second?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void NewDevicesUseTwoCharacterPlatformPrefixes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "order-receivers.json"));
+            Assert.Equal("安卓1", registry.Register(IPAddress.Parse("192.168.31.201"), "android-device-0001", "本机", deviceKind: "mobile", platform: "android")?.NodeName);
+            Assert.Equal("苹果1", registry.Register(IPAddress.Parse("192.168.31.202"), "ios-device-0001", "本机", deviceKind: "mobile", platform: "ios")?.NodeName);
+            Assert.Equal("电脑1", registry.Register(IPAddress.Parse("192.168.31.203"), "pc-device-0001", "本机", deviceKind: "pc", platform: "windows")?.NodeName);
         }
         finally
         {

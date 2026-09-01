@@ -241,7 +241,7 @@ public sealed class ConnectedClientTests
         ConnectedClientHeartbeat heartbeat = Heartbeat(
             "mobile-client-001",
             "mobile-app",
-            "手机1");
+            "从机1");
         heartbeat.AppVersion = "0.5.6";
         heartbeat.AppBuildNumber = 11006;
 

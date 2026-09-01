@@ -1930,7 +1930,9 @@ namespace ExpressPackingMonitoring.Services
                 registeredDevice = _mobileOrderReceivers.Register(
                     ctx.Request.RemoteEndPoint?.Address,
                     enrollment.DeviceId,
-                    request.DeviceName);
+                    request.DeviceName,
+                    deviceKind: request.DeviceKind,
+                    platform: request.Platform);
             }
             string assignedDeviceName = registeredDevice?.NodeName ?? request.DeviceName;
             string webAccessUrl = ResolveWebAccessUrl();

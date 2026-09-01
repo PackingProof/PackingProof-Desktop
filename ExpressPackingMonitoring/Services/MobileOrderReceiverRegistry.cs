@@ -30,7 +30,9 @@ internal sealed class MobileOrderReceiverRegistry
         string? nodeId = null,
         string? nodeName = null,
         int? orderReceiverPort = null,
-        IEnumerable<string>? capabilities = null)
+        IEnumerable<string>? capabilities = null,
+        string? deviceKind = null,
+        string? platform = null)
     {
         string? address = NormalizePrivateIpv4(remoteAddress);
         if (address == null) return null;
@@ -59,9 +61,9 @@ internal sealed class MobileOrderReceiverRegistry
                     && (requestedNodeId.Length == 0
                         || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
                 normalizedNodeName = sameStableDevice
-                    && (IsAssignedMobileName(existing!.NodeName) || !IsAutomaticName(existing.NodeName))
+                    && (IsAssignedDeviceName(existing!.NodeName) || !IsAutomaticName(existing.NodeName))
                     ? existing.NodeName
-                    : CreateNextMobileName(existing?.NodeName);
+                    : CreateNextMobileName(existing?.NodeName, GetNamePrefix(deviceKind, platform));
             }
             int normalizedPort = orderReceiverPort is > 0 and <= 65535
                 ? orderReceiverPort.Value
@@ -132,17 +134,28 @@ internal sealed class MobileOrderReceiverRegistry
         }
     }
 
-    private string CreateNextMobileName(string? reservedName = null)
+    private string CreateNextMobileName(string? reservedName, string prefix)
     {
         IEnumerable<string> names = _entries
             .Select(item => item.NodeName?.Trim() ?? "")
             .Append(reservedName?.Trim() ?? "")
-            .Where(name => name.StartsWith("手机", StringComparison.Ordinal));
+            .Where(name => name.StartsWith(prefix, StringComparison.Ordinal));
         int nextNumber = names
-            .Select(name => int.TryParse(name["手机".Length..], out int number) ? number : 0)
+            .Select(name => int.TryParse(name[prefix.Length..], out int number) ? number : 0)
             .DefaultIfEmpty(0)
             .Max() + 1;
-        return $"手机{nextNumber}";
+        return $"{prefix}{nextNumber}";
+    }
+
+    private static string GetNamePrefix(string? deviceKind, string? platform)
+    {
+        string normalizedPlatform = platform?.Trim().ToLowerInvariant() ?? "";
+        if (normalizedPlatform is "android") return "安卓";
+        if (normalizedPlatform is "ios" or "iphone" or "ipad") return "苹果";
+        if (string.Equals(deviceKind?.Trim(), "pc", StringComparison.OrdinalIgnoreCase)
+            || normalizedPlatform is "windows" or "macos" or "mac")
+            return "电脑";
+        return "从机";
     }
 
     private static bool IsAutomaticName(string? name)
@@ -153,15 +166,18 @@ internal sealed class MobileOrderReceiverRegistry
             || value.Equals("设备", StringComparison.Ordinal)
             || value.StartsWith("设备 ", StringComparison.Ordinal)
             || value.StartsWith("手机录像设备 ", StringComparison.Ordinal)
-            || IsAssignedMobileName(value);
+            || IsAssignedDeviceName(value);
     }
 
-    private static bool IsAssignedMobileName(string? name)
+    private static bool IsAssignedDeviceName(string? name)
     {
         string value = name?.Trim() ?? "";
-        return value.StartsWith("手机", StringComparison.Ordinal)
-            && int.TryParse(value["手机".Length..], out int number)
-            && number > 0;
+        foreach (string prefix in new[] { "手机", "安卓", "苹果", "电脑", "从机" })
+            if (value.StartsWith(prefix, StringComparison.Ordinal)
+                && int.TryParse(value[prefix.Length..], out int number)
+                && number > 0)
+                return true;
+        return false;
     }
 
     private static MobileOrderReceiverInfo ToInfo(Entry item, bool online) => new(
