@@ -1404,7 +1404,7 @@
                                             <Slider x:Name="CameraSameBarcodeConfirmationSlider"
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="0.5"
-                                                    Maximum="5"
+                                                    Maximum="10"
                                                     TickFrequency="0.5"
                                                     Value="{Binding Config.CameraSameBarcodeConfirmationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>

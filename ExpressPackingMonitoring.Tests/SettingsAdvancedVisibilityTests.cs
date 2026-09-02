@@ -409,6 +409,17 @@ public sealed class SettingsAdvancedVisibilityTests
         Assert.False(IsControlledByAdvancedToggle(labelElement), $"{label} 不应受高级设置开关控制");
     }
 
+    [Fact]
+    public void SameBarcodeConfirmationSlider_KeepsTenSecondMaximum()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement slider = Assert.Single(
+            document.Descendants(Presentation + "Slider"),
+            element => (string?)element.Attribute(Xaml + "Name") == "CameraSameBarcodeConfirmationSlider");
+
+        Assert.Equal("10", (string?)slider.Attribute("Maximum"));
+    }
+
     private static bool IsControlledByAdvancedToggle(XElement labelElement)
     {
         XElement? row = labelElement.Ancestors(Presentation + "Grid").FirstOrDefault();
