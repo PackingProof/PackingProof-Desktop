@@ -27,6 +27,8 @@ internal sealed record CameraBarcodeRecognitionStatus(
     string Code = "",
     CameraBarcodeGeometry? Geometry = null);
 
+internal sealed record CameraBarcodeConfirmedEvent(string Code, CameraBarcodeGeometry? Geometry);
+
 internal sealed record CameraBarcodeObservation(
     string CandidateCode = "",
     string ConfirmedCode = "",
@@ -1361,12 +1363,14 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private long _forceDecodeUntilUtcTicks;
     private string _lastRecognizedCode = "";
     private string _lastConfirmedCommandCode = "";
+    private readonly Dictionary<string, CameraBarcodeGeometry> _lastGeometryByCode = new(StringComparer.Ordinal);
     private int _generation;
     private volatile bool _disposed;
     private int _workerResourcesDisposed;
 
     public event Action<CameraBarcodeRecognitionStatus>? StatusChanged;
     public event Action<string>? BarcodeConfirmed;
+    public event Action<CameraBarcodeConfirmedEvent>? BarcodeConfirmedWithGeometry;
     public event Action<string>? BarcodeRecognized;
     public event Action<string>? InvalidCandidate;
 
@@ -1452,6 +1456,8 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         pending?.Dispose();
         lock (_trackerLock)
             _stabilityTracker.Reset(preserveConfirmedCodes);
+        lock (_trackerLock)
+            _lastGeometryByCode.Clear();
         StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(CameraBarcodeRecognitionState.Idle));
     }
 
@@ -1506,6 +1512,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 IsValidCandidate,
                 _guideGeometryProvider());
             DateTimeOffset now = DateTimeOffset.UtcNow;
+            CameraBarcodeGeometry? decodedGeometry = _decoder.LastGeometry;
+            if (!string.IsNullOrWhiteSpace(decoded) && decodedGeometry != null)
+                _lastGeometryByCode[decoded] = decodedGeometry;
 
             if (decoded != null && !IsValidCandidate(decoded))
             {
@@ -1569,12 +1578,22 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 observation.KeepDecoding ? now.AddSeconds(2.5).UtcTicks : 0);
 
             CameraBarcodeRecognitionStatus status =
-                CreateStatus(observation, _reportVisibleCodes, _decoder.LastGeometry);
+                CreateStatus(
+                    observation,
+                    _reportVisibleCodes,
+                    GetGeometryForCode(observation.ConfirmedCode.Length > 0
+                        ? observation.ConfirmedCode
+                        : observation.CandidateCode,
+                        decodedGeometry));
             if (observation.ConfirmedCode.Length > 0)
             {
                 long dropped = Interlocked.Read(ref _droppedFrames);
                 RuntimeLog.Info("CameraBarcode", $"Confirmed {observation.ConfirmedCode}, decode={stopwatch.ElapsedMilliseconds}ms, dropped={dropped}");
                 StatusChanged?.Invoke(status);
+                var confirmedEvent = new CameraBarcodeConfirmedEvent(
+                    observation.ConfirmedCode,
+                    GetGeometryForCode(observation.ConfirmedCode, decodedGeometry));
+                BarcodeConfirmedWithGeometry?.Invoke(confirmedEvent);
                 BarcodeConfirmed?.Invoke(observation.ConfirmedCode);
             }
             else
@@ -1601,6 +1620,15 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 RuntimeLog.Warn("CameraBarcode", $"Recognition is slower than the target rate: decode={stopwatch.ElapsedMilliseconds}ms, dropped={Interlocked.Read(ref _droppedFrames)}");
             }
         }
+    }
+
+    private CameraBarcodeGeometry? GetGeometryForCode(string code, CameraBarcodeGeometry? current)
+    {
+        if (current != null)
+            return current;
+        return !string.IsNullOrWhiteSpace(code) && _lastGeometryByCode.TryGetValue(code, out var geometry)
+            ? geometry
+            : null;
     }
 
     private bool IsValidCandidate(string code)

@@ -309,6 +309,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.CameraBarcodeGuideOffsetY),
                 confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits);
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
+            _cameraBarcodeRecognition.BarcodeConfirmedWithGeometry += OnCameraBarcodeConfirmedWithGeometry;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;
             // 解码到合法条码立即响的独立反馈音，不依赖候选/确认状态。
@@ -406,6 +407,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     _ = HandleScanAsync(code, fromCamera: true);
                 }
             }));
+        }
+
+        private void OnCameraBarcodeConfirmedWithGeometry(CameraBarcodeConfirmedEvent confirmed)
+        {
+            _lastBarcodeGeometry = confirmed.Geometry;
         }
 
         private void OnCameraBarcodeStatusChanged(CameraBarcodeRecognitionStatus status)

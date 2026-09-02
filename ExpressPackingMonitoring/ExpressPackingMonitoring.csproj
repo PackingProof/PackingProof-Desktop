@@ -141,6 +141,7 @@
     <Compile Include="Services\BackupRequestAuthentication.cs" />
     <Compile Include="Services\BackupPairingTokenService.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
+    <Compile Include="Services\SmartZoomPolicy.cs" />
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ConnectedClientRegistry.cs" />
     <Compile Include="Services\ExtensionAuthorizationStore.cs" />

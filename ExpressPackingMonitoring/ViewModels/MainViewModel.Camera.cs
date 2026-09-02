@@ -804,12 +804,12 @@ namespace ExpressPackingMonitoring.ViewModels
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.ZoomScale;
                             CameraBarcodeGeometry? barcodeGeometry = _lastBarcodeGeometry;
-                            double boundedScale = GetBoundedZoomScale(
+                            double boundedScale = SmartZoomPolicy.GetBoundedScale(
                                 currentFrame.Width,
                                 currentFrame.Height,
                                 effectiveScale,
                                 barcodeGeometry);
-                            var currentZoomRect = CreateZoomRect(
+                            var currentZoomRect = SmartZoomPolicy.CreateCropRect(
                                     currentFrame.Width,
                                     currentFrame.Height,
                                     effectiveScale,
@@ -881,7 +881,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                     int animH = (int)(currentFrame.Height / animatedScale);
                                     if (animW > 0 && animH > 0 && animW <= currentFrame.Width && animH <= currentFrame.Height)
                                     {
-                                        var animRect = CreateZoomRect(
+                                        var animRect = SmartZoomPolicy.CreateCropRect(
                                                 currentFrame.Width,
                                                 currentFrame.Height,
                                                 animatedScale,
@@ -1422,37 +1422,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Error("Recording", "Video frame enqueue exception", ex);
                 return false;
             }
-        }
-
-        private static double GetBoundedZoomScale(
-            int frameWidth,
-            int frameHeight,
-            double requestedScale,
-            CameraBarcodeGeometry? barcode)
-        {
-            double scale = Math.Max(1.0, requestedScale);
-            if (barcode == null || barcode.Width <= 0 || barcode.Height <= 0)
-                return scale;
-
-            const double safetyMargin = 1.15;
-            double widthLimit = frameWidth / (barcode.Width * safetyMargin);
-            double heightLimit = frameHeight / (barcode.Height * safetyMargin);
-            return Math.Max(1.0, Math.Min(scale, Math.Min(widthLimit, heightLimit)));
-        }
-
-        private static OpenCvSharp.Rect CreateZoomRect(
-            int frameWidth,
-            int frameHeight,
-            double scale,
-            CameraBarcodeGeometry? barcode)
-        {
-            int width = Math.Clamp((int)Math.Round(frameWidth / Math.Max(1.0, scale)), 1, frameWidth);
-            int height = Math.Clamp((int)Math.Round(frameHeight / Math.Max(1.0, scale)), 1, frameHeight);
-            double centerX = barcode?.CenterX ?? frameWidth / 2.0;
-            double centerY = barcode?.CenterY ?? frameHeight / 2.0;
-            int left = Math.Clamp((int)Math.Round(centerX - width / 2.0), 0, frameWidth - width);
-            int top = Math.Clamp((int)Math.Round(centerY - height / 2.0), 0, frameHeight - height);
-            return new OpenCvSharp.Rect(left, top, width, height);
         }
 
     }

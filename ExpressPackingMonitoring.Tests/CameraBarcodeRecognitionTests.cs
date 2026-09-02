@@ -11,6 +11,44 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class CameraBarcodeRecognitionTests
 {
+    [Theory]
+    [InlineData(20, 50, 400, 300, 50, 30, 1.5, 0, 0)]
+    [InlineData(330, 50, 400, 300, 50, 30, 1.5, 133, 0)]
+    [InlineData(170, 10, 400, 300, 60, 30, 1.5, 66, 0)]
+    [InlineData(170, 260, 400, 300, 60, 30, 1.5, 66, 100)]
+    public void SmartZoomPolicyPansTowardBarcodeAndStaysInFrame(
+        int barcodeX, int barcodeY, int frameWidth, int frameHeight,
+        int barcodeWidth, int barcodeHeight, double scale, int expectedLeft, int expectedTop)
+    {
+        var barcode = new CameraBarcodeGeometry(barcodeX, barcodeY, barcodeWidth, barcodeHeight);
+        OpenCvSharp.Rect crop = SmartZoomPolicy.CreateCropRect(frameWidth, frameHeight, scale, barcode);
+
+        Assert.Equal(expectedLeft, crop.X);
+        Assert.Equal(expectedTop, crop.Y);
+        Assert.InRange(crop.Y, 0, frameHeight - crop.Height);
+        Assert.InRange(crop.X, 0, frameWidth - crop.Width);
+        Assert.InRange(barcode.CenterX, crop.X, crop.X + crop.Width);
+        Assert.InRange(barcode.CenterY, crop.Y, crop.Y + crop.Height);
+    }
+
+    [Fact]
+    public void SmartZoomPolicyLimitsScaleForLargeBarcode()
+    {
+        var barcode = new CameraBarcodeGeometry(100, 100, 700, 400);
+        double scale = SmartZoomPolicy.GetBoundedScale(800, 600, 4, barcode);
+
+        Assert.Equal(1.0, scale);
+    }
+
+    [Fact]
+    public void SmartZoomPolicyFallsBackToCenteredCropWithoutGeometry()
+    {
+        OpenCvSharp.Rect crop = SmartZoomPolicy.CreateCropRect(800, 600, 2, null);
+
+        Assert.Equal(200, crop.X);
+        Assert.Equal(150, crop.Y);
+    }
+
     private static readonly DateTimeOffset Start = new(2026, 7, 16, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
