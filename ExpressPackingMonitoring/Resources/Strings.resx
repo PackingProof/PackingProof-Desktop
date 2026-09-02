@@ -1043,10 +1043,10 @@
   <data name="脚本" xml:space="preserve"><value>Script</value></data>
   <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
   <data name="作者：" xml:space="preserve"><value>Author: </value></data>
-  <data name="启用面单智能特写" xml:space="preserve"><value>Enable smart label close-up</value></data>
+  <data name="面单智能特写" xml:space="preserve"><value>Smart label close-up</value></data>
   <data name="识别面单位置后自动平移特写，停留一会儿后恢复全景" xml:space="preserve"><value>Detect the label position, pan to its close-up, then restore the full view.</value></data>
   <data name="最大放大倍数" xml:space="preserve"><value>Maximum close-up</value></data>
-  <data name="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>Set the maximum smart close-up; the actual scale adjusts to the label position and frame boundaries.</value></data>
+  <data name="实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>Actual magnification adjusts to the label position and frame boundaries.</value></data>
   <data name="范围更大" xml:space="preserve"><value>Wider view</value></data>
   <data name="特写更大" xml:space="preserve"><value>Larger close-up</value></data>
 </root>

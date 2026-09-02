@@ -1838,7 +1838,7 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="启用面单智能特写" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="面单智能特写" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="识别面单位置后自动平移特写，停留一会儿后恢复全景"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
@@ -1863,7 +1863,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="最大放大倍数" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整"
+                                            <TextBlock Text="实际倍率会根据面单位置和边界自动调整"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">

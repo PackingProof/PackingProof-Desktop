@@ -1023,10 +1023,10 @@
   <data name="脚本" xml:space="preserve"><value>脚本</value></data>
   <data name="适配器" xml:space="preserve"><value>适配器</value></data>
   <data name="作者：" xml:space="preserve"><value>作者：</value></data>
-  <data name="启用面单智能特写" xml:space="preserve"><value>启用面单智能特写</value></data>
+  <data name="面单智能特写" xml:space="preserve"><value>面单智能特写</value></data>
   <data name="识别面单位置后自动平移特写，停留一会儿后恢复全景" xml:space="preserve"><value>识别面单位置后自动平移特写，停留一会儿后恢复全景</value></data>
   <data name="最大放大倍数" xml:space="preserve"><value>最大放大倍数</value></data>
-  <data name="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整</value></data>
+  <data name="实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>实际倍率会根据面单位置和边界自动调整</value></data>
   <data name="范围更大" xml:space="preserve"><value>范围更大</value></data>
   <data name="特写更大" xml:space="preserve"><value>特写更大</value></data>
 </root>
