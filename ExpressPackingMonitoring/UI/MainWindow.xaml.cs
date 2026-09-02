@@ -224,8 +224,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     vm.PropertyChanged += (sender, args) =>
                     {
-                        if (args.PropertyName == nameof(MainViewModel.LastZoomRect) ||
-                            args.PropertyName == nameof(MainViewModel.CameraFrameSize) ||
+                        if (args.PropertyName == nameof(MainViewModel.CameraFrameSize) ||
                             args.PropertyName == nameof(MainViewModel.IsCameraBarcodeRecognitionEnabled) ||
                             args.PropertyName == nameof(MainViewModel.PreviewGuideGeometry))
                         {
@@ -271,34 +270,8 @@ namespace ExpressPackingMonitoring.UI
             return IntPtr.Zero;
         }
 
-        private void UpdateZoomBorder(Rect zoomRect)
-        {
-            var vm = DataContext as MainViewModel;
-            if (zoomRect == Rect.Empty || vm == null || vm.CameraFrameSize.Width <= 0 || vm.CameraFrameSize.Height <= 0)
-            {
-                ZoomPreviewBorder.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            double actualW = VideoImage.ActualWidth;
-            double actualH = VideoImage.ActualHeight;
-            // 始终基于摄像头原始帧尺寸计算，而非 VideoImage.Source（放大时 Source 会变）
-            double sourceW = vm.CameraFrameSize.Width;
-            double sourceH = vm.CameraFrameSize.Height;
-
-            if (actualW <= 0 || actualH <= 0) return;
-
-            // Uniform 缩放比例
-            double scale = Math.Min(actualW / sourceW, actualH / sourceH);
-
-            ZoomPreviewBorder.Width = zoomRect.Width * scale;
-            ZoomPreviewBorder.Height = zoomRect.Height * scale;
-            ZoomPreviewBorder.Visibility = Visibility.Visible;
-        }
-
         private void UpdateCameraOverlays(MainViewModel vm)
         {
-            UpdateZoomBorder(vm.LastZoomRect);
             UpdateCameraBarcodeGuide(vm);
         }
 

@@ -279,17 +279,6 @@
                 <Border Grid.Row="1" Background="{DynamicResource VideoPlaceholder}" CornerRadius="10" ClipToBounds="True">
                     <Grid>
                         <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
-                        <Rectangle x:Name="ZoomPreviewBorder"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Stroke="{StaticResource CameraGuideStroke}"
-                                   StrokeThickness="3"
-                                   StrokeDashArray="4 2"
-                                   Fill="{StaticResource TransparentBrush}"
-                                   Visibility="Collapsed"
-                                   Opacity="1"
-                                   RadiusX="2" RadiusY="2"/>
                         <Grid x:Name="CameraBarcodeGuide"
                               Width="0"
                               Height="0"
