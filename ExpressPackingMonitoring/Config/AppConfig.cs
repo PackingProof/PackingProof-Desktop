@@ -191,9 +191,9 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableSmartZoom { get; set; } = false;
         public double MaxZoomScale { get; set; } = 4.0;
         public double ZoomDelaySeconds { get; set; } = 0.0;
-        public double ZoomDurationSeconds { get; set; } = 3.0;
+        public double ZoomDurationSeconds { get; set; } = 1.0;
         public bool EnableZoomAnimation { get; set; } = true;
-        public double ZoomAnimationDurationMs { get; set; } = 250.0;
+        public double ZoomAnimationDurationMs { get; set; } = 200.0;
         public bool EnableAutoStop { get; set; } = true;
         public double AutoStopMinutes { get; set; } = 1.0;
         public bool EnableMaxDuration { get; set; } = false;
@@ -682,6 +682,18 @@ namespace ExpressPackingMonitoring.Config
             if (System.Math.Abs(config.MaxZoomScale - normalizedMaxZoomScale) > 0.001)
             {
                 config.MaxZoomScale = normalizedMaxZoomScale;
+                changed = true;
+            }
+            double normalizedZoomDurationSeconds = System.Math.Clamp(config.ZoomDurationSeconds, 0.0, 5.0);
+            if (System.Math.Abs(config.ZoomDurationSeconds - normalizedZoomDurationSeconds) > 0.001)
+            {
+                config.ZoomDurationSeconds = normalizedZoomDurationSeconds;
+                changed = true;
+            }
+            double normalizedZoomAnimationDurationMs = System.Math.Clamp(config.ZoomAnimationDurationMs, 50.0, 1000.0);
+            if (System.Math.Abs(config.ZoomAnimationDurationMs - normalizedZoomAnimationDurationMs) > 0.001)
+            {
+                config.ZoomAnimationDurationMs = normalizedZoomAnimationDurationMs;
                 changed = true;
             }
             if (System.Math.Abs(config.CameraBarcodeGuideWidthRatio - normalizedGuideWidth) > 0.001)

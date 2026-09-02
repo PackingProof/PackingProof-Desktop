@@ -1404,7 +1404,7 @@
                                             <Slider x:Name="CameraSameBarcodeConfirmationSlider"
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="0.5"
-                                                    Maximum="10"
+                                                    Maximum="5"
                                                     TickFrequency="0.5"
                                                     Value="{Binding Config.CameraSameBarcodeConfirmationSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
@@ -1985,7 +1985,7 @@
                                             <Slider x:Name="ZoomAnimationSlider"
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="50"
-                                                    Maximum="2000"
+                                                    Maximum="1000"
                                                     TickFrequency="50"
                                                     Value="{Binding Config.ZoomAnimationDurationMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>

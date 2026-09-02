@@ -29,6 +29,15 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
+    public void NewConfigurationUsesOneSecondZoomDwellByDefault()
+    {
+        Assert.Equal(1.0, new AppConfig().ZoomDurationSeconds);
+        Assert.Equal(1.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
+        Assert.Equal(200.0, new AppConfig().ZoomAnimationDurationMs);
+        Assert.Equal(200.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomAnimationDurationMs);
+    }
+
+    [Fact]
     public void ExistingConfigurationEnablesProtectionOnceAndPreservesLaterUserChoice()
     {
         var config = new AppConfig
