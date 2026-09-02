@@ -809,6 +809,12 @@ namespace ExpressPackingMonitoring.ViewModels
                                 currentFrame.Height,
                                 effectiveScale,
                                 barcodeGeometry);
+                            if (_zoomPhase == ZoomPhase.ZoomingIn && barcodeGeometry != null)
+                            {
+                                RuntimeLog.Info(
+                                    "SmartZoom",
+                                    $"Applying barcode-centered zoom scale={boundedScale:F2}, requested={effectiveScale:F2}, center=({barcodeGeometry.CenterX:F1},{barcodeGeometry.CenterY:F1})");
+                            }
                             var currentZoomRect = SmartZoomPolicy.CreateCropRect(
                                     currentFrame.Width,
                                     currentFrame.Height,

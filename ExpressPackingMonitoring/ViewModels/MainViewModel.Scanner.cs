@@ -412,6 +412,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private void OnCameraBarcodeConfirmedWithGeometry(CameraBarcodeConfirmedEvent confirmed)
         {
             _lastBarcodeGeometry = confirmed.Geometry;
+            RuntimeLog.Info(
+                "CameraBarcode",
+                confirmed.Geometry == null
+                    ? $"Confirmed geometry unavailable, code={confirmed.Code}"
+                    : $"Confirmed geometry code={confirmed.Code}, x={confirmed.Geometry.X:F1}, y={confirmed.Geometry.Y:F1}, w={confirmed.Geometry.Width:F1}, h={confirmed.Geometry.Height:F1}");
         }
 
         private void OnCameraBarcodeStatusChanged(CameraBarcodeRecognitionStatus status)

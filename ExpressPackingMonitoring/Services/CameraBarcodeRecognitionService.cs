@@ -934,8 +934,20 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             maxX = Math.Max(maxX, pointX);
             maxY = Math.Max(maxY, pointY);
         }
-        x = minX; y = minY; width = Math.Max(0, maxX - minX); height = Math.Max(0, maxY - minY);
-        return width > 0 && height > 0;
+        x = minX; width = Math.Max(0, maxX - minX);
+        height = Math.Max(0, maxY - minY);
+        if (width <= 0)
+            return false;
+        if (height < 1)
+        {
+            height = Math.Max(8, sourceHeight * 0.12);
+            y = Math.Clamp((minY + maxY - height) / 2.0, 0, Math.Max(0, sourceHeight - height));
+        }
+        else
+        {
+            y = minY;
+        }
+        return true;
     }
 
     private static (double X, double Y) MapToOriginal(

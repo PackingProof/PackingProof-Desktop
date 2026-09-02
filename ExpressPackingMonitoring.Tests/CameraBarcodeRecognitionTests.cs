@@ -49,6 +49,22 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(150, crop.Y);
     }
 
+    [Fact]
+    public void DecoderExposesGeometryForOffCenterBarcode()
+    {
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "YT123456789012", false, 40, 40,
+            "SF6048285539252", false, 700, 500);
+        using var decoder = new CameraBarcodeFrameDecoder();
+
+        string? code = decoder.DecodeGuideRegion(frame, value => value == "YT123456789012", new CameraBarcodeGuideGeometry(1, 1, 0, 0));
+
+        Assert.Equal("YT123456789012", code);
+        Assert.NotNull(decoder.LastGeometry);
+        Assert.InRange(decoder.LastGeometry!.CenterX, 40, 600);
+        Assert.InRange(decoder.LastGeometry.CenterY, 40, 250);
+    }
+
     private static readonly DateTimeOffset Start = new(2026, 7, 16, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
