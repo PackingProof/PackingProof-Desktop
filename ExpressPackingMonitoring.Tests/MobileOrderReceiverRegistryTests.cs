@@ -44,7 +44,9 @@ public sealed class MobileOrderReceiverRegistryTests
         string path = Path.Combine(directory, "order-receivers.json");
         try
         {
-            var registry = new MobileOrderReceiverRegistry(path);
+            var registry = new MobileOrderReceiverRegistry(
+                path,
+                () => new DateTime(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc));
             MobileOrderReceiverInfo? first = registry.Register(
                 IPAddress.Parse("192.168.31.201"),
                 "mobile-device-0001",

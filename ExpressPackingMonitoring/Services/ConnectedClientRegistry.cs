@@ -261,6 +261,7 @@ internal sealed class ConnectedClientHeartbeat
     public bool? Connected { get; set; }
     public string NodeId { get; set; } = "";
     public string DeviceType { get; set; } = "";
+    public string Platform { get; set; } = "";
     public int? OrderReceiverPort { get; set; }
     public string[] Capabilities { get; set; } = [];
     public string AppVersion { get; set; } = "";

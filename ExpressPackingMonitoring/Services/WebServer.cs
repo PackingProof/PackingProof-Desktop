@@ -1738,7 +1738,8 @@ namespace ExpressPackingMonitoring.Services
                 deviceId,
                 deviceName,
                 MobileOrderReceiverRegistry.OrderReceiverPort,
-                [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver]);
+                [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
+                deviceKind: "mobile");
         }
 
         private static string NormalizeDeviceKind(string deviceKind) =>
@@ -2096,7 +2097,9 @@ namespace ExpressPackingMonitoring.Services
                         heartbeat.NodeId,
                         heartbeat.DisplayName,
                         heartbeat.OrderReceiverPort,
-                        heartbeat.Capabilities);
+                        heartbeat.Capabilities,
+                        deviceKind: heartbeat.DeviceType,
+                        platform: heartbeat.Platform);
                     assignedDisplayName = registeredDevice?.NodeName
                         ?? heartbeat.DisplayName?.Trim()
                         ?? "";

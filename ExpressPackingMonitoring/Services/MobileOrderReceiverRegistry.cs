@@ -23,6 +23,10 @@ internal sealed class MobileOrderReceiverRegistry
         _path = path ?? GetDefaultPath();
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _entries = Load(_path);
+        if (RepairDuplicateAutomaticNames())
+        {
+            try { Save(); } catch { }
+        }
     }
 
     internal MobileOrderReceiverInfo? Register(
@@ -41,14 +45,15 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             string requestedNodeId = nodeId?.Trim() ?? "";
-            Entry? existing = _entries.FirstOrDefault(item =>
-                string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase)
-                || (requestedNodeId.Length > 0
-                    && string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)));
+            Entry? existing = requestedNodeId.Length > 0
+                ? _entries.FirstOrDefault(item =>
+                    string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase))
+                : _entries.FirstOrDefault(item =>
+                    string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase));
             _entries.RemoveAll(item =>
-                string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase)
-                || (requestedNodeId.Length > 0
-                    && string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase))
+                (requestedNodeId.Length > 0
+                    ? string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase))
                 || now - item.LastSeenUtc > Retention);
 
             string normalizedNodeId = requestedNodeId;
@@ -60,10 +65,13 @@ internal sealed class MobileOrderReceiverRegistry
                 bool sameStableDevice = existing != null
                     && (requestedNodeId.Length == 0
                         || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
-                normalizedNodeName = sameStableDevice
-                    && (IsAssignedDeviceName(existing!.NodeName) || !IsAutomaticName(existing.NodeName))
-                    ? existing.NodeName
-                    : CreateNextMobileName(existing?.NodeName, GetNamePrefix(deviceKind, platform));
+                string prefix = GetNamePrefix(deviceKind, platform);
+                bool existingAutomatic = existing != null && IsAutomaticName(existing.NodeName);
+                bool existingUsesPrefix = existingAutomatic && existing!.NodeName.StartsWith(prefix, StringComparison.Ordinal)
+                    && IsAssignedDeviceName(existing.NodeName);
+                normalizedNodeName = sameStableDevice && existingUsesPrefix
+                    ? existing!.NodeName
+                    : CreateNextMobileName(existing?.NodeName, prefix);
             }
             int normalizedPort = orderReceiverPort is > 0 and <= 65535
                 ? orderReceiverPort.Value
@@ -83,6 +91,8 @@ internal sealed class MobileOrderReceiverRegistry
                 LastSeenUtc = now,
                 NodeId = normalizedNodeId,
                 NodeName = normalizedNodeName,
+                DeviceKind = deviceKind?.Trim() ?? "",
+                Platform = platform?.Trim().ToLowerInvariant() ?? "",
                 Port = normalizedPort,
                 Capabilities = normalizedCapabilities
             };
@@ -145,6 +155,30 @@ internal sealed class MobileOrderReceiverRegistry
             .DefaultIfEmpty(0)
             .Max() + 1;
         return $"{prefix}{nextNumber}";
+    }
+
+    private bool RepairDuplicateAutomaticNames()
+    {
+        bool changed = false;
+        HashSet<string> used = new(
+            _entries.Select(item => item.NodeName?.Trim() ?? "")
+                .Where(name => name.Length > 0),
+            StringComparer.OrdinalIgnoreCase);
+        foreach (Entry entry in _entries.OrderByDescending(item => item.LastSeenUtc))
+        {
+            string name = entry.NodeName?.Trim() ?? "";
+            if (!IsAutomaticName(name) || !IsAssignedDeviceName(name))
+                continue;
+            if (used.Remove(name))
+                continue;
+
+            string replacement = CreateNextMobileName(null, "从机");
+            while (!used.Add(replacement))
+                replacement = CreateNextMobileName(replacement, "从机");
+            entry.NodeName = replacement;
+            changed = true;
+        }
+        return changed;
     }
 
     private static string GetNamePrefix(string? deviceKind, string? platform)
@@ -243,6 +277,8 @@ internal sealed class MobileOrderReceiverRegistry
         public DateTime LastSeenUtc { get; set; }
         public string NodeId { get; set; } = "";
         public string NodeName { get; set; } = "";
+        public string DeviceKind { get; set; } = "";
+        public string Platform { get; set; } = "";
         public int Port { get; set; } = OrderReceiverPort;
         public string[] Capabilities { get; set; } = [];
     }
