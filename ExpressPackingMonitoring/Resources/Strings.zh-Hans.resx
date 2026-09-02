@@ -108,7 +108,7 @@
   <data name="安装订单备注插件" xml:space="preserve"><value>安装订单备注插件</value></data>
   <data name="包含在线播放转码、剪辑预览和剪辑下载文件" xml:space="preserve"><value>包含在线播放转码、剪辑预览和剪辑下载文件</value></data>
   <data name="保护录像网页" xml:space="preserve"><value>保护录像网页</value></data>
-  <data name="倍率越高，面单越清楚，但画面范围越小" xml:space="preserve"><value>倍率越高，面单越清楚，但画面范围越小</value></data>
+  <data name="倍率越高，面单越清楚，但画面范围越小" xml:space="preserve"><value>实际倍率会根据面单位置和画面边界自动调整</value></data>
   <data name="本项目使用 AGPL-3.0 License 开源" xml:space="preserve"><value>本项目使用 AGPL-3.0 License 开源</value></data>
   <data name="播报买家留言" xml:space="preserve"><value>播报买家留言</value></data>
   <data name="播报买家留言和卖家备注" xml:space="preserve"><value>播报买家留言和卖家备注</value></data>
@@ -144,7 +144,7 @@
   <data name="防止扫码枪连续触发太快" xml:space="preserve"><value>防止扫码枪连续触发太快</value></data>
   <data name="访问录像、播放和剪辑时验证专用链接，订单插件不受影响" xml:space="preserve"><value>访问录像、播放和剪辑时验证专用链接，订单插件不受影响</value></data>
   <data name="访问密钥会包含在复制的完整访问链接中，请不要发送给无关人员" xml:space="preserve"><value>访问密钥会包含在复制的完整访问链接中，请不要发送给无关人员</value></data>
-  <data name="放大倍数" xml:space="preserve"><value>放大倍数</value></data>
+  <data name="放大倍数" xml:space="preserve"><value>最大放大倍数</value></data>
   <data name="放大画面保持多久后恢复" xml:space="preserve"><value>放大画面保持多久后恢复</value></data>
   <data name="放大前等待" xml:space="preserve"><value>放大前等待</value></data>
   <data name="放大停留时间" xml:space="preserve"><value>放大停留时间</value></data>
@@ -207,7 +207,7 @@
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>录像编码异常时，用它重新检测电脑能力</value></data>
   <data name="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准" xml:space="preserve"><value>录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>录像网页访问密钥</value></data>
-  <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>录制开始时先放大中心画面，停留一会儿后再恢复</value></data>
+  <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>识别面单位置后自动平移特写，停留一会儿后恢复全景</value></data>
   <data name="录制声音" xml:space="preserve"><value>录制声音</value></data>
   <data name="面单大" xml:space="preserve"><value>面单大</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间</value></data>
@@ -1023,4 +1023,10 @@
   <data name="脚本" xml:space="preserve"><value>脚本</value></data>
   <data name="适配器" xml:space="preserve"><value>适配器</value></data>
   <data name="作者：" xml:space="preserve"><value>作者：</value></data>
+  <data name="启用面单智能特写" xml:space="preserve"><value>启用面单智能特写</value></data>
+  <data name="识别面单位置后自动平移特写，停留一会儿后恢复全景" xml:space="preserve"><value>识别面单位置后自动平移特写，停留一会儿后恢复全景</value></data>
+  <data name="最大放大倍数" xml:space="preserve"><value>最大放大倍数</value></data>
+  <data name="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整</value></data>
+  <data name="范围更大" xml:space="preserve"><value>范围更大</value></data>
+  <data name="特写更大" xml:space="preserve"><value>特写更大</value></data>
 </root>

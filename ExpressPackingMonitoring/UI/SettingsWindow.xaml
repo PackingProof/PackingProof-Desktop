@@ -1838,8 +1838,8 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="启用面单放大" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="录制开始时先放大中心画面，停留一会儿后再恢复"
+                                            <TextBlock Text="启用面单智能特写" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="识别面单位置后自动平移特写，停留一会儿后恢复全景"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="SmartZoomCheckBox"
@@ -1862,24 +1862,24 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="放大倍数" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="倍率越高，面单越清楚，但画面范围越小"
+                                            <TextBlock Text="最大放大倍数" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <Grid>
-                                                <TextBlock Text="范围大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="范围更大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
                                                 <TextBlock Text="{Binding ElementName=ZoomScaleSlider, Path=Value, StringFormat={}{0:F1} 倍}"
                                                            Style="{StaticResource SliderValueTextStyle}"
                                                            HorizontalAlignment="Center"/>
-                                                <TextBlock Text="面单大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                                <TextBlock Text="特写更大" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
                                             </Grid>
                                             <Slider x:Name="ZoomScaleSlider"
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="1.2"
                                                     Maximum="4.0"
                                                     TickFrequency="0.1"
-                                                    Value="{Binding Config.ZoomScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Value="{Binding Config.MaxZoomScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                     ValueChanged="ZoomScaleSlider_ValueChanged"/>
                                         </StackPanel>
                                     </Grid>

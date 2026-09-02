@@ -108,7 +108,7 @@
   <data name="安装订单备注插件" xml:space="preserve"><value>Install the order notes plugin</value></data>
   <data name="包含在线播放转码、剪辑预览和剪辑下载文件" xml:space="preserve"><value>Contains online playback transcoding, clip preview and clip download files</value></data>
   <data name="保护录像网页" xml:space="preserve"><value>Protect recording page</value></data>
-  <data name="倍率越高，面单越清楚，但画面范围越小" xml:space="preserve"><value>The higher the magnification, the clearer the list, but the smaller the picture range.</value></data>
+  <data name="倍率越高，面单越清楚，但画面范围越小" xml:space="preserve"><value>Actual magnification adjusts automatically based on the label position and frame boundaries.</value></data>
   <data name="本项目使用 AGPL-3.0 License 开源" xml:space="preserve"><value>This project is open source using AGPL-3.0 License</value></data>
   <data name="播报买家留言" xml:space="preserve"><value>Broadcast buyer's message</value></data>
   <data name="播报买家留言和卖家备注" xml:space="preserve"><value>Report buyer messages and seller notes</value></data>
@@ -144,7 +144,7 @@
   <data name="防止扫码枪连续触发太快" xml:space="preserve"><value>Prevent the code scanner from triggering too quickly continuously</value></data>
   <data name="访问录像、播放和剪辑时验证专用链接，订单插件不受影响" xml:space="preserve"><value>Verify the dedicated link when accessing recording, playback and editing, and the order plug-in will not be affected</value></data>
   <data name="访问密钥会包含在复制的完整访问链接中，请不要发送给无关人员" xml:space="preserve"><value>The access key will be included in the copied full access link, please do not send it to unrelated persons.</value></data>
-  <data name="放大倍数" xml:space="preserve"><value>Zoom level</value></data>
+  <data name="放大倍数" xml:space="preserve"><value>Maximum close-up</value></data>
   <data name="放大画面保持多久后恢复" xml:space="preserve"><value>How long does the zoomed-in screen last before it resumes?</value></data>
   <data name="放大前等待" xml:space="preserve"><value>Wait before zooming in</value></data>
   <data name="放大停留时间" xml:space="preserve"><value>Zoom dwell time</value></data>
@@ -208,7 +208,7 @@
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
   <data name="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准" xml:space="preserve"><value>Videos will be saved in list order. When a disk only has reserved space left, it will be automatically changed to the next disk; by default, at least 30GB or 10% is reserved for the system disk, and at least 20GB or 5% is reserved for other disks, whichever is larger.</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
-  <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>When recording starts, zoom in on the center image, stay there for a while, and then restore it.</value></data>
+  <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>Detect the label position, pan to its close-up, then restore the full view.</value></data>
   <data name="录制声音" xml:space="preserve"><value>Record sound</value></data>
   <data name="面单大" xml:space="preserve"><value>Larger label</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>Configure the recording storage location and the space on each disk to be reserved for the system and other software</value></data>
@@ -1043,4 +1043,10 @@
   <data name="脚本" xml:space="preserve"><value>Script</value></data>
   <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
   <data name="作者：" xml:space="preserve"><value>Author: </value></data>
+  <data name="启用面单智能特写" xml:space="preserve"><value>Enable smart label close-up</value></data>
+  <data name="识别面单位置后自动平移特写，停留一会儿后恢复全景" xml:space="preserve"><value>Detect the label position, pan to its close-up, then restore the full view.</value></data>
+  <data name="最大放大倍数" xml:space="preserve"><value>Maximum close-up</value></data>
+  <data name="设置智能特写允许使用的最大倍率，实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>Set the maximum smart close-up; the actual scale adjusts to the label position and frame boundaries.</value></data>
+  <data name="范围更大" xml:space="preserve"><value>Wider view</value></data>
+  <data name="特写更大" xml:space="preserve"><value>Larger close-up</value></data>
 </root>

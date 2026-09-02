@@ -189,7 +189,7 @@ namespace ExpressPackingMonitoring.Config
         public int FrameHeight { get; set; } = 720;
         public int Fps { get; set; } = 15;
         public bool EnableSmartZoom { get; set; } = false;
-        public double ZoomScale { get; set; } = 1.5;
+        public double MaxZoomScale { get; set; } = 4.0;
         public double ZoomDelaySeconds { get; set; } = 0.0;
         public double ZoomDurationSeconds { get; set; } = 3.0;
         public bool EnableZoomAnimation { get; set; } = true;
@@ -678,6 +678,12 @@ namespace ExpressPackingMonitoring.Config
                 config.CameraBarcodeGuideWidthRatio,
                 0.3,
                 1.0);
+            double normalizedMaxZoomScale = System.Math.Clamp(config.MaxZoomScale, 1.2, 4.0);
+            if (System.Math.Abs(config.MaxZoomScale - normalizedMaxZoomScale) > 0.001)
+            {
+                config.MaxZoomScale = normalizedMaxZoomScale;
+                changed = true;
+            }
             if (System.Math.Abs(config.CameraBarcodeGuideWidthRatio - normalizedGuideWidth) > 0.001)
             {
                 config.CameraBarcodeGuideWidthRatio = normalizedGuideWidth;

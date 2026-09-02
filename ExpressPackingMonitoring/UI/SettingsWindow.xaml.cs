@@ -227,7 +227,7 @@ namespace ExpressPackingMonitoring.UI
                 // GPU编码器使用缓存，可立即加载
                 LoadGpuEncoders();
                 LoadVideoCodecs();
-                if (Config.ZoomScale < 1.2 || Config.ZoomScale > 4.0) Config.ZoomScale = 1.5;
+                if (Config.MaxZoomScale < 1.2 || Config.MaxZoomScale > 4.0) Config.MaxZoomScale = 4.0;
             }
 
             if (Capabilities.CanConfigureStorage)

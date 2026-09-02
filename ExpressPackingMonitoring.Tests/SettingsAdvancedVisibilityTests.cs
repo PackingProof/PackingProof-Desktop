@@ -400,7 +400,7 @@ public sealed class SettingsAdvancedVisibilityTests
 
     [Theory]
     [InlineData("分辨率")]
-    [InlineData("放大倍数")]
+    [InlineData("最大放大倍数")]
     [InlineData("录像网页访问密钥")]
     public void CommonSettings_RemainVisibleWhenAdvancedSettingsAreHidden(string label)
     {

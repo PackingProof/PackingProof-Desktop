@@ -802,7 +802,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (Config.EnableSmartZoom || PreviewZoomScale.HasValue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
-                            double effectiveScale = PreviewZoomScale ?? Config.ZoomScale;
+                            double effectiveScale = PreviewZoomScale ?? Config.MaxZoomScale;
                             CameraBarcodeGeometry? barcodeGeometry = _lastBarcodeGeometry;
                             double boundedScale = SmartZoomPolicy.GetBoundedScale(
                                 currentFrame.Width,
@@ -836,7 +836,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                     _zoomPhaseStartTime = DateTime.Now;
                                     LastZoomRect = System.Windows.Rect.Empty;
                                     IsZoomingActive = true;
-                                    Debug.WriteLine($"[Zoom] 缩放触发: Delay={Config.ZoomDelaySeconds}s, Scale={Config.ZoomScale}");
+                                    Debug.WriteLine($"[Zoom] 缩放触发: Delay={Config.ZoomDelaySeconds}s, MaxScale={Config.MaxZoomScale}");
                                 }
 
                                 // 根据缩放阶段计算动画倍率
