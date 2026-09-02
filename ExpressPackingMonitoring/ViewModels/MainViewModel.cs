@@ -268,7 +268,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private ZoomPhase _zoomPhase = ZoomPhase.None;
         private DateTime _zoomPhaseStartTime;
         private bool _delayBeforeZooming = false;
-        private CameraBarcodeGeometry? _lastBarcodeGeometry;
+        private CameraBarcodeGeometry _lastBarcodeGeometry;
 
         private ScanRecord _currentScanRecord;
         private long _currentRecordId; 

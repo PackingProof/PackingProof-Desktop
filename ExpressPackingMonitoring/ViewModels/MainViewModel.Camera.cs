@@ -803,7 +803,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.MaxZoomScale;
-                            CameraBarcodeGeometry? barcodeGeometry = _lastBarcodeGeometry;
+                            CameraBarcodeGeometry barcodeGeometry = _lastBarcodeGeometry;
                             double boundedScale = SmartZoomPolicy.GetBoundedScale(
                                 currentFrame.Width,
                                 currentFrame.Height,
