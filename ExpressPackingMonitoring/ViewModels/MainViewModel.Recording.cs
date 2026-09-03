@@ -146,6 +146,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     long fileSize = GetCompletedRecordingSizeBytes(filePath, audioFilePath);
                     double recordDuration = (DateTime.Now - recordStart).TotalSeconds;
                     int durSec = Math.Max(1, (int)recordDuration);
+                    _db?.SaveWallClockDuration(recordId, recordDuration);
 
                     // 文件过小和录制过短是两条独立规则，原因要分别写入数据库。
                     long minFileSizeBytes = GetMinVideoFileSizeBytes();

@@ -225,7 +225,7 @@ namespace ExpressPackingMonitoring.Data
     /// 本地 SQLite 视频数据库，统一管理录制记录、统计数据和删除日志。
     /// 替代原来的 daily_stats.json 和文件系统扫描。
     /// </summary>
-    public class VideoDatabase : IDisposable
+    public partial class VideoDatabase : IDisposable
     {
         public static readonly TimeSpan OrderInfoRetention = TimeSpan.FromDays(90);
         public static readonly TimeSpan DuplicateOrderLookback = TimeSpan.FromDays(30);
@@ -300,6 +300,13 @@ namespace ExpressPackingMonitoring.Data
                     ArchiveError TEXT DEFAULT '',
                     LocalCopyDeletedAt TEXT,
                     LocalDeleteReason TEXT DEFAULT ''
+                );");
+
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS VideoRecordingTimings (
+                    VideoRecordId INTEGER PRIMARY KEY,
+                    WallClockDurationSeconds REAL NOT NULL DEFAULT 0,
+                    FOREIGN KEY (VideoRecordId) REFERENCES VideoRecords(Id) ON DELETE CASCADE
                 );");
 
             ExecuteNonQuery(@"

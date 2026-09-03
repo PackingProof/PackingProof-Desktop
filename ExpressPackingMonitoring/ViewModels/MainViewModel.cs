@@ -815,6 +815,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!tooSmall && recordId > 0)
                     {
                         int durSec = Math.Max(1, (int)(DateTime.Now - recordStart).TotalSeconds);
+                        _db?.SaveWallClockDuration(recordId, (DateTime.Now - recordStart).TotalSeconds);
                         _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, _stopReason, _currentVideoCodec, _currentVideoEncoder);
                         RuntimeLog.Info("Recording", $"Exit finalized MKV, queued for startup/web conversion: {Path.GetFileName(videoFileToConvert)}");
                     }
@@ -824,6 +825,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             string deleteReason = $"文件过小，小于 {FormatMinVideoFileSize(Config.MinVideoFileSizeKB)}";
                             int durSec = Math.Max(1, (int)(DateTime.Now - recordStart).TotalSeconds);
+                            _db?.SaveWallClockDuration(recordId, (DateTime.Now - recordStart).TotalSeconds);
                             _db?.UpdateVideoRecordOnStop(recordId, DateTime.Now, durSec, fileSize, deleteReason, _currentVideoCodec, _currentVideoEncoder);
                             if (DeleteVideoFileForRule(videoFileToConvert, deleteReason))
                                 _db?.MarkVideoDeleted(videoFileToConvert, deleteReason);

@@ -8,6 +8,47 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class VideoDatabaseTests
 {
     [Fact]
+    public void UpdateVideoDurationByFilePath_UsesProbedMediaDuration()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            string filePath = Path.Combine(tempDirectory, "recording.mkv");
+            long id = database.InsertVideoRecord("PC", "发货", "", "", filePath, DateTime.Now);
+            database.UpdateVideoRecordOnStop(id, DateTime.Now, 50, 1024, "手动");
+
+            database.UpdateVideoDurationByFilePath(filePath.ToUpperInvariant(), 47.25);
+
+            Assert.Equal(47.25, database.GetVideoById(id)!.DurationSeconds, precision: 3);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
+    public void WallClockDuration_IsStoredSeparatelyFromMediaDuration()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            long id = database.InsertVideoRecord("PC", "发货", "", "", Path.Combine(tempDirectory, "recording.mkv"), DateTime.Now);
+            database.UpdateVideoRecordOnStop(id, DateTime.Now, 47.25, 1024, "手动");
+            database.SaveWallClockDuration(id, 50.8);
+
+            Assert.Equal(47.25, database.GetVideoById(id)!.DurationSeconds, precision: 3);
+            Assert.Equal(50.8, database.GetWallClockDuration(id)!.Value, precision: 3);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void MobileBackupDailyCounts_AreGroupedByStableDeviceAndIgnoreDeletedVideos()
     {
         string tempDirectory = CreateTempDirectory();

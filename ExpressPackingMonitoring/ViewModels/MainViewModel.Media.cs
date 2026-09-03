@@ -298,17 +298,6 @@ namespace ExpressPackingMonitoring.ViewModels
             string ffmpegPath = FindFFmpeg();
             foreach (string sourcePath in result.ProcessedSources)
             {
-                if (!_pendingRecordingSpecificationChecks.TryRemove(
-                        sourcePath,
-                        out ExpectedRecordingSpecification expected))
-                {
-                    continue;
-                }
-
-                // 尽力而为：下一单已经开录时直接跳过，不与实时录制竞争资源，也不轮询补做。
-                if (IsRecording || _isDisposed)
-                    continue;
-
                 MkvFinalizedFile finalizedFile = result.FinalFiles.FirstOrDefault(item =>
                     string.Equals(item.SourcePath, sourcePath, StringComparison.OrdinalIgnoreCase));
                 if (finalizedFile == null)
@@ -321,6 +310,21 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     continue;
                 }
+
+                _db?.UpdateVideoDurationByFilePath(sourcePath, actual.DurationSeconds);
+                if (!string.Equals(sourcePath, finalizedFile.FinalPath, StringComparison.OrdinalIgnoreCase))
+                    _db?.UpdateVideoDurationByFilePath(finalizedFile.FinalPath, actual.DurationSeconds);
+
+                if (!_pendingRecordingSpecificationChecks.TryRemove(
+                    sourcePath,
+                    out ExpectedRecordingSpecification expected))
+                {
+                    continue;
+                }
+
+                // 尽力而为：下一单已经开录时直接跳过，不与实时录制竞争资源，也不轮询补做。
+                if (IsRecording || _isDisposed)
+                    continue;
 
                 CompletedVideoSpecificationEvaluation evaluation =
                     CompletedVideoSpecificationProbe.Evaluate(expected, actual);
