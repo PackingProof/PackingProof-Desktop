@@ -243,7 +243,7 @@ internal sealed class ArchiveService : IDisposable
 
     /// <summary>
     /// 历史回填：为 NAS 配置前已定稿的 MP4 记录补设归档路径并置 Pending，
-    /// 受 5 分钟间隔限制，Wake 时立即允许重扫；本地文件已不存在的记录跳过。
+    /// 按记录来源保持本机录像和外部上传的目录布局；本地文件已不存在的记录跳过。
     /// </summary>
     private void BackfillHistoricalArchives(string archiveTarget)
     {
@@ -265,10 +265,7 @@ internal sealed class ArchiveService : IDisposable
                 {
                     if (string.IsNullOrWhiteSpace(record.FilePath) || !File.Exists(record.FilePath))
                         continue;
-                    string archivePath = ArchivePathBuilder.BuildLocalRecordingArchivePath(
-                        archiveTarget,
-                        record.StartTime,
-                        Path.GetFileName(record.FilePath));
+                    string archivePath = BuildHistoricalArchivePath(record, archiveTarget);
                     updated += _database.SetArchiveTarget(record.Id, archivePath);
                 }
                 catch (Exception ex)
@@ -283,6 +280,27 @@ internal sealed class ArchiveService : IDisposable
         _lastBackfillAt = DateTime.UtcNow;
         if (updated > 0)
             RuntimeLog.Info("Archive", $"Backfilled historical archive paths count={updated}");
+    }
+
+    private static string BuildHistoricalArchivePath(VideoRecord record, string archiveTarget)
+    {
+        if (string.Equals(record.SourceType, "external", StringComparison.OrdinalIgnoreCase))
+        {
+            return ArchivePathBuilder.BuildExternalUploadArchivePath(
+                archiveTarget,
+                record.SourceDeviceKind,
+                record.SourceDeviceId,
+                record.SourceDeviceName,
+                record.StartTime,
+                record.TrackingNumber,
+                record.Mode,
+                record.ContentSha256);
+        }
+
+        return ArchivePathBuilder.BuildLocalRecordingArchivePath(
+            archiveTarget,
+            record.StartTime,
+            Path.GetFileName(record.FilePath));
     }
 
     internal Task<bool> ArchiveRecordAsync(long recordId, CancellationToken cancellationToken)

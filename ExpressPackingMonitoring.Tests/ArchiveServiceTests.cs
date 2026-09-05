@@ -691,6 +691,53 @@ public sealed class ArchiveServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task BackfillHistoricalArchives_PreservesExternalUploadLayout()
+    {
+        DateTime startTime = DateTime.Now.AddMinutes(-120);
+        string localPath = Path.Combine(_localRoot, "external-history.mp4");
+        File.WriteAllText(localPath, "external-history-content");
+        long id = _database.InsertMobileBackupRecord(
+            "79030000000000",
+            localPath,
+            new FileInfo(localPath).Length,
+            startTime,
+            10,
+            "device-123456",
+            "从机一",
+            "session-history",
+            "",
+            sourceDeviceKind: "mobile",
+            mode: "发货",
+            archivePath: "",
+            archiveStatus: VideoArchiveStatus.LocalOnly,
+            videoCodec: "h264");
+        using var service = new ArchiveService(
+            _database,
+            new NasArchiveProvider(),
+            new ArchiveWorkerOptions { AutomaticWorkerEnabled = false },
+            archiveTargetResolver: () =>
+                new List<StorageLocation> { new() { Path = _nasRoot } });
+
+        int completed = await service.ProcessPendingOnceAsync(TestContext.Current.CancellationToken);
+
+        VideoRecord record = _database.GetVideoById(id)!;
+        string expected = ArchivePathBuilder.BuildExternalUploadArchivePath(
+            _nasRoot,
+            record.SourceDeviceKind,
+            record.SourceDeviceId,
+            record.SourceDeviceName,
+            record.StartTime,
+            record.TrackingNumber,
+            record.Mode,
+            record.ContentSha256);
+        Assert.Equal(1, completed);
+        Assert.Equal(VideoArchiveStatus.Verified, record.ArchiveStatus);
+        Assert.Equal(expected, record.ArchivePath);
+        Assert.Contains(Path.Combine("手机备份", "从机一-123456"), record.ArchivePath);
+        Assert.True(File.Exists(record.ArchivePath));
+    }
+
+    [Fact]
     public async Task BackfillHistoricalArchives_SkipsMissingLocalFile()
     {
         DateTime now = DateTime.Now;
