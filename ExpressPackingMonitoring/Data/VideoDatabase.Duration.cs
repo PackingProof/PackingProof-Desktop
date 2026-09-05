@@ -2,6 +2,16 @@ namespace ExpressPackingMonitoring.Data;
 
 public partial class VideoDatabase
 {
+    private void EnsureVideoRecordingTimingsTable()
+    {
+        ExecuteNonQuery(@"
+            CREATE TABLE IF NOT EXISTS VideoRecordingTimings (
+                VideoRecordId INTEGER PRIMARY KEY,
+                WallClockDurationSeconds REAL NOT NULL DEFAULT 0,
+                FOREIGN KEY (VideoRecordId) REFERENCES VideoRecords(Id) ON DELETE CASCADE
+            );");
+    }
+
     public void SaveWallClockDuration(long videoRecordId, double durationSeconds)
     {
         if (videoRecordId <= 0 || !double.IsFinite(durationSeconds) || durationSeconds < 0)

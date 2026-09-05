@@ -114,6 +114,7 @@
     <Compile Include="Data\SharedFileMigrationRecords.cs" />
     <Compile Include="Data\VideoDatabase.cs" />
     <Compile Include="Data\VideoDatabase.Duration.cs" />
+    <Compile Include="Data\VideoDatabase.Schema.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />

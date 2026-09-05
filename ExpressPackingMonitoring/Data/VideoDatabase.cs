@@ -302,12 +302,7 @@ namespace ExpressPackingMonitoring.Data
                     LocalDeleteReason TEXT DEFAULT ''
                 );");
 
-            ExecuteNonQuery(@"
-                CREATE TABLE IF NOT EXISTS VideoRecordingTimings (
-                    VideoRecordId INTEGER PRIMARY KEY,
-                    WallClockDurationSeconds REAL NOT NULL DEFAULT 0,
-                    FOREIGN KEY (VideoRecordId) REFERENCES VideoRecords(Id) ON DELETE CASCADE
-                );");
+            EnsureVideoRecordingTimingsTable();
 
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS OrderInfoRecords (
@@ -4016,89 +4011,6 @@ namespace ExpressPackingMonitoring.Data
         {
             if (!GetTableColumns("VideoRecords").Contains("FileName")) return;
             ExecuteNonQuery("ALTER TABLE VideoRecords DROP COLUMN FileName;");
-        }
-
-        private bool TableExists(string tableName)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name=$name;";
-            cmd.Parameters.AddWithValue("$name", tableName);
-            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-        }
-
-        private HashSet<string> GetTableColumns(string tableName)
-        {
-            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = $"PRAGMA table_info('{tableName.Replace("'", "''")}');";
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-                result.Add(reader.GetString(1));
-            return result;
-        }
-
-        private static string CreateSchemaMigrationBackupDirectory()
-        {
-            Directory.CreateDirectory(AppPaths.BackupsDir);
-            string baseName = $"schema-migration-videos-db-{DateTime.Now:yyyyMMdd-HHmmss}";
-            string dir = Path.Combine(AppPaths.BackupsDir, baseName);
-            int suffix = 1;
-            while (Directory.Exists(dir))
-            {
-                suffix++;
-                dir = Path.Combine(AppPaths.BackupsDir, $"{baseName}-{suffix}");
-            }
-            Directory.CreateDirectory(dir);
-            return dir;
-        }
-
-        private static void CopySqliteFileIfExists(string sourcePath, string destinationPath)
-        {
-            if (!File.Exists(sourcePath)) return;
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
-            File.Copy(sourcePath, destinationPath, overwrite: false);
-        }
-
-
-        private void ExecuteNonQuery(string sql)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.ExecuteNonQuery();
-        }
-
-        private void EnsureColumnExists(string tableName, string columnName, string columnDefinition)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = $"PRAGMA table_info({tableName});";
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
-            {
-                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
-                    return;
-            }
-
-            ExecuteNonQuery($"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};");
-        }
-
-        /// <summary>
-        /// 迁移版本保护：低于当前版本时执行幂等迁移并写入 user_version；
-        /// 高于当前版本时仅记录警告，不降版本、不修改结构。
-        /// </summary>
-        private void EnsureSchemaVersion()
-        {
-            int currentVersion = ReadUserVersion();
-            if (currentVersion < SchemaVersion)
-            {
-                // 所有迁移步骤均为幂等 EnsureColumnExists，已在上方执行完；
-                // 这里只负责写入版本，供后续增量迁移判断。
-                ExecuteNonQuery($"PRAGMA user_version = {SchemaVersion};");
-            }
-            else if (currentVersion > SchemaVersion)
-            {
-                System.Diagnostics.Debug.WriteLine(
-                    $"VideoDatabase schema version {currentVersion} is newer than supported {SchemaVersion}");
-            }
         }
 
         private int ReadUserVersion()

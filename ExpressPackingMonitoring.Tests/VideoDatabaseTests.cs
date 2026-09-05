@@ -49,6 +49,29 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void WallClockDuration_PersistsAcrossDatabaseReopen()
+    {
+        string tempDirectory = CreateTempDirectory();
+        string databasePath = Path.Combine(tempDirectory, "videos.db");
+        try
+        {
+            long id;
+            using (var database = new VideoDatabase(databasePath))
+            {
+                id = database.InsertVideoRecord("PC", "发货", "", "", Path.Combine(tempDirectory, "recording.mkv"), DateTime.Now);
+                database.SaveWallClockDuration(id, 50.8);
+            }
+
+            using var reopened = new VideoDatabase(databasePath);
+            Assert.Equal(50.8, reopened.GetWallClockDuration(id)!.Value, precision: 3);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
+    [Fact]
     public void MobileBackupDailyCounts_AreGroupedByStableDeviceAndIgnoreDeletedVideos()
     {
         string tempDirectory = CreateTempDirectory();
