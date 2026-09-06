@@ -1883,6 +1883,25 @@ public sealed class DeploymentStartupTests
         Assert.DoesNotContain("RecordingSetupVersion = 1", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AppConfiguresSoftwareRenderingDuringStaticInitialization()
+    {
+        string source = ReadRepositoryFile("ExpressPackingMonitoring", "App.xaml.cs");
+        int staticInitializationIndex = source.IndexOf(
+            "private static readonly bool HardwareRenderingEnabled = ConfigureWpfRendering();",
+            StringComparison.Ordinal);
+        int startupIndex = source.IndexOf("protected override void OnStartup", StringComparison.Ordinal);
+        int startupRenderIndex = source.IndexOf("ApplyConfiguredWpfRenderingMode();", startupIndex, StringComparison.Ordinal);
+        int baseStartupIndex = source.IndexOf("base.OnStartup(e);", startupIndex, StringComparison.Ordinal);
+
+        Assert.True(staticInitializationIndex >= 0);
+        Assert.True(staticInitializationIndex < startupIndex);
+        Assert.True(startupRenderIndex > startupIndex);
+        Assert.True(startupRenderIndex < baseStartupIndex);
+        Assert.Contains("RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly", source, StringComparison.Ordinal);
+        Assert.Contains("EPM_ENABLE_WPF_HARDWARE_RENDERING", source, StringComparison.Ordinal);
+    }
+
     private static PackingProofNodeInfo CreateDiscoveredHost(
         string nodeId,
         string capability) =>

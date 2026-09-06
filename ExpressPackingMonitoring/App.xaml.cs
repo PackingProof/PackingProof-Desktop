@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace ExpressPackingMonitoring
 {
@@ -19,11 +20,14 @@ namespace ExpressPackingMonitoring
     /// </summary>
     public partial class App : Application
     {
+        internal const string EnableHardwareRenderingEnvironmentVariable = "EPM_ENABLE_WPF_HARDWARE_RENDERING";
+        private static readonly bool HardwareRenderingEnabled = ConfigureWpfRendering();
         private WorkstationInstanceCoordinator? _instanceCoordinator;
         private CancellationTokenSource? _launcherUpdateCancellation;
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            ApplyConfiguredWpfRenderingMode();
             WinRtPlacementService.Apply();
             base.OnStartup(e);
             if (!WorkstationNetwork.WaitForRestartParentExit(e.Args, 15000, out string restartWaitError))
@@ -56,6 +60,9 @@ namespace ExpressPackingMonitoring
             RuntimeLog.Info("App", "Application startup");
             RuntimeLog.LogSessionStart(e.Args);
             RuntimeLog.LogBuildInfo();
+            RuntimeLog.Info(
+                "Rendering",
+                $"WPF process render mode={RenderOptions.ProcessRenderMode}, hardwareOptIn={HardwareRenderingEnabled}");
             _launcherUpdateCancellation = new CancellationTokenSource();
             _ = new LauncherUpdateService().CheckAndApplyAsync(
                 config.EnableAutoCheckUpdate,
@@ -208,6 +215,25 @@ namespace ExpressPackingMonitoring
             _instanceCoordinator?.StartActivationListener(window);
             window.Show();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
+        }
+
+        private static bool ConfigureWpfRendering()
+        {
+            string? value = Environment.GetEnvironmentVariable(EnableHardwareRenderingEnvironmentVariable);
+            bool enableHardwareRendering = string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+            ApplyWpfRenderingMode(enableHardwareRendering);
+
+            return enableHardwareRendering;
+        }
+
+        private static void ApplyConfiguredWpfRenderingMode() =>
+            ApplyWpfRenderingMode(HardwareRenderingEnabled);
+
+        private static void ApplyWpfRenderingMode(bool enableHardwareRendering)
+        {
+            if (!enableHardwareRendering)
+                RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
         }
 
         private static bool IsLanAccessSetupDisabled()
