@@ -249,6 +249,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 preGenerate: (text, style) => _speechService.PreGenerateCache(text, style == AlertVoiceStyle.Warning),
                 pauseAudio: _speechService.PauseForRecording,
                 resumeAudio: _speechService.ResumeAfterRecording);
+            foreach (DefaultSpeechPrompt prompt in DefaultSpeechCatalog.Prompts)
+                _speechService.PreGenerateCache(prompt.Text, prompt.VoiceStyle == AlertVoiceStyle.Warning);
             ScanCommand = new AsyncRelayCommand<string>(
                 scanResult => HandleScanAsync(scanResult),
                 AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -932,7 +934,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.EnableOrderInfoLog)
                     System.Diagnostics.Debug.WriteLine($"[OrderInfo] 扫码查询: {upperResult}, EnableAnnounce={Config.EnableOrderInfoAnnounce}, WebServer={(_webServer != null ? "已启动" : "未启动")}");
                 var orderInfo = _webServer?.GetOrderInfo(upperResult);
-                SetPreviewOrderNotice(IsRecording ? orderInfo : null);
+                if (IsRecording && orderInfo != null)
+                    SetPreviewOrderNotice(orderInfo);
                 if (Config.EnableOrderInfoLog)
                     System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
                 if (Config.EnableOrderInfoAnnounce && orderInfo != null)
