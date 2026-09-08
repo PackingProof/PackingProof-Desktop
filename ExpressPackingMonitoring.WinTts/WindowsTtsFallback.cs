@@ -42,7 +42,7 @@ namespace ExpressPackingMonitoring.WinTts
             }
         }
 
-        public bool TrySynthesize(string text, bool isWarning, out byte[] wavData)
+        public bool TrySynthesize(string text, bool isWarning, float speed, out byte[] wavData)
         {
             wavData = Array.Empty<byte>();
 
@@ -60,6 +60,14 @@ namespace ExpressPackingMonitoring.WinTts
 
             try
             {
+                try
+                {
+                    synth.Options.SpeakingRate = Math.Clamp((double)speed, 0.5, 2.0);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[WinTts] Speaking rate unavailable, using system default: {ex.Message}");
+                }
                 var result = synth.SynthesizeTextToStreamAsync(text).AsTask().GetAwaiter().GetResult();
                 using var ms = new MemoryStream();
                 result.AsStreamForRead().CopyTo(ms);

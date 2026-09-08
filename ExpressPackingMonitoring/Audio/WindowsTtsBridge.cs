@@ -69,15 +69,15 @@ namespace ExpressPackingMonitoring.Audio
             }
         }
 
-        public bool TrySynthesize(string text, bool isWarning, out byte[] wavData)
+        public bool TrySynthesize(string text, bool isWarning, float speed, out byte[] wavData)
         {
             wavData = Array.Empty<byte>();
             try
             {
-                object[] args = { text, isWarning, null! };
+                object[] args = { text, isWarning, speed, null! };
                 bool ok = (bool)(_trySynthesize.Invoke(_instance, args) ?? false);
                 if (ok)
-                    wavData = (byte[])args[2]!;
+                    wavData = (byte[])args[3]!;
                 return ok;
             }
             catch

@@ -24,7 +24,6 @@ namespace ExpressPackingMonitoring.Audio
         public string Text { get; set; } = string.Empty;
         public bool IsWarning { get; set; }
         public int RepeatCount { get; set; } = 1;
-        public bool PreferImmediateAiGeneration { get; set; }
         public bool PlayRemarkTone { get; set; }
         public bool PlayWarningTonePerRepeat { get; set; }
         public bool IsCriticalWarning { get; set; }
@@ -327,7 +326,7 @@ namespace ExpressPackingMonitoring.Audio
         private void SpeakRequestText(string text, SpeechRequest request)
         {
             if (EnableAiTts)
-                SpeakWithAiTts(text, request.IsWarning, request.PreferImmediateAiGeneration);
+                SpeakWithAiTts(text, request.IsWarning);
             else
                 SpeakWithWindowsTts(text, request.IsWarning);
         }
@@ -364,7 +363,7 @@ namespace ExpressPackingMonitoring.Audio
         private bool SpeakWithWindowsTts(string text, bool isWarning)
         {
             if (_windowsTts == null) return true;
-            if (_windowsTts.TrySynthesize(text, isWarning, out byte[] wavData))
+            if (_windowsTts.TrySynthesize(text, isWarning, AiTtsSpeed, out byte[] wavData))
             {
                 if (_speechCancelRequested || _isDisposed) return true;
                 PlayWavBlocking(wavData);
@@ -372,7 +371,7 @@ namespace ExpressPackingMonitoring.Audio
             return true;
         }
 
-        private bool SpeakWithAiTts(string text, bool isWarning, bool preferImmediateGeneration)
+        private bool SpeakWithAiTts(string text, bool isWarning)
         {
             text = PreprocessTextForTts(text);
             string voiceKey = GetCurrentVoiceKey(isWarning);
@@ -385,18 +384,6 @@ namespace ExpressPackingMonitoring.Audio
             if (File.Exists(cachePath))
             {
                 Debug.WriteLine($"[SpeechService] Cache HIT: {cacheKey}");
-                if (!_speechCancelRequested && !_isDisposed)
-                {
-                    if (IsEdgeTtsEngine)
-                        PlayAudioFileBlocking(cachePath);
-                    else
-                        PlayWavBlocking(File.ReadAllBytes(cachePath));
-                }
-                return true;
-            }
-
-            if (preferImmediateGeneration && TryGenerateAiCache(text, isWarning, cachePath))
-            {
                 if (!_speechCancelRequested && !_isDisposed)
                 {
                     if (IsEdgeTtsEngine)
@@ -1387,8 +1374,7 @@ namespace ExpressPackingMonitoring.Audio
             {
                 Text = text,
                 IsWarning = false,
-                RepeatCount = 1,
-                PreferImmediateAiGeneration = true
+                RepeatCount = 1
             });
         }
 
