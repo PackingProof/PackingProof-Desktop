@@ -2950,16 +2950,8 @@
                                          </ComboBox>
                                      </Grid>
 
-                                      <Grid>
-                                         <Grid.Style>
-                                             <Style TargetType="Grid" BasedOn="{StaticResource AdvancedSettingRowStyle}">
-                                                  <Setter Property="IsEnabled" Value="False"/>
-                                                 <Style.Triggers>
-                                                     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/><Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Edge"/></MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True"/></MultiDataTrigger>
-                                                     <MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/><Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Kokoro"/></MultiDataTrigger.Conditions><Setter Property="IsEnabled" Value="True"/></MultiDataTrigger>
-                                                 </Style.Triggers>
-                                             </Style>
-                                         </Grid.Style>
+                                      <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                            IsEnabled="{Binding IsChecked, ElementName=SoundPromptCheckBox, TargetNullValue=False}">
                                          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
                                          <StackPanel Margin="0,0,16,0"><TextBlock Text="语速" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="调整播报快慢" Style="{StaticResource FieldHintStyle}"/></StackPanel>
                                          <StackPanel Grid.Column="2"><Grid><TextBlock Text="更慢" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/><TextBlock Text="{Binding ElementName=AiTtsSpeedSlider, Path=Value, StringFormat={}{0:F1} 倍}" Style="{StaticResource SliderValueTextStyle}" HorizontalAlignment="Center"/><TextBlock Text="更快" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/></Grid><Slider x:Name="AiTtsSpeedSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0.5" Maximum="2.0" TickFrequency="0.1" Value="{Binding Config.AiTtsSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel>
@@ -3091,23 +3083,7 @@
                             <Border Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                 <Border.Style>
                                     <Style TargetType="Border" BasedOn="{StaticResource SectionCardStyle}">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                        <Style.Triggers>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                    <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Edge"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsEnabled" Value="True"/>
-                                            </MultiDataTrigger>
-                                            <MultiDataTrigger>
-                                                <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding IsChecked, ElementName=SoundPromptCheckBox}" Value="True"/>
-                                                    <Condition Binding="{Binding SelectedValue, ElementName=VoiceEngineComboBox}" Value="Kokoro"/>
-                                                </MultiDataTrigger.Conditions>
-                                                <Setter Property="IsEnabled" Value="True"/>
-                                            </MultiDataTrigger>
-                                        </Style.Triggers>
+                                        <Setter Property="IsEnabled" Value="{Binding IsChecked, ElementName=SoundPromptCheckBox, TargetNullValue=False}"/>
                                     </Style>
                                 </Border.Style>
                                 <StackPanel>

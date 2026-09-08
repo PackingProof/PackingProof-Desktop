@@ -54,6 +54,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="AForge.Video" Version="2.2.5" />
@@ -359,6 +362,26 @@
         <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
       </ResolvedFileToPublish>
     </ItemGroup>
+  </Target>
+
+  <Target Name="CopyWinTtsRuntimeToBuildOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <WinTtsProjectPath>$(MSBuildProjectDirectory)\..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj</WinTtsProjectPath>
+      <WinTtsPublishDirectory>$(IntermediateOutputPath)wintts-runtime</WinTtsPublishDirectory>
+    </PropertyGroup>
+    <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-build --no-restore --nologo -o &quot;$(WinTtsPublishDirectory)&quot;" />
+    <ItemGroup>
+      <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\ExpressPackingMonitoring.WinTts.dll" />
+      <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\Microsoft.Windows.SDK.NET.dll" />
+      <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\WinRT.Runtime.dll" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(WinTtsRuntimeFile.Identity)')"
+           Text="WinTts runtime output missing: %(WinTtsRuntimeFile.Identity)" />
+    <Copy SourceFiles="@(WinTtsRuntimeFile)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

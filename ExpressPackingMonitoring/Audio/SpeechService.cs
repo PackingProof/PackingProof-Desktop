@@ -325,6 +325,7 @@ namespace ExpressPackingMonitoring.Audio
 
         private void SpeakRequestText(string text, SpeechRequest request)
         {
+            text = PreprocessTextForTts(text);
             if (EnableAiTts)
                 SpeakWithAiTts(text, request.IsWarning);
             else
@@ -362,7 +363,11 @@ namespace ExpressPackingMonitoring.Audio
 
         private bool SpeakWithWindowsTts(string text, bool isWarning)
         {
-            if (_windowsTts == null) return true;
+            if (_windowsTts == null)
+            {
+                Logging.RuntimeLog.Warn("Speech", "Windows TTS fallback unavailable");
+                return true;
+            }
             if (_windowsTts.TrySynthesize(text, isWarning, AiTtsSpeed, out byte[] wavData))
             {
                 if (_speechCancelRequested || _isDisposed) return true;
@@ -373,7 +378,6 @@ namespace ExpressPackingMonitoring.Audio
 
         private bool SpeakWithAiTts(string text, bool isWarning)
         {
-            text = PreprocessTextForTts(text);
             string voiceKey = GetCurrentVoiceKey(isWarning);
             string extension = IsEdgeTtsEngine ? ".mp3" : ".wav";
 

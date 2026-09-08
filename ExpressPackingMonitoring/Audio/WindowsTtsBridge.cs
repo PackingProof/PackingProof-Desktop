@@ -35,7 +35,10 @@ namespace ExpressPackingMonitoring.Audio
             {
                 string helperPath = Path.Combine(AppContext.BaseDirectory, HelperAssemblyFile);
                 if (!File.Exists(helperPath))
+                {
+                    Logging.RuntimeLog.Warn("Speech", $"WindowsTts helper missing: {helperPath}");
                     return null;
+                }
 
                 var helperAlc = new AssemblyLoadContext("ExpressPackingMonitoring.WinTts", isCollectible: false);
                 helperAlc.Resolving += (context, name) =>
@@ -63,8 +66,9 @@ namespace ExpressPackingMonitoring.Audio
                 Logging.RuntimeLog.Info("Speech", "WindowsTts bridge loaded");
                 return new WindowsTtsBridge(instance, trySynthesize, dispose);
             }
-            catch
+            catch (Exception ex)
             {
+                Logging.RuntimeLog.Warn("Speech", $"WindowsTts bridge load failed: {ex.Message}");
                 return null;
             }
         }
@@ -80,8 +84,12 @@ namespace ExpressPackingMonitoring.Audio
                     wavData = (byte[])args[3]!;
                 return ok;
             }
-            catch
+            catch (Exception ex)
             {
+                Exception detail = ex is TargetInvocationException { InnerException: not null }
+                    ? ex.InnerException
+                    : ex;
+                Logging.RuntimeLog.Warn("Speech", $"WindowsTts synthesis failed: {detail.Message}");
                 return false;
             }
         }
