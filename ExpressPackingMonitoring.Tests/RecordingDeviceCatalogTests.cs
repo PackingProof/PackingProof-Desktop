@@ -523,6 +523,19 @@ public sealed class RecordingDeviceCatalogTests
         Assert.Equal("当前没有在线的录像设备", WorkstationNetwork.FormatTestOrderBroadcastResult(result));
     }
 
+    [Theory]
+    [InlineData("192.168.1.20:5280", "", "192.168.1.20:5280")]
+    [InlineData("192.168.1.20:5280", "192.168.1.10:5280", "192.168.1.10:5280")]
+    public void TestOrderBroadcastPrefersBoundHostAddress(
+        string localAddress,
+        string boundHostAddress,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            WorkstationNetwork.ResolveTestOrderHostAddress(localAddress, boundHostAddress));
+    }
+
     [Fact]
     public async Task TestOrderBroadcastKeepsSuccessfulDeviceWhenAnotherDeviceFails()
     {

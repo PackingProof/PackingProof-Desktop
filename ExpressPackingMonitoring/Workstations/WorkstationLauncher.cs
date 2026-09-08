@@ -508,6 +508,11 @@ public static class WorkstationNetwork
         public bool HasTargets => Devices.Count > 0;
     }
 
+    internal static string ResolveTestOrderHostAddress(
+        string localAddress,
+        string boundHostAddress) =>
+        string.IsNullOrWhiteSpace(boundHostAddress) ? localAddress : boundHostAddress;
+
     public static async Task<TestOrderSendResult> SendTestOrderAsync(
         string address,
         CancellationToken token = default)

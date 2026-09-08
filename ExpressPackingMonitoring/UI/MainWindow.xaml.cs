@@ -582,7 +582,10 @@ namespace ExpressPackingMonitoring.UI
             try
             {
                 WorkstationNetwork.TestOrderBroadcastResult result =
-                    await WorkstationNetwork.SendTestOrderToRecordingDevicesAsync(viewModel.MonitorAccessAddress);
+                    await WorkstationNetwork.SendTestOrderToRecordingDevicesAsync(
+                        WorkstationNetwork.ResolveTestOrderHostAddress(
+                            viewModel.MonitorAccessAddress,
+                            viewModel.BoundHostAddress));
                 AppDialogSeverity severity = result.HasTargets && result.FailureCount == 0
                     ? AppDialogSeverity.Information
                     : AppDialogSeverity.Warning;
