@@ -372,7 +372,7 @@
       <WinTtsPublishDirectory>$(IntermediateOutputPath)wintts-runtime</WinTtsPublishDirectory>
       <WinTtsArtifactsArgument Condition="'$(ArtifactsPath)' != ''">--artifacts-path &quot;$(ArtifactsPath)&quot;</WinTtsArtifactsArgument>
     </PropertyGroup>
-    <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-build --no-restore --nologo $(WinTtsArtifactsArgument) -o &quot;$(WinTtsPublishDirectory)&quot;" />
+    <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-restore --nologo $(WinTtsArtifactsArgument) -o &quot;$(WinTtsPublishDirectory)&quot;" />
     <ItemGroup>
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\ExpressPackingMonitoring.WinTts.dll" />
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\Microsoft.Windows.SDK.NET.dll" />
