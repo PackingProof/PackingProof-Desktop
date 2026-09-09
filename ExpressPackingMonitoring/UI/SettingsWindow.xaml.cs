@@ -43,15 +43,21 @@ namespace ExpressPackingMonitoring.UI
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            double cqp = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
-            return Math.Clamp((51 - cqp) * 2.0, 0, 100);
+            double cqp = Math.Clamp(
+                System.Convert.ToDouble(value, CultureInfo.InvariantCulture),
+                AppConfig.HighestQualityVideoCqp,
+                AppConfig.LowestQualityVideoCqp);
+            double range = AppConfig.LowestQualityVideoCqp - AppConfig.HighestQualityVideoCqp;
+            return (AppConfig.LowestQualityVideoCqp - cqp) * 100.0 / range;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
             double quality = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
-            int cqp = (int)Math.Round(51 - Math.Clamp(quality, 0, 100) / 2.0);
-            return Math.Clamp(cqp, 1, 51);
+            double range = AppConfig.LowestQualityVideoCqp - AppConfig.HighestQualityVideoCqp;
+            int cqp = (int)Math.Round(
+                AppConfig.LowestQualityVideoCqp - Math.Clamp(quality, 0, 100) * range / 100.0);
+            return AppConfig.NormalizeVideoCqp(cqp);
         }
     }
 

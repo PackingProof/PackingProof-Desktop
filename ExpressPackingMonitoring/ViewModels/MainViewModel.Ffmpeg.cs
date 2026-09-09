@@ -267,7 +267,7 @@ namespace ExpressPackingMonitoring.ViewModels
         internal static string BuildFFmpegEncoderArgs(int w, int h, int fps, string encoder, int videoCqp)
         {
             string args = "";
-            int cqp = videoCqp > 0 ? videoCqp : 25;
+            int cqp = AppConfig.NormalizeVideoCqp(videoCqp);
             int gop = Math.Max(1, fps * 2);
 
             if (encoder == "h264_nvenc") args += $" -c:v h264_nvenc -pix_fmt yuv420p -preset p4 -rc vbr -cq {cqp} -b:v 0 -g {gop} -max_muxing_queue_size 1024";

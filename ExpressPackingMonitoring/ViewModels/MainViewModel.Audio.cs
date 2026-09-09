@@ -1143,7 +1143,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 && string.Equals(name, Config.AudioDeviceName, StringComparison.OrdinalIgnoreCase);
         }
 
-        private int GetVideoCqp() => Config.VideoCqp > 0 ? Config.VideoCqp : 25;
+        private int GetVideoCqp() => AppConfig.NormalizeVideoCqp(Config.VideoCqp);
 
         /// <summary>
         /// 录制完成后自动将 MKV 无损转换为 MP4（容器转换，不重新编码）

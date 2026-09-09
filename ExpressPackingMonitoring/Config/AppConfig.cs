@@ -118,6 +118,10 @@ namespace ExpressPackingMonitoring.Config
 
     public class AppConfig
     {
+        public const int HighestQualityVideoCqp = 18;
+        public const int LowestQualityVideoCqp = 36;
+        public const int DefaultVideoCqp = 30;
+
         public const int CurrentVoiceSettingsVersion = 2;
         public const int CurrentCameraBarcodeSetupVersion = 1;
         public const int CurrentMobileConnectionSetupVersion = 1;
@@ -243,7 +247,7 @@ namespace ExpressPackingMonitoring.Config
         public double BarcodeCooldownSeconds { get; set; } = 2.0;
         public string GpuEncoder { get; set; } = "auto";
         public string VideoCodec { get; set; } = "h265"; // "h264" or "h265"
-        public int VideoCqp { get; set; } = 30;
+        public int VideoCqp { get; set; } = DefaultVideoCqp;
 
         // 全局键盘监听（后台接收扫码枪）
         public bool EnableGlobalKeyboard { get; set; } = true;
@@ -307,6 +311,13 @@ namespace ExpressPackingMonitoring.Config
         public static bool NormalizeAfterLoad(AppConfig config)
         {
             bool changed = false;
+
+            int normalizedVideoCqp = NormalizeVideoCqp(config.VideoCqp);
+            if (config.VideoCqp != normalizedVideoCqp)
+            {
+                config.VideoCqp = normalizedVideoCqp;
+                changed = true;
+            }
 
             string normalizedPreset = DeploymentPresets.Normalize(config.DeploymentPreset);
             if (string.IsNullOrEmpty(normalizedPreset)
@@ -840,6 +851,12 @@ namespace ExpressPackingMonitoring.Config
 
             return changed;
         }
+
+        public static int NormalizeVideoCqp(int videoCqp) =>
+            Math.Clamp(
+                videoCqp > 0 ? videoCqp : DefaultVideoCqp,
+                HighestQualityVideoCqp,
+                LowestQualityVideoCqp);
 
         internal static string NormalizeRecordingMode(string? mode) =>
             string.Equals(mode?.Trim(), "退货", StringComparison.Ordinal)

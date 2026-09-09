@@ -463,7 +463,7 @@ internal static class RecordingProfileDetector
     }
 
     internal static int NormalizeVideoCqp(int videoCqp) =>
-        videoCqp > 0 ? videoCqp : 25;
+        AppConfig.NormalizeVideoCqp(videoCqp);
 
     private static string ReadOutput(Task<string> task)
     {

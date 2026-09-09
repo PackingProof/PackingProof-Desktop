@@ -272,7 +272,7 @@
   <data name="同一网络里的电脑或手机可以用浏览器查看录像，首次开启可能请求管理员权限" xml:space="preserve"><value>Computers or mobile phones on the same network can use a browser to view the recording. Administrator permissions may be required when opening it for the first time.</value></data>
   <data name="网页访问端口" xml:space="preserve"><value>Web access port</value></data>
   <data name="网页临时缓存上限" xml:space="preserve"><value>Web page temporary cache limit</value></data>
-  <data name="往右更清晰，往左更省空间" xml:space="preserve"><value>Move to the right for clearer view, move to the left to save space.</value></data>
+  <data name="往右更清晰，已限制极端画质避免文件过大" xml:space="preserve"><value>Move right for clearer video. Extreme quality is limited to prevent oversized files.</value></data>
   <data name="无回车窗口内识别" xml:space="preserve"><value>In-window recognition without Enter</value></data>
   <data name="无回车窗口内识别时，最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成" xml:space="preserve"><value>Without Enter, a scan is submitted only after no new characters arrive for this period</value></data>
   <data name="系统语音" xml:space="preserve"><value>System voice</value></data>

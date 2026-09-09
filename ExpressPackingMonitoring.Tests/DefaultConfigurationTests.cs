@@ -1,5 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UI;
+using System.Globalization;
 using System.Text.Json;
 using Xunit;
 
@@ -120,6 +122,39 @@ public sealed class DefaultConfigurationTests
         Assert.True(restored.EnableDirectAacRecording);
         Assert.Equal(22, restored.VideoCqp);
         Assert.Equal(310, restored.ScannerAutoSubmitQuietMs);
+    }
+
+    [Theory]
+    [InlineData(1, AppConfig.HighestQualityVideoCqp)]
+    [InlineData(17, AppConfig.HighestQualityVideoCqp)]
+    [InlineData(18, 18)]
+    [InlineData(30, 30)]
+    [InlineData(36, 36)]
+    [InlineData(51, AppConfig.LowestQualityVideoCqp)]
+    public void NormalizeVideoCqp_RestrictsVideoQualityToPracticalRange(int configured, int expected)
+    {
+        Assert.Equal(expected, AppConfig.NormalizeVideoCqp(configured));
+    }
+
+    [Fact]
+    public void QualitySlider_MapsEndpointsToPracticalCqpRange()
+    {
+        var converter = new CqpToQualitySliderConverter();
+
+        Assert.Equal(
+            AppConfig.LowestQualityVideoCqp,
+            converter.ConvertBack(0d, typeof(int), null!, CultureInfo.InvariantCulture));
+        Assert.Equal(
+            AppConfig.HighestQualityVideoCqp,
+            converter.ConvertBack(100d, typeof(int), null!, CultureInfo.InvariantCulture));
+        Assert.Equal(
+            33.333,
+            (double)converter.Convert(
+                AppConfig.DefaultVideoCqp,
+                typeof(double),
+                null!,
+                CultureInfo.InvariantCulture),
+            3);
     }
 
     [Fact]

@@ -52,6 +52,17 @@ public sealed class DirectAacRecordingTests
         Assert.DoesNotContain("use_wallclock_as_timestamps", args);
     }
 
+    [Theory]
+    [InlineData(1, 18)]
+    [InlineData(51, 36)]
+    public void EncoderArgs_ClampExtremeCqpValues(int configuredCqp, int expectedCqp)
+    {
+        string args = MainViewModel.BuildFFmpegEncoderArgs(
+            1920, 1080, 30, "libx264", configuredCqp);
+
+        Assert.Contains($"-crf {expectedCqp}", args);
+    }
+
     [Fact]
     public void EmbeddedAudioConversion_StreamCopiesBothTracks()
     {

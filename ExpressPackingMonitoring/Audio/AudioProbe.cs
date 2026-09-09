@@ -410,7 +410,7 @@ namespace ExpressPackingMonitoring.Audio
             int width = fromConfig ? Math.Clamp(config.FrameWidth, 16, 7680) : 320;
             int height = fromConfig ? Math.Clamp(config.FrameHeight, 16, 4320) : 180;
             int fps = fromConfig ? Math.Clamp(config.Fps, 1, 120) : 10;
-            int cqp = fromConfig && config.VideoCqp > 0 ? config.VideoCqp : 35;
+            int cqp = fromConfig ? AppConfig.NormalizeVideoCqp(config.VideoCqp) : 35;
             string encoder = fromConfig ? ResolveProbeEncoder(config) : "libx264";
 
             string? size = GetArgValue(args, "--video-size");

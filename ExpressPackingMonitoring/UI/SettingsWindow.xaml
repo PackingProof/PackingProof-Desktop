@@ -2486,7 +2486,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="画质与文件大小" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="往右更清晰，往左更省空间"
+                                            <TextBlock Text="往右更清晰，已限制极端画质避免文件过大"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
@@ -2501,7 +2501,7 @@
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="0"
                                                     Maximum="100"
-                                                    TickFrequency="2"
+                                                    TickFrequency="5"
                                                     Value="{Binding Config.VideoCqp, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource CqpToQualitySliderConverter}}"/>
                                         </StackPanel>
                                     </Grid>

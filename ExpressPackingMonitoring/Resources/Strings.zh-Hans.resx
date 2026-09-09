@@ -271,7 +271,7 @@
   <data name="同一网络里的电脑或手机可以用浏览器查看录像，首次开启可能请求管理员权限" xml:space="preserve"><value>同一网络里的电脑或手机可以用浏览器查看录像，首次开启可能请求管理员权限</value></data>
   <data name="网页访问端口" xml:space="preserve"><value>网页访问端口</value></data>
   <data name="网页临时缓存上限" xml:space="preserve"><value>网页临时缓存上限</value></data>
-  <data name="往右更清晰，往左更省空间" xml:space="preserve"><value>往右更清晰，往左更省空间</value></data>
+  <data name="往右更清晰，已限制极端画质避免文件过大" xml:space="preserve"><value>往右更清晰，已限制极端画质避免文件过大</value></data>
   <data name="无回车窗口内识别" xml:space="preserve"><value>无回车窗口内识别</value></data>
   <data name="无回车窗口内识别时，最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成" xml:space="preserve"><value>无回车窗口内识别时，最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成</value></data>
   <data name="系统语音" xml:space="preserve"><value>系统语音</value></data>
