@@ -276,6 +276,20 @@ public sealed class StoragePlanTests
     }
 
     [Fact]
+    public void StorageSettings_PresentCapacityLimitsInsteadOfReserveValues()
+    {
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml"));
+
+        Assert.Contains("Header=\"录像空间上限\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Header=\"备份空间上限\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Text=\"暂不可计算\"", settings, StringComparison.Ordinal);
+        Assert.Contains("容量上限不会提前占用空间", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Header=\"预留空间\"", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Binding EffectiveReserveGB", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ArchivePathBuilder_LocalRecordingLayout()
     {
         string path = ArchivePathBuilder.BuildLocalRecordingArchivePath(

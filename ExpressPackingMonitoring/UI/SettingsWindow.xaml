@@ -16,6 +16,7 @@
         <local:VideoQualityLabelConverter x:Key="VideoQualityLabelConverter"/>
         <local:AnyTrueConverter x:Key="AnyTrueConverter"/>
         <local:AdvancedModeTextConverter x:Key="AdvancedModeTextConverter"/>
+        <local:StorageCapacityEditorConverter x:Key="StorageCapacityEditorConverter"/>
         <!-- 【必需】1. GroupTitle: 用于每个页签顶部的巨大标题 -->
         <Style x:Key="GroupTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
@@ -439,22 +440,36 @@
                        ToolTip="{Binding Path}"/>
         </DataTemplate>
 
-        <DataTemplate x:Key="StorageReserveCellTemplate">
-            <xctk:DoubleUpDown ToolTip="磁盘至少保留多少 GB 不给录像使用。低于安全值时会自动恢复，避免系统或其他软件没空间"
-                               Tag="GB"
-                               Value="{Binding EffectiveReserveGB, UpdateSourceTrigger=PropertyChanged}"
-                               LostFocus="StorageReserveEditor_LostFocus"
-                               Increment="1"
-                               FormatString="F0"
-                               Minimum="1"
-                               Maximum="10000"
-                               Margin="5"
-                               VerticalAlignment="Center"
+        <DataTemplate x:Key="StorageCapacityCellTemplate">
+            <Grid Width="120"
+                  Height="36"
+                  Margin="5"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center">
+                <Grid.DataContext>
+                    <Binding Converter="{StaticResource StorageCapacityEditorConverter}"/>
+                </Grid.DataContext>
+                <xctk:DoubleUpDown ToolTip="程序在此位置最多用于存放录像或备份的容量，不会提前占用空间；其他软件占用磁盘后，实际可用容量可能减少"
+                                   Tag="GB"
+                                   Value="{Binding CapacityGB, Mode=OneWay}"
+                                   LostFocus="StorageCapacityEditor_LostFocus"
+                                   Increment="1"
+                                   FormatString="F0"
+                                   Minimum="1"
+                                   Maximum="{Binding MaximumGB}"
+                                   Visibility="{Binding EditorVisibility}"
+                                   Height="36"/>
+                <Border BorderBrush="{DynamicResource BorderStrong}"
+                        BorderThickness="1"
+                        Background="{DynamicResource ControlBackground}"
+                        CornerRadius="8"
+                        Visibility="{Binding UnavailableVisibility}">
+                    <TextBlock Text="暂不可计算"
+                               Foreground="{DynamicResource TextSecondary}"
                                HorizontalAlignment="Center"
-                               Width="96"
-                               MinWidth="96"
-                               MaxWidth="96"
-                               Height="36"/>
+                               VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
         </DataTemplate>
 
         <Style x:Key="StorageGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
@@ -2098,13 +2113,13 @@
                                                 <DataGridTemplateColumn Header="存储路径"
                                                                         Width="*"
                                                                         CellTemplate="{StaticResource StoragePathCellTemplate}"/>
-                                                <DataGridTemplateColumn Header="预留空间"
-                                                                        Width="150"
-                                                                        CellTemplate="{StaticResource StorageReserveCellTemplate}"/>
+                                                <DataGridTemplateColumn Header="录像空间上限"
+                                                                        Width="170"
+                                                                        CellTemplate="{StaticResource StorageCapacityCellTemplate}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
-                                    <TextBlock Text="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准"
+                                    <TextBlock Text="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="{StaticResource SettingInlineTopMargin}">
@@ -2164,9 +2179,9 @@
                                                 <DataGridTemplateColumn Header="存储路径"
                                                                         Width="*"
                                                                         CellTemplate="{StaticResource StoragePathCellTemplate}"/>
-                                                <DataGridTemplateColumn Header="预留空间"
-                                                                        Width="150"
-                                                                        CellTemplate="{StaticResource StorageReserveCellTemplate}"/>
+                                                <DataGridTemplateColumn Header="备份空间上限"
+                                                                        Width="170"
+                                                                        CellTemplate="{StaticResource StorageCapacityCellTemplate}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
@@ -2176,7 +2191,7 @@
                                                Foreground="{DynamicResource AccentOrange}"
                                                Margin="0,8,0,0"
                                                Visibility="Collapsed"/>
-                                    <TextBlock Text="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像"
+                                    <TextBlock Text="达到备份空间上限或磁盘安全空间不足时，会自动切换到下一个可用位置；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
                                     <StackPanel Orientation="Horizontal"

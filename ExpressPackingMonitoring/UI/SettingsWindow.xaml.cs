@@ -1515,13 +1515,12 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
-        private void StorageReserveEditor_LostFocus(object sender, RoutedEventArgs e)
+        private void StorageCapacityEditor_LostFocus(object sender, RoutedEventArgs e)
         {
-            if (sender is FrameworkElement { DataContext: StorageLocation location })
-            {
-                location.EffectiveReserveGB = location.EffectiveReserveGB;
-                RefreshStorageViews();
-            }
+            if (sender is Xceed.Wpf.Toolkit.DoubleUpDown
+                { DataContext: StorageCapacityEditorState { IsAvailable: true } state, Value: double capacityGB })
+                StorageCapacityEditorPolicy.TryApplyCapacity(state.Location, capacityGB);
+            RefreshStorageViews();
         }
 
         private void BtnMoveStorageUp_Click(object sender, RoutedEventArgs e)

@@ -61,7 +61,8 @@
   <data name="结束时间" xml:space="preserve"><value>End time</value></data>
   <data name="剪辑后时长" xml:space="preserve"><value>Clip duration</value></data>
   <data name="存储路径" xml:space="preserve"><value>Storage path</value></data>
-  <data name="预留空间" xml:space="preserve"><value>Reserved space</value></data>
+  <data name="录像空间上限" xml:space="preserve"><value>Recording storage limit</value></data>
+  <data name="备份空间上限" xml:space="preserve"><value>Backup storage limit</value></data>
   <data name="选择磁盘分区" xml:space="preserve"><value>Select drive</value></data>
   <data name="选择用于保存录像的磁盘" xml:space="preserve"><value>Select a drive for recordings</value></data>
   <data name="语言" xml:space="preserve"><value>Language</value></data>
@@ -114,7 +115,8 @@
   <data name="播报买家留言和卖家备注" xml:space="preserve"><value>Report buyer messages and seller notes</value></data>
   <data name="播报卖家备注" xml:space="preserve"><value>Broadcast seller notes</value></data>
   <data name="播报商品信息" xml:space="preserve"><value>Broadcast product information</value></data>
-  <data name="磁盘至少保留多少 GB 不给录像使用。低于安全值时会自动恢复，避免系统或其他软件没空间" xml:space="preserve"><value>The minimum number of GB that should be reserved on the disk and not used for recording. It will automatically recover when it is lower than the safe value to prevent the system or other software from running out of space.</value></data>
+  <data name="程序在此位置最多用于存放录像或备份的容量，不会提前占用空间；其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>The maximum capacity used for recordings or backups at this location. Space is not preallocated, and actual available capacity may decrease when other software uses the disk.</value></data>
+  <data name="暂不可计算" xml:space="preserve"><value>Unavailable</value></data>
   <data name="打包监控程序官方开源软件适用中小电商" xml:space="preserve"><value>Official open-source packing monitor for small and medium online stores</value></data>
   <data name="打包结束后画面不动，就自动停止录像" xml:space="preserve"><value>After the packaging is completed, if the screen does not move, the recording will be automatically stopped.</value></data>
   <data name="打包时自动播报买家留言和卖家备注，避免漏看特殊要求" xml:space="preserve"><value>Automatically broadcast buyer messages and seller notes when packaging to avoid missing special requirements</value></data>
@@ -206,7 +208,7 @@
   <data name="开始检测" xml:space="preserve"><value>Start test</value></data>
   <data name="正在检测，请稍候" xml:space="preserve"><value>Testing, please wait</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
-  <data name="录像会按列表顺序保存。某个磁盘只剩下预留空间时，会自动换到下一个磁盘；系统盘默认至少预留 30GB 或 10%，其他磁盘至少预留 20GB 或 5%，以较大值为准" xml:space="preserve"><value>Videos will be saved in list order. When a disk only has reserved space left, it will be automatically changed to the next disk; by default, at least 30GB or 10% is reserved for the system disk, and at least 20GB or 5% is reserved for other disks, whichever is larger.</value></data>
+  <data name="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>Recordings are saved in list order. When the recording storage limit is reached or safe disk space is insufficient, the next disk is used automatically. The limit does not preallocate space, and actual available capacity may decrease when other software uses the disk.</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
   <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>Detect the label position, pan to its close-up, then restore the full view.</value></data>
   <data name="录制声音" xml:space="preserve"><value>Record sound</value></data>
@@ -955,7 +957,7 @@
   <data name="添加网络位置" xml:space="preserve"><value>Add network location</value></data>
   <data name="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除" xml:space="preserve"><value>Recordings are backed up to the first currently available location in list order; when a NAS is full the program automatically switches to the next one, and files already backed up to the NAS are never deleted</value></data>
   <data name="本地磁盘直接保存录像，空间不足时按保护期自动循环清理" xml:space="preserve"><value>Local disks store recordings directly; old recordings are recycled after a protection period when space is low</value></data>
-  <data name="备份位置至少预留 10GB 或 2%；校验通过后才会清理旧本地副本；NAS 满时自动切换到下一个可用位置，全部不足时才暂停并提示；程序不会删除 NAS 上的文件；NAS 不可用且磁盘空间不足时，会先清理已归档副本，再按 30 分钟保护期分档清理最旧未归档录像" xml:space="preserve"><value>Backup locations reserve at least 10 GB or 2%; old local copies are cleaned only after backup verification; when a NAS is full the program automatically switches to the next available location and only pauses with a reminder when all are full; files on the NAS are never deleted; when the NAS is unavailable and local space is low, archived copies are cleaned first, then the oldest unbacked-up recordings are removed after a 30-minute protection period</value></data>
+  <data name="达到备份空间上限或磁盘安全空间不足时，会自动切换到下一个可用位置；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>When the backup storage limit is reached or safe disk space is insufficient, the next available location is used automatically. The limit does not preallocate space, and actual available capacity may decrease when other software uses the disk. Old local copies are cleaned only after verification, and files on the NAS are not deleted.</value></data>
   <data name="录像清理" xml:space="preserve"><value>Recording cleanup</value></data>
   <data name="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响" xml:space="preserve"><value>Cleanup only affects local recordings on this computer; files already backed up to the NAS are not affected</value></data>
   <data name="按时间清理…" xml:space="preserve"><value>Clean up by time…</value></data>

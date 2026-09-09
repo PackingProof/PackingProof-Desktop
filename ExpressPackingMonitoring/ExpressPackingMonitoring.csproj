@@ -261,6 +261,7 @@
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsContext.cs" />
+    <Compile Include="UI\StorageCapacityEditorPolicy.cs" />
     <Compile Include="UI\StatisticsWindow.xaml.cs" />
     <Compile Include="UI\StoragePathSelectionDialog.xaml.cs" />
     <Compile Include="UI\Controls\StatusCard.xaml.cs" />

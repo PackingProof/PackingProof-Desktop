@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UI;
 using System.IO;
 using System.Text.Json;
 using Xunit;
@@ -210,6 +211,58 @@ public sealed class StoragePolicyTests
         Func<long, long> calculator)
     {
         Assert.Equal(expectedBytes, calculator(totalBytes));
+    }
+
+    [Fact]
+    public void StorageCapacityEditor_ConvertsReserveToCapacityLimit()
+    {
+        double capacityGB = StorageCapacityEditorPolicy.CalculateCapacityGB(
+            totalCapacityGB: 1000,
+            minimumReserveGB: 30,
+            configuredReserveGB: 30);
+
+        Assert.Equal(970, capacityGB);
+        Assert.Equal(
+            500,
+            StorageCapacityEditorPolicy.CalculateReserveGB(
+                totalCapacityGB: 1000,
+                minimumReserveGB: 30,
+                requestedCapacityGB: 500));
+    }
+
+    [Theory]
+    [InlineData(5000, 30)]
+    [InlineData(0, 999)]
+    [InlineData(-10, 999)]
+    [InlineData(500.5, 499)]
+    public void StorageCapacityEditor_ClampsAndRoundsCapacityLimit(
+        double requestedCapacityGB,
+        double expectedReserveGB)
+    {
+        Assert.Equal(
+            expectedReserveGB,
+            StorageCapacityEditorPolicy.CalculateReserveGB(
+                totalCapacityGB: 1000,
+                minimumReserveGB: 30,
+                requestedCapacityGB));
+    }
+
+    [Fact]
+    public void StorageCapacityEditor_UnavailableLocationDoesNotChangeReserve()
+    {
+        var location = new StorageLocation
+        {
+            Path = @"?:\offline",
+            ReserveGB = 25
+        };
+
+        StorageCapacityEditorState state =
+            StorageCapacityEditorPolicy.CreateState(location);
+
+        Assert.False(state.IsAvailable);
+        Assert.Null(state.CapacityGB);
+        Assert.False(StorageCapacityEditorPolicy.TryApplyCapacity(location, 100));
+        Assert.Equal(25, location.ReserveGB);
     }
 
     [Fact]
