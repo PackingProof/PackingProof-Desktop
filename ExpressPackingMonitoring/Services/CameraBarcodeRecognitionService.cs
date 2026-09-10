@@ -393,17 +393,32 @@ internal sealed class CameraBarcodeStabilityTracker
                 KeepDecoding: _candidateCode.Length > 0);
         }
 
-        string? lockedAlias = _lockedCodes.Keys.FirstOrDefault(c => JdBarcodePolicy.SameRecordingCode(c, normalized));
+        string? lockedAlias = _lockedCodes.ContainsKey(normalized)
+            ? normalized
+            : FindLockedAlias(normalized);
         if (lockedAlias != null)
         {
+            bool aliasChanged = !string.Equals(lockedAlias, normalized, StringComparison.Ordinal);
             string specific = JdBarcodePolicy.PreferSpecific(lockedAlias, normalized);
-            _lockedCodes.Remove(lockedAlias);
-            _missingLockedCodesSince.Remove(lockedAlias);
+            if (aliasChanged)
+            {
+                // 保留别名锁，避免同一张面单在裸号/尾缀之间来回解码时重复停录。
+                _lockedCodes[normalized] = now;
+                _missingLockedCodesSince.Remove(normalized);
+            }
+            else
+            {
+                _lockedCodes.Remove(lockedAlias);
+                _missingLockedCodesSince.Remove(lockedAlias);
+            }
             normalized = specific;
             _lockedCodes[normalized] = now;
             _missingLockedCodesSince.Remove(normalized);
             if (JdBarcodePolicy.SameRecordingCode(_candidateCode, normalized))
                 ClearCandidate();
+
+            // 同一面单仍在画面中时，裸号/尾缀之间切换只更新锁定身份；
+            // 面单离开并重新进入后，任一别名才允许再次确认并触发停录。
             return new CameraBarcodeObservation(VisibleCode: normalized);
         }
 
@@ -442,8 +457,14 @@ internal sealed class CameraBarcodeStabilityTracker
                 KeepDecoding: true);
         }
 
-        normalized = JdBarcodePolicy.PreferSpecific(_candidateCode, normalized);
+        string candidateAlias = _candidateCode;
+        normalized = JdBarcodePolicy.PreferSpecific(candidateAlias, normalized);
         _lockedCodes[normalized] = now;
+        if (!string.Equals(candidateAlias, normalized, StringComparison.Ordinal))
+            _lockedCodes[candidateAlias] = now;
+        string waybill = JdBarcodePolicy.Waybill(normalized);
+        if (!string.Equals(waybill, normalized, StringComparison.Ordinal))
+            _lockedCodes[waybill] = now;
         ClearCandidate();
         return new CameraBarcodeObservation(ConfirmedCode: normalized);
     }
@@ -458,6 +479,19 @@ internal sealed class CameraBarcodeStabilityTracker
         ClearCandidate();
     }
 
+    private string? FindLockedAlias(string normalized)
+    {
+        JdBarcodePolicy.Package? observedPackage = JdBarcodePolicy.Parse(normalized);
+        if (observedPackage is { } package
+            && _lockedCodes.Keys.Any(code => JdBarcodePolicy.Parse(code)?.Waybill == package.Waybill))
+        {
+            // 已经锁定具体包裹时，不能再用裸号别名吞掉同运单的另一个包裹。
+            return null;
+        }
+
+        return _lockedCodes.Keys.FirstOrDefault(c => JdBarcodePolicy.SameRecordingCode(c, normalized));
+    }
+
     /// 摄像头条码触发开始录像后刷新锁定：同码消失时间从触发那一刻起算，
     /// 避免启动流程耗时较长时防重复触发提前失效。
     public void LockFromStartTrigger(string code, DateTimeOffset now)
@@ -468,6 +502,12 @@ internal sealed class CameraBarcodeStabilityTracker
 
         _lockedCodes[normalized] = now;
         _missingLockedCodesSince.Remove(normalized);
+        string waybill = JdBarcodePolicy.Waybill(normalized);
+        if (!string.Equals(waybill, normalized, StringComparison.Ordinal))
+        {
+            _lockedCodes[waybill] = now;
+            _missingLockedCodesSince.Remove(waybill);
+        }
         if (string.Equals(_candidateCode, normalized, StringComparison.Ordinal))
             ClearCandidate();
     }
