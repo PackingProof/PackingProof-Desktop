@@ -256,10 +256,10 @@ public sealed class DeploymentPresetTests
     }
 
     [Theory]
-    [InlineData(true, true, "电脑录像并保存在本机", "可接收并备份手机录像")]
-    [InlineData(true, false, "电脑录像并保存到其他电脑", "录像先安全保存在本地缓存")]
-    [InlineData(false, true, "录像文件备份主机", "接收并长期保存手机录像")]
-    [InlineData(false, false, "只连接主机查看", "保留订单联动和测试订单能力")]
+    [InlineData(true, true, "录像主机", "可接收并备份手机录像")]
+    [InlineData(true, false, "录像从机", "录像先安全保存在本地缓存")]
+    [InlineData(false, true, "备份主机", "接收并长期保存手机录像")]
+    [InlineData(false, false, "录像查看端", "保留订单联动和测试订单能力")]
     public void PurposeResultShowsTheExpectedNameAndCapabilities(
         bool record,
         bool store,
@@ -300,10 +300,10 @@ public sealed class DeploymentPresetTests
     }
 
     [Theory]
-    [InlineData(DeploymentPresets.RecordingHost, "电脑录像并保存在本机")]
-    [InlineData(DeploymentPresets.RecordingWorkstation, "电脑录像并保存到其他电脑")]
-    [InlineData(DeploymentPresets.MobileBackupHost, "录像文件备份主机")]
-    [InlineData(DeploymentPresets.ViewerClient, "只连接主机查看")]
+    [InlineData(DeploymentPresets.RecordingHost, "录像主机")]
+    [InlineData(DeploymentPresets.RecordingWorkstation, "录像从机")]
+    [InlineData(DeploymentPresets.MobileBackupHost, "备份主机")]
+    [InlineData(DeploymentPresets.ViewerClient, "录像查看端")]
     public void DeploymentDisplayNamesMatchPurposeResult(
         string preset,
         string expectedDisplayName)
@@ -382,10 +382,14 @@ public sealed class DeploymentPresetTests
         Assert.True(workstation.CanConnectHost);
         Assert.False(workstation.CanRunWebServer);
         Assert.False(workstation.CanReceiveMobileBackup);
+        Assert.True(workstation.CanViewStorageSettings);
         Assert.False(viewer.CanUseCamera);
         Assert.False(viewer.CanConfigureStorage);
+        Assert.False(viewer.CanViewStorageSettings);
         Assert.True(viewer.CanConnectHost);
         Assert.False(mobileBackup.CanRecordPcVideo);
         Assert.True(mobileBackup.CanConfigureStorage);
+        Assert.True(mobileBackup.CanViewStorageSettings);
+        Assert.True(recording.CanViewStorageSettings);
     }
 }

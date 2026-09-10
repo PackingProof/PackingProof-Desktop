@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Services;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
@@ -146,6 +147,26 @@ public sealed class StorageCapacityEditorConverter : IValueConverter
         value is StorageLocation location
             ? StorageCapacityEditorPolicy.CreateState(location)
             : Binding.DoNothing;
+
+    public object ConvertBack(
+        object value,
+        Type targetType,
+        object parameter,
+        CultureInfo culture) =>
+        Binding.DoNothing;
+}
+
+public sealed class RecordingCacheLocationConverter : IValueConverter
+{
+    public object Convert(
+        object value,
+        Type targetType,
+        object parameter,
+        CultureInfo culture) =>
+        value is AppConfig config
+            && RecordingWorkstationCachePolicy.GetConfiguredLocation(config) is StorageLocation location
+                ? new[] { location }
+                : Array.Empty<StorageLocation>();
 
     public object ConvertBack(
         object value,

@@ -173,19 +173,20 @@ public partial class WorkstationSelectionWindow : Window
         {
             DeploymentPresets.RecordingHost => new(
                 DeploymentPresets.RecordingHost,
-                "电脑录像并保存在本机",
-                "这台电脑既负责录像，也作为保存主机长期保管录像",
+                "录像主机",
+                "本机录像并长期保存，支持备份到 NAS／网络共享文件夹",
                 [
                     "使用完整电脑录像能力",
                     "录像长期保存在本机",
+                    "支持备份到 NAS／网络共享文件夹",
                     "可接收并备份手机录像",
                     "可接收并备份其他录制电脑上传的录像",
                     "提供局域网录像回放"
                 ]),
             DeploymentPresets.RecordingWorkstation => new(
                 DeploymentPresets.RecordingWorkstation,
-                "电脑录像并保存到其他电脑",
-                "使用这台电脑录像，完成后安全上传到绑定的保存电脑",
+                "录像从机",
+                "本机录像，自动上传到保存主机",
                 [
                     "使用完整电脑录像能力",
                     "录像先安全保存在本地缓存",
@@ -194,18 +195,19 @@ public partial class WorkstationSelectionWindow : Window
                 ]),
             DeploymentPresets.MobileBackupHost => new(
                 DeploymentPresets.MobileBackupHost,
-                "录像文件备份主机",
-                "这台电脑不录像，专门接收并长期保存其他设备的录像",
+                "备份主机",
+                "接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹",
                 [
                     "本机不使用摄像头录像",
+                    "支持备份到 NAS／网络共享文件夹",
                     "接收并长期保存手机录像",
                     "接收并长期保存其他录制电脑上传的录像",
                     "提供局域网录像回放"
                 ]),
             _ => new(
                 DeploymentPresets.ViewerClient,
-                "只连接主机查看",
-                "这台电脑不录像也不保存录像，只连接现有主机使用",
+                "录像查看端",
+                "连接保存主机，查看和回放录像",
                 [
                     "本机不录像、不长期保存录像",
                     "连接现有主机查看录像",

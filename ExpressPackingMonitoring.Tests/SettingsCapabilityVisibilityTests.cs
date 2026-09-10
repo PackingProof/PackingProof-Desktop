@@ -77,7 +77,6 @@ public sealed class SettingsCapabilityVisibilityTests
                 "扫码与识别",
                 "面单放大",
                 "存储与备份",
-                "存储与备份",
                 "录像设置",
                 "声音与播报",
                 "局域网与网页",
@@ -162,6 +161,20 @@ public sealed class SettingsCapabilityVisibilityTests
 
     private static XDocument LoadSettingsXaml()
         => LoadXaml("UI", "SettingsWindow.xaml");
+
+    [Theory]
+    [InlineData("BtnManualCleanupByTime")]
+    [InlineData("BtnManualCleanupBySpace")]
+    [InlineData("MinVideoFileSizeSlider")]
+    public void LocalStorageControlsAreNotDisabledByHostCapability(string name)
+    {
+        XElement control = Assert.Single(
+            LoadSettingsXaml().Descendants(),
+            element => (string?)element.Attribute(Xaml + "Name") == name);
+        Assert.DoesNotContain(control.AncestorsAndSelf(),
+            element => ((string?)element.Attribute("IsEnabled") ?? "")
+                .Contains("Capabilities.CanConfigureStorage", StringComparison.Ordinal));
+    }
 
     private static XDocument LoadXaml(string directoryName, string fileName)
     {

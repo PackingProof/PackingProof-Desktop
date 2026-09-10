@@ -25,7 +25,7 @@ public sealed class NoCameraWorkstationTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.Equal(DeploymentPresets.MobileBackupHost, config.DeploymentPreset);
-        Assert.Equal("录像文件备份主机", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
+        Assert.Equal("备份主机", DeploymentPresets.GetDisplayName(config.DeploymentPreset));
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public sealed class NoCameraWorkstationTests
             "Workstations",
             "PrintWorkstationWindow.xaml.cs");
 
-        Assert.Contains("PackingProof 录像文件备份主机", xaml, StringComparison.Ordinal);
-        Assert.Contains("集中保存手机/电脑上传的录像，并提供局域网回放和订单联动", xaml, StringComparison.Ordinal);
+        Assert.Contains("PackingProof 备份主机", xaml, StringComparison.Ordinal);
+        Assert.Contains("接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"连接手机/电脑\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("手机备份主机", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("集中保存手机录像", xaml, StringComparison.Ordinal);

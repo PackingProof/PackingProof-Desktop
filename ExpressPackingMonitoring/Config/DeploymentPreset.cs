@@ -38,10 +38,10 @@ public static class DeploymentPresets
 
     public static string GetDisplayName(string? preset) => Normalize(preset) switch
     {
-        RecordingHost => "电脑录像并保存在本机",
-        RecordingWorkstation => "电脑录像并保存到其他电脑",
-        ViewerClient => "只连接主机查看",
-        MobileBackupHost => "录像文件备份主机",
+        RecordingHost => "录像主机",
+        RecordingWorkstation => "录像从机",
+        ViewerClient => "录像查看端",
+        MobileBackupHost => "备份主机",
         _ => "尚未配置"
     };
 }

@@ -1,7 +1,9 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.UI;
 using Microsoft.Data.Sqlite;
+using System.Globalization;
 using System.Text;
 using Xunit;
 
@@ -270,7 +272,7 @@ public sealed class RecordingWorkstationCacheTests
             "UI",
             "SettingsWindow.xaml");
         int cacheTabStart = settings.IndexOf(
-            "<TabItem x:Name=\"RecordingCacheTabItem\"",
+            "<TabItem x:Name=\"StorageTabItem\"",
             StringComparison.Ordinal);
         int cacheTabEnd = settings.IndexOf(
             "<TabItem Header=\"录像设置\"",
@@ -278,18 +280,46 @@ public sealed class RecordingWorkstationCacheTests
             StringComparison.Ordinal);
         string cacheTab = settings[cacheTabStart..cacheTabEnd];
 
-        Assert.Contains("录像会先保存在本机", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("本地缓存位置", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("缓存最多占用", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("Value=\"{Binding Config.RecordingCacheMaxGB, Mode=TwoWay}\"", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("Value=\"{Binding CurrentDiskUsagePercent, Mode=OneWay}\"", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding CurrentDiskUsageText, Mode=OneWay}\"", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("Capabilities.CanConfigureRecordingCache, Mode=OneWay", cacheTab, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"RecordingCacheTabItem\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("Capabilities.CanViewStorageSettings", cacheTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("当前为录像从机", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("软件支持 NAS 备份", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("本机录像缓存", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RecordingCacheDataGrid\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("Header=\"存储路径\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("Header=\"录像空间上限\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("DataContext.Config.RecordingCacheMaxGB", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("Content=\"更改磁盘\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\"", cacheTab, StringComparison.Ordinal);
+        Assert.DoesNotContain("<StackPanel IsEnabled=\"{Binding Capabilities.CanConfigureStorage}\">", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding Context.RequestHostStorageCommand}\"", cacheTab, StringComparison.Ordinal);
+        Assert.Contains("RecordingCacheLocationConverter", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("保留天数", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("立即删除", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingCachePolicy", cacheTab, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordingCacheKeepDays", cacheTab, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RecordingWorkstationCacheUi_UsesOnlyTheConfiguredLocation()
+    {
+        var expected = new StorageLocation { Path = @"D:\录像", Priority = 0 };
+        var config = new AppConfig
+        {
+            StorageLocations =
+            [
+                new StorageLocation { Path = @"E:\旧位置", Priority = 1 },
+                expected
+            ]
+        };
+        var converter = new RecordingCacheLocationConverter();
+
+        var rows = Assert.IsType<StorageLocation[]>(converter.Convert(
+            config,
+            typeof(IEnumerable<StorageLocation>),
+            null!,
+            CultureInfo.InvariantCulture));
+
+        Assert.Same(expected, Assert.Single(rows));
     }
 
     [Fact]
@@ -377,7 +407,7 @@ public sealed class RecordingWorkstationCacheTests
 
         Assert.Contains("OpenSettings(selectRecordingCache: true);", recording, StringComparison.Ordinal);
         Assert.Contains("settingsWin.SelectRecordingCacheTab();", mainViewModel, StringComparison.Ordinal);
-        Assert.Contains("SettingsTabControl.SelectedItem = RecordingCacheTabItem;", settings, StringComparison.Ordinal);
+        Assert.Contains("SettingsTabControl.SelectedItem = StorageTabItem;", settings, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -766,6 +766,10 @@
   <data name="重新连接" xml:space="preserve"><value>重新连接</value></data>
   <data name="打开主机录像" xml:space="preserve"><value>打开主机录像</value></data>
   <data name="本机录像缓存" xml:space="preserve"><value>本机录像缓存</value></data>
+  <data name="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘</value></data>
+  <data name="软件支持 NAS 备份，需要切换到主机后配置" xml:space="preserve"><value>软件支持 NAS 备份，需要切换到主机后配置</value></data>
+  <data name="录像备份位置需要在主机上配置，是否现在切换用途？" xml:space="preserve"><value>录像备份位置需要在主机上配置，是否现在切换用途？</value></data>
+  <data name="更改磁盘" xml:space="preserve"><value>更改磁盘</value></data>
   <data name="录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像</value></data>
   <data name="缓存策略" xml:space="preserve"><value>缓存策略</value></data>
   <data name="三种策略互斥，上传未确认的录像不会被清理" xml:space="preserve"><value>三种策略互斥，上传未确认的录像不会被清理</value></data>
@@ -849,8 +853,8 @@
   <data name="2. 这台电脑要负责长期保存录像吗？" xml:space="preserve"><value>2. 这台电脑要负责长期保存录像吗？</value></data>
   <data name="要，作为保存录像的电脑" xml:space="preserve"><value>要，作为保存录像的电脑</value></data>
   <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>长期保存录像，并可接收和备份手机或其他录制电脑上传的录像</value></data>
-  <data name="不要，由其他电脑负责保存" xml:space="preserve"><value>不要，由其他电脑负责保存</value></data>
-  <data name="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看" xml:space="preserve"><value>本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看</value></data>
+  <data name="不要，交给其他电脑保存" xml:space="preserve"><value>不要，交给其他电脑保存</value></data>
+  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像</value></data>
   <data name="选择结果" xml:space="preserve"><value>选择结果</value></data>
   <data name="请完成上面两个选择" xml:space="preserve"><value>请完成上面两个选择</value></data>
   <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>完成后会在这里显示最终用途和支持的能力</value></data>
@@ -1031,4 +1035,26 @@
   <data name="实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>实际倍率会根据面单位置和边界自动调整</value></data>
   <data name="范围更大" xml:space="preserve"><value>范围更大</value></data>
   <data name="特写更大" xml:space="preserve"><value>特写更大</value></data>
+  <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>要，作为保存主机（支持 NAS）</value></data>
+  <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像</value></data>
+  <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份</value></data>
+  <data name="这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份</value></data>
+  <data name="支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>支持备份到 NAS／网络共享文件夹</value></data>
+  <data name="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置" xml:space="preserve"><value>软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置</value></data>
+  <data name="主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？" xml:space="preserve"><value>主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？</value></data>
+  <data name="录像主机" xml:space="preserve"><value>录像主机</value></data>
+  <data name="录像从机" xml:space="preserve"><value>录像从机</value></data>
+  <data name="备份主机" xml:space="preserve"><value>备份主机</value></data>
+  <data name="录像查看端" xml:space="preserve"><value>录像查看端</value></data>
+  <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>本机录像并长期保存，支持备份到 NAS／网络共享文件夹</value></data>
+  <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹</value></data>
+  <data name="本机录像，自动上传到保存主机" xml:space="preserve"><value>本机录像，自动上传到保存主机</value></data>
+  <data name="连接保存主机，查看和回放录像" xml:space="preserve"><value>连接保存主机，查看和回放录像</value></data>
+  <data name="PackingProof 备份主机" xml:space="preserve"><value>PackingProof 备份主机</value></data>
+  <data name="备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹</value></data>
+  <data name="空间清理" xml:space="preserve"><value>空间清理</value></data>
+  <data name="空间不足时会按存储规则自动清理旧录像，通常无需手动操作" xml:space="preserve"><value>空间不足时会按存储规则自动清理旧录像，通常无需手动操作</value></data>
+  <data name="缓存接近上限时自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>缓存接近上限时自动清理已上传的录像，未上传的录像会保留</value></data>
+  <data name="手动提前清理本机录像，不影响已备份的远端文件" xml:space="preserve"><value>手动提前清理本机录像，不影响已备份的远端文件</value></data>
+  <data name="手动提前释放本机空间，不影响已备份的远端文件" xml:space="preserve"><value>手动提前释放本机空间，不影响已备份的远端文件</value></data>
 </root>

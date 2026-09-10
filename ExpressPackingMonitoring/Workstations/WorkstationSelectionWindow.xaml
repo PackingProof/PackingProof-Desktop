@@ -164,16 +164,17 @@
                     <RadioButton x:Name="StorageYesChoice"
                                  Grid.Column="0"
                                  GroupName="StoragePurpose"
-                                 AutomationProperties.Name="要，作为保存录像的电脑"
+                                 AutomationProperties.Name="要，作为保存主机（支持 NAS）"
                                  Style="{StaticResource PurposeChoiceStyle}"
                                  Tag="{StaticResource FluentCheckIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="要，作为保存录像的电脑"
+                            <TextBlock Text="要，作为保存主机（支持 NAS）"
                                        FontSize="16"
+                                       TextWrapping="Wrap"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像"
+                            <TextBlock Text="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"
@@ -185,16 +186,16 @@
                     <RadioButton x:Name="StorageNoChoice"
                                  Grid.Column="2"
                                  GroupName="StoragePurpose"
-                                 AutomationProperties.Name="不要，由其他电脑负责保存"
+                                 AutomationProperties.Name="不要，交给其他电脑保存"
                                  Style="{StaticResource PurposeChoiceStyle}"
                                  Tag="{StaticResource FluentDismissIcon}"
                                  Checked="StorageChoice_Checked">
                         <StackPanel>
-                            <TextBlock Text="不要，由其他电脑负责保存"
+                            <TextBlock Text="不要，交给其他电脑保存"
                                        FontSize="16"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看"
+                            <TextBlock Text="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像"
                                        Margin="0,5,0,0"
                                        FontSize="12"
                                        LineHeight="18"

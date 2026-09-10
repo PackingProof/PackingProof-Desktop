@@ -10,6 +10,33 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class StoragePolicyTests
 {
     [Fact]
+    public void WorkstationToHost_PreservesLocationAndRecordingEstimate()
+    {
+        using var database = new ExpressPackingMonitoring.Data.VideoDatabase(":memory:");
+        long bytes = StorageSpacePolicy.BytesPerGiB;
+        string path = Path.Combine(Path.GetTempPath(), "existing-recordings");
+        long id = database.InsertVideoRecord("EXISTING", "发货", "", "",
+            Path.Combine(path, "existing.mp4"), DateTime.Now.AddHours(-1));
+        database.UpdateVideoRecordOnStop(id, DateTime.Now, 3600, bytes, "手动");
+        var location = new StorageLocation { Path = path, ReserveGB = 30 };
+        var config = new AppConfig
+        {
+            DeploymentPreset = DeploymentPresets.RecordingHost,
+            StorageLocations = [location],
+            RecordingCacheMaxGB = 100
+        };
+        var usage = new StorageUsageSnapshot(bytes, 100 * bytes);
+        string hostText = StorageUsageCalculator.Format(usage, database);
+        Assert.Contains("预计循环可录 100 小时", hostText);
+        Assert.Equal("已缓存 " + hostText, StorageUsageCalculator.Format(usage, database, "已缓存 "));
+        SettingsWindow.ApplyDeploymentPurposeBeforeSave(
+            config, DeploymentPresets.RecordingWorkstation, DateTime.UtcNow);
+        Assert.Same(location, Assert.Single(config.StorageLocations));
+        Assert.Equal(30, location.ReserveGB);
+        Assert.Equal(hostText, StorageUsageCalculator.Format(usage, database));
+    }
+
+    [Fact]
     public void StorageUsageCalculator_CountsOnlyManagedLocalVideoFiles()
     {
         string directory = Path.Combine(

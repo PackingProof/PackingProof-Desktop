@@ -312,7 +312,6 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "Workstations",
             "ViewerClientWindow.xaml.cs");
-
         Assert.Contains("x:Name=\"ScanPhonePairingButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.Name=\"扫描保存主机二维码\"", xaml, StringComparison.Ordinal);
         Assert.Contains("StaticResource FluentCameraIcon", xaml, StringComparison.Ordinal);
@@ -528,16 +527,25 @@ public sealed class DeploymentStartupTests
             "ExpressPackingMonitoring",
             "UI",
             "MainWindow.xaml");
+        string settingsXaml = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml");
         string source = ReadRepositoryFile(
             "ExpressPackingMonitoring",
             "Workstations",
             "ViewerClientWindow.xaml.cs");
+        string recordingSource = RepositorySource.ReadMainViewModel();
 
         Assert.Contains("Text=\"切换用途\"", viewerXaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"SwitchPurpose_Click\"", viewerXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"切换用途\"", mobileBackupXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding SwitchWorkstationButtonText}\"", recordingXaml, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding CanSwitchWorkstation}\"", recordingXaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding Context.RequestHostStorageCommand}\"", settingsXaml, StringComparison.Ordinal);
+        Assert.Contains("CommandParameter=\"{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}\"", settingsXaml, StringComparison.Ordinal);
+        Assert.Contains("SwitchWorkstationAsync(System.Windows.Window owner)", recordingSource, StringComparison.Ordinal);
+        Assert.Contains("Owner = owner", recordingSource, StringComparison.Ordinal);
         Assert.Contains("new WorkstationSelectionWindow(DeploymentPresets.ViewerClient)", source, StringComparison.Ordinal);
         Assert.Contains("WorkstationNetwork.RestartAfterPurposeChange(this)", source, StringComparison.Ordinal);
 
@@ -637,10 +645,10 @@ public sealed class DeploymentStartupTests
 
         foreach ((string tag, string text) in new[]
         {
-            ("RecordingHost", "电脑录像并保存在本机"),
-            ("RecordingWorkstation", "电脑录像并保存到其他电脑"),
-            ("MobileBackupHost", "录像文件备份主机"),
-            ("ViewerClient", "只连接主机查看")
+            ("RecordingHost", "录像主机"),
+            ("RecordingWorkstation", "录像从机"),
+            ("MobileBackupHost", "备份主机"),
+            ("ViewerClient", "录像查看端")
         })
         {
             Assert.Contains($"Tag=\"{tag}\"", settings, StringComparison.Ordinal);

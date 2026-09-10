@@ -2,6 +2,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.ViewModels;
+using CommunityToolkit.Mvvm.Input;
 using System.Windows;
 using System.Windows.Input;
 
@@ -41,6 +42,8 @@ public sealed class SettingsCapabilities
     public bool CanGenerateUserscript { get; }
     public bool CanConfigureRecordingCache =>
         IsRecordingDevice && CanConnectHost && !IsHost;
+    public bool CanViewStorageSettings =>
+        CanConfigureStorage || CanConfigureRecordingCache;
 
     public bool SupportsSpeechSettings => CanRecordPcVideo;
     public bool SupportsScannerSettings => CanUseScanner;
@@ -64,6 +67,9 @@ public sealed class SettingsContext
     public Action? CopyMobileConnectionUrl { get; init; }
     public Action? OpenUserscriptGuide { get; init; }
     public Action<Window>? OpenExtensionMarket { get; init; }
+    public ICommand? SwitchPurposeCommand { get; init; }
+    public ICommand? RequestHostStorageCommand { get; init; }
+    internal Func<RecordingCacheSpaceSnapshot, string>? FormatRecordingCacheUsage { get; init; }
     public Func<IReadOnlyList<ExtensionAuthorizationDisplayItem>>? GetExtensionAuthorizations { get; init; }
     public Func<IReadOnlyList<OrderIntegrationDeviceDisplayItem>>? GetOrderIntegrationDevices { get; init; }
     public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
@@ -91,6 +97,12 @@ public sealed class SettingsContext
             CopyMobileConnectionUrl = mainViewModel.CopyMobileConnectionUrl,
             OpenUserscriptGuide = mainViewModel.OpenUserscriptGuide,
             OpenExtensionMarket = mainViewModel.OpenExtensionMarket,
+            SwitchPurposeCommand = new AsyncRelayCommand<Window>(
+                mainViewModel.SwitchWorkstationAsync,
+                _ => mainViewModel.CanSwitchWorkstation),
+            RequestHostStorageCommand = new AsyncRelayCommand<Window>(
+                mainViewModel.RequestHostStorageAsync),
+            FormatRecordingCacheUsage = mainViewModel.FormatRecordingCacheUsage,
             GetExtensionAuthorizations = mainViewModel.GetExtensionAuthorizations,
             GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,

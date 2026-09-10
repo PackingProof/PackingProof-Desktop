@@ -17,6 +17,7 @@
         <local:AnyTrueConverter x:Key="AnyTrueConverter"/>
         <local:AdvancedModeTextConverter x:Key="AdvancedModeTextConverter"/>
         <local:StorageCapacityEditorConverter x:Key="StorageCapacityEditorConverter"/>
+        <local:RecordingCacheLocationConverter x:Key="RecordingCacheLocationConverter"/>
         <!-- 【必需】1. GroupTitle: 用于每个页签顶部的巨大标题 -->
         <Style x:Key="GroupTitle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
@@ -1088,25 +1089,25 @@
                                             <ComboBoxItem Tag="RecordingHost">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentVideoIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="电脑录像并保存在本机"/>
+                                                    <TextBlock Text="录像主机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="RecordingWorkstation">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentWifiIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="电脑录像并保存到其他电脑"/>
+                                                    <TextBlock Text="录像从机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="ViewerClient">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentPlayIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentBlue}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="只连接主机查看"/>
+                                                    <TextBlock Text="录像查看端"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem Tag="MobileBackupHost">
                                                 <StackPanel Orientation="Horizontal">
                                                     <Path Data="{StaticResource FluentDatabaseIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource AccentOrange}" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="录像文件备份主机"/>
+                                                    <TextBlock Text="备份主机"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                         </ComboBox>
@@ -2012,8 +2013,9 @@
                 </Border>
             </TabItem>
 
-            <TabItem Header="存储与备份"
-                     Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}">
+            <TabItem x:Name="StorageTabItem"
+                     Header="存储与备份"
+                     Visibility="{Binding Capabilities.CanViewStorageSettings, Converter={StaticResource BoolToVisibility}}">
                 <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
@@ -2024,7 +2026,8 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <ProgressBar Height="8"
+                                        <ProgressBar x:Name="RecordingCacheUsageProgress"
+                                                     Height="8"
                                                      Minimum="0"
                                                      Maximum="100"
                                                      Value="{Binding CurrentDiskUsagePercent}"
@@ -2032,8 +2035,11 @@
                                                      Background="{DynamicResource BorderStrong}"
                                                      BorderThickness="0"
                                                      VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1"
+                                        <TextBlock x:Name="RecordingCacheUsageText"
+                                                   Grid.Column="1"
                                                    Text="{Binding CurrentDiskUsageText}"
+                                                   MaxWidth="460"
+                                                   TextWrapping="Wrap"
                                                    Foreground="{DynamicResource TextPrimary}"
                                                    FontWeight="SemiBold"
                                                    VerticalAlignment="Center"
@@ -2050,10 +2056,14 @@
                                         <ColumnDefinition Width="260"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Text="录像清理"
+                                        <TextBlock Text="空间清理"
                                                    Style="{StaticResource FieldLabelStyle}"/>
-                                        <TextBlock Text="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响"
-                                                   Style="{StaticResource FieldHintStyle}"/>
+                                        <TextBlock Text="空间不足时会按存储规则自动清理旧录像，通常无需手动操作"
+                                                   Style="{StaticResource FieldHintStyle}"
+                                                   Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}"/>
+                                        <TextBlock Text="缓存接近上限时自动清理已上传的录像，未上传的录像会保留"
+                                                   Style="{StaticResource FieldHintStyle}"
+                                                   Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2"
                                                 Orientation="Horizontal"
@@ -2061,18 +2071,96 @@
                                                 VerticalAlignment="Center">
                                         <Button x:Name="BtnManualCleanupByTime"
                                                 Content="按时间清理…"
+                                                ToolTip="手动提前清理本机录像，不影响已备份的远端文件"
                                                 Click="BtnManualCleanupByTime_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Margin="0,0,10,0"/>
                                         <Button x:Name="BtnManualCleanupBySpace"
                                                 Content="按空间释放…"
+                                                ToolTip="手动提前释放本机空间，不影响已备份的远端文件"
                                                 Click="BtnManualCleanupBySpace_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
 
-                            <Border Style="{StaticResource SectionCardStyle}">
+                            <Border Style="{StaticResource SectionCardStyle}"
+                                    Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="本机录像缓存" Style="{StaticResource FieldLabelStyle}"/>
+                                    <TextBlock Text="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Margin="0,0,0,12"/>
+                                    <Border BorderBrush="{DynamicResource BorderLight}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Background="{DynamicResource ControlBackground}">
+                                        <DataGrid x:Name="RecordingCacheDataGrid"
+                                                  ItemsSource="{Binding Config, Converter={StaticResource RecordingCacheLocationConverter}}"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  HeadersVisibility="Column"
+                                                  GridLinesVisibility="Horizontal"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  BorderThickness="0"
+                                                  Background="{StaticResource TransparentBrush}"
+                                                  Foreground="{DynamicResource TextPrimary}"
+                                                  RowHeight="50"
+                                                  FontSize="13"
+                                                  SelectionMode="Single"
+                                                  IsReadOnly="True"
+                                                  PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel"
+                                                  CanUserSortColumns="False"
+                                                  ColumnHeaderStyle="{StaticResource StorageGridColumnHeaderStyle}"
+                                                  RowStyle="{StaticResource StorageGridRowStyle}"
+                                                  CellStyle="{StaticResource StorageGridCellStyle}">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Header="存储路径"
+                                                                        Width="*"
+                                                                        CellTemplate="{StaticResource StoragePathCellTemplate}"/>
+                                                <DataGridTemplateColumn Header="录像空间上限" Width="170">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        HorizontalAlignment="Center">
+                                                                <xctk:IntegerUpDown x:Name="RecordingCacheLimitEditor"
+                                                                                    Value="{Binding DataContext.Config.RecordingCacheMaxGB, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"
+                                                                                    Minimum="1"
+                                                                                    Maximum="10240"
+                                                                                    Increment="1"
+                                                                                    IsReadOnly="False"
+                                                                                    Height="36"
+                                                                                    Width="120"
+                                                                                    ValueChanged="RecordingCacheLimitEditor_ValueChanged"/>
+                                                                <TextBlock Text="GB"
+                                                                           Margin="8,0,0,0"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextSecondary}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                    <TextBlock x:Name="RecordingCacheDriveHintText"
+                                               Text="系统会为磁盘保留安全空间"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Margin="0,8,0,0"/>
+                                    <TextBlock x:Name="RecordingCacheSafeCapacityText"
+                                               Text="正在计算此磁盘可安全使用的空间"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Margin="0,4,0,0"/>
+                                    <Button Content="更改磁盘"
+                                            Click="BtnBrowseRecordingCache_Click"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            HorizontalAlignment="Right"
+                                            Margin="0,12,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SectionCardStyle}"
+                                    Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -2151,6 +2239,9 @@
                             <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
                                     <TextBlock Text="录像备份位置" Style="{StaticResource FieldLabelStyle}"/>
+                                    <TextBlock Text="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}"/>
                                     <TextBlock Text="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除"
                                                Style="{StaticResource FieldHintStyle}"/>
                                     <Border BorderBrush="{DynamicResource BorderLight}"
@@ -2158,6 +2249,7 @@
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid x:Name="BackupStorageDataGrid"
+                                                  IsEnabled="{Binding Capabilities.CanConfigureStorage}"
                                                   AutoGenerateColumns="False"
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
@@ -2197,7 +2289,14 @@
                                     <StackPanel Orientation="Horizontal"
                                                 HorizontalAlignment="Right"
                                                 Margin="{StaticResource SettingInlineTopMargin}">
+                                        <Button Content="添加网络位置"
+                                                Command="{Binding Context.RequestHostStorageCommand}"
+                                                CommandParameter="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                                Visibility="{Binding Capabilities.CanConfigureRecordingCache, Converter={StaticResource BoolToVisibility}}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Margin="0,0,10,0"/>
                                         <Button x:Name="BtnAddBackupStorage"
+                                                Visibility="{Binding Capabilities.CanConfigureStorage, Converter={StaticResource BoolToVisibility}}"
                                                 Content="添加网络位置"
                                                 Click="BtnAddNetworkStorage_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -2274,118 +2373,6 @@
                                 </StackPanel>
                             </Border>
 
-                        </StackPanel>
-                    </ScrollViewer>
-                </Border>
-            </TabItem>
-
-            <TabItem x:Name="RecordingCacheTabItem"
-                     Header="存储与备份"
-                     Visibility="{Binding Capabilities.CanConfigureRecordingCache, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
-                <Border Background="{StaticResource TransparentBrush}" Padding="0,4,0,0">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <Border Style="{StaticResource SectionCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="本机录像缓存" Style="{StaticResource GroupTitle}"/>
-                                    <TextBlock Text="录像会先保存在本机。保存主机确认接收后，系统会根据缓存上限自动清理已上传文件"
-                                               Style="{StaticResource FieldHintStyle}"
-                                               Margin="0,0,0,16"/>
-
-                                    <Grid Margin="0,0,0,16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <ProgressBar x:Name="RecordingCacheUsageProgress"
-                                                     Height="8"
-                                                     Minimum="0"
-                                                     Maximum="100"
-                                                     Value="{Binding CurrentDiskUsagePercent, Mode=OneWay}"
-                                                     Foreground="{DynamicResource AccentBlue}"
-                                                     Background="{DynamicResource BorderStrong}"
-                                                     BorderThickness="0"
-                                                     VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="RecordingCacheUsageText"
-                                                   Grid.Column="1"
-                                                   Text="{Binding CurrentDiskUsageText, Mode=OneWay}"
-                                                   Foreground="{DynamicResource TextPrimary}"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"
-                                                   Margin="16,0,0,0"/>
-                                    </Grid>
-
-                                    </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource SectionCardStyle}">
-                                <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="缓存位置" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="录制工位只使用一个本地缓存位置，不会自动移动或删除原有录像"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <Grid Grid.Column="2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Text="{Binding Config.StorageLocations[0].Path, Mode=OneWay}"
-                                                     Height="36"
-                                                     IsReadOnly="True"
-                                                     VerticalContentAlignment="Center"/>
-                                            <Button Grid.Column="1"
-                                                    Content="更改位置"
-                                                    Height="36"
-                                                    Padding="12,0"
-                                                    Margin="8,0,0,0"
-                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                    Click="BtnBrowseRecordingCache_Click"/>
-                                        </Grid>
-                                    </Grid>
-                                    <TextBlock x:Name="RecordingCacheDriveHintText"
-                                               Text="系统会为磁盘保留安全空间"
-                                               Style="{StaticResource FieldHintStyle}"
-                                               Margin="0,6,0,0"/>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="缓存最多占用" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="默认 100 GB，只是最高上限，不会预占磁盘空间"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal">
-                                            <xctk:IntegerUpDown x:Name="RecordingCacheLimitEditor"
-                                                                Value="{Binding Config.RecordingCacheMaxGB, Mode=TwoWay}"
-                                                                Minimum="1"
-                                                                Maximum="10240"
-                                                                Increment="1"
-                                                                Height="36"
-                                                                Width="120"
-                                                                ValueChanged="RecordingCacheLimitEditor_ValueChanged"/>
-                                            <TextBlock Text="GB"
-                                                       Margin="8,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextSecondary}"/>
-                                        </StackPanel>
-                                    </Grid>
-                                    <TextBlock x:Name="RecordingCacheSafeCapacityText"
-                                               Text="正在计算此磁盘可安全使用的空间"
-                                               Style="{StaticResource FieldHintStyle}"
-                                               Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>

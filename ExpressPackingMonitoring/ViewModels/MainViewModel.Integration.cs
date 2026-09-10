@@ -701,14 +701,17 @@ namespace ExpressPackingMonitoring.ViewModels
             return "";
         }
 
-        public async void SwitchWorkstation()
+        public async void SwitchWorkstation() =>
+            await SwitchWorkstationAsync(Application.Current?.MainWindow);
+
+        internal async Task SwitchWorkstationAsync(System.Windows.Window owner)
         {
             if (!CanSwitchWorkstation)
                 return;
 
             var selector = new WorkstationSelectionWindow(Config.DeploymentPreset)
             {
-                Owner = Application.Current?.MainWindow
+                Owner = owner
             };
             if (selector.ShowDialog() == true && !string.IsNullOrWhiteSpace(selector.SelectedPreset))
             {
@@ -742,6 +745,23 @@ namespace ExpressPackingMonitoring.ViewModels
                     .ForPreset(selector.SelectedPreset)
                     .CanRunWebServer;
                 await RunPurposeSwitchAsync(nextConfig);
+            }
+        }
+
+        internal async Task RequestHostStorageAsync(System.Windows.Window owner)
+        {
+            if (!CanSwitchWorkstation)
+            {
+                ShowToast("录像进行中，停止录像后才能切换用途", ToastSeverity.Information);
+                return;
+            }
+            if (AppDialog.Confirm(
+                    owner,
+                    AppLanguage.Get("主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？"),
+                    AppLanguage.Get("切换用途"),
+                    AppDialogSeverity.Information))
+            {
+                await SwitchWorkstationAsync(owner);
             }
         }
 

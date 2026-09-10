@@ -876,10 +876,7 @@ public partial class MainViewModel
         void Update()
         {
             if (_isDisposed) return;
-            double cachedGb =
-                snapshot.CacheBytes / (double)StorageSpacePolicy.BytesPerGiB;
-            RecordingCacheUsageText =
-                $"已缓存 {cachedGb:F1} GB / 上限 {Config.RecordingCacheMaxGB} GB";
+            RecordingCacheUsageText = FormatRecordingCacheUsage(snapshot);
             RecordingCacheUsagePercent = snapshot.UsagePercent;
             IsRecordingCacheWarning = warning;
             RecordingCacheStatusText = canFit
@@ -906,6 +903,12 @@ public partial class MainViewModel
             Update();
         }
     }
+
+    internal string FormatRecordingCacheUsage(RecordingCacheSpaceSnapshot snapshot) =>
+        StorageUsageCalculator.Format(
+            new StorageUsageSnapshot(snapshot.CacheBytes, snapshot.EffectiveLimitBytes),
+            _db,
+            "已缓存 ");
 
     private void PublishRecordingCacheUnavailable(string error)
     {

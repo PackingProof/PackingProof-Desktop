@@ -50,7 +50,10 @@ internal static class StorageUsageCalculator
         return new StorageUsageSnapshot(videoBytes, capacityBytes);
     }
 
-    public static string Format(StorageUsageSnapshot snapshot, VideoDatabase? database)
+    public static string Format(
+        StorageUsageSnapshot snapshot,
+        VideoDatabase? database,
+        string prefix = "")
     {
         double usedGB = snapshot.VideoBytes / (double)StorageSpacePolicy.BytesPerGiB;
         double capacityGB = snapshot.CapacityBytes / (double)StorageSpacePolicy.BytesPerGiB;
@@ -72,7 +75,7 @@ internal static class StorageUsageCalculator
         {
         }
 
-        return $"{usedGB:F1} / {capacityGB:F1} GB{estimateText}";
+        return $"{prefix}{usedGB:F1} / {capacityGB:F1} GB{estimateText}";
     }
 
     public static IReadOnlyList<string> GetManagedLocalRoots(AppConfig config) =>

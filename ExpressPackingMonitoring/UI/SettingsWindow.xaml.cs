@@ -260,6 +260,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 EnsureRecordingCacheLocationExists();
                 Config.RecordingCachePolicy = "KeepWithinSize";
+                RecordingCacheDataGrid.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.UpdateTarget();
                 RefreshRecordingCacheStorageSummary();
             }
 
@@ -426,11 +427,8 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        public void SelectRecordingCacheTab()
-        {
-            if (Capabilities.CanConfigureRecordingCache)
-                SettingsTabControl.SelectedItem = RecordingCacheTabItem;
-        }
+        public void SelectRecordingCacheTab() =>
+            SettingsTabControl.SelectedItem = StorageTabItem;
 
         private void SoundSettingsPanel_Loaded(object sender, RoutedEventArgs e)
         {
@@ -994,6 +992,7 @@ namespace ExpressPackingMonitoring.UI
                 StorageSpacePolicy.GetMinimumReserveGB(selectedPath);
             location.Priority = 0;
             _recordingCacheLimitExplained = false;
+            RecordingCacheDataGrid?.Items.Refresh();
             RefreshRecordingCacheStorageSummary();
         }
 
@@ -1029,8 +1028,8 @@ namespace ExpressPackingMonitoring.UI
             }
 
             RecordingCacheUsageProgress.Value = snapshot.UsagePercent;
-            RecordingCacheUsageText.Text =
-                $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
+            RecordingCacheUsageText.Text = Context.FormatRecordingCacheUsage?.Invoke(snapshot)
+                ?? $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
             RecordingCacheSafeCapacityText.Text =
                 $"此磁盘当前建议最多 {FormatGb(snapshot.EffectiveLimitBytes)}，实际使用会随磁盘剩余空间动态调整";
             StorageLocation location =

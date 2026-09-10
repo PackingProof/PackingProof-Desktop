@@ -767,6 +767,10 @@
   <data name="重新连接" xml:space="preserve"><value>Reconnect</value></data>
   <data name="打开主机录像" xml:space="preserve"><value>Open host recordings</value></data>
   <data name="本机录像缓存" xml:space="preserve"><value>Local recording cache</value></data>
+  <data name="上传到保存主机前，录像先保存在这里；录像从机固定使用一个本地磁盘" xml:space="preserve"><value>Recordings are stored here before upload to the storage host; a recording workstation uses one local disk.</value></data>
+  <data name="软件支持 NAS 备份，需要切换到主机后配置" xml:space="preserve"><value>NAS backup is supported and can be configured after switching this computer to a host.</value></data>
+  <data name="录像备份位置需要在主机上配置，是否现在切换用途？" xml:space="preserve"><value>Recording backup locations are configured on a host. Switch this computer's purpose now?</value></data>
+  <data name="更改磁盘" xml:space="preserve"><value>Change disk</value></data>
   <data name="录像会自动上传到保存主机。本机缓存用于断网重试和临时保留，只会清理已经成功上传的录像" xml:space="preserve"><value>Recordings are uploaded to the storage host automatically. The local cache supports offline retries and temporary retention; only successfully uploaded recordings are removed</value></data>
   <data name="缓存策略" xml:space="preserve"><value>Cache policy</value></data>
   <data name="三种策略互斥，上传未确认的录像不会被清理" xml:space="preserve"><value>Choose one policy. Recordings without confirmed uploads are never removed</value></data>
@@ -850,8 +854,8 @@
   <data name="2. 这台电脑要负责长期保存录像吗？" xml:space="preserve"><value>2. Will this computer store recordings long term?</value></data>
   <data name="要，作为保存录像的电脑" xml:space="preserve"><value>Yes, use it as the storage computer</value></data>
   <data name="长期保存录像，并可接收和备份手机或其他录制电脑上传的录像" xml:space="preserve"><value>Store recordings long term and receive backups uploaded by phones or other recording computers</value></data>
-  <data name="不要，由其他电脑负责保存" xml:space="preserve"><value>No, another computer will store them</value></data>
-  <data name="本机录像先进入本地缓存，再上传到保存电脑；不录像时则只连接主机查看" xml:space="preserve"><value>Local recordings enter the local cache before upload to the storage computer; without recording, this computer only connects to a host for viewing</value></data>
+  <data name="不要，交给其他电脑保存" xml:space="preserve"><value>No, another computer will store them</value></data>
+  <data name="本机录像时作为“录像从机”，录像先保存在本机，再上传给保存主机；不录像时作为“查看端”，连接主机查看录像" xml:space="preserve"><value>When recording, this computer acts as a recording workstation: it saves locally first, then uploads to the storage host. Without recording, it acts as a viewer connected to the host</value></data>
   <data name="选择结果" xml:space="preserve"><value>Result</value></data>
   <data name="请完成上面两个选择" xml:space="preserve"><value>Please answer both questions above</value></data>
   <data name="完成后会在这里显示最终用途和支持的能力" xml:space="preserve"><value>The final purpose and supported capabilities will appear here</value></data>
@@ -1051,4 +1055,26 @@
   <data name="实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>Actual magnification adjusts to the label position and frame boundaries.</value></data>
   <data name="范围更大" xml:space="preserve"><value>Wider view</value></data>
   <data name="特写更大" xml:space="preserve"><value>Larger close-up</value></data>
+  <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>Yes, use as storage host (NAS supported)</value></data>
+  <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>A host stores recordings long term, supports NAS / network share backup, and receives recordings from phones and other computers</value></data>
+  <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>This computer records and stores recordings long term as a storage host, with NAS / network share backup support</value></data>
+  <data name="这台电脑不录像，作为保存主机接收其他设备录像，支持 NAS／网络共享备份" xml:space="preserve"><value>This computer receives recordings as a storage host without recording locally, with NAS / network share backup support</value></data>
+  <data name="支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>Supports backup to NAS / shared network folders</value></data>
+  <data name="软件支持 NAS 备份。主机就是负责长期保存录像的电脑；点击“添加网络位置”，在用途选择第 2 问选“要”即可配置" xml:space="preserve"><value>NAS backup is supported. A host stores recordings long term. Click Add network location and select Yes for question 2 in the purpose selector to configure it</value></data>
+  <data name="主机就是负责长期保存录像的电脑，支持 NAS／网络共享备份。要在这台电脑配置，请在用途选择第 2 问选“要”。是否现在打开用途选择？" xml:space="preserve"><value>A host stores recordings long term and supports NAS / network share backup. Select Yes for question 2 to configure it on this computer. Open the purpose selector now?</value></data>
+  <data name="录像主机" xml:space="preserve"><value>Recording host</value></data>
+  <data name="录像从机" xml:space="preserve"><value>Recording workstation</value></data>
+  <data name="备份主机" xml:space="preserve"><value>Backup host</value></data>
+  <data name="录像查看端" xml:space="preserve"><value>Recording viewer</value></data>
+  <data name="本机录像并长期保存，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>Record and store locally long term, with backup to NAS / shared network folders</value></data>
+  <data name="接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>Receive and store recordings from phones or other computers long term, with backup to NAS / shared network folders</value></data>
+  <data name="本机录像，自动上传到保存主机" xml:space="preserve"><value>Record locally and automatically upload to the storage host</value></data>
+  <data name="连接保存主机，查看和回放录像" xml:space="preserve"><value>Connect to a storage host to browse and play recordings</value></data>
+  <data name="PackingProof 备份主机" xml:space="preserve"><value>PackingProof Backup Host</value></data>
+  <data name="备份主机 · 接收并长期保存手机或其他电脑的录像，支持备份到 NAS／网络共享文件夹" xml:space="preserve"><value>Backup host · Receive and store recordings from phones or computers, with backup to NAS / shared network folders</value></data>
+  <data name="空间清理" xml:space="preserve"><value>Storage cleanup</value></data>
+  <data name="空间不足时会按存储规则自动清理旧录像，通常无需手动操作" xml:space="preserve"><value>Old recordings are cleaned up automatically under the storage rules when space runs low; manual cleanup is usually unnecessary</value></data>
+  <data name="缓存接近上限时自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>Uploaded recordings are cleaned up automatically as the cache approaches its limit; recordings not yet uploaded are retained</value></data>
+  <data name="手动提前清理本机录像，不影响已备份的远端文件" xml:space="preserve"><value>Clean up local recordings manually without affecting remote backup files</value></data>
+  <data name="手动提前释放本机空间，不影响已备份的远端文件" xml:space="preserve"><value>Free local space manually without affecting remote backup files</value></data>
 </root>
