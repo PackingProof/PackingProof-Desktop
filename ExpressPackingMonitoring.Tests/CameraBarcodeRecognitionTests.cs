@@ -12,6 +12,45 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class CameraBarcodeRecognitionTests
 {
     [Theory]
+    [InlineData("-1-1-", "JD123456789012", false)]
+    [InlineData("-1-2-", "JD123456789012-1-2-", false)]
+    [InlineData("-2-2-", "JD123456789012-2-2-", true)]
+    public void JdDualBarcodeFramePrefersMatchingPackage(string suffix, string expected, bool rotated)
+    {
+        // The bare code is closer to the guide center; package selection must override it.
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "JD123456789012", false, 380, 300,
+            "JD123456789012" + suffix, rotated, 40, 40);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        Assert.Equal(expected, decoder.DecodeGuideRegion(frame, _ => true,
+            new CameraBarcodeGuideGeometry(1, 1, 0, 0)));
+    }
+
+    [Fact]
+    public void JdBareFrameDoesNotUseAnotherWaybillsPackage()
+    {
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "JD123456789012", false, 380, 300,
+            "JD999999999999-1-2-", false, 40, 40);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        Assert.Equal("JD123456789012", decoder.DecodeGuideRegion(frame, _ => true,
+            new CameraBarcodeGuideGeometry(1, 1, 0, 0)));
+    }
+
+    [Theory]
+    [InlineData("-1-1-", "JD123456789012")]
+    [InlineData("-1-2-", "JD123456789012-1-2-")]
+    public void JdSingleResultEntryContinuesOnSameImage(string suffix, string expected)
+    {
+        using Mat frame = CreateFrameWithTwoBarcodes(
+            "JD123456789012", false, 380, 300,
+            "JD123456789012" + suffix, false, 40, 40);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        Assert.Equal(expected, decoder.DecodeGuideRegion(frame, null,
+            new CameraBarcodeGuideGeometry(1, 1, 0, 0)));
+    }
+
+    [Theory]
     [InlineData(20, 50, 400, 300, 50, 30, 1.5, 0, 0)]
     [InlineData(330, 50, 400, 300, 50, 30, 1.5, 133, 0)]
     [InlineData(170, 10, 400, 300, 60, 30, 1.5, 66, 0)]

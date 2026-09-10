@@ -89,7 +89,7 @@ internal static class BarcodeRecordingDecisionPolicy
         if (!canProcess)
             return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.CannotProcess, value);
 
-        string normalized = (value ?? "").Trim().ToUpperInvariant();
+        string normalized = JdBarcodePolicy.Normalize(value);
         if (normalized.Length == 0)
             return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.EmptyInput, normalized);
 
@@ -118,7 +118,7 @@ internal static class BarcodeRecordingDecisionPolicy
 
         if (isRecording && sameBarcodeStopEnabled)
         {
-            string current = (recordingOrderId ?? "").Trim().ToUpperInvariant();
+            string current = JdBarcodePolicy.Normalize(recordingOrderId);
             if (current.Length == 0)
                 return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.RecordingOrderMissing, normalized);
             if (!string.Equals(normalized, current, StringComparison.Ordinal))
@@ -201,7 +201,7 @@ internal static class BarcodeRecordingDecisionPolicy
     private static BarcodeRecordingDecision Create(
         BarcodeRecordingDecisionAction action,
         BarcodeRecordingDecisionReason reason,
-        string? value) => new(action, reason, (value ?? "").Trim().ToUpperInvariant());
+        string? value) => new(action, reason, JdBarcodePolicy.Normalize(value));
 
     private static bool IsOrderScan(string value, string? orderIdRegex)
     {
@@ -701,14 +701,17 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             return null;
 
         string normalized = NormalizeResult(result.Text);
-        return normalized.Length == 0 ? null : normalized;
+        if (JdBarcodePolicy.IsBareWaybill(normalized))
+            return DecodeBest(frame, workspace, _ => true, new Rect(0, 0, frame.Width, frame.Height), normalized);
+        return normalized.Length == 0 ? null : JdBarcodePolicy.Normalize(normalized);
     }
 
     private string? DecodeBest(
         Mat frame,
         DecodeWorkspace workspace,
         Func<string, bool>? isValid,
-        Rect referenceRect)
+        Rect referenceRect,
+        string? preferredWaybill = null)
     {
         if (frame == null || frame.IsDisposed || frame.Empty())
             return null;
@@ -747,9 +750,11 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         double centerY = source.Height / 2.0;
         var candidates = new List<DecodedCandidate>(4);
         DecodedCandidate? fallback = null;
+        DecodedCandidate? pendingWaybill = preferredWaybill == null
+            ? null : new DecodedCandidate(preferredWaybill, double.MaxValue, 0, null);
 
-        // 快速通道不启用 TryHarder；只有快速通道扫不到时才走慢通道，
-        // 避免每个候选都触发完整的穷举解码。
+        // 快速通道不启用 TryHarder；扫不到有效码或只得到京东裸号时，
+        // 才复用当前图像走慢通道，查找对应包裹码，不等待另一帧。
         for (int phase = 0; phase < 2; phase++)
         {
             BarcodeReaderGeneric reader = phase == 0 ? _fastReader : _reader;
@@ -777,23 +782,41 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
                 continue;
 
             DecodedCandidate? bestValid = SelectBest(candidates, isValid, requireValid: true);
+            string? waybill = pendingWaybill?.Code ?? preferredWaybill;
+            if (waybill != null)
+            {
+                DecodedCandidate? package = SelectBest(
+                    candidates.Where(c => JdBarcodePolicy.MatchesPackage(waybill, c.Code)).ToArray(),
+                    isValid, requireValid: true);
+                if (package != null)
+                {
+                    _lastBestCandidate = package;
+                    return JdBarcodePolicy.Normalize(package.Value.Code);
+                }
+                bestValid = pendingWaybill ?? bestValid;
+            }
             if (bestValid != null)
             {
+                if (phase == 0 && JdBarcodePolicy.IsBareWaybill(bestValid.Value.Code))
+                {
+                    pendingWaybill = bestValid;
+                    continue;
+                }
                 _lastBestCandidate = bestValid;
-                return bestValid.Value.Code;
+                return JdBarcodePolicy.Normalize(bestValid.Value.Code);
             }
 
             if (phase == 1)
             {
                 _lastBestCandidate = SelectBest(candidates, null, requireValid: false);
-                return _lastBestCandidate?.Code;
+                return _lastBestCandidate is { } last ? JdBarcodePolicy.Normalize(last.Code) : null;
             }
 
             fallback = SelectBest(candidates, null, requireValid: false);
         }
 
-        _lastBestCandidate = fallback;
-        return fallback?.Code;
+        _lastBestCandidate = pendingWaybill ?? fallback;
+        return _lastBestCandidate is { } final ? JdBarcodePolicy.Normalize(final.Code) : preferredWaybill;
     }
 
     private void CollectCandidates(
@@ -856,7 +879,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         DecodedCandidate? best = null;
         foreach (DecodedCandidate candidate in candidates)
         {
-            if (requireValid && (isValid == null || !isValid(candidate.Code)))
+            if (requireValid && (isValid == null || !isValid(JdBarcodePolicy.Normalize(candidate.Code))))
                 continue;
 
             if (best == null
@@ -866,6 +889,14 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             {
                 best = candidate;
             }
+        }
+        if (best is { } selected && JdBarcodePolicy.IsBareWaybill(selected.Code))
+        {
+            return candidates
+                .Where(c => JdBarcodePolicy.MatchesPackage(selected.Code, c.Code)
+                    && (!requireValid || isValid!(JdBarcodePolicy.Normalize(c.Code))))
+                .OrderBy(c => c.DistanceSquared).ThenByDescending(c => c.Area)
+                .Select(c => (DecodedCandidate?)c).FirstOrDefault() ?? best;
         }
         return best;
     }
