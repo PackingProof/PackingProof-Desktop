@@ -12,7 +12,7 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class CameraBarcodeRecognitionTests
 {
     [Theory]
-    [InlineData("-1-1-", "JD123456789012", false)]
+    [InlineData("-1-1-", "JD123456789012-1-1-", false)]
     [InlineData("-1-2-", "JD123456789012-1-2-", false)]
     [InlineData("-2-2-", "JD123456789012-2-2-", true)]
     public void JdDualBarcodeFramePrefersMatchingPackage(string suffix, string expected, bool rotated)
@@ -38,7 +38,7 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Theory]
-    [InlineData("-1-1-", "JD123456789012")]
+    [InlineData("-1-1-", "JD123456789012-1-1-")]
     [InlineData("-1-2-", "JD123456789012-1-2-")]
     public void JdSingleResultEntryContinuesOnSameImage(string suffix, string expected)
     {

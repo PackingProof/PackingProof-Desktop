@@ -1004,12 +1004,13 @@ namespace ExpressPackingMonitoring.Data
                             OrderInfoJson = @orderInfoJson
                         WHERE IsDeleted = 0
                           AND (StartTime >= @since OR SourceType = 'external')
-                          AND (OrderId = @trackingNumber OR TrackingNumber = @trackingNumber)
+                          AND (OrderId = @trackingNumber OR TrackingNumber = @trackingNumber OR (@jdWaybill = 1 AND OrderId GLOB (@trackingNumber || '-[0-9]*-[0-9]*-')))
                           AND (
                               BuyerMessage = '' OR SellerMemo = '' OR ProductInfo = ''
                               OR SourceOrderId = '' OR OrderInfoJson = ''
                           );";
                     AddOrderInfoParameters(cmd, item);
+                    cmd.Parameters.AddWithValue("@jdWaybill", Services.JdBarcodePolicy.IsBareWaybill(item.TrackingNumber.Trim().ToUpperInvariant()) ? 1 : 0);
                     cmd.Parameters.AddWithValue("@since", DateTime.Now.AddHours(-72).ToString("yyyy-MM-dd HH:mm:ss"));
                     cmd.ExecuteNonQuery();
                 }
@@ -2137,8 +2138,7 @@ namespace ExpressPackingMonitoring.Data
             {
                 if (searchMode == VideoSearchMode.ExactOrderIdentifiers)
                 {
-                    whereSql += @" AND (
-                        OrderId = @keyword OR TrackingNumber = @keyword OR SourceOrderId = @keyword)";
+                    whereSql += ExactRecordingIdentitySearch(normalizedKeyword);
                     parameters.Add(("keyword", normalizedKeyword));
                 }
                 else if (searchMode == VideoSearchMode.OrderIdentifierContains)

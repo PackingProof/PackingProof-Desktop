@@ -375,7 +375,7 @@ internal sealed class RecordingTransferService : IDisposable
         bool supportsUploadVideoCodec,
         CancellationToken cancellationToken)
     {
-        string trackingNumber = string.IsNullOrWhiteSpace(record.TrackingNumber)
+        string trackingNumber = JdBarcodePolicy.Parse(record.OrderId) != null || string.IsNullOrWhiteSpace(record.TrackingNumber)
             ? record.OrderId
             : record.TrackingNumber;
         using var request = CreateJsonRequest(

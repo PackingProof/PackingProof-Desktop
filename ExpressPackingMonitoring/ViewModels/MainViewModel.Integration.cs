@@ -835,7 +835,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     string activeOrderId = IsRecording ? _recordingOrderId : CurrentOrderId;
                     OrderInfo activeOrder = orders.FirstOrDefault(info =>
                         !info.IsTest
-                        && string.Equals(info.TrackingNumber?.Trim(), activeOrderId?.Trim(), StringComparison.OrdinalIgnoreCase));
+                        && string.Equals(info.TrackingNumber?.Trim(), JdBarcodePolicy.Waybill(activeOrderId), StringComparison.OrdinalIgnoreCase));
                     if (IsRecording && activeOrder != null)
                     {
                         SetPreviewOrderNotice(activeOrder);

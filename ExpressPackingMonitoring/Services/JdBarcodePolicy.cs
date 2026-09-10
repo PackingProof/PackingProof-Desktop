@@ -27,7 +27,22 @@ internal static class JdBarcodePolicy
     public static string Normalize(string? value)
     {
         string code = (value ?? "").Trim().ToUpperInvariant();
-        return Parse(code) is { Index: 1, Count: 1 } package ? package.Waybill : code;
+        return code;
+    }
+
+    public static bool SameRecordingCode(string? left, string? right)
+    {
+        string a = Normalize(left), b = Normalize(right);
+        return a == b || MatchesPackage(a, b) || MatchesPackage(b, a);
+    }
+
+    public static string PreferSpecific(string current, string observed) =>
+        MatchesPackage(current, observed) ? observed : current;
+
+    public static string Waybill(string? value)
+    {
+        string code = Normalize(value);
+        return Parse(code)?.Waybill ?? code;
     }
 
     public static bool MatchesPackage(string waybill, string candidate) =>

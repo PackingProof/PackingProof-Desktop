@@ -4289,7 +4289,7 @@ namespace ExpressPackingMonitoring.Services
         public OrderInfo GetOrderInfo(string trackingNo)
         {
             if (string.IsNullOrWhiteSpace(trackingNo)) return null;
-            string key = trackingNo.Trim().ToUpperInvariant();
+            string key = JdBarcodePolicy.Waybill(trackingNo);
             lock (_orderInfoLock)
             {
                 if (_orderInfoCache.TryGetValue(key, out var info))
@@ -4325,7 +4325,7 @@ namespace ExpressPackingMonitoring.Services
                 RequestId = Guid.NewGuid().ToString("N"),
                 TrackingNumbers = (trackingNumbers ?? Array.Empty<string>())
                     .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Select(x => x.Trim().ToUpperInvariant())
+                    .Select(JdBarcodePolicy.Waybill)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Take(50)
                     .ToArray()

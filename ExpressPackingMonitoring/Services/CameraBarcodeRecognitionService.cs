@@ -121,7 +121,7 @@ internal static class BarcodeRecordingDecisionPolicy
             string current = JdBarcodePolicy.Normalize(recordingOrderId);
             if (current.Length == 0)
                 return Create(BarcodeRecordingDecisionAction.Ignore, BarcodeRecordingDecisionReason.RecordingOrderMissing, normalized);
-            if (!string.Equals(normalized, current, StringComparison.Ordinal))
+            if (!JdBarcodePolicy.SameRecordingCode(normalized, current))
             {
                 // 收尾期间的新单号应立即抢占切换；旧片段由收尾逻辑保留已录到的停止动作。
                 // 仅对合法单号开放该例外，其他输入仍按同码停录模式拦截。
@@ -344,7 +344,7 @@ internal static class CameraBarcodeCandidatePolicy
         string current = (recordingOrderId ?? "").Trim();
         return normalized.Length > 0
             && current.Length > 0
-            && string.Equals(normalized, current, StringComparison.OrdinalIgnoreCase);
+            && JdBarcodePolicy.SameRecordingCode(normalized, current);
     }
 
     public static bool ShouldIgnoreCurrentRecordingCode(
@@ -393,11 +393,16 @@ internal sealed class CameraBarcodeStabilityTracker
                 KeepDecoding: _candidateCode.Length > 0);
         }
 
-        if (_lockedCodes.ContainsKey(normalized))
+        string? lockedAlias = _lockedCodes.Keys.FirstOrDefault(c => JdBarcodePolicy.SameRecordingCode(c, normalized));
+        if (lockedAlias != null)
         {
+            string specific = JdBarcodePolicy.PreferSpecific(lockedAlias, normalized);
+            _lockedCodes.Remove(lockedAlias);
+            _missingLockedCodesSince.Remove(lockedAlias);
+            normalized = specific;
             _lockedCodes[normalized] = now;
             _missingLockedCodesSince.Remove(normalized);
-            if (string.Equals(_candidateCode, normalized, StringComparison.Ordinal))
+            if (JdBarcodePolicy.SameRecordingCode(_candidateCode, normalized))
                 ClearCandidate();
             return new CameraBarcodeObservation(VisibleCode: normalized);
         }
@@ -414,7 +419,7 @@ internal sealed class CameraBarcodeStabilityTracker
             return new CameraBarcodeObservation(ConfirmedCode: normalized);
         }
 
-        if (!string.Equals(_candidateCode, normalized, StringComparison.Ordinal)
+        if (!JdBarcodePolicy.SameRecordingCode(_candidateCode, normalized)
             || _candidateRequiredHits != requiredHitsValue
             || now - _candidateFirstSeen > _candidateConfirmationWindow)
         {
@@ -428,6 +433,7 @@ internal sealed class CameraBarcodeStabilityTracker
                 KeepDecoding: true);
         }
 
+        _candidateCode = JdBarcodePolicy.PreferSpecific(_candidateCode, normalized);
         _candidateHits++;
         if (_candidateHits < _candidateRequiredHits)
         {
@@ -436,6 +442,7 @@ internal sealed class CameraBarcodeStabilityTracker
                 KeepDecoding: true);
         }
 
+        normalized = JdBarcodePolicy.PreferSpecific(_candidateCode, normalized);
         _lockedCodes[normalized] = now;
         ClearCandidate();
         return new CameraBarcodeObservation(ConfirmedCode: normalized);
@@ -473,7 +480,7 @@ internal sealed class CameraBarcodeStabilityTracker
         string normalized = (observedCode ?? "").Trim().ToUpperInvariant();
         foreach (string code in _lockedCodes.Keys.ToArray())
         {
-            if (string.Equals(code, normalized, StringComparison.Ordinal))
+            if (JdBarcodePolicy.SameRecordingCode(code, normalized))
             {
                 if (!_missingLockedCodesSince.TryGetValue(code, out DateTimeOffset missingSince)
                     || now - missingSince < rearmDelay)

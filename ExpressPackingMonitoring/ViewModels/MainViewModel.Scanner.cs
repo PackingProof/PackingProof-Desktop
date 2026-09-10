@@ -838,6 +838,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 try
                 {
+                    if (JdBarcodePolicy.MatchesPackage(_recordingOrderId ?? "", upperResult)
+                        && _db?.CompleteRecordingPackageIdentity(_currentRecordId, _recordingOrderId, upperResult) == true)
+                    {
+                        _recordingOrderId = upperResult;
+                        CurrentOrderId = upperResult;
+                        if (_currentScanRecord != null) _currentScanRecord.OrderId = upperResult;
+                    }
                     _stopReason = "同码停录";
                     if (Config.EnableEventRecordingBuffer && Config.SameCodePostRecordSeconds > 0)
                     {
