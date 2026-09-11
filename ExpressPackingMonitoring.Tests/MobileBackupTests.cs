@@ -1338,6 +1338,20 @@ public sealed class MobileBackupTests
             using JsonDocument videoJson = JsonDocument.Parse(await videos.Content.ReadAsStringAsync(cancellationToken));
             Assert.Equal(2, videoJson.RootElement.GetProperty("total").GetInt32());
             Assert.Equal(1, videoJson.RootElement.GetProperty("deviceTotal").GetInt32());
+            foreach (string filterMode in new[] { "shipping", "return" })
+            {
+                using var filtered = await SendSignedAsync(client, HttpMethod.Get,
+                    $"/api/mobile-backup/videos?size=1&mode={filterMode}", deviceId, deviceToken, [], cancellationToken);
+                Assert.Equal(HttpStatusCode.OK, filtered.StatusCode);
+                using var filteredJson = JsonDocument.Parse(await filtered.Content.ReadAsStringAsync(cancellationToken));
+                Assert.Equal(filterMode, filteredJson.RootElement.GetProperty("mode").GetString());
+                Assert.Equal(filterMode == "shipping" ? 2 : 0, filteredJson.RootElement.GetProperty("total").GetInt32());
+                Assert.Equal(filterMode == "shipping" ? 1 : 0, filteredJson.RootElement.GetProperty("deviceTotal").GetInt32());
+            }
+            using var invalidMode = await SendSignedAsync(client, HttpMethod.Get,
+                "/api/mobile-backup/videos?mode=unknown", deviceId, deviceToken, [], cancellationToken);
+            Assert.Equal(HttpStatusCode.BadRequest, invalidMode.StatusCode);
+
             JsonElement video = videoJson.RootElement.GetProperty("data")
                 .EnumerateArray()
                 .Single(item => item.GetProperty("sourceDeviceId").GetString() == deviceId);

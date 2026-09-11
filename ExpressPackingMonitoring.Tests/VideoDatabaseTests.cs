@@ -72,6 +72,27 @@ public sealed class VideoDatabaseTests
     }
 
     [Fact]
+    public void RecordingModeFilterCountsBeforePaging()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            using var db = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            db.InsertVideoRecord("SHIP", "发货", "", "", Path.Combine(directory, "s.mp4"), DateTime.Now);
+            db.InsertVideoRecord("RETURN-1", "退货", "", "", Path.Combine(directory, "r1.mp4"), DateTime.Now.AddMinutes(-1));
+            db.InsertVideoRecord("RETURN-2", "退货", "", "", Path.Combine(directory, "r2.mp4"), DateTime.Now.AddMinutes(-2));
+            var first = db.QueryVideosPaged(null, null, null, 1, 1, mode: "return");
+            var second = db.QueryVideosPaged(null, null, null, 2, 1, mode: "return");
+            Assert.Equal(2, first.Total);
+            Assert.Equal("RETURN-1", Assert.Single(first.Records).OrderId);
+            Assert.Equal("RETURN-2", Assert.Single(second.Records).OrderId);
+            Assert.Equal(1, db.QueryVideosPaged(null, null, null, 1, 20, mode: "shipping").Total);
+            Assert.Equal(1, db.QueryVideosPaged(null, null, "RETURN-2", 1, 20, mode: "return").Total);
+        }
+        finally { DeleteTempDirectory(directory); }
+    }
+
+    [Fact]
     public void MobileBackupDailyCounts_AreGroupedByStableDeviceAndIgnoreDeletedVideos()
     {
         string tempDirectory = CreateTempDirectory();

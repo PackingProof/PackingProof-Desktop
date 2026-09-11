@@ -2431,6 +2431,12 @@ namespace ExpressPackingMonitoring.Services
             int page = int.TryParse(qs["page"], out int parsedPage) ? Math.Max(1, parsedPage) : 1;
             int pageSize = int.TryParse(qs["size"], out int parsedSize) ? Math.Clamp(parsedSize, 1, 100) : 50;
             string keyword = qs["keyword"] ?? "";
+            string mode = (qs["mode"] ?? "").Trim().ToLowerInvariant();
+            if (mode is not ("" or "shipping" or "return"))
+            {
+                SendJson(ctx, 400, new { errorCode = "invalid_recording_mode", error = "录像类型无效" });
+                return;
+            }
             var result = _db.QueryVideosPaged(
                 null,
                 null,
@@ -2439,15 +2445,16 @@ namespace ExpressPackingMonitoring.Services
                 pageSize,
                 includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: hostLibrary ? "" : "external",
-                deviceId: hostLibrary ? "" : deviceId);
+                deviceId: hostLibrary ? "" : deviceId, mode: mode);
             int deviceTotal = _db.QueryVideosPaged(
                 null,
                 null,
-                null,
+                string.IsNullOrWhiteSpace(keyword) ? null : keyword,
                 1,
                 1,
+                includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: "external",
-                deviceId: deviceId).Total;
+                deviceId: deviceId, mode: mode).Total;
             var data = result.Records.Select(record =>
             {
                 string ticket = CreateDeviceVideoTicket(deviceId, deviceKind, record.Id);
@@ -2484,7 +2491,7 @@ namespace ExpressPackingMonitoring.Services
                     remote = true
                 };
             });
-            SendJson(ctx, 200, new { total = result.Total, deviceTotal, page, pageSize, data });
+            SendJson(ctx, 200, new { total = result.Total, deviceTotal, page, pageSize, mode, data });
         }
 
         private void HandleDeviceScopedVideoStatuses(HttpListenerContext ctx)

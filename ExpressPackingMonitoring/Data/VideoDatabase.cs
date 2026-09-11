@@ -1979,7 +1979,8 @@ namespace ExpressPackingMonitoring.Data
             bool includeDeleted = false,
             string sourceType = "",
             string deviceId = "",
-            string sourceDeviceName = "")
+            string sourceDeviceName = "",
+            string mode = "")
         {
             return QueryVideosPaged(
                 startDate,
@@ -1991,7 +1992,7 @@ namespace ExpressPackingMonitoring.Data
                 VideoSearchMode.BroadContains,
                 sourceType,
                 deviceId,
-                sourceDeviceName);
+                sourceDeviceName, mode);
         }
 
         public List<VideoRecord> GetCompletedPcVideosForTransfer(
@@ -2094,7 +2095,8 @@ namespace ExpressPackingMonitoring.Data
             VideoSearchMode searchMode,
             string sourceType,
             string deviceId,
-            string sourceDeviceName)
+            string sourceDeviceName,
+            string mode = "")
         {
             string normalizedKeyword = keyword?.Trim() ?? "";
             string normalizedSourceType = sourceType?.Trim().ToLowerInvariant() ?? "";
@@ -2107,6 +2109,14 @@ namespace ExpressPackingMonitoring.Data
                 FROM VideoRecords
                 WHERE 1 = 1";
             var parameters = new List<(string Name, object Value)>();
+
+            if (!string.IsNullOrEmpty(mode))
+            {
+                if (mode is not ("shipping" or "return")) throw new ArgumentException("Invalid recording mode", nameof(mode));
+                whereSql += mode == "return"
+                    ? " AND Mode IN ('return', '退货')"
+                    : " AND (Mode IN ('shipping', '发货', '') OR Mode IS NULL)";
+            }
 
             if (startDate.HasValue)
                 whereSql += " AND StartTime >= @startDate";
@@ -2176,7 +2186,8 @@ namespace ExpressPackingMonitoring.Data
             VideoSearchMode searchMode,
             string sourceType = "",
             string deviceId = "",
-            string sourceDeviceName = "")
+            string sourceDeviceName = "",
+            string mode = "")
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2185,7 +2196,7 @@ namespace ExpressPackingMonitoring.Data
             lock (_lock)
             {
                 (string whereSql, List<(string Name, object Value)> parameters) =
-                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, sourceType, deviceId, sourceDeviceName);
+                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, sourceType, deviceId, sourceDeviceName, mode);
 
                 using var countCmd = _connection.CreateCommand();
                 countCmd.CommandText = "SELECT COUNT(1) " + whereSql + ";";
