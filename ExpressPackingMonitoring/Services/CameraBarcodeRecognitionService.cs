@@ -353,17 +353,8 @@ internal static class CameraBarcodeCandidatePolicy
         bool isRecording,
         bool sameBarcodeStopEnabled)
     {
-        if (sameBarcodeStopEnabled) return false;
-        if (!isRecording || string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(recordingOrderId)) return false;
-        // 京东裸号与包裹码是同一面单的两个摄像头条码，即使关闭通用同码停录，
-        // 也必须交给统一决策器处理，不能在入口处吞掉别名。
-        if (JdBarcodePolicy.SameRecordingCode(value, recordingOrderId)
-            && (JdBarcodePolicy.IsBareWaybill(JdBarcodePolicy.Normalize(value))
-                || JdBarcodePolicy.Parse(JdBarcodePolicy.Normalize(value)) != null
-                || JdBarcodePolicy.IsBareWaybill(JdBarcodePolicy.Normalize(recordingOrderId))
-                || JdBarcodePolicy.Parse(JdBarcodePolicy.Normalize(recordingOrderId)) != null))
-            return false;
-        return IsCurrentRecordingCode(value, recordingOrderId, isRecording);
+        return !sameBarcodeStopEnabled
+            && IsCurrentRecordingCode(value, recordingOrderId, isRecording);
     }
 }
 

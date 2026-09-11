@@ -6,6 +6,40 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class JdBarcodePolicyTests
 {
     [Theory]
+    [InlineData("JDX058278770023", "JDX058278770023-1-1-")]
+    [InlineData("JDX058278770023-1-1-", "JDX058278770023")]
+    [InlineData("JDAA123456789", "JDAA123456789-1-1-")]
+    [InlineData("JDZ9123456789-1-1-", "JDZ9123456789")]
+    public void JdxCameraAliasStopsAfterReentryAndCooldown(string current, string scanned)
+    {
+        var tracker = new CameraBarcodeStabilityTracker();
+        var now = DateTimeOffset.UtcNow;
+        tracker.LockFromStartTrigger(current, now);
+        Assert.Empty(tracker.Observe(scanned, now.AddMilliseconds(100)).ConfirmedCode);
+        tracker.Observe(null, now.AddSeconds(1));
+        tracker.Observe(null, now.AddSeconds(5));
+        tracker.Observe(scanned, now.AddSeconds(6));
+        var confirmed = tracker.Observe(scanned, now.AddSeconds(6.1)).ConfirmedCode;
+        Assert.Equal(scanned, confirmed);
+        Assert.Equal(BarcodeRecordingDecisionAction.Queue,
+            BarcodeRecordingDecisionPolicy.Evaluate(confirmed, true, true, true, current, true, true, null).Action);
+        var decision = BarcodeRecordingDecisionPolicy.Evaluate(confirmed, true, true, true, current, true, false, null);
+        Assert.Equal(BarcodeRecordingDecisionReason.SameCodeMatched, decision.Reason);
+        Assert.Equal(BarcodeRecordingDecisionAction.Stop, decision.Action);
+        Assert.Equal(BarcodeRecordingDecisionReason.CameraCurrentCodeIgnored,
+            BarcodeRecordingDecisionPolicy.Evaluate(confirmed, true, true, true, current, false, false, null).Reason);
+    }
+
+    [Fact]
+    public void JdxDifferentPackagesRemainDistinct()
+    {
+        Assert.Equal("JDX058278770023", JdBarcodePolicy.Waybill("JDX058278770023-1-2-"));
+        Assert.Equal(BarcodeRecordingDecisionReason.RecordingOrderMismatch,
+            BarcodeRecordingDecisionPolicy.Evaluate("JDX058278770023-2-2-", true, true, true,
+                "JDX058278770023-1-2-", true, false, null).Reason);
+    }
+
+    [Theory]
     [InlineData("JD123456789012", "JD123456789012-1-1-", true)]
     [InlineData("JD123456789012-1-2-", "JD123456789012", true)]
     [InlineData("JD123456789012-1-2-", "JD123456789012-2-2-", false)]

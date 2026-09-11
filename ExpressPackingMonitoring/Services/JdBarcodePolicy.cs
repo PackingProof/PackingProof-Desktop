@@ -5,9 +5,9 @@ namespace ExpressPackingMonitoring.Services;
 /// <summary>京东双条码的同帧关联；不保存跨帧状态，也不改写多包裹身份。</summary>
 internal static class JdBarcodePolicy
 {
-    // 仅启用已确认的 JD / JDVA 号型，不猜测其他承运商或历史前缀。
-    private static readonly Regex WaybillPattern = new(@"\AJD(?:VA)?[0-9]+\z");
-    private static readonly Regex PackagePattern = new(@"\A(JD(?:VA)?[0-9]+)-([1-9][0-9]*)-([1-9][0-9]*)-\z");
+    // JD 开头的字母数字单号统一关联合法包裹后缀，保留完整包裹身份。
+    private static readonly Regex WaybillPattern = new(@"\AJD[A-Z0-9]+\z");
+    private static readonly Regex PackagePattern = new(@"\A(JD[A-Z0-9]+)-([1-9][0-9]*)-([1-9][0-9]*)-\z");
 
     internal readonly record struct Package(string RawCode, string Waybill, int Index, int Count);
 
