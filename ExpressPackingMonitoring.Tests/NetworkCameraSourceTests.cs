@@ -276,6 +276,15 @@ public sealed class NetworkCameraSourceTests
     {
         return Regex.IsMatch(
             fullHelp,
-            "(^|\\s)-" + Regex.Escape(option) + "(\\s|<)");
+            "(^|\\s)-" + Regex.Escape(option) + "(\\s|<|\\[)");
+    }
+
+    [Fact]
+    public void FullHelpRecognition_AcceptsStreamSpecifierSyntax()
+    {
+        const string help = "-pix_fmt[:<stream_spec>] <format>  set pixel format";
+
+        Assert.True(IsRecognizedByFullHelp(help, "pix_fmt"));
+        Assert.False(IsRecognizedByFullHelp(help, "fps_mode"));
     }
 }

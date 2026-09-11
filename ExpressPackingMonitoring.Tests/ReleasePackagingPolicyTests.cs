@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -182,6 +183,14 @@ public sealed class ReleasePackagingPolicyTests
         string manifest = File.ReadAllText(
             Path.Combine(repositoryRoot, "Tools", "ffmpeg-baseline.json"),
             Encoding.UTF8);
+        XDocument project = XDocument.Load(
+            Path.Combine(repositoryRoot, "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"));
+        XElement[] ffmpegContent = project.Descendants("Content")
+            .Where(item => string.Equals(
+                item.Element("TargetPath")?.Value,
+                @"tools\ffmpeg.exe",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         Assert.Contains("Read-FFmpegBaselineManifest", publishScript);
         Assert.Contains("Resolve-FFmpegBaselineExecutable", publishScript);
@@ -194,6 +203,12 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("GyanD/codexffmpeg/releases/download/4.4.1", manifest);
         Assert.Contains("78c5b75623a0ac03c0fb9b047474685127f453bc6cef00b9af7d80e9eaf50c96", manifest);
         Assert.Contains("8436760af8f81c95eff92d854a7684e6d3cedb872888420359fc45c8eb2664ac", manifest);
+        Assert.Equal(2, ffmpegContent.Length);
+        Assert.All(ffmpegContent, item =>
+        {
+            Assert.Equal("Always", item.Element("CopyToOutputDirectory")?.Value);
+            Assert.Equal("Always", item.Element("CopyToPublishDirectory")?.Value);
+        });
     }
 
     [Fact]

@@ -311,15 +311,15 @@
     <Content Include="$(FFmpegBaselineExecutable)"
              Condition="Exists('$(FFmpegBaselineExecutable)')">
       <TargetPath>tools\ffmpeg.exe</TargetPath>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
     <Content Include="ffmpeg.exe"
              Condition="!Exists('$(FFmpegBaselineExecutable)') And Exists('ffmpeg.exe')">
       <TargetPath>tools\ffmpeg.exe</TargetPath>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
   </ItemGroup>
