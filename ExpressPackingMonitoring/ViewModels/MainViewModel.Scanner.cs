@@ -779,6 +779,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 case BarcodeRecordingDecisionReason.CooldownOrderQueued:
                     _pendingScanDuringCooldown = upperResult;
+                    _pendingScanDuringCooldownFromCamera = fromCamera;
                     RuntimeLog.Info("Scan", $"Scan queued during cooldown: {upperResult}");
                     ShowToast("扫码过快，已保留最后一个单号", ToastSeverity.Warning);
                     return;
@@ -1080,11 +1081,13 @@ namespace ExpressPackingMonitoring.ViewModels
             await Task.Delay((int)cooldownMs);
             _isInputOnCooldown = false;
             string pending = _pendingScanDuringCooldown;
+            bool pendingFromCamera = _pendingScanDuringCooldownFromCamera;
             _pendingScanDuringCooldown = "";
+            _pendingScanDuringCooldownFromCamera = false;
             if (!string.IsNullOrWhiteSpace(pending) && !_isDisposed)
             {
                 RuntimeLog.Info("Scan", $"Processing queued scan after cooldown: {pending}");
-                _ = HandleScanAsync(pending);
+                _ = HandleScanAsync(pending, pendingFromCamera);
             }
         }
 

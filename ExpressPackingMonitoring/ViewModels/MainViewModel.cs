@@ -195,6 +195,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private volatile bool _shutdownPrepared;
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
+        private bool _pendingScanDuringCooldownFromCamera;
         private CancellationTokenSource _sameCodePostRollCts;
 
         private sealed class PreRecordFrame
