@@ -75,6 +75,38 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
     }
 
     [Theory]
+    [MemberData(nameof(RuntimeMarkerData))]
+    public void ChangedRuntimeMarker_IsRejected(string marker)
+    {
+        using var fixture = new Fixture();
+        fixture.AddVlcFile("plugins\\codec.dll", "codec");
+        fixture.ReplaceBaselineRuntimeMarker(marker, "drifted");
+
+        CompatibilityResult result = fixture.Check();
+
+        Assert.False(result.Compatible);
+        Assert.Contains("运行时发生变化", result.Reason);
+        Assert.Contains(marker, result.Reason);
+    }
+
+    [Theory]
+    [MemberData(nameof(RuntimeMarkerData))]
+    public void MissingRuntimeMarker_IsRejected(string marker)
+    {
+        using var fixture = new Fixture();
+        fixture.AddVlcFile("plugins\\codec.dll", "codec");
+        fixture.DeleteBaselineRuntimeMarker(marker);
+
+        CompatibilityResult result = fixture.Check();
+
+        Assert.False(result.Compatible);
+        Assert.Contains("运行时标记文件", result.Reason);
+        Assert.Contains(marker, result.Reason);
+    }
+
+    public static TheoryData<string> RuntimeMarkerData => [.. Fixture.RuntimeMarkers];
+
+    [Theory]
     [InlineData("tools/ffmpeg.exe", true)]
     [InlineData("TOOLS\\FFMPEG.EXE", true)]
     [InlineData("libvlc/win-x64/libvlc.dll", true)]
@@ -102,6 +134,9 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
         private readonly byte[] _currentFfmpeg;
         private readonly List<CompatibleExecutable> _compatibleExecutables = [];
 
+        public static readonly string[] RuntimeMarkers =
+            ["System.Private.CoreLib.dll", "coreclr.dll", "PresentationFramework.dll"];
+
         public Fixture(string baselineVersion = "7.1.1")
         {
             _repositoryRoot = FindRepositoryRoot();
@@ -112,6 +147,13 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
             Directory.CreateDirectory(Path.Combine(BaselineAppDirectory, "tools"));
             Directory.CreateDirectory(Path.Combine(CurrentAppDirectory, "libvlc", "win-x64"));
             Directory.CreateDirectory(Path.Combine(BaselineAppDirectory, "libvlc", "win-x64"));
+
+            // 自包含发布的运行时文件默认与基线逐字节一致，否则脚本会在首道检查就拒绝增量补丁。
+            foreach (string marker in RuntimeMarkers)
+            {
+                WriteFile(Path.Combine(CurrentAppDirectory, marker), marker);
+                WriteFile(Path.Combine(BaselineAppDirectory, marker), marker);
+            }
 
             _currentFfmpeg = Encoding.UTF8.GetBytes("current-essentials");
             byte[] fullFfmpeg = Encoding.UTF8.GetBytes("old-full");
@@ -142,6 +184,12 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
 
         public void AddBaselineVlcFile(string relativePath, string content)
             => WriteFile(Path.Combine(BaselineAppDirectory, "libvlc", "win-x64", relativePath), content);
+
+        public void ReplaceBaselineRuntimeMarker(string marker, string content)
+            => WriteFile(Path.Combine(BaselineAppDirectory, marker), content);
+
+        public void DeleteBaselineRuntimeMarker(string marker)
+            => File.Delete(Path.Combine(BaselineAppDirectory, marker));
 
         public CompatibilityResult Check()
         {
