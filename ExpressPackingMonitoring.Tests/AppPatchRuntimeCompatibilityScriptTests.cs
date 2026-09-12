@@ -74,9 +74,13 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
         Assert.Contains("LibVLC 必需文件不兼容", result.Reason);
     }
 
+    /// <summary>
+    /// 运行时文件不在 AppPatch 的受管排除名单内，漂移时会被正常打进补丁，
+    /// 补丁仍然可用，只是体积变大——因此只告警，不能阻断生成。
+    /// </summary>
     [Theory]
     [MemberData(nameof(RuntimeMarkerData))]
-    public void ChangedRuntimeMarker_IsRejected(string marker)
+    public void ChangedRuntimeMarker_WarnsButStillAllowsPatch(string marker)
     {
         using var fixture = new Fixture();
         fixture.AddVlcFile("plugins\\codec.dll", "codec");
@@ -84,14 +88,15 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
 
         CompatibilityResult result = fixture.Check();
 
-        Assert.False(result.Compatible);
-        Assert.Contains("运行时发生变化", result.Reason);
-        Assert.Contains(marker, result.Reason);
+        Assert.True(result.Compatible, result.Reason);
+        string warning = Assert.Single(result.Warnings);
+        Assert.Contains("运行时发生变化", warning);
+        Assert.Contains(marker, warning);
     }
 
     [Theory]
     [MemberData(nameof(RuntimeMarkerData))]
-    public void MissingRuntimeMarker_IsRejected(string marker)
+    public void MissingRuntimeMarker_WarnsButStillAllowsPatch(string marker)
     {
         using var fixture = new Fixture();
         fixture.AddVlcFile("plugins\\codec.dll", "codec");
@@ -99,9 +104,41 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
 
         CompatibilityResult result = fixture.Check();
 
+        Assert.True(result.Compatible, result.Reason);
+        string warning = Assert.Single(result.Warnings);
+        Assert.Contains("运行时标记文件", warning);
+        Assert.Contains(marker, warning);
+    }
+
+    /// <summary>运行时全部漂移时，三条告警都要报出来，不能只报第一条就短路。</summary>
+    [Fact]
+    public void AllRuntimeMarkersDrifted_ReportsEveryWarning()
+    {
+        using var fixture = new Fixture();
+        fixture.AddVlcFile("plugins\\codec.dll", "codec");
+        foreach (string marker in Fixture.RuntimeMarkers)
+            fixture.ReplaceBaselineRuntimeMarker(marker, "drifted");
+
+        CompatibilityResult result = fixture.Check();
+
+        Assert.True(result.Compatible, result.Reason);
+        Assert.Equal(Fixture.RuntimeMarkers.Length, result.Warnings.Length);
+    }
+
+    /// <summary>LibVLC 属于受管排除名单，不兼容会装出坏程序，必须继续阻断。</summary>
+    [Fact]
+    public void RuntimeDriftDoesNotMaskIncompatibleVlc()
+    {
+        using var fixture = new Fixture();
+        fixture.AddCurrentVlcFile("plugins\\codec.dll", "current");
+        fixture.AddBaselineVlcFile("plugins\\codec.dll", "baseline");
+        fixture.ReplaceBaselineRuntimeMarker("coreclr.dll", "drifted");
+
+        CompatibilityResult result = fixture.Check();
+
         Assert.False(result.Compatible);
-        Assert.Contains("运行时标记文件", result.Reason);
-        Assert.Contains(marker, result.Reason);
+        Assert.Contains("LibVLC 必需文件不兼容", result.Reason);
+        Assert.NotEmpty(result.Warnings);
     }
 
     public static TheoryData<string> RuntimeMarkerData => [.. Fixture.RuntimeMarkers];
@@ -148,7 +185,7 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
             Directory.CreateDirectory(Path.Combine(CurrentAppDirectory, "libvlc", "win-x64"));
             Directory.CreateDirectory(Path.Combine(BaselineAppDirectory, "libvlc", "win-x64"));
 
-            // 自包含发布的运行时文件默认与基线逐字节一致，否则脚本会在首道检查就拒绝增量补丁。
+            // 自包含发布的运行时文件默认与基线逐字节一致；不一致只会告警，由用例单独覆盖。
             foreach (string marker in RuntimeMarkers)
             {
                 WriteFile(Path.Combine(CurrentAppDirectory, marker), marker);
@@ -274,6 +311,6 @@ public sealed class AppPatchRuntimeCompatibilityScriptTests
     }
 
     private sealed record CompatibleExecutable(string version, string variant, long size, string sha256);
-    private sealed record CompatibilityResult(bool Compatible, string Reason);
+    private sealed record CompatibilityResult(bool Compatible, string Reason, string[] Warnings);
     private sealed record ProcessResult(int ExitCode, string Output, string Error);
 }

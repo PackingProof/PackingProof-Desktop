@@ -1325,6 +1325,9 @@ else {
         -CurrentAppDir $appPublishDir `
         -BaselineAppDir $baselineAppFullPath `
         -FFmpegBaseline $ffmpegBaseline
+    foreach ($runtimeWarning in @($runtimeCompatibility.Warnings)) {
+        Write-Warning $runtimeWarning
+    }
     if (-not $runtimeCompatibility.Compatible) {
         $patchReason = "未生成增量包：$($runtimeCompatibility.Reason)"
     }
