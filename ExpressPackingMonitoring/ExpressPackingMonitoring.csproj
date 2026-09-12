@@ -6,6 +6,10 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PlatformTarget>x64</PlatformTarget>
     <SelfContained>true</SelfContained>
+    <!-- 钉死自包含发布的 .NET/WPF 运行时版本：不钉死时运行时随 SDK 漂移，
+         整套运行时会被判定为变化文件并塞进 AppPatch（1MB 增量膨胀到 60MB）。
+         升级此处需同步接受该版本走完整包更新。 -->
+    <RuntimeFrameworkVersion>8.0.28</RuntimeFrameworkVersion>
     <UseRidGraph>true</UseRidGraph>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
