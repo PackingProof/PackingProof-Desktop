@@ -26,6 +26,20 @@ function Test-AppPatchRuntimeCompatibility {
 
     $currentRoot = [IO.Path]::GetFullPath($CurrentAppDir)
     $baselineRoot = [IO.Path]::GetFullPath($BaselineAppDir)
+
+    # Self-contained .NET/WPF runtime files must remain byte-compatible with the
+    # fixed baseline; otherwise an AppPatch would need to ship the entire runtime.
+    foreach ($runtimeMarker in @('System.Private.CoreLib.dll', 'coreclr.dll', 'PresentationFramework.dll')) {
+        $currentMarker = Join-Path $currentRoot $runtimeMarker
+        $baselineMarker = Join-Path $baselineRoot $runtimeMarker
+        if (-not (Test-Path -LiteralPath $currentMarker -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $baselineMarker -PathType Leaf)) {
+            return [pscustomobject]@{ Compatible = $false; Reason = "AppPatch 基线缺少 .NET/WPF 运行时标记文件：$runtimeMarker，需使用完整版本更新" }
+        }
+        if ((Get-AppPatchFileSha256 -Path $currentMarker) -ne (Get-AppPatchFileSha256 -Path $baselineMarker)) {
+            return [pscustomobject]@{ Compatible = $false; Reason = "检测到 .NET/WPF 运行时发生变化（$runtimeMarker），需使用完整版本更新" }
+        }
+    }
     $currentFFmpeg = Join-Path $currentRoot 'tools\ffmpeg.exe'
     $baselineFFmpeg = Join-Path $baselineRoot 'tools\ffmpeg.exe'
 
