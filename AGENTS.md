@@ -52,6 +52,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 ## 本地环境与安全边界
 
 - 日常构建和测试优先使用本机或局域网编译机，不依赖 GitHub CI。机器地址、账号和连接方式只保存在本机笔记，禁止提交或推送。
+- Gitee 发布认证固定从项目根目录 `.env` 的 `GITEE_TOKEN` 读取；若缺失或失效，先读取并同步本机 `C:\Users\Administrator\.gitee\apikey.txt`，不得要求用户手工上传发布资产。`.env` 已被 Git 忽略，禁止提交 token。
 - Mac 负责 iOS/Xcode；Windows 负责桌面端构建与测试。双机同步优先 rebase，禁止为同步制造本地 merge 提交。
 - 不提交配置、数据库、日志、缓存、录像、`.env`、证书、签名材料、密钥或其他本机状态。运行时数据属于 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。
 
