@@ -10,7 +10,9 @@ namespace ExpressPackingMonitoring.Config
 {
     internal static class AppPaths
     {
-        public static readonly string UserDataDir = Path.Combine(GetLocalAppDataRoot(), "ExpressPackingMonitoring");
+        public static readonly string UserDataDir = Path.Combine(
+            EarlyStartupConfig.GetLocalAppDataRoot(),
+            EarlyStartupConfig.UserDataDirectoryName);
 
         public static readonly string LogDir = Path.Combine(UserDataDir, "log");
         public static readonly string CacheDir = Path.Combine(UserDataDir, "cache");
@@ -72,18 +74,6 @@ namespace ExpressPackingMonitoring.Config
         internal static void MigrateMobileBackupState(string legacyDirectory, string destinationDirectory)
         {
             MoveDirectoryContents(legacyDirectory, destinationDirectory);
-        }
-
-        private static string GetLocalAppDataRoot()
-        {
-            string overridePath = Environment.GetEnvironmentVariable("EPM_USER_DATA_DIR");
-            if (!string.IsNullOrWhiteSpace(overridePath))
-                return Path.GetFullPath(overridePath);
-
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return string.IsNullOrWhiteSpace(localAppData)
-                ? AppDomain.CurrentDomain.BaseDirectory
-                : localAppData;
         }
 
         public static string FindFFmpeg()

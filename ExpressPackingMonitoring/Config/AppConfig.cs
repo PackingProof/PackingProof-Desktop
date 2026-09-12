@@ -193,9 +193,9 @@ namespace ExpressPackingMonitoring.Config
         public int FrameHeight { get; set; } = 720;
         public int Fps { get; set; } = 15;
         public bool EnableSmartZoom { get; set; } = false;
-        public double MaxZoomScale { get; set; } = 4.0;
+        public double MaxZoomScale { get; set; } = 1.5;
         public double ZoomDelaySeconds { get; set; } = 0.0;
-        public double ZoomDurationSeconds { get; set; } = 1.0;
+        public double ZoomDurationSeconds { get; set; } = 2.0;
         public bool EnableZoomAnimation { get; set; } = true;
         public double ZoomAnimationDurationMs { get; set; } = 200.0;
         public bool EnableAutoStop { get; set; } = true;
@@ -239,6 +239,8 @@ namespace ExpressPackingMonitoring.Config
         public bool ShowDeletedVideos { get; set; } = false;
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
+        // 仅用于显卡或虚拟显示驱动导致窗口全白/全黑的机器；进程级设置，改动后需重启程序。
+        public bool ForceSoftwareRendering { get; set; } = false;
         public bool EnableAudioRecording { get; set; } = true;
         public bool EnableDirectAacRecording { get; set; } = false;
         public string AudioDeviceName { get; set; } = "";
@@ -689,7 +691,7 @@ namespace ExpressPackingMonitoring.Config
                 config.CameraBarcodeGuideWidthRatio,
                 0.3,
                 1.0);
-            double normalizedMaxZoomScale = System.Math.Clamp(config.MaxZoomScale, 1.2, 4.0);
+            double normalizedMaxZoomScale = System.Math.Clamp(config.MaxZoomScale, 1.2, 3.0);
             if (System.Math.Abs(config.MaxZoomScale - normalizedMaxZoomScale) > 0.001)
             {
                 config.MaxZoomScale = normalizedMaxZoomScale;

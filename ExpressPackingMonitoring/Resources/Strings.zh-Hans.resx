@@ -185,6 +185,8 @@
   <data name="警告播报声线" xml:space="preserve"><value>警告播报声线</value></data>
   <data name="静止超时" xml:space="preserve"><value>静止超时</value></data>
   <data name="开机自启动" xml:space="preserve"><value>开机自启动</value></data>
+  <data name="兼容渲染模式" xml:space="preserve"><value>兼容渲染模式</value></data>
+  <data name="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效" xml:space="preserve"><value>画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效</value></data>
   <data name="开启后，超时、停录和订单信息会用语音提醒" xml:space="preserve"><value>开启后，超时、停录和订单信息会用语音提醒</value></data>
   <data name="每次播报前取消静音并将电脑音量调到最大" xml:space="preserve"><value>每次播报前取消静音并将电脑音量调到最大</value></data>
   <data name="开启后放大和恢复时会有平滑动画" xml:space="preserve"><value>开启后放大和恢复时会有平滑动画</value></data>

@@ -1892,11 +1892,11 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
-    public void AppConfiguresSoftwareRenderingDuringStaticInitialization()
+    public void AppKeepsHardwareRenderingUnlessSoftwareRenderingIsForced()
     {
         string source = ReadRepositoryFile("ExpressPackingMonitoring", "App.xaml.cs");
         int staticInitializationIndex = source.IndexOf(
-            "private static readonly bool HardwareRenderingEnabled = ConfigureWpfRendering();",
+            "private static readonly bool SoftwareRenderingForced = ConfigureWpfRendering();",
             StringComparison.Ordinal);
         int startupIndex = source.IndexOf("protected override void OnStartup", StringComparison.Ordinal);
         int startupRenderIndex = source.IndexOf("ApplyConfiguredWpfRenderingMode();", startupIndex, StringComparison.Ordinal);
@@ -1906,8 +1906,16 @@ public sealed class DeploymentStartupTests
         Assert.True(staticInitializationIndex < startupIndex);
         Assert.True(startupRenderIndex > startupIndex);
         Assert.True(startupRenderIndex < baseStartupIndex);
-        Assert.Contains("RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly", source, StringComparison.Ordinal);
-        Assert.Contains("EPM_ENABLE_WPF_HARDWARE_RENDERING", source, StringComparison.Ordinal);
+        // 软件渲染只能被显式开启，默认必须保留硬件加速。
+        Assert.Contains("if (forceSoftwareRendering)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (!forceSoftwareRendering)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EPM_ENABLE_WPF_HARDWARE_RENDERING", source, StringComparison.Ordinal);
+
+        // 渲染模式必须走早期读取，不能在静态初始化阶段拉起会建目录并迁移数据的 AppPaths。
+        Assert.Contains("EarlyStartupConfig.IsSoftwareRenderingForced()", source, StringComparison.Ordinal);
+        string earlyStartup = ReadRepositoryFile("ExpressPackingMonitoring", "Config", "EarlyStartupConfig.cs");
+        Assert.Contains("EPM_FORCE_SOFTWARE_RENDERING", earlyStartup, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppPaths.", earlyStartup, StringComparison.Ordinal);
     }
 
     private static PackingProofNodeInfo CreateDiscoveredHost(

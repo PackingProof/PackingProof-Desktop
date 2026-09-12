@@ -1893,7 +1893,7 @@
                                             <Slider x:Name="ZoomScaleSlider"
                                                     Style="{StaticResource SettingsSliderStyle}"
                                                     Minimum="1.2"
-                                                    Maximum="4.0"
+                                                    Maximum="3.0"
                                                     TickFrequency="0.1"
                                                     Value="{Binding Config.MaxZoomScale, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                     ValueChanged="ZoomScaleSlider_ValueChanged"/>
@@ -3677,7 +3677,7 @@
                                         </ComboBox>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3690,6 +3690,24 @@
                                         </StackPanel>
                                         <CheckBox Grid.Column="2"
                                                 IsChecked="{Binding Config.EnableAutoCheckUpdate}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="兼容渲染模式" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.ForceSoftwareRendering}"
                                                 VerticalAlignment="Center"
                                                 HorizontalAlignment="Left"
                                                 Style="{StaticResource ToggleSwitchStyle}"/>

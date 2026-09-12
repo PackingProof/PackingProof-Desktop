@@ -20,8 +20,7 @@ namespace ExpressPackingMonitoring
     /// </summary>
     public partial class App : Application
     {
-        internal const string EnableHardwareRenderingEnvironmentVariable = "EPM_ENABLE_WPF_HARDWARE_RENDERING";
-        private static readonly bool HardwareRenderingEnabled = ConfigureWpfRendering();
+        private static readonly bool SoftwareRenderingForced = ConfigureWpfRendering();
         private WorkstationInstanceCoordinator? _instanceCoordinator;
         private CancellationTokenSource? _launcherUpdateCancellation;
 
@@ -62,7 +61,7 @@ namespace ExpressPackingMonitoring
             RuntimeLog.LogBuildInfo();
             RuntimeLog.Info(
                 "Rendering",
-                $"WPF process render mode={RenderOptions.ProcessRenderMode}, hardwareOptIn={HardwareRenderingEnabled}");
+                $"WPF process render mode={RenderOptions.ProcessRenderMode}, softwareForced={SoftwareRenderingForced}");
             _launcherUpdateCancellation = new CancellationTokenSource();
             _ = new LauncherUpdateService().CheckAndApplyAsync(
                 config.EnableAutoCheckUpdate,
@@ -217,22 +216,22 @@ namespace ExpressPackingMonitoring
             ShutdownMode = ShutdownMode.OnMainWindowClose;
         }
 
+        // 默认沿用 WPF 的硬件加速渲染；仅当显卡或虚拟显示驱动导致窗口全白/全黑时，
+        // 才由高级设置（或同名环境变量）回退到软件渲染。进程级设置，改动后需重启生效。
         private static bool ConfigureWpfRendering()
         {
-            string? value = Environment.GetEnvironmentVariable(EnableHardwareRenderingEnvironmentVariable);
-            bool enableHardwareRendering = string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
-            ApplyWpfRenderingMode(enableHardwareRendering);
+            bool forceSoftwareRendering = EarlyStartupConfig.IsSoftwareRenderingForced();
+            ApplyWpfRenderingMode(forceSoftwareRendering);
 
-            return enableHardwareRendering;
+            return forceSoftwareRendering;
         }
 
         private static void ApplyConfiguredWpfRenderingMode() =>
-            ApplyWpfRenderingMode(HardwareRenderingEnabled);
+            ApplyWpfRenderingMode(SoftwareRenderingForced);
 
-        private static void ApplyWpfRenderingMode(bool enableHardwareRendering)
+        private static void ApplyWpfRenderingMode(bool forceSoftwareRendering)
         {
-            if (!enableHardwareRendering)
+            if (forceSoftwareRendering)
                 RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
         }
 

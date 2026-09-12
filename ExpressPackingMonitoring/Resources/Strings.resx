@@ -185,6 +185,8 @@
   <data name="警告播报声线" xml:space="preserve"><value>Warning voice</value></data>
   <data name="静止超时" xml:space="preserve"><value>Motion timeout</value></data>
   <data name="开机自启动" xml:space="preserve"><value>Start at boot</value></data>
+  <data name="兼容渲染模式" xml:space="preserve"><value>Compatibility rendering mode</value></data>
+  <data name="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效" xml:space="preserve"><value>Turn this on only if the window shows up all white or all black; it disables GPU acceleration and takes effect after a restart</value></data>
   <data name="启动" xml:space="preserve"><value>Start</value></data>
   <data name="开启后，超时、停录和订单信息会用语音提醒" xml:space="preserve"><value>When turned on, voice reminders will be given for timeouts, recording stops and order information.</value></data>
   <data name="每次播报前取消静音并将电脑音量调到最大" xml:space="preserve"><value>Unmute and set the computer volume to maximum before each announcement</value></data>

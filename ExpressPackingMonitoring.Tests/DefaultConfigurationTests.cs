@@ -31,12 +31,35 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
-    public void NewConfigurationUsesOneSecondZoomDwellByDefault()
+    public void NewConfigurationUsesTwoSecondZoomDwellByDefault()
     {
-        Assert.Equal(1.0, new AppConfig().ZoomDurationSeconds);
-        Assert.Equal(1.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
+        Assert.Equal(2.0, new AppConfig().ZoomDurationSeconds);
+        Assert.Equal(2.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
         Assert.Equal(200.0, new AppConfig().ZoomAnimationDurationMs);
         Assert.Equal(200.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomAnimationDurationMs);
+    }
+
+    [Fact]
+    public void NewConfigurationUsesModestZoomScaleByDefault()
+    {
+        Assert.Equal(1.5, new AppConfig().MaxZoomScale);
+        Assert.Equal(1.5, JsonSerializer.Deserialize<AppConfig>("{}")!.MaxZoomScale);
+    }
+
+    /// <summary>旧配置里的 4.0 倍超出新上限，加载时必须被收敛到 3.0，滑块才不会越界。</summary>
+    [Theory]
+    [InlineData(4.0, 3.0)]
+    [InlineData(3.5, 3.0)]
+    [InlineData(3.0, 3.0)]
+    [InlineData(1.0, 1.2)]
+    [InlineData(2.0, 2.0)]
+    public void ZoomScaleIsClampedToSupportedRangeOnLoad(double stored, double expected)
+    {
+        var config = JsonSerializer.Deserialize<AppConfig>($$"""{"MaxZoomScale": {{stored}}}""")!;
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(expected, config.MaxZoomScale);
     }
 
     [Fact]
