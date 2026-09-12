@@ -13,8 +13,8 @@ name: 发布包构建
         default: false
         type: boolean
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: read
@@ -50,13 +50,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           $version = "$env:VERSION".Trim()
           if (-not $version -and "$env:EVENT" -eq "push") {
-            $csprojPath = "ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
-            $csprojContent = Get-Content -Raw -Encoding UTF8 $csprojPath
-            $versionMatch = [regex]::Match($csprojContent, "<Version>\s*(.+?)\s*</Version>")
-            if (-not $versionMatch.Success) {
-              throw "无法从 $csprojPath 读取 <Version>，无法确定发布版本"
-            }
-            $version = $versionMatch.Groups[1].Value.Trim()
+            $version = "${{ github.ref_name }}"
           }
           $version = $version.TrimStart("v")
           if ($version -notmatch "^\d+\.\d+\.\d+$") {

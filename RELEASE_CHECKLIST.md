@@ -4,6 +4,7 @@
 
 ## 自动化门禁
 
+- 先运行 `pwsh -NoProfile -File Tools/Test-CI.ps1`，确认本地 CI 与 `.github/workflows/ci.yml` 同步通过
 - 运行 `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`
 - 确认隔离 WPF 启停、userscript 并发/延时/多监控端和 Web 播放/剪辑界面自动验收全部通过
 - 确认必需的核心测试均存在，没有被删除或改名绕过
@@ -76,7 +77,7 @@
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>` 更新为本次版本，并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
-- 发布流程顺序：先在本地完成 Release 构建、全量测试与发布包生成并确认成功，再推送最新 `main` 提交到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`，最后创建 `vX.Y.Z` 标签并同步推送；标签必须指向编译验证通过的最终提交，禁止先推标签再编译
+- 发布流程顺序：提交并通过本地 CI → 创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验 → 推送 `main` 与标签 → 创建并同步 Release；禁止普通 `main` push 触发发布包工作流
 - 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、下载与更新说明准确、未验证事项逐项列出，且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容

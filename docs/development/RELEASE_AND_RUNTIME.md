@@ -30,6 +30,9 @@
 ## 打包与发布流程
 
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
+- 发布顺序固定为：提交并保持工作区干净 → 运行本地 CI → 核对版本与发布说明 → 创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 推送 `main` 与该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须先于正式构建，避免先构建测试身份再为正式标签重复编译。
+- 本地 CI 命令为 `pwsh -NoProfile -File Tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `Tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
+- `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用：
 
 ```powershell
@@ -38,7 +41,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - `-BaselineAppDir` 必须指向真实固定基线的 `app` 子目录并包含 `tools\ffmpeg.exe`。脚本从目录解析实际基线，并强制与更新清单和补丁清单一致，禁止手工伪造。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
-- 先完成 Release 构建、全量测试、自动验收和发布包校验，再推送 `main` 到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`，最后创建并同步标签。禁止先推标签再编译。
+- 正式标签构建通过后，再推送 `main` 和 `vX.Y.Z` 标签到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`，然后创建 Release。禁止普通 `main` push 触发发布包工作流。
 - 发布前执行 `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`；未验证场景必须报告。
 - `RELEASE_CHECKLIST.md` 中的真实设备场景建议执行但不阻断发布；未验证项必须在交付和发布说明中明确列出。
 - 自动测试通过后仍要审计上一版本以来的完整变更，追踪录像、更新、授权、备份、删除和文件替换等关键路径；可信的正确性、数据安全、兼容性、性能或竞态问题均阻断发布，除非用户明确接受记录在案的例外。
