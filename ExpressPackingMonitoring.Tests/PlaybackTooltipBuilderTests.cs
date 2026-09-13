@@ -76,20 +76,69 @@ public sealed class PlaybackTooltipBuilderTests
 
         string tooltip = PlaybackTooltipBuilder.Build(item);
 
-        Assert.Contains("清理原因：磁盘清理", tooltip);
-        Assert.DoesNotContain("丢失原因", tooltip);
+        Assert.Contains("状态：已清理（磁盘清理）", tooltip);
+        Assert.DoesNotContain("文件已丢失", tooltip);
     }
 
     [Fact]
-    public void MissingRecording_ShowsMissingReason()
+    public void MissingRecording_ShowsMissingState()
     {
         VideoItem item = CreateItem();
         item.IsMissing = true;
 
         string tooltip = PlaybackTooltipBuilder.Build(item);
 
-        Assert.Contains("丢失原因", tooltip);
-        Assert.DoesNotContain("清理原因", tooltip);
+        Assert.Contains("文件已丢失", tooltip);
+        Assert.DoesNotContain("已清理", tooltip);
+    }
+
+    /// <summary>
+    /// 分组顺序固定：身份 → 订单信息 → 录像属性 → 状态与位置。
+    /// 店员每次都在同一位置找同一项，顺序乱了提示就没法扫读。
+    /// </summary>
+    [Fact]
+    public void SectionsAppearInFixedOrder()
+    {
+        VideoItem item = CreateItem();
+        item.TrackingNumber = "SF0001";
+        item.BuyerMessage = "尽快发货";
+        item.Duration = "12s";
+
+        string tooltip = PlaybackTooltipBuilder.Build(item);
+
+        int mode = tooltip.IndexOf("业务类型", StringComparison.Ordinal);
+        int tracking = tooltip.IndexOf("快递单号", StringComparison.Ordinal);
+        int buyer = tooltip.IndexOf("买家留言", StringComparison.Ordinal);
+        int duration = tooltip.IndexOf("时长", StringComparison.Ordinal);
+        int path = tooltip.IndexOf("文件位置", StringComparison.Ordinal);
+
+        Assert.True(mode < tracking, "业务类型应在快递单号之前");
+        Assert.True(tracking < buyer, "身份信息应在订单备注之前");
+        Assert.True(buyer < duration, "订单备注应在录像属性之前");
+        Assert.True(duration < path, "文件位置应排在最后");
+    }
+
+    /// <summary>整组为空时不能留下多余空行。</summary>
+    [Fact]
+    public void EmptySectionsDoNotLeaveBlankLines()
+    {
+        string tooltip = PlaybackTooltipBuilder.Build(CreateItem());
+
+        Assert.DoesNotContain("\r\n\r\n\r\n", tooltip);
+        Assert.DoesNotContain("\n\n\n", tooltip);
+        Assert.Equal(tooltip.TrimEnd(), tooltip);
+    }
+
+    /// <summary>分组之间要有空行，否则十几行挤在一起没法读。</summary>
+    [Fact]
+    public void SectionsAreSeparatedByBlankLine()
+    {
+        VideoItem item = CreateItem();
+        item.BuyerMessage = "尽快发货";
+
+        string tooltip = PlaybackTooltipBuilder.Build(item);
+
+        Assert.Contains(Environment.NewLine + Environment.NewLine, tooltip);
     }
 
     /// <summary>复制单号优先取快递单号，与列表显示口径一致。</summary>

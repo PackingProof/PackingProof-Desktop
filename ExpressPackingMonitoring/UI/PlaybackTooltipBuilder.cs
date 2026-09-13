@@ -4,8 +4,8 @@ namespace ExpressPackingMonitoring.UI
 {
     /// <summary>
     /// 回放列表的悬浮提示文案。
-    /// 字段与顺序对齐 Web 端 index.html 的 buildVideoTooltip，
-    /// 保证同一条录像在网页和上位机上看到的信息一致。
+    /// 按"这是哪一单 → 订单附带信息 → 这段录像本身 → 异常与位置"分组，
+    /// 每组之间空一行；组内字段固定顺序，店员每次都在同一位置找同一项。
     /// </summary>
     internal static class PlaybackTooltipBuilder
     {
@@ -13,43 +13,74 @@ namespace ExpressPackingMonitoring.UI
         {
             if (item == null) return "";
 
-            var lines = new List<string>();
-            void Add(string label, string? value)
-            {
-                string normalized = value?.Trim() ?? "";
-                if (normalized.Length > 0)
-                    lines.Add($"{label}：{normalized}");
-            }
+            var sections = new List<List<string>>();
 
-            Add("订单号", item.OrderId);
-            Add("原始订单号", item.SourceOrderId);
-            Add("快递单号", item.TrackingNumber);
-            Add("业务类型", NormalizeModeText(item.Mode));
-            Add("录像来源", item.SourceDisplay);
-            Add("买家留言", item.BuyerMessage);
-            Add("卖家备注", item.SellerMemo);
-            Add("商品信息", item.ProductInfo);
-            Add("订单信息推送时间", item.OrderInfoPushTime);
+            // 1. 身份：先回答"这是哪一单"。
+            var identity = new List<string>();
+            AddTo(identity, "业务类型", NormalizeModeText(item.Mode));
+            AddTo(identity, "快递单号", item.TrackingNumber);
+            AddTo(identity, "订单号", item.OrderId);
+            AddTo(identity, "原始订单号", item.SourceOrderId);
+            sections.Add(identity);
+
+            // 2. 订单附带信息：打包时需要核对的备注类内容。
+            var orderDetails = new List<string>();
+            AddTo(orderDetails, "商品信息", item.ProductInfo);
+            AddTo(orderDetails, "买家留言", item.BuyerMessage);
+            AddTo(orderDetails, "卖家备注", item.SellerMemo);
+            AddTo(orderDetails, "订单信息推送时间", item.OrderInfoPushTime);
+            sections.Add(orderDetails);
+
+            // 3. 录像本身的属性。
+            var recording = new List<string>();
             if (item.StartTime != default)
-                Add("录制时间", item.StartTime.ToString("yyyy-MM-dd HH:mm:ss"));
-            Add("时长", item.Duration);
-            Add("文件大小", item.FileSize);
+                AddTo(recording, "录制时间", item.StartTime.ToString("yyyy-MM-dd HH:mm:ss"));
+            AddTo(recording, "时长", item.Duration);
+            AddTo(recording, "大小", item.FileSize);
+            AddTo(recording, "编码", item.EncoderDisplay);
+            AddTo(recording, "来源", item.SourceDisplay);
+            AddTo(recording, "结束原因", item.StopReason);
+            sections.Add(recording);
 
-            // 编码只展示可读标签；Web 端那句"将转码为 H.264"是浏览器兼容播放的提示，
-            // 上位机用本地播放器直出，照搬过来只会误导。
-            if (!string.IsNullOrWhiteSpace(item.EncoderDisplay))
-                Add("视频编码", item.EncoderDisplay);
-
+            // 4. 异常与位置：放最后，正常录像这一组只剩文件位置一行。
+            var status = new List<string>();
             if (item.IsDeleted)
-                Add("清理原因", string.IsNullOrWhiteSpace(item.DeleteReason) ? "已清理" : item.DeleteReason);
+            {
+                AddTo(status, "状态", string.IsNullOrWhiteSpace(item.DeleteReason)
+                    ? "已清理"
+                    : $"已清理（{item.DeleteReason}）");
+            }
+            else if (item.IsStoredOnHost)
+            {
+                AddTo(status, "状态", "已保存到主机");
+            }
             else if (item.IsMissing)
-                Add("丢失原因", "监控端未在记录的文件位置找到录像，可能已被移动、删除或清理");
+            {
+                AddTo(status, "状态", "文件已丢失，未在记录的位置找到录像");
+            }
             else if (item.IsArchiveWarning)
-                Add("归档状态", item.ArchiveStatusText);
+            {
+                AddTo(status, "状态", item.ArchiveStatusText);
+            }
+            AddTo(status, "文件位置", string.IsNullOrWhiteSpace(item.FullPath) ? item.FileName : item.FullPath);
+            sections.Add(status);
 
-            Add("文件位置", string.IsNullOrWhiteSpace(item.FullPath) ? item.FileName : item.FullPath);
+            var builder = new StringBuilder();
+            foreach (List<string> section in sections)
+            {
+                if (section.Count == 0) continue;
+                if (builder.Length > 0) builder.AppendLine();
+                foreach (string line in section)
+                    builder.AppendLine(line);
+            }
+            return builder.ToString().TrimEnd();
+        }
 
-            return string.Join(Environment.NewLine, lines);
+        private static void AddTo(List<string> target, string label, string? value)
+        {
+            string normalized = value?.Trim() ?? "";
+            if (normalized.Length > 0)
+                target.Add($"{label}：{normalized}");
         }
 
         /// <summary>数据库里历史值有中英混用，展示前统一成中文。</summary>

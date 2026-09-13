@@ -216,29 +216,8 @@
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
                             <Setter Property="BorderThickness" Value="1"/>
                             <Setter Property="Cursor" Value="Hand"/>
-                            <!-- 悬浮显示完整信息，与 Web 端的行提示保持同一套字段 -->
-                            <Setter Property="ToolTip">
-                                <Setter.Value>
-                                    <ToolTip MaxWidth="520">
-                                        <TextBlock Text="{Binding ToolTipText}" TextWrapping="Wrap" FontSize="12"/>
-                                    </ToolTip>
-                                </Setter.Value>
-                            </Setter>
                             <Setter Property="ToolTipService.InitialShowDelay" Value="450"/>
                             <Setter Property="ToolTipService.ShowDuration" Value="30000"/>
-                            <!-- 右键常用操作：复制单号、定位文件 -->
-                            <Setter Property="ContextMenu">
-                                <Setter.Value>
-                                    <ContextMenu>
-                                        <MenuItem Header="复制单号" Click="CopyOrderId_Click"/>
-                                        <MenuItem Header="复制文件路径" Click="CopyFilePath_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="在资源管理器中定位"
-                                                  Click="LocateFile_Click"
-                                                  IsEnabled="{Binding CanLocateFile}"/>
-                                    </ContextMenu>
-                                </Setter.Value>
-                            </Setter>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListViewItem">
@@ -278,7 +257,32 @@
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate>
+                            <!--
+                                悬浮提示与右键菜单放在 DataTemplate 而不是 ItemContainerStyle：
+                                Style 的 Setter 值是共享且密封的，在里面挂 Click 事件会导致
+                                窗口加载时抛"设置 connectionId 时引发了异常"。
+                            -->
                             <Grid>
+                                <Grid.ToolTip>
+                                    <ToolTip MaxWidth="560">
+                                        <TextBlock Text="{Binding ToolTipText}" TextWrapping="Wrap" FontSize="12"/>
+                                    </ToolTip>
+                                </Grid.ToolTip>
+                                <Grid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="复制单号"
+                                                  Click="CopyOrderId_Click"
+                                                  DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                        <MenuItem Header="复制文件路径"
+                                                  Click="CopyFilePath_Click"
+                                                  DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                        <Separator/>
+                                        <MenuItem Header="在资源管理器中定位"
+                                                  Click="LocateFile_Click"
+                                                  DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  IsEnabled="{Binding CanLocateFile}"/>
+                                    </ContextMenu>
+                                </Grid.ContextMenu>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
