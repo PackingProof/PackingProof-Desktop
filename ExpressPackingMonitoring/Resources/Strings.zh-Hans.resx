@@ -1075,10 +1075,11 @@
   <data name="麦克风已切换为 {0}，下一单录制生效" xml:space="preserve"><value>麦克风已切换为 {0}，下一单录制生效</value></data>
   <data name="复制单号" xml:space="preserve"><value>复制单号</value></data>
   <data name="复制文件路径" xml:space="preserve"><value>复制文件路径</value></data>
-  <data name="在资源管理器中定位" xml:space="preserve"><value>在资源管理器中定位</value></data>
   <data name="单号已复制" xml:space="preserve"><value>单号已复制</value></data>
   <data name="文件路径已复制" xml:space="preserve"><value>文件路径已复制</value></data>
   <data name="这条录像没有记录单号" xml:space="preserve"><value>这条录像没有记录单号</value></data>
   <data name="这条录像没有记录文件路径" xml:space="preserve"><value>这条录像没有记录文件路径</value></data>
   <data name="录像已清理或不在本机，无法定位文件" xml:space="preserve"><value>录像已清理或不在本机，无法定位文件</value></data>
+  <data name="打开文件所在位置" xml:space="preserve"><value>打开文件所在位置</value></data>
+  <data name="剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序" xml:space="preserve"><value>剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序</value></data>
 </root>

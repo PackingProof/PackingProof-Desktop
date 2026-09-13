@@ -120,7 +120,7 @@
                       Click="CopyFilePath_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <Separator Style="{StaticResource AppSeparatorStyle}"/>
-            <MenuItem Header="在资源管理器中定位"
+            <MenuItem Header="打开文件所在位置"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="LocateFile_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
@@ -238,8 +238,6 @@
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
                             <Setter Property="BorderThickness" Value="1"/>
                             <Setter Property="Cursor" Value="Hand"/>
-                            <Setter Property="ToolTipService.InitialShowDelay" Value="450"/>
-                            <Setter Property="ToolTipService.ShowDuration" Value="30000"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListViewItem">
@@ -284,10 +282,24 @@
                                 不在模板里逐行 new 一个；50 行各建一份会让首次右键明显卡顿。
                                 提示同理只放一个 TextBlock，靠绑定取当前行文案。
                             -->
-                            <Grid ContextMenu="{StaticResource VideoRowContextMenu}">
+                            <Grid ContextMenu="{StaticResource VideoRowContextMenu}"
+                                  ToolTipService.InitialShowDelay="0"
+                                  ToolTipService.BetweenShowDelay="0"
+                                  ToolTipService.ShowDuration="60000">
+                                <!-- 外观与统计页的悬浮卡片一致：面板底色、描边、投影 -->
                                 <Grid.ToolTip>
-                                    <ToolTip MaxWidth="560">
-                                        <TextBlock Text="{Binding ToolTipText}" TextWrapping="Wrap" FontSize="12"/>
+                                    <ToolTip MaxWidth="560"
+                                             Background="{DynamicResource PanelBackground}"
+                                             BorderBrush="{DynamicResource BorderDefault}"
+                                             BorderThickness="1"
+                                             Padding="10">
+                                        <ToolTip.Effect>
+                                            <DropShadowEffect BlurRadius="10" Opacity="0.1"/>
+                                        </ToolTip.Effect>
+                                        <TextBlock Text="{Binding ToolTipText}"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
                                     </ToolTip>
                                 </Grid.ToolTip>
                                     <Grid.RowDefinitions>

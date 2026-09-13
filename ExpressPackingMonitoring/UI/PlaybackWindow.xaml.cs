@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -299,18 +300,37 @@ namespace ExpressPackingMonitoring.UI
             LocateExportedOrderFile(item.FullPath);
         }
 
-        /// <summary>剪贴板偶发被其它程序占用，失败时提示而不是让操作静默无反应。</summary>
+        /// <summary>
+        /// 剪贴板是全局独占资源，输入法、剪贴板管理器或其它程序正占用时
+        /// OpenClipboard 会直接失败（CLIPBRD_E_CANT_OPEN）。这是常见的瞬时冲突，
+        /// 重试几次基本都能成功，不该一次失败就弹错误框。
+        /// </summary>
         private void CopyToClipboard(string text, string successMessage)
         {
-            try
+            const int maxAttempts = 10;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                Clipboard.SetText(text);
-                ShowPlaybackToast(successMessage);
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Warn("Playback", $"复制到剪贴板失败：{ex.Message}");
-                AppDialog.Error(this, $"复制失败：{ex.Message}", "复制失败");
+                try
+                {
+                    // copy: true 让内容在本程序退出后仍留在剪贴板里。
+                    Clipboard.SetDataObject(text, copy: true);
+                    ShowPlaybackToast(successMessage);
+                    return;
+                }
+                catch (Exception ex) when (attempt < maxAttempts)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Playback] 复制到剪贴板第 {attempt} 次失败，稍后重试：{ex.Message}");
+                    Thread.Sleep(60);
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Playback", $"复制到剪贴板失败：{ex.Message}");
+                    AppDialog.Error(
+                        this,
+                        "剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序",
+                        "复制失败");
+                    return;
+                }
             }
         }
 
