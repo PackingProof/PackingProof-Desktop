@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -1086,7 +1086,7 @@
   <data name="清除该筛选" xml:space="preserve"><value>清除该筛选</value></data>
   <data name="录像日期范围" xml:space="preserve"><value>录像日期范围</value></data>
   <data name="录像来源" xml:space="preserve"><value>录像来源</value></data>
-  <data name="业务类型" xml:space="preserve"><value>业务类型</value></data>
+  <data name="发退货" xml:space="preserve"><value>发退货</value></data>
   <data name="清除全部筛选" xml:space="preserve"><value>清除全部筛选</value></data>
   <data name="全部设备" xml:space="preserve"><value>全部设备</value></data>
 </root>

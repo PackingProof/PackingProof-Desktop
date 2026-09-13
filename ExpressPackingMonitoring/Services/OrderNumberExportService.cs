@@ -1,4 +1,4 @@
-using ExpressPackingMonitoring.Data;
+﻿using ExpressPackingMonitoring.Data;
 using MiniExcelLibs;
 using MiniExcelLibs.Attributes;
 using System.IO;
@@ -37,7 +37,7 @@ internal static class OrderNumberExportService
         [ExcelColumn(Name = "平台订单号", Index = 1, Width = 20)]
         public string SourceOrderIds { get; init; } = "";
 
-        [ExcelColumn(Name = "业务类型", Index = 2, Width = 12)]
+        [ExcelColumn(Name = "发退货", Index = 2, Width = 12)]
         public string Mode { get; init; } = "";
 
         [ExcelColumn(Name = "首次录像时间", Index = 3, Width = 20)]

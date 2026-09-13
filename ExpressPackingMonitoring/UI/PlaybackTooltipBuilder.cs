@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -17,7 +17,7 @@ namespace ExpressPackingMonitoring.UI
 
             // 1. 身份：先回答"这是哪一单"。
             var identity = new List<string>();
-            AddTo(identity, "业务类型", NormalizeModeText(item.Mode));
+            AddTo(identity, "发退货", NormalizeModeText(item.Mode));
             AddTo(identity, "快递单号", item.TrackingNumber);
             AddTo(identity, "订单号", item.OrderId);
             AddTo(identity, "原始订单号", item.SourceOrderId);

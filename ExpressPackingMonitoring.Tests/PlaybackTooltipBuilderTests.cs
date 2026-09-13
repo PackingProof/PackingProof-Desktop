@@ -1,4 +1,4 @@
-using ExpressPackingMonitoring.UI;
+﻿using ExpressPackingMonitoring.UI;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -106,13 +106,13 @@ public sealed class PlaybackTooltipBuilderTests
 
         string tooltip = PlaybackTooltipBuilder.Build(item);
 
-        int mode = tooltip.IndexOf("业务类型", StringComparison.Ordinal);
+        int mode = tooltip.IndexOf("发退货", StringComparison.Ordinal);
         int tracking = tooltip.IndexOf("快递单号", StringComparison.Ordinal);
         int buyer = tooltip.IndexOf("买家留言", StringComparison.Ordinal);
         int duration = tooltip.IndexOf("时长", StringComparison.Ordinal);
         int path = tooltip.IndexOf("文件位置", StringComparison.Ordinal);
 
-        Assert.True(mode < tracking, "业务类型应在快递单号之前");
+        Assert.True(mode < tracking, "发退货应在快递单号之前");
         Assert.True(tracking < buyer, "身份信息应在订单备注之前");
         Assert.True(buyer < duration, "订单备注应在录像属性之前");
         Assert.True(duration < path, "文件位置应排在最后");
