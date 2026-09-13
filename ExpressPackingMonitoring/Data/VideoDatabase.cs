@@ -2234,7 +2234,8 @@ namespace ExpressPackingMonitoring.Data
             int page,
             int pageSize,
             bool includeDeleted,
-            VideoSearchMode searchMode)
+            VideoSearchMode searchMode,
+            string mode = "")
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -2243,7 +2244,7 @@ namespace ExpressPackingMonitoring.Data
             lock (_lock)
             {
                 (string whereSql, List<(string Name, object Value)> parameters) =
-                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, "", "", "");
+                    BuildVideoQueryWhere(startDate, endDate, keyword, includeDeleted, searchMode, "", "", "", mode);
 
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = VideoRecordSelectColumns + whereSql + @"
@@ -2885,7 +2886,8 @@ namespace ExpressPackingMonitoring.Data
             DateTime? startDate,
             DateTime? endDate,
             CancellationToken cancellationToken = default,
-            IProgress<OrderNumberExportProgress> progress = null)
+            IProgress<OrderNumberExportProgress> progress = null,
+            string mode = "")
         {
             lock (_lock)
             {
@@ -2893,6 +2895,14 @@ namespace ExpressPackingMonitoring.Data
                     WHERE v.IsDeleted = 0
                       AND COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), NULLIF(TRIM(v.OrderId), '')) IS NOT NULL";
                 var parameters = new List<(string Name, string Value)>();
+
+                // 导出结果要与界面上应用的筛选一致，否则导出的单号对不上列表。
+                string normalizedMode = RecordingModeFilter.Normalize(mode);
+                if (normalizedMode == RecordingModeFilter.Return)
+                    whereSql += " AND v.Mode IN ('return', '退货')";
+                else if (normalizedMode == RecordingModeFilter.Shipping)
+                    whereSql += " AND (v.Mode IN ('shipping', '发货', '') OR v.Mode IS NULL)";
+
                 if (startDate.HasValue)
                 {
                     whereSql += " AND v.StartTime >= @startDate";

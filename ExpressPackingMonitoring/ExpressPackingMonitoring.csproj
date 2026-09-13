@@ -114,6 +114,7 @@
     <Compile Include="Config\StorageVolumeInfo.cs" />
     <Compile Include="Config\PreRecordBufferPolicy.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
+    <Compile Include="Data\RecordingModeFilter.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\ArchiveBackupStatePolicy.cs" />
     <Compile Include="Data\ExtensionResultInboxStore.cs" />
@@ -255,6 +256,7 @@
     <Compile Include="UI\AudioDeviceSelectionPolicy.cs" />
     <Compile Include="UI\FloatingPreviewPlacement.cs" />
     <Compile Include="UI\PlaybackTooltipBuilder.cs" />
+    <Compile Include="UI\RecordingFilterState.cs" />
     <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />

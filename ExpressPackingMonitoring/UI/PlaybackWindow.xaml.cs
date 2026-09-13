@@ -131,6 +131,8 @@ namespace ExpressPackingMonitoring.UI
         private int _videoLoadRequestVersion;
         private VideoLoadRequest? _pendingVideoLoad;
         private long _currentMediaLengthMs;
+        private readonly RecordingFilterState _filterState = new();
+        private bool _suppressFilterEvents;
         private readonly SemaphoreSlim _playerSemaphore = new SemaphoreSlim(1, 1);
 
         public PlaybackWindow(
@@ -176,6 +178,7 @@ namespace ExpressPackingMonitoring.UI
                 ? Visibility.Collapsed
                 : Visibility.Visible;
             ExportOrderNumbersButton.IsEnabled = _db != null;
+            LoadSourceFilterOptions();
             UpdateLocateButtonState();
         }
 
@@ -475,7 +478,160 @@ namespace ExpressPackingMonitoring.UI
 
         private void DateFilterChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (_suppressFilterEvents) return;
+            RefreshFilterIndicators();
             RequestVideoLoad(1);
+        }
+
+        /// <summary>
+        /// 筛选按钮呼出面板。面板里的日期、来源、类型改动都即时生效，
+        /// 不再需要一个"应用"按钮。
+        /// </summary>
+        private void FilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            FilterPopup.IsOpen = !FilterPopup.IsOpen;
+        }
+
+        private void SourceFilterChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressFilterEvents) return;
+
+            if (SourceFilterBox.SelectedItem is VideoSourceOption option)
+            {
+                _filterState.SourceId = option.DeviceId;
+                _filterState.SourceName = option.IsAll ? "" : option.Name;
+            }
+            else
+            {
+                _filterState.SourceId = "";
+                _filterState.SourceName = "";
+            }
+
+            RefreshFilterIndicators();
+            RequestVideoLoad(1);
+        }
+
+        private void ModeFilterChanged(object sender, RoutedEventArgs e)
+        {
+            if (_suppressFilterEvents) return;
+
+            _filterState.Mode =
+                ModeReturnRadio.IsChecked == true ? RecordingModeFilter.Return
+                : ModeShippingRadio.IsChecked == true ? RecordingModeFilter.Shipping
+                : "";
+
+            RefreshFilterIndicators();
+            RequestVideoLoad(1);
+        }
+
+        private void ClearAllFilters_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyFilterStateToControls(state => state.ClearAll());
+            FilterPopup.IsOpen = false;
+        }
+
+        /// <summary>点胶囊徽章上的叉，只清除这一项筛选。</summary>
+        private void RemoveFilterBadge_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.Tag is not string key) return;
+            ApplyFilterStateToControls(state => state.Clear(key));
+        }
+
+        /// <summary>
+        /// 改筛选状态并把控件同步回去。
+        /// 期间要屏蔽控件事件，否则每改一个控件都会触发一次查询。
+        /// </summary>
+        private void ApplyFilterStateToControls(Action<RecordingFilterState> mutate)
+        {
+            mutate(_filterState);
+
+            _suppressFilterEvents = true;
+            try
+            {
+                DpStartDate.SelectedDate = _filterState.StartDate;
+                DpEndDate.SelectedDate = _filterState.EndDate;
+
+                if (_filterState.HasModeFilter)
+                {
+                    ModeReturnRadio.IsChecked = _filterState.Mode == RecordingModeFilter.Return;
+                    ModeShippingRadio.IsChecked = _filterState.Mode == RecordingModeFilter.Shipping;
+                    ModeAllRadio.IsChecked = false;
+                }
+                else
+                {
+                    ModeAllRadio.IsChecked = true;
+                }
+
+                if (!_filterState.HasSourceFilter && SourceFilterBox.Items.Count > 0)
+                    SourceFilterBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                _suppressFilterEvents = false;
+            }
+
+            RefreshFilterIndicators();
+            RequestVideoLoad(1);
+        }
+
+        /// <summary>刷新筛选按钮角标与胶囊徽章。</summary>
+        private void RefreshFilterIndicators()
+        {
+            IReadOnlyList<RecordingFilterBadge> badges = _filterState.BuildBadges();
+            FilterBadgeList.ItemsSource = badges;
+            FilterBadgeList.Visibility = badges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // 角标在按钮模板里，要按名字找出来。
+            if (FilterButton.Template?.FindName("CountBadge", FilterButton) is Border countBadge)
+            {
+                countBadge.Visibility = _filterState.ActiveCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (FilterButton.Template.FindName("FilterCountText", FilterButton) is TextBlock countText)
+                    countText.Text = _filterState.ActiveCount.ToString();
+            }
+        }
+
+        /// <summary>来源下拉项。IsAll 用于区分"全部设备"这一项。</summary>
+        private sealed record VideoSourceOption(string Name, string DeviceId, bool IsAll);
+
+        /// <summary>
+        /// 填充来源下拉。设备列表来自数据库里出现过的来源，
+        /// 没有录像时只保留"全部设备"。
+        /// </summary>
+        private void LoadSourceFilterOptions()
+        {
+            var options = new List<VideoSourceOption> { new("全部设备", "", true) };
+            try
+            {
+                if (_db != null)
+                {
+                    foreach (VideoSourceInfo source in _db.GetVideoSources())
+                    {
+                        // 本机录像没有设备名，统一显示成"本机"。
+                        string name = !string.IsNullOrWhiteSpace(source.DeviceName)
+                            ? source.DeviceName
+                            : string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                                ? source.DeviceId
+                                : "本机";
+                        if (!string.IsNullOrWhiteSpace(name))
+                            options.Add(new VideoSourceOption(name, source.DeviceId ?? "", false));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Playback", $"读取录像来源失败：{ex.Message}");
+            }
+
+            _suppressFilterEvents = true;
+            try
+            {
+                SourceFilterBox.ItemsSource = options;
+                SourceFilterBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                _suppressFilterEvents = false;
+            }
         }
 
         private void TextFilterChanged(object sender, TextChangedEventArgs e)
@@ -500,14 +656,20 @@ namespace ExpressPackingMonitoring.UI
             if (!IsLoaded || _isClosing)
                 return;
 
-            DateTime? start = DpStartDate.SelectedDate;
-            DateTime? end = DpEndDate.SelectedDate;
-            if (start.HasValue && end.HasValue && start > end)
-                (start, end) = (end, start);
+            _filterState.StartDate = DpStartDate.SelectedDate;
+            _filterState.EndDate = DpEndDate.SelectedDate;
+            _filterState.NormalizeDateRange();
             string? keyword = SearchBox?.Text.Trim();
             int page = Math.Max(1, requestedPage ?? _currentPage);
 
-            _pendingVideoLoad = new VideoLoadRequest(start, end, keyword, page);
+            _pendingVideoLoad = new VideoLoadRequest(
+                _filterState.StartDate,
+                _filterState.EndDate,
+                keyword,
+                page,
+                _filterState.Mode,
+                _filterState.SourceId,
+                _filterState.SourceName);
             _videoLoadRequestVersion++;
             if (!_videoLoadLoopRunning)
                 _ = ProcessVideoLoadQueueAsync();
@@ -528,7 +690,7 @@ namespace ExpressPackingMonitoring.UI
                     try
                     {
                         result = await Task.Run(() =>
-                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page));
+                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page, request.Mode, request.SourceId, request.SourceName));
                         if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                             continue;
 
@@ -539,7 +701,7 @@ namespace ExpressPackingMonitoring.UI
                         if (!result.UsesApproximatePaging && pageCount > 0 && normalizedPage != request.Page)
                         {
                             result = await Task.Run(() =>
-                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage));
+                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage, request.Mode, request.SourceId, request.SourceName));
                             if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                                 continue;
                         }
@@ -584,15 +746,25 @@ namespace ExpressPackingMonitoring.UI
             bool HasMore,
             bool UsesApproximatePaging);
 
-        private VideoPageLoadResult BuildVideoPage(DateTime? start, DateTime? end, string? keyword, int page)
+        private VideoPageLoadResult BuildVideoPage(
+            DateTime? start,
+            DateTime? end,
+            string? keyword,
+            int page,
+            string mode = "",
+            string sourceId = "",
+            string sourceName = "")
         {
             var videos = new List<VideoItem>();
             bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
+            string normalizedMode = RecordingModeFilter.Normalize(mode);
+            bool hasSourceFilter = !string.IsNullOrWhiteSpace(sourceId) || !string.IsNullOrWhiteSpace(sourceName);
             if (_db != null)
             {
                 try
                 {
-                    if (_excludeUnavailableRecords && !hasSearchKeyword)
+                    // 来源筛选只有分页查询支持，命中时不能再走排除不可用的快捷路径。
+                    if (_excludeUnavailableRecords && !hasSearchKeyword && !hasSourceFilter)
                     {
                         CursorVideoResult window = _db.QueryVideosWindow(
                             start,
@@ -601,7 +773,8 @@ namespace ExpressPackingMonitoring.UI
                             page,
                             PageSize,
                             includeDeleted: false,
-                            searchMode: VideoSearchMode.ExactOrderIdentifiers);
+                            searchMode: VideoSearchMode.ExactOrderIdentifiers,
+                            mode: normalizedMode);
 
                         videos.AddRange(window.Records
                             .Select(record => CreateVideoItem(record, _computerName))
@@ -616,7 +789,11 @@ namespace ExpressPackingMonitoring.UI
                         page,
                         PageSize,
                         includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
-                        searchMode: VideoSearchMode.ExactOrderIdentifiers);
+                        searchMode: VideoSearchMode.ExactOrderIdentifiers,
+                        sourceType: "",
+                        deviceId: sourceId ?? "",
+                        sourceDeviceName: sourceName ?? "",
+                        mode: normalizedMode);
                     if (result.Total == 0 && !string.IsNullOrWhiteSpace(keyword))
                     {
                         result = _db.QueryVideosPaged(
@@ -626,7 +803,11 @@ namespace ExpressPackingMonitoring.UI
                             page,
                             PageSize,
                             includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
-                            searchMode: VideoSearchMode.OrderIdentifierContains);
+                            searchMode: VideoSearchMode.OrderIdentifierContains,
+                            sourceType: "",
+                            deviceId: sourceId ?? "",
+                            sourceDeviceName: sourceName ?? "",
+                            mode: normalizedMode);
                      }
                      foreach (var record in result.Records)
                     {
@@ -1301,6 +1482,9 @@ namespace ExpressPackingMonitoring.UI
             DateTime? Start,
             DateTime? End,
             string? Keyword,
-            int Page);
+            int Page,
+            string Mode,
+            string SourceId,
+            string SourceName);
     }
 }

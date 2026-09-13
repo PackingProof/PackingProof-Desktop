@@ -153,42 +153,181 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,0,0,10">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                        <Path Data="{StaticResource FluentCalendarIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource TextSecondary}" Margin="0,0,6,0"/>
-                        <TextBlock Text="录像日期范围:" FontWeight="Bold" Foreground="{DynamicResource TextSecondary}"/>
-                    </StackPanel>
-                    <Grid Margin="0,0,0,15">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="15"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <DatePicker x:Name="DpStartDate" Grid.Column="0" SelectedDateChanged="DateFilterChanged"/>
-                        <TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <DatePicker x:Name="DpEndDate" Grid.Column="2" SelectedDateChanged="DateFilterChanged"/>
-                    </Grid>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                         <Path Data="{StaticResource FluentSearchIcon}" Width="16" Height="16" Stretch="Uniform" Fill="{DynamicResource TextSecondary}" Margin="0,0,6,0"/>
                         <TextBlock Text="单号精准搜索:" FontWeight="Bold" Foreground="{DynamicResource TextSecondary}"/>
                     </StackPanel>
                     <Grid>
-                        <TextBox x:Name="SearchBox" FontSize="14" Padding="5,5,28,5" TextChanged="TextFilterChanged" BorderBrush="{DynamicResource AccentBlueDark}" BorderThickness="2"/>
-                        <Button Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="{StaticResource TransparentBrush}" BorderThickness="0" Focusable="False" Click="BtnClearSearch_Click">
-                            <Path Data="{StaticResource FluentDismissIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}"/>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0">
+                            <TextBox x:Name="SearchBox" FontSize="14" Padding="5,5,28,5" TextChanged="TextFilterChanged" BorderBrush="{DynamicResource AccentBlueDark}" BorderThickness="2"/>
+                            <Button Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Cursor="Hand" Foreground="{DynamicResource TextMuted}" Background="{StaticResource TransparentBrush}" BorderThickness="0" Focusable="False" Click="BtnClearSearch_Click">
+                                <Path Data="{StaticResource FluentDismissIcon}" Width="12" Height="12" Stretch="Uniform" Fill="{DynamicResource TextMuted}"/>
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="11">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </Grid>
+
+                        <!-- 日期、来源、发货退货都收进这个按钮，不再各占一行 -->
+                        <Button x:Name="FilterButton"
+                                Grid.Column="1"
+                                Margin="8,0,0,0"
+                                Height="34"
+                                Padding="10,0"
+                                Cursor="Hand"
+                                Focusable="False"
+                                Click="FilterButton_Click"
+                                ToolTip="筛选">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border Background="{TemplateBinding Background}" CornerRadius="11">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Border x:Name="Bd"
+                                            Background="{DynamicResource ControlBackground}"
+                                            BorderBrush="{DynamicResource BorderStrong}"
+                                            BorderThickness="2"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Path Data="{StaticResource FluentFilterIcon}" Width="15" Height="15" Stretch="Uniform"
+                                                  Fill="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="筛选" Margin="6,0,0,0" FontSize="13" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextPrimary}"/>
+                                            <!-- 生效条数角标，一眼看出有没有筛选 -->
+                                            <Border x:Name="CountBadge"
+                                                    Margin="6,0,0,0"
+                                                    Padding="6,1"
+                                                    CornerRadius="8"
+                                                    Visibility="Collapsed"
+                                                    Background="{DynamicResource AccentBlue}">
+                                                <TextBlock x:Name="FilterCountText"
+                                                           FontSize="11"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource TextOnAccent}"/>
+                                            </Border>
+                                        </StackPanel>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
                     </Grid>
+
+                    <!-- 已应用筛选的胶囊徽章，点叉清除单个条件 -->
+                    <ItemsControl x:Name="FilterBadgeList" Margin="0,8,0,0" Visibility="Collapsed">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,6,6"
+                                        Padding="9,3"
+                                        CornerRadius="10"
+                                        Background="{DynamicResource BadgePackBg}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Text}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource BadgePackText}"/>
+                                        <Button Margin="6,0,0,0"
+                                                Width="14" Height="14"
+                                                Cursor="Hand"
+                                                Focusable="False"
+                                                Background="{StaticResource TransparentBrush}"
+                                                BorderThickness="0"
+                                                Tag="{Binding Key}"
+                                                Click="RemoveFilterBadge_Click"
+                                                ToolTip="清除该筛选">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" CornerRadius="7">
+                                                        <Path Data="{StaticResource FluentDismissIcon}" Width="8" Height="8" Stretch="Uniform"
+                                                              Fill="{DynamicResource BadgePackText}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- 筛选面板：点上面的筛选按钮呼出，日期、来源、类型集中在这里 -->
+                    <Popup x:Name="FilterPopup"
+                           PlacementTarget="{Binding ElementName=FilterButton}"
+                           Placement="Bottom"
+                           HorizontalOffset="-220"
+                           VerticalOffset="4"
+                           StaysOpen="False"
+                           AllowsTransparency="True"
+                           PopupAnimation="Fade">
+                        <Border Background="{DynamicResource PanelBackground}"
+                                BorderBrush="{DynamicResource BorderStrong}"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14"
+                                MinWidth="300">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.15"/>
+                            </Border.Effect>
+                            <StackPanel>
+                                <TextBlock Text="录像日期范围" FontWeight="Bold" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <DatePicker x:Name="DpStartDate" Grid.Column="0" SelectedDateChanged="DateFilterChanged"/>
+                                    <TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"/>
+                                    <DatePicker x:Name="DpEndDate" Grid.Column="2" SelectedDateChanged="DateFilterChanged"/>
+                                </Grid>
+
+                                <TextBlock Text="录像来源" FontWeight="Bold" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
+                                <ComboBox x:Name="SourceFilterBox"
+                                          Margin="0,0,0,14"
+                                          DisplayMemberPath="Name"
+                                          SelectionChanged="SourceFilterChanged"/>
+
+                                <TextBlock Text="业务类型" FontWeight="Bold" FontSize="12"
+                                           Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                    <RadioButton x:Name="ModeAllRadio" Content="全部" GroupName="ModeFilter"
+                                                 IsChecked="True" Margin="0,0,14,0" Checked="ModeFilterChanged"/>
+                                    <RadioButton x:Name="ModeShippingRadio" Content="发货" GroupName="ModeFilter"
+                                                 Margin="0,0,14,0" Checked="ModeFilterChanged"/>
+                                    <RadioButton x:Name="ModeReturnRadio" Content="退货" GroupName="ModeFilter"
+                                                 Checked="ModeFilterChanged"/>
+                                </StackPanel>
+
+                                <Button HorizontalAlignment="Right"
+                                        Style="{StaticResource SecondarySmallButtonStyle}"
+                                        Click="ClearAllFilters_Click"
+                                        Content="清除全部筛选"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>

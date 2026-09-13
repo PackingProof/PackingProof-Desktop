@@ -1102,4 +1102,11 @@
   <data name="录像已清理或不在本机，无法定位文件" xml:space="preserve"><value>The recording was cleaned up or is not on this computer, so the file cannot be located</value></data>
   <data name="打开文件所在位置" xml:space="preserve"><value>Open file location</value></data>
   <data name="剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序" xml:space="preserve"><value>The clipboard is in use by another program, so copying failed. Try again shortly, or close programs that hold the clipboard such as input methods or clipboard managers</value></data>
+  <data name="筛选" xml:space="preserve"><value>Filter</value></data>
+  <data name="清除该筛选" xml:space="preserve"><value>Clear this filter</value></data>
+  <data name="录像日期范围" xml:space="preserve"><value>Recording date range</value></data>
+  <data name="录像来源" xml:space="preserve"><value>Recording source</value></data>
+  <data name="业务类型" xml:space="preserve"><value>Business type</value></data>
+  <data name="清除全部筛选" xml:space="preserve"><value>Clear all filters</value></data>
+  <data name="全部设备" xml:space="preserve"><value>All devices</value></data>
 </root>
