@@ -536,23 +536,47 @@ namespace ExpressPackingMonitoring.UI
         }
 
         /// <summary>
-        /// 点面板以外的地方收起筛选面板。筛选按钮本身要放过，
-        /// 否则这里先关、紧接着按钮的 Click 又开，第二次点击等于没关。
-        /// 面板和日期选择器的日历都是独立弹窗，它们的鼠标事件不会走到这里。
+        /// 点面板以外的地方收起筛选面板。两种点击要放过：
+        /// 面板自己（弹窗内容的路由事件会冒泡到 Popup 的逻辑父级，也会走到这里，
+        /// 不放过的话点日期、来源、发退货都会把面板关掉，等于没法操作），
+        /// 以及筛选按钮本身（这里先关、紧接着按钮的 Click 又开，第二次点击等于没关）。
         /// </summary>
         private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (!FilterPopup.IsOpen) return;
-            if (e.OriginalSource is DependencyObject source && IsWithinFilterButton(source)) return;
+            if (e.OriginalSource is DependencyObject source && IsWithinFilterUi(source)) return;
             FilterPopup.IsOpen = false;
         }
 
-        private bool IsWithinFilterButton(DependencyObject source)
+        /// <summary>
+        /// 判断点击是否落在筛选按钮或筛选面板里。
+        /// 面板、日历、下拉都是独立弹窗，视觉树到 PopupRoot 就断了，
+        /// 断了之后要接着走逻辑树才能回到 Popup 本身。
+        /// </summary>
+        private bool IsWithinFilterUi(DependencyObject source)
         {
-            for (DependencyObject? node = source; node != null; node = VisualTreeHelper.GetParent(node))
+            var pending = new Stack<DependencyObject>();
+            var seen = new HashSet<DependencyObject>();
+            pending.Push(source);
+
+            while (pending.Count > 0)
             {
-                if (ReferenceEquals(node, FilterButton))
+                DependencyObject node = pending.Pop();
+                if (!seen.Add(node))
+                    continue;
+                if (ReferenceEquals(node, FilterButton) || ReferenceEquals(node, FilterPopup))
                     return true;
+
+                // 视觉树和逻辑树都要往上找：模板里的元素只有视觉父级，
+                // 弹窗内容的视觉父级是 PopupRoot、只有逻辑父级才是 Popup 本身。
+                if (node is Visual or System.Windows.Media.Media3D.Visual3D
+                    && VisualTreeHelper.GetParent(node) is DependencyObject visualParent)
+                {
+                    pending.Push(visualParent);
+                }
+
+                if (LogicalTreeHelper.GetParent(node) is DependencyObject logicalParent)
+                    pending.Push(logicalParent);
             }
 
             return false;
