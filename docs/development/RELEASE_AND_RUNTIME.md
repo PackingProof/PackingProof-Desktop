@@ -32,6 +32,7 @@
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 发布顺序固定为：提交并保持工作区干净 → 运行本地 CI → 核对版本与发布说明 → 创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 推送 `main` 与该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须先于正式构建，避免先构建测试身份再为正式标签重复编译。
 - 本地 CI 命令为 `pwsh -NoProfile -File Tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `Tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
+- 开始构建前先跑 `pwsh -NoProfile -File Tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用：
 
@@ -63,3 +64,4 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release。二者默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`；免安装分发统一由 Setup 和目录包承担。
 
 - Gitee 使用 CLI：先运行 `gitee auth status`，再对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
+- 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 <发布笔记路径> -Title "<一句话内容>" [-Prerelease]` 一次创建。脚本按上面的资产表挑文件，要求工作区干净且当前提交有精确 tag，GitHub 创建失败会自动重试；登录态由 gh 与 gitee CLI 自己维护，脚本不读取任何凭据。

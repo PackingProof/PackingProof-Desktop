@@ -1485,8 +1485,6 @@ foreach ($runtimeFile in $requiredAppRuntimeFiles) {
         throw "Full 7z validation failed: missing camera barcode runtime dependency app/$runtimeFile"
     }
 }
-$sevenZipHash = if ($IncludeSevenZip) { (Get-FileHash -LiteralPath $sevenZipFullPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { "" }
-$sevenZipSize = if ($IncludeSevenZip) { (Get-Item -LiteralPath $sevenZipFullPath).Length } else { 0 }
 $fullZipHash = if ($IncludeFullZip) { (Get-FileHash -LiteralPath $zipFullPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { "" }
 $fullZipSize = if ($IncludeFullZip) { (Get-Item -LiteralPath $zipFullPath).Length } else { 0 }
 
@@ -1551,12 +1549,6 @@ $releaseInfoLines += "Setup size: $setupSize bytes"
 $releaseInfoLines += "Setup Authenticode status: $setupSignatureStatus"
 if (-not [string]::Equals($setupSignatureStatus, "Valid", [System.StringComparison]::OrdinalIgnoreCase)) {
     $releaseInfoLines += "WARNING: Setup is unsigned; Windows SmartScreen may show an unknown publisher warning."
-}
-if ($IncludeSevenZip) {
-    $releaseInfoLines += ""
-    $releaseInfoLines += "Local-only full 7z SHA256:"
-    $releaseInfoLines += $sevenZipHash
-    $releaseInfoLines += "Local-only full 7z size: $sevenZipSize bytes"
 }
 if ($IncludeFullZip) {
     $releaseInfoLines += ""
