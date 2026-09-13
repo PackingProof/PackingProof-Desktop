@@ -135,6 +135,8 @@
     <Compile Include="Localization\AppLanguage.cs" />
     <Compile Include="Services\UpdateCheckOptions.cs" />
     <Compile Include="Services\OrderNumberExportService.cs" />
+    <Compile Include="Services\OrderNumberExportEndpoint.cs" />
+    <Compile Include="Services\StorageDisplayFormatter.cs" />
     <Compile Include="Services\UpdateCheckService.cs" />
     <Compile Include="Services\WinRtPlacementService.cs" />
     <Compile Include="Services\AppPatchDownloadService.cs" />

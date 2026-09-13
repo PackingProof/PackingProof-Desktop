@@ -284,7 +284,42 @@ public sealed class WebRequestLimitTests
         Assert.Contains("<option value=\"\">全部设备</option>", html);
         Assert.Contains("fetch('/api/video-sources'", html);
         Assert.Contains("select.replaceChildren(new Option('全部设备',''))", html);
-        Assert.Contains("sourceType,deviceId,sourceName,page:currentPage", html);
+        // 搜索请求要带上来源与业务类型；mode 缺了发货/退货筛选就静默失效。
+        Assert.Contains("sourceType,deviceId,sourceName,mode:", html);
+        Assert.Contains("page:currentPage", html);
+    }
+
+    /// <summary>
+    /// Web 端的筛选与导出。顶栏原先四个字段各占一格太占高度，
+    /// 现在只留搜索框与筛选按钮，其余条件收进面板。
+    /// </summary>
+    [Fact]
+    public void WebToolbar_UsesFilterPanelAndExposesExport()
+    {
+        string html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Web", "index.html"));
+
+        // 搜索框与筛选按钮同一行，日期等条件在面板里。
+        Assert.Contains("class=\"search-row\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"filterButton\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"filterPanel\"", html, StringComparison.Ordinal);
+        // 顶栏不再是四个字段平铺的网格。
+        Assert.DoesNotContain(".toolbar form{display:grid", html, StringComparison.Ordinal);
+
+        // 生效筛选要有角标与可移除的胶囊徽章。
+        Assert.Contains("id=\"filterCount\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"filterBadges\"", html, StringComparison.Ordinal);
+        Assert.Contains("function refreshFilterIndicators()", html, StringComparison.Ordinal);
+
+        // 发货/退货筛选。
+        Assert.Contains("id=\"modeFilter\"", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"shipping\">发货</option>", html, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"return\">退货</option>", html, StringComparison.Ordinal);
+
+        // 导出单号走浏览器下载，文件名从 Content-Disposition 解析。
+        Assert.Contains("id=\"exportOrdersButton\"", html, StringComparison.Ordinal);
+        Assert.Contains("/api/videos/export-order-numbers", html, StringComparison.Ordinal);
+        Assert.Contains("function parseFileName(", html, StringComparison.Ordinal);
+        Assert.Contains("URL.createObjectURL", html, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -1287,6 +1287,9 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/recording-devices" when method == "GET":
                         HandleRecordingDevices(ctx);
                         break;
+                    case "/api/videos/export-order-numbers" when method == "GET":
+                        HandleExportOrderNumbers(ctx);
+                        break;
                     case "/api/videos":
                         HandleSearchVideos(ctx);
                         break;
@@ -4535,7 +4538,7 @@ namespace ExpressPackingMonitoring.Services
 
             DateTime? oldest = existingRecords.Count > 0 ? existingRecords.Min(x => x.StartTime) : null;
             DateTime? latest = existingRecords.Count > 0 ? existingRecords.Max(x => x.StartTime) : null;
-            int savedDays = CalculateSavedDays(oldest, latest);
+            int savedDays = StorageDisplayFormatter.CalculateSavedDays(oldest, latest);
 
             var recentRecords = existingRecords
                 .Where(x => x.StartTime.Date >= DateTime.Today.AddDays(-9))
@@ -4548,19 +4551,19 @@ namespace ExpressPackingMonitoring.Services
             double? estimatedRetentionDays = null;
             if (historyDays > 0 && historyBytes > 0)
             {
-                avgGBPerDay = BytesToGB(historyBytes) / historyDays;
+                avgGBPerDay = StorageDisplayFormatter.BytesToGB(historyBytes) / historyDays;
                 if (avgGBPerDay > 0 && totalBytes > 0)
                 {
-                    estimatedRetentionDays = BytesToGB(totalBytes) / avgGBPerDay;
-                    estimateBasis = $"基于最近 {historyDays} 天录像占用 {FormatGB(historyBytes)} 估算";
+                    estimatedRetentionDays = StorageDisplayFormatter.BytesToGB(totalBytes) / avgGBPerDay;
+                    estimateBasis = $"基于最近 {historyDays} 天录像占用 {StorageDisplayFormatter.FormatGB(historyBytes)} 估算";
                 }
             }
             else if (savedDays > 0 && usedBytes > 0)
             {
-                avgGBPerDay = BytesToGB(usedBytes) / savedDays;
+                avgGBPerDay = StorageDisplayFormatter.BytesToGB(usedBytes) / savedDays;
                 if (avgGBPerDay > 0 && totalBytes > 0)
                 {
-                    estimatedRetentionDays = BytesToGB(totalBytes) / avgGBPerDay;
+                    estimatedRetentionDays = StorageDisplayFormatter.BytesToGB(totalBytes) / avgGBPerDay;
                     historyDays = savedDays;
                     historyBytes = usedBytes;
                     estimateBasis = "基于当前已保存录像估算，结果仅供参考";
@@ -4576,23 +4579,23 @@ namespace ExpressPackingMonitoring.Services
                 return new
                 {
                     path = path.DisplayPath,
-                    totalGB = Math.Round(BytesToGB(path.TotalBytes), 1),
-                    usedGB = Math.Round(BytesToGB(pathUsed), 1),
-                    freeGB = Math.Round(BytesToGB(pathFree), 1),
+                    totalGB = Math.Round(StorageDisplayFormatter.BytesToGB(path.TotalBytes), 1),
+                    usedGB = Math.Round(StorageDisplayFormatter.BytesToGB(pathUsed), 1),
+                    freeGB = Math.Round(StorageDisplayFormatter.BytesToGB(pathFree), 1),
                     available = path.Available
                 };
             }).ToList();
 
             return JsonSerializer.SerializeToUtf8Bytes(new
             {
-                totalGB = Math.Round(BytesToGB(totalBytes), 1),
-                usedGB = Math.Round(BytesToGB(usedBytes), 1),
-                freeGB = Math.Round(BytesToGB(freeBytes), 1),
+                totalGB = Math.Round(StorageDisplayFormatter.BytesToGB(totalBytes), 1),
+                usedGB = Math.Round(StorageDisplayFormatter.BytesToGB(usedBytes), 1),
+                freeGB = Math.Round(StorageDisplayFormatter.BytesToGB(freeBytes), 1),
                 oldestVideoTime = oldest?.ToString("yyyy-MM-dd HH:mm:ss"),
                 latestVideoTime = latest?.ToString("yyyy-MM-dd HH:mm:ss"),
                 savedDays,
                 historyDays,
-                historyUsedGB = Math.Round(BytesToGB(historyBytes), 1),
+                historyUsedGB = Math.Round(StorageDisplayFormatter.BytesToGB(historyBytes), 1),
                 avgGBPerDay = Math.Round(avgGBPerDay, 2),
                 estimatedRetentionDays = estimatedRetentionDays.HasValue ? Math.Round(estimatedRetentionDays.Value, 0) : (double?)null,
                 estimateBasis,
@@ -4723,20 +4726,9 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private static int CalculateSavedDays(DateTime? oldest, DateTime? latest)
-        {
-            if (!oldest.HasValue || !latest.HasValue) return 0;
-            int days = (latest.Value.Date - oldest.Value.Date).Days + 1;
-            return Math.Max(1, days);
-        }
-
-        private static double BytesToGB(long bytes) => bytes / 1073741824.0;
-
-        private static string FormatGB(long bytes)
-        {
-            double gb = BytesToGB(bytes);
-            return gb >= 10 ? $"{gb:F0}GB" : $"{gb:F1}GB";
-        }
+        /// <summary>导出单号供浏览器下载；实现在 OrderNumberExportEndpoint。</summary>
+        private void HandleExportOrderNumbers(HttpListenerContext ctx) =>
+            OrderNumberExportEndpoint.Handle(ctx, _db, SendJson);
 
         private void HandleSearchVideos(HttpListenerContext ctx)
         {
@@ -4751,6 +4743,8 @@ namespace ExpressPackingMonitoring.Services
             string deviceId = qs["deviceId"] ?? "";
             string sourceDeviceName = qs["sourceName"] ?? "";
             string sourceType = qs["sourceType"] ?? "";
+            // 发货/退货筛选。界面传中文或英文都接受，无法识别时按不筛选处理。
+            string mode = RecordingModeFilter.Normalize(qs["mode"]);
 
             var result = _db.QueryVideosPaged(
                 startDate,
@@ -4761,7 +4755,8 @@ namespace ExpressPackingMonitoring.Services
                 includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: sourceType,
                 deviceId: deviceId,
-                sourceDeviceName: sourceDeviceName);
+                sourceDeviceName: sourceDeviceName,
+                mode: mode);
             int deviceTotal = result.Total;
             string requestingDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(deviceId) && !string.IsNullOrWhiteSpace(requestingDeviceId))
@@ -4773,7 +4768,9 @@ namespace ExpressPackingMonitoring.Services
                     page: 1,
                     pageSize: 1,
                     sourceType: "external",
-                    deviceId: requestingDeviceId).Total;
+                    deviceId: requestingDeviceId,
+                    sourceDeviceName: "",
+                    mode: mode).Total;
             }
             // SQL 层只取当前页，文件存在性仅对当前页记录检查。
             var paged = result.Records.Select(r => new
