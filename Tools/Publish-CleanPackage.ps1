@@ -18,6 +18,7 @@ param(
     [string]$InstallerCompression = "lzma2/ultra64",
     [string]$PatchBaselineVersion = "0.0.18",
     [switch]$IncludeFullZip,
+    [switch]$IncludeSevenZip,
     [switch]$SkipTtsCacheGeneration,
     [switch]$ConfirmManualCoreChecks,
     [switch]$ReuseExistingLauncherBaseline,
@@ -1226,7 +1227,7 @@ $launcherPackageGiteeUrl = Expand-ReleaseTemplate -Template $launcherPackageGite
 $fullDownloadPageTemplate = Get-ConfiguredValue `
     -Key "FULL_DOWNLOAD_PRIMARY_PAGE_URL_TEMPLATE" `
     -DefaultValue "https://github.com/PackingProof/PackingProof-Desktop/releases/tag/{tag}"
-$fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $sevenZipFullPath)
+$fullDownloadPage = Expand-ReleaseTemplate -Template $fullDownloadPageTemplate -ReleaseTag $releaseTag -FileName $setupFileName
 $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_FALLBACK_PAGE_URL_TEMPLATE" -DefaultValue ""
 if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
     $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE" -DefaultValue ""
@@ -1234,7 +1235,7 @@ if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
 if ([string]::IsNullOrWhiteSpace($fullDownloadFallbackPageTemplate)) {
     $fullDownloadFallbackPageTemplate = Get-ConfiguredValue -Key "FULL_DOWNLOAD_PAGE_URL_TEMPLATE" -DefaultValue $releasePage
 }
-$fullDownloadFallbackPage = Expand-ReleaseTemplate -Template $fullDownloadFallbackPageTemplate -ReleaseTag $releaseTag -FileName (Split-Path -Leaf $sevenZipFullPath)
+$fullDownloadFallbackPage = Expand-ReleaseTemplate -Template $fullDownloadFallbackPageTemplate -ReleaseTag $releaseTag -FileName $setupFileName
 
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
 if (Test-Path $legacyAppFullZipPath) {
@@ -1452,11 +1453,13 @@ if ($IncludeFullZip) {
         -DestinationZip $zipFullPath `
         -CompressionLevel $ZipCompressionLevel
 }
-Compress-Package7zWithRetry `
-    -SourceDir $outputFullPath `
-    -DestinationArchive $sevenZipFullPath `
-    -SevenZipExecutable $sevenZipExecutable `
-    -CompressionLevel $SevenZipCompressionLevel
+if ($IncludeSevenZip) {
+    Compress-Package7zWithRetry `
+        -SourceDir $outputFullPath `
+        -DestinationArchive $sevenZipFullPath `
+        -SevenZipExecutable $sevenZipExecutable `
+        -CompressionLevel $SevenZipCompressionLevel
+}
 
 if ($IncludeFullZip) {
     if (-not (Test-ZipContainsEntry -ZipFile $zipFullPath -EntryName "ExpressPackingMonitoring.exe")) {
@@ -1466,22 +1469,24 @@ if ($IncludeFullZip) {
         throw "Full zip validation failed: missing app/ExpressPackingMonitoring.exe"
     }
 }
-if (-not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "ExpressPackingMonitoring.exe" -SevenZipExecutable $sevenZipExecutable)) {
-    throw "Full 7z validation failed: missing root launcher"
-}
-if (-not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "app/ExpressPackingMonitoring.exe" -SevenZipExecutable $sevenZipExecutable)) {
-    throw "Full 7z validation failed: missing app/ExpressPackingMonitoring.exe"
+if ($IncludeSevenZip) {
+    if (-not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "ExpressPackingMonitoring.exe" -SevenZipExecutable $sevenZipExecutable)) {
+        throw "Full 7z validation failed: missing root launcher"
+    }
+    if (-not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "app/ExpressPackingMonitoring.exe" -SevenZipExecutable $sevenZipExecutable)) {
+        throw "Full 7z validation failed: missing app/ExpressPackingMonitoring.exe"
+    }
 }
 foreach ($runtimeFile in $requiredAppRuntimeFiles) {
     if ($IncludeFullZip -and -not (Test-ZipContainsEntry -ZipFile $zipFullPath -EntryName "app/$runtimeFile")) {
         throw "Full zip validation failed: missing camera barcode runtime dependency app/$runtimeFile"
     }
-    if (-not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "app/$runtimeFile" -SevenZipExecutable $sevenZipExecutable)) {
+    if ($IncludeSevenZip -and -not (Test-SevenZipContainsEntry -ArchivePath $sevenZipFullPath -EntryName "app/$runtimeFile" -SevenZipExecutable $sevenZipExecutable)) {
         throw "Full 7z validation failed: missing camera barcode runtime dependency app/$runtimeFile"
     }
 }
-$sevenZipHash = (Get-FileHash -LiteralPath $sevenZipFullPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$sevenZipSize = (Get-Item -LiteralPath $sevenZipFullPath).Length
+$sevenZipHash = if ($IncludeSevenZip) { (Get-FileHash -LiteralPath $sevenZipFullPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { "" }
+$sevenZipSize = if ($IncludeSevenZip) { (Get-Item -LiteralPath $sevenZipFullPath).Length } else { 0 }
 $fullZipHash = if ($IncludeFullZip) { (Get-FileHash -LiteralPath $zipFullPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { "" }
 $fullZipSize = if ($IncludeFullZip) { (Get-Item -LiteralPath $zipFullPath).Length } else { 0 }
 
@@ -1502,21 +1507,23 @@ $releaseInfoLines += "Full download fallback page: " + $fullDownloadFallbackPage
 $releaseInfoLines += ""
 $releaseInfoLines += "GitHub 默认上传："
 $releaseInfoLines += "1. Windows 安装向导（推荐）：" + $setupFileName
-$releaseInfoLines += "2. 完整包 7z（小体积免安装）：" + (Split-Path -Leaf $sevenZipFullPath)
+$nextGithubAssetIndex = 2
 if ($patchSupported) {
-    $releaseInfoLines += "3. AppPatch（自动更新；包内也可双击手动更新）：" + $patchReleaseInfo
+    $releaseInfoLines += "$nextGithubAssetIndex. AppPatch（自动更新；包内也可双击手动更新）：" + $patchReleaseInfo
+    $nextGithubAssetIndex++
     if ($launcherPublishedWithRelease) {
-        $releaseInfoLines += "4. LauncherPatch（本版本建立新启动器基线）：" + $launcherPackageName
-        $releaseInfoLines += "5. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+        $releaseInfoLines += "$nextGithubAssetIndex. LauncherPatch（本版本建立新启动器基线）：" + $launcherPackageName
+        $nextGithubAssetIndex++
     }
-    else {
-        $releaseInfoLines += "4. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    $releaseInfoLines += "$nextGithubAssetIndex. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    if (-not $launcherPublishedWithRelease) {
         $releaseInfoLines += "启动器沿用 $($launcherBaseline.tag)，本版本不要重复上传 LauncherPatch"
     }
 }
 else {
-    $releaseInfoLines += "3. 本版本不提供增量包：" + $patchReason
-    $releaseInfoLines += "4. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
+    $releaseInfoLines += "$nextGithubAssetIndex. 本版本不提供增量包：" + $patchReason
+    $nextGithubAssetIndex++
+    $releaseInfoLines += "$nextGithubAssetIndex. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
 }
 $releaseInfoLines += ""
 $releaseInfoLines += "Gitee 命令行上传："
@@ -1534,8 +1541,8 @@ if ($patchSupported) {
 else {
     $releaseInfoLines += "1. " + (ConvertFrom-Utf8Base64 "5pu05paw5o+P6L+w5paH5Lu277ya") + $updateJsonName
 }
-$releaseInfoLines += "Setup 和完整 7z 使用 Full download page，不上传到 Gitee"
-$releaseInfoLines += "完整 ZIP 默认不生成、不上传；仅在本地确有兼容需要时传入 -IncludeFullZip"
+$releaseInfoLines += "Setup 使用 Full download page，不上传到 Gitee"
+$releaseInfoLines += "完整 7z 与完整 ZIP 默认不生成、不上传；仅在本地确有需要时传入 -IncludeSevenZip 或 -IncludeFullZip"
 $releaseInfoLines += "Local verification only (do not upload by default): " + $launcherManifestName
 $releaseInfoLines += ""
 $releaseInfoLines += "Setup SHA256:"
@@ -1545,10 +1552,12 @@ $releaseInfoLines += "Setup Authenticode status: $setupSignatureStatus"
 if (-not [string]::Equals($setupSignatureStatus, "Valid", [System.StringComparison]::OrdinalIgnoreCase)) {
     $releaseInfoLines += "WARNING: Setup is unsigned; Windows SmartScreen may show an unknown publisher warning."
 }
-$releaseInfoLines += ""
-$releaseInfoLines += "Full 7z SHA256:"
-$releaseInfoLines += $sevenZipHash
-$releaseInfoLines += "Full 7z size: $sevenZipSize bytes"
+if ($IncludeSevenZip) {
+    $releaseInfoLines += ""
+    $releaseInfoLines += "Local-only full 7z SHA256:"
+    $releaseInfoLines += $sevenZipHash
+    $releaseInfoLines += "Local-only full 7z size: $sevenZipSize bytes"
+}
 if ($IncludeFullZip) {
     $releaseInfoLines += ""
     $releaseInfoLines += "Optional local full ZIP SHA256:"
@@ -1573,7 +1582,9 @@ $releaseInfo | Set-Content -LiteralPath $releaseInfoPath -Encoding UTF8
 
 Write-Host "Clean package created: $outputFullPath"
 Write-Host "Installer created: $setupPath"
-Write-Host "7z package created: $sevenZipFullPath"
+if ($IncludeSevenZip) {
+    Write-Host "Optional local 7z package created: $sevenZipFullPath"
+}
 if ($IncludeFullZip) {
     Write-Host "Optional local zip package created: $zipFullPath"
 }

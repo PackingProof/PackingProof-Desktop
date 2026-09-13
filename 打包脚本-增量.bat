@@ -19,6 +19,12 @@ if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
 set "VERSION_ARG="
 if not "%~1"=="" set "VERSION_ARG=-Version %~1"
 
+rem 第三个参数控制本地 7z：默认不生成，Release 也不再上传该产物。
+rem 需要时传 7z，例如：打包脚本-增量.bat 0.0.67 0.0.66 7z
+set "ARCHIVE_ARGS="
+if /i "%~3"=="7z" set "ARCHIVE_ARGS=-IncludeSevenZip"
+if /i "%~3"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
+
 if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
     echo [ERROR] Baseline app not found:
     echo         %BASELINE_APP_DIR%
@@ -34,15 +40,14 @@ if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
 echo Baseline version: %BASELINE_VERSION%
 echo Baseline app:     %BASELINE_APP_DIR%
 echo Launcher baseline: Tools\launcher-baseline.json
+if defined ARCHIVE_ARGS echo Local 7z archive: enabled
 echo.
 
 echo [WARN] Review RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" ^
-  %VERSION_ARG% ^
-  -PatchBaselineVersion %BASELINE_VERSION% ^
-  -BaselineAppDir "%BASELINE_APP_DIR%"
+rem 参数展开后拼成单行，避免 %ARCHIVE_ARGS% 为空时行尾 ^ 续接到空行导致命令被截断。
+pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" %VERSION_ARG% -PatchBaselineVersion %BASELINE_VERSION% -BaselineAppDir "%BASELINE_APP_DIR%" %ARCHIVE_ARGS%
 
 set "EXIT_CODE=%ERRORLEVEL%"
 echo.

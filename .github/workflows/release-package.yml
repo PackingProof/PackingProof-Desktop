@@ -136,7 +136,7 @@ jobs:
           pwsh -NoProfile -File "Tools\Publish-LauncherBaseline.ps1" -Version $baseline.version
           "LAUNCHER_VERSION=$($baseline.version)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: 生成发布包（Setup、7z、ZIP、更新清单）
+      - name: 生成发布包（Setup、更新清单）
         env:
           VERSION: ${{ env.PACKAGE_VERSION }}
         shell: pwsh
@@ -166,14 +166,6 @@ jobs:
         with:
           name: PackingProof_Setup_v${{ env.PACKAGE_VERSION }}
           path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/PackingProof_Setup_v${{ env.PACKAGE_VERSION }}*.exe
-          if-no-files-found: warn
-          retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
-
-      - name: 上传完整包 7z
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: PackingProof+${{ env.PACKAGE_VERSION }}.7z
-          path: package/PackingProof+v${{ env.PACKAGE_VERSION }}*/PackingProof+v${{ env.PACKAGE_VERSION }}*.7z
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
