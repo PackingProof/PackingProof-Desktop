@@ -29,6 +29,47 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!--
+            筛选面板里的发退货三选一。文字、边框和选中色全部走颜色令牌，
+            与统计窗口的分段按钮保持同一套外观，深色主题下也跟着切换。
+        -->
+        <Style x:Key="ModeFilterChoiceStyle" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinWidth" Value="58"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Chip"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -314,10 +355,13 @@
                                            Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,6"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
                                     <RadioButton x:Name="ModeAllRadio" Content="全部" GroupName="ModeFilter"
-                                                 IsChecked="True" Margin="0,0,14,0" Checked="ModeFilterChanged"/>
+                                                 Style="{StaticResource ModeFilterChoiceStyle}"
+                                                 IsChecked="True" Checked="ModeFilterChanged"/>
                                     <RadioButton x:Name="ModeShippingRadio" Content="发货" GroupName="ModeFilter"
-                                                 Margin="0,0,14,0" Checked="ModeFilterChanged"/>
+                                                 Style="{StaticResource ModeFilterChoiceStyle}"
+                                                 Checked="ModeFilterChanged"/>
                                     <RadioButton x:Name="ModeReturnRadio" Content="退货" GroupName="ModeFilter"
+                                                 Style="{StaticResource ModeFilterChoiceStyle}"
                                                  Checked="ModeFilterChanged"/>
                                 </StackPanel>
 
