@@ -115,6 +115,7 @@ namespace ExpressPackingMonitoring.UI
         private LibVLC? _libVLC;
         private LibVLCSharp.Shared.MediaPlayer? _mediaPlayer;
         private List<VideoItem> _allVideos = new();
+        private bool _isExportingOrderNumbers;
         private bool _isDragging;
         private bool _suppressTimelineValueChanged;
         private bool _isPlaying;
@@ -177,7 +178,7 @@ namespace ExpressPackingMonitoring.UI
             BtnImportVideos.Visibility = _videoImportService == null
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            ExportOrderNumbersButton.IsEnabled = _db != null;
+            UpdateExportOrderNumbersButtonState();
             LoadSourceFilterOptions();
             UpdateLocateButtonState();
         }
@@ -215,6 +216,7 @@ namespace ExpressPackingMonitoring.UI
             if (saveDialog.ShowDialog(this) != true)
                 return;
 
+            _isExportingOrderNumbers = true;
             ExportOrderNumbersButton.IsEnabled = false;
             ExportOrderNumbersButtonText.Text = "正在导出...";
             try
@@ -259,7 +261,8 @@ namespace ExpressPackingMonitoring.UI
             finally
             {
                 ExportOrderNumbersButtonText.Text = "导出单号";
-                ExportOrderNumbersButton.IsEnabled = _db != null && !_isClosing;
+                _isExportingOrderNumbers = false;
+                UpdateExportOrderNumbersButtonState();
             }
         }
 
@@ -1056,7 +1059,24 @@ namespace ExpressPackingMonitoring.UI
                     : $"第 {_currentPage} / {pageCount} 页，共 {_totalVideos} 条";
             BtnPreviousPage.IsEnabled = !_isLoadingVideos && _currentPage > 1;
             BtnNextPage.IsEnabled = !_isLoadingVideos && (_usingApproximatePaging ? _hasMoreVideoPages : pageCount > 0 && _currentPage < pageCount);
+            UpdateExportOrderNumbersButtonState();
             UpdateLocateButtonState();
+        }
+
+        /// <summary>
+        /// 当前筛选一条录像都没有时不给导出，否则点下去只会得到一张空表。
+        /// 导出进行中由导出流程自己控制按钮，这里不插手。
+        /// </summary>
+        private void UpdateExportOrderNumbersButtonState()
+        {
+            if (_isExportingOrderNumbers)
+                return;
+
+            bool hasRecords = _totalVideos > 0 || _allVideos.Count > 0;
+            ExportOrderNumbersButton.IsEnabled = _db != null && !_isClosing && hasRecords;
+            ExportOrderNumbersButton.ToolTip = ExportOrderNumbersButton.IsEnabled
+                ? "按当前筛选导出单号"
+                : "当前筛选没有匹配的录像，没有可导出的单号";
         }
 
         private int GetPageCount() => GetPageCount(_totalVideos);
