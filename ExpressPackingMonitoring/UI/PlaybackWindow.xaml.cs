@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
@@ -505,6 +506,38 @@ namespace ExpressPackingMonitoring.UI
             FilterPopup.IsOpen = !FilterPopup.IsOpen;
         }
 
+        /// <summary>
+        /// 点面板以外的地方收起筛选面板。筛选按钮本身要放过，
+        /// 否则这里先关、紧接着按钮的 Click 又开，第二次点击等于没关。
+        /// 面板和日期选择器的日历都是独立弹窗，它们的鼠标事件不会走到这里。
+        /// </summary>
+        private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!FilterPopup.IsOpen) return;
+            if (e.OriginalSource is DependencyObject source && IsWithinFilterButton(source)) return;
+            FilterPopup.IsOpen = false;
+        }
+
+        private bool IsWithinFilterButton(DependencyObject source)
+        {
+            for (DependencyObject? node = source; node != null; node = VisualTreeHelper.GetParent(node))
+            {
+                if (ReferenceEquals(node, FilterButton))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape || !FilterPopup.IsOpen) return;
+            FilterPopup.IsOpen = false;
+            e.Handled = true;
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e) => FilterPopup.IsOpen = false;
+
         private void SourceFilterChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_suppressFilterEvents) return;
@@ -597,13 +630,8 @@ namespace ExpressPackingMonitoring.UI
             FilterBadgeList.ItemsSource = badges;
             FilterBadgeList.Visibility = badges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            // 角标在按钮模板里，要按名字找出来。
-            if (FilterButton.Template?.FindName("CountBadge", FilterButton) is Border countBadge)
-            {
-                countBadge.Visibility = _filterState.ActiveCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-                if (FilterButton.Template.FindName("FilterCountText", FilterButton) is TextBlock countText)
-                    countText.Text = _filterState.ActiveCount.ToString();
-            }
+            CountBadge.Visibility = _filterState.ActiveCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+            FilterCountText.Text = _filterState.ActiveCount.ToString();
         }
 
         /// <summary>来源下拉项。IsAll 用于区分"全部设备"这一项。</summary>

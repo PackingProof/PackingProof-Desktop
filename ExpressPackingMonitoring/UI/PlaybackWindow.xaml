@@ -5,6 +5,9 @@
         Title="历史录像检索与回放" Height="700" Width="1100" MinHeight="560" MinWidth="920"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource WindowBackground}"
         Icon="/app.ico"
+        Deactivated="Window_Deactivated"
+        PreviewMouseDown="Window_PreviewMouseDown"
+        PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing">
     <Window.Resources>
         <Style TargetType="TextBox">
@@ -222,49 +225,38 @@
                         </Grid>
 
                         <!-- 日期、来源、发货退货都收进这个按钮，不再各占一行 -->
+                        <!-- 外观走全局 SecondaryButtonStyle，和导出单号、导入录像那几个按钮保持一致 -->
                         <Button x:Name="FilterButton"
                                 Grid.Column="1"
                                 Margin="8,0,0,0"
-                                Height="34"
-                                Padding="10,0"
-                                Cursor="Hand"
+                                MinWidth="88"
+                                Style="{StaticResource SecondaryButtonStyle}"
                                 Focusable="False"
                                 Click="FilterButton_Click"
-                                ToolTip="筛选">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bd"
-                                            Background="{DynamicResource ControlBackground}"
-                                            BorderBrush="{DynamicResource BorderStrong}"
-                                            BorderThickness="2"
-                                            CornerRadius="6"
-                                            Padding="{TemplateBinding Padding}">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Path Data="{StaticResource FluentFilterIcon}" Width="15" Height="15" Stretch="Uniform"
-                                                  Fill="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
-                                            <TextBlock Text="筛选" Margin="6,0,0,0" FontSize="13" VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextPrimary}"/>
-                                            <!-- 生效条数角标，一眼看出有没有筛选 -->
-                                            <Border x:Name="CountBadge"
-                                                    Margin="6,0,0,0"
-                                                    Padding="6,1"
-                                                    CornerRadius="8"
-                                                    Visibility="Collapsed"
-                                                    Background="{DynamicResource AccentBlue}">
-                                                <TextBlock x:Name="FilterCountText"
-                                                           FontSize="11"
-                                                           FontWeight="Bold"
-                                                           Foreground="{StaticResource TextOnAccent}"/>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
+                                ToolTip="筛选"
+                                AutomationProperties.Name="筛选">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Path Data="{StaticResource FluentFilterIcon}"
+                                      Width="16"
+                                      Height="16"
+                                      Stretch="Uniform"
+                                      Fill="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      Margin="0,0,7,0"/>
+                                <TextBlock Text="筛选"/>
+                                <!-- 生效条数角标，一眼看出有没有筛选 -->
+                                <Border x:Name="CountBadge"
+                                        Margin="7,0,0,0"
+                                        Padding="6,1"
+                                        CornerRadius="8"
+                                        VerticalAlignment="Center"
+                                        Visibility="Collapsed"
+                                        Background="{DynamicResource AccentBlue}">
+                                    <TextBlock x:Name="FilterCountText"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource TextOnAccent}"/>
+                                </Border>
+                            </StackPanel>
                         </Button>
                     </Grid>
 
@@ -314,12 +306,15 @@
                     </ItemsControl>
 
                     <!-- 筛选面板：点上面的筛选按钮呼出，日期、来源、类型集中在这里 -->
+                    <!-- StaysOpen="True"：交给窗口自己判断该不该关。
+                         用 False 时点按钮它会先按"点到外面"关掉，紧接着按钮的 Click 又把它开回来，
+                         第二次点击等于没关；里面日期选择器的日历也是另一个弹窗，点日历同样会被误判 -->
                     <Popup x:Name="FilterPopup"
                            PlacementTarget="{Binding ElementName=FilterButton}"
                            Placement="Bottom"
                            HorizontalOffset="-220"
                            VerticalOffset="4"
-                           StaysOpen="False"
+                           StaysOpen="True"
                            AllowsTransparency="True"
                            PopupAnimation="Fade">
                         <Border Background="{DynamicResource PanelBackground}"
