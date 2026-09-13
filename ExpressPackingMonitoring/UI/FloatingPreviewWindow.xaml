@@ -66,67 +66,6 @@
             <Setter Property="SnapsToDevicePixels" Value="False"/>
         </Style>
 
-        <!-- 菜单沿用主界面的圆角、悬停底色与选中蓝，不用系统默认灰底方角 -->
-        <Style x:Key="FloatingMenuItemStyle" TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border x:Name="Bd"
-                                Background="{StaticResource TransparentBrush}"
-                                CornerRadius="4"
-                                Margin="2,1"
-                                Padding="{TemplateBinding Padding}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="18"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Path x:Name="CheckMark"
-                                      Data="{StaticResource FluentCheckIcon}"
-                                      Width="12" Height="12"
-                                      Stretch="Uniform"
-                                      VerticalAlignment="Center"
-                                      Fill="{DynamicResource AccentBlue}"
-                                      Visibility="Collapsed"/>
-                                <ContentPresenter Grid.Column="1"
-                                                  ContentSource="Header"
-                                                  VerticalAlignment="Center"/>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
-                            </Trigger>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="FloatingContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="{DynamicResource PanelBackground}"
-                                BorderBrush="{DynamicResource BorderStrong}"
-                                BorderThickness="1"
-                                CornerRadius="8"
-                                Padding="3">
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Window.Resources>
 
     <!-- 外层 10 圆角与主界面面板一致 -->

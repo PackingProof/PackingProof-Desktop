@@ -331,7 +331,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 PlacementTarget = anchor,
                 Placement = System.Windows.Controls.Primitives.PlacementMode.Top,
-                Style = (Style)FindResource("FloatingContextMenuStyle")
+                Style = (Style)FindResource("AppContextMenuStyle")
             };
 
             IReadOnlyList<AudioEndpointInfo> initial =
@@ -381,8 +381,7 @@ namespace ExpressPackingMonitoring.UI
                 menu.Items.Add(new MenuItem
                 {
                     Header = AppLanguage.Get(emptyText),
-                    IsEnabled = false,
-                    Style = (Style)FindResource("FloatingMenuItemStyle")
+                    IsEnabled = false
                 });
                 return;
             }
@@ -395,7 +394,6 @@ namespace ExpressPackingMonitoring.UI
                 {
                     Header = endpoint.Name,
                     IsCheckable = true,
-                    Style = (Style)FindResource("FloatingMenuItemStyle"),
                     // 旧配置只存了名称没存 Id 时按名称回落匹配，避免菜单里一个勾都没有。
                     IsChecked = hasExplicitChoice
                         ? string.Equals(endpoint.Id, currentId, StringComparison.OrdinalIgnoreCase)
