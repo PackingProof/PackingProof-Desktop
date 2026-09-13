@@ -7,7 +7,20 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!--
+      窗口渲染守卫要真正创建 WPF 窗口。窗口 XAML 里的 Icon="/app.ico"
+      只能从入口程序集（这里是测试程序集）的 WPF 资源里找，
+      所以测试程序集也要开 UseWPF 并带上同一份图标。
+    -->
+    <UseWPF>true</UseWPF>
+    <EnableDefaultXamlItems>false</EnableDefaultXamlItems>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWPF 会换掉一批隐式 using，这两个是现有测试仍在用的 -->
+    <Using Include="System.Net.Http" />
+    <Using Include="System.IO" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
@@ -21,6 +34,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
     <ProjectReference Include="..\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
+    <Resource Include="..\ExpressPackingMonitoring\app.ico" Link="app.ico" />
     <None Include="Fixtures\ExtensionApiV1\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\ExtensionMarket\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

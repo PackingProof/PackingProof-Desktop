@@ -100,6 +100,9 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 _playbackWindow = null;
+                // 只弹 Message 的话，NRE 这类错误在日志里查不到任何线索，
+                // 必须把完整异常写进 runtime.log 才能定位。
+                RuntimeLog.Error("Playback", "打开回放窗口失败", ex);
                 AppDialog.Error(null, $"打开回放窗口失败：{ex.Message}", "回放错误");
             }
         }

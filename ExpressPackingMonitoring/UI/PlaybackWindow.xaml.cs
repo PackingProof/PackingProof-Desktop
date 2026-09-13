@@ -513,7 +513,10 @@ namespace ExpressPackingMonitoring.UI
 
         private void ModeFilterChanged(object sender, RoutedEventArgs e)
         {
-            if (_suppressFilterEvents) return;
+            // XAML 里第一个 RadioButton 带 IsChecked="True"，BAML 解析到它就会触发 Checked，
+            // 那时后面两个同组按钮的字段还没赋值，直接取 IsChecked 会 NRE，
+            // 表现为"打开回放窗口失败"。构造未完成时不处理，默认值由构造函数补。
+            if (_suppressFilterEvents || ModeReturnRadio is null || ModeShippingRadio is null) return;
 
             _filterState.Mode =
                 ModeReturnRadio.IsChecked == true ? RecordingModeFilter.Return
