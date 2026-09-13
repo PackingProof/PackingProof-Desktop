@@ -95,6 +95,24 @@ public sealed class FloatingPreviewUiGuardTests
             "悬浮小窗出现写死颜色，应改用主题资源：" + Environment.NewLine + string.Join(Environment.NewLine, hardcoded));
     }
 
+    /// <summary>
+    /// 流光用负外边距顶到状态条边缘，只靠 ClipToBounds 会在左下角露出方角，
+    /// 所以状态条必须套圆角裁剪把流光一起裁掉。
+    /// </summary>
+    [Fact]
+    public void StatusBar_ClipsShimmerWithRoundedCorners()
+    {
+        string xaml = ReadProjectFile(Path.Combine("UI", "FloatingPreviewWindow.xaml"));
+
+        int barIndex = xaml.IndexOf("x:Name=\"StatusBar\"", StringComparison.Ordinal);
+        Assert.True(barIndex >= 0, "未找到状态条");
+
+        int elementEnd = xaml.IndexOf('>', barIndex);
+        string statusBar = xaml[barIndex..elementEnd];
+
+        Assert.Contains("RoundedClip.Radius", statusBar, StringComparison.Ordinal);
+    }
+
     /// <summary>四个角对应回到主界面、关闭小窗、选择麦克风、选择播放设备。</summary>
     [Fact]
     public void FloatingPreview_ExposesFourCornerActions()

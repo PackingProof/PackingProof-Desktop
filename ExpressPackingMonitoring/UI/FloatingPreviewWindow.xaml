@@ -190,12 +190,13 @@
 
             <!-- 状态条：状态灯与文案由 FloatingPreviewStatusPolicy 决定 -->
             <!-- 底部两角必须自己带圆角，否则会盖住外层圆角，露出方角并吃掉边框 -->
+            <!-- 流光铺满整条并用负外边距顶到边缘，所以裁剪要用圆角几何，不能只靠 ClipToBounds -->
             <Border Grid.Row="1"
                     x:Name="StatusBar"
                     Padding="10,8"
                     CornerRadius="0,0,9,9"
-                    Background="{DynamicResource ControlBackground}"
-                    ClipToBounds="True">
+                    ui:RoundedClip.Radius="0,0,9,9"
+                    Background="{DynamicResource ControlBackground}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -246,11 +247,12 @@
                                    TextTrimming="CharacterEllipsis"/>
 
                         <!-- 发货/退货徽标，点击切换模式，复用主界面的 ToggleModeCommand -->
+                        <!-- 右边距要给右下角的缩放手柄让位，否则两者叠在一起点不准 -->
                         <Button x:Name="ModeButton" Grid.Column="2"
                                 Command="{Binding ToggleModeCommand}"
                                 Cursor="Hand"
                                 Focusable="False"
-                                Margin="8,0,0,0"
+                                Margin="8,0,14,0"
                                 VerticalAlignment="Center">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">

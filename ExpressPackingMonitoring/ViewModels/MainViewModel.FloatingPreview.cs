@@ -94,9 +94,14 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private static IReadOnlyList<AudioEndpointInfo> BuildEndpointMenuItems(DataFlow flow)
         {
+            // 首项带显式标记而不是空值，否则会被判定成"没选过设备"，
+            // 录制时直接跳过音频采集，录出来没有声音。
             var items = new List<AudioEndpointInfo>
             {
-                new(string.Empty, AppLanguage.Get(AudioDeviceSelectionPolicy.FollowSystemDefaultText), false)
+                new(
+                    AudioEndpointCatalog.SystemDefaultId,
+                    AppLanguage.Get(AudioDeviceSelectionPolicy.FollowSystemDefaultText),
+                    false)
             };
             items.AddRange(AudioEndpointCatalog.List(flow));
             return items;
@@ -105,6 +110,11 @@ namespace ExpressPackingMonitoring.ViewModels
         internal string CurrentMicrophoneEndpointId => _config?.AudioDeviceMoniker ?? string.Empty;
 
         internal string CurrentPlaybackEndpointId => _config?.PlaybackDeviceMoniker ?? string.Empty;
+
+        /// <summary>旧配置可能只存了名称没存 Id，菜单勾选要按名称回落匹配。</summary>
+        internal string CurrentMicrophoneEndpointName => _config?.AudioDeviceName ?? string.Empty;
+
+        internal string CurrentPlaybackEndpointName => _config?.PlaybackDeviceName ?? string.Empty;
 
         /// <summary>小窗上次停靠的角落，供下次打开时贴回同一位置。</summary>
         internal string FloatingPreviewCorner => _config?.FloatingPreviewCorner ?? string.Empty;

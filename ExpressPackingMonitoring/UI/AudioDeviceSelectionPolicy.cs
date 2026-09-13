@@ -22,16 +22,14 @@ namespace ExpressPackingMonitoring.UI
             && device.Name != NoMicrophoneText;
 
         /// <summary>
-        /// 是否为一个具体端点。"跟随系统默认"与"未检测到"都只是占位项，
-        /// 选中它们一律按清空配置处理，由解析时回落到系统默认端点。
+        /// 是否为一个具体端点。"未检测到"只是占位项，不能写进配置。
+        /// "跟随系统默认"是一个真实可选项，会以显式标记落盘，不按占位项处理。
         /// </summary>
-        public static bool IsExplicitDevice(MicInfo? device) =>
-            IsAvailable(device) && device!.Name != FollowSystemDefaultText;
+        public static bool IsExplicitDevice(MicInfo? device) => IsAvailable(device);
 
         /// <summary>
         /// 按配置挑出应当选中的项：先用 Id 精确匹配，再退回名称匹配。
         /// 换机器或插拔设备后 Id 会失效，按名称兜底比什么都不选更符合预期。
-        /// 配置为空表示跟随系统默认，直接选占位项而不是猜一个设备。
         /// </summary>
         public static MicInfo? Match(
             IReadOnlyList<MicInfo> devices,
@@ -40,20 +38,27 @@ namespace ExpressPackingMonitoring.UI
         {
             if (devices == null || devices.Count == 0) return null;
 
-            if (string.IsNullOrWhiteSpace(configuredMoniker) && string.IsNullOrWhiteSpace(configuredName))
-                return devices.FirstOrDefault(d => d.Name == FollowSystemDefaultText);
+            if (AudioEndpointCatalog.IsSystemDefault(configuredMoniker))
+                return devices.FirstOrDefault(d => d.Moniker == AudioEndpointCatalog.SystemDefaultId);
 
             return devices.FirstOrDefault(d =>
                        !string.IsNullOrEmpty(configuredMoniker) && d.Moniker == configuredMoniker)
                    ?? devices.FirstOrDefault(d => d.Name == configuredName);
         }
 
-        /// <summary>把枚举到的端点转成下拉项，并在最前面放"跟随系统默认"。</summary>
+        /// <summary>
+        /// 把枚举到的端点转成下拉项，并在最前面放"跟随系统默认"。
+        /// 该项带显式标记而不是空值，避免被判定成"没选过麦克风"。
+        /// </summary>
         public static List<MicInfo> BuildDeviceList(DataFlow flow)
         {
             var items = new List<MicInfo>
             {
-                new() { Name = FollowSystemDefaultText, Moniker = "" }
+                new()
+                {
+                    Name = FollowSystemDefaultText,
+                    Moniker = AudioEndpointCatalog.SystemDefaultId
+                }
             };
 
             foreach (AudioEndpointInfo endpoint in AudioEndpointCatalog.List(flow))
@@ -66,9 +71,14 @@ namespace ExpressPackingMonitoring.UI
         public static List<MicInfo> BuildPlaybackDeviceList() => BuildDeviceList(DataFlow.Render);
 
         /// <summary>
-        /// 把下拉选择回写到配置。选中占位项或没选时清空，
-        /// 清空即代表跟随系统默认，与 SpeechService 的回落行为一致。
+        /// 配置里是否已经有一个可用的录音设备选择。
+        /// "跟随系统默认"带显式标记，属于明确选择，不应再提示"未选择麦克风"。
         /// </summary>
+        public static bool HasUsableMicrophoneSelection(AppConfig config) =>
+            AudioEndpointCatalog.IsSystemDefault(config.AudioDeviceMoniker)
+            || !string.IsNullOrWhiteSpace(config.AudioDeviceName);
+
+        /// <summary>把下拉选择回写到配置；占位项按"未选择"清空。</summary>
         public static void ApplyPlaybackSelection(AppConfig config, MicInfo? selected)
         {
             if (IsExplicitDevice(selected))
@@ -83,7 +93,7 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        /// <summary>麦克风回写：占位项与"跟随系统默认"同样按"未选择"处理。</summary>
+        /// <summary>麦克风回写：占位项按"未选择"处理，"跟随系统默认"则落显式标记。</summary>
         public static void ApplyMicrophoneSelection(AppConfig config, MicInfo? selected)
         {
             if (IsExplicitDevice(selected))

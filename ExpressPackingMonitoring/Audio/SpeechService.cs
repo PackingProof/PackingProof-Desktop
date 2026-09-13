@@ -82,7 +82,7 @@ namespace ExpressPackingMonitoring.Audio
         /// <summary>推理提供者：cpu / directml / cuda。切换 GPU 需要对应的 onnxruntime DLL</summary>
         public string AiTtsProvider { get; set; } = "cpu";
 
-        /// <summary>播报输出端点 Id，留空跟随系统默认扬声器。</summary>
+        /// <summary>播报输出端点 Id；跟随系统默认时为显式标记，留空是未配置的旧配置。</summary>
         public string PlaybackDeviceId { get; set; } = "";
 
         /// <summary>播报输出端点名称，Id 失效时按名称兜底。</summary>
@@ -317,7 +317,9 @@ namespace ExpressPackingMonitoring.Audio
         /// </summary>
         private IWavePlayer CreatePlaybackDevice()
         {
-            if (string.IsNullOrWhiteSpace(PlaybackDeviceId) && string.IsNullOrWhiteSpace(PlaybackDeviceName))
+            // 未配置或显式跟随系统默认，都走默认输出，不必绕 WASAPI 指定端点。
+            if (AudioEndpointCatalog.IsSystemDefault(PlaybackDeviceId)
+                || (string.IsNullOrWhiteSpace(PlaybackDeviceId) && string.IsNullOrWhiteSpace(PlaybackDeviceName)))
                 return new WaveOutEvent();
 
             try

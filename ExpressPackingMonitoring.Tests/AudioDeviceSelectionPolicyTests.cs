@@ -1,5 +1,7 @@
+using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.UI;
+using NAudio.CoreAudioApi;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -55,20 +57,36 @@ public sealed class AudioDeviceSelectionPolicyTests
         Assert.False(AudioDeviceSelectionPolicy.IsAvailable(placeholder));
     }
 
-    /// <summary>播放设备列表第一项必须是"跟随系统默认"，保留不选具体喇叭的可能。</summary>
+    /// <summary>
+    /// 播放设备列表第一项必须是"跟随系统默认"，并且带显式标记而不是空值。
+    /// 用空值表示跟随默认会被判定成"没选过设备"，历史上正是这样导致了
+    /// 设置页的音频提醒，以及录制时直接跳过音频采集录出没有声音的视频。
+    /// </summary>
     [Fact]
-    public void PlaybackDeviceList_StartsWithFollowSystemDefault()
+    public void PlaybackDeviceList_StartsWithExplicitSystemDefault()
     {
         List<MicInfo> devices = AudioDeviceSelectionPolicy.BuildPlaybackDeviceList();
 
         Assert.NotEmpty(devices);
         Assert.Equal(AudioDeviceSelectionPolicy.FollowSystemDefaultText, devices[0].Name);
-        Assert.Equal(string.Empty, devices[0].Moniker);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, devices[0].Moniker);
+        Assert.NotEqual(string.Empty, devices[0].Moniker);
     }
 
-    /// <summary>选择"跟随系统默认"要清空配置，让 SpeechService 回落到默认端点。</summary>
+    /// <summary>麦克风也要有"跟随系统默认"，与播放设备保持一致。</summary>
     [Fact]
-    public void ApplyPlaybackSelection_FollowSystemDefault_ClearsConfig()
+    public void MicrophoneDeviceList_StartsWithExplicitSystemDefault()
+    {
+        List<MicInfo> devices = AudioDeviceSelectionPolicy.BuildDeviceList(DataFlow.Capture);
+
+        Assert.NotEmpty(devices);
+        Assert.Equal(AudioDeviceSelectionPolicy.FollowSystemDefaultText, devices[0].Name);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, devices[0].Moniker);
+    }
+
+    /// <summary>选择"跟随系统默认"要写入显式标记，而不是把配置清空。</summary>
+    [Fact]
+    public void ApplyPlaybackSelection_FollowSystemDefault_PersistsSentinel()
     {
         var config = new AppConfig
         {
@@ -78,10 +96,64 @@ public sealed class AudioDeviceSelectionPolicyTests
 
         AudioDeviceSelectionPolicy.ApplyPlaybackSelection(
             config,
-            new MicInfo { Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText, Moniker = "" });
+            new MicInfo
+            {
+                Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText,
+                Moniker = AudioEndpointCatalog.SystemDefaultId
+            });
 
-        Assert.Equal(string.Empty, config.PlaybackDeviceName);
-        Assert.Equal(string.Empty, config.PlaybackDeviceMoniker);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, config.PlaybackDeviceMoniker);
+        Assert.Equal(AudioDeviceSelectionPolicy.FollowSystemDefaultText, config.PlaybackDeviceName);
+    }
+
+    /// <summary>
+    /// 麦克风选"跟随系统默认"后必须被认定为"已选择"，
+    /// 否则设置页会弹出"未选择麦克风"的提醒，录制也会没有声音。
+    /// </summary>
+    [Fact]
+    public void SystemDefaultMicrophone_CountsAsUsableSelection()
+    {
+        var config = new AppConfig();
+
+        AudioDeviceSelectionPolicy.ApplyMicrophoneSelection(
+            config,
+            new MicInfo
+            {
+                Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText,
+                Moniker = AudioEndpointCatalog.SystemDefaultId
+            });
+
+        Assert.True(AudioEndpointCatalog.IsSystemDefault(config.AudioDeviceMoniker));
+        Assert.True(AudioDeviceSelectionPolicy.HasUsableMicrophoneSelection(config));
+    }
+
+    /// <summary>真正没选过设备时仍要提示，不能被"跟随系统默认"的改动顺手掩盖掉。</summary>
+    [Fact]
+    public void EmptyMicrophoneConfig_IsStillReportedAsUnselected()
+    {
+        Assert.False(AudioDeviceSelectionPolicy.HasUsableMicrophoneSelection(new AppConfig()));
+    }
+
+    /// <summary>配置里存着显式标记时，下拉要选中"跟随系统默认"这一项。</summary>
+    [Fact]
+    public void Match_SelectsSystemDefaultEntry()
+    {
+        var devices = new List<MicInfo>
+        {
+            new()
+            {
+                Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText,
+                Moniker = AudioEndpointCatalog.SystemDefaultId
+            },
+            new() { Name = "USB 麦克风", Moniker = "id-a" }
+        };
+
+        MicInfo? matched = AudioDeviceSelectionPolicy.Match(
+            devices,
+            AudioEndpointCatalog.SystemDefaultId,
+            AudioDeviceSelectionPolicy.FollowSystemDefaultText);
+
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, matched?.Moniker);
     }
 
     [Fact]

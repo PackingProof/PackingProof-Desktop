@@ -1786,10 +1786,10 @@ namespace ExpressPackingMonitoring.UI
                 return false;
             }
 
-            // 0. 验证音频
+            // 0. 验证音频。"跟随系统默认"是明确选择，不算未选择。
             if (Capabilities.CanRecordAudio &&
                 Config.EnableAudioRecording &&
-                string.IsNullOrEmpty(Config.AudioDeviceName))
+                !AudioDeviceSelectionPolicy.HasUsableMicrophoneSelection(Config))
             {
                 bool shouldContinue = AppDialog.Confirm(
                     this,

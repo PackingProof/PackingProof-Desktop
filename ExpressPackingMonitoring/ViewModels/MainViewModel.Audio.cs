@@ -1043,6 +1043,10 @@ namespace ExpressPackingMonitoring.ViewModels
             MMDevice? defaultDevice = null;
             try { defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console); } catch { }
 
+            // 显式选择了"跟随系统默认"：直接用默认端点，不要去匹配这个并不存在的设备 Id。
+            if (AudioEndpointCatalog.IsSystemDefault(Config.AudioDeviceMoniker))
+                return defaultDevice ?? devices[0];
+
             bool hasConfiguredEndpoint = false;
             if (!string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker))
             {
@@ -1126,8 +1130,15 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { }
         }
 
+        /// <summary>
+        /// 是否已经明确选过录音设备。"跟随系统默认"是一个明确选择，
+        /// 必须算作已配置，否则录制会直接跳过音频采集，录出来没有声音。
+        /// </summary>
         private bool HasConfiguredAudioDevice()
         {
+            if (AudioEndpointCatalog.IsSystemDefault(Config.AudioDeviceMoniker))
+                return true;
+
             return !string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker)
                 || (!string.IsNullOrWhiteSpace(Config.AudioDeviceName)
                     && Config.AudioDeviceName != "未检测到麦克风");

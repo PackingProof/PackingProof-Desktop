@@ -298,6 +298,7 @@ namespace ExpressPackingMonitoring.UI
                 MicrophoneButton,
                 _viewModel.ListMicrophoneEndpoints,
                 _viewModel.CurrentMicrophoneEndpointId,
+                _viewModel.CurrentMicrophoneEndpointName,
                 _viewModel.TrySelectMicrophoneEndpoint,
                 isMicrophone: true,
                 "未检测到麦克风");
@@ -307,6 +308,7 @@ namespace ExpressPackingMonitoring.UI
                 SpeakerButton,
                 _viewModel.ListPlaybackEndpoints,
                 _viewModel.CurrentPlaybackEndpointId,
+                _viewModel.CurrentPlaybackEndpointName,
                 _viewModel.TrySelectPlaybackEndpoint,
                 isMicrophone: false,
                 "未检测到播放设备");
@@ -320,6 +322,7 @@ namespace ExpressPackingMonitoring.UI
             FrameworkElement anchor,
             Func<IReadOnlyList<AudioEndpointInfo>> enumerate,
             string currentId,
+            string currentName,
             Func<AudioEndpointInfo, bool> select,
             bool isMicrophone,
             string emptyText)
@@ -333,7 +336,7 @@ namespace ExpressPackingMonitoring.UI
 
             IReadOnlyList<AudioEndpointInfo> initial =
                 (isMicrophone ? _microphoneCache : _playbackCache) ?? Array.Empty<AudioEndpointInfo>();
-            FillEndpointMenu(menu, initial, currentId, select, isMicrophone, emptyText);
+            FillEndpointMenu(menu, initial, currentId, currentName, select, isMicrophone, emptyText);
 
             ControlLayer.Visibility = Visibility.Visible;
             menu.Closed += (_, _) =>
@@ -356,7 +359,7 @@ namespace ExpressPackingMonitoring.UI
                             _playbackCache = task.Result;
 
                         if (menu.IsOpen)
-                            FillEndpointMenu(menu, task.Result, currentId, select, isMicrophone, emptyText);
+                            FillEndpointMenu(menu, task.Result, currentId, currentName, select, isMicrophone, emptyText);
                     });
                 },
                 TaskScheduler.Default);
@@ -366,6 +369,7 @@ namespace ExpressPackingMonitoring.UI
             ContextMenu menu,
             IReadOnlyList<AudioEndpointInfo> endpoints,
             string currentId,
+            string currentName,
             Func<AudioEndpointInfo, bool> select,
             bool isMicrophone,
             string emptyText)
@@ -392,10 +396,10 @@ namespace ExpressPackingMonitoring.UI
                     Header = endpoint.Name,
                     IsCheckable = true,
                     Style = (Style)FindResource("FloatingMenuItemStyle"),
-                    // 没显式选过设备时，勾选"跟随系统默认"这一项，与实际生效的行为一致。
+                    // 旧配置只存了名称没存 Id 时按名称回落匹配，避免菜单里一个勾都没有。
                     IsChecked = hasExplicitChoice
                         ? string.Equals(endpoint.Id, currentId, StringComparison.OrdinalIgnoreCase)
-                        : endpoint.IsFollowSystemDefault
+                        : string.Equals(endpoint.Name, currentName, StringComparison.OrdinalIgnoreCase)
                 };
                 item.Click += (_, _) => SelectEndpoint(captured, select, isMicrophone);
                 menu.Items.Add(item);
