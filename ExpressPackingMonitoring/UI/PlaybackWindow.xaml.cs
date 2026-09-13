@@ -487,14 +487,43 @@ namespace ExpressPackingMonitoring.UI
 
         private void PlaybackWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            ApplyDatePickerLimits();
             RequestVideoLoad();
         }
 
         private void DateFilterChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_suppressFilterEvents) return;
+
+            // 先把选择器上的日期同步进筛选状态，再刷新徽章，
+            // 否则角标和胶囊上显示的还是改动前的日期，看起来像"改了没反应"。
+            SyncDateFilterFromPickers();
+            ApplyDatePickerLimits();
             RefreshFilterIndicators();
             RequestVideoLoad(1);
+        }
+
+        /// <summary>
+        /// 录像只可能发生在今天或更早，所以日历不给选未来的日子；
+        /// 结束日期也不能早于开始日期，省得选完又被交换。
+        /// </summary>
+        private void ApplyDatePickerLimits()
+        {
+            (DateTime? startMax, DateTime? endMin, DateTime endMax) =
+                RecordingFilterState.BuildDatePickerLimits(
+                    DpStartDate.SelectedDate,
+                    DpEndDate.SelectedDate,
+                    DateTime.Today);
+            DpStartDate.DisplayDateEnd = startMax;
+            DpEndDate.DisplayDateStart = endMin;
+            DpEndDate.DisplayDateEnd = endMax;
+        }
+
+        private void SyncDateFilterFromPickers()
+        {
+            _filterState.StartDate = DpStartDate.SelectedDate;
+            _filterState.EndDate = DpEndDate.SelectedDate;
+            _filterState.NormalizeDateRange();
         }
 
         /// <summary>
@@ -597,6 +626,10 @@ namespace ExpressPackingMonitoring.UI
             _suppressFilterEvents = true;
             try
             {
+                // 先放开日历的上下限，否则新日期落在旧限制之外时会被拒掉
+                DpStartDate.DisplayDateEnd = null;
+                DpEndDate.DisplayDateStart = null;
+                DpEndDate.DisplayDateEnd = null;
                 DpStartDate.SelectedDate = _filterState.StartDate;
                 DpEndDate.SelectedDate = _filterState.EndDate;
 
@@ -619,6 +652,7 @@ namespace ExpressPackingMonitoring.UI
                 _suppressFilterEvents = false;
             }
 
+            ApplyDatePickerLimits();
             RefreshFilterIndicators();
             RequestVideoLoad(1);
         }
@@ -698,9 +732,7 @@ namespace ExpressPackingMonitoring.UI
             if (!IsLoaded || _isClosing)
                 return;
 
-            _filterState.StartDate = DpStartDate.SelectedDate;
-            _filterState.EndDate = DpEndDate.SelectedDate;
-            _filterState.NormalizeDateRange();
+            SyncDateFilterFromPickers();
             string? keyword = SearchBox?.Text.Trim();
             int page = Math.Max(1, requestedPage ?? _currentPage);
 
@@ -737,9 +769,9 @@ namespace ExpressPackingMonitoring.UI
                             continue;
 
                         int pageCount = result.UsesApproximatePaging ? 0 : GetPageCount(result.Total);
-                        int normalizedPage = result.UsesApproximatePaging || pageCount == 0
-                            ? request.Page
-                            : Math.Min(request.Page, pageCount);
+                        int normalizedPage = result.UsesApproximatePaging
+                            ? result.Page
+                            : pageCount == 0 ? request.Page : Math.Min(request.Page, pageCount);
                         if (!result.UsesApproximatePaging && pageCount > 0 && normalizedPage != request.Page)
                         {
                             result = await Task.Run(() =>
@@ -782,11 +814,16 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
+        /// <param name="Page">
+        /// 实际取到内容的页码。排除不可用录像时可能跳过整页空结果，
+        /// 上一页、下一页要从这里接着走，否则会来回翻同一段。
+        /// </param>
         private sealed record VideoPageLoadResult(
             List<VideoItem> Items,
             int Total,
             bool HasMore,
-            bool UsesApproximatePaging);
+            bool UsesApproximatePaging,
+            int Page);
 
         private VideoPageLoadResult BuildVideoPage(
             DateTime? start,
@@ -808,20 +845,37 @@ namespace ExpressPackingMonitoring.UI
                     // 来源筛选只有分页查询支持，命中时不能再走排除不可用的快捷路径。
                     if (_excludeUnavailableRecords && !hasSearchKeyword && !hasSourceFilter)
                     {
-                        CursorVideoResult window = _db.QueryVideosWindow(
-                            start,
-                            end,
-                            "",
-                            page,
-                            PageSize,
-                            includeDeleted: false,
-                            searchMode: VideoSearchMode.ExactOrderIdentifiers,
-                            mode: normalizedMode);
+                        // 文件在不在磁盘上只能逐条判断，数据库分页管不了，
+                        // 所以这一页的文件全都不在时会一条都显示不出来，底下却还写着"共 N 条"。
+                        // 遇到整页都被筛掉就继续往后取，跳过这些空页，别让界面看着像没录像。
+                        int windowPage = page;
+                        bool hasMore;
+                        int total = 0;
+                        while (true)
+                        {
+                            CursorVideoResult window = _db.QueryVideosWindow(
+                                start,
+                                end,
+                                "",
+                                windowPage,
+                                PageSize,
+                                includeDeleted: false,
+                                searchMode: VideoSearchMode.ExactOrderIdentifiers,
+                                mode: normalizedMode);
 
-                        videos.AddRange(window.Records
-                            .Select(record => CreateVideoItem(record, _computerName))
-                            .Where(item => !item.IsMissing));
-                        return new VideoPageLoadResult(videos, window.Total, window.HasMore, true);
+                            if (windowPage == page)
+                                total = window.Total;
+                            hasMore = window.HasMore;
+                            videos.AddRange(window.Records
+                                .Select(record => CreateVideoItem(record, _computerName))
+                                .Where(item => !item.IsMissing));
+
+                            if (videos.Count > 0 || !hasMore)
+                                break;
+                            windowPage++;
+                        }
+
+                        return new VideoPageLoadResult(videos, total, hasMore, true, windowPage);
                     }
 
                     var result = _db.QueryVideosPaged(
@@ -855,7 +909,7 @@ namespace ExpressPackingMonitoring.UI
                     {
                         videos.Add(CreateVideoItem(record, _computerName));
                     }
-                    return new VideoPageLoadResult(videos, result.Total, page * PageSize < result.Total, false);
+                    return new VideoPageLoadResult(videos, result.Total, page * PageSize < result.Total, false, page);
                  }
                 catch
                 {
@@ -884,7 +938,8 @@ namespace ExpressPackingMonitoring.UI
                 videos.Skip((page - 1) * PageSize).Take(PageSize).ToList(),
                 totalVisible,
                 videos.Count > page * PageSize,
-                false);
+                false,
+                page);
         }
 
         internal static bool ShouldIncludeDeletedVideos(bool showDeletedVideos, string? keyword) =>

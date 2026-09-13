@@ -171,4 +171,43 @@ public sealed class RecordingFilterStateTests
     {
         Assert.Equal(expected, RecordingModeFilter.Matches(recordMode, filter));
     }
+
+    /// <summary>没选日期时两个日历都只能选到今天，未来的日子不该出现。</summary>
+    [Fact]
+    public void DatePickerLimits_NeverAllowFutureDates()
+    {
+        var today = new DateTime(2026, 9, 13);
+
+        (DateTime? startMax, DateTime? endMin, DateTime endMax) =
+            RecordingFilterState.BuildDatePickerLimits(null, null, today);
+
+        Assert.Equal(today, startMax);
+        Assert.Equal(today, endMax);
+        Assert.Null(endMin);
+    }
+
+    /// <summary>选了开始日期后，结束日期不能再选到它之前。</summary>
+    [Fact]
+    public void DatePickerLimits_EndCannotPrecedeStart()
+    {
+        var today = new DateTime(2026, 9, 13);
+
+        (DateTime? _, DateTime? endMin, DateTime endMax) =
+            RecordingFilterState.BuildDatePickerLimits(new DateTime(2026, 9, 5), null, today);
+
+        Assert.Equal(new DateTime(2026, 9, 5), endMin);
+        Assert.Equal(today, endMax);
+    }
+
+    /// <summary>选了结束日期后，开始日期的上限跟着收到结束日期。</summary>
+    [Fact]
+    public void DatePickerLimits_StartCannotExceedEnd()
+    {
+        var today = new DateTime(2026, 9, 13);
+
+        (DateTime? startMax, DateTime? _, DateTime _) =
+            RecordingFilterState.BuildDatePickerLimits(null, new DateTime(2026, 9, 5), today);
+
+        Assert.Equal(new DateTime(2026, 9, 5), startMax);
+    }
 }

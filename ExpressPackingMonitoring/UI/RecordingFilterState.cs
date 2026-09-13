@@ -107,6 +107,21 @@ namespace ExpressPackingMonitoring.UI
         }
 
         /// <summary>
+        /// 日期选择器可选范围。录像只可能是今天或更早，所以未来的日子一律不给选；
+        /// 结束日期不早于开始日期，开始日期不晚于结束日期，省得选完又被交换。
+        /// </summary>
+        public static (DateTime? StartMax, DateTime? EndMin, DateTime EndMax) BuildDatePickerLimits(
+            DateTime? start,
+            DateTime? end,
+            DateTime today)
+        {
+            DateTime upperBound = today.Date;
+            DateTime? startMax = end?.Date is DateTime endDate && endDate < upperBound ? endDate : upperBound;
+            DateTime? endMin = start?.Date is DateTime startDate && startDate <= upperBound ? startDate : null;
+            return (startMax, endMin, upperBound);
+        }
+
+        /// <summary>
         /// 起止日期填反时交换，而不是查出空列表让人以为没有录像。
         /// </summary>
         public void NormalizeDateRange()
