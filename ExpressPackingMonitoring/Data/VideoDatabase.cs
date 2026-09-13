@@ -2887,32 +2887,21 @@ namespace ExpressPackingMonitoring.Data
             DateTime? endDate,
             CancellationToken cancellationToken = default,
             IProgress<OrderNumberExportProgress> progress = null,
-            string mode = "")
+            string mode = "",
+            string deviceId = "",
+            string sourceName = "",
+            string sourceType = "")
         {
             lock (_lock)
             {
+                // 导出结果要与界面上应用的筛选一致，否则导出的单号对不上列表。
+                (string filterSql, IReadOnlyList<(string Name, string Value)> parameters) =
+                    new OrderNumberExportFilter(startDate, endDate, mode, deviceId, sourceName, sourceType)
+                        .BuildWhere("v");
                 string whereSql = @"
                     WHERE v.IsDeleted = 0
-                      AND COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), NULLIF(TRIM(v.OrderId), '')) IS NOT NULL";
-                var parameters = new List<(string Name, string Value)>();
-
-                // 导出结果要与界面上应用的筛选一致，否则导出的单号对不上列表。
-                string normalizedMode = RecordingModeFilter.Normalize(mode);
-                if (normalizedMode == RecordingModeFilter.Return)
-                    whereSql += " AND v.Mode IN ('return', '退货')";
-                else if (normalizedMode == RecordingModeFilter.Shipping)
-                    whereSql += " AND (v.Mode IN ('shipping', '发货', '') OR v.Mode IS NULL)";
-
-                if (startDate.HasValue)
-                {
-                    whereSql += " AND v.StartTime >= @startDate";
-                    parameters.Add(("startDate", startDate.Value.Date.ToString("yyyy-MM-dd 00:00:00")));
-                }
-                if (endDate.HasValue)
-                {
-                    whereSql += " AND v.StartTime < @endDate";
-                    parameters.Add(("endDate", endDate.Value.Date.AddDays(1).ToString("yyyy-MM-dd 00:00:00")));
-                }
+                      AND COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), NULLIF(TRIM(v.OrderId), '')) IS NOT NULL"
+                    + filterSql;
 
                 cancellationToken.ThrowIfCancellationRequested();
                 progress?.Report(new OrderNumberExportProgress(

@@ -17,7 +17,13 @@ namespace ExpressPackingMonitoring.Services
         /// <summary>Excel 单文件的行数上限，防止一次导出把内存和响应撑爆。</summary>
         internal const int MaxRows = 200_000;
 
-        internal sealed record Request(DateTime? StartDate, DateTime? EndDate, string Mode);
+        internal sealed record Request(
+            DateTime? StartDate,
+            DateTime? EndDate,
+            string Mode,
+            string DeviceId = "",
+            string SourceName = "",
+            string SourceType = "");
 
         internal sealed record Result(byte[] Content, string FileName, int RowCount);
 
@@ -25,14 +31,26 @@ namespace ExpressPackingMonitoring.Services
         /// 解析查询参数。日期填反时交换，与上位机的处理保持一致，
         /// 避免返回空表让人以为没有数据。
         /// </summary>
-        internal static Request ParseRequest(string? start, string? end, string? mode)
+        internal static Request ParseRequest(
+            string? start,
+            string? end,
+            string? mode,
+            string? deviceId = null,
+            string? sourceName = null,
+            string? sourceType = null)
         {
             DateTime? startDate = DateTime.TryParse(start, out DateTime parsedStart) ? parsedStart.Date : null;
             DateTime? endDate = DateTime.TryParse(end, out DateTime parsedEnd) ? parsedEnd.Date : null;
             if (startDate.HasValue && endDate.HasValue && startDate > endDate)
                 (startDate, endDate) = (endDate, startDate);
 
-            return new Request(startDate, endDate, RecordingModeFilter.Normalize(mode));
+            return new Request(
+                startDate,
+                endDate,
+                RecordingModeFilter.Normalize(mode),
+                deviceId?.Trim() ?? "",
+                sourceName?.Trim() ?? "",
+                sourceType?.Trim() ?? "");
         }
 
         /// <summary>
@@ -48,7 +66,16 @@ namespace ExpressPackingMonitoring.Services
 
             string modeText = RecordingModeFilter.ToDisplayText(request.Mode);
             string modePart = modeText.Length > 0 ? $"_{modeText}" : "";
-            return $"单号_{range}{modePart}_{now:yyyyMMdd_HHmmss}.xlsx";
+
+            // 带上设备，导出多台设备时文件名能区分开。
+            string deviceText = request.SourceName.Length > 0 ? request.SourceName
+                : request.DeviceId.Length > 0 ? request.DeviceId
+                : "";
+            foreach (char invalid in Path.GetInvalidFileNameChars())
+                deviceText = deviceText.Replace(invalid, '_');
+            string devicePart = deviceText.Length > 0 ? $"_{deviceText}" : "";
+
+            return $"单号_{range}{modePart}{devicePart}_{now:yyyyMMdd_HHmmss}.xlsx";
         }
 
         /// <summary>
@@ -70,7 +97,10 @@ namespace ExpressPackingMonitoring.Services
                 request.EndDate,
                 cancellationToken,
                 progress: null,
-                mode: request.Mode);
+                mode: request.Mode,
+                deviceId: request.DeviceId,
+                sourceName: request.SourceName,
+                sourceType: request.SourceType);
 
             IReadOnlyList<OrderNumberExportRow> rows = OrderNumberExportService.BuildRows(
                 sources,
@@ -118,7 +148,9 @@ namespace ExpressPackingMonitoring.Services
             var qs = ctx.Request.QueryString;
             try
             {
-                Request request = ParseRequest(qs["start"], qs["end"], qs["mode"]);
+                Request request = ParseRequest(
+                    qs["start"], qs["end"], qs["mode"],
+                    qs["deviceId"], qs["sourceName"], qs["sourceType"]);
                 Result result = Export(database, request, DateTime.Now);
 
                 if (result.RowCount == 0)

@@ -1,4 +1,4 @@
-using ExpressPackingMonitoring.Data;
+﻿using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 using System.ComponentModel;
@@ -22,10 +22,8 @@ public partial class OrderNumberExportProgressDialog : Window
 {
     private static readonly TimeSpan MinimumVisibleDuration = TimeSpan.FromMilliseconds(450);
     private readonly VideoDatabase _database;
-    private readonly DateTime? _startDate;
-    private readonly DateTime? _endDate;
+    private readonly OrderNumberExportFilter _filter;
     private readonly string _targetPath;
-    private readonly string _mode;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly DispatcherTimer _elapsedTimer;
     private readonly Stopwatch _elapsed = new();
@@ -35,17 +33,13 @@ public partial class OrderNumberExportProgressDialog : Window
 
     internal OrderNumberExportProgressDialog(
         VideoDatabase database,
-        DateTime? startDate,
-        DateTime? endDate,
-        string targetPath,
-        string mode = "")
+        OrderNumberExportFilter filter,
+        string targetPath)
     {
         InitializeComponent();
         _database = database;
-        _startDate = startDate;
-        _endDate = endDate;
+        _filter = filter;
         _targetPath = targetPath;
-        _mode = mode ?? "";
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _elapsedTimer.Tick += (_, _) =>
             ElapsedTimeText.Text = $"已用时 {(int)_elapsed.Elapsed.TotalSeconds} 秒";
@@ -106,11 +100,14 @@ public partial class OrderNumberExportProgressDialog : Window
         var total = Stopwatch.StartNew();
         var stage = Stopwatch.StartNew();
         List<OrderNumberExportSource> sources = _database.QueryOrderNumberExportSources(
-            _startDate,
-            _endDate,
+            _filter.StartDate,
+            _filter.EndDate,
             cancellationToken,
             progress,
-            _mode);
+            _filter.Mode,
+            _filter.DeviceId,
+            _filter.SourceName,
+            _filter.SourceType);
         RuntimeLog.Info("OrderExport", $"读取录像记录 {sources.Count} 条，耗时 {stage.ElapsedMilliseconds}ms");
         if (sources.Count == 0)
             return 0;

@@ -115,6 +115,7 @@
     <Compile Include="Config\PreRecordBufferPolicy.cs" />
     <Compile Include="Data\MkvConversionResult.cs" />
     <Compile Include="Data\RecordingModeFilter.cs" />
+    <Compile Include="Data\OrderNumberExportFilter.cs" />
     <Compile Include="Data\MkvConversionTracking.cs" />
     <Compile Include="Data\ArchiveBackupStatePolicy.cs" />
     <Compile Include="Data\ExtensionResultInboxStore.cs" />

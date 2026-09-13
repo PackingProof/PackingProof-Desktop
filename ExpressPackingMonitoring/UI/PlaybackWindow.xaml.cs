@@ -187,10 +187,21 @@ namespace ExpressPackingMonitoring.UI
             if (_db == null || !ExportOrderNumbersButton.IsEnabled)
                 return;
 
-            DateTime? start = DpStartDate.SelectedDate?.Date;
-            DateTime? end = DpEndDate.SelectedDate?.Date;
-            if (start.HasValue && end.HasValue && start > end)
-                (start, end) = (end, start);
+            // 导出必须沿用筛选面板里当前生效的条件（日期、业务、设备），
+            // 否则筛了设备导出来的表里还会混进别的设备。
+            _filterState.NormalizeDateRange();
+            DateTime? start = _filterState.StartDate?.Date;
+            DateTime? end = _filterState.EndDate?.Date;
+            // 只有名字没有设备号的来源就是本机，按来源类型过滤。
+            bool localOnly = string.IsNullOrWhiteSpace(_filterState.SourceId)
+                && !string.IsNullOrWhiteSpace(_filterState.SourceName);
+            var filter = new OrderNumberExportFilter(
+                start,
+                end,
+                _filterState.Mode,
+                _filterState.SourceId,
+                localOnly ? "" : _filterState.SourceName,
+                localOnly ? "pc" : "");
 
             var saveDialog = new SaveFileDialog
             {
@@ -214,8 +225,7 @@ namespace ExpressPackingMonitoring.UI
 
                 var progressDialog = new OrderNumberExportProgressDialog(
                     _db,
-                    start,
-                    end,
+                    filter,
                     saveDialog.FileName)
                 {
                     Owner = this
