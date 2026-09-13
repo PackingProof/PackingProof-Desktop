@@ -82,6 +82,12 @@ namespace ExpressPackingMonitoring.Audio
         /// <summary>推理提供者：cpu / directml / cuda。切换 GPU 需要对应的 onnxruntime DLL</summary>
         public string AiTtsProvider { get; set; } = "cpu";
 
+        /// <summary>播报输出端点 Id，留空跟随系统默认扬声器。</summary>
+        public string PlaybackDeviceId { get; set; } = "";
+
+        /// <summary>播报输出端点名称，Id 失效时按名称兜底。</summary>
+        public string PlaybackDeviceName { get; set; } = "";
+
         /// <summary>AI TTS 模型是否已成功加载</summary>
         public bool IsAiTtsAvailable => IsEdgeTtsEngine || _kokoroTts != null;
 
@@ -305,6 +311,32 @@ namespace ExpressPackingMonitoring.Audio
             catch (Exception ex) { Debug.WriteLine($"[SpeechService] Thread error: {ex.Message}"); }
         }
 
+        /// <summary>
+        /// 按配置创建播放器。选了具体扬声器就走 WASAPI 指定端点，
+        /// 没选或端点已拔出时回落到 WaveOutEvent 跟随系统默认，保证播报不会因为设备变更而静音。
+        /// </summary>
+        private IWavePlayer CreatePlaybackDevice()
+        {
+            if (string.IsNullOrWhiteSpace(PlaybackDeviceId) && string.IsNullOrWhiteSpace(PlaybackDeviceName))
+                return new WaveOutEvent();
+
+            try
+            {
+                MMDevice? device = AudioEndpointCatalog.Resolve(
+                    DataFlow.Render,
+                    PlaybackDeviceId,
+                    PlaybackDeviceName);
+                if (device != null)
+                    return new WasapiOut(device, AudioClientShareMode.Shared, true, 120);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SpeechService] Playback endpoint fallback: {ex.Message}");
+            }
+
+            return new WaveOutEvent();
+        }
+
         private void MaximizeSystemPlaybackVolume()
         {
             if (!MaximizeVolumeForSpeech)
@@ -312,10 +344,18 @@ namespace ExpressPackingMonitoring.Audio
 
             try
             {
-                using var enumerator = new MMDeviceEnumerator();
-                using MMDevice device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                device.AudioEndpointVolume.Mute = false;
-                device.AudioEndpointVolume.MasterVolumeLevelScalar = 1.0f;
+                MMDevice? device = AudioEndpointCatalog.Resolve(
+                    DataFlow.Render,
+                    PlaybackDeviceId,
+                    PlaybackDeviceName);
+                if (device == null)
+                    return;
+
+                using (device)
+                {
+                    device.AudioEndpointVolume.Mute = false;
+                    device.AudioEndpointVolume.MasterVolumeLevelScalar = 1.0f;
+                }
             }
             catch (Exception ex)
             {
@@ -560,12 +600,12 @@ namespace ExpressPackingMonitoring.Audio
         {
             if (!File.Exists(path)) return;
 
-            WaveOutEvent? waveOut = null;
+            IWavePlayer? waveOut = null;
             AudioFileReader? reader = null;
             try
             {
                 reader = new AudioFileReader(path);
-                waveOut = new WaveOutEvent();
+                waveOut = CreatePlaybackDevice();
                 waveOut.Init(reader);
 
                 lock (_filePlaybackLock)
@@ -1232,13 +1272,13 @@ namespace ExpressPackingMonitoring.Audio
             if (wav.Length < 44)
                 return;
 
-            WaveOutEvent? waveOut = null;
+            IWavePlayer? waveOut = null;
             WaveFileReader? reader = null;
             try
             {
                 using var stream = new MemoryStream(wav, writable: false);
                 reader = new WaveFileReader(stream);
-                waveOut = new WaveOutEvent();
+                waveOut = CreatePlaybackDevice();
                 waveOut.Init(reader);
                 waveOut.Play();
                 while (waveOut.PlaybackState == PlaybackState.Playing && !_isDisposed)

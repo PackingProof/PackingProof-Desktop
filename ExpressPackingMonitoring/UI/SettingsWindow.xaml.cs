@@ -597,18 +597,18 @@ namespace ExpressPackingMonitoring.UI
             else
                 CameraComboBox.SelectedValue = config.CameraIndex;
 
-            // 更新麦克风
+            // 更新麦克风：与播放设备一致，首项是"跟随系统默认"。
+            // 配置为空即表示跟随默认，不再自动替用户挑一个具体设备。
             var mics = result.Mics;
-            if (mics.Count == 0)
-                mics.Add(new MicInfo { Name = "未检测到麦克风" });
-            MicComboBox.ItemsSource = mics;
-            var firstAvailableMic = mics.FirstOrDefault(IsAvailableMic);
-            if (string.IsNullOrEmpty(config.AudioDeviceName) && firstAvailableMic != null)
+            mics.Insert(0, new MicInfo
             {
-                config.AudioDeviceName = firstAvailableMic.Name;
-                config.AudioDeviceMoniker = firstAvailableMic.Moniker ?? "";
-            }
+                Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText,
+                Moniker = ""
+            });
+            MicComboBox.ItemsSource = mics;
             SelectMicByConfig(mics);
+            // 播放设备与摄像头无关，只在设备列表刷新时填充一次。
+            LoadPlaybackDevices();
 
             // 更新分辨率
             var resolutions = result.Resolutions;
@@ -2512,39 +2512,28 @@ namespace ExpressPackingMonitoring.UI
 
         private void SelectMicByConfig(List<MicInfo> mics)
         {
-            var micMatch = mics.FirstOrDefault(m => !string.IsNullOrEmpty(Config.AudioDeviceMoniker)
-                                                    && m.Moniker == Config.AudioDeviceMoniker)
-                        ?? mics.FirstOrDefault(m => m.Name == Config.AudioDeviceName);
-            if (micMatch != null)
-            {
-                MicComboBox.SelectedItem = micMatch;
-                if (IsAvailableMic(micMatch))
-                {
-                    Config.AudioDeviceName = micMatch.Name;
-                    Config.AudioDeviceMoniker = micMatch.Moniker ?? "";
-                }
-            }
+            MicComboBox.SelectedItem =
+                AudioDeviceSelectionPolicy.Match(mics, Config.AudioDeviceMoniker, Config.AudioDeviceName)
+                ?? mics.FirstOrDefault();
+        }
+
+        /// <summary>播放设备下拉的填充与选中，规则与麦克风共用同一套策略。</summary>
+        private void LoadPlaybackDevices()
+        {
+            var devices = AudioDeviceSelectionPolicy.BuildPlaybackDeviceList();
+            PlaybackDeviceComboBox.ItemsSource = devices;
+            PlaybackDeviceComboBox.SelectedItem =
+                AudioDeviceSelectionPolicy.Match(
+                    devices, Config.PlaybackDeviceMoniker, Config.PlaybackDeviceName)
+                ?? devices[0];
         }
 
         private void SyncSelectedMicToConfig()
         {
-            if (MicComboBox.SelectedItem is MicInfo mic && IsAvailableMic(mic))
-            {
-                Config.AudioDeviceName = mic.Name;
-                Config.AudioDeviceMoniker = mic.Moniker ?? "";
-            }
-            else
-            {
-                Config.AudioDeviceName = "";
-                Config.AudioDeviceMoniker = "";
-            }
-        }
-
-        private static bool IsAvailableMic(MicInfo mic)
-        {
-            return mic != null
-                && !string.IsNullOrWhiteSpace(mic.Name)
-                && mic.Name != "未检测到麦克风";
+            AudioDeviceSelectionPolicy.ApplyMicrophoneSelection(
+                Config, MicComboBox.SelectedItem as MicInfo);
+            AudioDeviceSelectionPolicy.ApplyPlaybackSelection(
+                Config, PlaybackDeviceComboBox.SelectedItem as MicInfo);
         }
 
         protected override void OnClosed(EventArgs e)

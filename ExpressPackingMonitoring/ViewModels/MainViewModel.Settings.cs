@@ -212,6 +212,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         _speechService.AiTtsSpeed = Config.AiTtsSpeed;
                         _speechService.EdgeTtsVoice = Config.EdgeTtsVoice;
                         _speechService.EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice;
+                        _speechService.PlaybackDeviceId = Config.PlaybackDeviceMoniker;
+                        _speechService.PlaybackDeviceName = Config.PlaybackDeviceName;
                         _speechService.UpdateBreakWords(Config.TtsBreakWords);
                         if (aiTtsChanged && Config.EnableAiTts && !_speechService.IsAiTtsAvailable)
                             _speechService.InitAiTts();

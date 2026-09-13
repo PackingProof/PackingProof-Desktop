@@ -25,6 +25,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _capsLockStateBeforeFocus;
         private bool _capsLockOverridden;
         private bool _capsLockSuspended;
+        private FloatingPreviewController? _floatingPreviewController;
         private DateTime _lastMouseActivityNotifyAt = DateTime.MinValue;
         private const int WM_ENTERSIZEMOVE = 0x0231;
         private const int WM_EXITSIZEMOVE = 0x0232;
@@ -209,6 +210,9 @@ namespace ExpressPackingMonitoring.UI
                     ApplyCapsLockForScanInput();
                 }
             };
+            // 小窗只由最小化触发，主界面不新增按钮，所以控制器必须在这里提前挂好。
+            if (DataContext is MainViewModel floatingPreviewViewModel)
+                _floatingPreviewController = new FloatingPreviewController(this, floatingPreviewViewModel);
             // 全局鼠标/键盘活跃检测，用于摄像头空闲休眠唤醒
             PreviewMouseMove += (s, e) =>
             {

@@ -233,6 +233,7 @@
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />
+    <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />
     <Compile Include="ViewModels\MainViewModel.Notifications.cs" />
     <Compile Include="ViewModels\MainViewModel.Settings.cs" />
@@ -247,6 +248,13 @@
     <Compile Include="UI\AppDialog.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\BackupDeviceEnrollmentApprovalWindow.xaml.cs" />
+    <Compile Include="UI\FloatingPreviewController.cs" />
+    <Compile Include="UI\FloatingPreviewStatus.cs" />
+    <Compile Include="UI\FloatingPreviewWindow.xaml.cs" />
+    <Compile Include="Audio\AudioEndpointCatalog.cs" />
+    <Compile Include="UI\AudioDeviceSelectionPolicy.cs" />
+    <Compile Include="UI\FloatingPreviewPlacement.cs" />
+    <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />
     <Compile Include="UI\ExtensionMarketWindow.xaml.cs" />

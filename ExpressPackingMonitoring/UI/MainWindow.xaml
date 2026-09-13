@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
+        xmlns:ui="clr-namespace:ExpressPackingMonitoring.UI"
         xmlns:localization="clr-namespace:ExpressPackingMonitoring.Localization"
         xmlns:vm="clr-namespace:ExpressPackingMonitoring.ViewModels"
         Title="打包监控" Height="850" Width="1350"
@@ -277,7 +278,8 @@
                 </Border>
 
                 <Border Grid.Row="1" Background="{DynamicResource VideoPlaceholder}" CornerRadius="10" ClipToBounds="True">
-                    <Grid>
+                    <!-- ClipToBounds 只按矩形裁剪，铺满时视频会从圆角处溢出直角，所以额外套圆角裁剪 -->
+                    <Grid ui:RoundedClip.Radius="10">
                         <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
                         <Grid x:Name="CameraBarcodeGuide"
                               Width="0"

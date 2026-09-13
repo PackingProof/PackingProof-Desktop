@@ -1278,6 +1278,24 @@
                                                   SelectedValue="{Binding Config.AudioDeviceName}"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="播放设备" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="选择语音播报使用的喇叭，跟随系统默认时留空"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="PlaybackDeviceComboBox"
+                                                  Grid.Column="2"
+                                                  SelectedValuePath="Name"
+                                                  DisplayMemberPath="Name"
+                                                  SelectedValue="{Binding Config.PlaybackDeviceName}"/>
+                                    </Grid>
+
 
                                 </StackPanel>
                             </Border>

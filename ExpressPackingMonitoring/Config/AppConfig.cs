@@ -245,7 +245,12 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableDirectAacRecording { get; set; } = false;
         public string AudioDeviceName { get; set; } = "";
         public string AudioDeviceMoniker { get; set; } = "";
+        // 播报输出端点。留空表示跟随系统默认扬声器，与历史行为一致。
+        public string PlaybackDeviceName { get; set; } = "";
+        public string PlaybackDeviceMoniker { get; set; } = "";
         public int AudioSyncOffsetMs { get; set; } = 0;
+        // 悬浮小窗上次停靠的角落名，只记角落不记坐标，换分辨率或换显示器也不会跑到屏幕外。
+        public string FloatingPreviewCorner { get; set; } = "BottomRight";
         public double BarcodeCooldownSeconds { get; set; } = 2.0;
         public string GpuEncoder { get; set; } = "auto";
         public string VideoCodec { get; set; } = "h265"; // "h264" or "h265"

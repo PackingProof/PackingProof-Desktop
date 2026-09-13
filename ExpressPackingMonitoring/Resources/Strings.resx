@@ -1079,4 +1079,18 @@
   <data name="缓存接近上限时自动清理已上传的录像，未上传的录像会保留" xml:space="preserve"><value>Uploaded recordings are cleaned up automatically as the cache approaches its limit; recordings not yet uploaded are retained</value></data>
   <data name="手动提前清理本机录像，不影响已备份的远端文件" xml:space="preserve"><value>Clean up local recordings manually without affecting remote backup files</value></data>
   <data name="手动提前释放本机空间，不影响已备份的远端文件" xml:space="preserve"><value>Free local space manually without affecting remote backup files</value></data>
+  <data name="回到主界面" xml:space="preserve"><value>Back to main window</value></data>
+  <data name="关闭小窗" xml:space="preserve"><value>Close mini window</value></data>
+  <data name="选择播放设备" xml:space="preserve"><value>Select playback device</value></data>
+  <data name="未检测到播放设备" xml:space="preserve"><value>No playback device detected</value></data>
+  <data name="播放设备" xml:space="preserve"><value>Playback device</value></data>
+  <data name="选择语音播报使用的喇叭，跟随系统默认时留空" xml:space="preserve"><value>Select the speaker used for voice prompts; leave empty to follow the system default</value></data>
+  <data name="跟随系统默认" xml:space="preserve"><value>Follow system default</value></data>
+  <data name="等待扫描单号" xml:space="preserve"><value>Waiting for order scan</value></data>
+  <data name="预录制中，等待扫描单号" xml:space="preserve"><value>Pre-recording, waiting for order scan</value></data>
+  <data name="设备切换保存失败，本次未生效" xml:space="preserve"><value>Failed to save the device change; it did not take effect</value></data>
+  <data name="设备切换失败" xml:space="preserve"><value>Device switch failed</value></data>
+  <data name="播放设备已切换为 {0}" xml:space="preserve"><value>Playback device switched to {0}</value></data>
+  <data name="麦克风已切换为 {0}" xml:space="preserve"><value>Microphone switched to {0}</value></data>
+  <data name="麦克风已切换为 {0}，下一单录制生效" xml:space="preserve"><value>Microphone switched to {0}; takes effect on the next recording</value></data>
 </root>
