@@ -381,7 +381,8 @@ namespace ExpressPackingMonitoring.UI
                 menu.Items.Add(new MenuItem
                 {
                     Header = AppLanguage.Get(emptyText),
-                    IsEnabled = false
+                    IsEnabled = false,
+                    Style = (Style)FindResource("AppMenuItemStyle")
                 });
                 return;
             }
@@ -394,6 +395,7 @@ namespace ExpressPackingMonitoring.UI
                 {
                     Header = endpoint.Name,
                     IsCheckable = true,
+                    Style = (Style)FindResource("AppMenuItemStyle"),
                     // 旧配置只存了名称没存 Id 时按名称回落匹配，避免菜单里一个勾都没有。
                     IsChecked = hasExplicitChoice
                         ? string.Equals(endpoint.Id, currentId, StringComparison.OrdinalIgnoreCase)

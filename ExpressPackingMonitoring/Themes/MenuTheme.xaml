@@ -3,7 +3,15 @@
     <!--
         统一的菜单外观：圆角、面板底色、悬停减淡，不用系统默认的灰底方角。
         悬浮小窗的设备选择菜单与回放列表的右键菜单共用这一套。
+
+        StaticResource 在本字典加载时就要解析完，查不到兄弟字典，
+        所以这里显式合并依赖的配色与图标，不依赖 App.xaml 的合并顺序。
     -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="ColorTokens.xaml"/>
+        <ResourceDictionary Source="FluentIcons.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
     <Style x:Key="AppMenuItemStyle" TargetType="MenuItem">
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
         <Setter Property="FontSize" Value="12"/>
@@ -63,15 +71,12 @@
     </Style>
 
     <Style x:Key="AppContextMenuStyle" TargetType="ContextMenu">
-        <!-- 菜单项与分隔线默认套用同一套外观，调用处不必逐项指定 -->
-        <Setter Property="Resources">
-            <Setter.Value>
-                <ResourceDictionary>
-                    <Style TargetType="MenuItem" BasedOn="{StaticResource AppMenuItemStyle}"/>
-                    <Style TargetType="Separator" BasedOn="{StaticResource AppSeparatorStyle}"/>
-                </ResourceDictionary>
-            </Setter.Value>
-        </Setter>
+        <!--
+            这里不能用 <Setter Property="Resources"> 给菜单项套隐式样式：
+            Resources 是 CLR 属性而不是依赖属性，Setter 解析时会抛
+            ArgumentNullException(property)，菜单一渲染就崩。
+            菜单项与分隔线的样式由调用处显式指定。
+        -->
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">

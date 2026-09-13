@@ -112,13 +112,16 @@
         -->
         <ContextMenu x:Key="VideoRowContextMenu" Style="{StaticResource AppContextMenuStyle}">
             <MenuItem Header="复制单号"
+                      Style="{StaticResource AppMenuItemStyle}"
                       Click="CopyOrderId_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
             <MenuItem Header="复制文件路径"
+                      Style="{StaticResource AppMenuItemStyle}"
                       Click="CopyFilePath_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-            <Separator/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"/>
             <MenuItem Header="在资源管理器中定位"
+                      Style="{StaticResource AppMenuItemStyle}"
                       Click="LocateFile_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       IsEnabled="{Binding CanLocateFile}"/>
