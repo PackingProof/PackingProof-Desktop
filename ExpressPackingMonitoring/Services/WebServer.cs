@@ -4818,45 +4818,23 @@ namespace ExpressPackingMonitoring.Services
 
         private void HandleVideoSources(HttpListenerContext ctx)
         {
-            var data = _db.GetVideoSources()
-                .Where(source => string.Equals(
-                        source.SourceType,
-                        "pc",
-                        StringComparison.OrdinalIgnoreCase)
-                    || !string.IsNullOrWhiteSpace(source.DeviceId))
+            // 去重规则与回放窗口共用 VideoSourceFilterOptions，避免两端下拉表现不一致。
+            var data = VideoSourceFilterOptions.Build(
+                    _db.GetVideoSources(),
+                    source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                        ? ResolveVideoSourceName(source.DeviceId, source.DeviceName)
+                        : ResolveVideoSourceDisplayName(
+                            source.SourceType,
+                            source.DeviceId,
+                            source.DeviceName,
+                            "pc",
+                            _nodeName))
                 .Select(source => new
                 {
-                    sourceType = string.Equals(
-                        source.SourceType,
-                        "external",
-                        StringComparison.OrdinalIgnoreCase)
-                            ? "external"
-                            : "pc",
-                    deviceId = source.DeviceId ?? "",
-                    name = string.Equals(
-                        source.SourceType,
-                        "external",
-                        StringComparison.OrdinalIgnoreCase)
-                            ? ResolveVideoSourceName(source.DeviceId, source.DeviceName)
-                            : ResolveVideoSourceDisplayName(
-                                source.SourceType,
-                                source.DeviceId,
-                                source.DeviceName,
-                                "pc",
-                                _nodeName),
+                    sourceType = source.SourceType,
+                    deviceId = source.DeviceId,
+                    name = source.Name,
                     videoCount = source.VideoCount
-                })
-                .GroupBy(
-                    source => source.sourceType == "external"
-                        ? $"{source.sourceType}:{source.name}"
-                        : "pc:",
-                    StringComparer.OrdinalIgnoreCase)
-                .Select(group => new
-                {
-                    sourceType = group.First().sourceType,
-                    deviceId = group.Count() == 1 ? group.First().deviceId : "",
-                    name = group.First().name,
-                    videoCount = group.Sum(source => source.videoCount)
                 });
             SendJson(ctx, 200, new { data });
         }

@@ -617,17 +617,15 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (_db != null)
                 {
-                    foreach (VideoSourceInfo source in _db.GetVideoSources())
-                    {
-                        // 本机录像没有设备名，统一显示成"本机"。
-                        string name = !string.IsNullOrWhiteSpace(source.DeviceName)
-                            ? source.DeviceName
-                            : string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-                                ? source.DeviceId
-                                : "本机";
-                        if (!string.IsNullOrWhiteSpace(name))
-                            options.Add(new VideoSourceOption(name, source.DeviceId ?? "", false));
-                    }
+                    // 同一台手机换过设备号就会在数据库里分成多组，
+                    // 不按显示名合并的话下拉里会出现好几个"手机1"。
+                    IReadOnlyList<VideoSourceFilterOption> grouped = VideoSourceFilterOptions.Build(
+                        _db.GetVideoSources(),
+                        source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
+                            ? GetSourceDeviceDisplayName(source.DeviceId, source.DeviceName)
+                            : "本机");
+                    foreach (VideoSourceFilterOption source in grouped)
+                        options.Add(new VideoSourceOption(source.Name, source.DeviceId, false));
                 }
             }
             catch (Exception ex)
