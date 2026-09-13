@@ -269,7 +269,9 @@
                     </Grid>
 
                     <!-- 已应用筛选的胶囊徽章，点叉清除单个条件 -->
-                    <ItemsControl x:Name="FilterBadgeList" Margin="0,8,0,0" Visibility="Collapsed">
+                    <!-- 徽章自带 6 的下外边距用来撑开换行后的行距，底部用 -6 抵掉，
+                         否则下面那排按钮的间隙会比上面多出 6，看着不等距 -->
+                    <ItemsControl x:Name="FilterBadgeList" Margin="0,12,0,-6" Visibility="Collapsed">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <WrapPanel/>
