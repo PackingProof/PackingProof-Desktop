@@ -1093,4 +1093,12 @@
   <data name="播放设备已切换为 {0}" xml:space="preserve"><value>Playback device switched to {0}</value></data>
   <data name="麦克风已切换为 {0}" xml:space="preserve"><value>Microphone switched to {0}</value></data>
   <data name="麦克风已切换为 {0}，下一单录制生效" xml:space="preserve"><value>Microphone switched to {0}; takes effect on the next recording</value></data>
+  <data name="复制单号" xml:space="preserve"><value>Copy order number</value></data>
+  <data name="复制文件路径" xml:space="preserve"><value>Copy file path</value></data>
+  <data name="在资源管理器中定位" xml:space="preserve"><value>Show in File Explorer</value></data>
+  <data name="单号已复制" xml:space="preserve"><value>Order number copied</value></data>
+  <data name="文件路径已复制" xml:space="preserve"><value>File path copied</value></data>
+  <data name="这条录像没有记录单号" xml:space="preserve"><value>This recording has no order number</value></data>
+  <data name="这条录像没有记录文件路径" xml:space="preserve"><value>This recording has no file path</value></data>
+  <data name="录像已清理或不在本机，无法定位文件" xml:space="preserve"><value>The recording was cleaned up or is not on this computer, so the file cannot be located</value></data>
 </root>

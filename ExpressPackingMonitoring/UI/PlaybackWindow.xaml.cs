@@ -39,6 +39,28 @@ namespace ExpressPackingMonitoring.UI
         public DateTime? DeletedAt { get; set; }
         public FileInfo? File { get; set; }
 
+        // 悬浮提示与右键菜单需要的明细，与 Web 端 buildVideoTooltip 的字段保持一致。
+        public string TrackingNumber { get; set; } = "";
+        public string SourceOrderId { get; set; } = "";
+        public string BuyerMessage { get; set; } = "";
+        public string SellerMemo { get; set; } = "";
+        public string ProductInfo { get; set; } = "";
+        public string OrderInfoPushTime { get; set; } = "";
+        public DateTime StartTime { get; set; }
+        public string FileName { get; set; } = "";
+
+        /// <summary>右键复制单号时优先取快递单号，与列表显示口径一致。</summary>
+        public string CopyableOrderId =>
+            !string.IsNullOrWhiteSpace(TrackingNumber) ? TrackingNumber
+            : !string.IsNullOrWhiteSpace(OrderId) ? OrderId
+            : "";
+
+        /// <summary>只有本地真实存在的文件才能在资源管理器里定位。</summary>
+        public bool CanLocateFile =>
+            !string.IsNullOrWhiteSpace(FullPath) && !IsDeleted && !IsStoredOnHost && !IsMissing;
+
+        public string ToolTipText => PlaybackTooltipBuilder.Build(this);
+
         public string EncoderDisplay
         {
             get
@@ -86,6 +108,7 @@ namespace ExpressPackingMonitoring.UI
         private string _lastImportFolder;
         private readonly DispatcherTimer _timer;
         private readonly DispatcherTimer _searchTimer;
+        private DispatcherTimer? _toastTimer;
         private readonly string[] _videoExtensions = [".mp4", ".mkv"];
         private const int PageSize = 50;
         private LibVLC? _libVLC;
@@ -224,6 +247,90 @@ namespace ExpressPackingMonitoring.UI
                 ExportOrderNumbersButtonText.Text = "导出单号";
                 ExportOrderNumbersButton.IsEnabled = _db != null && !_isClosing;
             }
+        }
+
+        /// <summary>
+        /// 右键菜单挂在 ListViewItem 上，DataContext 就是这一行；
+        /// 取不到时说明菜单不是从行上弹出的，直接忽略而不是操作当前选中项。
+        /// </summary>
+        private static VideoItem? GetContextMenuItem(object sender) =>
+            (sender as FrameworkElement)?.DataContext as VideoItem;
+
+        private void CopyOrderId_Click(object sender, RoutedEventArgs e)
+        {
+            VideoItem? item = GetContextMenuItem(sender);
+            if (item == null) return;
+
+            if (string.IsNullOrWhiteSpace(item.CopyableOrderId))
+            {
+                AppDialog.Information(this, "这条录像没有记录单号", "复制单号");
+                return;
+            }
+
+            CopyToClipboard(item.CopyableOrderId, "单号已复制");
+        }
+
+        private void CopyFilePath_Click(object sender, RoutedEventArgs e)
+        {
+            VideoItem? item = GetContextMenuItem(sender);
+            if (item == null) return;
+
+            string path = string.IsNullOrWhiteSpace(item.FullPath) ? item.FileName : item.FullPath;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                AppDialog.Information(this, "这条录像没有记录文件路径", "复制文件路径");
+                return;
+            }
+
+            CopyToClipboard(path, "文件路径已复制");
+        }
+
+        private void LocateFile_Click(object sender, RoutedEventArgs e)
+        {
+            VideoItem? item = GetContextMenuItem(sender);
+            if (item == null) return;
+
+            if (!item.CanLocateFile)
+            {
+                AppDialog.Error(this, "录像已清理或不在本机，无法定位文件", "定位失败");
+                return;
+            }
+
+            LocateExportedOrderFile(item.FullPath);
+        }
+
+        /// <summary>剪贴板偶发被其它程序占用，失败时提示而不是让操作静默无反应。</summary>
+        private void CopyToClipboard(string text, string successMessage)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                ShowPlaybackToast(successMessage);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Playback", $"复制到剪贴板失败：{ex.Message}");
+                AppDialog.Error(this, $"复制失败：{ex.Message}", "复制失败");
+            }
+        }
+
+        /// <summary>复制类操作的轻提示，2 秒后自动收起，不打断当前操作。</summary>
+        private void ShowPlaybackToast(string message)
+        {
+            PlaybackToastText.Text = message;
+            PlaybackToast.Visibility = Visibility.Visible;
+
+            _toastTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _toastTimer.Stop();
+            _toastTimer.Tick -= PlaybackToastTimer_Tick;
+            _toastTimer.Tick += PlaybackToastTimer_Tick;
+            _toastTimer.Start();
+        }
+
+        private void PlaybackToastTimer_Tick(object? sender, EventArgs e)
+        {
+            _toastTimer?.Stop();
+            PlaybackToast.Visibility = Visibility.Collapsed;
         }
 
         private void LocateExportedOrderFile(string filePath)
@@ -589,7 +696,15 @@ namespace ExpressPackingMonitoring.UI
                 ArchiveStatusText = archiveStatusText,
                 DeleteReason = record.DeleteReason,
                 DeletedAt = record.DeletedAt,
-                File = info
+                File = info,
+                TrackingNumber = record.TrackingNumber ?? "",
+                SourceOrderId = record.SourceOrderId ?? "",
+                BuyerMessage = record.BuyerMessage ?? "",
+                SellerMemo = record.SellerMemo ?? "",
+                ProductInfo = record.ProductInfo ?? "",
+                OrderInfoPushTime = record.OrderInfoPushTime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "",
+                StartTime = record.StartTime,
+                FileName = record.FileName
             };
         }
 

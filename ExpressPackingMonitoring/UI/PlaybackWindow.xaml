@@ -216,6 +216,29 @@
                             <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
                             <Setter Property="BorderThickness" Value="1"/>
                             <Setter Property="Cursor" Value="Hand"/>
+                            <!-- 悬浮显示完整信息，与 Web 端的行提示保持同一套字段 -->
+                            <Setter Property="ToolTip">
+                                <Setter.Value>
+                                    <ToolTip MaxWidth="520">
+                                        <TextBlock Text="{Binding ToolTipText}" TextWrapping="Wrap" FontSize="12"/>
+                                    </ToolTip>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="ToolTipService.InitialShowDelay" Value="450"/>
+                            <Setter Property="ToolTipService.ShowDuration" Value="30000"/>
+                            <!-- 右键常用操作：复制单号、定位文件 -->
+                            <Setter Property="ContextMenu">
+                                <Setter.Value>
+                                    <ContextMenu>
+                                        <MenuItem Header="复制单号" Click="CopyOrderId_Click"/>
+                                        <MenuItem Header="复制文件路径" Click="CopyFilePath_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="在资源管理器中定位"
+                                                  Click="LocateFile_Click"
+                                                  IsEnabled="{Binding CanLocateFile}"/>
+                                    </ContextMenu>
+                                </Setter.Value>
+                            </Setter>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListViewItem">
@@ -406,6 +429,23 @@
                     </Grid>
                 </Border>
             </Grid>
+        </Border>
+
+        <!-- 复制类操作的轻提示：不打断操作，也不弹模态框 -->
+        <Border x:Name="PlaybackToast"
+                Grid.ColumnSpan="2"
+                Visibility="Collapsed"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,24"
+                Padding="16,9"
+                CornerRadius="8"
+                Background="{DynamicResource OverlayStrong}"
+                Panel.ZIndex="100">
+            <TextBlock x:Name="PlaybackToastText"
+                       Foreground="{StaticResource OverlayTextPrimary}"
+                       FontSize="13"
+                       FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

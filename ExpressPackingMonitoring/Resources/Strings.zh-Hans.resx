@@ -1073,4 +1073,12 @@
   <data name="播放设备已切换为 {0}" xml:space="preserve"><value>播放设备已切换为 {0}</value></data>
   <data name="麦克风已切换为 {0}" xml:space="preserve"><value>麦克风已切换为 {0}</value></data>
   <data name="麦克风已切换为 {0}，下一单录制生效" xml:space="preserve"><value>麦克风已切换为 {0}，下一单录制生效</value></data>
+  <data name="复制单号" xml:space="preserve"><value>复制单号</value></data>
+  <data name="复制文件路径" xml:space="preserve"><value>复制文件路径</value></data>
+  <data name="在资源管理器中定位" xml:space="preserve"><value>在资源管理器中定位</value></data>
+  <data name="单号已复制" xml:space="preserve"><value>单号已复制</value></data>
+  <data name="文件路径已复制" xml:space="preserve"><value>文件路径已复制</value></data>
+  <data name="这条录像没有记录单号" xml:space="preserve"><value>这条录像没有记录单号</value></data>
+  <data name="这条录像没有记录文件路径" xml:space="preserve"><value>这条录像没有记录文件路径</value></data>
+  <data name="录像已清理或不在本机，无法定位文件" xml:space="preserve"><value>录像已清理或不在本机，无法定位文件</value></data>
 </root>

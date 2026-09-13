@@ -254,6 +254,7 @@
     <Compile Include="Audio\AudioEndpointCatalog.cs" />
     <Compile Include="UI\AudioDeviceSelectionPolicy.cs" />
     <Compile Include="UI\FloatingPreviewPlacement.cs" />
+    <Compile Include="UI\PlaybackTooltipBuilder.cs" />
     <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />
