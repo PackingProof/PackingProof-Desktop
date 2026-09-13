@@ -2,6 +2,11 @@
 
 本文件是所有任务必须遵守的根规范。专题规则按任务范围加载，不需要每次通读全部低频细节。
 
+非 Codex 运行环境如果存在全局规则文件，请一并阅读：
+
+- Windows：`%USERPROFILE%\.codex\AGENTS.md`
+- macOS / Linux：`~/.codex/AGENTS.md`
+
 ## 项目结构与常用命令
 
 - `ExpressPackingMonitoring.sln`：主解决方案
