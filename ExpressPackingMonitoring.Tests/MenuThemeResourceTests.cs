@@ -97,6 +97,25 @@ public sealed class MenuThemeResourceTests
         Assert.DoesNotContain("FloatingContextMenuStyle", floatingXaml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 右键菜单弹出时必须先关掉悬浮提示。
+    /// 提示是 Popup，层级和菜单相当，不关掉会直接盖住菜单让人点不到。
+    /// </summary>
+    [Fact]
+    public void RowContextMenu_SuppressesTooltipWhileOpen()
+    {
+        string xaml = ReadProjectFile(Path.Combine("UI", "PlaybackWindow.xaml"));
+        string codeBehind = ReadProjectFile(Path.Combine("UI", "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("Opened=\"VideoRowContextMenu_Opened\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Closed=\"VideoRowContextMenu_Closed\"", xaml, StringComparison.Ordinal);
+
+        // 关掉当前提示，并在菜单显示期间禁用，关闭后恢复。
+        Assert.Contains("ToolTipService.SetIsEnabled(row, false)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ToolTipService.SetIsEnabled(row, true)", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("tooltip.IsOpen = false", codeBehind, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         foreach (string startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })

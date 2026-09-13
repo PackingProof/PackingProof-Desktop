@@ -110,7 +110,10 @@
             菜单项通过 PlacementTarget.DataContext 取当前右键的那一行。
             外观走 AppContextMenuStyle，与悬浮小窗的设备菜单保持一致。
         -->
-        <ContextMenu x:Key="VideoRowContextMenu" Style="{StaticResource AppContextMenuStyle}">
+        <ContextMenu x:Key="VideoRowContextMenu"
+                     Style="{StaticResource AppContextMenuStyle}"
+                     Opened="VideoRowContextMenu_Opened"
+                     Closed="VideoRowContextMenu_Closed">
             <MenuItem Header="复制单号"
                       Style="{StaticResource AppMenuItemStyle}"
                       Click="CopyOrderId_Click"

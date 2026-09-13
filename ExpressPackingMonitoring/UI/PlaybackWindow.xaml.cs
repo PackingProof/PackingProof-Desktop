@@ -301,7 +301,26 @@ namespace ExpressPackingMonitoring.UI
         }
 
         /// <summary>
-        /// 剪贴板是全局独占资源，输入法、剪贴板管理器或其它程序正占用时
+        /// 右键菜单弹出时必须先关掉悬浮提示。
+        /// 提示是 Popup，层级和菜单相当，不关掉就会盖住菜单挡住操作；
+        /// 菜单显示期间也禁用提示，避免鼠标在菜单上移动时又把它勾出来。
+        /// </summary>
+        private void VideoRowContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if ((sender as ContextMenu)?.PlacementTarget is not FrameworkElement row) return;
+
+            ToolTipService.SetIsEnabled(row, false);
+            if (row.ToolTip is ToolTip tooltip)
+                tooltip.IsOpen = false;
+        }
+
+        private void VideoRowContextMenu_Closed(object sender, RoutedEventArgs e)
+        {
+            if ((sender as ContextMenu)?.PlacementTarget is FrameworkElement row)
+                ToolTipService.SetIsEnabled(row, true);
+        }
+
+        /// <summary>剪贴板是全局独占资源，输入法、剪贴板管理器或其它程序正占用时
         /// OpenClipboard 会直接失败（CLIPBRD_E_CANT_OPEN）。这是常见的瞬时冲突，
         /// 重试几次基本都能成功，不该一次失败就弹错误框。
         /// </summary>
