@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -217,7 +217,8 @@ const map={
 '快递打包录像回放':'Packing Monitor Recordings','按日期或订单号检索局域网监控端录像，支持在线播放、转码预览和文件下载':'Search recordings by date or order number. Play, transcode, clip, and download them over your LAN.',
 '安装订单备注插件':'Install order-note plugin','播报买家留言和卖家备注':'Announce buyer messages and seller notes','播放兼容模式':'Playback compatibility mode','开启后可兼容更多手机和浏览器':'Supports more phones and browsers when enabled','下载手机 App':'Download mobile app','下载 苹果/安卓版':'Download iOS / Android','下载 Android App':'Download Android app','加入 iOS 内测':'Join iOS beta','Android 版':'Android','手机录像、扫码与备份':'Record, scan and back up','打开最新 Release 下载页':'Open the latest Release page','通过 TestFlight 安装':'Install with TestFlight','选择手机系统扫码安装，安装后再连接这台电脑':'Choose your phone platform, scan to install, then connect to this computer','扫码打开最新 Release 下载页':'Scan to open the latest Release page','通过 TestFlight 加入 iOS 内测':'Join the iOS beta with TestFlight','Android App 下载二维码':'Android app download QR code','iOS 内测二维码':'iOS beta QR code','iOS 内测版':'iOS beta','加入内测':'Join beta','正在读取最新版本':'Checking latest version','打开下载页':'Open download page','复制链接':'Copy link','手机打开':'Open on phone','关闭手机连接':'Close phone connection','用手机打开':'Open on your phone','手机与监控端连接同一个局域网后，扫描二维码即可打开录像网页':'Connect your phone to the same LAN as the monitor, then scan the QR code to open the recordings page.','手机连接网址':'Phone connection URL','此网址包含录像访问密钥，请不要发送给无关人员':'This URL contains the recording access key. Do not share it with unrelated people.','复制网址':'Copy URL','关闭':'Close',
 '当前可追溯到':'Oldest recording','预计可保留':'Estimated retention','存储空间':'Storage','加载中':'Loading','正在读取录像存储情况':'Reading recording storage','估算值仅供参考':'Estimate only','正在读取配置目录':'Reading storage configuration',
-'开始日期':'Start date','结束日期':'End date','录像来源':'Recording source','发退货':'Shipping / Return','全部设备':'All devices','电脑':'PC','电脑设备':'PC device','手机设备':'Phone','订单号或文件名':'Order number or file name','输入订单号关键词搜索':'Search by order number','录像列表':'Recordings','关闭播放器':'Close player',
+'开始日期':'Start date','结束日期':'End date','录像来源':'Recording source','发退货':'Shipping / Return','全部设备':'All devices','电脑':'PC','电脑设备':'PC device','手机设备':'Phone','订单号或文件名':'Order number or file name','输入订单号或文件名搜索':'Search by order number','录像列表':'Recordings','关闭播放器':'Close player','搜索条件':'Search filters',
+'筛选':'Filter','筛选条件':'Filter conditions','导出单号':'Export order numbers','按当前筛选导出单号':'Export order numbers with the current filters','当前筛选没有匹配的录像，没有可导出的单号':'No recordings match the current filters, nothing to export','清除全部筛选':'Clear all filters','清除该筛选':'Remove this filter','全部':'All','至':'to','正在导出...':'Exporting...','导出失败，请稍后重试':'Export failed. Please try again later.','导出失败，请检查网络后重试':'Export failed. Check your network and try again.','没有找到匹配记录':'No matching recordings','没有找到匹配的录像':'No matching recordings','请调整日期范围或订单号关键词':'Adjust the date range or order number keyword',
 '录制中转码确认':'Transcode while recording?','正在录制。转码可能影响实时预览和录制稳定性，是否继续？':'Recording is active. Transcoding may affect preview and recording stability. Continue?','不再提示，录制中也允许继续转码':'Do not ask again while recording','取消':'Cancel','继续转码':'Continue transcoding',
 '剪辑':'Clip','关闭剪辑':'Close clip editor','正在加载原视频……':'Loading source video…','时间轴预览生成中……':'Generating timeline preview…','播放位置':'Play position','剪辑开始时间':'Clip start time','剪辑结束时间':'Clip end time','开始时间':'Start time','结束时间':'End time','保留范围':'Selected range','剪辑后时长':'Clip duration','播放选区':'Play selection','生成并下载':'Create and download','监控端正在剪辑中，请稍候……':'The monitor is creating the clip…',
 '正在搜索...':'Searching...','连接失败':'Connection failed','无法连接监控端':'Cannot connect to the monitor','暂不可用':'Unavailable','暂无录像数据':'No recordings','暂无法估算':'Unavailable','操作失败，请稍后重试':'Operation failed. Please try again.','失败':'Failed','重新下载':'Download again','生成已取消，可继续调整':'Generation cancelled. You can continue editing','已取消生成，可继续调整':'Generation cancelled. You can continue editing',
@@ -226,6 +227,8 @@ const apiErrors={storage_unavailable:'Storage information is unavailable',file_n
 window.localizedApiError=(data,fallback)=>lang==='zh-Hans'?(data&&data.error||fallback):(apiErrors[data&&data.errorCode]||map[fallback]||'Operation failed. Please try again.');
 function translateText(value){if(lang==='zh-Hans'||!value)return value;let t=value.trim();if(map[t])return value.replace(t,map[t]);return value
 .replace(/^手机(\d+)$/g,'Phone $1').replace(/^电脑(\d+)$/g,'PC $1').replace(/^设备 ([A-Z0-9]+)$/g,'Device $1')
+.replace(/^(\S+) 至 (\S+)$/g,'$1 to $2').replace(/^(\S+) 起$/g,'From $1').replace(/^截至 (\S+)$/g,'Until $1')
+.replace(/^清除筛选 (.+)$/g,(match,label)=>'Clear filter '+(map[label]||label))
 .replace(/已保存约 (\d+) 天录像，最新 (.+)$/g,'About $1 days saved; latest $2')
 .replace(/基于最近 (\d+) 天录像占用 ([\d.]+)GB 估算，平均约 ([\d.]+)GB \/ 天/g,'Estimated from $2 GB used over the last $1 days; average $3 GB/day')
 .replace(/第 (\d+) \/ (\d+) 页/g,'Page $1 of $2')

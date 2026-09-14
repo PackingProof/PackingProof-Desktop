@@ -16,6 +16,46 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
       document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
 
+    // 筛选面板：按钮呼出、条件即时生效、徽章与导出状态联动
+    const filterButton = page.locator('#filterButton');
+    const filterPanel = page.locator('#filterPanel');
+    const exportButton = page.locator('#exportOrdersButton');
+    assert.equal(await exportButton.isDisabled(), false);
+    assert.equal(await filterPanel.isVisible(), false);
+    await filterButton.click();
+    await assert.doesNotReject(() => filterPanel.waitFor({ state: 'visible' }));
+    assert.equal(await filterButton.getAttribute('aria-expanded'), 'true');
+    const modeFilterResponse = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/videos'
+        && url.searchParams.get('mode') === 'return'
+        && response.ok();
+    });
+    await page.locator('#modeFilter').selectOption('return');
+    await modeFilterResponse;
+    await assert.doesNotReject(() => page.locator('#filterBadges .filter-badge').filter({ hasText: '退货' }).waitFor());
+    assert.equal(await page.locator('#filterCount').innerText(), '1');
+    await page.keyboard.press('Escape');
+    assert.equal(await filterPanel.isVisible(), false);
+    assert.equal(await filterButton.getAttribute('aria-expanded'), 'false');
+    await filterButton.click();
+    await page.locator('#clearFiltersButton').click();
+    await assert.doesNotReject(() => page.locator('#filterBadges').waitFor({ state: 'hidden' }));
+    assert.equal(await page.locator('#filterCount').isVisible(), false);
+    await page.keyboard.press('Escape');
+
+    // 当前筛选没有结果时导出单号不可用
+    const keywordInput = page.locator('#keyword');
+    await keywordInput.fill('AUTO_WEB_NO_MATCH');
+    await keywordInput.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#resultsInfo')?.textContent?.trim()
+      === '没有找到匹配记录');
+    assert.equal(await exportButton.isDisabled(), true);
+    await keywordInput.fill('');
+    await keywordInput.press('Enter');
+    await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
+      document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
+
     const appDownloadButton = page.getByRole('button', { name: '下载 苹果/安卓版' });
     await appDownloadButton.click();
     await assert.doesNotReject(() => page.locator('#desktopAppDownloadPopover.open').waitFor());
@@ -136,7 +176,7 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     )), 'unknown');
     await iosContext.close();
 
-    const search = page.getByPlaceholder('输入订单号关键词搜索');
+    const search = page.getByPlaceholder('输入订单号或文件名搜索');
     await search.fill('AUTO_WEB_001');
     const searchResponse = page.waitForResponse(response => {
       const url = new URL(response.url());
@@ -244,6 +284,15 @@ test('Web UI follows browser language and persists an explicit override', { skip
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await assert.doesNotReject(() => page.getByRole('heading', { name: 'Packing Monitor Recordings' }).waitFor());
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+    // 本次新增的筛选与导出文案必须有英文，英文界面不能残留中文
+    assert.equal(await page.locator('#keyword').getAttribute('placeholder'), 'Search by order number');
+    assert.doesNotMatch(await page.locator('.toolbar').innerText(), /[\u3400-\u9fff]/);
+    await page.locator('#filterButton').click();
+    await assert.doesNotReject(() => page.locator('#filterPanel').waitFor({ state: 'visible' }));
+    assert.doesNotMatch(await page.locator('#filterPanel').innerText(), /[\u3400-\u9fff]/);
+    assert.equal(await page.locator('#filterButton').getAttribute('title'), 'Filter');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#filterPanel').isVisible(), false);
     await page.locator('#compatSettingsButton').click();
     await assert.doesNotReject(() => page.locator('#compatSettingsMenu').filter({ hasText: 'Playback compatibility' }).waitFor());
     await assert.doesNotReject(() => page.locator('#compatSettingsMenu input[name="compatChoice"][value="transcode"]').waitFor());
