@@ -30,6 +30,13 @@ namespace ExpressPackingMonitoring.UI
         /// <summary>来源设备标识，随 <see cref="SourceName"/> 一起设置。</summary>
         public string SourceId { get; set; } = "";
 
+        /// <summary>
+        /// 来源类型：pc 是本机，external 是手机等外部设备，空表示不筛来源。
+        /// 同名多设备被合并后 <see cref="SourceId"/> 会是空的，
+        /// 那时只有这个字段能说明要筛的是本机还是外部设备。
+        /// </summary>
+        public string SourceType { get; set; } = "";
+
         /// <summary>发货/退货筛选，空表示不限。</summary>
         public string Mode { get; set; } = "";
 
@@ -92,6 +99,7 @@ namespace ExpressPackingMonitoring.UI
                 case SourceKey:
                     SourceName = "";
                     SourceId = "";
+                    SourceType = "";
                     break;
                 case ModeKey:
                     Mode = "";

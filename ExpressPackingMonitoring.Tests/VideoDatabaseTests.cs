@@ -184,6 +184,41 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    /// <summary>
+    /// 下拉合并同名设备后设备号是空的，此时只能靠 sourceType + 设备名筛。
+    /// 之前回放窗口把 sourceType 传成空串，于是"手机1"这类选项点了没反应。
+    /// </summary>
+    [Fact]
+    public void VideoSourceFilter_MergedSameNameDevices_FilterByNameWithoutDeviceId()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            database.InsertVideoRecord("PC", "发货", "", "", Path.Combine(tempDirectory, "pc.mp4"), DateTime.Now);
+            database.InsertMobileBackupRecord("A", Path.Combine(tempDirectory, "a.mp4"), 1, DateTime.Now, 3, "phone-old", "手机1", "session-a", "sha-a");
+            database.InsertMobileBackupRecord("B", Path.Combine(tempDirectory, "b.mp4"), 1, DateTime.Now, 3, "phone-new", "手机1", "session-b", "sha-b");
+            database.InsertMobileBackupRecord("C", Path.Combine(tempDirectory, "c.mp4"), 1, DateTime.Now, 3, "phone-other", "手机2", "session-c", "sha-c");
+
+            // 合并后的"手机1"这一项：没有设备号，只有类型和名字。
+            PagedVideoResult merged = database.QueryVideosPaged(
+                null, null, null, 1, 20,
+                sourceType: "external", deviceId: "", sourceDeviceName: "手机1");
+            // "本机"这一项：既没有设备号也没有设备名，只有类型。
+            PagedVideoResult local = database.QueryVideosPaged(
+                null, null, null, 1, 20,
+                sourceType: "pc", deviceId: "", sourceDeviceName: "");
+
+            Assert.Equal(2, merged.Total);
+            Assert.All(merged.Records, record => Assert.Equal("手机1", record.SourceDeviceName));
+            Assert.Equal("PC", Assert.Single(local.Records).OrderId);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     [Fact]
     public void QueryVideoRecords_ReturnsAllMatchingInDescendingOrderAndRespectsDeletedFlag()
     {

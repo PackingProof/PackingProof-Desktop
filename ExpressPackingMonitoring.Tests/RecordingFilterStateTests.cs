@@ -103,6 +103,7 @@ public sealed class RecordingFilterStateTests
 
         Assert.False(state.HasSourceFilter);
         Assert.Equal("", state.SourceId);
+        Assert.Equal("", state.SourceType);
         Assert.True(state.HasDateFilter);
         Assert.True(state.HasModeFilter);
         Assert.Equal(2, state.ActiveCount);
@@ -209,5 +210,29 @@ public sealed class RecordingFilterStateTests
             RecordingFilterState.BuildDatePickerLimits(null, new DateTime(2026, 9, 5), today);
 
         Assert.Equal(new DateTime(2026, 9, 5), startMax);
+    }
+
+    /// <summary>
+    /// 同名多设备被合并后设备号是空的，本机那一项也没有设备号，
+    /// 这时只有 SourceType 能说明筛的是谁；清来源要把它一起清掉，
+    /// 否则清完还留着"只看本机"。
+    /// </summary>
+    [Fact]
+    public void SourceType_SurvivesUntilSourceFilterIsCleared()
+    {
+        var state = new RecordingFilterState
+        {
+            SourceName = "手机1",
+            SourceType = "external",
+            SourceId = ""
+        };
+
+        Assert.True(state.HasSourceFilter);
+        Assert.Equal("external", state.SourceType);
+
+        state.ClearAll();
+
+        Assert.Equal("", state.SourceType);
+        Assert.False(state.HasAnyFilter);
     }
 }

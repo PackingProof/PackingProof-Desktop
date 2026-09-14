@@ -194,16 +194,16 @@ namespace ExpressPackingMonitoring.UI
             _filterState.NormalizeDateRange();
             DateTime? start = _filterState.StartDate?.Date;
             DateTime? end = _filterState.EndDate?.Date;
-            // 只有名字没有设备号的来源就是本机，按来源类型过滤。
-            bool localOnly = string.IsNullOrWhiteSpace(_filterState.SourceId)
-                && !string.IsNullOrWhiteSpace(_filterState.SourceName);
+            // 来源类型直接取下拉项带过来的值，不再靠"有没有设备号"去猜；
+            // 同名多设备合并后设备号是空的，猜的话会把手机筛成本机。
+            bool localOnly = string.Equals(_filterState.SourceType, "pc", StringComparison.OrdinalIgnoreCase);
             var filter = new OrderNumberExportFilter(
                 start,
                 end,
                 _filterState.Mode,
                 _filterState.SourceId,
                 localOnly ? "" : _filterState.SourceName,
-                localOnly ? "pc" : "");
+                _filterState.SourceType);
 
             var saveDialog = new SaveFileDialog
             {
@@ -598,11 +598,13 @@ namespace ExpressPackingMonitoring.UI
             if (SourceFilterBox.SelectedItem is VideoSourceOption option)
             {
                 _filterState.SourceId = option.DeviceId;
+                _filterState.SourceType = option.IsAll ? "" : option.SourceType;
                 _filterState.SourceName = option.IsAll ? "" : option.Name;
             }
             else
             {
                 _filterState.SourceId = "";
+                _filterState.SourceType = "";
                 _filterState.SourceName = "";
             }
 
@@ -692,8 +694,12 @@ namespace ExpressPackingMonitoring.UI
             FilterCountText.Text = _filterState.ActiveCount.ToString();
         }
 
-        /// <summary>来源下拉项。IsAll 用于区分"全部设备"这一项。</summary>
-        private sealed record VideoSourceOption(string Name, string DeviceId, bool IsAll);
+        /// <summary>
+        /// 来源下拉项。IsAll 用于区分"全部设备"这一项。
+        /// SourceType 必须一起带上：同名多设备合并后 DeviceId 是空的，
+        /// 只靠 DeviceId 分不出要筛本机还是外部设备。
+        /// </summary>
+        private sealed record VideoSourceOption(string Name, string SourceType, string DeviceId, bool IsAll);
 
         /// <summary>
         /// 填充来源下拉。设备列表来自数据库里出现过的来源，
@@ -701,20 +707,21 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void LoadSourceFilterOptions()
         {
-            var options = new List<VideoSourceOption> { new("全部设备", "", true) };
+            var options = new List<VideoSourceOption> { new("全部设备", "", "", true) };
             try
             {
                 if (_db != null)
                 {
                     // 同一台手机换过设备号就会在数据库里分成多组，
                     // 不按显示名合并的话下拉里会出现好几个"手机1"。
+                    // 本机那一项的名字走 GetSourceDisplay，和 Web 端的命名口径保持一致。
                     IReadOnlyList<VideoSourceFilterOption> grouped = VideoSourceFilterOptions.Build(
                         _db.GetVideoSources(),
                         source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
                             ? GetSourceDeviceDisplayName(source.DeviceId, source.DeviceName)
-                            : "本机");
+                            : GetSourceDisplay(source.SourceType, source.DeviceId, source.DeviceName, null, _computerName));
                     foreach (VideoSourceFilterOption source in grouped)
-                        options.Add(new VideoSourceOption(source.Name, source.DeviceId, false));
+                        options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false));
                 }
             }
             catch (Exception ex)
@@ -766,6 +773,7 @@ namespace ExpressPackingMonitoring.UI
                 keyword,
                 page,
                 _filterState.Mode,
+                _filterState.SourceType,
                 _filterState.SourceId,
                 _filterState.SourceName);
             _videoLoadRequestVersion++;
@@ -788,7 +796,7 @@ namespace ExpressPackingMonitoring.UI
                     try
                     {
                         result = await Task.Run(() =>
-                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page, request.Mode, request.SourceId, request.SourceName));
+                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page, request.Mode, request.SourceType, request.SourceId, request.SourceName));
                         if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                             continue;
 
@@ -799,7 +807,7 @@ namespace ExpressPackingMonitoring.UI
                         if (!result.UsesApproximatePaging && pageCount > 0 && normalizedPage != request.Page)
                         {
                             result = await Task.Run(() =>
-                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage, request.Mode, request.SourceId, request.SourceName));
+                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage, request.Mode, request.SourceType, request.SourceId, request.SourceName));
                             if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                                 continue;
                         }
@@ -855,13 +863,18 @@ namespace ExpressPackingMonitoring.UI
             string? keyword,
             int page,
             string mode = "",
+            string sourceType = "",
             string sourceId = "",
             string sourceName = "")
         {
             var videos = new List<VideoItem>();
             bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
             string normalizedMode = RecordingModeFilter.Normalize(mode);
-            bool hasSourceFilter = !string.IsNullOrWhiteSpace(sourceId) || !string.IsNullOrWhiteSpace(sourceName);
+            // 同名多设备合并后只有 SourceType，本机那一项也只有 SourceType，
+            // 所以有没有筛来源要连它一起看，不然选了等于没筛。
+            bool hasSourceFilter = !string.IsNullOrWhiteSpace(sourceType)
+                || !string.IsNullOrWhiteSpace(sourceId)
+                || !string.IsNullOrWhiteSpace(sourceName);
             if (_db != null)
             {
                 try
@@ -910,7 +923,7 @@ namespace ExpressPackingMonitoring.UI
                         PageSize,
                         includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
                         searchMode: VideoSearchMode.ExactOrderIdentifiers,
-                        sourceType: "",
+                        sourceType: sourceType ?? "",
                         deviceId: sourceId ?? "",
                         sourceDeviceName: sourceName ?? "",
                         mode: normalizedMode);
@@ -924,7 +937,7 @@ namespace ExpressPackingMonitoring.UI
                             PageSize,
                             includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword),
                             searchMode: VideoSearchMode.OrderIdentifierContains,
-                            sourceType: "",
+                            sourceType: sourceType ?? "",
                             deviceId: sourceId ?? "",
                             sourceDeviceName: sourceName ?? "",
                             mode: normalizedMode);
@@ -1622,6 +1635,7 @@ namespace ExpressPackingMonitoring.UI
             string? Keyword,
             int Page,
             string Mode,
+            string SourceType,
             string SourceId,
             string SourceName);
     }
