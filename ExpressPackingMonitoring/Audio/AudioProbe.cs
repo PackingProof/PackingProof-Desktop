@@ -686,6 +686,11 @@ namespace ExpressPackingMonitoring.Audio
             if (devices == null || devices.Count == 0)
                 throw new InvalidOperationException("No active capture endpoint was found.");
 
+            // 显式选择"跟随系统默认"：直接用默认端点，不要拿哨兵值去匹配并不存在的设备 Id，
+            // 否则诊断会报出"已配置的麦克风端点不存在"这种假故障。
+            if (AudioEndpointCatalog.IsSystemDefault(config.AudioDeviceMoniker))
+                return GetDefaultCaptureEndpoint(devices);
+
             bool hasConfiguredEndpoint = false;
             if (!string.IsNullOrWhiteSpace(config.AudioDeviceMoniker))
             {
@@ -711,6 +716,11 @@ namespace ExpressPackingMonitoring.Audio
             if (hasConfiguredEndpoint)
                 throw new InvalidOperationException("Configured microphone endpoint was not found.");
 
+            return GetDefaultCaptureEndpoint(devices);
+        }
+
+        private static MMDevice GetDefaultCaptureEndpoint(MMDeviceCollection devices)
+        {
             using var enumerator = new MMDeviceEnumerator();
             try { return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console); }
             catch { return devices[0]; }
