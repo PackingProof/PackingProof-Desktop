@@ -201,4 +201,75 @@ public sealed class AudioDeviceSelectionPolicyTests
         Assert.Equal(string.Empty, config.AudioDeviceName);
         Assert.Equal(string.Empty, config.AudioDeviceMoniker);
     }
+
+    /// <summary>
+    /// 设置页的麦克风下拉曾经自己拼了一个 Moniker 为空的"跟随系统默认"项：
+    /// 选中它保存后配置成了"名字=跟随系统默认、Moniker 为空"，录制会因为找不到
+    /// 同名设备而放弃这一单。这里锁住哨兵项必须能被选中并原样回写。
+    /// </summary>
+    [Fact]
+    public void PrependFollowSystemDefault_EntryIsMatchableAndKeepsSentinel()
+    {
+        List<MicInfo> devices = AudioDeviceSelectionPolicy.PrependFollowSystemDefault(
+            new List<MicInfo> { new() { Name = "USB 麦克风", Moniker = "id-a" } });
+
+        Assert.Equal(AudioDeviceSelectionPolicy.FollowSystemDefaultText, devices[0].Name);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, devices[0].Moniker);
+        Assert.Equal("id-a", devices[1].Moniker);
+
+        MicInfo? matched = AudioDeviceSelectionPolicy.Match(
+            devices,
+            AudioEndpointCatalog.SystemDefaultId,
+            AudioDeviceSelectionPolicy.FollowSystemDefaultText);
+
+        Assert.NotNull(matched);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, matched!.Moniker);
+
+        var config = new AppConfig();
+        AudioDeviceSelectionPolicy.ApplyMicrophoneSelection(config, matched);
+
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, config.AudioDeviceMoniker);
+        Assert.True(AudioDeviceSelectionPolicy.HasUsableMicrophoneSelection(config));
+    }
+
+    /// <summary>配置为空时下拉落到哨兵项，保存后仍然是可用的"跟随系统默认"。</summary>
+    [Fact]
+    public void EmptyMicrophoneConfig_FallsBackToSentinelEntry()
+    {
+        List<MicInfo> devices = AudioDeviceSelectionPolicy.PrependFollowSystemDefault(
+            new List<MicInfo> { new() { Name = "USB 麦克风", Moniker = "id-a" } });
+
+        MicInfo? selected = AudioDeviceSelectionPolicy.Match(devices, "", "")
+            ?? devices.FirstOrDefault();
+
+        Assert.NotNull(selected);
+        Assert.Equal(AudioEndpointCatalog.SystemDefaultId, selected!.Moniker);
+    }
+
+    /// <summary>设置页必须用策略插入哨兵项，不能自己拼一个空 Moniker 的项。</summary>
+    [Fact]
+    public void SettingsWindow_MicrophoneListIsBuiltByPolicy()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml.cs");
+
+        Assert.Contains(
+            "AudioDeviceSelectionPolicy.PrependFollowSystemDefault(result.Mics)",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    private static string ReadRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string path = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"找不到仓库文件：{string.Join('/', parts)}");
+    }
 }

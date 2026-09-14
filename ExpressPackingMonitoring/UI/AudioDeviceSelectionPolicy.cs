@@ -50,7 +50,20 @@ namespace ExpressPackingMonitoring.UI
         /// 把枚举到的端点转成下拉项，并在最前面放"跟随系统默认"。
         /// 该项带显式标记而不是空值，避免被判定成"没选过麦克风"。
         /// </summary>
-        public static List<MicInfo> BuildDeviceList(DataFlow flow)
+        public static List<MicInfo> BuildDeviceList(DataFlow flow) =>
+            PrependFollowSystemDefault(
+                AudioEndpointCatalog.List(flow).Select(endpoint => new MicInfo
+                {
+                    Name = endpoint.Name,
+                    Moniker = endpoint.Id
+                }));
+
+        /// <summary>
+        /// 在已经枚举好的端点前面插入"跟随系统默认"。
+        /// 哨兵值必须和播放设备一致：写成空串会被判定成"没选过麦克风"，
+        /// 保存设置后录制会因为找不到同名设备而放弃这一单。
+        /// </summary>
+        public static List<MicInfo> PrependFollowSystemDefault(IEnumerable<MicInfo>? devices)
         {
             var items = new List<MicInfo>
             {
@@ -61,8 +74,8 @@ namespace ExpressPackingMonitoring.UI
                 }
             };
 
-            foreach (AudioEndpointInfo endpoint in AudioEndpointCatalog.List(flow))
-                items.Add(new MicInfo { Name = endpoint.Name, Moniker = endpoint.Id });
+            if (devices != null)
+                items.AddRange(devices);
 
             return items;
         }

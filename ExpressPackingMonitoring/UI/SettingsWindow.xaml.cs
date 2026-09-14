@@ -599,12 +599,9 @@ namespace ExpressPackingMonitoring.UI
 
             // 更新麦克风：与播放设备一致，首项是"跟随系统默认"。
             // 配置为空即表示跟随默认，不再自动替用户挑一个具体设备。
-            var mics = result.Mics;
-            mics.Insert(0, new MicInfo
-            {
-                Name = AudioDeviceSelectionPolicy.FollowSystemDefaultText,
-                Moniker = ""
-            });
+            // 哨兵项必须由策略插入：自己拼一个空 Moniker 的项会被判定成"没选过麦克风"，
+            // 保存后录制会因为找不到设备而放弃这一单。
+            var mics = AudioDeviceSelectionPolicy.PrependFollowSystemDefault(result.Mics);
             MicComboBox.ItemsSource = mics;
             SelectMicByConfig(mics);
             // 播放设备与摄像头无关，只在设备列表刷新时填充一次。
