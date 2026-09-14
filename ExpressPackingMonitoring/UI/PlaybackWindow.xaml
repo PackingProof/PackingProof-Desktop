@@ -236,11 +236,18 @@
                                 ToolTip="筛选"
                                 AutomationProperties.Name="筛选">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Path Data="{StaticResource FluentFilterIcon}"
+                                <!-- 漏斗图标，和 Web 端筛选按钮用的是同一份几何；
+                                     Web 那边是描边不填充，这里也走 Stroke，否则一个实心一个空心 -->
+                                <Path Data="{StaticResource FluentFunnelFilterIcon}"
                                       Width="16"
                                       Height="16"
                                       Stretch="Uniform"
-                                      Fill="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      Fill="{x:Null}"
+                                      Stroke="{Binding Foreground, Mode=OneWay, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="2"
+                                      StrokeLineJoin="Round"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
                                       Margin="0,0,7,0"/>
                                 <TextBlock Text="筛选"/>
                                 <!-- 生效条数角标，一眼看出有没有筛选 -->
