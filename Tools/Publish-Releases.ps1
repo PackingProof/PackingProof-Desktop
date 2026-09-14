@@ -26,6 +26,7 @@ Set-Location $repoRoot
 $repoSlug = "PackingProof/PackingProof-Desktop"
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
 
 function Assert-Command {
     param([string]$Name, [string]$Hint)
@@ -62,21 +63,31 @@ if ([string]::IsNullOrWhiteSpace($tag)) {
 }
 $tag = $tag.Trim()
 
-$version = $tag.TrimStart('v')
-$packageRoot = Join-Path $repoRoot "package\PackingProof+$tag"
+# 产物名由 Tools\Publish-CleanPackage.ps1 按归一化版本生成：目录与补丁包带 v<纯版本号>，
+# Setup 与更新清单用不带 v 的纯版本号。这里必须走同一套归一化，不能拿 tag 直接拼：
+# tag 少写 v（0.0.67）或带后缀（v0.0.67-rc1）时，产物名仍然是 v0.0.67，按原 tag 找必然落空。
+$artifactNames = Get-ReleaseArtifactNames -Tag $tag -RepoRoot $repoRoot
+$version = $artifactNames.NormalizedVersion
+$releaseTag = $artifactNames.ReleaseTag
+$packageRoot = $artifactNames.PackageRoot
 if (-not (Test-Path -LiteralPath $packageRoot)) {
-    throw "找不到产物目录：$packageRoot，请先执行 Tools\Publish-CleanPackage.ps1"
+    $candidates = @(Get-ChildItem -Path (Join-Path $repoRoot "package") -Directory -Filter "PackingProof+*$version*" -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Name)
+    $hint = if ($candidates.Count -gt 0) { "；package\ 下与 $version 相关的目录有：$($candidates -join '、')" } else { "" }
+    throw "找不到产物目录：$packageRoot，请先执行 Tools\Publish-CleanPackage.ps1$hint"
 }
 
 # 按资产表挑文件：Setup 与 update JSON 必须存在，补丁包按本次是否生成决定。
-$setupPath = Join-Path $packageRoot "PackingProof_Setup_v$version.exe"
-$updateJsonPath = Join-Path $packageRoot "update_v$version.json"
-$appPatchPath = Join-Path $packageRoot "PackingProof_AppPatch_$tag.zip"
-$launcherPatchPath = Join-Path $packageRoot "PackingProof_LauncherPatch_$tag.zip"
+$setupPath = Join-Path $packageRoot $artifactNames.SetupFileName
+$updateJsonPath = Join-Path $packageRoot $artifactNames.UpdateJsonFileName
+$appPatchPath = Join-Path $packageRoot $artifactNames.AppPatchFileName
+$launcherPatchPath = Join-Path $packageRoot $artifactNames.LauncherPatchFileName
 
 foreach ($required in @($setupPath, $updateJsonPath)) {
     if (-not (Test-Path -LiteralPath $required)) {
-        throw "缺少必须上传的产物：$required"
+        $existing = @(Get-ChildItem -Path $packageRoot -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
+        $hint = if ($existing.Count -gt 0) { "；目录内容：$($existing -join '、')" } else { "" }
+        throw "缺少必须上传的产物：$required$hint"
     }
 }
 
@@ -91,7 +102,9 @@ if (Test-Path -LiteralPath $launcherPatchPath) {
     $giteeAssets += $launcherPatchPath
 }
 
-$releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $tag } else { "$tag $Title" }
+# 标题按文档固定成 v<X.Y.Z> <一句话内容>，用归一化后的版本号而不是原 tag，
+# 这样 tag 少写 v 或带后缀时，标题仍然与产物名一致。
+$releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $releaseTag } else { "$releaseTag $Title" }
 
 Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装后执行 gh auth login"
 Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装后执行 gitee auth login --token <token>"

@@ -28,6 +28,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "FFmpegBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "AppPatchRuntimeCompatibility.Common.ps1")
@@ -267,26 +268,6 @@ function Test-IsStrictDescendantPath {
 
     $rootPrefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
     return $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
-}
-
-function Get-NormalizedReleaseVersion {
-    param([string]$RawVersion)
-
-    $value = $RawVersion.Trim()
-    if ($value.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-        $value = $value.Substring(1)
-    }
-
-    $suffixIndex = $value.IndexOfAny(@('+', '-'))
-    if ($suffixIndex -ge 0) {
-        $value = $value.Substring(0, $suffixIndex)
-    }
-
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        return "0.0.0"
-    }
-
-    return $value
 }
 
 function Get-BaselineVersionFromPath {
