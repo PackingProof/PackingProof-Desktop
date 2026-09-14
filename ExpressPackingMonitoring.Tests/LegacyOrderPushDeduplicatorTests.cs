@@ -65,7 +65,7 @@ public sealed class LegacyOrderPushDeduplicatorTests
             "direct",
             orders,
             () => Interlocked.Increment(ref operationCount)));
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await WaitForWaitingCallerAsync(deduplicator, TestContext.Current.CancellationToken);
         Assert.False(duplicate.IsCompleted);
 
         release.TrySetResult();
@@ -101,7 +101,7 @@ public sealed class LegacyOrderPushDeduplicatorTests
             orders,
             () => 1)));
 
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await WaitForWaitingCallerAsync(deduplicator, TestContext.Current.CancellationToken);
         release.TrySetResult();
         await Task.WhenAll(first, duplicate);
         LegacyOrderPushExecution<int> retry = deduplicator.Execute(
@@ -112,6 +112,26 @@ public sealed class LegacyOrderPushDeduplicatorTests
 
         Assert.False(retry.IsDuplicate);
         Assert.Equal(7, retry.Result);
+    }
+
+    /// <summary>
+    /// 等第二个调用方真正接入去重条目再放行第一个。
+    /// 用固定延时替代等待会在机器繁忙时失效：第二个调用方还没被线程池调度，
+    /// 第一个就已经失败并移除条目，于是它成了新的执行者，用例随机失败。
+    /// </summary>
+    private static async Task WaitForWaitingCallerAsync(
+        LegacyOrderPushDeduplicator deduplicator,
+        CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; attempt < 500; attempt++)
+        {
+            if (deduplicator.WaitingCallerCount > 0) return;
+            await Task.Delay(10, cancellationToken);
+        }
+
+        Assert.True(
+            deduplicator.WaitingCallerCount > 0,
+            "等待第二个调用方接入去重条目超时");
     }
 
     [Fact]

@@ -21,11 +21,15 @@ internal sealed class LegacyOrderPushDeduplicator
     private readonly Dictionary<string, ExecutionEntry> _entries = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
     private readonly object _sync = new();
+    private int _waitingCallerCount;
 
     internal LegacyOrderPushDeduplicator(TimeProvider? timeProvider = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
+
+    /// <summary>当前正在等待同一指纹执行结果的调用方数量，回归测试用它确认并发调用已经接入。</summary>
+    internal int WaitingCallerCount => Volatile.Read(ref _waitingCallerCount);
 
     internal LegacyOrderPushExecution<TResult> Execute<TResult>(
         string? sourceAddress,
@@ -60,9 +64,17 @@ internal sealed class LegacyOrderPushDeduplicator
 
         if (!ownsExecution)
         {
-            ExecutionOutcome outcome = entry.Completion.Task.GetAwaiter().GetResult();
-            outcome.Failure?.Throw();
-            return new LegacyOrderPushExecution<TResult>((TResult)outcome.Result!, true);
+            Interlocked.Increment(ref _waitingCallerCount);
+            try
+            {
+                ExecutionOutcome outcome = entry.Completion.Task.GetAwaiter().GetResult();
+                outcome.Failure?.Throw();
+                return new LegacyOrderPushExecution<TResult>((TResult)outcome.Result!, true);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _waitingCallerCount);
+            }
         }
 
         try
