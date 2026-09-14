@@ -447,6 +447,69 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("-ms=on", publishScript);
     }
 
+    /// <summary>
+    /// 发布脚本必须用与打包脚本同一套归一化推断产物名。
+    /// 之前它直接拿 tag 拼名字：tag 少写 v（0.0.67）或带后缀（v0.0.67-rc1）时，
+    /// 实际产物名仍然是 v0.0.67，脚本会在"找不到产物目录"或"缺少必须上传的产物"处失败。
+    /// </summary>
+    [Fact]
+    public void ReleasePublisher_DerivesArtifactNamesFromNormalizedVersion()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publisher = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-Releases.ps1"),
+            Encoding.UTF8);
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string versionCommon = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "ReleaseVersion.Common.ps1"),
+            Encoding.UTF8);
+
+        // 命名规则集中在 ReleaseVersion.Common.ps1，两边都必须复用它。
+        Assert.Contains("ReleaseVersion.Common.ps1", publisher, StringComparison.Ordinal);
+        Assert.Contains("ReleaseVersion.Common.ps1", publishScript, StringComparison.Ordinal);
+        Assert.Contains("function Get-NormalizedReleaseVersion", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("function Get-ReleaseArtifactNames", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"package\\PackingProof+$releaseTag\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"PackingProof_Setup_v$normalizedVersion.exe\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"update_v$normalizedVersion.json\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"PackingProof_AppPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"PackingProof_LauncherPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
+
+        // 发布脚本按归一化结果挑文件，不再自己用 tag 或 TrimStart 拼名字。
+        Assert.Contains(
+            "Get-ReleaseArtifactNames -Tag $tag -RepoRoot $repoRoot",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains("$packageRoot = $artifactNames.PackageRoot", publisher, StringComparison.Ordinal);
+        Assert.Contains(
+            "$setupPath = Join-Path $packageRoot $artifactNames.SetupFileName",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$updateJsonPath = Join-Path $packageRoot $artifactNames.UpdateJsonFileName",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$appPatchPath = Join-Path $packageRoot $artifactNames.AppPatchFileName",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$launcherPatchPath = Join-Path $packageRoot $artifactNames.LauncherPatchFileName",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("$tag.TrimStart('v')", publisher, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"package\\PackingProof+$tag\"", publisher, StringComparison.Ordinal);
+
+        // 标题用归一化版本号，tag 只用于创建 Release 本体。
+        Assert.Contains(
+            "$releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $releaseTag }",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains("& gh release view $tag --repo $repoSlug", publisher, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
