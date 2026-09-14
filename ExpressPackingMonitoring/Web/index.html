@@ -99,16 +99,26 @@ function loadStorageOverview(){fetch('/api/storage').then(r=>{if(!r.ok)throw new
 function renderStorageOverview(d){if(!d||!d.oldestVideoTime){text('oldestValue','暂无录像数据');text('oldestNote','当前存储库未找到可用录像')}else{text('oldestValue',formatDateOnly(d.oldestVideoTime));text('oldestNote','已保存约 '+(d.savedDays||1)+' 天录像'+(d.latestVideoTime?'，最新 '+d.latestVideoTime:''))}if(d&&d.estimatedRetentionDays){text('retentionValue','约 '+d.estimatedRetentionDays+' 天');text('retentionNote',(d.estimateBasis||'基于当前录像占用估算')+(d.avgGBPerDay?'，平均约 '+d.avgGBPerDay+'GB / 天':''))}else{text('retentionValue','暂无法估算');text('retentionNote','历史数据不足或平均每日占用为 0')}const used=Number(d&&d.usedGB||0),total=Number(d&&d.totalGB||0),free=Number(d&&d.freeGB||0),pct=total>0?Math.max(0,Math.min(100,used/total*100)):0;text('storageValue','已用 '+formatGB(used)+' / '+formatGB(total));text('storageNote',(d&&d.pathCount>1?'共 '+d.pathCount+' 个存储目录，':'')+'剩余 '+formatGB(free));document.getElementById('storageProgress').style.width=pct.toFixed(1)+'%'}
 function initSearchAutoRefresh(){const keyword=document.getElementById('keyword'),start=document.getElementById('startDate'),end=document.getElementById('endDate'),source=document.getElementById('videoSource'),mode=document.getElementById('modeFilter');if(keyword)keyword.addEventListener('input',()=>scheduleSearch());
 // 筛选面板里的条件改动即时生效，不需要额外的"应用"按钮
-for(const el of [start,end,source,mode])if(el)el.addEventListener('change',()=>{refreshFilterIndicators();scheduleSearch(0)});
+for(const el of [start,end,source,mode])if(el)el.addEventListener('change',()=>{applyDateLimits();refreshFilterIndicators();scheduleSearch(0)});
 const filterButton=document.getElementById('filterButton'),panel=document.getElementById('filterPanel');
 if(filterButton&&panel){filterButton.addEventListener('click',e=>{e.stopPropagation();const open=panel.hidden;panel.hidden=!open;filterButton.setAttribute('aria-expanded',String(open))});
 // 点面板外关闭；面板内部点击不能冒泡出去，否则选日期就把面板关了
 panel.addEventListener('click',e=>e.stopPropagation());
 document.addEventListener('click',()=>{if(!panel.hidden){panel.hidden=true;filterButton.setAttribute('aria-expanded','false')}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){panel.hidden=true;filterButton.setAttribute('aria-expanded','false')}})}
-const clearButton=document.getElementById('clearFiltersButton');if(clearButton)clearButton.addEventListener('click',()=>{for(const el of [start,end,source,mode])if(el)el.value='';refreshFilterIndicators();scheduleSearch(0)});
+const clearButton=document.getElementById('clearFiltersButton');if(clearButton)clearButton.addEventListener('click',()=>{for(const el of [start,end,source,mode])if(el)el.value='';applyDateLimits();refreshFilterIndicators();scheduleSearch(0)});
 const exportButton=document.getElementById('exportOrdersButton');if(exportButton)exportButton.addEventListener('click',exportOrderNumbers);
-refreshFilterIndicators()}
+applyDateLimits();refreshFilterIndicators()}
+// 日期可选范围：录像只可能是今天或更早，所以两个日历都不给选未来；
+// 结束日期不早于开始日期，开始日期不晚于结束日期，规则与桌面端
+// RecordingFilterState.BuildDatePickerLimits 一致，两端不能一边能选未来一边不能
+// 英文界面下日期框被 picker() 换成了 text，max/min 管不住，所以还要把越界的值夹回来
+function localToday(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function applyDateLimits(){const start=document.getElementById('startDate'),end=document.getElementById('endDate');if(!start||!end)return;const today=localToday();
+if(start.value>today)start.value=today;if(end.value>today)end.value=today;
+if(start.value&&end.value&&start.value>end.value)start.value=end.value;
+start.max=end.value&&end.value<today?end.value:today;end.max=today;
+if(start.value&&start.value<=today)end.min=start.value;else end.removeAttribute('min')}
 function currentFilters(){const value=id=>{const el=document.getElementById(id);return el&&el.value?el.value:''};return{start:value('startDate'),end:value('endDate'),source:value('videoSource'),mode:value('modeFilter')}}
 // 下拉值形如 external-id:xxx / external-name:xxx / pc:，搜索和导出必须按同一套规则解析，否则导出会带上别的设备
 function parseSourceSelection(value){const selected=value||'',separator=selected.indexOf(':'),selector=separator>=0?selected.slice(0,separator):'',selectorValue=separator>=0?selected.slice(separator+1):'';return{sourceType:selector.startsWith('external-')?'external':selector,deviceId:selector==='external-id'?selectorValue:'',sourceName:selector==='external-name'?selectorValue:''}}
