@@ -63,5 +63,5 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release。二者默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`；免安装分发统一由 Setup 和目录包承担。
 
-- Gitee 使用 CLI：先运行 `gitee auth status`，再对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
-- 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 <发布笔记路径> -Title "<一句话内容>" [-Prerelease]` 一次创建。脚本按上面的资产表挑文件，要求工作区干净且当前提交有精确 tag，GitHub 创建失败会自动重试；登录态由 gh 与 gitee CLI 自己维护，脚本不读取任何凭据。
+- Gitee 发布令牌固定取仓库根目录 `.env` 的 `GITEE_TOKEN`，由脚本注入 `GITEE_TOKEN` 环境变量后交给 CLI；CLI 自己保存的登录态只作回退，而且它按身份字符串各存一份、`gitee auth status` 在令牌失效时仍返回 0，不能用来判断可用性。发布时对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
+- 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 <发布笔记路径> -Title "<一句话内容>" [-Prerelease]` 一次创建。脚本按上面的资产表挑文件，要求工作区干净且当前提交有精确 tag，GitHub 创建失败会自动重试；GitHub 登录态由 gh CLI 维护，Gitee 令牌由脚本从 `.env` 读取后注入环境变量，不打印、不落盘、不提交。

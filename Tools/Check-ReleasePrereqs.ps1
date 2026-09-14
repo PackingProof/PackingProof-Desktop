@@ -10,6 +10,8 @@ $ErrorActionPreference = "Continue"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+. (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+
 $blockers = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -85,10 +87,20 @@ else {
     Write-Fail "未安装 gh，GitHub Release 无法创建"
 }
 
+# Gitee 令牌固定来自 .env；`gitee auth status` 在令牌失效时仍返回 0，
+# 所以这里做一次真实只读调用，避免到发布那一刻才发现认证不可用。
 if (Get-Command gitee -ErrorAction SilentlyContinue) {
-    gitee auth status *> $null
-    if ($LASTEXITCODE -eq 0) { Write-Ok "gitee 已登录" }
-    else { Write-Fail "gitee 未登录，执行 gitee auth login --token <token>" }
+    $giteeTokenSource = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
+    $giteeTokenLabel = if ($giteeTokenSource) { $giteeTokenSource } else { "gitee CLI 登录态" }
+    if (Test-GiteeAuthentication -Repository "PackingProof/PackingProof-Desktop" -RepoRoot $repoRoot) {
+        Write-Ok "gitee 令牌可用（来源：$giteeTokenLabel）"
+    }
+    elseif ($giteeTokenSource) {
+        Write-Fail "gitee 令牌不可用（来源：$giteeTokenLabel），请核对 .env 的 GITEE_TOKEN"
+    }
+    else {
+        Write-Fail "gitee 不可用：.env 里没有 GITEE_TOKEN，gitee CLI 登录态也不可用"
+    }
 }
 else {
     Write-Fail "未安装 gitee CLI，Gitee Release 无法创建"

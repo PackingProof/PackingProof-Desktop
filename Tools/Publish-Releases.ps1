@@ -8,7 +8,8 @@
 # - 完整 7z 与完整 ZIP 是本地产物，任何渠道都不上传
 # - 产物必须已由 Tools\Publish-CleanPackage.ps1 生成并通过校验
 # - 标题固定 `v<X.Y.Z> <一句话内容>`，两个平台保持一致
-# - GitHub 用 gh、Gitee 用 gitee CLI，登录态由 CLI 自己维护，脚本不读凭据
+# - GitHub 用 gh、Gitee 用 gitee CLI；Gitee 令牌固定取 .env 的 GITEE_TOKEN
+#   注入环境变量后交给 CLI，脚本不打印也不落盘凭据
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -23,6 +24,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 $repoSlug = "PackingProof/PackingProof-Desktop"
+
+. (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 
 function Assert-Command {
     param([string]$Name, [string]$Hint)
@@ -93,9 +96,21 @@ $releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $tag } else { "$tag 
 Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装后执行 gh auth login"
 Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装后执行 gitee auth login --token <token>"
 
+# Gitee 令牌固定来自 .env；CLI 的登录态可能停在失效的旧身份上，先做一次真实调用确认可用。
+$giteeTokenSource = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
+if (-not (Test-GiteeAuthentication -Repository $repoSlug -RepoRoot $repoRoot)) {
+    $sourceHint = if ($giteeTokenSource) {
+        "当前令牌来源：$giteeTokenSource"
+    } else {
+        "当前既没有 .env 的 GITEE_TOKEN，gitee CLI 的登录态也不可用"
+    }
+    throw "Gitee 认证失败，$sourceHint；请核对 .env 的 GITEE_TOKEN"
+}
+
 Write-Host "发布 $tag"
 Write-Host "  标题   $releaseTitle"
 Write-Host "  笔记   $notesFullPath"
+Write-Host "  Gitee 令牌来源：$(if ($giteeTokenSource) { $giteeTokenSource } else { 'gitee CLI 登录态' })"
 Write-Host "  GitHub 资产："
 $githubAssets | ForEach-Object { Write-Host "    $(Split-Path -Leaf $_)" }
 Write-Host "  Gitee 资产："
