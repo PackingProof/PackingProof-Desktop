@@ -2303,34 +2303,6 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
-        public IReadOnlyList<VideoSourceInfo> GetVideoSources()
-        {
-            lock (_lock)
-            {
-                using var cmd = _connection.CreateCommand();
-                cmd.CommandText = @"
-                    SELECT SourceType, SourceDeviceId, MAX(SourceDeviceName), COUNT(1)
-                    FROM VideoRecords
-                    WHERE IsDeleted = 0
-                    GROUP BY SourceType, SourceDeviceId
-                    ORDER BY SourceType, MAX(SourceDeviceName), SourceDeviceId;";
-                using var reader = cmd.ExecuteReader();
-                var result = new List<VideoSourceInfo>();
-                while (reader.Read())
-                {
-                    string sourceType = reader.IsDBNull(0) ? "pc" : reader.GetString(0);
-                    string deviceId = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                    string deviceName = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                    result.Add(new VideoSourceInfo(
-                        sourceType,
-                        deviceId,
-                        deviceName,
-                        reader.GetInt32(3)));
-                }
-                return result;
-            }
-        }
-
         public int CountVideosForDevice(DateTime? startDate, DateTime? endDate, string keyword, string deviceId)
         {
             if (string.IsNullOrWhiteSpace(deviceId))

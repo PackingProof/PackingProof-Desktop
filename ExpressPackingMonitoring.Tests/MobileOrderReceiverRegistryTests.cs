@@ -82,6 +82,96 @@ public sealed class MobileOrderReceiverRegistryTests
         }
     }
 
+    /// <summary>
+    /// 安卓、苹果、电脑各自独立编号，不能全部落到同一个前缀。
+    /// 之前手机端从不发送平台，主机只能按"从机"兜底，多台手机就都成了"从机N"。
+    /// </summary>
+    [Fact]
+    public void RegisterNumbersEachPlatformIndependently()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "order-receivers.json"));
+
+            Assert.Equal(
+                "安卓1",
+                registry.Register(IPAddress.Parse("192.168.31.201"), "android-1", "本机", deviceKind: "mobile", platform: "android")?.NodeName);
+            Assert.Equal(
+                "安卓2",
+                registry.Register(IPAddress.Parse("192.168.31.202"), "android-2", "本机", deviceKind: "mobile", platform: "android")?.NodeName);
+            Assert.Equal(
+                "苹果1",
+                registry.Register(IPAddress.Parse("192.168.31.203"), "ios-1", "本机", deviceKind: "mobile", platform: "ios")?.NodeName);
+            Assert.Equal(
+                "电脑1",
+                registry.Register(IPAddress.Parse("192.168.31.204"), "pc-1", "本机", deviceKind: "pc", platform: "windows")?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 备份上传、能力查询这些路径不带平台信息，注册表要沿用首次识别到的类型与平台，
+    /// 否则同一台手机会在不同路径下被改回"从机N"，界面看起来像被改过名。
+    /// </summary>
+    [Fact]
+    public void RegisterRemembersPlatformWhenLaterRequestsOmitIt()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "order-receivers.json"));
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "本机",
+                deviceKind: "mobile",
+                platform: "android");
+
+            MobileOrderReceiverInfo? later = registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "安卓1");
+
+            Assert.Equal("安卓1", later?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>先按"从机"登记、之后才带上平台时，昵称要跟着平台改成"安卓N"。</summary>
+    [Fact]
+    public void RegisterUpgradesAutomaticNameOncePlatformBecomesKnown()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "order-receivers.json"));
+            MobileOrderReceiverInfo? before = registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "本机");
+            MobileOrderReceiverInfo? after = registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "从机1",
+                deviceKind: "mobile",
+                platform: "android");
+
+            Assert.Equal("从机1", before?.NodeName);
+            Assert.Equal("安卓1", after?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     [Fact]
     public void RegisterPersistsPrivateMobileAddressesAndRejectsPublicAddresses()
     {

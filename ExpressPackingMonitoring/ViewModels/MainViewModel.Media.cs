@@ -88,7 +88,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         RefreshRecordingTransferSummary();
                         RunRecordingCacheCleanup();
                     },
-                    localComputerName: Config.NodeName);
+                    localComputerName: Config.NodeName,
+                    currentSourceDeviceNames: _webServer?.GetCurrentSourceDeviceNames());
                 _playbackWindow = playbackWindow;
                 playbackWindow.Closed += (_, _) =>
                 {

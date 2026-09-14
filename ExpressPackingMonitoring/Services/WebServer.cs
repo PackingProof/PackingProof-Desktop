@@ -48,7 +48,7 @@ namespace ExpressPackingMonitoring.Services
         public string DeviceId { get; set; } = "";
         public string DeviceName { get; set; } = "";
         public string DeviceKind { get; set; } = "mobile";
-        // 仅供批准弹窗展示（macos/windows），不参与任何校验或服务端分支。
+        // 平台参与昵称前缀分配（安卓/苹果/电脑），批准弹窗也会展示。
         public string Platform { get; set; } = "";
         public string RemoteAddress { get; set; } = "";
         public string ClientVersion { get; set; } = "";
@@ -71,7 +71,7 @@ namespace ExpressPackingMonitoring.Services
         public IReadOnlyList<OrderInfo> Orders { get; set; } = Array.Empty<OrderInfo>();
     }
 
-    public sealed class WebServer : IDisposable
+    public sealed partial class WebServer : IDisposable
     {
         internal enum LanAccessFailureKind
         {
@@ -1193,7 +1193,7 @@ namespace ExpressPackingMonitoring.Services
 
                 ApplyCorsHeaders(ctx);
                 ctx.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
+                ctx.Response.Headers.Add("Access-Control-Allow-Headers", "Content-Type, Content-Range, X-EPM-Access-Key, X-EPM-Auth-Version, X-EPM-Timestamp, X-EPM-Nonce, X-EPM-Content-SHA256, X-EPM-Signature, X-EPM-Device-Id, X-EPM-Device-Name, X-EPM-Device-Kind, X-EPM-Device-Platform, X-Chunk-SHA256, X-PackingProof-Extension-Version, X-PackingProof-Extension-Id, X-PackingProof-Extension-Credential-Generation, X-PackingProof-Extension-Timestamp, X-PackingProof-Extension-Nonce, X-PackingProof-Extension-Content-SHA256, X-PackingProof-Extension-Signature");
 
                 if (method == "POST")
                 {
@@ -1742,7 +1742,8 @@ namespace ExpressPackingMonitoring.Services
                 deviceName,
                 MobileOrderReceiverRegistry.OrderReceiverPort,
                 [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
-                deviceKind: "mobile");
+                deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
+                platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
         }
 
         private static string NormalizeDeviceKind(string deviceKind) =>
@@ -2041,7 +2042,9 @@ namespace ExpressPackingMonitoring.Services
             MobileOrderReceiverInfo registeredDevice = _mobileOrderReceivers.Register(
                 ctx.Request.RemoteEndPoint?.Address,
                 deviceId,
-                deviceName);
+                deviceName,
+                deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
+                platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
             SendJson(ctx, 200, new
             {
                 protocol = MobileBackupService.ProtocolVersion,
@@ -2280,7 +2283,9 @@ namespace ExpressPackingMonitoring.Services
                 _mobileOrderReceivers.Register(
                     ctx.Request.RemoteEndPoint?.Address,
                     request.SourceDeviceId,
-                    request.SourceDeviceName);
+                    request.SourceDeviceName,
+                    deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
+                    platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
                 MobileBackupCompleteResult result = _mobileBackupService.Complete(uploadId, request);
                 try
                 {
@@ -2458,6 +2463,7 @@ namespace ExpressPackingMonitoring.Services
                 includeDeleted: !string.IsNullOrWhiteSpace(keyword),
                 sourceType: "external",
                 deviceId: deviceId, mode: mode).Total;
+            IReadOnlyDictionary<string, string> currentSourceNames = GetCurrentSourceDeviceNames();
             var data = result.Records.Select(record =>
             {
                 string ticket = CreateDeviceVideoTicket(deviceId, deviceKind, record.Id);
@@ -2471,7 +2477,8 @@ namespace ExpressPackingMonitoring.Services
                     videoCodec = record.VideoCodec ?? "",
                     sourceType = record.SourceType ?? "pc",
                     sourceDeviceId = record.SourceDeviceId ?? "",
-                    sourceDeviceName = ResolveVideoSourceDisplayName(
+                    sourceDeviceName = VideoSourceNameResolver.ResolveDisplayName(
+                        currentSourceNames,
                         record.SourceType,
                         record.SourceDeviceId,
                         record.SourceDeviceName,
@@ -4773,6 +4780,7 @@ namespace ExpressPackingMonitoring.Services
                     mode: mode).Total;
             }
             // SQL 层只取当前页，文件存在性仅对当前页记录检查。
+            IReadOnlyDictionary<string, string> currentSourceNames = GetCurrentSourceDeviceNames();
             var paged = result.Records.Select(r => new
             {
                 r.Id,
@@ -4790,7 +4798,8 @@ namespace ExpressPackingMonitoring.Services
                 videoCodec = r.VideoCodec ?? "",
                 sourceType = r.SourceType ?? "pc",
                 sourceDeviceId = r.SourceDeviceId ?? "",
-                sourceDeviceName = ResolveVideoSourceDisplayName(
+                sourceDeviceName = VideoSourceNameResolver.ResolveDisplayName(
+                    currentSourceNames,
                     r.SourceType,
                     r.SourceDeviceId,
                     r.SourceDeviceName,
@@ -4814,94 +4823,6 @@ namespace ExpressPackingMonitoring.Services
             });
 
             SendJson(ctx, 200, new { total = result.Total, deviceTotal, page, pageSize, data = paged });
-        }
-
-        private void HandleVideoSources(HttpListenerContext ctx)
-        {
-            // 去重规则与回放窗口共用 VideoSourceFilterOptions，避免两端下拉表现不一致。
-            var data = VideoSourceFilterOptions.Build(
-                    _db.GetVideoSources(),
-                    source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-                        ? ResolveVideoSourceName(source.DeviceId, source.DeviceName)
-                        : ResolveVideoSourceDisplayName(
-                            source.SourceType,
-                            source.DeviceId,
-                            source.DeviceName,
-                            "pc",
-                            _nodeName))
-                .Select(source => new
-                {
-                    sourceType = source.SourceType,
-                    deviceId = source.DeviceId,
-                    name = source.Name,
-                    videoCount = source.VideoCount
-                });
-            SendJson(ctx, 200, new { data });
-        }
-
-        private static string ResolveVideoSourceName(string deviceId, string deviceName)
-        {
-            if (!string.IsNullOrWhiteSpace(deviceName))
-                return deviceName.Trim();
-            string normalized = new((deviceId ?? "").Where(char.IsLetterOrDigit).ToArray());
-            return normalized.Length == 0
-                ? "手机设备"
-                : $"设备 {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
-        }
-
-        internal static string ResolveVideoSourceDisplayName(
-            string sourceType,
-            string deviceId,
-            string deviceName,
-            string deviceKind,
-            string localNodeName)
-        {
-            if (!string.Equals(sourceType, "external", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!string.IsNullOrWhiteSpace(localNodeName))
-                    return localNodeName.Trim();
-                if (!string.IsNullOrWhiteSpace(deviceName))
-                    return deviceName.Trim();
-                return "电脑";
-            }
-
-            if (!string.IsNullOrWhiteSpace(deviceName))
-                return deviceName.Trim();
-
-            string normalized = new((deviceId ?? "").Where(char.IsLetterOrDigit).ToArray());
-            if (normalized.Length > 0)
-                return $"设备 {normalized[^Math.Min(6, normalized.Length)..].ToUpperInvariant()}";
-            return string.Equals(deviceKind, "pc", StringComparison.OrdinalIgnoreCase)
-                ? "电脑设备"
-                : "手机设备";
-        }
-
-        private void HandleVideoStatuses(HttpListenerContext ctx)
-        {
-            long[] ids = (ctx.Request.QueryString["ids"] ?? "")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(value => long.TryParse(value, out long id) ? id : 0)
-                .Where(id => id > 0)
-                .Distinct()
-                .Take(100)
-                .ToArray();
-            var records = _db.QueryVideoStatuses(ids);
-            var data = ids.Select(id =>
-            {
-                records.TryGetValue(id, out VideoRecord record);
-                bool exists = record != null
-                    && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(record));
-                string status = record == null || (!record.IsDeleted && !exists)
-                    ? "missing"
-                    : record.IsDeleted ? "deleted" : "available";
-                string reason = record == null
-                    ? "记录不存在"
-                    : record.IsDeleted
-                        ? (string.IsNullOrWhiteSpace(record.DeleteReason) ? "已清理" : record.DeleteReason)
-                        : exists ? "" : "文件缺失";
-                return new { id, status, exists, reason };
-            });
-            SendJson(ctx, 200, new { data });
         }
 
         // ───── API: 流式播放 (支持 Range) ─────
