@@ -377,12 +377,6 @@ public sealed class OrderInfoRelayTests
             CancellationToken cancellationToken) => Task.FromResult(handler(request));
     }
 
-    private static int GetFreeTcpPort()
-    {
-        var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
-    }
+    private static int GetFreeTcpPort() =>
+        TestPortAllocator.GetFreeTcpPort();
 }
