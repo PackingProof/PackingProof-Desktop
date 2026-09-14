@@ -5,7 +5,7 @@
 > 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，并在正文首行注明“预览版”。
 > 更新日志范围：预览版只写本预览版相对上一版本的增量更新内容；正式版必须汇总自上一个正式版以来（含中间所有预览版）的全部更新内容，避免正式版用户缺少中间版本的变更记录。
 > 编写前必须先执行 `git log --oneline <上一正式版标签>..HEAD` 逐条核对全部提交，发布笔记必须覆盖所有用户可见变更，禁止凭印象编写或遗漏提交。
-> 发布目标为 GitHub、Gitee（PackingProof/PackingProof-Desktop）与旧 Gitee（chenjjian/ExpressPackingMonitoring）三个远端；旧 Gitee 同样创建 Release 并上传 update JSON、可选 AppPatch，以及仅在建立新启动器基线时上传 LauncherPatch。
+> 发布目标为 GitHub 与 Gitee（PackingProof/PackingProof-Desktop）两个远端，二者都创建 Release 并上传 update JSON、可选 AppPatch，以及仅在建立新启动器基线时上传的 LauncherPatch；Setup 只在 GitHub 提供，旧个人 Gitee 仓库不再发布。
 > `update_vX.Y.Z.json` 的 `title` 与 Release 标题一致；`notes` 必须是纯文本字符串数组，每项只写一条用户可见变化。不要加入 Markdown 标题、列表减号、序号或下载说明，启动器会自动为每项添加列表符号，完整笔记以 Release 页面为准。
 
 `update_vX.Y.Z.json` 摘要示例：
@@ -41,7 +41,7 @@
 ## 下载与更新说明
 
 - 安装向导：PackingProof_Setup_v<X.Y.Z>.exe（未签名时注明：未签名，SmartScreen 可能提示未知发布者）
-- 完整包 7z / ZIP：免安装，用于系统原生解压和故障恢复
+- 免安装用户：解压目录包直接运行；完整 7z / ZIP 已不再生成，也不再随 Release 提供
 - 已安装用户：启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本
 - <仅新启动器基线时保留>：本版本建立新启动器基线 launcher-v<X.Y.Z>，升级后的主程序会自动应用 LauncherPatch
 
