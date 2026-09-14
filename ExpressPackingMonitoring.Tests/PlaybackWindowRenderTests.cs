@@ -11,6 +11,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 模板展开、资源键解析、构造函数里访问模板内元素这些错误
 /// 只在真正创建窗口的那一刻才抛。
 /// </summary>
+[Collection("WPF render tests")]
 public sealed class PlaybackWindowRenderTests
 {
     /// <summary>WPF 控件必须在 STA 线程上创建，测试宿主默认 MTA。</summary>

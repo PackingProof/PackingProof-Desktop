@@ -14,6 +14,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 例如给 CLR 属性 Resources 写 Setter 会抛 ArgumentNullException(property)，
 /// 编译和纯文本守卫都发现不了，直到用户右键才崩。
 /// </summary>
+[Collection("WPF render tests")]
 public sealed class MenuThemeRenderTests
 {
     /// <summary>
