@@ -127,6 +127,7 @@
     <Compile Include="Data\VideoDatabase.Duration.cs" />
     <Compile Include="Data\VideoDatabase.RecordingIdentity.cs" />
     <Compile Include="Data\VideoDatabase.Schema.cs" />
+    <Compile Include="Data\VideoDatabase.VideoSources.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />
@@ -204,6 +205,7 @@
     <Compile Include="Services\NetworkCameraSource.cs" />
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
+    <Compile Include="Services\RecordingSourceNameLookup.cs" />
     <Compile Include="Services\OrderInfoRelay.cs" />
     <Compile Include="Services\OrderInfo.cs" />
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
@@ -227,6 +229,7 @@
     <Compile Include="Services\PrintedRefundLookupCoordinator.cs" />
     <Compile Include="Services\VideoFolderImportService.cs" />
     <Compile Include="Services\WebServer.cs" />
+    <Compile Include="Services\WebServer.VideoSources.cs" />
     <Compile Include="Services\UdpDiscovery.cs" />
     <Compile Include="Services\UserscriptConfigRevisionStore.cs" />
     <Compile Include="Services\UserscriptCatalog.cs" />

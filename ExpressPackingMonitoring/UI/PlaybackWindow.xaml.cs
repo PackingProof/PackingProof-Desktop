@@ -101,6 +101,8 @@ namespace ExpressPackingMonitoring.UI
     {
         private readonly string _folderPath;
         private readonly string _computerName;
+        /// <summary>设备号→主机当前分配的昵称。记录里存的是写入当时的名字，改名后要靠它归并。</summary>
+        private readonly IReadOnlyDictionary<string, string>? _currentSourceDeviceNames;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
         private bool _excludeUnavailableRecords;
@@ -154,11 +156,13 @@ namespace ExpressPackingMonitoring.UI
             string lastImportFolder = "",
             Action<string>? saveImportFolder = null,
             Action? videosImported = null,
-            string localComputerName = "")
+            string localComputerName = "",
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
         {
             InitializeComponent();
             _folderPath = folderPath;
             _computerName = localComputerName ?? "";
+            _currentSourceDeviceNames = currentSourceDeviceNames;
             _db = db;
             _showDeletedVideos = showDeletedVideos;
             _videoImportService = videoImportService;
@@ -718,7 +722,9 @@ namespace ExpressPackingMonitoring.UI
                     IReadOnlyList<VideoSourceFilterOption> grouped = VideoSourceFilterOptions.Build(
                         _db.GetVideoSources(),
                         source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-                            ? GetSourceDeviceDisplayName(source.DeviceId, source.DeviceName)
+                            ? GetSourceDeviceDisplayName(
+                                source.DeviceId,
+                                ResolveCurrentSourceDeviceName(source.DeviceId, source.DeviceName))
                             : GetSourceDisplay(source.SourceType, source.DeviceId, source.DeviceName, null, _computerName));
                     foreach (VideoSourceFilterOption source in grouped)
                         options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false));
@@ -904,7 +910,7 @@ namespace ExpressPackingMonitoring.UI
                                 total = window.Total;
                             hasMore = window.HasMore;
                             videos.AddRange(window.Records
-                                .Select(record => CreateVideoItem(record, _computerName))
+                                .Select(record => CreateVideoItem(record, _computerName, _currentSourceDeviceNames))
                                 .Where(item => !item.IsMissing));
 
                             if (videos.Count > 0 || !hasMore)
@@ -944,7 +950,7 @@ namespace ExpressPackingMonitoring.UI
                      }
                      foreach (var record in result.Records)
                     {
-                        videos.Add(CreateVideoItem(record, _computerName));
+                        videos.Add(CreateVideoItem(record, _computerName, _currentSourceDeviceNames));
                     }
                     return new VideoPageLoadResult(videos, result.Total, page * PageSize < result.Total, false, page);
                  }
@@ -982,7 +988,10 @@ namespace ExpressPackingMonitoring.UI
         internal static bool ShouldIncludeDeletedVideos(bool showDeletedVideos, string? keyword) =>
             showDeletedVideos || !string.IsNullOrWhiteSpace(keyword);
 
-        internal static VideoItem CreateVideoItem(VideoRecord record, string? localComputerName = null)
+        internal static VideoItem CreateVideoItem(
+            VideoRecord record,
+            string? localComputerName = null,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
         {
             bool deleted = record.IsDeleted;
             bool storedOnHost = string.Equals(
@@ -1040,7 +1049,7 @@ namespace ExpressPackingMonitoring.UI
                 SourceDisplay = GetSourceDisplay(
                     record.SourceType,
                     record.SourceDeviceId,
-                    record.SourceDeviceName,
+                    ResolveCurrentSourceDeviceName(currentSourceDeviceNames, record.SourceDeviceId, record.SourceDeviceName),
                     record.SourceDeviceKind,
                     localComputerName),
                 IsStoredOnHost = storedOnHost,
@@ -1121,6 +1130,19 @@ namespace ExpressPackingMonitoring.UI
                 ? $"电脑工位 · {name}"
                 : name;
         }
+
+        /// <summary>
+        /// 记录里的来源名是写入当时的快照，设备改名后会留下老昵称。
+        /// 能按设备号查到主机当前分配的名字时用它，查不到再退回快照名。
+        /// </summary>
+        private string ResolveCurrentSourceDeviceName(string? deviceId, string? storedName) =>
+            ResolveCurrentSourceDeviceName(_currentSourceDeviceNames, deviceId, storedName);
+
+        internal static string ResolveCurrentSourceDeviceName(
+            IReadOnlyDictionary<string, string>? names,
+            string? deviceId,
+            string? storedName) =>
+            RecordingSourceNameLookup.Resolve(names, deviceId, storedName);
 
         internal static string GetSourceDeviceDisplayName(string? sourceDeviceId, string? sourceDeviceName)
         {

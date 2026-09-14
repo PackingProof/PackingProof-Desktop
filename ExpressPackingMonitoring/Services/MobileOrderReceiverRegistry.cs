@@ -60,12 +60,23 @@ internal sealed class MobileOrderReceiverRegistry
             if (normalizedNodeId.Length == 0)
                 normalizedNodeId = existing?.NodeId ?? CreateFallbackNodeId(address);
             string normalizedNodeName = nodeName?.Trim() ?? "";
+            string normalizedDeviceKind = deviceKind?.Trim() ?? "";
+            string normalizedPlatform = platform?.Trim().ToLowerInvariant() ?? "";
+            // 备份上传、能力查询这些路径不带平台与设备类型，之前每次注册都按"从机"重新命名，
+            // 同一台安卓手机在不同路径下就会拿到不同前缀，界面里看起来像被改过名。
+            // 这里沿用首次识别到的类型与平台，保证昵称前缀稳定。
+            if (existing != null)
+            {
+                if (normalizedDeviceKind.Length == 0) normalizedDeviceKind = existing.DeviceKind;
+                if (normalizedPlatform.Length == 0) normalizedPlatform = existing.Platform;
+            }
+
             if (IsAutomaticName(normalizedNodeName))
             {
                 bool sameStableDevice = existing != null
                     && (requestedNodeId.Length == 0
                         || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
-                string prefix = GetNamePrefix(deviceKind, platform);
+                string prefix = GetNamePrefix(normalizedDeviceKind, normalizedPlatform);
                 bool existingAutomatic = existing != null && IsAutomaticName(existing.NodeName);
                 bool existingUsesPrefix = existingAutomatic && existing!.NodeName.StartsWith(prefix, StringComparison.Ordinal)
                     && IsAssignedDeviceName(existing.NodeName);
@@ -91,8 +102,8 @@ internal sealed class MobileOrderReceiverRegistry
                 LastSeenUtc = now,
                 NodeId = normalizedNodeId,
                 NodeName = normalizedNodeName,
-                DeviceKind = deviceKind?.Trim() ?? "",
-                Platform = platform?.Trim().ToLowerInvariant() ?? "",
+                DeviceKind = normalizedDeviceKind,
+                Platform = normalizedPlatform,
                 Port = normalizedPort,
                 Capabilities = normalizedCapabilities
             };
@@ -172,9 +183,11 @@ internal sealed class MobileOrderReceiverRegistry
             if (used.Remove(name))
                 continue;
 
-            string replacement = CreateNextMobileName(null, "从机");
+            // 重名修复也按各自记住的平台取前缀，否则安卓和苹果会被统一改成"从机"。
+            string prefix = GetNamePrefix(entry.DeviceKind, entry.Platform);
+            string replacement = CreateNextMobileName(null, prefix);
             while (!used.Add(replacement))
-                replacement = CreateNextMobileName(replacement, "从机");
+                replacement = CreateNextMobileName(replacement, prefix);
             entry.NodeName = replacement;
             changed = true;
         }

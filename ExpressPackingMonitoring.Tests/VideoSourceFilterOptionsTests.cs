@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Services;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -67,5 +68,50 @@ public sealed class VideoSourceFilterOptionsTests
             new VideoSourceInfo("external", "dev-2", "冲击1", 1));
 
         Assert.Equal(new[] { "手机1", "冲击1" }, options.Select(option => option.Name));
+    }
+
+    /// <summary>
+    /// 设备改名后老记录仍带旧昵称。按设备号解析成当前昵称后，
+    /// 老名字必须并进当前名字那一项，不能在下拉里留下已经不存在的老名字。
+    /// </summary>
+    [Fact]
+    public void Build_MergesStaleSnapshotNamesIntoCurrentName()
+    {
+        var currentNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dev-1"] = "安卓1",
+            ["dev-2"] = "安卓1"
+        };
+
+        IReadOnlyList<VideoSourceFilterOption> options = VideoSourceFilterOptions.Build(
+            [
+                new VideoSourceInfo("external", "dev-1", "从机1", 3),
+                new VideoSourceInfo("external", "dev-2", "安卓1", 4)
+            ],
+            source => RecordingSourceNameLookup.Resolve(currentNames, source.DeviceId, source.DeviceName));
+
+        VideoSourceFilterOption single = Assert.Single(options);
+        Assert.Equal("安卓1", single.Name);
+        Assert.Equal(7, single.VideoCount);
+        // 同名两台设备时仍不能钉某一个设备号，否则筛出来少一半录像。
+        Assert.Equal("", single.DeviceId);
+    }
+
+    /// <summary>只改名过一台设备时，仍然按设备号过滤，历史录像不会漏掉。</summary>
+    [Fact]
+    public void Build_RenamedSingleDeviceKeepsDeviceId()
+    {
+        var currentNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dev-1"] = "安卓1"
+        };
+
+        IReadOnlyList<VideoSourceFilterOption> options = VideoSourceFilterOptions.Build(
+            [new VideoSourceInfo("external", "dev-1", "从机1", 2)],
+            source => RecordingSourceNameLookup.Resolve(currentNames, source.DeviceId, source.DeviceName));
+
+        VideoSourceFilterOption single = Assert.Single(options);
+        Assert.Equal("安卓1", single.Name);
+        Assert.Equal("dev-1", single.DeviceId);
     }
 }

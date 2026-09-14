@@ -150,6 +150,37 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    /// <summary>
+    /// 设备改名后老记录仍留着旧昵称。来源列表要取该设备最近一条记录的名字，
+    /// 而不是按字典序随便挑一个，否则筛选下拉里会冒出已经不存在的老名字。
+    /// </summary>
+    [Fact]
+    public void GetVideoSources_UsesLatestRecordedNamePerDevice()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            // 老名字刻意取"手机2"：旧实现按字典序取 MAX(SourceDeviceName)，
+            // 手(0xE6..) 排在 安(0xE5..) 之后，旧行为会返回老名字，这个用例才抓得住回归。
+            database.InsertMobileBackupRecord("A", Path.Combine(tempDirectory, "a.mp4"), 1, DateTime.Now.AddMinutes(-10), 3, "phone-a", "手机2", "session-a", "sha-a");
+            database.InsertMobileBackupRecord("B", Path.Combine(tempDirectory, "b.mp4"), 1, DateTime.Now.AddMinutes(-5), 3, "phone-a", "安卓1", "session-b", "sha-b");
+            // 最新一条记录没有名字时，仍要退回最近一次有名字的"安卓1"。
+            database.InsertMobileBackupRecord("C", Path.Combine(tempDirectory, "c.mp4"), 1, DateTime.Now, 3, "phone-a", "", "session-c", "sha-c");
+
+            VideoSourceInfo source = Assert.Single(
+                database.GetVideoSources(),
+                item => item.DeviceId == "phone-a");
+
+            Assert.Equal("安卓1", source.DeviceName);
+            Assert.Equal(3, source.VideoCount);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     [Fact]
     public void VideoSourceFilter_AppliesToPagedQueryAndReturnsDistinctSources()
     {

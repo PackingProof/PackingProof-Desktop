@@ -426,7 +426,10 @@ public sealed class PlaybackWindowTests
         string codeBehind = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
 
-        Assert.Contains("videos.Add(CreateVideoItem(record, _computerName));", codeBehind, StringComparison.Ordinal);
+        Assert.Contains(
+            "videos.Add(CreateVideoItem(record, _computerName, _currentSourceDeviceNames));",
+            codeBehind,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("PlaybackFileResolver.ResolvePlaybackPath", codeBehind, StringComparison.Ordinal);
     }
 
