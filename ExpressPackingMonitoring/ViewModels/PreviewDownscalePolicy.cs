@@ -13,14 +13,16 @@ namespace ExpressPackingMonitoring.ViewModels
         internal const int MinimumWidth = 640;
 
         /// <summary>
-        /// 算出该发布多大。返回 null 表示按原始尺寸发布（帧本来就比显示尺寸小）；
-        /// 显示尺寸还没量到（窗口尚未布局）时按下限发布：宁可从便宜的一侧起步，
-        /// 窗口一布局好就会上报真实宽度。
+        /// 算出该发布多大。返回 null 表示按原始尺寸发布。
+        ///
+        /// 显示尺寸还没量到（窗口尚未布局）时按**原始尺寸**发布：宁可贵一点也绝不能被放大 ——
+        /// 发布得比控件小，WPF 就会插值放大，画面立刻发糊，这正是镜像套镜像看着一层比一层糊
+        /// 的来源之一。等窗口布局好上报真实宽度后，再按显示尺寸省开销。
         /// 宽高都取偶数，避免下游按行对齐时出现奇数 stride。
         /// </summary>
         internal static (int Width, int Height)? ResolveTarget(int sourceWidth, int sourceHeight, int displayWidth)
         {
-            if (sourceWidth <= 0 || sourceHeight <= 0)
+            if (sourceWidth <= 0 || sourceHeight <= 0 || displayWidth <= 0)
                 return null;
 
             int target = Math.Clamp(displayWidth, MinimumWidth, sourceWidth);
