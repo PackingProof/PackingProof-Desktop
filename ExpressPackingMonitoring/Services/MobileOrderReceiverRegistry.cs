@@ -358,7 +358,8 @@ internal sealed class MobileOrderReceiverRegistry
             ? item.Capabilities
             : [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
         Online: online,
-        Customized: item.Customized);
+        Customized: item.Customized,
+        LastSeenUtc: item.LastSeenUtc);
 
     private static int NormalizePort(int port) =>
         port is > 0 and <= 65535 ? port : OrderReceiverPort;
@@ -430,4 +431,5 @@ internal sealed record MobileOrderReceiverInfo(
     int Port,
     IReadOnlyList<string> Capabilities,
     bool Online,
-    bool Customized = false);
+    bool Customized = false,
+    DateTime LastSeenUtc = default);

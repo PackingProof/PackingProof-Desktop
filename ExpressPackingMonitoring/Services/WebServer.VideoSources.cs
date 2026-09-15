@@ -1,7 +1,9 @@
 #nullable disable
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Logging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 
@@ -63,6 +65,30 @@ public sealed partial class WebServer
                 .Select(pair => pair.Key)
                 .Take(50)
                 .ToArray();
+        }
+
+        /// <summary>录像根目录下的设备对照表位置与刷新入口（目录名不含昵称，用户靠它对照）。</summary>
+        internal string RecordingDeviceIndexPath =>
+            Path.Combine(_mobileBackupRecordingRootResolver()?.Trim() ?? "", RecordingDeviceFolderIndex.FileName);
+
+        /// <summary>
+        /// 刷新录像根目录里的"设备对照表.txt"。收到备份、改名、主机启动后各调用一次：
+        /// 目录按设备号命名（昵称改了目录不变），用户靠这份表把目录对上设备昵称。
+        /// 写失败不影响录像本身，只记录不抛出。
+        /// </summary>
+        internal void RefreshRecordingDeviceIndex()
+        {
+            try
+            {
+                RecordingDeviceFolderIndex.TryWrite(
+                    _mobileBackupRecordingRootResolver(),
+                    _mobileOrderReceivers.GetKnownRecordingDevices(),
+                    DateTime.Now);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MobileBackup", $"无法刷新设备对照表：{ex.Message}");
+            }
         }
 
         private static string ResolveVideoSourceName(string deviceId, string deviceName)

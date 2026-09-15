@@ -185,6 +185,9 @@ namespace ExpressPackingMonitoring.Services
         private readonly string _accessKey;
         private readonly Func<string> _mobileConnectionUrlProvider;
         private readonly MobileBackupService _mobileBackupService;
+
+        /// <summary>录像根目录：设备对照表写在它下面，供用户把"设备-XXXXXX"目录对上昵称。</summary>
+        private readonly Func<string> _mobileBackupRecordingRootResolver;
         private readonly BackupPairingTokenService _backupPairingTokens;
         private readonly MobileOrderReceiverRegistry _mobileOrderReceivers;
         private readonly RecordingComputerNicknameRegistry _recordingComputerNicknames;
@@ -382,10 +385,12 @@ namespace ExpressPackingMonitoring.Services
             _backupPairingTokens = new BackupPairingTokenService(
                 resolvedMobileBackupStateDirectory,
                 _accessKey);
+            _mobileBackupRecordingRootResolver = mobileBackupRecordingRootResolver
+                ?? (() => Path.Combine(AppPaths.UserDataDir, "mobile-backup-recordings"));
             _mobileBackupService = new MobileBackupService(
                 _db,
                 resolvedMobileBackupStateDirectory,
-                mobileBackupRecordingRootResolver ?? (() => Path.Combine(AppPaths.UserDataDir, "mobile-backup-recordings")),
+                _mobileBackupRecordingRootResolver,
                 GetOrderInfo,
                 mobileBackupArchiveTargetResolver,
                 mobileBackupArchivePendingCallback);
@@ -394,8 +399,7 @@ namespace ExpressPackingMonitoring.Services
                 try { MobileBackupActivityChanged?.Invoke(hasActive); } catch { }
             };
             _mobileOrderReceivers = new MobileOrderReceiverRegistry(
-                Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));
-            _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
+                Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));            _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"));
             _orderIntegrationActivities = new OrderIntegrationActivityRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "order-integration-activity.json"));
@@ -534,6 +538,8 @@ namespace ExpressPackingMonitoring.Services
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
             _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
+            // 启动时先写一次对照表，用户打开录像目录就能看到目录与昵称的对应关系。
+            RefreshRecordingDeviceIndex();
         }
 
         private async Task BackfillVideoCodecsAsync(CancellationToken cancellationToken)
@@ -2300,8 +2306,7 @@ namespace ExpressPackingMonitoring.Services
                 string receiptSignature = "";
                 string receiptSessionId = request.Sessions[0].Id;
                 if (_authenticatedDeviceKeys.TryGetValue(ctx, out string deviceCredential))
-                {
-                    VideoRecord verifiedRecord = _db.GetVideoById(result.RecordId);
+                {                    VideoRecord verifiedRecord = _db.GetVideoById(result.RecordId);
                     fileSizeBytes = verifiedRecord?.FileSizeBytes ?? 0;
                     string resolvedVerifiedPath = verifiedRecord == null
                         ? ""
@@ -2335,6 +2340,8 @@ namespace ExpressPackingMonitoring.Services
                     receiptSignature = authVersion > 0 ? receiptSignature : null,
                     message = "电脑校验完成，备份成功"
                 });
+                // 收到备份后顺手刷新设备对照表：录像目录按设备号命名，用户靠它把目录对上昵称。
+                RefreshRecordingDeviceIndex();
             }
             catch (Exception ex)
             {
