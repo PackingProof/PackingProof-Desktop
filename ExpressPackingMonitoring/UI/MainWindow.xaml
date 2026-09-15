@@ -280,7 +280,8 @@
                 <Border Grid.Row="1" Background="{DynamicResource VideoPlaceholder}" CornerRadius="10" ClipToBounds="True">
                     <!-- ClipToBounds 只按矩形裁剪，铺满时视频会从圆角处溢出直角，所以额外套圆角裁剪 -->
                     <Grid ui:RoundedClip.Radius="10">
-                        <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
+                        <Image x:Name="VideoImage" Source="{Binding VideoFrame}" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
                         <Grid x:Name="CameraBarcodeGuide"
                               Width="0"
                               Height="0"

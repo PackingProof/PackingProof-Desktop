@@ -1292,6 +1292,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             Interlocked.Add(ref _previewWriteTicksTotal, Stopwatch.GetTimestamp() - writeStarted);
                             Interlocked.Increment(ref _previewWriteCount);
                             Interlocked.Increment(ref _previewPublishedTotal);
+                            Interlocked.Exchange(ref _publishedPreviewWidth, frameToPublish.Width);
+                            Interlocked.Exchange(ref _publishedPreviewHeight, frameToPublish.Height);
                             _lastPreviewPublishedAt = DateTime.Now;
                             Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
                         }
@@ -1404,7 +1406,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 ? interval.Value.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
                 : "full";
             int cameraFps = (int)Math.Round(Volatile.Read(ref _cameraSourceFpsEstimate));
-            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, publishWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
+            int publishedWidth = Volatile.Read(ref _publishedPreviewWidth);
+            int publishedHeight = Volatile.Read(ref _publishedPreviewHeight);
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, frame={_actualCameraWidth}x{_actualCameraHeight}, publishSize={publishedWidth}x{publishedHeight}, displayWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
         }
 
         /// <summary>

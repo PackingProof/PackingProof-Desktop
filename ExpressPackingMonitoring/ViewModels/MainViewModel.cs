@@ -154,6 +154,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _previewDisplayWidth;
         // 当前预览档位（满帧记 -1），只在降低时提示一次。
         private int _previewRateTierFps;
+        // 最近一次真正写进 WriteableBitmap 的尺寸：与控件显示尺寸对照就能判断有没有被放大。
+        private int _publishedPreviewWidth;
+        private int _publishedPreviewHeight;
         // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
         // 用来判断"空闲降帧"到底省了多少（见 PreviewFrameRatePolicy）。
         private DateTime _previewStatsWindowStart = DateTime.MinValue;
