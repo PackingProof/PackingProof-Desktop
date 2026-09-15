@@ -286,8 +286,7 @@ internal sealed class MobileOrderReceiverRegistry
                     // 老库里两台设备被发过同一个名字：撞名的那台保留可读部分并带上设备号，
                     // 保证一个名字只属于一台设备；它下次上线会换成主机新分配的名字。
                     name = CreateDistinctSeedName(name, nodeId, usedNames);
-                }
-                _entries.Add(new Entry
+                }                _entries.Add(new Entry
                 {
                     NodeId = nodeId,
                     NodeName = name,
@@ -311,8 +310,11 @@ internal sealed class MobileOrderReceiverRegistry
     /// 按"从机"重新编号（用户会看到一台手机从"手机1"变成"从机1"）。设备自己的录像里
     /// 存着当时用过的名字，打开软件时用它改回来，不必等设备上线；
     /// 用户手改过的名字和没有更好名字的设备都不动。
+    ///
+    /// 老库里两台设备可能都被发过这个名字：谁最近还在用它，谁留着，
+    /// 另一台退回"名字·设备号"，避免又出现两台设备同名。
     /// </summary>
-    private static bool RepairSlaveFallbackName(
+    private bool RepairSlaveFallbackName(
         Entry entry,
         VideoSourceInfo source,
         HashSet<string> usedNames)
@@ -321,22 +323,39 @@ internal sealed class MobileOrderReceiverRegistry
             return false;
 
         string current = entry.NodeName?.Trim() ?? "";
-        if (!IsAssignedDeviceName(current) || !current.StartsWith("从机", StringComparison.Ordinal))
+        bool isSlaveFallback = IsAssignedDeviceName(current)
+            && current.StartsWith("从机", StringComparison.Ordinal);
+        // 没有名字的登记（例如之前补齐时名字为空）也在这里补上；
+        // "从机N"这类兜底名同样按设备自己录像里用过的名字修回来。
+        if (current.Length > 0 && !isSlaveFallback)
             return false;
 
         string preferred = source.PreferredName?.Trim() ?? "";
-        if (preferred.Length == 0
-            || preferred.Equals(current, StringComparison.OrdinalIgnoreCase)
-            || !usedNames.Add(preferred))
-        {
+        if (preferred.Length == 0 || preferred.Equals(current, StringComparison.OrdinalIgnoreCase))
             return false;
+
+        if (!usedNames.Add(preferred))
+        {
+            Entry? holder = _entries.FirstOrDefault(item =>
+                !ReferenceEquals(item, entry)
+                && string.Equals(item.NodeName?.Trim(), preferred, StringComparison.OrdinalIgnoreCase));
+            if (holder == null
+                || holder.Customized
+                || holder.LastSeenUtc >= source.LastRecordUtc)
+            {
+                return false;
+            }
+
+            // 占用者比这台设备更久没用过这个名字：让它换一个带设备号的名字。
+            usedNames.Remove(preferred);
+            holder.NodeName = CreateDistinctSeedName(holder.NodeName, holder.NodeId, usedNames);
+            usedNames.Add(preferred);
         }
 
         usedNames.Remove(current);
         entry.NodeName = preferred;
         return true;
     }
-
     /// <summary>
     /// 同一台设备有两个历史名字、或两台设备历史上被发过同一个名字时，补齐要保证
     /// "一台设备一个名字、一个名字只属于一台设备"：撞名的那台用"原名字·设备号后 6 位"，

@@ -719,6 +719,106 @@ public sealed class MobileOrderReceiverRegistryTests
         }
     }
 
+    /// <summary>
+    /// 两个设备号都叫过"手机1"（老版本不管重名）：修回兜底名时谁最近还在用它谁留着，
+    /// 另一台退回"名字·设备号"，不会又冒出两台同名设备。
+    /// </summary>
+    [Fact]
+    public void SeedRecordedDevicesGivesContestedNameToTheMostRecentDevice()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        DateTime now = new(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(
+                Path.Combine(directory, "receivers.json"),
+                () => now);
+            now = new DateTime(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-old",
+                "手机1",
+                deviceKind: "mobile",
+                trustProvidedName: true);
+            now = new DateTime(2026, 8, 19, 0, 0, 0, DateTimeKind.Utc);
+            registry.Register(
+                IPAddress.Parse("192.168.31.202"),
+                "android-device-new",
+                "从机1",
+                deviceKind: "mobile",
+                trustProvidedName: true);
+
+            registry.SeedRecordedDevices(
+            [
+                // 旧的这台最后一次录像在 8/11，新的那台在 8/19：名字归新的那台。
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external",
+                    "android-device-old",
+                    "手机1",
+                    4,
+                    new DateTime(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc),
+                    "手机1"),
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external",
+                    "android-device-new",
+                    "手机1",
+                    9,
+                    new DateTime(2026, 8, 19, 0, 0, 0, DateTimeKind.Utc),
+                    "手机1")
+            ]);
+
+            IReadOnlyList<MobileOrderReceiverInfo> known = registry.GetKnownRecordingDevices();
+            Assert.Equal("手机1", Assert.Single(known, item => item.NodeId == "android-device-new").NodeName);
+            Assert.StartsWith("手机1·", Assert.Single(known, item => item.NodeId == "android-device-old").NodeName);
+            Assert.Equal(
+                known.Count,
+                known.Select(item => item.NodeName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>登记表里名字为空的设备（之前补齐没补上的）也要按录像里的名字补上。</summary>
+    [Fact]
+    public void SeedRecordedDevicesFillsEntriesWithoutName()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "",
+                deviceKind: "mobile",
+                trustProvidedName: true);
+            Assert.Equal(
+                "",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
+
+            registry.SeedRecordedDevices(
+            [
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external",
+                    "android-device-0001",
+                    "手机3",
+                    18,
+                    new DateTime(2026, 8, 9, 0, 0, 0, DateTimeKind.Utc),
+                    "手机3")
+            ]);
+
+            Assert.Equal(
+                "手机3",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     /// <summary>用户手改过的名字不能被补齐流程改掉，哪怕它看起来像兜底名。</summary>
     [Fact]
     public void SeedRecordedDevicesNeverTouchesCustomizedNames()
