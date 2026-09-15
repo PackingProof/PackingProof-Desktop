@@ -230,6 +230,11 @@ namespace ExpressPackingMonitoring.ViewModels
             TimeSpan displayDuration,
             ToastSeverity severity = ToastSeverity.Success)
         {
+            // 主界面最小化时 Toast 弹在主界面上，店员在小窗里根本看不见，
+            // 所以同一个提示也要送到小窗（小窗自己有关闭/去重，见 ShowInlineNotice）。
+            if (IsFloatingPreviewActive && !string.IsNullOrWhiteSpace(message))
+                FloatingPreviewNoticeRequested?.Invoke(message, severity);
+
             Application.Current?.Dispatcher?.InvokeAsync(async () =>
             {
                 _toastCts?.Cancel();

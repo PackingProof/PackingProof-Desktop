@@ -41,12 +41,20 @@ namespace ExpressPackingMonitoring.ViewModels
             private set => SetProperty(ref _floatingPreviewTextIsOrderId, value);
         }
 
-        /// <summary>小窗是否正在显示，供主窗口按钮状态与生命周期判断使用。</summary>
+        /// <summary>
+        /// 小窗是否正在显示，供主窗口按钮状态与生命周期判断使用。
+        /// </summary>
         public bool IsFloatingPreviewActive
         {
             get => _isFloatingPreviewActive;
             set => SetProperty(ref _isFloatingPreviewActive, value);
         }
+
+        /// <summary>
+        /// 需要在小窗上就地显示的提示。主界面最小化时 Toast 看不见，
+        /// 小窗订阅这个事件把提示画在自己身上（小窗关闭时自然收不到）。
+        /// </summary>
+        internal event Action<string, Services.ToastSeverity>? FloatingPreviewNoticeRequested;
 
         /// <summary>
         /// 主界面预览控件的显示宽度（设备像素）。窗口最小化或隐藏时传 0，

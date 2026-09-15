@@ -67,8 +67,29 @@ namespace ExpressPackingMonitoring.UI
             SpeakerButton.ToolTip = AppLanguage.Get("选择播放设备");
 
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            _viewModel.FloatingPreviewNoticeRequested += OnNoticeRequested;
             PreviewImage.SizeChanged += (_, _) => ReportPreviewDisplayWidth();
             Loaded += (_, _) => ReportPreviewDisplayWidth();
+        }
+
+        /// <summary>
+        /// Toast 在主界面最小化时看不见，主 ViewModel 会把同一条提示转过来；
+        /// 这里按 UI 线程显示，警告与错误多留一会儿。
+        /// </summary>
+        private void OnNoticeRequested(string message, ExpressPackingMonitoring.Services.ToastSeverity severity)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return;
+
+            TimeSpan duration = severity is ExpressPackingMonitoring.Services.ToastSeverity.Warning
+                or ExpressPackingMonitoring.Services.ToastSeverity.Error
+                ? TimeSpan.FromSeconds(6)
+                : TimeSpan.FromSeconds(3.5);
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!_closedByOwner)
+                    ShowInlineNotice(message, duration);
+            }));
         }
 
         /// <summary>
@@ -502,6 +523,7 @@ namespace ExpressPackingMonitoring.UI
         {
             PersistCornerPreference();
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            _viewModel.FloatingPreviewNoticeRequested -= OnNoticeRequested;
             _viewModel.ReportFloatingPreviewDisplayWidth(0);
             StopAnimations();
             if (_noticeTimer != null)
@@ -534,16 +556,16 @@ namespace ExpressPackingMonitoring.UI
 
         /// <summary>
         /// 就地提示：主窗口处于最小化状态，Toast 在主界面上弹出来店员根本看不见，
-        /// 所以设备切换这类反馈必须显示在小窗自己身上。
+        /// 所以提示必须显示在小窗自己身上。
         /// </summary>
-        private void ShowInlineNotice(string message)
+        private void ShowInlineNotice(string message, TimeSpan? duration = null)
         {
             InlineNoticeText.Text = message;
             InlineNoticeBorder.Visibility = Visibility.Visible;
 
             _noticeTimer ??= new DispatcherTimer();
             _noticeTimer.Stop();
-            _noticeTimer.Interval = TimeSpan.FromSeconds(3.5);
+            _noticeTimer.Interval = duration ?? TimeSpan.FromSeconds(3.5);
             _noticeTimer.Tick -= NoticeTimer_Tick;
             _noticeTimer.Tick += NoticeTimer_Tick;
             _noticeTimer.Start();
