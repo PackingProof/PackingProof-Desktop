@@ -38,18 +38,15 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
-    /// 还没量到显示尺寸（窗口尚未布局）时按下限发布：预览只喂给主界面与小窗两个控件，
-    /// 从便宜的一侧起步没有副作用，窗口一布局好就会上报真实宽度。
+    /// 还没量到显示尺寸（窗口尚未布局）时按原始尺寸发布：发布得比控件小就会被 WPF 放大，
+    /// 画面立刻发糊 —— 镜像套镜像时一层比一层糊，宁可贵一点也不放大。
     /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-5)]
-    public void UnknownDisplayWidthFallsBackToMinimumWidth(int displayWidth)
+    public void UnknownDisplayWidthPublishesNativeSize(int displayWidth)
     {
-        (int Width, int Height)? target = PreviewDownscalePolicy.ResolveTarget(1920, 1080, displayWidth);
-
-        Assert.NotNull(target);
-        Assert.Equal(PreviewDownscalePolicy.MinimumWidth, target!.Value.Width);
+        Assert.Null(PreviewDownscalePolicy.ResolveTarget(1920, 1080, displayWidth));
     }
 
     /// <summary>宽高都取偶数，避免奇数 stride 让下游按行对齐出问题。</summary>
