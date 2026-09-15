@@ -83,6 +83,11 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         return _server.GetRecordingDevices(authority, includeKnown);
     }
 
+    /// <summary>设备号→当前昵称。备份设备卡片据此把记录里的旧昵称换成改名后的新名字。</summary>
+    public IReadOnlyDictionary<string, string> GetCurrentRecordingDeviceNames() =>
+        _server?.GetCurrentSourceDeviceNames()
+        ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public int GetConnectedMobileCount()
     {
         if (_server == null)

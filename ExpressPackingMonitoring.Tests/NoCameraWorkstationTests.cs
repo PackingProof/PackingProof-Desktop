@@ -230,6 +230,29 @@ public sealed class NoCameraWorkstationTests
     }
 
     [Fact]
+    public void MobileBackupStatus_UsesCurrentDeviceNameInsteadOfStoredSnapshot()
+    {
+        IReadOnlyList<PrintWorkstationWindow.MobileBackupStatusItem> statuses =
+            PrintWorkstationWindow.BuildMobileBackupStatuses(
+                [
+                    new MobileBackupDailyCount("phone-1", "从机1", 3),
+                    new MobileBackupDailyCount("phone-2", "从机2", 2)
+                ],
+                [],
+                "host-1",
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["phone-1"] = "安卓1"
+                });
+
+        // 设备改名后卡片跟着显示新昵称；主机没登记过的设备仍用记录里的快照名。
+        Assert.Contains(statuses, item =>
+            item.DeviceId == "phone-1" && item.DisplayText == "安卓1 · 今日备份 3 个");
+        Assert.Contains(statuses, item =>
+            item.DeviceId == "phone-2" && item.DisplayText == "从机2 · 今日备份 2 个");
+    }
+
+    [Fact]
     public void MobileBackupStatus_UsesRemoteIdSuffixOnlyForUnnamedRemoteDevices()
     {
         IReadOnlyList<PrintWorkstationWindow.MobileBackupStatusItem> statuses =
