@@ -306,14 +306,15 @@ public partial class MainViewModel
 
     private void ApplyAssignedComputerNickname(string? assignedDisplayName)
     {
-        string name = assignedDisplayName?.Trim() ?? "";
-        if (name.Length is < 1 or > 20
-            || name.Any(char.IsControl)
-            || string.Equals(name, Config.NodeName, StringComparison.Ordinal))
+        if (!ShouldApplyAssignedComputerNickname(
+                assignedDisplayName,
+                Config.NodeNameCustomized,
+                Config.NodeName))
         {
             return;
         }
 
+        string name = assignedDisplayName!.Trim();
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
                 {
@@ -330,6 +331,24 @@ public partial class MainViewModel
         Config.NodeName = saved.NodeName;
         Config.NodeNameCustomized = saved.NodeNameCustomized;
         OnPropertyChanged(nameof(ComputerDisplayName));
+    }
+
+    /// <summary>
+    /// 主机分配的自动昵称能不能落到本机配置上。用户在本机改过名字（NodeNameCustomized）
+    /// 后就不再接受：否则主机还没收到"已自定义"的心跳时发来的"电脑N"会把用户改的名字悄悄刷回去。
+    /// </summary>
+    internal static bool ShouldApplyAssignedComputerNickname(
+        string? assignedDisplayName,
+        bool localNameCustomized,
+        string? currentName)
+    {
+        if (localNameCustomized)
+            return false;
+
+        string name = assignedDisplayName?.Trim() ?? "";
+        return name.Length is >= 1 and <= 20
+            && !name.Any(char.IsControl)
+            && !string.Equals(name, currentName ?? "", StringComparison.Ordinal);
     }
 
     internal static bool ShouldPromptRecordingWorkstationHostBinding(AppConfig? config) =>

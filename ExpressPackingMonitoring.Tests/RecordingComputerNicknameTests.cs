@@ -5,6 +5,7 @@ using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.ViewModels;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -239,6 +240,28 @@ public sealed class RecordingComputerNicknameTests
 
         Assert.True(result.Online);
         Assert.Equal("", result.AssignedDisplayName);
+    }
+
+    [Theory]
+    // 用户在本机改过名字后，主机分配的自动昵称（"电脑N"）不许再把它刷回去。
+    [InlineData("电脑2", true, "东侧打包台", false)]
+    [InlineData("电脑2", false, "电脑1", true)]
+    [InlineData(" 电脑2 ", false, "电脑1", true)]
+    // 名字没变、为空、超长或带控制字符时都不动本机配置（避免每次心跳都写盘）。
+    [InlineData("电脑1", false, "电脑1", false)]
+    [InlineData("", false, "电脑1", false)]
+    [InlineData("   ", false, "电脑1", false)]
+    [InlineData("123456789012345678901", false, "电脑1", false)]
+    [InlineData("电脑\n2", false, "电脑1", false)]
+    public void AssignedNicknameOnlyAppliesWhenLocalNameIsNotCustomized(
+        string assigned,
+        bool localNameCustomized,
+        string currentName,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            MainViewModel.ShouldApplyAssignedComputerNickname(assigned, localNameCustomized, currentName));
     }
 
     private static string CreateTemporaryDirectory()
