@@ -164,6 +164,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             LoadConfig();
+            HookApplicationFocusTracking();
             InitializeCameraBarcodeRecognition();
             // 在起动时后台探测可用 GPU 编码器并缓存
             Task.Run(() => {

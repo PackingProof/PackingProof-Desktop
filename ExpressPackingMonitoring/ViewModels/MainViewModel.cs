@@ -144,6 +144,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan UiHeartbeatStaleThreshold = TimeSpan.FromSeconds(2);
         private DateTime _lastPreviewFrameAt = DateTime.MinValue;
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
+        // 程序自己的窗口是否在前台。前台时预览满帧跑（用户在盯着看），
+        // 只有后台且长时间没人操作才逐级降帧，见 PreviewFrameRatePolicy。
+        private volatile bool _isAppWindowFocused;
         // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
         // 用来判断"空闲降帧"到底省了多少（见 PreviewFrameRatePolicy）。
         private DateTime _previewStatsWindowStart = DateTime.MinValue;
@@ -756,6 +759,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isDisposed) return;
             _shutdownRequested = true;
             _isDisposed = true;
+            UnhookApplicationFocusTracking();
             try { _playbackWindow?.Close(); } catch { }
             try { _statisticsWindow?.Close(); } catch { }
             _cts?.Cancel();

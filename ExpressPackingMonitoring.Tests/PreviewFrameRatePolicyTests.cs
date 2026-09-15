@@ -4,46 +4,68 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 预览发布节奏：有人操作时按 12fps，长时间没人碰鼠标/键盘/扫码时降到 4fps。
-/// 降帧只影响给人看的预览，录像管线仍按录制帧率走。
+/// 预览发布节奏：默认按摄像头帧率满帧跑（用户会拿 OBS 对比，限流一眼就看出卡）；
+/// 只有程序在后台且长时间没人操作时才逐级降帧。
 /// </summary>
 public sealed class PreviewFrameRatePolicyTests
 {
+    /// <summary>程序窗口在前台时一律满帧，哪怕很久没碰鼠标。</summary>
     [Fact]
-    public void RecentActivityKeepsFullPreviewRate()
+    public void FocusedWindowKeepsFullRate()
     {
-        Assert.Equal(PreviewFrameRatePolicy.ActiveInterval, PreviewFrameRatePolicy.ResolveInterval(TimeSpan.Zero));
-        Assert.Equal(
-            PreviewFrameRatePolicy.ActiveInterval,
-            PreviewFrameRatePolicy.ResolveInterval(PreviewFrameRatePolicy.IdleAfter - TimeSpan.FromSeconds(1)));
+        Assert.Null(PreviewFrameRatePolicy.ResolveInterval(TimeSpan.Zero, appWindowFocused: true));
+        Assert.Null(PreviewFrameRatePolicy.ResolveInterval(TimeSpan.FromHours(2), appWindowFocused: true));
+    }
+
+    /// <summary>后台但刚操作过也满帧：用户可能正盯着小窗看。</summary>
+    [Fact]
+    public void RecentActivityKeepsFullRate()
+    {
+        Assert.Null(PreviewFrameRatePolicy.ResolveInterval(TimeSpan.Zero, appWindowFocused: false));
+        Assert.Null(PreviewFrameRatePolicy.ResolveInterval(
+            PreviewFrameRatePolicy.ReducedAfter - TimeSpan.FromSeconds(1),
+            appWindowFocused: false));
     }
 
     [Fact]
-    public void IdlePreviewDropsToQuarterRate()
+    public void IdleFirstStepDropsToTwelveFps()
     {
         Assert.Equal(
-            PreviewFrameRatePolicy.IdleInterval,
-            PreviewFrameRatePolicy.ResolveInterval(PreviewFrameRatePolicy.IdleAfter));
+            PreviewFrameRatePolicy.ReducedInterval,
+            PreviewFrameRatePolicy.ResolveInterval(PreviewFrameRatePolicy.ReducedAfter, appWindowFocused: false));
         Assert.Equal(
-            PreviewFrameRatePolicy.IdleInterval,
-            PreviewFrameRatePolicy.ResolveInterval(TimeSpan.FromMinutes(30)));
+            PreviewFrameRatePolicy.ReducedInterval,
+            PreviewFrameRatePolicy.ResolveInterval(
+                PreviewFrameRatePolicy.LowAfter - TimeSpan.FromSeconds(1),
+                appWindowFocused: false));
     }
 
-    /// <summary>空闲阈值与两档间隔的关系不能颠倒，否则降帧要么不生效要么一直在降。</summary>
     [Fact]
-    public void IdleRateIsSlowerThanActiveRate()
+    public void LongerIdleDropsOneMoreStep()
     {
-        Assert.True(PreviewFrameRatePolicy.IdleInterval > PreviewFrameRatePolicy.ActiveInterval);
-        Assert.True(PreviewFrameRatePolicy.IdleAfter >= TimeSpan.FromSeconds(10));
-        Assert.True(PreviewFrameRatePolicy.ActiveInterval <= TimeSpan.FromMilliseconds(100));
+        Assert.Equal(
+            PreviewFrameRatePolicy.LowInterval,
+            PreviewFrameRatePolicy.ResolveInterval(PreviewFrameRatePolicy.LowAfter, appWindowFocused: false));
+        Assert.Equal(
+            PreviewFrameRatePolicy.LowInterval,
+            PreviewFrameRatePolicy.ResolveInterval(TimeSpan.FromHours(3), appWindowFocused: false));
+    }
+
+    /// <summary>三级关系不能颠倒：满帧 > 12fps > 4fps，阈值递增。</summary>
+    [Fact]
+    public void StepsAreMonotonic()
+    {
+        Assert.True(PreviewFrameRatePolicy.ReducedAfter < PreviewFrameRatePolicy.LowAfter);
+        Assert.True(PreviewFrameRatePolicy.LowInterval > PreviewFrameRatePolicy.ReducedInterval);
+        Assert.True(PreviewFrameRatePolicy.ReducedInterval <= TimeSpan.FromMilliseconds(100));
     }
 
     /// <summary>
-    /// 摄像头休眠后主界面收不到鼠标事件，只有小窗在收；小窗上的活动必须走同一条空闲时间，
-    /// 所以预览降帧与休眠唤醒共用 ViewModel 的 _lastActivityTime。
+    /// 满帧意味着"不额外限流"，所以调用点必须同时接受 null；
+    /// 焦点状态由 Application.Activated/Deactivated 维护，采集线程只读标记。
     /// </summary>
     [Fact]
-    public void PreviewRateUsesSharedUserActivityClock()
+    public void CameraPipelineHandlesFullRateAndFocusSignal()
     {
         string source = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -51,7 +73,12 @@ public sealed class PreviewFrameRatePolicyTests
             "ViewModels",
             "MainViewModel.Camera.cs"));
 
-        Assert.Contains("PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime)", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime, _isAppWindowFocused)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("application.Activated +=", source, StringComparison.Ordinal);
+        Assert.Contains("application.Deactivated +=", source, StringComparison.Ordinal);
         // 写死的 12fps 常量必须已经删掉，否则两道限流会互相打架。
         Assert.DoesNotContain("PreviewFrameInterval = TimeSpan", source, StringComparison.Ordinal);
     }
