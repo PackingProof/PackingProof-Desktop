@@ -2127,6 +2127,8 @@ namespace ExpressPackingMonitoring.Services
                 {
                     ok = true,
                     assignedDisplayName = assignedDisplayName.Length > 0 ? assignedDisplayName : null,
+                    // 与注册响应同一份电脑名：主机改名后手机端靠心跳就能刷新"已连接电脑"。
+                    computerName = _nodeName,
                     heartbeatIntervalSeconds = ConnectedClientRegistry.HeartbeatIntervalSeconds,
                     expiresInSeconds = ConnectedClientRegistry.ExpirationSeconds,
                     mobileAppUpdate = new

@@ -147,7 +147,8 @@ public sealed class ConnectedClientTests
                 port,
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: Path.Combine(directory, "uploads"),
-                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"));
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                nodeName: "东侧打包台");
             server.Start();
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             CancellationToken token = TestContext.Current.CancellationToken;
@@ -182,6 +183,10 @@ public sealed class ConnectedClientTests
             Assert.Equal(
                 "设备 A1B2C3",
                 mobilePayload.RootElement.GetProperty("assignedDisplayName").GetString());
+            // 手机端靠这个字段在主机改名后刷新"已连接电脑"，值必须与注册响应里的电脑名同源。
+            Assert.Equal(
+                "东侧打包台",
+                mobilePayload.RootElement.GetProperty("computerName").GetString());
 
             using HttpResponseMessage invalid = await client.PostAsJsonAsync(
                 "/api/connections/heartbeat",
