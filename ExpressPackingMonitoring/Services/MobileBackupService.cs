@@ -283,7 +283,9 @@ internal sealed class MobileBackupService
                 localStartTime,
                 session.DurationMilliseconds / 1000.0,
                 request.SourceDeviceId,
-                request.SourceDeviceName,
+                // 昵称不逐条存：设备号才是身份，名字随时会改，
+                // 映射只保存在主机设备登记表里（WebServer 启动时会用录像来源补齐）。
+                "",
                 session.Id,
                 fileSha256,
                 orderInfo,

@@ -13,42 +13,16 @@ namespace ExpressPackingMonitoring.Services;
 internal static class RecordingSourceNameLookup
 {    internal static IReadOnlyDictionary<string, string> Build(
         IEnumerable<MobileOrderReceiverInfo>? mobileDevices,
-        IEnumerable<ConnectedClientInfo>? connectedClients,
-        IEnumerable<RememberedDeviceName>? rememberedNames = null)
+        IEnumerable<ConnectedClientInfo>? connectedClients)
     {
-        // 登记表里的名字就是主机分配的昵称，优先级高于客户端自报的显示名；
-        // 掉出保留期的设备用台账里记住的名字兜底，避免退回记录里的历史快照。
+        // 登记表里的名字就是主机分配的昵称，优先级高于客户端自报的显示名。
+        // 昵称只存在这里（记录不再逐条写昵称），所以它也是显示名的唯一来源。
         var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (MobileOrderReceiverInfo device in mobileDevices ?? [])
             TryAdd(names, device.NodeId, device.NodeName);
         foreach (ConnectedClientInfo client in connectedClients ?? [])
             TryAdd(names, client.NodeId, client.DisplayName);
-        AddRememberedNames(names, rememberedNames);
         return names;
-    }
-
-    /// <summary>
-    /// 台账兜底层。一台设备一个名字、一个名字只属于一台设备：编号会在设备掉出保留期后
-    /// 被别人复用，所以已经被别的设备占用的名字不能再盖到老设备头上，
-    /// 这种情况宁可让调用方退回记录里的快照名。
-    /// </summary>
-    private static void AddRememberedNames(
-        Dictionary<string, string> names,
-        IEnumerable<RememberedDeviceName>? rememberedNames)
-    {
-        if (rememberedNames == null)
-            return;
-
-        var usedNames = new HashSet<string>(names.Values, StringComparer.OrdinalIgnoreCase);
-        foreach (RememberedDeviceName remembered in rememberedNames)
-        {
-            string id = remembered.NodeId?.Trim() ?? "";
-            string value = remembered.Name?.Trim() ?? "";
-            if (id.Length == 0 || value.Length == 0 || names.ContainsKey(id) || !usedNames.Add(value))
-                continue;
-
-            names[id] = value;
-        }
     }
 
     internal static string Resolve(

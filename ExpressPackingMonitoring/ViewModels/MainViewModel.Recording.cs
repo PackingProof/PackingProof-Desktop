@@ -811,7 +811,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     _recordStartTime,
                     orderInfoSnapshot,
                     Config.MobileBackupComputerId,
-                    Environment.MachineName,
+                    // 昵称不逐条存：本机录像的来源名一直按当前电脑名显示，记录里只留设备号。
+                    "",
                     archivePath,
                     _recordingSessionId) ?? 0;
                 RuntimeLog.Info("Recording", $"Database record inserted id={_currentRecordId}, file={Path.GetFileName(filePath)}");

@@ -47,6 +47,45 @@ public sealed class BackupUploadDeviceRegistrationTests
         }
     }
 
+    /// <summary>
+    /// 上传成功的设备要标记成"有录像"：昵称映射是录像显示名的唯一来源，
+    /// 这台设备即使长期不再上线，也不能按活跃时间把它连同昵称一起清掉。
+    /// </summary>
+    [Fact]
+    public void UploadedDeviceSurvivesRetentionPruning()
+    {
+        string directory = CreateTemporaryDirectory();
+        DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            var computerRegistry = new RecordingComputerNicknameRegistry(
+                Path.Combine(directory, "computer-nicknames.json"));
+            var mobileRegistry = new MobileOrderReceiverRegistry(
+                Path.Combine(directory, "order-receivers.json"),
+                () => now);
+
+            BackupUploadDeviceRegistration.RegisterAndResolveSourceName(
+                mobileRegistry,
+                computerRegistry,
+                IPAddress.Parse("192.168.31.61"),
+                "android-device-0001",
+                "设备 A1B2C3",
+                deviceKind: "mobile",
+                platform: "android");
+
+            now = now.AddDays(120);
+            Assert.Equal(
+                "安卓1",
+                Assert.Single(
+                    mobileRegistry.GetKnownRecordingDevices(),
+                    item => item.NodeId == "android-device-0001").NodeName);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void MobileUploadUsesAssignedNicknameInsteadOfClientReportedName()
     {

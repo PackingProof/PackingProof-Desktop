@@ -3717,5 +3717,6 @@ namespace ExpressPackingMonitoring.Data
         string SourceType,
         string DeviceId,
         string DeviceName,
-        int VideoCount);
+        int VideoCount,
+        DateTime LastRecordUtc = default);
 }

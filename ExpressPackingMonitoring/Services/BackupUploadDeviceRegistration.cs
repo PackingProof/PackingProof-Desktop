@@ -33,14 +33,16 @@ internal static class BackupUploadDeviceRegistration
         {
             string assigned = computerRegistry.Assign(nodeId, reported, customized: false);
             // 仍然登记进手机登记表：设备对照表、可用录像设备列表都读它。
-            // trustProvidedName 让登记表原样收下电脑昵称表的分配结果，不再自己编号。
+            // trustProvidedName 让登记表原样收下电脑昵称表的分配结果，不再自己编号；
+            // hasRecordings 让这台设备连同昵称长期保留（录像显示名只认这份映射）。
             mobileRegistry.Register(
                 remoteAddress,
                 nodeId,
                 assigned,
                 deviceKind: deviceKind,
                 platform: platform,
-                trustProvidedName: true);
+                trustProvidedName: true,
+                hasRecordings: true);
             return assigned;
         }
 
@@ -49,7 +51,8 @@ internal static class BackupUploadDeviceRegistration
             nodeId,
             reported,
             deviceKind: deviceKind,
-            platform: platform);
+            platform: platform,
+            hasRecordings: true);
         return registered?.NodeName?.Trim() is { Length: > 0 } assignedName ? assignedName : reported;
     }
 
