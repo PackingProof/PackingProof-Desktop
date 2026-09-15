@@ -212,7 +212,8 @@ namespace ExpressPackingMonitoring.Data
         string Mode,
         DateTime StartTime,
         string SourceType,
-        string SourceDeviceName);
+        string SourceDeviceName,
+        string SourceDeviceId = "");
 
     public class StorageVideoFile
     {

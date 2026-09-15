@@ -234,7 +234,8 @@ namespace ExpressPackingMonitoring.UI
                 var progressDialog = new OrderNumberExportProgressDialog(
                     _db,
                     filter,
-                    saveDialog.FileName)
+                    saveDialog.FileName,
+                    _currentSourceDeviceNames)
                 {
                     Owner = this
                 };

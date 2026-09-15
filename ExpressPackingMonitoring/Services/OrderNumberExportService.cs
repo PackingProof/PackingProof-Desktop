@@ -50,7 +50,8 @@ internal static class OrderNumberExportService
     internal static IReadOnlyList<OrderNumberExportRow> BuildRows(
         IEnumerable<OrderNumberExportSource> sources,
         CancellationToken cancellationToken = default,
-        IProgress<OrderNumberExportProgress>? progress = null)
+        IProgress<OrderNumberExportProgress>? progress = null,
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
     {
         IReadOnlyList<OrderNumberExportSource> sourceList = sources as IReadOnlyList<OrderNumberExportSource>
             ?? sources.ToList();
@@ -75,7 +76,7 @@ internal static class OrderNumberExportService
                     group = new ExportGroup(trackingNumber, mode, source.StartTime);
                     groups.Add(key, group);
                 }
-                group.Add(source);
+                group.Add(source, currentSourceDeviceNames);
             }
 
             int processed = index + 1;
@@ -188,9 +189,18 @@ internal static class OrderNumberExportService
         }
     }
 
-    private static string GetSourceDevice(OrderNumberExportSource source)
+    /// <summary>
+    /// 来源设备列。记录里存的是写入当时的名字快照，设备改名后同一台设备会同时冒出老名字和
+    /// 新名字，所以先按设备号取主机当前分配的名字，取不到再退回快照名。
+    /// </summary>
+    private static string GetSourceDevice(
+        OrderNumberExportSource source,
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames)
     {
-        string name = source.SourceDeviceName?.Trim() ?? "";
+        string name = RecordingSourceNameLookup.Resolve(
+            currentSourceDeviceNames,
+            source.SourceDeviceId,
+            source.SourceDeviceName);
         if (name.Length > 0)
             return name;
         return string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
@@ -214,12 +224,14 @@ internal static class OrderNumberExportService
         internal string Mode { get; }
         internal DateTime FirstRecordingTime { get; private set; }
 
-        internal void Add(OrderNumberExportSource source)
+        internal void Add(
+            OrderNumberExportSource source,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames)
         {
             if (source.StartTime < FirstRecordingTime)
                 FirstRecordingTime = source.StartTime;
             AddIfNotEmpty(_sourceOrderIds, source.SourceOrderId);
-            AddIfNotEmpty(_sourceDevices, GetSourceDevice(source));
+            AddIfNotEmpty(_sourceDevices, GetSourceDevice(source, currentSourceDeviceNames));
         }
 
         internal OrderNumberExportRow ToRow() => new(
