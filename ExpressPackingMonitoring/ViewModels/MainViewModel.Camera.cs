@@ -1209,17 +1209,21 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 当前预览发布间隔。长时间没人动鼠标/键盘/扫码时降到 4fps，省下整帧克隆与
-        /// UI 线程写位图的开销；有人操作立刻回到 12fps。录像管线不受影响。
+        /// 当前预览发布间隔。null 表示不额外限流，跟着摄像头帧率满帧跑；
+        /// 程序窗口在前台、或刚有过鼠标/键盘/扫码操作时都是满帧，
+        /// 后台无人操作满 60 秒降到 12fps、满 5 分钟降到 4fps。
+        /// 录像管线不受影响。
         /// </summary>
-        private TimeSpan CurrentPreviewFrameInterval =>
-            PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime);
+        private TimeSpan? CurrentPreviewFrameInterval =>
+            PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime, _isAppWindowFocused);
 
         private bool IsPreviewFrameDue()
         {
-            return !SuppressVideoPreviewUpdates
-                && !_isDisposed
-                && DateTime.UtcNow - _lastPreviewFrameAt >= CurrentPreviewFrameInterval
+            if (SuppressVideoPreviewUpdates || _isDisposed)
+                return false;
+
+            TimeSpan? interval = CurrentPreviewFrameInterval;
+            return (interval == null || DateTime.UtcNow - _lastPreviewFrameAt >= interval.Value)
                 && !_previewSessionGate.IsPending;
         }
 
@@ -1228,7 +1232,8 @@ namespace ExpressPackingMonitoring.ViewModels
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
 
             DateTime now = DateTime.UtcNow;
-            if (now - _lastPreviewFrameAt < CurrentPreviewFrameInterval) return;
+            TimeSpan? interval = CurrentPreviewFrameInterval;
+            if (interval.HasValue && now - _lastPreviewFrameAt < interval.Value) return;
 
             if (!_previewSessionGate.TryAcquire(out int previewSessionId)) return;
             _lastPreviewFrameAt = now;
@@ -1365,8 +1370,42 @@ namespace ExpressPackingMonitoring.ViewModels
             _previewStatsWindowStart = now;
             _previewStatsWindowPublished = published;
             double idleSeconds = _lastActivityTime == DateTime.MinValue ? -1 : (now - _lastActivityTime).TotalSeconds;
-            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={CurrentPreviewFrameInterval.TotalMilliseconds:F0}, idle={idleSeconds:F0}s";
+            TimeSpan? interval = CurrentPreviewFrameInterval;
+            string intervalText = interval.HasValue
+                ? interval.Value.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
+                : "full";
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
         }
+
+        /// <summary>
+        /// 跟着程序自己的窗口激活状态调整预览节奏：前台满帧，后台才逐级降帧。
+        /// Application.Activated/Deactivated 覆盖主界面、设置、回放等所有窗口，
+        /// 而且都在 UI 线程触发，这里只写一个 volatile 标记，供采集线程安全读取。
+        /// </summary>
+        private void HookApplicationFocusTracking()
+        {
+            Application application = Application.Current;
+            if (application == null)
+                return;
+
+            _isAppWindowFocused = true;
+            application.Activated += OnApplicationActivated;
+            application.Deactivated += OnApplicationDeactivated;
+        }
+
+        private void UnhookApplicationFocusTracking()
+        {
+            Application application = Application.Current;
+            if (application == null)
+                return;
+
+            application.Activated -= OnApplicationActivated;
+            application.Deactivated -= OnApplicationDeactivated;
+        }
+
+        private void OnApplicationActivated(object sender, EventArgs e) => _isAppWindowFocused = true;
+
+        private void OnApplicationDeactivated(object sender, EventArgs e) => _isAppWindowFocused = false;
 
         private bool IsVideoSourceRunning()
         {
