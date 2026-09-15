@@ -76,6 +76,39 @@ public sealed class OrderNumberExportServiceTests
     }
 
     [Fact]
+    public void BuildRows_ResolvesCurrentDeviceNameInsteadOfStoredSnapshots()
+    {
+        var sources = new List<OrderNumberExportSource>
+        {
+            new("001234567890123456", "PLATFORM-001", "发货", new DateTime(2026, 8, 1, 10, 0, 0), "external", "从机1", "device-1"),
+            // 同一台设备改名后的记录：老快照和新快照都要归到当前名，来源列不能同时出现两个名字。
+            new("001234567890123456", "PLATFORM-002", "发货", new DateTime(2026, 8, 1, 10, 30, 0), "external", "安卓1", "device-1"),
+            new("001234567890123457", "PLATFORM-003", "发货", new DateTime(2026, 8, 1, 11, 0, 0), "external", "从机2", "device-2"),
+            new("001234567890123458", "PLATFORM-004", "发货", new DateTime(2026, 8, 1, 12, 0, 0), "pc", "", "")
+        };
+        var currentNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["device-1"] = "安卓1"
+        };
+
+        IReadOnlyList<OrderNumberExportRow> rows = OrderNumberExportService.BuildRows(
+            sources,
+            TestContext.Current.CancellationToken,
+            currentSourceDeviceNames: currentNames);
+
+        Assert.Equal(
+            "安卓1",
+            Assert.Single(rows, row => row.TrackingNumber == "001234567890123456").SourceDevices);
+        // 主机没登记过的设备仍用记录里的快照名，不能把来源列留空。
+        Assert.Equal(
+            "从机2",
+            Assert.Single(rows, row => row.TrackingNumber == "001234567890123457").SourceDevices);
+        Assert.Equal(
+            "本机",
+            Assert.Single(rows, row => row.TrackingNumber == "001234567890123458").SourceDevices);
+    }
+
+    [Fact]
     public void Export_WritesLongTrackingNumberAsText()
     {
         string directory = CreateTempDirectory();

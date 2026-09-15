@@ -97,7 +97,8 @@ namespace ExpressPackingMonitoring.Services
             VideoDatabase database,
             Request request,
             DateTime now,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
         {
             ArgumentNullException.ThrowIfNull(database);
             ArgumentNullException.ThrowIfNull(request);
@@ -115,7 +116,8 @@ namespace ExpressPackingMonitoring.Services
 
             IReadOnlyList<OrderNumberExportRow> rows = OrderNumberExportService.BuildRows(
                 sources,
-                cancellationToken);
+                cancellationToken,
+                currentSourceDeviceNames: currentSourceDeviceNames);
 
             if (rows.Count > MaxRows)
             {
@@ -154,7 +156,8 @@ namespace ExpressPackingMonitoring.Services
         internal static void Handle(
             HttpListenerContext ctx,
             VideoDatabase database,
-            Action<HttpListenerContext, int, object> sendJson)
+            Action<HttpListenerContext, int, object> sendJson,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
         {
             var qs = ctx.Request.QueryString;
             try
@@ -162,7 +165,11 @@ namespace ExpressPackingMonitoring.Services
                 Request request = ParseRequest(
                     qs["start"], qs["end"], qs["mode"],
                     qs["deviceId"], qs["sourceName"], qs["sourceType"], qs["deviceIds"]);
-                Result result = Export(database, request, DateTime.Now);
+                Result result = Export(
+                    database,
+                    request,
+                    DateTime.Now,
+                    currentSourceDeviceNames: currentSourceDeviceNames);
 
                 if (result.RowCount == 0)
                 {

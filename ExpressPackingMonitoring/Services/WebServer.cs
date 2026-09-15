@@ -4744,7 +4744,7 @@ namespace ExpressPackingMonitoring.Services
 
         /// <summary>导出单号供浏览器下载；实现在 OrderNumberExportEndpoint。</summary>
         private void HandleExportOrderNumbers(HttpListenerContext ctx) =>
-            OrderNumberExportEndpoint.Handle(ctx, _db, SendJson);
+            OrderNumberExportEndpoint.Handle(ctx, _db, SendJson, GetCurrentSourceDeviceNames());
 
         private void HandleSearchVideos(HttpListenerContext ctx)
         {

@@ -343,7 +343,8 @@ public partial class VideoDatabase
                         v.Mode,
                         v.StartTime,
                         v.SourceType,
-                        v.SourceDeviceName
+                        v.SourceDeviceName,
+                        v.SourceDeviceId
                     FROM VideoRecords v
                     LEFT JOIN OrderInfoRecords o
                       ON o.TrackingNumber = COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), TRIM(v.OrderId)) COLLATE NOCASE "
@@ -363,7 +364,8 @@ public partial class VideoDatabase
                         reader.IsDBNull(2) ? "" : reader.GetString(2),
                         DateTime.Parse(reader.GetString(3)),
                         reader.IsDBNull(4) ? "" : reader.GetString(4),
-                        reader.IsDBNull(5) ? "" : reader.GetString(5)));
+                        reader.IsDBNull(5) ? "" : reader.GetString(5),
+                        reader.IsDBNull(6) ? "" : reader.GetString(6)));
                     if (results.Count == total || results.Count % 100 == 0)
                     {
                         progress?.Report(new OrderNumberExportProgress(
