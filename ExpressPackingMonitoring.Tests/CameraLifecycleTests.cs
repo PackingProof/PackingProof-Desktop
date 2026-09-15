@@ -5,19 +5,25 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class CameraLifecycleTests
 {
+    /// <summary>
+    /// 空闲时的处理帧率跟预览档位走：以前写死 15fps 采集 / 24fps 处理，
+    /// 60fps 摄像头下预览一直被压在 15fps，看起来就是"卡"。
+    /// </summary>
     [Theory]
-    [InlineData(false, 60, 15, 24)]
-    [InlineData(false, 10, 10, 10)]
-    [InlineData(true, 60, 60, 60)]
-    [InlineData(true, 0, 15, 15)]
-    public void CameraFrameProcessingPolicy_PreservesRecordingFpsAndSeparatesIdleCaptureFromProcessing(
+    [InlineData(false, 60, 60, 60)]
+    [InlineData(false, 60, 12, 12)]
+    [InlineData(false, 60, 4, 4)]
+    [InlineData(false, 10, 60, 10)]
+    [InlineData(true, 60, 4, 60)]
+    [InlineData(true, 0, 4, 15)]
+    public void CameraFrameProcessingPolicy_FollowsPreviewTierAndKeepsRecordingFps(
         bool isRecording,
         int actualCameraFps,
-        int expectedCaptureFps,
-        int expectedProcessingFps)
+        int idleTargetFps,
+        int expectedFps)
     {
-        Assert.Equal(expectedCaptureFps, CameraFrameProcessingPolicy.GetCaptureFps(isRecording, actualCameraFps));
-        Assert.Equal(expectedProcessingFps, CameraFrameProcessingPolicy.GetProcessingFps(isRecording, actualCameraFps));
+        Assert.Equal(expectedFps, CameraFrameProcessingPolicy.GetCaptureFps(isRecording, actualCameraFps, idleTargetFps));
+        Assert.Equal(expectedFps, CameraFrameProcessingPolicy.GetProcessingFps(isRecording, actualCameraFps, idleTargetFps));
     }
 
     [Fact]
@@ -26,12 +32,26 @@ public sealed class CameraLifecycleTests
         var gate = new CameraFrameRateGate();
         const long frequency = 1_000;
 
+        // 满帧档位（60fps）：间隔约 17 tick
         Assert.True(gate.ShouldAccept(false, 60, 1_000, frequency));
-        Assert.False(gate.ShouldAccept(false, 60, 1_050, frequency));
-        Assert.True(gate.ShouldAccept(false, 60, 1_066, frequency));
+        Assert.False(gate.ShouldAccept(false, 60, 1_010, frequency));
+        Assert.True(gate.ShouldAccept(false, 60, 1_017, frequency));
 
-        Assert.True(gate.ShouldAccept(true, 60, 1_067, frequency));
-        Assert.True(gate.ShouldAccept(true, 60, 1_068, frequency));
+        Assert.True(gate.ShouldAccept(true, 60, 1_018, frequency));
+        Assert.True(gate.ShouldAccept(true, 60, 1_019, frequency));
+    }
+
+    /// <summary>降帧档位下门限跟着档位走，否则"降到 12fps"不会真的生效。</summary>
+    [Fact]
+    public void CameraFrameRateGate_FollowsReducedTier()
+    {
+        var gate = new CameraFrameRateGate();
+        const long frequency = 1_000;
+
+        // 12fps 档位：间隔约 83 tick
+        Assert.True(gate.ShouldAccept(false, 12, 1_000, frequency));
+        Assert.False(gate.ShouldAccept(false, 12, 1_050, frequency));
+        Assert.True(gate.ShouldAccept(false, 12, 1_084, frequency));
     }
 
     [Fact]

@@ -48,6 +48,29 @@ namespace ExpressPackingMonitoring.ViewModels
             set => SetProperty(ref _isFloatingPreviewActive, value);
         }
 
+        /// <summary>
+        /// 主界面预览控件的显示宽度（设备像素）。窗口最小化或隐藏时传 0，
+        /// 这样只显示小窗时预览会按小窗尺寸发布，不用白白搬运整帧。
+        /// </summary>
+        public void ReportMainPreviewDisplayWidth(double width) =>
+            UpdatePreviewDisplayWidths(ref _previewDisplayWidthMain, width);
+
+        /// <summary>小窗预览控件的显示宽度（设备像素）。小窗关闭时传 0。</summary>
+        public void ReportFloatingPreviewDisplayWidth(double width) =>
+            UpdatePreviewDisplayWidths(ref _previewDisplayWidthFloating, width);
+
+        private void UpdatePreviewDisplayWidths(ref int slot, double width)
+        {
+            int pixels = double.IsFinite(width) && width > 0 ? (int)Math.Round(width) : 0;
+            if (Interlocked.Exchange(ref slot, pixels) == pixels)
+                return;
+
+            // 取两个可见预览里较大的那个：主界面在看就按主界面发，只剩小窗就按小窗发。
+            Volatile.Write(
+                ref _previewDisplayWidth,
+                Math.Max(Volatile.Read(ref _previewDisplayWidthMain), Volatile.Read(ref _previewDisplayWidthFloating)));
+        }
+
         protected override void OnPropertyChanged(PropertyChangedEventArgs e)
         {
             base.OnPropertyChanged(e);
