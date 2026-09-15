@@ -1,4 +1,4 @@
-﻿using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 using System.ComponentModel;
@@ -107,7 +107,8 @@ public partial class OrderNumberExportProgressDialog : Window
             _filter.Mode,
             _filter.DeviceId,
             _filter.SourceName,
-            _filter.SourceType);
+            _filter.SourceType,
+            _filter.DeviceIds ?? Array.Empty<string>());
         RuntimeLog.Info("OrderExport", $"读取录像记录 {sources.Count} 条，耗时 {stage.ElapsedMilliseconds}ms");
         if (sources.Count == 0)
             return 0;

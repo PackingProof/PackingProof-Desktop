@@ -127,6 +127,7 @@
     <Compile Include="Data\VideoDatabase.Duration.cs" />
     <Compile Include="Data\VideoDatabase.RecordingIdentity.cs" />
     <Compile Include="Data\VideoDatabase.Schema.cs" />
+    <Compile Include="Data\VideoDatabase.VideoQuery.cs" />
     <Compile Include="Data\VideoDatabase.VideoSources.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />

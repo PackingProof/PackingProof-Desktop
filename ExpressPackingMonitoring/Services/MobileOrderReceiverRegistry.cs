@@ -13,6 +13,8 @@ internal sealed class MobileOrderReceiverRegistry
     internal const int OrderReceiverPort = 5280;
     private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
     private static readonly TimeSpan ActiveRetention = TimeSpan.FromSeconds(45);
+    /// <summary>用户自定义昵称的保留条数上限：这类名字不随活跃时间清理，但也不能无限增长。</summary>
+    private const int MaximumCustomizedNames = 128;
     private readonly string _path;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();
@@ -23,7 +25,7 @@ internal sealed class MobileOrderReceiverRegistry
         _path = path ?? GetDefaultPath();
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _entries = Load(_path);
-        if (RepairDuplicateAutomaticNames())
+        if (RepairDuplicateNames())
         {
             try { Save(); } catch { }
         }
@@ -36,7 +38,8 @@ internal sealed class MobileOrderReceiverRegistry
         int? orderReceiverPort = null,
         IEnumerable<string>? capabilities = null,
         string? deviceKind = null,
-        string? platform = null)
+        string? platform = null,
+        bool customized = false)
     {
         string? address = NormalizePrivateIpv4(remoteAddress);
         if (address == null) return null;
@@ -54,7 +57,10 @@ internal sealed class MobileOrderReceiverRegistry
                 (requestedNodeId.Length > 0
                     ? string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
                     : string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase))
-                || now - item.LastSeenUtc > Retention);
+                // 用户改过名的设备不按活跃时间清理：否则 30 天后自定义昵称会跟着丢，
+                // 筛选与列表又会退回记录里的老快照名。
+                || (!item.Customized && now - item.LastSeenUtc > Retention));
+            TrimCustomizedOverflow();
 
             string normalizedNodeId = requestedNodeId;
             if (normalizedNodeId.Length == 0)
@@ -71,18 +77,32 @@ internal sealed class MobileOrderReceiverRegistry
                 if (normalizedPlatform.Length == 0) normalizedPlatform = existing.Platform;
             }
 
-            if (IsAutomaticName(normalizedNodeName))
+            // 用户手动改过的昵称不许被自动命名覆盖。手机每 15 秒心跳都会把本地缓存的
+            // 旧自动名报回来，没有这一位的话改好的名字下一次心跳就被改回去了；
+            // 只有显式改名（customized=true）才能改动它。
+            bool existingCustomized = existing?.Customized == true && !customized;
+            string namePrefix = GetNamePrefix(normalizedDeviceKind, normalizedPlatform);
+            if (existingCustomized)
+            {
+                normalizedNodeName = existing!.NodeName;
+            }
+            else if (IsAutomaticName(normalizedNodeName) && !customized)
             {
                 bool sameStableDevice = existing != null
                     && (requestedNodeId.Length == 0
                         || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
-                string prefix = GetNamePrefix(normalizedDeviceKind, normalizedPlatform);
                 bool existingAutomatic = existing != null && IsAutomaticName(existing.NodeName);
-                bool existingUsesPrefix = existingAutomatic && existing!.NodeName.StartsWith(prefix, StringComparison.Ordinal)
+                bool existingUsesPrefix = existingAutomatic && existing!.NodeName.StartsWith(namePrefix, StringComparison.Ordinal)
                     && IsAssignedDeviceName(existing.NodeName);
                 normalizedNodeName = sameStableDevice && existingUsesPrefix
                     ? existing!.NodeName
-                    : CreateNextMobileName(existing?.NodeName, prefix);
+                    : CreateNextMobileName(existing?.NodeName, namePrefix);
+            }
+            else if (IsNameTakenByAnotherDevice(normalizedNodeName, normalizedNodeId))
+            {
+                // 主机不允许两台设备同名：设备自己报来的名字如果撞名，
+                // 就退回按平台自动编号，保证一台设备一个名字。
+                normalizedNodeName = CreateNextMobileName(existing?.NodeName, namePrefix);
             }
             int normalizedPort = orderReceiverPort is > 0 and <= 65535
                 ? orderReceiverPort.Value
@@ -105,9 +125,20 @@ internal sealed class MobileOrderReceiverRegistry
                 DeviceKind = normalizedDeviceKind,
                 Platform = normalizedPlatform,
                 Port = normalizedPort,
-                Capabilities = normalizedCapabilities
+                Capabilities = normalizedCapabilities,
+                // 显式改名或此前已改名：保持"用户自定义"，自动命名不再覆盖。
+                Customized = customized || existing?.Customized == true
             };
             _entries.Insert(0, entry);
+            // 每次注册都顺手修一次重名：老版本曾经给多台设备发过同一个名字，
+            // 那些设备只要上线就该被分开命名，不能等到重启才修。
+            if (RepairDuplicateNames())
+            {
+                Entry? refreshed = _entries.FirstOrDefault(item =>
+                    string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
+                if (refreshed != null)
+                    entry = refreshed;
+            }
             try { Save(); } catch { }
             return ToInfo(entry, online: true);
         }
@@ -148,10 +179,85 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             return _entries
-                .Where(item => now - item.LastSeenUtc <= Retention)
+                // 用户改过名的设备即使长期不在线也要保留在列表里：昵称不能因为
+                // 设备离线超过保留期就退回记录里的老快照名。
+                .Where(item => item.Customized || now - item.LastSeenUtc <= Retention)
                 .OrderByDescending(item => item.LastSeenUtc)
                 .Select(item => ToInfo(item, now - item.LastSeenUtc <= ActiveRetention))
                 .ToArray();
+        }
+    }
+
+    /// <summary>
+    /// 设置用户自定义昵称。主机不允许两台设备同名：名字已被别的设备占用时直接拒绝，
+    /// 由用户换一个名字，而不是悄悄改成"名字 2"。
+    /// 改名后自动命名（含手机每 15 秒回灌的旧自动名）不再覆盖它，
+    /// 设备掉出活跃期也不会连带丢掉这个名字。
+    /// </summary>
+    internal bool TrySetCustomName(string? nodeId, string? name, out string error)
+    {
+        error = "";
+        string normalizedNodeId = nodeId?.Trim() ?? "";
+        if (normalizedNodeId.Length == 0)
+        {
+            error = "找不到要改名的设备";
+            return false;
+        }
+
+        string requested = name?.Trim() ?? "";
+        if (requested.Length is < 1 or > 20 || requested.Any(char.IsControl))
+        {
+            error = "昵称需要 1 到 20 个字符，且不能包含换行或其他控制字符";
+            return false;
+        }
+
+        lock (_sync)
+        {
+            Entry? entry = _entries.FirstOrDefault(item =>
+                string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
+            if (entry == null)
+            {
+                error = "设备不存在，或还没有连接过这台主机";
+                return false;
+            }
+
+            if (IsNameTakenByAnotherDevice(requested, normalizedNodeId))
+            {
+                error = $"已经有设备叫“{requested}”，请换一个名字";
+                return false;
+            }
+
+            entry.NodeName = requested;
+            entry.Customized = true;
+            try { Save(); } catch { }
+            return true;
+        }
+    }
+
+    /// <summary>名字是否已被别的设备占用。主机不允许同名设备，改名与自动编号都要先问这一句。</summary>
+    private bool IsNameTakenByAnotherDevice(string name, string nodeId)
+    {
+        string value = name?.Trim() ?? "";
+        if (value.Length == 0)
+            return false;
+
+        return _entries.Any(item =>
+            !string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.NodeName?.Trim(), value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void TrimCustomizedOverflow()
+    {
+        if (_entries.Count(item => item.Customized) <= MaximumCustomizedNames)
+            return;
+
+        foreach (Entry entry in _entries
+            .Where(item => item.Customized)
+            .OrderByDescending(item => item.LastSeenUtc)
+            .Skip(MaximumCustomizedNames)
+            .ToArray())
+        {
+            _entries.Remove(entry);
         }
     }
 
@@ -165,30 +271,46 @@ internal sealed class MobileOrderReceiverRegistry
             .Select(name => int.TryParse(name[prefix.Length..], out int number) ? number : 0)
             .DefaultIfEmpty(0)
             .Max() + 1;
-        return $"{prefix}{nextNumber}";
+
+        // 主机不允许同名设备：编号还要避开用户手改出来的名字（例如有人把设备命名为"安卓3"）。
+        string candidate = $"{prefix}{nextNumber}";
+        while (IsNameTakenByAnotherDevice(candidate, ""))
+        {
+            nextNumber++;
+            candidate = $"{prefix}{nextNumber}";
+        }
+
+        return candidate;
     }
 
-    private bool RepairDuplicateAutomaticNames()
+    /// <summary>
+    /// 保证一台设备一个名字。老版本曾经给多台设备发过同一个名字，
+    /// 用户手改的名字也可能与别的设备撞车；这里保留"用户改过的那台"和最近上线的设备，
+    /// 其余重名的设备退回按平台自动编号。
+    /// </summary>
+    private bool RepairDuplicateNames()
     {
         bool changed = false;
-        HashSet<string> used = new(
-            _entries.Select(item => item.NodeName?.Trim() ?? "")
-                .Where(name => name.Length > 0),
-            StringComparer.OrdinalIgnoreCase);
-        foreach (Entry entry in _entries.OrderByDescending(item => item.LastSeenUtc))
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Entry entry in _entries
+            .OrderByDescending(item => item.Customized)
+            .ThenByDescending(item => item.LastSeenUtc)
+            .ToArray())
         {
             string name = entry.NodeName?.Trim() ?? "";
-            if (!IsAutomaticName(name) || !IsAssignedDeviceName(name))
+            if (name.Length == 0)
                 continue;
-            if (used.Remove(name))
+            if (used.Add(name))
                 continue;
 
-            // 重名修复也按各自记住的平台取前缀，否则安卓和苹果会被统一改成"从机"。
+            // 名字已被别的设备占用，昵称不能重复，只能重新编号。
             string prefix = GetNamePrefix(entry.DeviceKind, entry.Platform);
             string replacement = CreateNextMobileName(null, prefix);
             while (!used.Add(replacement))
                 replacement = CreateNextMobileName(replacement, prefix);
+
             entry.NodeName = replacement;
+            entry.Customized = false;
             changed = true;
         }
         return changed;
@@ -235,7 +357,8 @@ internal sealed class MobileOrderReceiverRegistry
         item.Capabilities?.Length > 0
             ? item.Capabilities
             : [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
-        Online: online);
+        Online: online,
+        Customized: item.Customized);
 
     private static int NormalizePort(int port) =>
         port is > 0 and <= 65535 ? port : OrderReceiverPort;
@@ -294,6 +417,9 @@ internal sealed class MobileOrderReceiverRegistry
         public string Platform { get; set; } = "";
         public int Port { get; set; } = OrderReceiverPort;
         public string[] Capabilities { get; set; } = [];
+
+        /// <summary>用户手动设置过昵称：自动命名与重名修复都不再改动它。</summary>
+        public bool Customized { get; set; }
     }
 }
 
@@ -303,4 +429,5 @@ internal sealed record MobileOrderReceiverInfo(
     string Address,
     int Port,
     IReadOnlyList<string> Capabilities,
-    bool Online);
+    bool Online,
+    bool Customized = false);

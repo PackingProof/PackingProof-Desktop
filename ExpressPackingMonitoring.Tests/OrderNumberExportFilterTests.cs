@@ -30,6 +30,32 @@ public sealed class OrderNumberExportFilterTests
         Assert.Contains(("sourceName", "手机1"), parameters);
     }
 
+    /// <summary>
+    /// 多台同名设备在下拉里合并成一项后，导出必须按设备号集合命中，
+    /// 否则改名那台设备改名前的录像会漏在导出结果之外。
+    /// </summary>
+    [Fact]
+    public void BuildWhere_DeviceIdSet_UsesInClauseForEveryMember()
+    {
+        (string sql, IReadOnlyList<(string Name, string Value)> parameters) =
+            new OrderNumberExportFilter(
+                null,
+                null,
+                "",
+                "",
+                "安卓1",
+                "external",
+                new[] { "dev-1", "dev-2", "dev-1" }).BuildWhere("v");
+
+        Assert.Contains("v.SourceDeviceId IN (@exportDeviceId0, @exportDeviceId1)", sql);
+        Assert.Contains("v.SourceType = 'external'", sql);
+        Assert.Contains(("exportDeviceId0", "dev-1"), parameters);
+        Assert.Contains(("exportDeviceId1", "dev-2"), parameters);
+        // 重复设备号只保留一次，避免参数名撞车。
+        Assert.DoesNotContain(parameters, item => item.Name == "exportDeviceId2");
+        Assert.DoesNotContain("@sourceName", sql);
+    }
+
     [Fact]
     public void BuildWhere_LocalSource_ExcludesExternalRecords()
     {

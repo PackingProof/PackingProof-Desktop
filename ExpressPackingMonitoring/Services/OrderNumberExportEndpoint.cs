@@ -23,7 +23,8 @@ namespace ExpressPackingMonitoring.Services
             string Mode,
             string DeviceId = "",
             string SourceName = "",
-            string SourceType = "");
+            string SourceType = "",
+            IReadOnlyList<string>? DeviceIds = null);
 
         internal sealed record Result(byte[] Content, string FileName, int RowCount);
 
@@ -37,12 +38,20 @@ namespace ExpressPackingMonitoring.Services
             string? mode,
             string? deviceId = null,
             string? sourceName = null,
-            string? sourceType = null)
+            string? sourceType = null,
+            string? deviceIds = null)
         {
             DateTime? startDate = DateTime.TryParse(start, out DateTime parsedStart) ? parsedStart.Date : null;
             DateTime? endDate = DateTime.TryParse(end, out DateTime parsedEnd) ? parsedEnd.Date : null;
             if (startDate.HasValue && endDate.HasValue && startDate > endDate)
                 (startDate, endDate) = (endDate, startDate);
+
+            // 同名多设备合并成一项时界面传设备号集合，导出必须按同一批设备过滤，
+            // 否则导出的单号与列表对不上。
+            string[] parsedDeviceIds = (deviceIds ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Take(50)
+                .ToArray();
 
             return new Request(
                 startDate,
@@ -50,7 +59,8 @@ namespace ExpressPackingMonitoring.Services
                 RecordingModeFilter.Normalize(mode),
                 deviceId?.Trim() ?? "",
                 sourceName?.Trim() ?? "",
-                sourceType?.Trim() ?? "");
+                sourceType?.Trim() ?? "",
+                parsedDeviceIds);
         }
 
         /// <summary>
@@ -100,7 +110,8 @@ namespace ExpressPackingMonitoring.Services
                 mode: request.Mode,
                 deviceId: request.DeviceId,
                 sourceName: request.SourceName,
-                sourceType: request.SourceType);
+                sourceType: request.SourceType,
+                deviceIds: request.DeviceIds ?? Array.Empty<string>());
 
             IReadOnlyList<OrderNumberExportRow> rows = OrderNumberExportService.BuildRows(
                 sources,
@@ -150,7 +161,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 Request request = ParseRequest(
                     qs["start"], qs["end"], qs["mode"],
-                    qs["deviceId"], qs["sourceName"], qs["sourceType"]);
+                    qs["deviceId"], qs["sourceName"], qs["sourceType"], qs["deviceIds"]);
                 Result result = Export(database, request, DateTime.Now);
 
                 if (result.RowCount == 0)

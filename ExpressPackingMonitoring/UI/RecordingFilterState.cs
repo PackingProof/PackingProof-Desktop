@@ -31,6 +31,12 @@ namespace ExpressPackingMonitoring.UI
         public string SourceId { get; set; } = "";
 
         /// <summary>
+        /// 来源设备号集合。多台同名设备在下拉里合并成一项后，只有按这些设备号筛选
+        /// 才能把每一台（包括改名前的）录像全部查到，按名字匹配会漏。
+        /// </summary>
+        public IReadOnlyList<string> SourceIds { get; set; } = Array.Empty<string>();
+
+        /// <summary>
         /// 来源类型：pc 是本机，external 是手机等外部设备，空表示不筛来源。
         /// 同名多设备被合并后 <see cref="SourceId"/> 会是空的，
         /// 那时只有这个字段能说明要筛的是本机还是外部设备。
@@ -100,6 +106,7 @@ namespace ExpressPackingMonitoring.UI
                     SourceName = "";
                     SourceId = "";
                     SourceType = "";
+                    SourceIds = Array.Empty<string>();
                     break;
                 case ModeKey:
                     Mode = "";

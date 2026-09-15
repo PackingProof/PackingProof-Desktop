@@ -27,8 +27,10 @@ public sealed class VideoSourceFilterOptionsTests
         VideoSourceFilterOption single = Assert.Single(options);
         Assert.Equal("手机1", single.Name);
         Assert.Equal(7, single.VideoCount);
-        // 同名多设备不能再钉某一个设备号，否则筛出来少一半录像。
+        // 同名多设备不能再钉某一个设备号，否则筛出来少一半录像；
+        // 但两台设备的设备号都要留下，筛选按集合命中才不漏。
         Assert.Equal("", single.DeviceId);
+        Assert.Equal(new[] { "dev-1", "dev-2" }, single.FilterDeviceIds);
     }
 
     [Fact]
@@ -39,6 +41,7 @@ public sealed class VideoSourceFilterOptionsTests
 
         Assert.Equal("dev-1", single.DeviceId);
         Assert.Equal("external", single.SourceType);
+        Assert.Equal(new[] { "dev-1" }, single.FilterDeviceIds);
     }
 
     [Fact]
@@ -52,12 +55,22 @@ public sealed class VideoSourceFilterOptionsTests
         Assert.Equal("本机", single.Name);
         Assert.Equal("pc", single.SourceType);
         Assert.Equal(6, single.VideoCount);
+        Assert.Empty(single.FilterDeviceIds);
     }
 
+    /// <summary>
+    /// 没有设备号的外部记录是历史脏数据，但只要它还有录像就必须留在下拉里，
+    /// 否则这些录像在按来源筛选时等于不存在。
+    /// </summary>
     [Fact]
-    public void Build_ExternalWithoutDeviceId_IsSkipped()
+    public void Build_ExternalWithoutDeviceId_IsKeptAsNameOnlyOption()
     {
-        Assert.Empty(Build(new VideoSourceInfo("external", "", "手机1", 2)));
+        VideoSourceFilterOption single = Assert.Single(Build(new VideoSourceInfo("external", "", "手机1", 2)));
+
+        Assert.Equal("手机1", single.Name);
+        Assert.Equal("external", single.SourceType);
+        Assert.Equal("", single.DeviceId);
+        Assert.Empty(single.FilterDeviceIds);
     }
 
     [Fact]
