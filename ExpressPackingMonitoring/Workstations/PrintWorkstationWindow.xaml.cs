@@ -436,7 +436,8 @@ public partial class PrintWorkstationWindow : Window
         foreach (MobileBackupStatusItem status in BuildMobileBackupStatuses(
             overview.DeviceCounts,
             _host.GetRecordingDevices(),
-            _config.NodeId))
+            _config.NodeId,
+            _host.GetCurrentRecordingDeviceNames()))
         {
             MobileBackupDeviceStatuses.Add(status);
         }
@@ -482,18 +483,27 @@ public partial class PrintWorkstationWindow : Window
     internal static IReadOnlyList<MobileBackupStatusItem> BuildMobileBackupStatuses(
         IEnumerable<MobileBackupDailyCount> counts,
         IEnumerable<RecordingDeviceInfo> devices,
-        string localNodeId)
+        string localNodeId,
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
     {
         var statuses = counts
             .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, localNodeId))
             .ToDictionary(
             item => item.DeviceId,
-            item => (
-                Name: string.IsNullOrWhiteSpace(item.DeviceName)
-                    ? GetFallbackDeviceName(item.DeviceId, item.DeviceKind)
-                    : item.DeviceName,
-                Count: item.VideoCount,
-                Online: false),
+            item =>
+            {
+                // 记录里的设备名是写入当时的快照，设备改名后卡片会一直挂着老昵称，按设备号取当前名字。
+                string currentName = RecordingSourceNameLookup.Resolve(
+                    currentSourceDeviceNames,
+                    item.DeviceId,
+                    item.DeviceName);
+                return (
+                    Name: currentName.Length > 0
+                        ? currentName
+                        : GetFallbackDeviceName(item.DeviceId, item.DeviceKind),
+                    Count: item.VideoCount,
+                    Online: false);
+            },
             StringComparer.OrdinalIgnoreCase);
 
         foreach (RecordingDeviceInfo device in devices

@@ -372,18 +372,29 @@ namespace ExpressPackingMonitoring.ViewModels
             _mobileBackupStatusDate = DateTime.Today;
             IReadOnlyList<MobileBackupDailyCount> counts =
                 _db?.GetMobileBackupDailyCounts(_mobileBackupStatusDate) ?? [];
+            // 记录里的设备名是写入当时的快照，设备改名后卡片会一直挂着老昵称，所以按设备号取当前名字。
+            IReadOnlyDictionary<string, string> currentSourceNames =
+                _webServer?.GetCurrentSourceDeviceNames()
+                ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var statusByDevice = counts
                 .Where(item => BackupDeviceIdentity.IsRemote(item.DeviceId, Config.NodeId))
                 .ToDictionary(
                 item => item.DeviceId,
-                item => new
+                item =>
                 {
-                    Name = string.IsNullOrWhiteSpace(item.DeviceName)
-                        ? GetFallbackDeviceName(item.DeviceId, item.DeviceKind)
-                        : item.DeviceName,
-                    Kind = item.DeviceKind,
-                    Count = item.VideoCount,
-                    Online = false
+                    string currentName = RecordingSourceNameLookup.Resolve(
+                        currentSourceNames,
+                        item.DeviceId,
+                        item.DeviceName);
+                    return new
+                    {
+                        Name = currentName.Length > 0
+                            ? currentName
+                            : GetFallbackDeviceName(item.DeviceId, item.DeviceKind),
+                        Kind = item.DeviceKind,
+                        Count = item.VideoCount,
+                        Online = false
+                    };
                 },
                 StringComparer.OrdinalIgnoreCase);
 
