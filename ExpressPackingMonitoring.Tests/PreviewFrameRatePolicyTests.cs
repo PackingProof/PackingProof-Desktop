@@ -104,6 +104,31 @@ public sealed class PreviewFrameRatePolicyTests
         Assert.DoesNotContain("PreviewFrameInterval = TimeSpan", source, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 降档必须提示一次：用户看到画面变卡只会以为软件出问题，
+    /// 说清楚"长时间没人操作才降的"才不会被当成 bug；恢复满帧不打扰。
+    /// </summary>
+    [Fact]
+    public void ReducedTierIsAnnouncedOnce()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs"));
+
+        int notifyIndex = source.IndexOf("private void NotifyPreviewRateTierIfChanged", StringComparison.Ordinal);
+        Assert.True(notifyIndex >= 0, "未找到降档提示逻辑");
+
+        string notify = source[notifyIndex..];
+        int methodEnd = notify.IndexOf("\n        }", StringComparison.Ordinal);
+        notify = methodEnd >= 0 ? notify[..methodEnd] : notify;
+
+        Assert.Contains("ShowToast", notify, StringComparison.Ordinal);
+        Assert.Contains("FullRateFpsMarker", notify, StringComparison.Ordinal);
+        Assert.Contains("PreviewFrameRatePolicy.FullRateFpsMarker", source, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         foreach (string startPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })

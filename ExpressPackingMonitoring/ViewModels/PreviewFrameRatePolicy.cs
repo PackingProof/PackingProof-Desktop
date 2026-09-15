@@ -13,6 +13,9 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>摄像头帧率还没测出来时的兜底值。</summary>
         internal const int FallbackCameraFps = 15;
 
+        /// <summary>满帧（不额外限流）在档位判定里用的标记值：真实帧率不可能等于它。</summary>
+        internal const int FullRateFpsMarker = -1;
+
         /// <summary>没人操作满 60 秒后降到 12fps。</summary>
         internal static readonly TimeSpan ReducedAfter = TimeSpan.FromSeconds(60);
         internal static readonly TimeSpan ReducedInterval = TimeSpan.FromMilliseconds(1000.0 / 12.0);
