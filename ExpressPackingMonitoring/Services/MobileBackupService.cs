@@ -424,7 +424,7 @@ internal sealed class MobileBackupService
             string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                 ? "电脑上传"
                 : "手机备份",
-            GetDeviceDirectoryName(sourceDeviceId, sourceDeviceName),
+            ArchivePathBuilder.GetDeviceDirectoryName(sourceDeviceId),
             startedAt.ToString("yyyy-MM-dd"));
         string mode = VideoDatabase.NormalizeRecordingMode(session.Mode);
         string baseName = SanitizeFileName($"{trackingNumber}_{startedAt:yyyyMMdd_HHmmss}_{mode}");
@@ -466,25 +466,8 @@ internal sealed class MobileBackupService
         return string.IsNullOrWhiteSpace(value) ? "未识别面单" : value;
     }
 
-    internal static string GetDeviceDirectoryName(string sourceDeviceId, string sourceDeviceName)
-    {
-        string readableName = SanitizeFileName(sourceDeviceName ?? "");
-        if (string.Equals(readableName, "未识别面单", StringComparison.Ordinal))
-            readableName = "手机";
-        if (readableName.Length > 32)
-            readableName = readableName[..32].TrimEnd('.', ' ');
-
-        string normalizedId = new((sourceDeviceId ?? "")
-            .Where(char.IsLetterOrDigit)
-            .ToArray());
-        string shortId = normalizedId.Length switch
-        {
-            0 => "未知设备",
-            <= 6 => normalizedId.ToUpperInvariant(),
-            _ => normalizedId[^6..].ToUpperInvariant()
-        };
-        return $"{readableName}-{shortId}";
-    }
+    internal static string GetDeviceDirectoryName(string sourceDeviceId, string sourceDeviceName) =>
+        ArchivePathBuilder.GetDeviceDirectoryName(sourceDeviceId);
 
     private MobileBackupUploadState? LoadState(string uploadId)
     {

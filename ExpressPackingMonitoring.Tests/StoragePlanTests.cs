@@ -314,7 +314,7 @@ public sealed class StoragePlanTests
             "return",
             "abcdef123456");
         Assert.Equal(
-            @"\\nas\share\快递打包视频\电脑上传\打包工位1-123456\2026-08-11\SF123_20260811_103000_退货.mp4",
+            @"\\nas\share\快递打包视频\电脑上传\设备-123456\2026-08-11\SF123_20260811_103000_退货.mp4",
             pcPath);
 
         string mobilePath = ArchivePathBuilder.BuildExternalUploadArchivePath(
@@ -327,7 +327,7 @@ public sealed class StoragePlanTests
             "发货",
             "abcdef");
         Assert.Equal(
-            @"\\nas\share\快递打包视频\手机备份\手机1-ONEXYZ\2026-08-11\未识别面单_20260811_103000_发货.mp4",
+            @"\\nas\share\快递打包视频\手机备份\设备-ONEXYZ\2026-08-11\未识别面单_20260811_103000_发货.mp4",
             mobilePath);
     }
 

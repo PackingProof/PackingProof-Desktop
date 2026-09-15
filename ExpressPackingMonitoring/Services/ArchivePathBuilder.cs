@@ -23,7 +23,7 @@ internal static class ArchivePathBuilder
             fileName);
     }
 
-    /// <summary>外部上传布局：&lt;根&gt;\电脑上传|手机备份\&lt;设备&gt;-&lt;短ID&gt;\yyyy-MM-dd\&lt;面单&gt;_&lt;时间&gt;_&lt;模式&gt;.mp4。</summary>
+    /// <summary>外部上传布局：&lt;根&gt;\电脑上传|手机备份\设备-&lt;短ID&gt;\yyyy-MM-dd\&lt;面单&gt;_&lt;时间&gt;_&lt;模式&gt;.mp4。</summary>
     public static string BuildExternalUploadArchivePath(
         string root,
         string sourceDeviceKind,
@@ -44,7 +44,7 @@ internal static class ArchivePathBuilder
             string.Equals(sourceDeviceKind, "pc", StringComparison.OrdinalIgnoreCase)
                 ? "电脑上传"
                 : "手机备份",
-            GetDeviceDirectoryName(sourceDeviceId, sourceDeviceName),
+            GetDeviceDirectoryName(sourceDeviceId),
             startedAt.ToString("yyyy-MM-dd"));
         string normalizedMode = VideoDatabase.NormalizeRecordingMode(mode);
         string baseName = SanitizeFileName($"{orderId}_{startedAt:yyyyMMdd_HHmmss}_{normalizedMode}");
@@ -59,23 +59,22 @@ internal static class ArchivePathBuilder
         return string.IsNullOrWhiteSpace(value) ? "未识别面单" : value;
     }
 
-    private static string GetDeviceDirectoryName(string sourceDeviceId, string sourceDeviceName)
+    /// <summary>
+    /// 设备目录只用稳定标识，不带昵称：昵称随时可以改，写进目录名会让同一台设备的录像
+    /// 散落到多个目录里。设备号与昵称的对照关系由录像根目录下的"设备对照表.txt"给出
+    /// （见 <see cref="RecordingDeviceFolderIndex"/>）。
+    /// </summary>
+    internal static string GetDeviceDirectoryName(string sourceDeviceId)
     {
-        string readableName = SanitizeFileName(sourceDeviceName ?? "");
-        if (string.Equals(readableName, "未识别面单", StringComparison.Ordinal))
-            readableName = "手机";
-        if (readableName.Length > 32)
-            readableName = readableName[..32].TrimEnd('.', ' ');
-
         string normalizedId = new((sourceDeviceId ?? "")
             .Where(char.IsLetterOrDigit)
             .ToArray());
         string shortId = normalizedId.Length switch
         {
-            0 => "未知设备",
+            0 => "未识别",
             <= 6 => normalizedId.ToUpperInvariant(),
             _ => normalizedId[^6..].ToUpperInvariant()
         };
-        return $"{readableName}-{shortId}";
+        return $"设备-{shortId}";
     }
 }
