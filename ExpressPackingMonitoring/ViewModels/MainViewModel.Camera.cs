@@ -1250,6 +1250,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             DateTime now = DateTime.UtcNow;
             TimeSpan? interval = CurrentPreviewFrameInterval;
+            NotifyPreviewRateTierIfChanged(interval);
             if (interval.HasValue && now - _lastPreviewFrameAt < interval.Value) return;
 
             if (!_previewSessionGate.TryAcquire(out int previewSessionId)) return;
@@ -1342,6 +1343,29 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Warn("Preview", $"Preview bitmap conversion failed, {BuildResourceHealthSnapshot()}");
                 }
             }
+        }
+
+        /// <summary>
+        /// 预览档位降下来时提示一次。用户看到画面变卡时只会以为是软件出问题，
+        /// 说清楚"长时间没人操作才降的、动一下鼠标就恢复"才能避免误报。
+        /// 只在下调时提示，恢复满帧不打扰。
+        /// </summary>
+        private void NotifyPreviewRateTierIfChanged(TimeSpan? interval)
+        {
+            int fps = interval.HasValue
+                ? (int)Math.Round(1000.0 / Math.Max(1.0, interval.Value.TotalMilliseconds))
+                : PreviewFrameRatePolicy.FullRateFpsMarker;
+            int previous = _previewRateTierFps;
+            if (fps == previous)
+                return;
+
+            _previewRateTierFps = fps;
+            if (previous == 0 || fps == PreviewFrameRatePolicy.FullRateFpsMarker)
+                return;
+
+            ShowToast(
+                AppLanguage.Format("长时间无人操作，预览已降到 {0}fps，动一下鼠标或扫码即可恢复", fps),
+                ToastSeverity.Information);
         }
 
         private void LogResourceHealthIfDue(string reason, bool force = false)

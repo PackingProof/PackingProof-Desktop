@@ -152,6 +152,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _previewDisplayWidthMain;
         private int _previewDisplayWidthFloating;
         private int _previewDisplayWidth;
+        // 当前预览档位（满帧记 -1），只在降低时提示一次。
+        private int _previewRateTierFps;
         // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
         // 用来判断"空闲降帧"到底省了多少（见 PreviewFrameRatePolicy）。
         private DateTime _previewStatsWindowStart = DateTime.MinValue;

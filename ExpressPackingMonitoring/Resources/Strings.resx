@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -1089,6 +1089,7 @@
   <data name="等待扫描单号" xml:space="preserve"><value>Waiting for order scan</value></data>
   <data name="预录制中，等待扫描单号" xml:space="preserve"><value>Pre-recording, waiting for order scan</value></data>
   <data name="摄像头已休眠，扫码或点击唤醒" xml:space="preserve"><value>Camera is asleep; scan or click to wake it up</value></data>
+  <data name="长时间无人操作，预览已降到 {0}fps，动一下鼠标或扫码即可恢复" xml:space="preserve"><value>Preview dropped to {0} fps after a long idle period; move the mouse or scan to restore it</value></data>
   <data name="设备切换保存失败，本次未生效" xml:space="preserve"><value>Failed to save the device change; it did not take effect</value></data>
   <data name="设备切换失败" xml:space="preserve"><value>Device switch failed</value></data>
   <data name="播放设备已切换为 {0}" xml:space="preserve"><value>Playback device switched to {0}</value></data>
