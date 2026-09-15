@@ -1208,11 +1208,18 @@ namespace ExpressPackingMonitoring.ViewModels
             return t * t * (3 - 2 * t);
         }
 
+        /// <summary>
+        /// 当前预览发布间隔。长时间没人动鼠标/键盘/扫码时降到 4fps，省下整帧克隆与
+        /// UI 线程写位图的开销；有人操作立刻回到 12fps。录像管线不受影响。
+        /// </summary>
+        private TimeSpan CurrentPreviewFrameInterval =>
+            PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime);
+
         private bool IsPreviewFrameDue()
         {
             return !SuppressVideoPreviewUpdates
                 && !_isDisposed
-                && DateTime.UtcNow - _lastPreviewFrameAt >= PreviewFrameInterval
+                && DateTime.UtcNow - _lastPreviewFrameAt >= CurrentPreviewFrameInterval
                 && !_previewSessionGate.IsPending;
         }
 
@@ -1221,7 +1228,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
 
             DateTime now = DateTime.UtcNow;
-            if (now - _lastPreviewFrameAt < PreviewFrameInterval) return;
+            if (now - _lastPreviewFrameAt < CurrentPreviewFrameInterval) return;
 
             if (!_previewSessionGate.TryAcquire(out int previewSessionId)) return;
             _lastPreviewFrameAt = now;
@@ -1265,11 +1272,15 @@ namespace ExpressPackingMonitoring.ViewModels
 
                             int stride = checked((int)frameToPublish.Step());
                             int bufferSize = checked(stride * frameToPublish.Height);
+                            long writeStarted = Stopwatch.GetTimestamp();
                             _previewWriteableBitmap.WritePixels(
                                 new Int32Rect(0, 0, frameToPublish.Width, frameToPublish.Height),
                                 frameToPublish.Data,
                                 bufferSize,
                                 stride);
+                            Interlocked.Add(ref _previewWriteTicksTotal, Stopwatch.GetTimestamp() - writeStarted);
+                            Interlocked.Increment(ref _previewWriteCount);
+                            Interlocked.Increment(ref _previewPublishedTotal);
                             _lastPreviewPublishedAt = DateTime.Now;
                             Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
                         }
@@ -1305,6 +1316,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private string BuildResourceHealthSnapshot()
         {
+            DateTime now = DateTime.Now;
             int videoQueueCount = -1;
             int audioQueueCount = -1;
             try { videoQueueCount = _videoWriteQueue?.Count ?? -1; } catch { }
@@ -1313,6 +1325,7 @@ namespace ExpressPackingMonitoring.ViewModels
             double frameAge = _lastFrameTime == DateTime.MinValue ? -1 : (DateTime.Now - _lastFrameTime).TotalSeconds;
             double previewAge = _lastPreviewPublishedAt == DateTime.MinValue ? -1 : (DateTime.Now - _lastPreviewPublishedAt).TotalSeconds;
             double uiAge = _lastUiHeartbeatAt == DateTime.MinValue ? -1 : (DateTime.Now - _lastUiHeartbeatAt).TotalSeconds;
+            string previewStats = BuildPreviewStatsSnapshot(now);
 
             try
             {
@@ -1320,12 +1333,39 @@ namespace ExpressPackingMonitoring.ViewModels
                 long managedMb = GC.GetTotalMemory(false) / 1024 / 1024;
                 long workingSetMb = process.WorkingSet64 / 1024 / 1024;
                 long privateMb = process.PrivateMemorySize64 / 1024 / 1024;
-                return $"ws={workingSetMb}MB, private={privateMb}MB, managed={managedMb}MB, handles={process.HandleCount}, threads={process.Threads.Count}, gc0={GC.CollectionCount(0)}, gc1={GC.CollectionCount(1)}, gc2={GC.CollectionCount(2)}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
+                return $"ws={workingSetMb}MB, private={privateMb}MB, managed={managedMb}MB, handles={process.HandleCount}, threads={process.Threads.Count}, gc0={GC.CollectionCount(0)}, gc1={GC.CollectionCount(1)}, gc2={GC.CollectionCount(2)}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
             }
             catch (Exception ex)
             {
-                return $"health unavailable: {ex.Message}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
+                return $"health unavailable: {ex.Message}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
             }
+        }
+
+        /// <summary>
+        /// 预览发布统计：采样窗口内的实际发布帧率、单帧写位图平均耗时、当前生效的发布间隔。
+        /// 空闲降帧的效果就靠这三个数对比（有人操作 vs 长时间没人碰）。
+        /// </summary>
+        private string BuildPreviewStatsSnapshot(DateTime now)
+        {
+            long published = Interlocked.Read(ref _previewPublishedTotal);
+            long writes = Interlocked.Read(ref _previewWriteCount);
+            double writeMilliseconds = writes > 0
+                ? Stopwatch.GetElapsedTime(0, Interlocked.Read(ref _previewWriteTicksTotal)).TotalMilliseconds / writes
+                : -1;
+
+            double publishedFps = -1;
+            if (_previewStatsWindowStart != DateTime.MinValue)
+            {
+                double seconds = (now - _previewStatsWindowStart).TotalSeconds;
+                long delta = published - _previewStatsWindowPublished;
+                if (seconds >= 1 && delta >= 0)
+                    publishedFps = delta / seconds;
+            }
+
+            _previewStatsWindowStart = now;
+            _previewStatsWindowPublished = published;
+            double idleSeconds = _lastActivityTime == DateTime.MinValue ? -1 : (now - _lastActivityTime).TotalSeconds;
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={CurrentPreviewFrameInterval.TotalMilliseconds:F0}, idle={idleSeconds:F0}s";
         }
 
         private bool IsVideoSourceRunning()

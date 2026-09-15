@@ -36,6 +36,7 @@ namespace ExpressPackingMonitoring.UI
         private readonly Action _restoreMainWindow;
         private Storyboard? _breathStoryboard;
         private Storyboard? _shimmerStoryboard;
+        private DateTime _lastActivityNotifyAt = DateTime.MinValue;
 
         // 音频端点枚举要走 COM，缓存住上一次结果，点开菜单时先显示再后台刷新。
         private IReadOnlyList<AudioEndpointInfo>? _microphoneCache;
@@ -157,7 +158,8 @@ namespace ExpressPackingMonitoring.UI
         }
 
         /// <summary>
-        /// 三种状态灯：录制红色常亮并走流光，预录制蓝到灰呼吸，待机灰色常亮。
+        /// 四种状态灯：录制红色常亮并走流光，预录制黄到蓝呼吸，待机蓝色常亮，
+        /// 摄像头休眠灰色常亮（画面是停的，必须说清楚）。
         /// 颜色全部取主题资源，跟随明暗主题，不写死十六进制。
         /// </summary>
         private void ApplyStatus()
@@ -175,28 +177,32 @@ namespace ExpressPackingMonitoring.UI
                     StartBreath();
                     break;
 
-                default:
+                case FloatingPreviewIndicator.CameraSleeping:
                     StatusDot.Fill = ResolveBrush("TextMuted");
+                    break;
+
+                default:
+                    StatusDot.Fill = ResolveBrush("AccentBlue");
                     break;
             }
         }
 
         /// <summary>
-        /// 蓝到灰呼吸，提示缓冲正在滚动但尚未正式录制。
-        /// 直接动画填充色而不是整体透明度，灰端才不会退化成"看不见"。
+        /// 黄到蓝呼吸，提示缓冲正在滚动但尚未正式录制。
+        /// 直接动画填充色而不是整体透明度，蓝端才不会退化成"看不见"。
         /// </summary>
         private void StartBreath()
         {
+            Color amber = ResolveColor("AccentOrange", Color.FromRgb(0xF5, 0x9E, 0x0B));
             Color blue = ResolveColor("AccentBlue", Color.FromRgb(0x3B, 0x82, 0xF6));
-            Color grey = ResolveColor("TextMuted", Color.FromRgb(0x8A, 0x8A, 0x94));
 
             // 动画要改写 Fill，先换成独立可变画刷，避免动到主题里的共享冻结画刷。
-            StatusDot.Fill = new SolidColorBrush(blue);
+            StatusDot.Fill = new SolidColorBrush(amber);
 
             var animation = new ColorAnimation
             {
-                From = blue,
-                To = grey,
+                From = amber,
+                To = blue,
                 Duration = BreathDuration,
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever,
@@ -257,10 +263,29 @@ namespace ExpressPackingMonitoring.UI
         private Color ResolveColor(string brushResourceKey, Color fallback) =>
             TryFindResource(brushResourceKey) is SolidColorBrush brush ? brush.Color : fallback;
 
+        /// <summary>
+        /// 小窗上的鼠标活动同样算"人在用"。主界面最小化后主窗口收不到鼠标事件，
+        /// 摄像头休眠时在小窗上动鼠标就再也唤不醒，只能靠扫码；这里补上唤醒信号。
+        /// </summary>
+        private void NotifyUserActivity()
+        {
+            DateTime now = DateTime.UtcNow;
+            if (now - _lastActivityNotifyAt < TimeSpan.FromSeconds(1)) return;
+            _lastActivityNotifyAt = now;
+            _viewModel.NotifyUserActivity();
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            NotifyUserActivity();
+        }
+
         protected override void OnMouseEnter(MouseEventArgs e)
         {
             base.OnMouseEnter(e);
             ControlLayer.Visibility = Visibility.Visible;
+            NotifyUserActivity();
         }
 
         protected override void OnMouseLeave(MouseEventArgs e)
@@ -272,6 +297,7 @@ namespace ExpressPackingMonitoring.UI
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseLeftButtonDown(e);
+            NotifyUserActivity();
 
             // 双击回主窗口，与会议软件小窗一致；单击拖动。
             if (e.ClickCount == 2)
