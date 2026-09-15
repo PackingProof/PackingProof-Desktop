@@ -411,6 +411,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_videoSource.VideoCapabilities.Length > 0)
                 {
                     var caps = _videoSource.VideoCapabilities;
+                    LogCameraCapabilities(caps);
                     VideoCapabilities best = caps[0];
                     int bestScore = int.MaxValue;
                     foreach (var cap in caps)
@@ -418,7 +419,10 @@ namespace ExpressPackingMonitoring.ViewModels
                         // 分辨率差值权重高，帧率差值权重低
                         int resDiff = Math.Abs(cap.FrameSize.Width - Config.FrameWidth) + Math.Abs(cap.FrameSize.Height - Config.FrameHeight);
                         int fpsDiff = Math.Abs(cap.AverageFrameRate - Config.Fps);
-                        int score = resDiff * 10 + fpsDiff;
+                        // 同分辨率同帧率时优先不抽色度的格式（24/32bpp）：YUY2/I420 这类 16/12bpp
+                        // 色度被抽样过，预览会发灰、发软。只在完全打平时起作用，不会拿帧率换色度。
+                        int chromaPenalty = cap.BitCount >= 24 ? 0 : 1;
+                        int score = resDiff * 10 + fpsDiff + chromaPenalty;
                         if (score < bestScore)
                         {
                             bestScore = score;
@@ -429,6 +433,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     _actualCameraWidth = best.FrameSize.Width;
                     _actualCameraHeight = best.FrameSize.Height;
                     _actualCameraFps = best.AverageFrameRate > 0 ? best.AverageFrameRate : Config.Fps;
+                    RuntimeLog.Info(
+                        "Camera",
+                        $"Selected camera mode={best.FrameSize.Width}x{best.FrameSize.Height}@{best.AverageFrameRate}, bits={best.BitCount}");
                 }
                 else
                 {
@@ -646,6 +653,30 @@ namespace ExpressPackingMonitoring.ViewModels
                 HandleCameraFrame(e.Frame);
             else
                 e.Frame.Dispose();
+        }
+
+        /// <summary>
+        /// 打印一次摄像头可选模式。现场反馈"预览发糊/发灰"时，先看这里：
+        /// 1080p60 只有 16bpp（YUY2）这类抽色度格式时，DirectShow 采到的画面本身就发软，
+        /// 得换成用 FFmpeg 读原始帧才能解决。
+        /// </summary>
+        private static void LogCameraCapabilities(VideoCapabilities[] capabilities)
+        {
+            try
+            {
+                string summary = string.Join(
+                    ", ",
+                    capabilities
+                        .OrderByDescending(cap => cap.FrameSize.Width * cap.FrameSize.Height)
+                        .ThenByDescending(cap => cap.AverageFrameRate)
+                        .Take(16)
+                        .Select(cap => $"{cap.FrameSize.Width}x{cap.FrameSize.Height}@{cap.AverageFrameRate}/{cap.BitCount}bpp"));
+                RuntimeLog.Info("Camera", $"Camera modes({capabilities.Length}): {summary}");
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Camera", $"读取摄像头模式失败：{ex.Message}");
+            }
         }
 
         private void UpdateCameraSourceFpsEstimate()
