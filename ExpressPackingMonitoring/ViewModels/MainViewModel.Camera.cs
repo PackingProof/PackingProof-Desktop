@@ -604,7 +604,9 @@ namespace ExpressPackingMonitoring.ViewModels
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
-            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps);
+            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
+                Volatile.Read(ref _isRecording),
+                CurrentPreviewTargetFps());
             if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
                 return;
 
@@ -629,7 +631,9 @@ namespace ExpressPackingMonitoring.ViewModels
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
-            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(Volatile.Read(ref _isRecording), _actualCameraFps);
+            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
+                Volatile.Read(ref _isRecording),
+                CurrentPreviewTargetFps());
             if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
             {
                 e.Frame.Dispose();
@@ -748,8 +752,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 while (!token.IsCancellationRequested)
                 {
-                    // 录制时跟随硬件实际帧率；空闲时只保留预览和条码识别所需的处理频率。
-                    int processingFps = CameraFrameProcessingPolicy.GetProcessingFps(IsRecording, _actualCameraFps);
+                    // 录制时跟随硬件实际帧率；空闲时按预览档位（前台/刚操作=满帧，之后逐级降）。
+                    int processingFps = CameraFrameProcessingPolicy.GetProcessingFps(
+                        IsRecording,
+                        _actualCameraFps,
+                        CurrentPreviewTargetFps());
                     double frameDurationMs = 1000.0 / processingFps;
                     DateTime startTime = DateTime.Now; Mat currentFrame = null;
                     long currentFrameSequence;
@@ -1217,6 +1224,16 @@ namespace ExpressPackingMonitoring.ViewModels
         private TimeSpan? CurrentPreviewFrameInterval =>
             PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime, _isAppWindowFocused);
 
+        /// <summary>
+        /// 当前预览档位对应的处理帧率：采集门限与处理循环都用它，
+        /// 否则采集被压在 15fps、处理循环被压在 24fps 时，预览再怎么"满帧"也上不去。
+        /// </summary>
+        private int CurrentPreviewTargetFps() =>
+            PreviewFrameRatePolicy.ResolveTargetFps(
+                _actualCameraFps,
+                CurrentPreviewFrameInterval,
+                Volatile.Read(ref _isRecording));
+
         private bool IsPreviewFrameDue()
         {
             if (SuppressVideoPreviewUpdates || _isDisposed)
@@ -1241,7 +1258,25 @@ namespace ExpressPackingMonitoring.ViewModels
             Mat previewFrame = null;
             try
             {
-                previewFrame = frame.Clone();
+                // 按控件实际显示尺寸发布：整帧克隆 + 写位图 + 传 GPU 缩放都跟像素数成正比，
+                // 1080p 一帧 6MB，缩到显示尺寸后满帧跑也不心疼。
+                (int Width, int Height)? target = PreviewDownscalePolicy.ResolveTarget(
+                    frame.Width,
+                    frame.Height,
+                    Volatile.Read(ref _previewDisplayWidth));
+                if (target.HasValue)
+                {
+                    previewFrame = new Mat();
+                    Cv2.Resize(
+                        frame,
+                        previewFrame,
+                        new OpenCvSharp.Size(target.Value.Width, target.Value.Height),
+                        interpolation: InterpolationFlags.Area);
+                }
+                else
+                {
+                    previewFrame = frame.Clone();
+                }
 
                 var dispatcher = Application.Current?.Dispatcher;
                 if (dispatcher == null)
@@ -1374,7 +1409,8 @@ namespace ExpressPackingMonitoring.ViewModels
             string intervalText = interval.HasValue
                 ? interval.Value.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
                 : "full";
-            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
+            int cameraFps = (int)Math.Round(Volatile.Read(ref _cameraSourceFpsEstimate));
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, publishWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
         }
 
         /// <summary>

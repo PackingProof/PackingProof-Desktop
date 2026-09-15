@@ -10,6 +10,9 @@ namespace ExpressPackingMonitoring.ViewModels
     /// </summary>
     internal static class PreviewFrameRatePolicy
     {
+        /// <summary>摄像头帧率还没测出来时的兜底值。</summary>
+        internal const int FallbackCameraFps = 15;
+
         /// <summary>没人操作满 60 秒后降到 12fps。</summary>
         internal static readonly TimeSpan ReducedAfter = TimeSpan.FromSeconds(60);
         internal static readonly TimeSpan ReducedInterval = TimeSpan.FromMilliseconds(1000.0 / 12.0);
@@ -29,6 +32,24 @@ namespace ExpressPackingMonitoring.ViewModels
             if (sinceLastActivity < ReducedAfter)
                 return null;
             return sinceLastActivity < LowAfter ? ReducedInterval : LowInterval;
+        }
+
+        /// <summary>
+        /// 当前档位对应的处理帧率（摄像头采集门限与处理循环共用，保证预览真的跑在档位上）。
+        /// 录制时始终跟摄像头帧率，录像质量不受预览档位影响。
+        /// </summary>
+        internal static int ResolveTargetFps(int cameraFps, TimeSpan? interval, bool isRecording)
+        {
+            int camera = cameraFps > 0 ? cameraFps : FallbackCameraFps;
+            if (isRecording || interval == null)
+                return Math.Clamp(camera, 1, 120);
+
+            double intervalMs = interval.Value.TotalMilliseconds;
+            if (intervalMs <= 0)
+                return Math.Clamp(camera, 1, 120);
+
+            int tierFps = (int)Math.Round(1000.0 / intervalMs);
+            return Math.Clamp(Math.Min(camera, tierFps), 1, 120);
         }
     }
 }

@@ -4,21 +4,21 @@ namespace ExpressPackingMonitoring.ViewModels;
 
 internal static class CameraFrameProcessingPolicy
 {
-    internal const int IdleCaptureFps = 15;
-    internal const int IdleProcessingFps = 24;
-    private const int FallbackCameraFps = 15;
-
-    public static int GetCaptureFps(bool isRecording, int actualCameraFps)
+    /// <summary>
+    /// 采集门限：录制时跟摄像头帧率，空闲时按预览档位（满帧/12fps/4fps）。
+    /// 原来空闲写死 15fps，摄像头 60fps 时预览被压在 15fps，看起来一直"卡"。
+    /// </summary>
+    public static int GetCaptureFps(bool isRecording, int actualCameraFps, int idleTargetFps)
     {
-        int cameraFps = actualCameraFps > 0 ? actualCameraFps : FallbackCameraFps;
-        return isRecording ? cameraFps : Math.Min(cameraFps, IdleCaptureFps);
+        int cameraFps = actualCameraFps > 0 ? actualCameraFps : PreviewFrameRatePolicy.FallbackCameraFps;
+        return isRecording
+            ? Math.Clamp(cameraFps, 1, 120)
+            : Math.Clamp(Math.Min(cameraFps, idleTargetFps), 1, 120);
     }
 
-    public static int GetProcessingFps(bool isRecording, int actualCameraFps)
-    {
-        int cameraFps = actualCameraFps > 0 ? actualCameraFps : FallbackCameraFps;
-        return isRecording ? cameraFps : Math.Min(cameraFps, IdleProcessingFps);
-    }
+    /// <summary>处理循环频率：与采集门限同一档位，否则处理循环自己会把预览压回去。</summary>
+    public static int GetProcessingFps(bool isRecording, int actualCameraFps, int idleTargetFps) =>
+        GetCaptureFps(isRecording, actualCameraFps, idleTargetFps);
 }
 
 internal static class RecordingFrameProgressPolicy
@@ -162,10 +162,10 @@ internal sealed class CameraFrameRateGate
 
     public void Reset() => Interlocked.Exchange(ref _lastAcceptedTimestamp, 0);
 
-    public bool ShouldAccept(bool isRecording, int actualCameraFps) =>
-        ShouldAccept(isRecording, actualCameraFps, Stopwatch.GetTimestamp(), Stopwatch.Frequency);
+    public bool ShouldAccept(bool isRecording, int targetFps) =>
+        ShouldAccept(isRecording, targetFps, Stopwatch.GetTimestamp(), Stopwatch.Frequency);
 
-    internal bool ShouldAccept(bool isRecording, int actualCameraFps, long nowTimestamp, long timestampFrequency)
+    internal bool ShouldAccept(bool isRecording, int targetFps, long nowTimestamp, long timestampFrequency)
     {
         if (isRecording)
         {
@@ -173,8 +173,8 @@ internal sealed class CameraFrameRateGate
             return true;
         }
 
-        int targetFps = CameraFrameProcessingPolicy.GetCaptureFps(false, actualCameraFps);
-        long minimumInterval = Math.Max(1, timestampFrequency / targetFps);
+        int fps = Math.Clamp(targetFps, 1, 120);
+        long minimumInterval = Math.Max(1, timestampFrequency / fps);
 
         while (true)
         {

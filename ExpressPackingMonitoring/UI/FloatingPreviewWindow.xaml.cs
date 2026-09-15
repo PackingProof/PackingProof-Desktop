@@ -67,6 +67,21 @@ namespace ExpressPackingMonitoring.UI
             SpeakerButton.ToolTip = AppLanguage.Get("选择播放设备");
 
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            PreviewImage.SizeChanged += (_, _) => ReportPreviewDisplayWidth();
+            Loaded += (_, _) => ReportPreviewDisplayWidth();
+        }
+
+        /// <summary>
+        /// 主界面最小化后只剩小窗，预览就按小窗尺寸发布；
+        /// 主界面恢复时它会重新上报更大的宽度，两边取较大者。
+        /// </summary>
+        private void ReportPreviewDisplayWidth()
+        {
+            if (!IsVisible)
+                return;
+
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            _viewModel.ReportFloatingPreviewDisplayWidth(PreviewImage.ActualWidth * dpiScale);
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -487,6 +502,7 @@ namespace ExpressPackingMonitoring.UI
         {
             PersistCornerPreference();
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            _viewModel.ReportFloatingPreviewDisplayWidth(0);
             StopAnimations();
             if (_noticeTimer != null)
             {

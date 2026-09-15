@@ -204,10 +204,13 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _capsCheckTimer.Stop();
                     RestoreCapsLockState();
+                    // 最小化后画面交给小窗，预览按小窗尺寸发布。
+                    (DataContext as MainViewModel)?.ReportMainPreviewDisplayWidth(0);
                 }
                 else
                 {
                     ApplyCapsLockForScanInput();
+                    ReportPreviewDisplayWidth();
                 }
             };
             // 小窗只由最小化触发，主界面不新增按钮，所以控制器必须在这里提前挂好。
@@ -239,7 +242,9 @@ namespace ExpressPackingMonitoring.UI
                     VideoImage.SizeChanged += (_, __) =>
                     {
                         UpdateCameraOverlays(vm);
+                        ReportPreviewDisplayWidth();
                     };
+                    ReportPreviewDisplayWidth();
                 }
 
                 Title = AppLanguage.Format("Main.Title", AppVersion.Current);
@@ -272,6 +277,25 @@ namespace ExpressPackingMonitoring.UI
             }
 
             return IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// 把预览控件的实际显示宽度（按 DPI 换算成设备像素）报给 ViewModel：
+        /// 预览按这个尺寸发布，1080p 整帧搬到 UI 再缩放的开销就省掉了。
+        /// </summary>
+        private void ReportPreviewDisplayWidth()
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            if (WindowState == WindowState.Minimized || !IsVisible)
+            {
+                vm.ReportMainPreviewDisplayWidth(0);
+                return;
+            }
+
+            double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
+            vm.ReportMainPreviewDisplayWidth(VideoImage.ActualWidth * dpiScale);
         }
 
         private void UpdateCameraOverlays(MainViewModel vm)

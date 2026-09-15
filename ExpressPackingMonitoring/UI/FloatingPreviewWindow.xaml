@@ -88,7 +88,7 @@
                     Background="{StaticResource VideoSurfaceBackground}">
                 <!-- 用与圆角一致的裁剪，缩小到画面铺满时视频的直角才不会顶出圆角 -->
                 <Grid x:Name="PreviewClipHost" ui:RoundedClip.Radius="9,9,0,0">
-                    <Image Source="{Binding VideoFrame}" Stretch="Uniform"/>
+                    <Image x:Name="PreviewImage" Source="{Binding VideoFrame}" Stretch="Uniform"/>
 
                     <!-- 悬停才显示控制层；不加蒙版，避免遮挡监控画面 -->
                     <Grid x:Name="ControlLayer" Visibility="Collapsed">

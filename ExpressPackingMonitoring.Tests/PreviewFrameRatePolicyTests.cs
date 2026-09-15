@@ -61,6 +61,27 @@ public sealed class PreviewFrameRatePolicyTests
     }
 
     /// <summary>
+    /// 采集门限与处理循环都要跟档位：以前空闲写死 15fps 采集 / 24fps 处理，
+    /// 60fps 摄像头下预览被压在 15fps，怎么改预览间隔都还是"卡"。
+    /// </summary>
+    [Fact]
+    public void TargetFpsFollowsTierAndKeepsRecordingFullSpeed()
+    {
+        // 满帧档位（前台/刚操作）
+        Assert.Equal(60, PreviewFrameRatePolicy.ResolveTargetFps(60, interval: null, isRecording: false));
+        // 12fps 档位
+        Assert.Equal(12, PreviewFrameRatePolicy.ResolveTargetFps(60, PreviewFrameRatePolicy.ReducedInterval, isRecording: false));
+        // 4fps 档位
+        Assert.Equal(4, PreviewFrameRatePolicy.ResolveTargetFps(60, PreviewFrameRatePolicy.LowInterval, isRecording: false));
+        // 录制时始终跟摄像头，录像不受预览档位影响
+        Assert.Equal(60, PreviewFrameRatePolicy.ResolveTargetFps(60, PreviewFrameRatePolicy.LowInterval, isRecording: true));
+        // 摄像头帧率还没测出来时用兜底值
+        Assert.Equal(
+            PreviewFrameRatePolicy.FallbackCameraFps,
+            PreviewFrameRatePolicy.ResolveTargetFps(0, interval: null, isRecording: false));
+    }
+
+    /// <summary>
     /// 满帧意味着"不额外限流"，所以调用点必须同时接受 null；
     /// 焦点状态由 Application.Activated/Deactivated 维护，采集线程只读标记。
     /// </summary>
