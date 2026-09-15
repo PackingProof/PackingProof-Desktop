@@ -15,16 +15,30 @@ internal sealed class MobileOrderReceiverRegistry
     private static readonly TimeSpan ActiveRetention = TimeSpan.FromSeconds(45);
     /// <summary>用户自定义昵称的保留条数上限：这类名字不随活跃时间清理，但也不能无限增长。</summary>
     private const int MaximumCustomizedNames = 128;
+    /// <summary>昵称台账上限。设备本身按保存期清理，但名字要留得更久，见 <see cref="_rememberedNames"/>。</summary>
+    private const int MaximumRememberedNames = 512;
     private readonly string _path;
+    private readonly string _namesPath;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();
     private List<Entry> _entries;
+    /// <summary>
+    /// 设备号 -> 最近一次分配到的昵称。昵称是可变属性（用户随时会改），
+    /// 录像记录里的 SourceDeviceName 只是写入当时的快照；设备掉出 30 天保留期后，
+    /// 界面仍要靠这份台账把老记录认成同一台设备，否则同一台设备改名后会在列表里
+    /// 变成两个名字。台账只用于显示名解析，不参与编号与重名判定。
+    /// </summary>
+    private Dictionary<string, RememberedName> _rememberedNames;
 
     internal MobileOrderReceiverRegistry(string? path = null, Func<DateTime>? utcNow = null)
     {
         _path = path ?? GetDefaultPath();
+        _namesPath = Path.Combine(
+            Path.GetDirectoryName(_path) ?? "",
+            Path.GetFileNameWithoutExtension(_path) + "-names.json");
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _entries = Load(_path);
+        _rememberedNames = LoadRememberedNames(_namesPath);
         if (RepairDuplicateNames())
         {
             try { Save(); } catch { }
@@ -39,7 +53,8 @@ internal sealed class MobileOrderReceiverRegistry
         IEnumerable<string>? capabilities = null,
         string? deviceKind = null,
         string? platform = null,
-        bool customized = false)
+        bool customized = false,
+        bool trustProvidedName = false)
     {
         string? address = NormalizePrivateIpv4(remoteAddress);
         if (address == null) return null;
@@ -86,7 +101,7 @@ internal sealed class MobileOrderReceiverRegistry
             {
                 normalizedNodeName = existing!.NodeName;
             }
-            else if (IsAutomaticName(normalizedNodeName) && !customized)
+            else if (!trustProvidedName && IsAutomaticName(normalizedNodeName) && !customized)
             {
                 bool sameStableDevice = existing != null
                     && (requestedNodeId.Length == 0
@@ -139,6 +154,7 @@ internal sealed class MobileOrderReceiverRegistry
                 if (refreshed != null)
                     entry = refreshed;
             }
+            RememberName(entry.NodeId, entry.NodeName, now);
             try { Save(); } catch { }
             return ToInfo(entry, online: true);
         }
@@ -229,8 +245,72 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = requested;
             entry.Customized = true;
+            RememberName(entry.NodeId, entry.NodeName, _utcNow());
             try { Save(); } catch { }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// 台账里记住的设备昵称，按最近一次出现排序。给显示名解析当兜底：设备掉出保留期后，
+    /// 老记录仍按这份名字显示，不会因为记录里的历史快照又冒出一个旧昵称。
+    /// </summary>
+    internal IReadOnlyList<RememberedDeviceName> GetRememberedNames()
+    {
+        lock (_sync)
+        {
+            return _rememberedNames
+                .Where(pair => pair.Key.Length > 0 && !string.IsNullOrWhiteSpace(pair.Value.Name))
+                .OrderByDescending(pair => pair.Value.SeenUtc)
+                .Select(pair => new RememberedDeviceName(pair.Key, pair.Value.Name.Trim()))
+                .ToArray();
+        }
+    }
+
+    private void RememberName(string? nodeId, string? name, DateTime seenUtc)
+    {
+        string id = nodeId?.Trim() ?? "";
+        string value = name?.Trim() ?? "";
+        if (id.Length == 0 || value.Length == 0)
+            return;
+
+        _rememberedNames[id] = new RememberedName { Name = value, SeenUtc = seenUtc };
+        if (_rememberedNames.Count > MaximumRememberedNames)
+        {
+            foreach (string expired in _rememberedNames
+                .OrderByDescending(pair => pair.Value.SeenUtc)
+                .Skip(MaximumRememberedNames)
+                .Select(pair => pair.Key)
+                .ToArray())
+            {
+                _rememberedNames.Remove(expired);
+            }
+        }
+
+        try { SaveRememberedNames(); } catch { }
+    }
+
+    private void SaveRememberedNames()
+    {
+        string? directory = Path.GetDirectoryName(_namesPath);
+        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+        string temporaryPath = _namesPath + ".tmp";
+        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_rememberedNames));
+        File.Move(temporaryPath, _namesPath, true);
+    }
+
+    private static Dictionary<string, RememberedName> LoadRememberedNames(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
+            return JsonSerializer.Deserialize<Dictionary<string, RememberedName>>(File.ReadAllText(path))
+                ?? new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -311,6 +391,7 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = replacement;
             entry.Customized = false;
+            RememberName(entry.NodeId, replacement, entry.LastSeenUtc);
             changed = true;
         }
         return changed;
@@ -422,6 +503,13 @@ internal sealed class MobileOrderReceiverRegistry
         /// <summary>用户手动设置过昵称：自动命名与重名修复都不再改动它。</summary>
         public bool Customized { get; set; }
     }
+
+    /// <summary>台账条目：这台设备上一次叫什么名字、什么时候。</summary>
+    private sealed class RememberedName
+    {
+        public string Name { get; set; } = "";
+        public DateTime SeenUtc { get; set; }
+    }
 }
 
 internal sealed record MobileOrderReceiverInfo(
@@ -433,3 +521,6 @@ internal sealed record MobileOrderReceiverInfo(
     bool Online,
     bool Customized = false,
     DateTime LastSeenUtc = default);
+
+/// <summary>台账里记住的一台设备的昵称（设备已经掉出保留期时用来兜底显示名）。</summary>
+internal sealed record RememberedDeviceName(string NodeId, string Name);
