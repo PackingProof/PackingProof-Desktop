@@ -158,6 +158,7 @@
     <Compile Include="Services\BackupCompatibilityPolicy.cs" />
     <Compile Include="Services\BackupRequestAuthentication.cs" />
     <Compile Include="Services\BackupPairingTokenService.cs" />
+    <Compile Include="Services\BackupUploadDeviceRegistration.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
     <Compile Include="Services\JdBarcodePolicy.cs" />
     <Compile Include="Services\SmartZoomPolicy.cs" />

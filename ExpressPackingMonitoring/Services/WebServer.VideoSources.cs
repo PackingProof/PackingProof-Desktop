@@ -44,11 +44,15 @@ public sealed partial class WebServer
             SendJson(ctx, 200, new { data });
         }
 
-        /// <summary>设备号→当前昵称。含离线但仍在保留期内的设备，供筛选把老昵称归并到新昵称。</summary>
+        /// <summary>
+        /// 设备号→当前昵称。含离线但仍在保留期内的设备，以及超出保留期但名字被台账记住的
+        /// 设备（记录里的名字只是写入当时的快照，改名后不能让同一台设备显示成两个名字）。
+        /// </summary>
         internal IReadOnlyDictionary<string, string> GetCurrentSourceDeviceNames() =>
             RecordingSourceNameLookup.Build(
                 _mobileOrderReceivers.GetKnownRecordingDevices(),
-                _connectedClients.GetSnapshot());
+                _connectedClients.GetSnapshot(),
+                _mobileOrderReceivers.GetRememberedNames());
 
         /// <summary>
         /// 关键字命中某台设备的当前昵称时，返回这些设备号，让搜索同时按设备号命中：

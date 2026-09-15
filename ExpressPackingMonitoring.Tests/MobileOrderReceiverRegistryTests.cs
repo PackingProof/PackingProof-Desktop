@@ -407,4 +407,115 @@ public sealed class MobileOrderReceiverRegistryTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+
+    /// <summary>
+    /// 昵称台账要比设备保留期活得久：设备掉出保留期后，老记录仍要按同一个名字显示，
+    /// 不能退回记录里的历史快照。
+    /// </summary>
+    [Fact]
+    public void RememberedNamesOutliveRetentionPruningAndReload()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(directory, "receivers.json");
+        DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "设备 A1B2C3",
+                deviceKind: "mobile",
+                platform: "android");
+
+            now = now.AddDays(40);
+            registry.Register(
+                IPAddress.Parse("192.168.31.202"),
+                "android-device-0002",
+                "设备 D4E5F6",
+                deviceKind: "mobile",
+                platform: "android");
+
+            Assert.DoesNotContain(
+                registry.GetKnownRecordingDevices(),
+                item => item.NodeId == "android-device-0001");
+            Assert.Contains(
+                registry.GetRememberedNames(),
+                item => item.NodeId == "android-device-0001" && item.Name == "安卓1");
+
+            // 重启后台账仍在：设备表里已经没有这台设备，名字却还认得。
+            var restarted = new MobileOrderReceiverRegistry(path, () => now);
+            Assert.Contains(
+                restarted.GetRememberedNames(),
+                item => item.NodeId == "android-device-0001" && item.Name == "安卓1");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void RememberedNamesFollowUserRename()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "设备 A1B2C3",
+                deviceKind: "mobile",
+                platform: "android");
+
+            Assert.True(registry.TrySetCustomName("android-device-0001", "东侧打包手机", out _));
+
+            RememberedDeviceName remembered = Assert.Single(
+                registry.GetRememberedNames(),
+                item => item.NodeId == "android-device-0001");
+            Assert.Equal("东侧打包手机", remembered.Name);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 电脑昵称表已经算好的名字，登记表要原样收下：两边各按"电脑N"编号时，
+    /// 主机占着电脑1，同一台电脑工位会在两张表里分别叫电脑2和电脑1。
+    /// </summary>
+    [Fact]
+    public void TrustedNameIsKeptInsteadOfRenumbered()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            MobileOrderReceiverInfo? trusted = registry.Register(
+                IPAddress.Parse("192.168.31.203"),
+                "pc-device-0001",
+                "电脑2",
+                deviceKind: "pc",
+                platform: "windows",
+                trustProvidedName: true);
+
+            Assert.Equal("电脑2", trusted?.NodeName);
+
+            // 不信任的自动名仍然按"电脑N"重新编号，老行为不变。
+            MobileOrderReceiverInfo? renumbered = registry.Register(
+                IPAddress.Parse("192.168.31.204"),
+                "pc-device-0002",
+                "电脑9",
+                deviceKind: "pc",
+                platform: "windows");
+
+            Assert.Equal("电脑3", renumbered?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
 }

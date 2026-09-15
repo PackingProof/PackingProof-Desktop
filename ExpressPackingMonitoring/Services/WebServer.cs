@@ -2288,12 +2288,16 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
                 request.SourceDeviceId = authenticatedDeviceId;
-                _mobileOrderReceivers.Register(
+                // 记录里的来源名写主机分配的昵称，不照抄客户端自报的名字，
+                // 否则同一台设备会在库里攒出好几个名字。
+                request.SourceDeviceName = BackupUploadDeviceRegistration.RegisterAndResolveSourceName(
+                    _mobileOrderReceivers,
+                    _recordingComputerNicknames,
                     ctx.Request.RemoteEndPoint?.Address,
                     request.SourceDeviceId,
                     request.SourceDeviceName,
-                    deviceKind: VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
-                    platform: VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
+                    VideoSourceNameResolver.ReadDeviceKind(ctx.Request.Headers),
+                    VideoSourceNameResolver.ReadDevicePlatform(ctx.Request.Headers));
                 MobileBackupCompleteResult result = _mobileBackupService.Complete(uploadId, request);
                 try
                 {

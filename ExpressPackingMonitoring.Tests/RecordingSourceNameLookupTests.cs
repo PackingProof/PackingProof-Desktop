@@ -76,4 +76,54 @@ public sealed class RecordingSourceNameLookupTests
 
         Assert.Equal("安卓1", RecordingSourceNameLookup.Resolve(names, "android-device-0001", "从机1"));
     }
+
+    [Fact]
+    public void Build_FallsBackToRememberedNameAfterDeviceLeftRetention()
+    {
+        IReadOnlyDictionary<string, string> names = RecordingSourceNameLookup.Build(
+            [],
+            [],
+            [new RememberedDeviceName("android-device-0001", "安卓1")]);
+
+        // 设备掉出保留期后，老记录里的"从机1"不能又冒出来。
+        Assert.Equal("安卓1", RecordingSourceNameLookup.Resolve(names, "android-device-0001", "从机1"));
+    }
+
+    [Fact]
+    public void Build_PrefersLiveNamesOverRememberedOnes()
+    {
+        IReadOnlyDictionary<string, string> names = RecordingSourceNameLookup.Build(
+            [Mobile("node-1", "安卓9")],
+            [Client("node-2", "电脑工位 · 电脑2")],
+            [
+                new RememberedDeviceName("node-1", "安卓1"),
+                new RememberedDeviceName("node-2", "从机2"),
+                new RememberedDeviceName("node-3", "从机3")
+            ]);
+
+        Assert.Equal("安卓9", names["node-1"]);
+        Assert.Equal("电脑工位 · 电脑2", names["node-2"]);
+        Assert.Equal("从机3", names["node-3"]);
+    }
+
+    /// <summary>
+    /// 设备掉出保留期后编号会被新设备复用，台账里的老名字不能再盖回去，
+    /// 否则一台设备的名字会同时属于两台设备。
+    /// </summary>
+    [Fact]
+    public void Build_KeepsOneNamePerDeviceWhenRememberedNameWasReused()
+    {
+        IReadOnlyDictionary<string, string> names = RecordingSourceNameLookup.Build(
+            [Mobile("android-device-0002", "安卓1")],
+            [],
+            [
+                new RememberedDeviceName("android-device-0001", "安卓1"),
+                new RememberedDeviceName("android-device-0003", "从机3")
+            ]);
+
+        Assert.Equal("安卓1", names["android-device-0002"]);
+        Assert.False(names.ContainsKey("android-device-0001"));
+        Assert.Equal("从机3", names["android-device-0003"]);
+        Assert.Equal(names.Count, names.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
 }
