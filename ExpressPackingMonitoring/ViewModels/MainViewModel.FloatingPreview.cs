@@ -57,6 +57,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 case nameof(IsRecording):
                 case nameof(CurrentOrderId):
                 case nameof(PreRecordBufferProgress):
+                case nameof(IsCameraSleeping):
                 case nameof(Config):
                     RefreshFloatingPreviewStatus();
                     break;
@@ -71,6 +72,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
                 IsRecording,
+                IsCameraSleeping,
                 _config?.EnableEventRecordingBuffer == true,
                 PreRecordBufferProgress > 0,
                 IsRecording ? _recordingOrderId : CurrentOrderId);

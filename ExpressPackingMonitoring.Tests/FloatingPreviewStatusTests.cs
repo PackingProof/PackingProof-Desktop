@@ -13,7 +13,11 @@ public sealed class FloatingPreviewStatusTests
     public void Recording_ShowsOrderId()
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: true, preRecordEnabled: true, preRecordHasFrames: true, orderId: "JD0123456789");
+            isRecording: true,
+            cameraSleeping: false,
+            preRecordEnabled: true,
+            preRecordHasFrames: true,
+            orderId: "JD0123456789");
 
         Assert.Equal(FloatingPreviewIndicator.Recording, status.Indicator);
         Assert.Equal("JD0123456789", status.Text);
@@ -28,7 +32,11 @@ public sealed class FloatingPreviewStatusTests
     public void RecordingWithoutOrderId_FallsBackToRecordingText(string? orderId)
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: true, preRecordEnabled: false, preRecordHasFrames: false, orderId: orderId);
+            isRecording: true,
+            cameraSleeping: false,
+            preRecordEnabled: false,
+            preRecordHasFrames: false,
+            orderId: orderId);
 
         Assert.Equal(FloatingPreviewIndicator.Recording, status.Indicator);
         Assert.Equal(FloatingPreviewStatusPolicy.RecordingWithoutOrderText, status.Text);
@@ -39,7 +47,11 @@ public sealed class FloatingPreviewStatusTests
     public void OrderIdIsTrimmed()
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: true, preRecordEnabled: false, preRecordHasFrames: false, orderId: "  JD9 ");
+            isRecording: true,
+            cameraSleeping: false,
+            preRecordEnabled: false,
+            preRecordHasFrames: false,
+            orderId: "  JD9 ");
 
         Assert.Equal("JD9", status.Text);
     }
@@ -48,7 +60,11 @@ public sealed class FloatingPreviewStatusTests
     public void PreRecordBuffering_ShowsPreRecordingIndicator()
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: false, preRecordEnabled: true, preRecordHasFrames: true, orderId: null);
+            isRecording: false,
+            cameraSleeping: false,
+            preRecordEnabled: true,
+            preRecordHasFrames: true,
+            orderId: null);
 
         Assert.Equal(FloatingPreviewIndicator.PreRecording, status.Indicator);
         Assert.Equal(FloatingPreviewStatusPolicy.PreRecordingText, status.Text);
@@ -63,7 +79,11 @@ public sealed class FloatingPreviewStatusTests
     public void WithoutActivePreRecordBuffer_IsIdle(bool preRecordEnabled, bool preRecordHasFrames)
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: false, preRecordEnabled: preRecordEnabled, preRecordHasFrames: preRecordHasFrames, orderId: null);
+            isRecording: false,
+            cameraSleeping: false,
+            preRecordEnabled: preRecordEnabled,
+            preRecordHasFrames: preRecordHasFrames,
+            orderId: null);
 
         Assert.Equal(FloatingPreviewIndicator.Idle, status.Indicator);
         Assert.Equal(FloatingPreviewStatusPolicy.IdleText, status.Text);
@@ -74,7 +94,11 @@ public sealed class FloatingPreviewStatusTests
     public void RecordingTakesPrecedenceOverPreRecording()
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: true, preRecordEnabled: true, preRecordHasFrames: true, orderId: null);
+            isRecording: true,
+            cameraSleeping: false,
+            preRecordEnabled: true,
+            preRecordHasFrames: true,
+            orderId: null);
 
         Assert.Equal(FloatingPreviewIndicator.Recording, status.Indicator);
     }
@@ -84,7 +108,11 @@ public sealed class FloatingPreviewStatusTests
     public void IdleWithStaleOrderId_StaysIdle()
     {
         FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
-            isRecording: false, preRecordEnabled: false, preRecordHasFrames: false, orderId: "JD0123456789");
+            isRecording: false,
+            cameraSleeping: false,
+            preRecordEnabled: false,
+            preRecordHasFrames: false,
+            orderId: "JD0123456789");
 
         Assert.Equal(FloatingPreviewIndicator.Idle, status.Indicator);
         Assert.Equal(FloatingPreviewStatusPolicy.IdleText, status.Text);
@@ -92,11 +120,45 @@ public sealed class FloatingPreviewStatusTests
     }
 
     /// <summary>
-    /// 预录制开关必须读 EnableEventRecordingBuffer。
-    /// AppConfig 会把 PreRecordSeconds 规范化清零，用它判断会让预录制灯永远不亮。
+    /// 摄像头休眠后预览画面是停的，必须给灰灯加说明；
+    /// 它优先于预录制提示（缓冲已经不再更新，再显示"预录制中"是假的）。
     /// </summary>
     [Fact]
-    public void ViewModel_UsesEventRecordingBufferFlag_NotNormalizedPreRecordSeconds()
+    public void CameraSleeping_ShowsSleepingIndicatorAndExplainsWhy()
+    {
+        FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
+            isRecording: false,
+            cameraSleeping: true,
+            preRecordEnabled: true,
+            preRecordHasFrames: true,
+            orderId: null);
+
+        Assert.Equal(FloatingPreviewIndicator.CameraSleeping, status.Indicator);
+        Assert.Equal(FloatingPreviewStatusPolicy.CameraSleepingText, status.Text);
+        Assert.False(status.TextIsOrderId);
+    }
+
+    /// <summary>正在录制时不能被休眠状态盖掉（录制中一定是清醒的）。</summary>
+    [Fact]
+    public void RecordingTakesPrecedenceOverCameraSleeping()
+    {
+        FloatingPreviewStatus status = FloatingPreviewStatusPolicy.Evaluate(
+            isRecording: true,
+            cameraSleeping: true,
+            preRecordEnabled: false,
+            preRecordHasFrames: false,
+            orderId: null);
+
+        Assert.Equal(FloatingPreviewIndicator.Recording, status.Indicator);
+    }
+
+    /// <summary>
+    /// 预录制开关必须读 EnableEventRecordingBuffer。
+    /// AppConfig 会把 PreRecordSeconds 规范化清零，用它判断会让预录制灯永远不亮。
+    /// 摄像头休眠也是小窗必须知道的输入。
+    /// </summary>
+    [Fact]
+    public void ViewModel_PassesEventRecordingBufferFlagAndCameraSleeping()
     {
         string source = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -113,6 +175,30 @@ public sealed class FloatingPreviewStatusTests
 
         Assert.Contains("EnableEventRecordingBuffer", evaluateCall, StringComparison.Ordinal);
         Assert.DoesNotContain("PreRecordSeconds", evaluateCall, StringComparison.Ordinal);
+        Assert.Contains("IsCameraSleeping", evaluateCall, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 主界面最小化后只有小窗在收鼠标事件：小窗必须把鼠标活动报给 ViewModel，
+    /// 否则摄像头休眠后在小窗上动鼠标唤不醒，用户只能去扫码。
+    /// </summary>
+    [Fact]
+    public void FloatingWindow_ReportsMouseActivityToWakeCamera()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "ExpressPackingMonitoring",
+            "UI",
+            "FloatingPreviewWindow.xaml.cs"));
+
+        Assert.Contains("OnMouseMove", source, StringComparison.Ordinal);
+        int mouseMoveIndex = source.IndexOf("protected override void OnMouseMove", StringComparison.Ordinal);
+        Assert.True(mouseMoveIndex >= 0, "小窗没有处理鼠标移动");
+
+        string mouseMove = source[mouseMoveIndex..];
+        int methodEnd = mouseMove.IndexOf("\n        }", StringComparison.Ordinal);
+        mouseMove = methodEnd >= 0 ? mouseMove[..methodEnd] : mouseMove;
+        Assert.Contains("NotifyUserActivity", mouseMove, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

@@ -137,7 +137,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly Mat _motionThreshold = new Mat();
         private BitmapSource _videoFrame;
         private WriteableBitmap _previewWriteableBitmap;
-        private static readonly TimeSpan PreviewFrameInterval = TimeSpan.FromMilliseconds(1000.0 / 12.0);
         private static readonly TimeSpan PreviewFreezeWarnThreshold = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan PreviewFreezeRestartThreshold = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan PreviewFreezeRestartCooldown = TimeSpan.FromSeconds(30);
@@ -145,6 +144,13 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan UiHeartbeatStaleThreshold = TimeSpan.FromSeconds(2);
         private DateTime _lastPreviewFrameAt = DateTime.MinValue;
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
+        // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
+        // 用来判断"空闲降帧"到底省了多少（见 PreviewFrameRatePolicy）。
+        private DateTime _previewStatsWindowStart = DateTime.MinValue;
+        private long _previewStatsWindowPublished;
+        private long _previewPublishedTotal;
+        private long _previewWriteTicksTotal;
+        private long _previewWriteCount;
         private DateTime _lastPreviewFreezeLogAt = DateTime.MinValue;
         private DateTime _lastPreviewWatchdogRestartAt = DateTime.MinValue;
         private DateTime _lastRecordingQueueWarnAt = DateTime.MinValue;
