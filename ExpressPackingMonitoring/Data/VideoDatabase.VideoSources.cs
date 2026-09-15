@@ -16,7 +16,7 @@ public partial class VideoDatabase
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = @"
-                SELECT SourceType, SourceDeviceId, SourceDeviceName, VideoCount, LastRecordAt
+                SELECT SourceType, SourceDeviceId, SourceDeviceName, VideoCount, LastRecordAt, PreferredName
                 FROM (
                     SELECT SourceType,
                            SourceDeviceId,
@@ -24,6 +24,11 @@ public partial class VideoDatabase
                            COUNT(1) OVER (PARTITION BY SourceType, SourceDeviceId) AS VideoCount,
                            MAX(COALESCE(NULLIF(TRIM(COALESCE(BackupCompletedAt, '')), ''), StartTime))
                                OVER (PARTITION BY SourceType, SourceDeviceId) AS LastRecordAt,
+                           MAX(CASE
+                               WHEN TRIM(COALESCE(SourceDeviceName, '')) <> ''
+                                AND SourceDeviceName NOT LIKE '从机%'
+                               THEN SourceDeviceName END)
+                               OVER (PARTITION BY SourceType, SourceDeviceId) AS PreferredName,
                            ROW_NUMBER() OVER (
                                PARTITION BY SourceType, SourceDeviceId
                                ORDER BY (TRIM(COALESCE(SourceDeviceName, '')) = '') ASC,
@@ -44,12 +49,14 @@ public partial class VideoDatabase
                     || !DateTime.TryParse(reader.GetString(4), out DateTime parsed)
                         ? default
                         : DateTime.SpecifyKind(parsed, DateTimeKind.Local).ToUniversalTime();
+                string preferredName = reader.IsDBNull(5) ? "" : reader.GetString(5);
                 result.Add(new VideoSourceInfo(
                     sourceType,
                     deviceId,
                     deviceName,
                     reader.GetInt32(3),
-                    lastRecordUtc));
+                    lastRecordUtc,
+                    preferredName));
             }
             return result;
         }

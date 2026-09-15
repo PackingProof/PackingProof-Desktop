@@ -3718,5 +3718,6 @@ namespace ExpressPackingMonitoring.Data
         string DeviceId,
         string DeviceName,
         int VideoCount,
-        DateTime LastRecordUtc = default);
+        DateTime LastRecordUtc = default,
+        string PreferredName = "");
 }

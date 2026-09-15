@@ -1596,7 +1596,7 @@ public sealed class MobileBackupTests
             string userscriptDirectory = Path.Combine(directory, "userscripts");
             UserscriptDescriptor userscript = new UserscriptCatalog(userscriptDirectory).Import(sourcePath);
             var receivers = new MobileOrderReceiverRegistry(Path.Combine(stateDirectory, "order-receivers.json"));
-            receivers.Register(IPAddress.Parse("192.168.31.205"));
+            receivers.Register(IPAddress.Parse("192.168.31.205"), "android-device-0001", "设备 A1B2C3");
             string registryPath = Path.Combine(stateDirectory, "order-receivers.json");
             JsonArray registryEntries = JsonNode.Parse(File.ReadAllText(registryPath))!.AsArray();
             registryEntries[0]!["LastSeenUtc"] = DateTime.UtcNow.AddMinutes(-6);

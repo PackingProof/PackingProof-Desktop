@@ -3,8 +3,6 @@ using ExpressPackingMonitoring.Data;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace ExpressPackingMonitoring.Services;
@@ -18,6 +16,8 @@ internal sealed class MobileOrderReceiverRegistry
     private const int MaximumCustomizedNames = 128;
     /// <summary>设备条数硬上限。有录像的设备最后才动，见 <see cref="TrimOverflow"/>。</summary>
     private const int MaximumKnownDevices = 512;
+    /// <summary>昵称长度上限，与 SettingsWindow 的电脑昵称校验保持一致。</summary>
+    private const int MaximumDeviceNameLength = 20;
     private readonly string _path;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();
@@ -53,15 +53,15 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             string requestedNodeId = nodeId?.Trim() ?? "";
-            Entry? existing = requestedNodeId.Length > 0
-                ? _entries.FirstOrDefault(item =>
-                    string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase))
-                : _entries.FirstOrDefault(item =>
-                    string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase));
+            // 没有设备号就没有设备：未配对的手机探测主机能力这类匿名调用不能凭空造一台
+            // "从机N"，否则筛选与设备列表里会多出一堆并不存在的设备。
+            if (requestedNodeId.Length == 0)
+                return null;
+
+            Entry? existing = _entries.FirstOrDefault(item =>
+                string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
             _entries.RemoveAll(item =>
-                (requestedNodeId.Length > 0
-                    ? string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
-                    : string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase))
+                string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
                 // 用户改过名、或者在这台主机上留下过录像的设备都不按活跃时间清理：
                 // 昵称映射是录像显示名的唯一来源，设备一旦被清掉，它的老录像就只能退回
                 // 记录里的历史快照（同一台设备又会变成两个名字）。
@@ -70,8 +70,6 @@ internal sealed class MobileOrderReceiverRegistry
             TrimOverflow();
 
             string normalizedNodeId = requestedNodeId;
-            if (normalizedNodeId.Length == 0)
-                normalizedNodeId = existing?.NodeId ?? CreateFallbackNodeId(address);
             string normalizedNodeName = nodeName?.Trim() ?? "";
             string normalizedDeviceKind = deviceKind?.Trim() ?? "";
             string normalizedPlatform = platform?.Trim().ToLowerInvariant() ?? "";
@@ -88,7 +86,7 @@ internal sealed class MobileOrderReceiverRegistry
             // 旧自动名报回来，没有这一位的话改好的名字下一次心跳就被改回去了；
             // 只有显式改名（customized=true）才能改动它。
             bool existingCustomized = existing?.Customized == true && !customized;
-            string namePrefix = GetNamePrefix(normalizedDeviceKind, normalizedPlatform);
+            string namePrefix = ResolveNamePrefix(normalizedDeviceKind, normalizedPlatform, existing);
             if (existingCustomized)
             {
                 normalizedNodeName = existing!.NodeName;
@@ -96,8 +94,7 @@ internal sealed class MobileOrderReceiverRegistry
             else if (!trustProvidedName && IsAutomaticName(normalizedNodeName) && !customized)
             {
                 bool sameStableDevice = existing != null
-                    && (requestedNodeId.Length == 0
-                        || string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(existing.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase);
                 bool existingAutomatic = existing != null && IsAutomaticName(existing.NodeName);
                 bool existingUsesPrefix = existingAutomatic && existing!.NodeName.StartsWith(namePrefix, StringComparison.Ordinal)
                     && IsAssignedDeviceName(existing.NodeName);
@@ -247,9 +244,10 @@ internal sealed class MobileOrderReceiverRegistry
     /// 用库里已有的录像来源补齐"设备号 -> 昵称"映射。
     ///
     /// 昵称只存在这张表里（记录不再逐条写昵称），升级前的昵称只存在于记录快照中，
-    /// 而设备可能早就掉出保留期了，所以启动时按库里的来源补一次：只补没有登记过的设备，
-    /// 名字取这台设备最近一条记录里的名字；同名时按最近还有录像的那台优先，
-    /// 另一台留空（界面按设备号生成兜底名），保证一个名字只属于一台设备。
+    /// 而设备可能早就掉出保留期了，所以打开软件时就按库里的来源补一次：只补没有登记过的
+    /// 设备，名字取这台设备最近一条记录里的名字，最后在线时间取它最后一次录像的时间。
+    /// 同名时按最近还有录像的那台优先，另一台带上设备号后缀区分开：
+    /// 一台设备一个名字、一个名字只属于一台设备，不用等设备上线。
     /// </summary>
     internal void SeedRecordedDevices(IEnumerable<VideoSourceInfo>? sources)
     {
@@ -268,12 +266,27 @@ internal sealed class MobileOrderReceiverRegistry
                 .OrderByDescending(item => item.LastRecordUtc))
             {
                 string nodeId = source.DeviceId.Trim();
-                if (_entries.Any(item => string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)))
+                Entry? known = _entries.FirstOrDefault(item =>
+                    string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase));
+                if (known != null)
+                {
+                    if (RepairSlaveFallbackName(known, source, usedNames))
+                        changed = true;
+                    if (!known.HasRecordings)
+                    {
+                        known.HasRecordings = true;
+                        changed = true;
+                    }
                     continue;
+                }
 
                 string name = source.DeviceName?.Trim() ?? "";
                 if (name.Length > 0 && !usedNames.Add(name))
-                    name = "";
+                {
+                    // 老库里两台设备被发过同一个名字：撞名的那台保留可读部分并带上设备号，
+                    // 保证一个名字只属于一台设备；它下次上线会换成主机新分配的名字。
+                    name = CreateDistinctSeedName(name, nodeId, usedNames);
+                }
                 _entries.Add(new Entry
                 {
                     NodeId = nodeId,
@@ -290,6 +303,65 @@ internal sealed class MobileOrderReceiverRegistry
 
             TrimOverflow();
             try { Save(); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// 修掉"从机N"这类兜底名。旧版 App 上报时没带平台信息，主机就把已经有名字的设备
+    /// 按"从机"重新编号（用户会看到一台手机从"手机1"变成"从机1"）。设备自己的录像里
+    /// 存着当时用过的名字，打开软件时用它改回来，不必等设备上线；
+    /// 用户手改过的名字和没有更好名字的设备都不动。
+    /// </summary>
+    private static bool RepairSlaveFallbackName(
+        Entry entry,
+        VideoSourceInfo source,
+        HashSet<string> usedNames)
+    {
+        if (entry.Customized)
+            return false;
+
+        string current = entry.NodeName?.Trim() ?? "";
+        if (!IsAssignedDeviceName(current) || !current.StartsWith("从机", StringComparison.Ordinal))
+            return false;
+
+        string preferred = source.PreferredName?.Trim() ?? "";
+        if (preferred.Length == 0
+            || preferred.Equals(current, StringComparison.OrdinalIgnoreCase)
+            || !usedNames.Add(preferred))
+        {
+            return false;
+        }
+
+        usedNames.Remove(current);
+        entry.NodeName = preferred;
+        return true;
+    }
+
+    /// <summary>
+    /// 同一台设备有两个历史名字、或两台设备历史上被发过同一个名字时，补齐要保证
+    /// "一台设备一个名字、一个名字只属于一台设备"：撞名的那台用"原名字·设备号后 6 位"，
+    /// 保留可读部分又能和别的设备区分开；设备下次上线会换成主机新分配的名字。
+    /// </summary>
+    private static string CreateDistinctSeedName(string baseName, string nodeId, HashSet<string> usedNames)
+    {
+        string trimmed = (baseName ?? "").Trim();
+        string suffix = new((nodeId ?? "")
+            .Where(char.IsLetterOrDigit)
+            .Reverse()
+            .Take(6)
+            .Reverse()
+            .ToArray());
+        suffix = suffix.ToUpperInvariant();
+
+        for (int attempt = 0; ; attempt++)
+        {
+            string tail = attempt == 0 ? suffix : $"{suffix}{attempt + 1}";
+            if (tail.Length == 0)
+                tail = $"{attempt + 1}";
+            int maximumBaseLength = Math.Max(1, MaximumDeviceNameLength - tail.Length - 1);
+            string candidate = $"{trimmed[..Math.Min(trimmed.Length, maximumBaseLength)]}·{tail}";
+            if (usedNames.Add(candidate))
+                return candidate;
         }
     }
 
@@ -406,6 +478,30 @@ internal sealed class MobileOrderReceiverRegistry
         return "从机";
     }
 
+    /// <summary>
+    /// 自动命名用的前缀。
+    ///
+    /// 备份上传、能力查询这些路径可能没带平台信息（旧版 App、旧版原生签名），
+    /// 直接按"从机"命名会把手机上已经叫"手机1/安卓1"的设备改成"从机1"——
+    /// 用户会看到一台设备不断改名，列表里冒出一堆从机。平台未知时沿用这台设备
+    /// 已有自动名的前缀；平台明确时才做迁移（例如"手机1"→"安卓1"）。
+    /// </summary>
+    private static string ResolveNamePrefix(string? deviceKind, string? platform, Entry? existing)
+    {
+        bool platformKnown = !string.IsNullOrWhiteSpace(platform)
+            || string.Equals(deviceKind?.Trim(), "pc", StringComparison.OrdinalIgnoreCase);
+        string existingName = existing?.NodeName?.Trim() ?? "";
+        if (platformKnown || existing == null || !IsAssignedDeviceName(existingName))
+            return GetNamePrefix(deviceKind, platform);
+
+        foreach (string prefix in new[] { "安卓", "苹果", "电脑", "手机", "从机" })
+        {
+            if (existingName.StartsWith(prefix, StringComparison.Ordinal))
+                return prefix;
+        }
+        return GetNamePrefix(deviceKind, platform);
+    }
+
     private static bool IsAutomaticName(string? name)
     {
         string value = name?.Trim() ?? "";
@@ -457,12 +553,6 @@ internal sealed class MobileOrderReceiverRegistry
             || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
             || (bytes[0] == 192 && bytes[1] == 168);
         return isPrivate ? address.ToString() : null;
-    }
-
-    private static string CreateFallbackNodeId(string address)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"packingproof-mobile:{address}"));
-        return new Guid(hash.AsSpan(0, 16)).ToString("D");
     }
 
     private static List<Entry> Load(string path)
