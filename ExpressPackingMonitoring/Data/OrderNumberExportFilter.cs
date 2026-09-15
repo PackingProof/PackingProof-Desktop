@@ -15,13 +15,14 @@ namespace ExpressPackingMonitoring.Data
         string Mode = "",
         string DeviceId = "",
         string SourceName = "",
-        string SourceType = "")
+        string SourceType = "",
+        IReadOnlyList<string>? DeviceIds = null)
     {
         /// <summary>
         /// 拼出 WHERE 片段与参数。表别名由调用方给，导出查询里录像表是 v。
         ///
-        /// 设备判定与回放列表保持一致：外部设备一定带 DeviceId，
-        /// 只有名字没有 DeviceId 的来源就是本机，按 SourceType 过滤。
+        /// 设备判定与回放列表保持一致：多台同名设备合并后由界面给出设备号集合，
+        /// 优先按集合命中；只有一个设备号时按它；都没有才退回按设备名。
         /// </summary>
         internal (string Sql, IReadOnlyList<(string Name, string Value)> Parameters) BuildWhere(string alias)
         {
@@ -50,7 +51,19 @@ namespace ExpressPackingMonitoring.Data
             string deviceId = DeviceId?.Trim() ?? "";
             string sourceName = SourceName?.Trim() ?? "";
             string sourceType = SourceType?.Trim().ToLowerInvariant() ?? "";
-            if (deviceId.Length > 0)
+            List<string> deviceIds = NormalizeDeviceIds(DeviceIds);
+            if (deviceIds.Count > 0)
+            {
+                var placeholders = new List<string>(deviceIds.Count);
+                for (int index = 0; index < deviceIds.Count; index++)
+                {
+                    placeholders.Add($"@exportDeviceId{index}");
+                    parameters.Add(($"exportDeviceId{index}", deviceIds[index]));
+                }
+
+                sql += $" AND {prefix}SourceType = 'external' AND {prefix}SourceDeviceId IN ({string.Join(", ", placeholders)})";
+            }
+            else if (deviceId.Length > 0)
             {
                 sql += $" AND {prefix}SourceType = 'external' AND {prefix}SourceDeviceId = @deviceId";
                 parameters.Add(("deviceId", deviceId));
@@ -67,6 +80,25 @@ namespace ExpressPackingMonitoring.Data
             }
 
             return (sql, parameters);
+        }
+
+        private static List<string> NormalizeDeviceIds(IReadOnlyList<string>? deviceIds)
+        {
+            var normalized = new List<string>();
+            if (deviceIds == null)
+                return normalized;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string deviceId in deviceIds)
+            {
+                string value = deviceId?.Trim() ?? "";
+                if (value.Length == 0 || !seen.Add(value))
+                    continue;
+
+                normalized.Add(value);
+            }
+
+            return normalized;
         }
     }
 }

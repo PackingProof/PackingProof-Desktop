@@ -34,6 +34,8 @@ public sealed partial class WebServer
                 {
                     sourceType = source.SourceType,
                     deviceId = source.DeviceId,
+                    // 多台同名设备合并后返回设备号集合，前端按它筛才不会漏掉改名前的记录。
+                    deviceIds = source.FilterDeviceIds,
                     name = source.Name,
                     videoCount = source.VideoCount
                 });
@@ -45,6 +47,23 @@ public sealed partial class WebServer
             RecordingSourceNameLookup.Build(
                 _mobileOrderReceivers.GetKnownRecordingDevices(),
                 _connectedClients.GetSnapshot());
+
+        /// <summary>
+        /// 关键字命中某台设备的当前昵称时，返回这些设备号，让搜索同时按设备号命中：
+        /// 记录里存的是写入当时的名字快照，只按名字搜不到设备改名前的录像。
+        /// </summary>
+        internal IReadOnlyList<string> ResolveKeywordDeviceIds(string keyword)
+        {
+            string value = keyword?.Trim() ?? "";
+            if (value.Length == 0)
+                return Array.Empty<string>();
+
+            return GetCurrentSourceDeviceNames()
+                .Where(pair => pair.Value.Contains(value, StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Take(50)
+                .ToArray();
+        }
 
         private static string ResolveVideoSourceName(string deviceId, string deviceName)
         {

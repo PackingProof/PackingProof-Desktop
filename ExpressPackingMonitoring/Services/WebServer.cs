@@ -4750,6 +4750,11 @@ namespace ExpressPackingMonitoring.Services
             string deviceId = qs["deviceId"] ?? "";
             string sourceDeviceName = qs["sourceName"] ?? "";
             string sourceType = qs["sourceType"] ?? "";
+            // 同名多设备合并成一项时，界面传的是设备号集合，按它筛才不会漏记录。
+            IReadOnlyList<string> deviceIds = (qs["deviceIds"] ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Take(50)
+                .ToArray();
             // 发货/退货筛选。界面传中文或英文都接受，无法识别时按不筛选处理。
             string mode = RecordingModeFilter.Normalize(qs["mode"]);
 
@@ -4760,10 +4765,14 @@ namespace ExpressPackingMonitoring.Services
                 page,
                 pageSize,
                 includeDeleted: !string.IsNullOrWhiteSpace(keyword),
+                // 与原来走公开重载时的口径一致（BroadContains）。
+                searchMode: VideoSearchMode.BroadContains,
                 sourceType: sourceType,
                 deviceId: deviceId,
                 sourceDeviceName: sourceDeviceName,
-                mode: mode);
+                mode: mode,
+                deviceIds: deviceIds,
+                keywordDeviceIds: ResolveKeywordDeviceIds(keyword));
             int deviceTotal = result.Total;
             string requestingDeviceId = ctx.Request.Headers["X-EPM-Device-Id"]?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(deviceId) && !string.IsNullOrWhiteSpace(requestingDeviceId))

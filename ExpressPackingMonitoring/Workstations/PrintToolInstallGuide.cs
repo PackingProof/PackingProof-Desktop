@@ -198,14 +198,13 @@ internal static class PrintToolInstallGuide
             .OrderBy(device => device.Address, StringComparer.OrdinalIgnoreCase))
         {
             builder.Append(device.NodeId).Append('\n');
-            builder.Append(device.NodeName).Append('\n');
             builder.Append(device.DeviceType).Append('\n');
             builder.Append(device.Address).Append('\n');
         }
         if (host != null)
         {
+            // 昵称不进指纹：只改设备名不应该让所有油猴脚本的 @version 跳变、浏览器提示更新。
             builder.Append(host.NodeId).Append('\n');
-            builder.Append(host.NodeName).Append('\n');
             builder.Append(host.Address).Append('\n');
         }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())))

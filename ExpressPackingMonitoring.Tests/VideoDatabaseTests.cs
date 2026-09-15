@@ -181,6 +181,43 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    /// <summary>
+    /// 多台同名设备合并成一项后按设备号集合筛选：按名字只能命中改名之后的记录，
+    /// 按集合才能把两台设备（含改名前的）全部查出来。
+    /// </summary>
+    [Fact]
+    public void PagedQuery_DeviceIdSetMatchesEveryMemberIncludingRenamedRecords()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            database.InsertMobileBackupRecord("A", Path.Combine(tempDirectory, "a.mp4"), 1, DateTime.Now.AddMinutes(-30), 3, "phone-a", "手机2", "session-a", "sha-a");
+            database.InsertMobileBackupRecord("B", Path.Combine(tempDirectory, "b.mp4"), 1, DateTime.Now.AddMinutes(-20), 3, "phone-a", "安卓1", "session-b", "sha-b");
+            database.InsertMobileBackupRecord("C", Path.Combine(tempDirectory, "c.mp4"), 1, DateTime.Now.AddMinutes(-10), 3, "phone-b", "安卓1", "session-c", "sha-c");
+
+            PagedVideoResult byName = database.QueryVideosPaged(
+                null, null, null, 1, 20,
+                includeDeleted: false,
+                searchMode: VideoSearchMode.BroadContains,
+                sourceType: "external",
+                sourceDeviceName: "安卓1");
+            PagedVideoResult byIds = database.QueryVideosPaged(
+                null, null, null, 1, 20,
+                includeDeleted: false,
+                searchMode: VideoSearchMode.BroadContains,
+                sourceType: "external",
+                deviceIds: new[] { "phone-a", "phone-b" });
+
+            Assert.Equal(2, byName.Total);
+            Assert.Equal(3, byIds.Total);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     [Fact]
     public void VideoSourceFilter_AppliesToPagedQueryAndReturnsDistinctSources()
     {

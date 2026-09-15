@@ -224,7 +224,7 @@ public sealed class WebRequestLimitTests
         Assert.Contains("'全部设备':'All devices'", html);
         Assert.Contains(".replace(/^手机(\\d+)$/g,'Phone $1')", html);
         Assert.Contains(".replace(/^电脑(\\d+)$/g,'PC $1')", html);
-        Assert.Contains("match=/^手机(\\d+)$/", html);
+        Assert.Contains("match=/^(?:手机|安卓|苹果)(\\d+)$/", html);
         Assert.Contains("return '设备 '+id.slice(-6)", html);
         Assert.Contains("tagLine.className='tag-line'", html);
         Assert.Contains("grid-template-columns:minmax(320px,1.7fr) minmax(300px,1.4fr) auto", html);
@@ -285,7 +285,8 @@ public sealed class WebRequestLimitTests
         Assert.Contains("fetch('/api/video-sources'", html);
         Assert.Contains("select.replaceChildren(new Option('全部设备',''))", html);
         // 搜索请求要带上来源与业务类型；mode 缺了发货/退货筛选就静默失效。
-        Assert.Contains("sourceType,deviceId,sourceName,mode:", html);
+        // 来源同时带 deviceId 与设备号集合 deviceIds：多台同名设备合并成一项后按集合命中。
+        Assert.Contains("sourceType,deviceId,sourceName,deviceIds:deviceIds.join(','),mode:", html);
         Assert.Contains("page:currentPage", html);
     }
 

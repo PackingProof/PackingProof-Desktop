@@ -207,7 +207,8 @@ namespace ExpressPackingMonitoring.UI
                 _filterState.Mode,
                 _filterState.SourceId,
                 localOnly ? "" : _filterState.SourceName,
-                _filterState.SourceType);
+                _filterState.SourceType,
+                localOnly ? Array.Empty<string>() : _filterState.SourceIds);
 
             var saveDialog = new SaveFileDialog
             {
@@ -604,12 +605,15 @@ namespace ExpressPackingMonitoring.UI
                 _filterState.SourceId = option.DeviceId;
                 _filterState.SourceType = option.IsAll ? "" : option.SourceType;
                 _filterState.SourceName = option.IsAll ? "" : option.Name;
+                // 同名多设备合并成一项时按设备号集合筛选，历史记录（含改名前的）都不会漏。
+                _filterState.SourceIds = option.IsAll ? Array.Empty<string>() : option.DeviceIds ?? Array.Empty<string>();
             }
             else
             {
                 _filterState.SourceId = "";
                 _filterState.SourceType = "";
                 _filterState.SourceName = "";
+                _filterState.SourceIds = Array.Empty<string>();
             }
 
             RefreshFilterIndicators();
@@ -703,7 +707,12 @@ namespace ExpressPackingMonitoring.UI
         /// SourceType 必须一起带上：同名多设备合并后 DeviceId 是空的，
         /// 只靠 DeviceId 分不出要筛本机还是外部设备。
         /// </summary>
-        private sealed record VideoSourceOption(string Name, string SourceType, string DeviceId, bool IsAll);
+        private sealed record VideoSourceOption(
+            string Name,
+            string SourceType,
+            string DeviceId,
+            bool IsAll,
+            IReadOnlyList<string>? DeviceIds = null);
 
         /// <summary>
         /// 填充来源下拉。设备列表来自数据库里出现过的来源，
@@ -727,7 +736,7 @@ namespace ExpressPackingMonitoring.UI
                                 ResolveCurrentSourceDeviceName(source.DeviceId, source.DeviceName))
                             : GetSourceDisplay(source.SourceType, source.DeviceId, source.DeviceName, null, _computerName));
                     foreach (VideoSourceFilterOption source in grouped)
-                        options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false));
+                        options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false, source.FilterDeviceIds));
                 }
             }
             catch (Exception ex)
@@ -781,7 +790,8 @@ namespace ExpressPackingMonitoring.UI
                 _filterState.Mode,
                 _filterState.SourceType,
                 _filterState.SourceId,
-                _filterState.SourceName);
+                _filterState.SourceName,
+                _filterState.SourceIds);
             _videoLoadRequestVersion++;
             if (!_videoLoadLoopRunning)
                 _ = ProcessVideoLoadQueueAsync();
@@ -802,7 +812,7 @@ namespace ExpressPackingMonitoring.UI
                     try
                     {
                         result = await Task.Run(() =>
-                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page, request.Mode, request.SourceType, request.SourceId, request.SourceName));
+                            BuildVideoPage(request.Start, request.End, request.Keyword, request.Page, request.Mode, request.SourceType, request.SourceId, request.SourceName, request.SourceIds));
                         if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                             continue;
 
@@ -813,7 +823,7 @@ namespace ExpressPackingMonitoring.UI
                         if (!result.UsesApproximatePaging && pageCount > 0 && normalizedPage != request.Page)
                         {
                             result = await Task.Run(() =>
-                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage, request.Mode, request.SourceType, request.SourceId, request.SourceName));
+                                BuildVideoPage(request.Start, request.End, request.Keyword, normalizedPage, request.Mode, request.SourceType, request.SourceId, request.SourceName, request.SourceIds));
                             if (!IsCurrentLoadRequest(requestVersion, _videoLoadRequestVersion, _isClosing))
                                 continue;
                         }
@@ -871,16 +881,18 @@ namespace ExpressPackingMonitoring.UI
             string mode = "",
             string sourceType = "",
             string sourceId = "",
-            string sourceName = "")
+            string sourceName = "",
+            IReadOnlyList<string>? sourceIds = null)
         {
             var videos = new List<VideoItem>();
             bool hasSearchKeyword = !string.IsNullOrWhiteSpace(keyword);
             string normalizedMode = RecordingModeFilter.Normalize(mode);
-            // 同名多设备合并后只有 SourceType，本机那一项也只有 SourceType，
-            // 所以有没有筛来源要连它一起看，不然选了等于没筛。
+            // 同名多设备合并后只有 SourceType 与设备号集合，本机那一项也只有 SourceType，
+            // 所以有没有筛来源要连它们一起看，不然选了等于没筛。
             bool hasSourceFilter = !string.IsNullOrWhiteSpace(sourceType)
                 || !string.IsNullOrWhiteSpace(sourceId)
-                || !string.IsNullOrWhiteSpace(sourceName);
+                || !string.IsNullOrWhiteSpace(sourceName)
+                || (sourceIds?.Count ?? 0) > 0;
             if (_db != null)
             {
                 try
@@ -932,7 +944,8 @@ namespace ExpressPackingMonitoring.UI
                         sourceType: sourceType ?? "",
                         deviceId: sourceId ?? "",
                         sourceDeviceName: sourceName ?? "",
-                        mode: normalizedMode);
+                        mode: normalizedMode,
+                        deviceIds: sourceIds);
                     if (result.Total == 0 && !string.IsNullOrWhiteSpace(keyword))
                     {
                         result = _db.QueryVideosPaged(
@@ -946,7 +959,8 @@ namespace ExpressPackingMonitoring.UI
                             sourceType: sourceType ?? "",
                             deviceId: sourceId ?? "",
                             sourceDeviceName: sourceName ?? "",
-                            mode: normalizedMode);
+                            mode: normalizedMode,
+                            deviceIds: sourceIds);
                      }
                      foreach (var record in result.Records)
                     {
@@ -1659,6 +1673,7 @@ namespace ExpressPackingMonitoring.UI
             string Mode,
             string SourceType,
             string SourceId,
-            string SourceName);
+            string SourceName,
+            IReadOnlyList<string>? SourceIds = null);
     }
 }
