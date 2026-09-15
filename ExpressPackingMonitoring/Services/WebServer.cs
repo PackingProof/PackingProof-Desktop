@@ -538,6 +538,8 @@ namespace ExpressPackingMonitoring.Services
             _listenTask = Task.Run(() => ListenLoop(_cts.Token));
             _videoCodecBackfillTask = Task.Run(() => BackfillVideoCodecsAsync(_cts.Token));
             StartUdpDiscoveryResponder();
+            // 昵称只存在设备登记表里，启动时先用库里已有的录像来源把映射补齐。
+            SeedRecordedDeviceNames();
             // 启动时先写一次对照表，用户打开录像目录就能看到目录与昵称的对应关系。
             RefreshRecordingDeviceIndex();
         }

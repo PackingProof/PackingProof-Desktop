@@ -45,14 +45,29 @@ public sealed partial class WebServer
         }
 
         /// <summary>
-        /// 设备号→当前昵称。含离线但仍在保留期内的设备，以及超出保留期但名字被台账记住的
-        /// 设备（记录里的名字只是写入当时的快照，改名后不能让同一台设备显示成两个名字）。
+        /// 设备号→当前昵称。昵称只存在登记表里（记录不再逐条写昵称），含离线设备，
+        /// 也包括长期不在线但留下过录像的设备。
         /// </summary>
         internal IReadOnlyDictionary<string, string> GetCurrentSourceDeviceNames() =>
             RecordingSourceNameLookup.Build(
                 _mobileOrderReceivers.GetKnownRecordingDevices(),
-                _connectedClients.GetSnapshot(),
-                _mobileOrderReceivers.GetRememberedNames());
+                _connectedClients.GetSnapshot());
+
+        /// <summary>
+        /// 用库里已有的录像来源补齐"设备号 -> 昵称"映射。升级前的昵称只留在记录快照里，
+        /// 设备本身可能早就掉出保留期了；启动时补一次，老录像就能显示同一个当前名字。
+        /// </summary>
+        internal void SeedRecordedDeviceNames()
+        {
+            try
+            {
+                _mobileOrderReceivers.SeedRecordedDevices(_db.GetVideoSources());
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MobileBackup", $"补齐设备昵称映射失败：{ex.Message}");
+            }
+        }
 
         /// <summary>
         /// 关键字命中某台设备的当前昵称时，返回这些设备号，让搜索同时按设备号命中：

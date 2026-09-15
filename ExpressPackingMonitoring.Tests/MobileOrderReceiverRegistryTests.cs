@@ -409,11 +409,11 @@ public sealed class MobileOrderReceiverRegistryTests
     }
 
     /// <summary>
-    /// 昵称台账要比设备保留期活得久：设备掉出保留期后，老记录仍要按同一个名字显示，
-    /// 不能退回记录里的历史快照。
+    /// 只要这台设备在主机上留下过录像，就不能按活跃时间清理：昵称映射是录像显示名的唯一
+    /// 来源，清掉它老录像就只剩设备号了。
     /// </summary>
     [Fact]
-    public void RememberedNamesOutliveRetentionPruningAndReload()
+    public void DevicesWithRecordingsSurviveRetentionPruning()
     {
         string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
         string path = Path.Combine(directory, "receivers.json");
@@ -426,9 +426,8 @@ public sealed class MobileOrderReceiverRegistryTests
                 "android-device-0001",
                 "设备 A1B2C3",
                 deviceKind: "mobile",
-                platform: "android");
-
-            now = now.AddDays(40);
+                platform: "android",
+                hasRecordings: true);
             registry.Register(
                 IPAddress.Parse("192.168.31.202"),
                 "android-device-0002",
@@ -436,18 +435,59 @@ public sealed class MobileOrderReceiverRegistryTests
                 deviceKind: "mobile",
                 platform: "android");
 
-            Assert.DoesNotContain(
-                registry.GetKnownRecordingDevices(),
-                item => item.NodeId == "android-device-0001");
-            Assert.Contains(
-                registry.GetRememberedNames(),
-                item => item.NodeId == "android-device-0001" && item.Name == "安卓1");
+            now = now.AddDays(120);
+            registry.Register(
+                IPAddress.Parse("192.168.31.203"),
+                "android-device-0003",
+                "设备 G7H8I9",
+                deviceKind: "mobile",
+                platform: "android");
 
-            // 重启后台账仍在：设备表里已经没有这台设备，名字却还认得。
+            IReadOnlyList<MobileOrderReceiverInfo> known = registry.GetKnownRecordingDevices();
+            Assert.Contains(
+                known,
+                item => item.NodeId == "android-device-0001" && item.NodeName == "安卓1");
+            Assert.DoesNotContain(known, item => item.NodeId == "android-device-0002");
+
+            // 重启后依然保留（设备表是持久化的映射）。
             var restarted = new MobileOrderReceiverRegistry(path, () => now);
             Assert.Contains(
-                restarted.GetRememberedNames(),
-                item => item.NodeId == "android-device-0001" && item.Name == "安卓1");
+                restarted.GetKnownRecordingDevices(),
+                item => item.NodeId == "android-device-0001" && item.NodeName == "安卓1");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 升级前的昵称只留在记录快照里，启动时按库里的录像来源补齐映射：
+    /// 只补没登记过的设备，名字取它最近一条记录里的名字。
+    /// </summary>
+    [Fact]
+    public void SeedRecordedDevicesRestoresMappingFromExistingRecords()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        string path = Path.Combine(directory, "receivers.json");
+        DateTime lastRecord = new(2026, 7, 1, 3, 0, 0, DateTimeKind.Utc);
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(path);
+            registry.SeedRecordedDevices(
+            [
+                new ExpressPackingMonitoring.Data.VideoSourceInfo("external", "phone-1", "手机5", 3, lastRecord),
+                new ExpressPackingMonitoring.Data.VideoSourceInfo("pc", "host-1", "DESKTOP-ABC", 9, lastRecord),
+                new ExpressPackingMonitoring.Data.VideoSourceInfo("external", "", "无设备号的老记录", 1, lastRecord)
+            ]);
+
+            MobileOrderReceiverInfo seeded = Assert.Single(
+                registry.GetKnownRecordingDevices(),
+                item => item.NodeId == "phone-1");
+            Assert.Equal("手机5", seeded.NodeName);
+            Assert.Equal(lastRecord, seeded.LastSeenUtc);
+            // 本机来源（pc）和无设备号的老记录不该变成"设备"。
+            Assert.Single(registry.GetKnownRecordingDevices());
         }
         finally
         {
@@ -456,7 +496,36 @@ public sealed class MobileOrderReceiverRegistryTests
     }
 
     [Fact]
-    public void RememberedNamesFollowUserRename()
+    public void SeedRecordedDevicesKeepsOneNamePerDevice()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            registry.SeedRecordedDevices(
+            [
+                // 老版本给两台设备发过同一个名字：最近还有录像的那台保留这个名字。
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external", "phone-new", "手机1", 2, new DateTime(2026, 8, 20, 0, 0, 0, DateTimeKind.Utc)),
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external", "phone-old", "手机1", 5, new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc)),
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external", "phone-other", "手机2", 1, new DateTime(2026, 8, 21, 0, 0, 0, DateTimeKind.Utc))
+            ]);
+
+            IReadOnlyList<MobileOrderReceiverInfo> known = registry.GetKnownRecordingDevices();
+            Assert.Equal("手机1", Assert.Single(known, item => item.NodeId == "phone-new").NodeName);
+            Assert.Equal("", Assert.Single(known, item => item.NodeId == "phone-old").NodeName);
+            Assert.Equal("手机2", Assert.Single(known, item => item.NodeId == "phone-other").NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void SeedRecordedDevicesDoesNotOverrideAssignedNames()
     {
         string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
         try
@@ -469,12 +538,15 @@ public sealed class MobileOrderReceiverRegistryTests
                 deviceKind: "mobile",
                 platform: "android");
 
-            Assert.True(registry.TrySetCustomName("android-device-0001", "东侧打包手机", out _));
+            registry.SeedRecordedDevices(
+            [
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external", "android-device-0001", "从机9", 2, new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc))
+            ]);
 
-            RememberedDeviceName remembered = Assert.Single(
-                registry.GetRememberedNames(),
-                item => item.NodeId == "android-device-0001");
-            Assert.Equal("东侧打包手机", remembered.Name);
+            Assert.Equal(
+                "安卓1",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
         }
         finally
         {

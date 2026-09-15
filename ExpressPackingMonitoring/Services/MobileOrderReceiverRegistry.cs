@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Data;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -15,30 +16,18 @@ internal sealed class MobileOrderReceiverRegistry
     private static readonly TimeSpan ActiveRetention = TimeSpan.FromSeconds(45);
     /// <summary>用户自定义昵称的保留条数上限：这类名字不随活跃时间清理，但也不能无限增长。</summary>
     private const int MaximumCustomizedNames = 128;
-    /// <summary>昵称台账上限。设备本身按保存期清理，但名字要留得更久，见 <see cref="_rememberedNames"/>。</summary>
-    private const int MaximumRememberedNames = 512;
+    /// <summary>设备条数硬上限。有录像的设备最后才动，见 <see cref="TrimOverflow"/>。</summary>
+    private const int MaximumKnownDevices = 512;
     private readonly string _path;
-    private readonly string _namesPath;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();
     private List<Entry> _entries;
-    /// <summary>
-    /// 设备号 -> 最近一次分配到的昵称。昵称是可变属性（用户随时会改），
-    /// 录像记录里的 SourceDeviceName 只是写入当时的快照；设备掉出 30 天保留期后，
-    /// 界面仍要靠这份台账把老记录认成同一台设备，否则同一台设备改名后会在列表里
-    /// 变成两个名字。台账只用于显示名解析，不参与编号与重名判定。
-    /// </summary>
-    private Dictionary<string, RememberedName> _rememberedNames;
 
     internal MobileOrderReceiverRegistry(string? path = null, Func<DateTime>? utcNow = null)
     {
         _path = path ?? GetDefaultPath();
-        _namesPath = Path.Combine(
-            Path.GetDirectoryName(_path) ?? "",
-            Path.GetFileNameWithoutExtension(_path) + "-names.json");
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _entries = Load(_path);
-        _rememberedNames = LoadRememberedNames(_namesPath);
         if (RepairDuplicateNames())
         {
             try { Save(); } catch { }
@@ -54,7 +43,8 @@ internal sealed class MobileOrderReceiverRegistry
         string? deviceKind = null,
         string? platform = null,
         bool customized = false,
-        bool trustProvidedName = false)
+        bool trustProvidedName = false,
+        bool hasRecordings = false)
     {
         string? address = NormalizePrivateIpv4(remoteAddress);
         if (address == null) return null;
@@ -72,10 +62,12 @@ internal sealed class MobileOrderReceiverRegistry
                 (requestedNodeId.Length > 0
                     ? string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
                     : string.Equals(item.Address, address, StringComparison.OrdinalIgnoreCase))
-                // 用户改过名的设备不按活跃时间清理：否则 30 天后自定义昵称会跟着丢，
-                // 筛选与列表又会退回记录里的老快照名。
-                || (!item.Customized && now - item.LastSeenUtc > Retention));
+                // 用户改过名、或者在这台主机上留下过录像的设备都不按活跃时间清理：
+                // 昵称映射是录像显示名的唯一来源，设备一旦被清掉，它的老录像就只能退回
+                // 记录里的历史快照（同一台设备又会变成两个名字）。
+                || (!item.Customized && !item.HasRecordings && now - item.LastSeenUtc > Retention));
             TrimCustomizedOverflow();
+            TrimOverflow();
 
             string normalizedNodeId = requestedNodeId;
             if (normalizedNodeId.Length == 0)
@@ -142,7 +134,9 @@ internal sealed class MobileOrderReceiverRegistry
                 Port = normalizedPort,
                 Capabilities = normalizedCapabilities,
                 // 显式改名或此前已改名：保持"用户自定义"，自动命名不再覆盖。
-                Customized = customized || existing?.Customized == true
+                Customized = customized || existing?.Customized == true,
+                // 有录像的设备不清：这台主机还要靠它显示老录像的来源名。
+                HasRecordings = hasRecordings || existing?.HasRecordings == true
             };
             _entries.Insert(0, entry);
             // 每次注册都顺手修一次重名：老版本曾经给多台设备发过同一个名字，
@@ -154,7 +148,6 @@ internal sealed class MobileOrderReceiverRegistry
                 if (refreshed != null)
                     entry = refreshed;
             }
-            RememberName(entry.NodeId, entry.NodeName, now);
             try { Save(); } catch { }
             return ToInfo(entry, online: true);
         }
@@ -195,9 +188,9 @@ internal sealed class MobileOrderReceiverRegistry
         {
             DateTime now = _utcNow();
             return _entries
-                // 用户改过名的设备即使长期不在线也要保留在列表里：昵称不能因为
-                // 设备离线超过保留期就退回记录里的老快照名。
-                .Where(item => item.Customized || now - item.LastSeenUtc <= Retention)
+                // 用户改过名、或者有录像的设备即使长期不在线也要留在列表里：
+                // 昵称不能因为设备离线超过保留期就退回记录里的老快照名。
+                .Where(item => item.Customized || item.HasRecordings || now - item.LastSeenUtc <= Retention)
                 .OrderByDescending(item => item.LastSeenUtc)
                 .Select(item => ToInfo(item, now - item.LastSeenUtc <= ActiveRetention))
                 .ToArray();
@@ -245,72 +238,78 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = requested;
             entry.Customized = true;
-            RememberName(entry.NodeId, entry.NodeName, _utcNow());
             try { Save(); } catch { }
             return true;
         }
     }
 
     /// <summary>
-    /// 台账里记住的设备昵称，按最近一次出现排序。给显示名解析当兜底：设备掉出保留期后，
-    /// 老记录仍按这份名字显示，不会因为记录里的历史快照又冒出一个旧昵称。
+    /// 用库里已有的录像来源补齐"设备号 -> 昵称"映射。
+    ///
+    /// 昵称只存在这张表里（记录不再逐条写昵称），升级前的昵称只存在于记录快照中，
+    /// 而设备可能早就掉出保留期了，所以启动时按库里的来源补一次：只补没有登记过的设备，
+    /// 名字取这台设备最近一条记录里的名字；同名时按最近还有录像的那台优先，
+    /// 另一台留空（界面按设备号生成兜底名），保证一个名字只属于一台设备。
     /// </summary>
-    internal IReadOnlyList<RememberedDeviceName> GetRememberedNames()
+    internal void SeedRecordedDevices(IEnumerable<VideoSourceInfo>? sources)
     {
-        lock (_sync)
-        {
-            return _rememberedNames
-                .Where(pair => pair.Key.Length > 0 && !string.IsNullOrWhiteSpace(pair.Value.Name))
-                .OrderByDescending(pair => pair.Value.SeenUtc)
-                .Select(pair => new RememberedDeviceName(pair.Key, pair.Value.Name.Trim()))
-                .ToArray();
-        }
-    }
-
-    private void RememberName(string? nodeId, string? name, DateTime seenUtc)
-    {
-        string id = nodeId?.Trim() ?? "";
-        string value = name?.Trim() ?? "";
-        if (id.Length == 0 || value.Length == 0)
+        if (sources == null)
             return;
 
-        _rememberedNames[id] = new RememberedName { Name = value, SeenUtc = seenUtc };
-        if (_rememberedNames.Count > MaximumRememberedNames)
+        lock (_sync)
         {
-            foreach (string expired in _rememberedNames
-                .OrderByDescending(pair => pair.Value.SeenUtc)
-                .Skip(MaximumRememberedNames)
-                .Select(pair => pair.Key)
-                .ToArray())
+            var usedNames = new HashSet<string>(
+                _entries.Select(item => item.NodeName?.Trim() ?? "").Where(name => name.Length > 0),
+                StringComparer.OrdinalIgnoreCase);
+            bool changed = false;
+            foreach (VideoSourceInfo source in sources
+                .Where(item => string.Equals(item.SourceType, "external", StringComparison.OrdinalIgnoreCase))
+                .Where(item => !string.IsNullOrWhiteSpace(item.DeviceId))
+                .OrderByDescending(item => item.LastRecordUtc))
             {
-                _rememberedNames.Remove(expired);
+                string nodeId = source.DeviceId.Trim();
+                if (_entries.Any(item => string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                string name = source.DeviceName?.Trim() ?? "";
+                if (name.Length > 0 && !usedNames.Add(name))
+                    name = "";
+                _entries.Add(new Entry
+                {
+                    NodeId = nodeId,
+                    NodeName = name,
+                    LastSeenUtc = source.LastRecordUtc,
+                    Capabilities = [PackingProofCapabilities.Recording, PackingProofCapabilities.OrderReceiver],
+                    HasRecordings = true
+                });
+                changed = true;
             }
-        }
 
-        try { SaveRememberedNames(); } catch { }
+            if (!changed)
+                return;
+
+            TrimOverflow();
+            try { Save(); } catch { }
+        }
     }
 
-    private void SaveRememberedNames()
+    /// <summary>
+    /// 条数上限保护。先清"没有录像、也不是用户改名"的最老设备，
+    /// 只有在剩下的全都有录像时才动到有录像的设备。
+    /// </summary>
+    private void TrimOverflow()
     {
-        string? directory = Path.GetDirectoryName(_namesPath);
-        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-        string temporaryPath = _namesPath + ".tmp";
-        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_rememberedNames));
-        File.Move(temporaryPath, _namesPath, true);
-    }
+        if (_entries.Count <= MaximumKnownDevices)
+            return;
 
-    private static Dictionary<string, RememberedName> LoadRememberedNames(string path)
-    {
-        try
+        foreach (Entry entry in _entries
+            .OrderBy(item => item.HasRecordings)
+            .ThenBy(item => item.Customized)
+            .ThenBy(item => item.LastSeenUtc)
+            .Take(_entries.Count - MaximumKnownDevices)
+            .ToArray())
         {
-            if (!File.Exists(path))
-                return new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
-            return JsonSerializer.Deserialize<Dictionary<string, RememberedName>>(File.ReadAllText(path))
-                ?? new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return new Dictionary<string, RememberedName>(StringComparer.OrdinalIgnoreCase);
+            _entries.Remove(entry);
         }
     }
 
@@ -391,7 +390,6 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = replacement;
             entry.Customized = false;
-            RememberName(entry.NodeId, replacement, entry.LastSeenUtc);
             changed = true;
         }
         return changed;
@@ -502,13 +500,12 @@ internal sealed class MobileOrderReceiverRegistry
 
         /// <summary>用户手动设置过昵称：自动命名与重名修复都不再改动它。</summary>
         public bool Customized { get; set; }
-    }
 
-    /// <summary>台账条目：这台设备上一次叫什么名字、什么时候。</summary>
-    private sealed class RememberedName
-    {
-        public string Name { get; set; } = "";
-        public DateTime SeenUtc { get; set; }
+        /// <summary>
+        /// 这台设备在主机上留下过录像。有录像的设备连同昵称一起长期保留：
+        /// 昵称映射是录像显示名的唯一来源，清掉它老录像就只剩设备号了。
+        /// </summary>
+        public bool HasRecordings { get; set; }
     }
 }
 
@@ -521,6 +518,3 @@ internal sealed record MobileOrderReceiverInfo(
     bool Online,
     bool Customized = false,
     DateTime LastSeenUtc = default);
-
-/// <summary>台账里记住的一台设备的昵称（设备已经掉出保留期时用来兜底显示名）。</summary>
-internal sealed record RememberedDeviceName(string NodeId, string Name);

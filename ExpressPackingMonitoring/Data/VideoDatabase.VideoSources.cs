@@ -5,9 +5,10 @@ public partial class VideoDatabase
     /// <summary>
     /// 录像来源列表，按 (SourceType, SourceDeviceId) 分组，用于回放窗口与网页端的来源筛选。
     ///
-    /// 设备名取该设备**最近一条记录**里的非空 SourceDeviceName。历史记录保存的是写入当时
-    /// 的名字，设备改名后老记录仍留着"从机1"这类旧昵称；原实现用 MAX(SourceDeviceName)
-    /// 按字典序随便挑一个，筛选下拉里就会冒出已经不存在的老名字。
+    /// 设备身份是设备号，名字只是显示属性（昵称随时会改，记录里的 SourceDeviceName 也
+    /// 不再逐条写入）。这里的 DeviceName 只在设备登记表还没记住这台设备时兜底，
+    /// 取该设备最近一条带名字的记录（老库升级时用来补齐"设备号 -> 昵称"映射）；
+    /// LastRecordUtc 是这台设备最后一次留下录像的时间，用于补齐映射时排序。
     /// </summary>
     public IReadOnlyList<VideoSourceInfo> GetVideoSources()
     {
@@ -15,12 +16,14 @@ public partial class VideoDatabase
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = @"
-                SELECT SourceType, SourceDeviceId, SourceDeviceName, VideoCount
+                SELECT SourceType, SourceDeviceId, SourceDeviceName, VideoCount, LastRecordAt
                 FROM (
                     SELECT SourceType,
                            SourceDeviceId,
                            SourceDeviceName,
                            COUNT(1) OVER (PARTITION BY SourceType, SourceDeviceId) AS VideoCount,
+                           MAX(COALESCE(NULLIF(TRIM(COALESCE(BackupCompletedAt, '')), ''), StartTime))
+                               OVER (PARTITION BY SourceType, SourceDeviceId) AS LastRecordAt,
                            ROW_NUMBER() OVER (
                                PARTITION BY SourceType, SourceDeviceId
                                ORDER BY (TRIM(COALESCE(SourceDeviceName, '')) = '') ASC,
@@ -37,11 +40,16 @@ public partial class VideoDatabase
                 string sourceType = reader.IsDBNull(0) ? "pc" : reader.GetString(0);
                 string deviceId = reader.IsDBNull(1) ? "" : reader.GetString(1);
                 string deviceName = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                DateTime lastRecordUtc = reader.IsDBNull(4)
+                    || !DateTime.TryParse(reader.GetString(4), out DateTime parsed)
+                        ? default
+                        : DateTime.SpecifyKind(parsed, DateTimeKind.Local).ToUniversalTime();
                 result.Add(new VideoSourceInfo(
                     sourceType,
                     deviceId,
                     deviceName,
-                    reader.GetInt32(3)));
+                    reader.GetInt32(3),
+                    lastRecordUtc));
             }
             return result;
         }

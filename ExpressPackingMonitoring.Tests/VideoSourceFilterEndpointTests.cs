@@ -126,4 +126,75 @@ public sealed class VideoSourceFilterEndpointTests
             try { Directory.Delete(directory, recursive: true); } catch { }
         }
     }
+
+    /// <summary>
+    /// 记录不再逐条写昵称，昵称只存在主机登记表里。启动时会用库里已有的录像来源把
+    /// "设备号 -> 昵称"补齐：老库升级后，老录像显示的是这台设备最近用过的名字，
+    /// 而不是每条记录各自的历史快照。
+    /// </summary>
+    [Fact]
+    public void StartupSeedsDeviceNameMappingFromExistingRecords()
+    {
+        string stateDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"epm-video-sources-seed-{Guid.NewGuid():N}");
+        string directory = Path.Combine(stateDirectory, "data");
+        Directory.CreateDirectory(directory);
+        int port = TestPortAllocator.GetFreeTcpPort();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            database.InsertMobileBackupRecord(
+                "A", Path.Combine(directory, "a.mp4"), 1, DateTime.Now.AddMinutes(-30), 3,
+                "phone-a", "手机2", "session-a", "sha-a");
+            database.InsertMobileBackupRecord(
+                "B", Path.Combine(directory, "b.mp4"), 1, DateTime.Now.AddMinutes(-20), 3,
+                "phone-a", "安卓1", "session-b", "sha-b");
+            database.InsertMobileBackupRecord(
+                "C", Path.Combine(directory, "c.mp4"), 1, DateTime.Now.AddMinutes(-10), 3,
+                "phone-b", "手机1", "session-c", "sha-c");
+            // 新版本落库的记录不再写昵称，显示名完全靠登记表。
+            database.InsertMobileBackupRecord(
+                "D", Path.Combine(directory, "d.mp4"), 1, DateTime.Now.AddMinutes(-5), 3,
+                "phone-a", "", "session-d", "sha-d");
+
+            using var server = new WebServer(
+                database,
+                port,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                nodeName: "来源筛选测试主机",
+                deploymentPreset: DeploymentPresets.MobileBackupHost);
+            server.Start();
+
+            IReadOnlyDictionary<string, string> names = server.GetCurrentSourceDeviceNames();
+            Assert.Equal("安卓1", names["phone-a"]);
+            Assert.Equal("手机1", names["phone-b"]);
+
+            // 映射落在登记表文件里：换一个主机实例仍然认得这两台设备。
+            using var restarted = new WebServer(
+                database,
+                TestPortAllocator.GetFreeTcpPort(),
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: Guid.NewGuid().ToString("D"),
+                mobileBackupStateDirectory: stateDirectory,
+                mobileBackupRecordingRootResolver: () => Path.Combine(directory, "recordings"),
+                nodeId: Guid.NewGuid().ToString("D"),
+                nodeName: "来源筛选测试主机",
+                deploymentPreset: DeploymentPresets.MobileBackupHost);
+            restarted.Start();
+
+            IReadOnlyDictionary<string, string> reloaded = restarted.GetCurrentSourceDeviceNames();
+            Assert.Equal("安卓1", reloaded["phone-a"]);
+            Assert.Equal("手机1", reloaded["phone-b"]);
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            try { Directory.Delete(stateDirectory, recursive: true); } catch { }
+        }
+    }
 }

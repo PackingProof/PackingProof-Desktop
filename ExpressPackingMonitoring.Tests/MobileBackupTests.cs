@@ -724,7 +724,9 @@ public sealed class MobileBackupTests
             VideoRecord record = database.GetVideoById(completed.RecordId);
             Assert.Equal("external", record.SourceType);
             Assert.Equal("phone-1", record.SourceDeviceId);
-            Assert.Equal("打包手机", record.SourceDeviceName);
+            // 昵称不逐条写进录像记录：设备号才是身份，名字随时会改，
+            // 映射只保存在主机设备登记表里（见 MobileOrderReceiverRegistry）。
+            Assert.Equal("", record.SourceDeviceName);
             Assert.Equal("session-1", record.SourceSessionId);
             Assert.Equal(fileSha, record.ContentSha256);
             Assert.Equal("h265", record.VideoCodec);
@@ -774,7 +776,7 @@ public sealed class MobileBackupTests
             Assert.Equal(completed.RecordId, repeated.RecordId);
             VideoRecord record = database.GetVideoById(completed.RecordId);
             Assert.Equal("pc-node-1", record.SourceDeviceId);
-            Assert.Equal("一号录制工位", record.SourceDeviceName);
+            Assert.Equal("", record.SourceDeviceName);
             Assert.Equal("pc", record.SourceDeviceKind);
             Assert.Equal("电脑工位上传", record.StopReason);
             Assert.Equal("发货", record.Mode);
