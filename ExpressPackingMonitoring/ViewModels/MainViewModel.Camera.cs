@@ -705,37 +705,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private Mat BitmapToMat(Bitmap bitmap)
-        {
-            if (bitmap.PixelFormat == PixelFormat.Format24bppRgb)
-            {
-                var rect = new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height);
-                var bmpData = bitmap.LockBits(rect, ImageLockMode.ReadOnly, bitmap.PixelFormat);
-                try
-                {
-                    return Mat.FromPixelData(bitmap.Height, bitmap.Width, MatType.CV_8UC3, bmpData.Scan0, bmpData.Stride).Clone();
-                }
-                finally
-                {
-                    bitmap.UnlockBits(bmpData);
-                }
-            }
-
-            using var solidBitmap = new Bitmap(bitmap.Width, bitmap.Height, PixelFormat.Format24bppRgb);
-            using (Graphics gr = Graphics.FromImage(solidBitmap))
-                gr.DrawImage(bitmap, new System.Drawing.Rectangle(0, 0, solidBitmap.Width, solidBitmap.Height));
-
-            var solidRect = new System.Drawing.Rectangle(0, 0, solidBitmap.Width, solidBitmap.Height);
-            var solidData = solidBitmap.LockBits(solidRect, ImageLockMode.ReadOnly, solidBitmap.PixelFormat);
-            try
-            {
-                return Mat.FromPixelData(solidBitmap.Height, solidBitmap.Width, MatType.CV_8UC3, solidData.Scan0, solidData.Stride).Clone();
-            }
-            finally
-            {
-                solidBitmap.UnlockBits(solidData);
-            }
-        }
+        private Mat BitmapToMat(Bitmap bitmap) => CameraFrameConverter.ConvertToBgrMat(bitmap);
 
         private void MarkRecordingFramePipelineStage(RecordingFramePipelineStage stage, long frameSequence)
         {
