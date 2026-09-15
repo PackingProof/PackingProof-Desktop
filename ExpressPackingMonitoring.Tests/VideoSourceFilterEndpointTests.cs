@@ -68,14 +68,14 @@ public sealed class VideoSourceFilterEndpointTests
     }
 
     /// <summary>
-    /// 两台设备同名时下拉只出现一项，但这一项必须带上两台设备的设备号：
-    /// 前端按集合筛选，改名那台设备改名前的记录才不会漏。
+    /// 老库里两台设备被发过同一个名字时，补齐映射会给最近还有录像的那台保留原名，
+    /// 另一台带上设备号后缀：一台设备一个名字，下拉里不会再出现两台设备合并成一条。
     /// </summary>
     [Fact]
-    public async Task VideoSourcesEndpoint_MergedSameNameDevicesKeepEveryDeviceId()
+    public async Task VideoSourcesEndpoint_SeparatesDevicesThatSharedAHistoricalName()
     {
         const string accessKey = "secret-web-access-key";
-        string directory = Path.Combine(Path.GetTempPath(), $"epm-video-sources-merged-{Guid.NewGuid():N}");
+        string directory = Path.Combine(Path.GetTempPath(), $"epm-video-sources-distinct-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         int port = TestPortAllocator.GetFreeTcpPort();
         try
@@ -109,11 +109,22 @@ public sealed class VideoSourceFilterEndpointTests
             using JsonDocument sources = JsonDocument.Parse(await client.GetStringAsync(
                 $"/api/video-sources?key={accessKey}",
                 TestContext.Current.CancellationToken));
-            JsonElement merged = Assert.Single(sources.RootElement.GetProperty("data").EnumerateArray());
-            Assert.Equal("安卓1", merged.GetProperty("name").GetString());
+            JsonElement[] items = sources.RootElement.GetProperty("data").EnumerateArray().ToArray();
+            Assert.Equal(2, items.Length);
             Assert.Equal(
-                new[] { "phone-a", "phone-b" },
-                merged.GetProperty("deviceIds").EnumerateArray().Select(id => id.GetString()).ToArray());
+                "安卓1",
+                Assert.Single(items, item => item.GetProperty("deviceId").GetString() == "phone-a")
+                    .GetProperty("name").GetString());
+            JsonElement renamed = Assert.Single(
+                items,
+                item => item.GetProperty("deviceId").GetString() == "phone-b");
+            Assert.StartsWith("安卓1·", renamed.GetProperty("name").GetString());
+
+            // 各自筛各自的录像，不会互相串。
+            using JsonDocument phoneB = JsonDocument.Parse(await client.GetStringAsync(
+                $"/api/videos?key={accessKey}&sourceType=external&deviceIds=phone-b&size=20",
+                TestContext.Current.CancellationToken));
+            Assert.Equal(1, phoneB.RootElement.GetProperty("total").GetInt32());
 
             using JsonDocument videos = JsonDocument.Parse(await client.GetStringAsync(
                 $"/api/videos?key={accessKey}&sourceType=external&deviceIds=phone-a,phone-b&size=20",

@@ -349,9 +349,9 @@ public sealed class MobileOrderReceiverRegistryTests
         try
         {
             var registry = new MobileOrderReceiverRegistry(path);
-            registry.Register(IPAddress.Parse("192.168.31.205"));
-            registry.Register(IPAddress.Parse("8.8.8.8"));
-            registry.Register(IPAddress.Loopback);
+            registry.Register(IPAddress.Parse("192.168.31.205"), "device-1");
+            registry.Register(IPAddress.Parse("8.8.8.8"), "device-2");
+            registry.Register(IPAddress.Loopback, "device-3");
 
             Assert.Equal(new[] { "192.168.31.205:5280" }, registry.GetAuthorities());
             Assert.Equal(new[] { "192.168.31.205:5280" }, new MobileOrderReceiverRegistry(path).GetAuthorities());
@@ -371,7 +371,7 @@ public sealed class MobileOrderReceiverRegistryTests
         {
             var registry = new MobileOrderReceiverRegistry(path);
             for (int index = 1; index <= 8; index++)
-                registry.Register(IPAddress.Parse($"192.168.31.{index}"));
+                registry.Register(IPAddress.Parse($"192.168.31.{index}"), $"device-{index}");
 
             IReadOnlyList<string> addresses = registry.GetAuthorities();
             Assert.Equal(8, addresses.Count);
@@ -504,7 +504,8 @@ public sealed class MobileOrderReceiverRegistryTests
             var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
             registry.SeedRecordedDevices(
             [
-                // 老版本给两台设备发过同一个名字：最近还有录像的那台保留这个名字。
+                // 老版本给两台设备发过同一个名字：最近还有录像的那台保留原名，
+                // 另一台带上设备号后缀区分开（它下次上线会换成主机新分配的名字）。
                 new ExpressPackingMonitoring.Data.VideoSourceInfo(
                     "external", "phone-new", "手机1", 2, new DateTime(2026, 8, 20, 0, 0, 0, DateTimeKind.Utc)),
                 new ExpressPackingMonitoring.Data.VideoSourceInfo(
@@ -515,8 +516,15 @@ public sealed class MobileOrderReceiverRegistryTests
 
             IReadOnlyList<MobileOrderReceiverInfo> known = registry.GetKnownRecordingDevices();
             Assert.Equal("手机1", Assert.Single(known, item => item.NodeId == "phone-new").NodeName);
-            Assert.Equal("", Assert.Single(known, item => item.NodeId == "phone-old").NodeName);
             Assert.Equal("手机2", Assert.Single(known, item => item.NodeId == "phone-other").NodeName);
+
+            // 撞名的那台带上设备号后缀：一台设备一个名字，名字之间也不重复。
+            string distinct = Assert.Single(known, item => item.NodeId == "phone-old").NodeName;
+            Assert.StartsWith("手机1·", distinct);
+            Assert.Contains("NEOLD", distinct);
+            Assert.Equal(
+                known.Count,
+                known.Select(item => item.NodeName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         }
         finally
         {
@@ -584,6 +592,163 @@ public sealed class MobileOrderReceiverRegistryTests
                 platform: "windows");
 
             Assert.Equal("电脑3", renumbered?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 没有设备号的匿名上报（未配对的手机探测主机能力等）不能凭空造一台设备：
+    /// 之前会按来源地址生成一个假设备号，筛选与设备列表里就多出一台并不存在的"从机"。
+    /// </summary>
+    [Fact]
+    public void AnonymousRegistrationDoesNotInventADevice()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+
+            Assert.Null(registry.Register(IPAddress.Parse("192.168.31.205"), "", "设备 A1B2C3"));
+            Assert.Null(registry.Register(IPAddress.Parse("192.168.31.206"), "   ", "设备 D4E5F6"));
+            Assert.Empty(registry.GetKnownRecordingDevices());
+            Assert.Empty(registry.GetAuthorities());
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 备份上传、能力查询这些路径可能没带平台信息（旧版 App 的原生签名）。这时不能把设备
+    /// 从"手机1"改成"从机1"——用户会看到一台设备不断改名，列表里冒出一堆从机。
+    /// 平台明确时才做前缀迁移（手机1 -> 安卓1）。
+    /// </summary>
+    [Fact]
+    public void ReregisteringWithoutPlatformKeepsExistingPrefix()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            // 老版本按"手机N"命名的设备（昵称表里已经是这个名字）。
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "手机1",
+                deviceKind: "mobile",
+                trustProvidedName: true);
+            Assert.Equal(
+                "手机1",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
+
+            // 平台未知的上报：沿用已有前缀，不再是"从机1"。
+            Assert.Equal(
+                "手机1",
+                registry.Register(
+                    IPAddress.Parse("192.168.31.201"),
+                    "android-device-0001",
+                    "设备 A1B2C3",
+                    deviceKind: "mobile")?.NodeName);
+
+            // 平台明确：按平台前缀迁移一次。
+            Assert.Equal(
+                "安卓1",
+                registry.Register(
+                    IPAddress.Parse("192.168.31.201"),
+                    "android-device-0001",
+                    "设备 A1B2C3",
+                    deviceKind: "mobile",
+                    platform: "android")?.NodeName);
+
+            // 迁移完成后，旧版 App 的匿名上报不会再把它改回去。
+            Assert.Equal(
+                "安卓1",
+                registry.Register(
+                    IPAddress.Parse("192.168.31.201"),
+                    "android-device-0001",
+                    "设备 A1B2C3",
+                    deviceKind: "mobile")?.NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 旧版 App 上报没带平台信息时，主机把已经有名字的设备改成了"从机N"。
+    /// 打开软件时按这台设备自己录像里用过的名字改回来，用户不用等设备上线。
+    /// </summary>
+    [Fact]
+    public void SeedRecordedDevicesRepairsSlaveFallbackNames()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            // 先造出被兜底命名改坏的状态：这台设备已经是"从机1"。
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "从机1",
+                deviceKind: "mobile",
+                trustProvidedName: true);
+
+            registry.SeedRecordedDevices(
+            [
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external",
+                    "android-device-0001",
+                    "从机2",
+                    12,
+                    new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc),
+                    "手机1")
+            ]);
+
+            Assert.Equal(
+                "手机1",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>用户手改过的名字不能被补齐流程改掉，哪怕它看起来像兜底名。</summary>
+    [Fact]
+    public void SeedRecordedDevicesNeverTouchesCustomizedNames()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "packingproof-order-receivers-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var registry = new MobileOrderReceiverRegistry(Path.Combine(directory, "receivers.json"));
+            registry.Register(
+                IPAddress.Parse("192.168.31.201"),
+                "android-device-0001",
+                "手机1",
+                deviceKind: "mobile",
+                platform: "android");
+            Assert.True(registry.TrySetCustomName("android-device-0001", "从机台A", out _));
+
+            registry.SeedRecordedDevices(
+            [
+                new ExpressPackingMonitoring.Data.VideoSourceInfo(
+                    "external",
+                    "android-device-0001",
+                    "手机1",
+                    12,
+                    new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc),
+                    "手机1")
+            ]);
+
+            Assert.Equal(
+                "从机台A",
+                Assert.Single(registry.GetKnownRecordingDevices(), item => item.NodeId == "android-device-0001").NodeName);
         }
         finally
         {
