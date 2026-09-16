@@ -533,6 +533,76 @@ namespace ExpressPackingMonitoring.ViewModels
             _uiHeartbeatTimer.Start();
         }
 
+        /// <summary>
+        /// 把老的设备录像目录搬到新命名下（完整设备号）并回写数据库路径。
+        ///
+        /// 放到后台线程：要枚举本地录像根和各个 NAS 归档根，NAS 不可达时枚举会卡住，
+        /// 不能让它拖慢启动。整个过程可重复执行且自愈，所以这轮没做完的下次启动会接着做。
+        /// </summary>
+        private void StartDeviceFolderMigration()
+        {
+            VideoDatabase database = _db;
+            if (database == null)
+                return;
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    DeviceFolderMigrationSummary summary = new RecordingDeviceFolderMigrator(
+                        database,
+                        ResolveDeviceFolderMigrationRoots).Run();
+                    if (!summary.DidAnything)
+                        return;
+
+                    // 目录名突然变了会让人困惑，所以整理完提示一次；细节在 runtime.log 里。
+                    Application.Current?.Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_isDisposed) return;
+                        ShowToast(
+                            $"已整理 {summary.MovedDirectories} 个设备录像目录",
+                            ToastSeverity.Information);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("MobileBackup", $"设备目录迁移未完成，下次启动会重试：{ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// 迁移要覆盖的根目录：本地录像根 + 所有配置过的备份位置。
+        /// NAS 离线时对应的根会在枚举阶段被跳过，不影响本地迁移。
+        /// </summary>
+        private IReadOnlyList<string> ResolveDeviceFolderMigrationRoots()
+        {
+            var roots = new List<string>();
+            try
+            {
+                string localRoot = ResolveBestStoragePath();
+                if (!string.IsNullOrWhiteSpace(localRoot))
+                    roots.Add(localRoot);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MobileBackup", $"设备目录迁移：本地录像根解析失败：{ex.Message}");
+            }
+
+            try
+            {
+                roots.AddRange(StorageLocationResolver.GetOrderedBackupLocations(Config)
+                    .Select(location => location.Path)
+                    .Where(path => !string.IsNullOrWhiteSpace(path)));
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("MobileBackup", $"设备目录迁移：备份位置解析失败：{ex.Message}");
+            }
+
+            return roots;
+        }
+
         private void InitDatabase()
         {
             try
@@ -560,6 +630,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _archiveService.ArchiveQueueChanged += OnArchiveQueueChanged;
                 _nasCircularCleanup = new NasCircularCleanupService(_db);
                 RefreshArchiveBackupSummary();
+                StartDeviceFolderMigration();
             }
             catch (Exception ex)
             {
