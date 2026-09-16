@@ -256,13 +256,34 @@ internal sealed class RecordingDeviceFolderShortcuts
         return $"{name}-{suffix}{ShortcutExtension}";
     }
 
+    /// <summary>
+    /// Windows 保留设备名。<see cref="Path.GetInvalidFileNameChars"/> 不包含它们，
+    /// 但用这些名字建文件会失败 —— 昵称上限 20 个字符，用户完全可以把设备命名为"CON"。
+    /// </summary>
+    private static readonly HashSet<string> ReservedFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
     private static string SanitizeFileName(string? value)
     {
         string name = value?.Trim() ?? "";
         foreach (char invalid in Path.GetInvalidFileNameChars())
             name = name.Replace(invalid, '_');
 
-        return name.Trim().TrimEnd('.', ' ');
+        name = name.Trim().TrimEnd('.', ' ');
+        if (name.Length == 0)
+            return "";
+
+        // 保留设备名要加后缀避开，否则这台设备的快捷方式永远建不出来。
+        // 判断按不含扩展名的部分来：CON.lnk 里的 "CON" 才是被保留的那部分。
+        if (ReservedFileNames.Contains(name))
+            return name + "_";
+
+        // 纯点号（"."、".."）会被当成目录引用。
+        return name.All(character => character == '.') ? "" : name;
     }
 
     /// <summary>
