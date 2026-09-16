@@ -145,9 +145,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     _audioFailedForCurrentRecording = false;
                     _audioMonitorCts = new CancellationTokenSource();
 
-                    // 预录视频从事件前开始，而麦克风在录像启动后才有采样数据。
-                    // 用等长静音补齐音频起点，避免合成后整条音轨提前。
-                    double leadingSilenceSeconds = Math.Clamp(_activePreRecordSeconds, 0, 5);
+                    // 预录视频从事件前开始，而麦克风在录像启动后才有采样数据；
+                    // 再加上设备解析、建 WAV、写静音本身的耗时，用等长静音补齐音频起点。
+                    // 必须用"距时间轴起点已经过去多久"，而不是标称预录时长：后者漏掉启动耗时，
+                    // 会让整条音轨晚 0.1~0.25 秒。
+                    double leadingSilenceSeconds = CalculateLeadingSilenceSeconds(
+                        _recordStartTime,
+                        DateTime.Now);
                     int leadingSilenceBytes = (int)Math.Min(
                         int.MaxValue,
                         leadingSilenceSeconds * targetFormat.AverageBytesPerSecond);
@@ -197,6 +201,26 @@ namespace ExpressPackingMonitoring.ViewModels
                 return false;
             }
         }
+
+        /// <summary>
+        /// 音频起点要补多长静音：等于录像时间轴起点到"麦克风真正开始采样"之间的墙钟时间。
+        /// 时间轴起点已含预录时长（_recordStartTime = 现在 − 预录），所以这里同时覆盖了
+        /// 预录那一段和设备启动耗时；上限只用于防御异常值。
+        /// </summary>
+        internal static double CalculateLeadingSilenceSeconds(
+            DateTime recordStartTime,
+            DateTime now,
+            double maxSeconds = MaxLeadingSilenceSeconds)
+        {
+            if (recordStartTime == DateTime.MinValue || maxSeconds <= 0)
+                return 0;
+
+            double seconds = (now - recordStartTime).TotalSeconds;
+            return seconds <= 0 ? 0 : Math.Min(seconds, maxSeconds);
+        }
+
+        /// <summary>补静音的上限，够覆盖 5 秒预录加上启动耗时。</summary>
+        internal const double MaxLeadingSilenceSeconds = 10.0;
 
         internal static int CalculateInitialAudioOffsetBytes(int offsetMs, WaveFormat format)
         {
