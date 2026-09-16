@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Logging;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -18,10 +19,21 @@ internal sealed class MobileOrderReceiverRegistry
     private const int MaximumKnownDevices = 512;
     /// <summary>昵称长度上限，与 SettingsWindow 的电脑昵称校验保持一致。</summary>
     private const int MaximumDeviceNameLength = 20;
+    /// <summary>
+    /// 只有"又见到这台设备"（LastSeenUtc 变了、别的都没变）时的落盘间隔。
+    ///
+    /// 手机每 15 秒心跳一次，每次都全量重写这份登记表（最多 512 台设备）纯属浪费：
+    /// 既磨损磁盘也让写失败的窗口变多。实质变化（改名、新设备、清理、平台/端口/能力变化）
+    /// 一律立刻落盘，只有单纯的活跃时间刷新按这个间隔节流。
+    /// </summary>
+    private static readonly TimeSpan LastSeenPersistInterval = TimeSpan.FromMinutes(2);
+
     private readonly string _path;
     private readonly Func<DateTime> _utcNow;
     private readonly object _sync = new();
     private List<Entry> _entries;
+    private DateTime _lastSavedAtUtc = DateTime.MinValue;
+    private bool _loggedSaveFailure;
 
     internal MobileOrderReceiverRegistry(string? path = null, Func<DateTime>? utcNow = null)
     {
@@ -29,9 +41,7 @@ internal sealed class MobileOrderReceiverRegistry
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
         _entries = Load(_path);
         if (RepairDuplicateNames())
-        {
-            try { Save(); } catch { }
-        }
+            SaveOrWarn("启动修重名");
     }
 
     internal MobileOrderReceiverInfo? Register(
@@ -60,14 +70,20 @@ internal sealed class MobileOrderReceiverRegistry
 
             Entry? existing = _entries.FirstOrDefault(item =>
                 string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase));
+            int entryCountBeforeCleanup = _entries.Count;
             _entries.RemoveAll(item =>
                 string.Equals(item.NodeId, requestedNodeId, StringComparison.OrdinalIgnoreCase)
                 // 用户改过名、或者在这台主机上留下过录像的设备都不按活跃时间清理：
                 // 昵称映射是录像显示名的唯一来源，设备一旦被清掉，它的老录像就只能退回
                 // 记录里的历史快照（同一台设备又会变成两个名字）。
                 || (!item.Customized && !item.HasRecordings && now - item.LastSeenUtc > Retention));
+            // 这一轮除了"把自己那条换掉"之外还清掉了别的设备：那是必须立刻落盘的实质变化。
+            bool removedStaleEntries =
+                entryCountBeforeCleanup - _entries.Count - (existing != null ? 1 : 0) > 0;
+            int entryCountBeforeTrim = _entries.Count;
             TrimCustomizedOverflow();
             TrimOverflow();
+            removedStaleEntries = removedStaleEntries || _entries.Count != entryCountBeforeTrim;
 
             string normalizedNodeId = requestedNodeId;
             string normalizedNodeName = nodeName?.Trim() ?? "";
@@ -138,14 +154,26 @@ internal sealed class MobileOrderReceiverRegistry
             _entries.Insert(0, entry);
             // 每次注册都顺手修一次重名：老版本曾经给多台设备发过同一个名字，
             // 那些设备只要上线就该被分开命名，不能等到重启才修。
-            if (RepairDuplicateNames())
+            bool repaired = RepairDuplicateNames();
+            if (repaired)
             {
                 Entry? refreshed = _entries.FirstOrDefault(item =>
                     string.Equals(item.NodeId, normalizedNodeId, StringComparison.OrdinalIgnoreCase));
                 if (refreshed != null)
                     entry = refreshed;
             }
-            try { Save(); } catch { }
+
+            // 心跳每 15 秒一次，除了 LastSeenUtc 通常什么都没变。整份登记表全量重写
+            // （最多 512 台设备）没必要跟着心跳走，所以只有实质变化才立刻落盘，
+            // 纯粹的"又见到它了"按时间节流。
+            if (repaired
+                || removedStaleEntries
+                || HasMeaningfulChange(existing, entry)
+                || now - _lastSavedAtUtc >= LastSeenPersistInterval)
+            {
+                SaveOrWarn("登记设备");
+                _lastSavedAtUtc = now;
+            }
             return ToInfo(entry, online: true);
         }
     }
@@ -235,7 +263,7 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = requested;
             entry.Customized = true;
-            try { Save(); } catch { }
+            SaveOrWarn("更新设备");
             return true;
         }
     }
@@ -301,7 +329,7 @@ internal sealed class MobileOrderReceiverRegistry
                 return;
 
             TrimOverflow();
-            try { Save(); } catch { }
+            SaveOrWarn("更新设备");
         }
     }
 
@@ -402,6 +430,26 @@ internal sealed class MobileOrderReceiverRegistry
         {
             _entries.Remove(entry);
         }
+    }
+
+    /// <summary>
+    /// 除了活跃时间之外还有别的变化吗。只有活跃时间变了的心跳不值得立刻全量重写整份表。
+    /// </summary>
+    private static bool HasMeaningfulChange(Entry? existing, Entry current)
+    {
+        if (existing == null)
+            return true;
+
+        return !string.Equals(existing.NodeName, current.NodeName, StringComparison.Ordinal)
+            || !string.Equals(existing.Address, current.Address, StringComparison.Ordinal)
+            || !string.Equals(existing.DeviceKind, current.DeviceKind, StringComparison.Ordinal)
+            || !string.Equals(existing.Platform, current.Platform, StringComparison.Ordinal)
+            || existing.Port != current.Port
+            || existing.Customized != current.Customized
+            || existing.HasRecordings != current.HasRecordings
+            || !(existing.Capabilities ?? []).SequenceEqual(
+                current.Capabilities ?? [],
+                StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>名字是否已被别的设备占用。主机不允许同名设备，改名与自动编号都要先问这一句。</summary>
@@ -584,6 +632,31 @@ internal sealed class MobileOrderReceiverRegistry
         catch
         {
             return new List<Entry>();
+        }
+    }
+
+    /// <summary>
+    /// 落盘，失败时记一次日志。
+    ///
+    /// 这份表是录像来源名的唯一来源（记录里不再逐条写昵称），写不进去就意味着昵称丢失、
+    /// 老录像退回只显示设备号。静默吞掉的话现场只会看到"名字没了"，查不到原因。
+    /// </summary>
+    private void SaveOrWarn(string context)
+    {
+        try
+        {
+            Save();
+            _loggedSaveFailure = false;
+        }
+        catch (Exception ex)
+        {
+            if (_loggedSaveFailure)
+                return;
+
+            _loggedSaveFailure = true;
+            RuntimeLog.Warn(
+                "MobileBackup",
+                $"设备登记表写入失败（{context}），昵称可能丢失：{ex.Message}（只提示一次）");
         }
     }
 
