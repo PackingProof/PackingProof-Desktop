@@ -243,6 +243,7 @@
     <Compile Include="ViewModels\RecordingBufferPolicy.cs" />
     <Compile Include="ViewModels\PreviewFrameRatePolicy.cs" />
     <Compile Include="ViewModels\CameraFrameConverter.cs" />
+    <Compile Include="ViewModels\CameraColorMatrixPolicy.cs" />
     <Compile Include="ViewModels\PreviewDownscalePolicy.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />

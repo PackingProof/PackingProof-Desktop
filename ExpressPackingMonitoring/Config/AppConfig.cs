@@ -192,6 +192,9 @@ namespace ExpressPackingMonitoring.Config
         public int FrameWidth { get; set; } = 1280;
         public int FrameHeight { get; set; } = 720;
         public int Fps { get; set; } = 15;
+        // 高清源色度矩阵校正。DirectShow 固定按 BT.601 解码，而 720p 及以上的源普遍是 BT.709，
+        // 不校正会整体偏灰。auto=宽度达到 1280 自动校正，bt709=强制校正，bt601=不校正，off=关闭。
+        public string CameraColorMatrix { get; set; } = "auto";
         public bool EnableSmartZoom { get; set; } = false;
         public double MaxZoomScale { get; set; } = 1.5;
         public double ZoomDelaySeconds { get; set; } = 0.0;

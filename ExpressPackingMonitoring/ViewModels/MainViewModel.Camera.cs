@@ -736,7 +736,14 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private Mat BitmapToMat(Bitmap bitmap) => CameraFrameConverter.ConvertToBgrMat(bitmap);
+        private Mat BitmapToMat(Bitmap bitmap)
+        {
+            Mat frame = CameraFrameConverter.ConvertToBgrMat(bitmap);
+            // DirectShow 走的是系统 CSC 的 BT.601 解码，高清源按 BT.709 校正回来。
+            // 只作用于直连摄像头这一条路径：NetworkCameraSource 的帧已经由 ffmpeg 解成 BGR24。
+            CameraColorMatrixPolicy.ApplyIfNeeded(frame, Config.CameraColorMatrix);
+            return frame;
+        }
 
         private void MarkRecordingFramePipelineStage(RecordingFramePipelineStage stage, long frameSequence)
         {
