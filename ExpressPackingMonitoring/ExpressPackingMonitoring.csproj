@@ -129,6 +129,7 @@
     <Compile Include="Data\VideoDatabase.Schema.cs" />
     <Compile Include="Data\VideoDatabase.VideoQuery.cs" />
     <Compile Include="Data\VideoDatabase.VideoSources.cs" />
+    <Compile Include="Data\VideoDatabase.DeviceFolderMigration.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />
@@ -210,6 +211,7 @@
     <Compile Include="Services\RecordingSourceNameLookup.cs" />
     <Compile Include="Services\RecordingDeviceFolderIndex.cs" />
     <Compile Include="Services\RecordingDeviceFolderNaming.cs" />
+    <Compile Include="Services\RecordingDeviceFolderMigrator.cs" />
     <Compile Include="Services\OrderInfoRelay.cs" />
     <Compile Include="Services\OrderInfo.cs" />
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
