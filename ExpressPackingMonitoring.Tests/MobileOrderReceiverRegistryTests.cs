@@ -6,6 +6,101 @@ namespace ExpressPackingMonitoring.Tests;
 
 public sealed class MobileOrderReceiverRegistryTests
 {
+    /// <summary>
+    /// 实质变化（新设备、改名）必须立刻落盘：这份表是录像来源名的唯一来源，
+    /// 丢一次就意味着老录像只剩设备号。
+    /// </summary>
+    [Fact]
+    public void PersistsMeaningfulChangesImmediately()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+
+            registry.Register(IPAddress.Parse("192.168.31.201"), "device-a");
+            Assert.True(File.Exists(path), "新设备必须立刻落盘");
+
+            Assert.True(registry.TrySetCustomName("device-a", "打包台A", out string error), error);
+            // 按语义断言而不是比字符串：登记表里的中文是 \uXXXX 转义存的。
+            Assert.Contains(
+                "打包台A",
+                new MobileOrderReceiverRegistry(path, () => now)
+                    .GetKnownRecordingDevices()
+                    .Select(device => device.NodeName));
+
+            // 新设备加入也算实质变化，哪怕上一次刚写过。
+            now = now.AddSeconds(5);
+            registry.Register(IPAddress.Parse("192.168.31.202"), "device-b");
+            Assert.Contains("device-b", File.ReadAllText(path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>
+    /// 只有活跃时间变化的心跳不该每次都全量重写整份表：手机每 15 秒一次，
+    /// 512 台设备时就是持续的无谓写盘。改动内容不变时按时间节流。
+    /// </summary>
+    [Fact]
+    public void ThrottlesWritesForHeartbeatsThatOnlyRefreshLastSeen()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
+            DateTime writtenAt = File.GetLastWriteTimeUtc(path);
+
+            // 连续几次"什么都没变"的心跳。
+            for (int index = 0; index < 4; index++)
+            {
+                now = now.AddSeconds(15);
+                registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
+            }
+
+            Assert.Equal(writtenAt, File.GetLastWriteTimeUtc(path));
+
+            // 过了节流窗口后要落一次，活跃时间不能长期只存在内存里。
+            now = now.AddMinutes(3);
+            registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
+            Assert.NotEqual(writtenAt, File.GetLastWriteTimeUtc(path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>地址变化要立刻落盘：订单推送要按地址找设备，存慢了就推不到。</summary>
+    [Fact]
+    public void PersistsAddressChangeImmediately()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
+
+            now = now.AddSeconds(15);
+            registry.Register(IPAddress.Parse("192.168.31.209"), "device-a", "安卓1");
+
+            Assert.Contains("192.168.31.209", File.ReadAllText(path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
     [Fact]
     public void AutomaticMobileNamesUseStableIncrementingNicknames()
     {
