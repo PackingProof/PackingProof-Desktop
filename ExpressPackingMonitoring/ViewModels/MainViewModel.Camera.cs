@@ -728,6 +728,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     Interlocked.Increment(ref _latestFrameSequence);
                 }
                 _cameraFrameReady.Signal();
+                _cameraFrameArrival.Signal();
             }
             catch (Exception ex)
             {
@@ -786,7 +787,11 @@ namespace ExpressPackingMonitoring.ViewModels
                             RecordingFramePipelineStage.WaitingForNextFrame,
                             currentFrameSequence);
                         currentFrame.Dispose();
-                        await Task.Delay(Math.Max(1, (int)Math.Round(frameDurationMs)), token);
+                        // 等"下一帧到达"通知，而不是睡满一个帧间隔：轮询节拍与摄像头一旦错开，
+                        // 睡满一格就会整整丢掉一拍，60fps 的源只能喂到 47fps，编码器按固定帧率
+                        // 生成时间戳，文件因此比真实时间快 20% 以上（音画不同步）。
+                        // 超时仍保留，摄像头无新帧时循环照常转动以走掉线检测。
+                        await _cameraFrameArrival.WaitAsync(TimeSpan.FromMilliseconds(Math.Max(1, frameDurationMs)));
                         continue;
                     }
                     if (currentFrame != null)

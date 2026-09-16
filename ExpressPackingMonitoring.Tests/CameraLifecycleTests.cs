@@ -176,4 +176,51 @@ public sealed class CameraLifecycleTests
 
         Assert.False(ready);
     }
+
+    /// <summary>
+    /// 处理循环等的是"下一帧到达"，不能靠睡固定时长轮询：
+    /// 轮询与摄像头节拍错开时会整整丢掉一拍，录制帧率掉到 47fps 而编码器按 60fps 打时间戳。
+    /// </summary>
+    [Fact]
+    public async Task CameraFrameArrivalGate_WakesOnEveryNewFrame()
+    {
+        var gate = new CameraFrameArrivalGate();
+
+        Task<bool> waiting = gate.WaitAsync(TimeSpan.FromSeconds(1));
+        gate.Signal();
+
+        Assert.True(await waiting);
+    }
+
+    [Fact]
+    public async Task CameraFrameArrivalGate_TimesOutWhenCameraStopsDelivering()
+    {
+        var gate = new CameraFrameArrivalGate();
+
+        Assert.False(await gate.WaitAsync(TimeSpan.FromMilliseconds(30)));
+    }
+
+    /// <summary>只保留一次通知：处理慢时宁可跳到最新帧，也不要把旧帧排成队。</summary>
+    [Fact]
+    public async Task CameraFrameArrivalGate_CoalescesPendingNotifications()
+    {
+        var gate = new CameraFrameArrivalGate();
+        gate.Signal();
+        gate.Signal();
+        gate.Signal();
+
+        Assert.True(await gate.WaitAsync(TimeSpan.FromMilliseconds(50)));
+        Assert.False(await gate.WaitAsync(TimeSpan.FromMilliseconds(30)));
+    }
+
+    [Fact]
+    public async Task CameraFrameArrivalGate_DrainClearsPendingNotification()
+    {
+        var gate = new CameraFrameArrivalGate();
+        gate.Signal();
+
+        gate.Drain();
+
+        Assert.False(await gate.WaitAsync(TimeSpan.FromMilliseconds(30)));
+    }
 }

@@ -664,6 +664,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     _videoWriteQueue = new BlockingCollection<Mat>(queueCapacity);
                     _writeCts = new CancellationTokenSource();
                     _lastRecordingQueueWarnAt = DateTime.MinValue;
+                    // 写入端在拿到真实时间轴起点之前不补帧，这里先清掉上一单留下的值。
+                    Volatile.Write(ref _recordingTimelineStartTicks, 0);
 
                     long bufferedBytes = (long)queueCapacity * recordingWidth * recordingHeight * 3;
                     RuntimeLog.Info(
@@ -706,6 +708,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 数据库时间线必须匹配最终视频的帧数/FPS，不能使用环形缓存中
                 // 低处理频率帧的墙上时间跨度，否则会把 5 秒视频记成 12 秒以上。
                 _recordStartTime = DateTime.Now - TimeSpan.FromSeconds(_activePreRecordSeconds);
+                // 文件时间轴（含预录）与墙钟的对应关系：写入端据此按真实时间补齐帧数。
+                Volatile.Write(ref _recordingTimelineStartTicks, Stopwatch.GetTimestamp());
                 lock (_recordingFrameOrderLock)
                 {
                     if (preRecordFrames != null)

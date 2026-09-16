@@ -182,6 +182,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private System.Windows.Threading.DispatcherTimer _uiHeartbeatTimer;
         private readonly PreviewSessionGate _previewSessionGate = new();
         private readonly CameraFrameReadySignal _cameraFrameReady = new();
+        private readonly CameraFrameArrivalGate _cameraFrameArrival = new();
         private readonly CameraFrameRateGate _cameraFrameRateGate = new();
         private CancellationTokenSource _cts;
 
@@ -283,6 +284,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _lastMotionTime;
         private DateTime _recordStartTime;
         private double _activePreRecordSeconds;
+        // 文件时间轴起点对应的 Stopwatch 计时，写入端据此按墙钟补齐帧数（0 表示尚未开始）。
+        private long _recordingTimelineStartTicks;
         private DateTime _recordingGracePeriodStartTime;
         private enum ZoomPhase { None, ZoomingIn, Holding, ZoomingOut }
         private ZoomPhase _zoomPhase = ZoomPhase.None;
