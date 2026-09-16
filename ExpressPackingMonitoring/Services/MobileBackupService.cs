@@ -468,9 +468,6 @@ internal sealed class MobileBackupService
         return string.IsNullOrWhiteSpace(value) ? "未识别面单" : value;
     }
 
-    internal static string GetDeviceDirectoryName(string sourceDeviceId, string sourceDeviceName) =>
-        ArchivePathBuilder.GetDeviceDirectoryName(sourceDeviceId);
-
     private MobileBackupUploadState? LoadState(string uploadId)
     {
         string path = StatePath(uploadId);

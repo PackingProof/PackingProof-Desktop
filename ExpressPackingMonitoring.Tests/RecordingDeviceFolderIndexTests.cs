@@ -4,7 +4,7 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 录像目录按设备号命名（设备-XXXXXX），昵称可以随时改，所以昵称不写进文件夹名。
+/// 录像目录按完整设备号命名，昵称可以随时改，所以昵称不写进文件夹名。
 /// 用户在录像文件夹里靠"设备对照表.txt"把目录对上设备昵称。
 /// </summary>
 public sealed class RecordingDeviceFolderIndexTests
@@ -24,9 +24,9 @@ public sealed class RecordingDeviceFolderIndexTests
             new DateTime(2026, 9, 15, 10, 0, 0));
 
         Assert.Contains("设备对照表", content);
-        Assert.Contains("设备-123456", content);
+        Assert.Contains("device-123456", content);
         Assert.Contains("安卓1", content);
-        Assert.Contains("设备-ABCDEF", content);
+        Assert.Contains("device-abcdef", content);
         Assert.Contains("打包台A", content);
         Assert.Contains("最后在线", content);
         Assert.Contains("目录\t昵称\t设备号\t最后在线（本机时间）", content);
@@ -68,7 +68,7 @@ public sealed class RecordingDeviceFolderIndexTests
 
             string path = Path.Combine(directory, RecordingDeviceFolderIndex.FileName);
             Assert.True(File.Exists(path));
-            Assert.Contains("设备-123456", File.ReadAllText(path));
+            Assert.Contains("device-123456", File.ReadAllText(path));
             Assert.Contains("安卓1", File.ReadAllText(path));
         }
         finally

@@ -733,7 +733,12 @@ public sealed class ArchiveServiceTests : IDisposable
         Assert.Equal(1, completed);
         Assert.Equal(VideoArchiveStatus.Verified, record.ArchiveStatus);
         Assert.Equal(expected, record.ArchivePath);
-        Assert.Contains(Path.Combine("手机备份", "设备-123456"), record.ArchivePath);
+        // 目录名就是完整设备号：回填与上传都从设备号纯函数算出来，两边必然一致。
+        Assert.Contains(
+            Path.Combine(
+                "手机备份",
+                RecordingDeviceFolderNaming.BuildDirectoryName(record.SourceDeviceId)),
+            record.ArchivePath);
         Assert.True(File.Exists(record.ArchivePath));
     }
 
