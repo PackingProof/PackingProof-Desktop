@@ -67,7 +67,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (device == null)
                 {
                     Debug.WriteLine("[Audio] 未找到可用麦克风端点");
-                    WriteAudioDiagnostic("未找到可用麦克风端点");
+                    WriteAudioDiagnostic($"未找到可用麦克风端点：{DescribeCaptureEndpoints()}");
                     return false;
                 }
 
@@ -1078,6 +1078,39 @@ namespace ExpressPackingMonitoring.ViewModels
         private static string GetEndpointDisplayName(MMDevice device)
         {
             try { return device.DeviceFriendlyName; } catch { return device.FriendlyName; }
+        }
+
+        /// <summary>
+        /// 端点解析失败时记下现场枚举结果：是系统真的报告零个活动采集设备，
+        /// 还是配置的设备已经不在列表里。没有这段信息就只能靠猜。
+        /// </summary>
+        private static string DescribeCaptureEndpoints()
+        {
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                var active = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+                var all = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.All);
+                return $"活动={DescribeEndpointList(active)}, 全部={DescribeEndpointList(all)}";
+            }
+            catch (Exception ex)
+            {
+                return $"端点枚举失败: {ex.Message}";
+            }
+        }
+
+        private static string DescribeEndpointList(MMDeviceCollection? devices)
+        {
+            if (devices == null || devices.Count == 0)
+                return "0 个[]";
+
+            var names = new List<string>(devices.Count);
+            foreach (var device in devices)
+            {
+                try { names.Add($"{device.FriendlyName}({device.State})"); }
+                catch { names.Add("(读取失败)"); }
+            }
+            return $"{devices.Count} 个[{string.Join(", ", names)}]";
         }
 
         private static bool AudioEndpointMatches(string endpointName, string configuredName)

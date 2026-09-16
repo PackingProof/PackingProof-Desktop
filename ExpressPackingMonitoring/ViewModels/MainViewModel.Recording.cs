@@ -775,9 +775,34 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (startAudioAfterVideo)
                 {
                     WriteAudioDiagnostic($"准备启动麦克风录制: name={Config.AudioDeviceName}, moniker={(string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker) ? "(empty)" : Config.AudioDeviceMoniker)}");
-                    if (!StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac))
+                    for (int audioAttempt = 0; audioAttempt < RecordingAudioStartPolicy.AudioStartAttempts; audioAttempt++)
                     {
-                        WriteAudioDiagnostic("麦克风录音启动失败");
+                        if (StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac))
+                            break;
+
+                        RecordingAudioStartPolicy.AudioStartFailureAction action =
+                            RecordingAudioStartPolicy.Decide(useDirectAac, audioAttempt);
+                        if (action == RecordingAudioStartPolicy.AudioStartFailureAction.RetryOnce)
+                        {
+                            WriteAudioDiagnostic("麦克风录音启动失败，稍后重试");
+                            await Task.Delay(RecordingAudioStartPolicy.RetryDelayMs);
+                            continue;
+                        }
+
+                        if (action == RecordingAudioStartPolicy.AudioStartFailureAction.ContinueVideoOnly)
+                        {
+                            // 视频管道已经在写，音频只是附加轨道：缺声音也要把这一段留下来。
+                            _audioFailedForCurrentRecording = true;
+                            WriteAudioDiagnostic("麦克风录音启动失败，本次仅录视频");
+                            RuntimeLog.Warn(
+                                "Recording",
+                                $"Audio capture unavailable, recording video only, file={Path.GetFileName(filePath)}");
+                            ShowToast("麦克风不可用，本次仅录视频", ToastSeverity.Warning);
+                            SpeakWarning(DefaultSpeechCatalog.AudioRecordingStartFailed);
+                            break;
+                        }
+
+                        WriteAudioDiagnostic("麦克风录音启动失败，取消本次录制");
                         ShowToast("音频录制启动失败", ToastSeverity.Error);
                         SpeakWarning(DefaultSpeechCatalog.AudioRecordingStartFailed);
                         try
