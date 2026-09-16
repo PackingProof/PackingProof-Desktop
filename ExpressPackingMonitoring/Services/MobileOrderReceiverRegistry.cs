@@ -64,6 +64,7 @@ internal sealed class MobileOrderReceiverRegistry
         _externalNicknames = externalNicknames
             ?? (() => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         _entries = Load(_path);
+        CleanupAbandonedTemporaryFiles(_path);
         if (RepairDuplicateNames())
             SaveOrWarn("启动修重名");
         RefreshNicknameSnapshot();
@@ -698,6 +699,11 @@ internal sealed class MobileOrderReceiverRegistry
         return isPrivate ? address.ToString() : null;
     }
 
+    /// <summary>
+    /// 读登记表。读失败时按空表继续（不能因为它挡住启动），但必须留痕：
+    /// 这张表是录像来源名的唯一来源，一空就意味着所有老录像退回只显示设备号，
+    /// 静默的话现场完全无从下手。
+    /// </summary>
     private static List<Entry> Load(string path)
     {
         try
@@ -705,8 +711,11 @@ internal sealed class MobileOrderReceiverRegistry
             if (!File.Exists(path)) return new List<Entry>();
             return JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(path)) ?? new List<Entry>();
         }
-        catch
+        catch (Exception ex)
         {
+            RuntimeLog.Warn(
+                "MobileBackup",
+                $"设备登记表读取失败，按空表继续（设备昵称会重新分配）：{ex.Message}");
             return new List<Entry>();
         }
     }
@@ -736,13 +745,89 @@ internal sealed class MobileOrderReceiverRegistry
         }
     }
 
+    /// <summary>
+    /// 清掉崩溃留下的临时文件（<c>&lt;表名&gt;.&lt;pid&gt;.&lt;guid&gt;.tmp</c>）。
+    ///
+    /// 正常路径下临时文件会被原子替换消耗掉，异常路径下由写入方自己删；
+    /// 进程被强杀时才会留下残留。只删这个确定由自己写出的命名形状，
+    /// 而且跳过还活着的进程留下的（同目录可能有第二个实例正在写）。
+    /// </summary>
+    internal static void CleanupAbandonedTemporaryFiles(string path)
+    {
+        string? directory = Path.GetDirectoryName(path);
+        string fileName = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(directory) || fileName.Length == 0)
+            return;
+
+        try
+        {
+            if (!Directory.Exists(directory))
+                return;
+
+            foreach (string candidate in Directory.EnumerateFiles(
+                directory,
+                $"{fileName}.*.tmp",
+                SearchOption.TopDirectoryOnly))
+            {
+                if (IsOwnedByLiveProcess(candidate))
+                    continue;
+
+                try { File.Delete(candidate); } catch { }
+            }
+        }
+        catch
+        {
+            // 残留清理是纯粹的收尾工作，失败不影响任何功能。
+        }
+    }
+
+    /// <summary>临时文件名里的进程号是否还活着：活着说明另一个实例正在写，不能删。</summary>
+    private static bool IsOwnedByLiveProcess(string temporaryPath)
+    {
+        string[] parts = Path.GetFileName(temporaryPath).Split('.');
+        // <表名>.json.<pid>.<guid>.tmp —— 进程号在倒数第三段。
+        if (parts.Length < 3
+            || !int.TryParse(
+                parts[^3],
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out int processId))
+        {
+            return false;
+        }
+
+        if (processId == Environment.ProcessId)
+            return false;
+
+        try
+        {
+            using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch
+        {
+            // 进程已经不存在：这是我们要清的残留。
+            return false;
+        }
+    }
+
     private void Save()
     {
         string? directory = Path.GetDirectoryName(_path);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-        string temporaryPath = _path + ".tmp";
-        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_entries));
-        File.Move(temporaryPath, _path, true);
+        // 临时文件名带唯一后缀：写死 ".tmp" 时，上次崩溃留下的残留或并发写会互相踩，
+        // 可能把两次写入的内容混在一起。写完原子替换，替换失败则清掉自己的临时文件。
+        string temporaryPath = $"{_path}.{Environment.ProcessId:X}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_entries));
+            File.Move(temporaryPath, _path, true);
+        }
+        catch
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
+            throw;
+        }
     }
 
     private sealed class Entry

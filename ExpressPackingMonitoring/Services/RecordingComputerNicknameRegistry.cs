@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Logging;
 using System.IO;
 using System.Text.Json;
 
@@ -11,6 +12,7 @@ internal sealed class RecordingComputerNicknameRegistry
     private readonly string _path;
     private readonly object _sync = new();
     private List<Entry> _entries;
+    private bool _loggedSaveFailure;
 
     /// <summary>
     /// 另一张昵称表（手机登记表）的快照：设备号 → 昵称。
@@ -36,6 +38,8 @@ internal sealed class RecordingComputerNicknameRegistry
         _externalNicknames = externalNicknames
             ?? (() => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         _entries = Load(path);
+        // 崩溃可能留下临时文件，复用手机登记表那套清理（命名形状相同）。
+        MobileOrderReceiverRegistry.CleanupAbandonedTemporaryFiles(path);
         RefreshNicknameSnapshot();
     }
 
@@ -81,7 +85,7 @@ internal sealed class RecordingComputerNicknameRegistry
                 .Take(MaxKnownComputers)
                 .ToList();
             RefreshNicknameSnapshot();
-            try { Save(); } catch { }
+            SaveOrWarn("分配工位昵称");
             return assignedName;
         }
     }
@@ -98,7 +102,8 @@ internal sealed class RecordingComputerNicknameRegistry
             DateTime cutoff = DateTime.UtcNow - Retention;
             if (_entries.RemoveAll(item => item.UpdatedAtUtc < cutoff) > 0)
             {
-                try { Save(); } catch { }
+                RefreshNicknameSnapshot();
+                SaveOrWarn("清理过期工位");
             }
             return _entries
                 .OrderByDescending(item => item.UpdatedAtUtc)
@@ -200,6 +205,11 @@ internal sealed class RecordingComputerNicknameRegistry
             : null;
     }
 
+    /// <summary>
+    /// 读昵称表。读失败时按空表继续（不能因为它挡住启动），但必须留痕：
+    /// 这张表一空，所有工位都会重新编号成"电脑N"，它们老录像的来源名也跟着变，
+    /// 静默的话现场完全无从下手。
+    /// </summary>
     private static List<Entry> Load(string path)
     {
         try
@@ -207,9 +217,38 @@ internal sealed class RecordingComputerNicknameRegistry
             if (!File.Exists(path)) return [];
             return JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(path)) ?? [];
         }
-        catch
+        catch (Exception ex)
         {
+            RuntimeLog.Warn(
+                "MobileBackup",
+                $"电脑昵称表读取失败，按空表继续（工位会重新编号）：{ex.Message}");
             return [];
+        }
+    }
+
+    /// <summary>
+    /// 落盘，失败时记一次日志。
+    ///
+    /// 这张表是电脑工位昵称的唯一权威来源，写不进去就意味着工位名字丢失、
+    /// 下次上线重新编号成"电脑N"，它的老录像来源名也跟着变。静默吞掉的话
+    /// 现场只会看到"名字自己变了"，查不到原因。
+    /// </summary>
+    private void SaveOrWarn(string context)
+    {
+        try
+        {
+            Save();
+            _loggedSaveFailure = false;
+        }
+        catch (Exception ex)
+        {
+            if (_loggedSaveFailure)
+                return;
+
+            _loggedSaveFailure = true;
+            RuntimeLog.Warn(
+                "MobileBackup",
+                $"电脑昵称表写入失败（{context}），工位名字可能丢失：{ex.Message}（只提示一次）");
         }
     }
 
@@ -217,9 +256,19 @@ internal sealed class RecordingComputerNicknameRegistry
     {
         string? directory = Path.GetDirectoryName(_path);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-        string temporaryPath = _path + ".tmp";
-        File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_entries));
-        File.Move(temporaryPath, _path, true);
+        // 临时文件名带唯一后缀：写死 ".tmp" 时，上次崩溃留下的残留或并发写会互相踩，
+        // 可能把两次写入的内容混在一起。写完原子替换，替换失败则清掉自己的临时文件。
+        string temporaryPath = $"{_path}.{Environment.ProcessId:X}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(_entries));
+            File.Move(temporaryPath, _path, true);
+        }
+        catch
+        {
+            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); } catch { }
+            throw;
+        }
     }
 
     private sealed class Entry
