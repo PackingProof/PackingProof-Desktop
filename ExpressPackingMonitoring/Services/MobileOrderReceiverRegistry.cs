@@ -108,7 +108,8 @@ internal sealed class MobileOrderReceiverRegistry
                 entryCountBeforeCleanup - _entries.Count - (existing != null ? 1 : 0) > 0;
             int entryCountBeforeTrim = _entries.Count;
             TrimCustomizedOverflow();
-            TrimOverflow();
+            // 下面会插入一条新设备，给它留个位置，否则插入后会比上限多一条。
+            TrimOverflow(reserveSlotForIncomingEntry: true);
             removedStaleEntries = removedStaleEntries || _entries.Count != entryCountBeforeTrim;
 
             string normalizedNodeId = requestedNodeId;
@@ -446,16 +447,25 @@ internal sealed class MobileOrderReceiverRegistry
     /// 条数上限保护。先清"没有录像、也不是用户改名"的最老设备，
     /// 只有在剩下的全都有录像时才动到有录像的设备。
     /// </summary>
-    private void TrimOverflow()
+    /// <summary>
+    /// 淘汰超出条数上限的设备。有录像的、用户改过名的最后才动。
+    ///
+    /// <paramref name="reserveSlotForIncomingEntry"/>：调用方随后要插入一条新设备时传 true，
+    /// 给它预留一个位置。清理跑在插入之前，不预留的话插入后实际条数会比上限多一条。
+    /// </summary>
+    private void TrimOverflow(bool reserveSlotForIncomingEntry = false)
     {
-        if (_entries.Count <= MaximumKnownDevices)
+        int limit = reserveSlotForIncomingEntry
+            ? MaximumKnownDevices - 1
+            : MaximumKnownDevices;
+        if (_entries.Count <= limit)
             return;
 
         foreach (Entry entry in _entries
             .OrderBy(item => item.HasRecordings)
             .ThenBy(item => item.Customized)
             .ThenBy(item => item.LastSeenUtc)
-            .Take(_entries.Count - MaximumKnownDevices)
+            .Take(_entries.Count - limit)
             .ToArray())
         {
             _entries.Remove(entry);
