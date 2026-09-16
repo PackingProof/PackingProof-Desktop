@@ -107,6 +107,48 @@ public sealed class DeviceNicknameUniquenessTests : IDisposable
                 .NodeName);
     }
 
+    /// <summary>
+    /// 昵称表读不出来（文件损坏）时按空表继续，不能抛异常挡住启动：
+    /// 昵称丢失只是显示名退化，而启动失败是整个软件不可用。
+    /// </summary>
+    [Fact]
+    public void CorruptedNicknameFilesDoNotBlockStartup()
+    {
+        Directory.CreateDirectory(_root);
+        string phonesPath = Path.Combine(_root, "order-receivers.json");
+        string computersPath = Path.Combine(_root, "computer-nicknames.json");
+        File.WriteAllText(phonesPath, "{ 这不是合法的 JSON");
+        File.WriteAllText(computersPath, "[[[");
+
+        var phones = new MobileOrderReceiverRegistry(phonesPath);
+        var computers = new RecordingComputerNicknameRegistry(computersPath);
+
+        Assert.Empty(phones.GetKnownRecordingDevices());
+        Assert.Equal("电脑1", computers.Assign("pc-1", "", customized: false));
+    }
+
+    /// <summary>
+    /// 崩溃留下的临时文件要在启动时清掉，不能在状态目录里越积越多。
+    /// 只清这个确定由自己写出的命名形状。
+    /// </summary>
+    [Fact]
+    public void CleansUpTemporaryFilesLeftByACrash()
+    {
+        Directory.CreateDirectory(_root);
+        string phonesPath = Path.Combine(_root, "order-receivers.json");
+        // 已退出进程留下的残留（进程号 1 在这里只是一个不会命中当前进程的值）。
+        string abandoned = $"{phonesPath}.1.{Guid.NewGuid():N}.tmp";
+        File.WriteAllText(abandoned, "[]");
+        // 用户自己的文件和别的状态文件都不该被碰。
+        string unrelated = Path.Combine(_root, "computer-nicknames.json");
+        File.WriteAllText(unrelated, "[]");
+
+        _ = new MobileOrderReceiverRegistry(phonesPath);
+
+        Assert.False(File.Exists(abandoned), "崩溃留下的临时文件应该被清掉");
+        Assert.True(File.Exists(unrelated), "别的状态文件不能被碰");
+    }
+
     private (MobileOrderReceiverRegistry Phones, RecordingComputerNicknameRegistry Computers) CreatePair()
     {
         Directory.CreateDirectory(_root);
