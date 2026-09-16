@@ -34,14 +34,39 @@ internal sealed class MobileOrderReceiverRegistry
     private List<Entry> _entries;
     private DateTime _lastSavedAtUtc = DateTime.MinValue;
     private bool _loggedSaveFailure;
+    /// <summary>
+    /// 另一张昵称表的快照（设备号 → 昵称）。
+    ///
+    /// 电脑工位的昵称存在电脑昵称表里，而只发心跳、没上传过录像的工位根本不在这张表里，
+    /// 所以光查自己这张表会让一台手机占用某台电脑的名字。昵称在用户眼里只有一份，
+    /// 两张表必须互相查。
+    ///
+    /// 这里刻意取"快照"而不是回调对方查询：两张表各有自己的锁，互相在锁内调用对方
+    /// 就是 AB-BA 死锁（一边在改名、另一边在处理心跳时会撞上）。快照是不可变的、
+    /// 读它不取任何锁；代价是极短的过期窗口，对"改名撞不撞"这种人工低频操作可以接受。
+    /// </summary>
+    private readonly Func<IReadOnlyDictionary<string, string>> _externalNicknames;
 
-    internal MobileOrderReceiverRegistry(string? path = null, Func<DateTime>? utcNow = null)
+    private IReadOnlyDictionary<string, string> _nicknameSnapshot =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>本表的昵称快照（设备号 → 昵称），供另一张表查重名，读取不取锁。</summary>
+    internal IReadOnlyDictionary<string, string> NicknameSnapshot =>
+        Volatile.Read(ref _nicknameSnapshot);
+
+    internal MobileOrderReceiverRegistry(
+        string? path = null,
+        Func<DateTime>? utcNow = null,
+        Func<IReadOnlyDictionary<string, string>>? externalNicknames = null)
     {
         _path = path ?? GetDefaultPath();
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _externalNicknames = externalNicknames
+            ?? (() => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         _entries = Load(_path);
         if (RepairDuplicateNames())
             SaveOrWarn("启动修重名");
+        RefreshNicknameSnapshot();
     }
 
     internal MobileOrderReceiverInfo? Register(
@@ -174,6 +199,8 @@ internal sealed class MobileOrderReceiverRegistry
                 SaveOrWarn("登记设备");
                 _lastSavedAtUtc = now;
             }
+            // 名字可能刚变过，另一张表查重名要看到最新的。
+            RefreshNicknameSnapshot();
             return ToInfo(entry, online: true);
         }
     }
@@ -263,6 +290,7 @@ internal sealed class MobileOrderReceiverRegistry
 
             entry.NodeName = requested;
             entry.Customized = true;
+            RefreshNicknameSnapshot();
             SaveOrWarn("更新设备");
             return true;
         }
@@ -329,6 +357,7 @@ internal sealed class MobileOrderReceiverRegistry
                 return;
 
             TrimOverflow();
+            RefreshNicknameSnapshot();
             SaveOrWarn("更新设备");
         }
     }
@@ -459,9 +488,56 @@ internal sealed class MobileOrderReceiverRegistry
         if (value.Length == 0)
             return false;
 
-        return _entries.Any(item =>
+        if (_entries.Any(item =>
             !string.Equals(item.NodeId, nodeId, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(item.NodeName?.Trim(), value, StringComparison.OrdinalIgnoreCase));
+            && string.Equals(item.NodeName?.Trim(), value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        // 再查电脑昵称表：只发心跳、没上传过录像的工位不在本表里，光查本表会放过重名。
+        return IsNameTakenInExternalTable(value, nodeId);
+    }
+
+    private bool IsNameTakenInExternalTable(string name, string nodeId)
+    {
+        IReadOnlyDictionary<string, string> external;
+        try
+        {
+            external = _externalNicknames();
+        }
+        catch
+        {
+            // 另一张表暂时读不到时不阻塞改名：本表内的唯一性仍然保证。
+            return false;
+        }
+
+        foreach ((string externalNodeId, string externalName) in external)
+        {
+            if (string.Equals(externalNodeId, nodeId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (string.Equals(externalName?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 刷新对外的昵称快照。每次改动 <see cref="_entries"/> 之后都要调用，
+    /// 否则另一张表查到的是旧名字。必须在持有 <see cref="_sync"/> 时调用。
+    /// </summary>
+    private void RefreshNicknameSnapshot()
+    {
+        var snapshot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Entry entry in _entries)
+        {
+            string entryNodeId = entry.NodeId?.Trim() ?? "";
+            if (entryNodeId.Length > 0)
+                snapshot[entryNodeId] = entry.NodeName?.Trim() ?? "";
+        }
+
+        Volatile.Write(ref _nicknameSnapshot, snapshot);
     }
 
     private void TrimCustomizedOverflow()
