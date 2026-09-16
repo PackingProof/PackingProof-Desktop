@@ -48,6 +48,22 @@ namespace ExpressPackingMonitoring.ViewModels
             return Math.Min(behind, MaxCatchUpFrames(fps));
         }
 
+        /// <summary>
+        /// 已经写进文件的实时帧数。预录帧属于时间轴最前面那一段，不参与实时段的补齐判断，
+        /// 否则开头会凭空多出一段"领先"，补齐要等预录时长跑完才生效。
+        /// </summary>
+        internal static int CalculateLiveWrittenFrames(long writtenFrames, int preRecordFrames) =>
+            (int)Math.Clamp(writtenFrames - Math.Max(0, preRecordFrames), 0, int.MaxValue);
+
+        /// <summary>文件时间轴长度：写入帧数按声明帧率折算。</summary>
+        internal static double CalculateFileSeconds(long writtenFrames, int fps) =>
+            fps <= 0 ? 0 : writtenFrames / (double)fps;
+
+        /// <summary>真实时间轴长度：预录时长 + 实时段已经过的时间。</summary>
+        internal static double CalculateWallSeconds(int preRecordFrames, int fps, long liveElapsedTicks) =>
+            (fps <= 0 ? 0 : Math.Max(0, preRecordFrames) / (double)fps)
+            + StopwatchTicksToSeconds(liveElapsedTicks);
+
         /// <summary>把 Stopwatch 计时差换成秒。</summary>
         internal static double StopwatchTicksToSeconds(long ticks) =>
             ticks <= 0 ? 0 : ticks / (double)Stopwatch.Frequency;
