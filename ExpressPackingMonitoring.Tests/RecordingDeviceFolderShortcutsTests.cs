@@ -81,6 +81,49 @@ public sealed class RecordingDeviceFolderShortcutsTests : IDisposable
         Assert.True(_written.ContainsKey(Path.Combine(_root, "电脑上传", "电脑1.lnk")));
     }
 
+    /// <summary>
+    /// 昵称是 Windows 保留设备名（CON、PRN、COM1…）时要避开：
+    /// GetInvalidFileNameChars 不包含它们，但拿它们建文件会直接失败，
+    /// 那台设备的快捷方式就永远建不出来。昵称上限 20 字符，用户真能这么起名。
+    /// </summary>
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("con")]
+    [InlineData("PRN")]
+    [InlineData("NUL")]
+    [InlineData("COM1")]
+    [InlineData("LPT9")]
+    public void ReservedWindowsNamesStillProduceAUsableShortcut(string nickname)
+    {
+        string deviceDirectory = CreateDeviceDirectory("手机备份", DeviceA);
+        string linkPath = Path.Combine(
+            _root,
+            "手机备份",
+            RecordingDeviceFolderShortcuts.BuildShortcutFileName(
+                new RecordingDeviceFolderShortcuts.ShortcutTarget(DeviceA, nickname),
+                new Dictionary<string, string>()));
+
+        // 真走外壳：保留名会在这里直接失败，用假实现测不出来。
+        Assert.True(
+            WindowsShellShortcut.TryCreate(linkPath, deviceDirectory, out string error),
+            $"昵称“{nickname}”的快捷方式建不出来：{error}");
+        Assert.True(File.Exists(linkPath));
+    }
+
+    /// <summary>昵称只有点号时不能拼出"."或".."这种目录引用。</summary>
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("   ")]
+    public void DegenerateNicknamesFallBackToAPlaceholder(string nickname)
+    {
+        string fileName = RecordingDeviceFolderShortcuts.BuildShortcutFileName(
+            new RecordingDeviceFolderShortcuts.ShortcutTarget(DeviceA, nickname),
+            new Dictionary<string, string>());
+
+        Assert.Equal("未命名设备.lnk", fileName);
+    }
+
     /// <summary>没在这台主机留下过录像的设备不该有空链接。</summary>
     [Fact]
     public void SkipsDevicesWithoutDirectories()
