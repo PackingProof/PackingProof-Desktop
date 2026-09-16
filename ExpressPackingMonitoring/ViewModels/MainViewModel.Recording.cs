@@ -714,6 +714,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     if (preRecordFrames != null)
                     {
+                        int preRecordDropped = 0;
+                        string? preRecordDropReason = null;
                         for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
                         {
                             Mat preFrame = preRecordFrames[preFrameIndex];
@@ -735,12 +737,25 @@ namespace ExpressPackingMonitoring.ViewModels
                                     RecordingFramePipelineStage.PreRecordEnqueue,
                                     preFrameIndex);
                                 if (!TryEnqueueFrameForRecording(preFrame))
+                                {
+                                    preRecordDropped++;
+                                    preRecordDropReason ??= "队列已满";
                                     preFrame.Dispose();
+                                }
                             }
-                            catch
+                            catch (Exception ex)
                             {
+                                // 静默丢弃会让"预录开头几秒消失"变成无据可查，这里至少要留一条线索。
+                                preRecordDropped++;
+                                preRecordDropReason ??= ex.Message;
                                 preFrame.Dispose();
                             }
+                        }
+                        if (preRecordDropped > 0)
+                        {
+                            RuntimeLog.Warn(
+                                "Recording",
+                                $"Pre-record frames dropped count={preRecordDropped}/{preRecordFrames.Count}, reason={preRecordDropReason}");
                         }
                         RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
                     }
