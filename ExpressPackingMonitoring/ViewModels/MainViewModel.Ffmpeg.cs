@@ -83,6 +83,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 byte[] buffer = new byte[expectedBytes];
                 long writtenFrames = 0;
                 long duplicatedFrames = 0;
+                long paddedDuringPreRecord = 0;
                 long liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
                 int preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
 
@@ -148,14 +149,18 @@ namespace ExpressPackingMonitoring.ViewModels
                                     liveStartTicks,
                                     Stopwatch.GetTimestamp(),
                                     fps),
-                                RecordingTimelinePolicy.CalculateLiveWrittenFrames(writtenFrames, preRecordFrames),
-                                fps);
+                                writtenFrames,
+                                fps,
+                                preRecordFrames);
                             for (int i = 0; i < catchUp; i++)
                                 stdin.Write(buffer, 0, expectedBytes);
                             if (catchUp > 0)
                             {
                                 writtenFrames += catchUp;
                                 duplicatedFrames += catchUp;
+                                // 预录段本来就不该补帧，这里记下来放进自检日志：非 0 就是回归。
+                                if (RecordingTimelinePolicy.IsWritingPreRecordFrames(writtenFrames - catchUp, preRecordFrames))
+                                    paddedDuringPreRecord += catchUp;
                             }
                         }
                     }
@@ -186,7 +191,14 @@ namespace ExpressPackingMonitoring.ViewModels
                         liveStartTicks > 0 ? Stopwatch.GetTimestamp() - liveStartTicks : 0);
                     RuntimeLog.Info(
                         "FFmpeg",
-                        $"Timeline frames={writtenFrames}, preRecord={preRecordFrames}, duplicated={duplicatedFrames}, fileSeconds={fileSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
+                        $"Timeline frames={writtenFrames}, preRecord={preRecordFrames}, duplicated={duplicatedFrames}, paddedPreRecord={paddedDuringPreRecord}, fileSeconds={fileSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
+                    if (paddedDuringPreRecord > 0)
+                    {
+                        // 预录段被补了重复帧：预录画面会定格成同一帧，必须当回归处理。
+                        RuntimeLog.Warn(
+                            "FFmpeg",
+                            $"Pre-record frames were duplicated in the file, count={paddedDuringPreRecord}, file={Path.GetFileName(filePath)}");
+                    }
                 }
 
                 if (ffmpeg != null && !ffmpeg.HasExited)

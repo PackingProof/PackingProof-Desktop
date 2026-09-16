@@ -49,6 +49,32 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
+        /// 预录段是否还在写入。预录帧要原样写进去：这一段的每一帧代表时间轴最前面的真实画面，
+        /// 往里补重复帧会把预录画面变成"同一帧定格"，现场就是这个现象。
+        /// </summary>
+        internal static bool IsWritingPreRecordFrames(long writtenFrames, int preRecordFrames) =>
+            preRecordFrames > 0 && writtenFrames <= preRecordFrames;
+
+        /// <summary>
+        /// 补帧决策。预录段一律不补：此时实时帧数还没开始增长（写入的都是预录帧），
+        /// 而墙钟已经在走，只看实时帧数会误判成"落后"。
+        /// </summary>
+        internal static int CalculateCatchUpFrames(
+            int expectedFrames,
+            long writtenFrames,
+            int fps,
+            int preRecordFrames)
+        {
+            if (IsWritingPreRecordFrames(writtenFrames, preRecordFrames))
+                return 0;
+
+            return CalculateCatchUpFrames(
+                expectedFrames,
+                CalculateLiveWrittenFrames(writtenFrames, preRecordFrames),
+                fps);
+        }
+
+        /// <summary>
         /// 已经写进文件的实时帧数。预录帧属于时间轴最前面那一段，不参与实时段的补齐判断，
         /// 否则开头会凭空多出一段"领先"，补齐要等预录时长跑完才生效。
         /// </summary>
