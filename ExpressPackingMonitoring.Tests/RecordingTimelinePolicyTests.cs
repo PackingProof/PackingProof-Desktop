@@ -106,4 +106,134 @@ public sealed class RecordingTimelinePolicyTests
         Assert.Equal(0, RecordingTimelinePolicy.CalculateFileSeconds(0, 60));
         Assert.Equal(0, RecordingTimelinePolicy.CalculateFileSeconds(120, 0));
     }
+
+    /// <summary>
+    /// 现场回归：预录 296 帧还在写入时墙钟已经走了几秒，按实时帧数判断会误以为"落后"，
+    /// 于是把重复帧盖到预录画面上——录出来预录段变成同一帧定格，文件还长了 5 秒。
+    /// 预录段必须原样写入，一帧都不补。
+    /// </summary>
+    [Fact]
+    public void PreRecordFramesAreNeverPadded()
+    {
+        const int fps = 60;
+        const int preRecordFrames = 296;
+
+        for (int written = 1; written <= preRecordFrames; written++)
+        {
+            int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
+                expectedFrames: 600,           // 墙钟已经走了 10 秒
+                writtenFrames: written,
+                fps: fps,
+                preRecordFrames: preRecordFrames);
+
+            Assert.Equal(0, catchUp);
+        }
+    }
+
+    /// <summary>预录段写完之后，实时段照常补齐（补的是实时画面，不是预录画面）。</summary>
+    [Fact]
+    public void LivePhaseStillCatchesUpAfterPreRecordIsWritten()
+    {
+        const int fps = 60;
+        const int preRecordFrames = 296;
+
+        // 预录写完、实时才写了 1 帧，墙钟已过 1 秒：应当补到上限
+        int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
+            expectedFrames: 60,
+            writtenFrames: preRecordFrames + 1,
+            fps: fps,
+            preRecordFrames: preRecordFrames);
+
+        Assert.Equal(30, catchUp);
+    }
+
+    /// <summary>没有预录时行为不变。</summary>
+    [Fact]
+    public void WithoutPreRecordPaddingBehavesAsBefore()
+    {
+        Assert.False(RecordingTimelinePolicy.IsWritingPreRecordFrames(0, 0));
+        Assert.False(RecordingTimelinePolicy.IsWritingPreRecordFrames(5, 0));
+
+        Assert.Equal(5, RecordingTimelinePolicy.CalculateCatchUpFrames(
+            expectedFrames: 60,
+            writtenFrames: 55,
+            fps: 60,
+            preRecordFrames: 0));
+    }
+
+    [Fact]
+    public void PreRecordWindowIsRecognisedExactlyOnce()
+    {
+        Assert.True(RecordingTimelinePolicy.IsWritingPreRecordFrames(1, 296));
+        Assert.True(RecordingTimelinePolicy.IsWritingPreRecordFrames(296, 296));
+        Assert.False(RecordingTimelinePolicy.IsWritingPreRecordFrames(297, 296));
+    }
+
+    /// <summary>
+    /// 逐帧模拟现场那条录像的时间线：296 帧预录先灌进管道（约 1 秒），
+    /// 这段时间到达的实时帧被丢弃，之后实时只有 54fps。
+    /// 断言：预录段一帧不补、盘尾补齐只发生在实时段、文件时长与真实时长对齐。
+    /// </summary>
+    [Fact]
+    public void TimelineSimulationKeepsPreRecordIntactAndRealTimeLength()
+    {
+        const int fps = 60;
+        const int preRecordFrames = 296;
+        const double flushSeconds = 1.0;
+        const int liveFps = 54;
+        const double recordingSeconds = 17.0;
+
+        long written = 0;
+        long duplicated = 0;
+        long paddedDuringPreRecord = 0;
+        long lostDuringFlush = (long)(flushSeconds * fps);
+
+        // 预录段：一次性灌入，墙钟同时前进
+        for (int i = 0; i < preRecordFrames; i++)
+        {
+            written++;
+            double burstProgressSeconds = flushSeconds * (i + 1) / preRecordFrames;
+            int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
+                expectedFrames: (int)(burstProgressSeconds * fps),
+                writtenFrames: written,
+                fps: fps,
+                preRecordFrames: preRecordFrames);
+            if (catchUp > 0 && RecordingTimelinePolicy.IsWritingPreRecordFrames(written, preRecordFrames))
+                paddedDuringPreRecord += catchUp;
+            written += catchUp;
+            duplicated += catchUp;
+        }
+
+        // 实时段：54fps 到达，且开头 flushSeconds 内到达的帧已经丢了
+        long liveArrived = 0;
+        for (double t = flushSeconds; t <= recordingSeconds; t += 1.0 / liveFps)
+        {
+            liveArrived++;
+            if (liveArrived <= lostDuringFlush)
+                continue; // 灌入窗口内被队列丢掉的实时帧
+
+            written++;
+            int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
+                expectedFrames: (int)((t - 0) * fps),
+                writtenFrames: written,
+                fps: fps,
+                preRecordFrames: preRecordFrames);
+            if (catchUp > 0 && RecordingTimelinePolicy.IsWritingPreRecordFrames(written, preRecordFrames))
+                paddedDuringPreRecord += catchUp;
+            written += catchUp;
+            duplicated += catchUp;
+        }
+
+        double fileSeconds = RecordingTimelinePolicy.CalculateFileSeconds(written, fps);
+        double wallSeconds = RecordingTimelinePolicy.CalculateWallSeconds(preRecordFrames, fps, (long)(recordingSeconds * Frequency));
+
+        // 需要补的量 = 灌入窗口丢掉的实时帧 + 实时帧率相对声明帧率的缺口
+        int expectedLiveFrames = (int)(recordingSeconds * fps);
+        int arrivedLiveFrames = (int)((recordingSeconds - flushSeconds) * liveFps);
+        long expectedPadding = lostDuringFlush + (expectedLiveFrames - arrivedLiveFrames);
+
+        Assert.Equal(0, paddedDuringPreRecord);                                  // 预录段绝不能被补
+        Assert.InRange(duplicated, expectedPadding - 35, expectedPadding + 35);  // 补的是真丢掉的量
+        Assert.True(Math.Abs(fileSeconds - wallSeconds) < 1.0);                  // 文件时长贴着真实时长
+    }
 }
