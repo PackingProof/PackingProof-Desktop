@@ -83,7 +83,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 byte[] buffer = new byte[expectedBytes];
                 long writtenFrames = 0;
                 long duplicatedFrames = 0;
-                long timelineStartTicks = Volatile.Read(ref _recordingTimelineStartTicks);
+                long liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
+                int preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
 
                 foreach (var frame in _videoWriteQueue.GetConsumingEnumerable())
                 {
@@ -136,14 +137,18 @@ namespace ExpressPackingMonitoring.ViewModels
                             // 摄像头掉帧（低照度降帧率）或处理循环跟不上时，这里按墙钟补重复帧，
                             // 保证文件时长等于真实时长；否则录出来的片段是"快放"，
                             // 而音频是真实时间，越到后面越不同步。
-                            if (timelineStartTicks <= 0)
-                                timelineStartTicks = Volatile.Read(ref _recordingTimelineStartTicks);
+                            // 只统计实时段：预录帧属于时间轴最前面那一段，不参与这里的落后判断。
+                            if (liveStartTicks <= 0)
+                            {
+                                liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
+                                preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
+                            }
                             int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
                                 RecordingTimelinePolicy.CalculateExpectedFrameCount(
-                                    timelineStartTicks,
+                                    liveStartTicks,
                                     Stopwatch.GetTimestamp(),
                                     fps),
-                                (int)Math.Min(int.MaxValue, writtenFrames),
+                                RecordingTimelinePolicy.CalculateLiveWrittenFrames(writtenFrames, preRecordFrames),
                                 fps);
                             for (int i = 0; i < catchUp; i++)
                                 stdin.Write(buffer, 0, expectedBytes);
@@ -170,16 +175,18 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 try { stdin?.Close(); stdinClosed = true; } catch { }
 
-                // 时间轴自检：fileSeconds 应当与 wallSeconds 接近，差太多就说明录像被快放/慢放了。
+                // 时间轴自检：fileSeconds 应当与 wallSeconds 接近（都含预录那一段），
+                // 差得多就说明录像被快放或慢放了。
                 if (writtenFrames > 0)
                 {
-                    double timelineSeconds = writtenFrames / (double)Math.Max(1, fps);
-                    double wallSeconds = timelineStartTicks > 0
-                        ? RecordingTimelinePolicy.StopwatchTicksToSeconds(Stopwatch.GetTimestamp() - timelineStartTicks)
-                        : 0;
+                    double fileSeconds = RecordingTimelinePolicy.CalculateFileSeconds(writtenFrames, fps);
+                    double wallSeconds = RecordingTimelinePolicy.CalculateWallSeconds(
+                        preRecordFrames,
+                        fps,
+                        liveStartTicks > 0 ? Stopwatch.GetTimestamp() - liveStartTicks : 0);
                     RuntimeLog.Info(
                         "FFmpeg",
-                        $"Timeline frames={writtenFrames}, duplicated={duplicatedFrames}, fileSeconds={timelineSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
+                        $"Timeline frames={writtenFrames}, preRecord={preRecordFrames}, duplicated={duplicatedFrames}, fileSeconds={fileSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
                 }
 
                 if (ffmpeg != null && !ffmpeg.HasExited)

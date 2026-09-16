@@ -284,8 +284,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime _lastMotionTime;
         private DateTime _recordStartTime;
         private double _activePreRecordSeconds;
-        // 文件时间轴起点对应的 Stopwatch 计时，写入端据此按墙钟补齐帧数（0 表示尚未开始）。
-        private long _recordingTimelineStartTicks;
+        // 实时段（不含预录）起点对应的 Stopwatch 计时，写入端据此按墙钟补齐帧数（0 表示尚未开始）。
+        private long _recordingLiveStartTicks;
+        // 本次录制注入的预录帧数：属于时间轴最前面一段，不参与实时段的补齐判断。
+        private int _recordingPreRecordFrameCount;
         private DateTime _recordingGracePeriodStartTime;
         private enum ZoomPhase { None, ZoomingIn, Holding, ZoomingOut }
         private ZoomPhase _zoomPhase = ZoomPhase.None;
