@@ -261,3 +261,33 @@ internal sealed class CameraFrameReadySignal
     private static TaskCompletionSource CreateSource() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
+
+/// <summary>
+/// 逐帧到达通知。摄像头线程每来一帧 Signal 一次，处理循环用带超时的 Wait 等到下一帧。
+///
+/// 处理循环原来在"这一帧已经处理过"时睡满一个帧间隔，只要轮询节拍与摄像头错开，
+/// 就会整整丢掉一拍：60fps 的源实测只能喂到 47fps，而编码器按固定帧率生成时间戳，
+/// 录出来的文件因此比真实时间快 20% 以上（音画不同步）。
+///
+/// 只保留一次通知、不排队：处理慢的时候宁可跳到最新帧，也不要积压旧帧。
+/// </summary>
+internal sealed class CameraFrameArrivalGate
+{
+    private readonly SemaphoreSlim _semaphore = new(0, 1);
+
+    public void Signal()
+    {
+        try { _semaphore.Release(); }
+        catch (SemaphoreFullException) { }
+    }
+
+    public Task<bool> WaitAsync(TimeSpan timeout) => _semaphore.WaitAsync(timeout);
+
+    /// <summary>丢弃尚未消费的通知，用于重新开始一轮等待。</summary>
+    public void Drain()
+    {
+        while (_semaphore.Wait(0))
+        {
+        }
+    }
+}
