@@ -65,6 +65,33 @@ public sealed class RecordingDeviceFolderNamingTests
         Assert.Equal(deviceIds.Length, directories.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
+    /// <summary>
+    /// 现场真实的两种设备号：GUID（电脑与 iOS）和 android-&lt;64 位哈希&gt;（安卓，72 字符）。
+    /// 协议允许设备号长到 128 字符，所以超长是常态而不是异常：
+    /// GUID 原样成为目录名，安卓的截断后补哈希后缀，两者都必须稳定且不超上限。
+    /// </summary>
+    [Fact]
+    public void HandlesRealWorldDeviceIdShapes()
+    {
+        const string guidId = "54836BB3-6B40-4746-B960-8A99D0500093";
+        const string androidId =
+            "android-d7138d53104cc31eddc7883e3f21cf6f7440fff3eaee345cb06cd28e18d4fa72";
+
+        Assert.Equal(guidId, RecordingDeviceFolderNaming.BuildDirectoryName(guidId));
+
+        string androidDirectory = RecordingDeviceFolderNaming.BuildDirectoryName(androidId);
+        Assert.True(
+            androidDirectory.Length <= RecordingDeviceFolderNaming.MaximumDirectoryNameLength,
+            $"安卓设备号的目录名长度 {androidDirectory.Length} 超过上限");
+        Assert.StartsWith("android-", androidDirectory, StringComparison.Ordinal);
+        // 同一个设备号永远同一个目录名，截断了也不例外。
+        Assert.Equal(androidDirectory, RecordingDeviceFolderNaming.BuildDirectoryName(androidId));
+        // 只有末尾不同的两个安卓设备号（截断后前缀相同）必须落到不同目录。
+        Assert.NotEqual(
+            androidDirectory,
+            RecordingDeviceFolderNaming.BuildDirectoryName(androidId[..^1] + "0"));
+    }
+
     /// <summary>目录名不能超长，否则深一点的 NAS 路径会逼近 Windows 的 260 上限。</summary>
     [Fact]
     public void LimitsDirectoryNameLength()
