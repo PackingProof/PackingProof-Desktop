@@ -950,4 +950,32 @@ public sealed class MobileOrderReceiverRegistryTests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
+    /// <summary>
+    /// 条数上限是硬上限：淘汰跑在插入之前，不给新设备预留位置的话插入后会多出一条。
+    /// 有录像的设备最后才被淘汰。
+    /// </summary>
+    [Fact]
+    public void NeverExceedsTheDeviceCountLimit()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"mobile-receivers-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "order-receivers.json");
+        try
+        {
+            DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
+            var registry = new MobileOrderReceiverRegistry(path, () => now);
+            for (int index = 0; index < 520; index++)
+            {
+                now = now.AddSeconds(1);
+                registry.Register(IPAddress.Parse("192.168.31.201"), $"device-{index:D4}");
+            }
+
+            Assert.True(
+                registry.GetKnownRecordingDevices().Count <= 512,
+                $"登记表里有 {registry.GetKnownRecordingDevices().Count} 台设备，超过硬上限 512");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
 }
