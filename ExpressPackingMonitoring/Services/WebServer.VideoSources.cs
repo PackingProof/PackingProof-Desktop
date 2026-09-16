@@ -86,27 +86,27 @@ public sealed partial class WebServer
                 .ToArray();
         }
 
-        /// <summary>录像根目录下的设备对照表位置与刷新入口（目录名不含昵称，用户靠它对照）。</summary>
-        internal string RecordingDeviceIndexPath =>
-            Path.Combine(_mobileBackupRecordingRootResolver()?.Trim() ?? "", RecordingDeviceFolderIndex.FileName);
+        private readonly RecordingDeviceFolderShortcuts _recordingDeviceShortcuts = new();
 
         /// <summary>
-        /// 刷新录像根目录里的"设备对照表.txt"。收到备份、改名、主机启动后各调用一次：
-        /// 目录按设备号命名（昵称改了目录不变），用户靠这份表把目录对上设备昵称。
-        /// 写失败不影响录像本身，只记录不抛出。
+        /// 刷新录像目录里的"昵称 → 设备目录"快捷方式。收到备份、改名、主机启动后各调用一次：
+        /// 设备目录名是完整设备号（稳定但认不出是谁），昵称随时可改所以不进目录名，
+        /// 两者由快捷方式连起来。失败不影响录像本身，只记录不抛出。
         /// </summary>
         internal void RefreshRecordingDeviceIndex()
         {
             try
             {
-                RecordingDeviceFolderIndex.TryWrite(
+                _recordingDeviceShortcuts.Refresh(
                     _mobileBackupRecordingRootResolver(),
                     _mobileOrderReceivers.GetKnownRecordingDevices(),
-                    DateTime.Now);
+                    // 电脑工位的名字以电脑昵称表为准：它只在工位上传时才同步到手机登记表，
+                    // 只读手机登记表的话，电脑刚改完名那段时间快捷方式还是老名字。
+                    _recordingComputerNicknames.GetKnown());
             }
             catch (Exception ex)
             {
-                RuntimeLog.Warn("MobileBackup", $"无法刷新设备对照表：{ex.Message}");
+                RuntimeLog.Warn("MobileBackup", $"无法刷新设备快捷方式：{ex.Message}");
             }
         }
 

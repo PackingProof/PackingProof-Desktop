@@ -133,6 +133,7 @@
     <Compile Include="Helpers\BarcodeHelper.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />
+    <Compile Include="Helpers\WindowsShellShortcut.cs" />
     <Compile Include="Input\GlobalKeyboardHook.cs" />
     <Compile Include="Input\GlobalKeyboardRuntimeController.cs" />
     <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
@@ -209,7 +210,7 @@
     <Compile Include="Services\PackingProofNodeInfo.cs" />
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
     <Compile Include="Services\RecordingSourceNameLookup.cs" />
-    <Compile Include="Services\RecordingDeviceFolderIndex.cs" />
+    <Compile Include="Services\RecordingDeviceFolderShortcuts.cs" />
     <Compile Include="Services\RecordingDeviceFolderNaming.cs" />
     <Compile Include="Services\RecordingDeviceFolderMigrator.cs" />
     <Compile Include="Services\OrderInfoRelay.cs" />

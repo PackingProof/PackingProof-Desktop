@@ -555,6 +555,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (!summary.DidAnything)
                         return;
 
+                    // 目录搬完立刻重建"昵称 -> 设备目录"的快捷方式，
+                    // 否则链接还指向已经搬走的老目录，要等下一次备份或改名才会修。
+                    try { _webServer?.RefreshRecordingDeviceIndex(); }
+                    catch (Exception ex)
+                    {
+                        RuntimeLog.Warn("MobileBackup", $"迁移后刷新设备快捷方式失败：{ex.Message}");
+                    }
+
                     // 目录名突然变了会让人困惑，所以整理完提示一次；细节在 runtime.log 里。
                     Application.Current?.Dispatcher.InvokeAsync(() =>
                     {
