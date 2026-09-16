@@ -740,7 +740,7 @@ public sealed class MobileBackupTests
                     directory,
                     "recordings",
                     "手机备份",
-                    "设备-PHONE1",
+                    "phone-1",
                     localStart.ToString("yyyy-MM-dd"),
                     $"TRACK-001_{localStart:yyyyMMdd_HHmmss}_退货.mp4"),
                 record.FilePath);
@@ -882,7 +882,7 @@ public sealed class MobileBackupTests
                 directory,
                 "recordings",
                 "手机备份",
-                "设备-PHONE1",
+                "phone-1",
                 localStart.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dateDirectory);
             File.WriteAllText(
@@ -1557,20 +1557,17 @@ public sealed class MobileBackupTests
     }
 
     /// <summary>
-    /// 目录名只用稳定设备号，不再拼昵称：昵称随时能改，写进目录会让同一台设备的录像
-    /// 散落到多个目录里。对照关系由录像根目录下的"设备对照表.txt"提供。
+    /// 目录名就是完整设备号，不拼昵称、也不截短：昵称随时能改，写进目录会让同一台设备的
+    /// 录像散落到多个目录里；截短会撞号，撞上就是两台设备的录像混进同一个目录。
+    /// 目录与昵称的对应关系由录像根目录下的快捷方式提供。
     /// </summary>
     [Fact]
-    public void DeviceDirectoryUsesStableIdWithoutNickname()
+    public void DeviceDirectoryUsesFullDeviceIdWithoutNickname()
     {
         Assert.Equal(
-            "设备-ABCDEF",
-            MobileBackupService.GetDeviceDirectoryName(
-                "12345678-1234-1234-1234-1234569abcdef",
-                "一号打包手机"));
-        Assert.Equal(
-            "设备-未识别",
-            MobileBackupService.GetDeviceDirectoryName("", ""));
+            "12345678-1234-1234-1234-1234569abcdef",
+            ArchivePathBuilder.GetDeviceDirectoryName("12345678-1234-1234-1234-1234569abcdef"));
+        Assert.Equal("未识别设备", ArchivePathBuilder.GetDeviceDirectoryName(""));
     }
 
     [Fact]

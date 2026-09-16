@@ -23,7 +23,10 @@ internal static class ArchivePathBuilder
             fileName);
     }
 
-    /// <summary>外部上传布局：&lt;根&gt;\电脑上传|手机备份\设备-&lt;短ID&gt;\yyyy-MM-dd\&lt;面单&gt;_&lt;时间&gt;_&lt;模式&gt;.mp4。</summary>
+    /// <summary>
+    /// 外部上传布局：&lt;根&gt;\电脑上传|手机备份\&lt;完整设备号&gt;\yyyy-MM-dd\&lt;面单&gt;_&lt;时间&gt;_&lt;模式&gt;.mp4。
+    /// 目录名是设备号的纯函数，见 <see cref="RecordingDeviceFolderNaming"/>。
+    /// </summary>
     public static string BuildExternalUploadArchivePath(
         string root,
         string sourceDeviceKind,
@@ -61,20 +64,9 @@ internal static class ArchivePathBuilder
 
     /// <summary>
     /// 设备目录只用稳定标识，不带昵称：昵称随时可以改，写进目录名会让同一台设备的录像
-    /// 散落到多个目录里。设备号与昵称的对照关系由录像根目录下的"设备对照表.txt"给出
-    /// （见 <see cref="RecordingDeviceFolderIndex"/>）。
+    /// 散落到多个目录里。命名规则与解析都在 <see cref="RecordingDeviceFolderNaming"/>，
+    /// 目录与昵称的对应关系由录像根目录下的快捷方式给出。
     /// </summary>
-    internal static string GetDeviceDirectoryName(string sourceDeviceId)
-    {
-        string normalizedId = new((sourceDeviceId ?? "")
-            .Where(char.IsLetterOrDigit)
-            .ToArray());
-        string shortId = normalizedId.Length switch
-        {
-            0 => "未识别",
-            <= 6 => normalizedId.ToUpperInvariant(),
-            _ => normalizedId[^6..].ToUpperInvariant()
-        };
-        return $"设备-{shortId}";
-    }
+    internal static string GetDeviceDirectoryName(string sourceDeviceId) =>
+        RecordingDeviceFolderNaming.BuildDirectoryName(sourceDeviceId);
 }

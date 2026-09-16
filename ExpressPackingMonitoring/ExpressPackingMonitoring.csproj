@@ -209,6 +209,7 @@
     <Compile Include="Services\RecordingDeviceCatalog.cs" />
     <Compile Include="Services\RecordingSourceNameLookup.cs" />
     <Compile Include="Services\RecordingDeviceFolderIndex.cs" />
+    <Compile Include="Services\RecordingDeviceFolderNaming.cs" />
     <Compile Include="Services\OrderInfoRelay.cs" />
     <Compile Include="Services\OrderInfo.cs" />
     <Compile Include="Services\RecordingComputerNicknameRegistry.cs" />
