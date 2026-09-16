@@ -398,9 +398,16 @@ namespace ExpressPackingMonitoring.Services
             {
                 try { MobileBackupActivityChanged?.Invoke(hasActive); } catch { }
             };
+            // 两张昵称表互相查重名：昵称在用户眼里只有一份，不能一台手机和一台电脑同名。
+            // 只发心跳的工位不在手机登记表里，没上传过的手机也可能不在电脑昵称表里，
+            // 所以各自都要看对方的快照（快照读取不取锁，避免两张表在锁内互调造成死锁）。
             _mobileOrderReceivers = new MobileOrderReceiverRegistry(
-                Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"));            _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
-                Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"));
+                Path.Combine(resolvedMobileBackupStateDirectory, "order-receivers.json"),
+                externalNicknames: () => _recordingComputerNicknames?.NicknameSnapshot
+                    ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            _recordingComputerNicknames = new RecordingComputerNicknameRegistry(
+                Path.Combine(resolvedMobileBackupStateDirectory, "computer-nicknames.json"),
+                externalNicknames: () => _mobileOrderReceivers.NicknameSnapshot);
             _orderIntegrationActivities = new OrderIntegrationActivityRegistry(
                 Path.Combine(resolvedMobileBackupStateDirectory, "order-integration-activity.json"));
             // 放在状态目录子目录，避免被 MobileBackupService 只扫描顶层 *.json 的上传状态清理误删。
