@@ -54,6 +54,13 @@ internal static class MfCaptureSourceFactory
     }
 }
 
+/// <summary>诊断入口：让测试能逐步定位采集启动失败在哪一步。</summary>
+internal static class MfCaptureSourceFactoryProbe
+{
+    internal static object? TryCreate(string symbolicLink) =>
+        MfCaptureSourceFactory.TryCreateSource(symbolicLink);
+}
+
 /// <summary>从媒体类型里读出我们关心的字段。</summary>
 internal static class MfMediaTypeReader
 {

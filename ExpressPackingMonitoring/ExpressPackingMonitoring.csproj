@@ -211,6 +211,10 @@
     <Compile Include="Services\MediaFoundation\MfCaptureSourceFactory.cs" />
     <Compile Include="Services\MediaFoundation\MfFormatSelector.cs" />
     <Compile Include="Services\MediaFoundation\MfFrameConverter.cs" />
+    <Compile Include="Services\MediaFoundation\IMFSourceReaderCallback.cs" />
+    <Compile Include="Services\MediaFoundation\CameraColorSpacePolicy.cs" />
+    <Compile Include="Services\MediaFoundation\MfCameraSource.cs" />
+    <Compile Include="Services\MediaFoundation\MfCaptureProbe.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
     <Compile Include="Services\NetworkArchiveErrorClassifier.cs" />

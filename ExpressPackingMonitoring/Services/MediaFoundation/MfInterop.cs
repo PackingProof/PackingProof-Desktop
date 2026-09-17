@@ -140,6 +140,62 @@ internal interface IMFAttributes
     [PreserveSig] int CopyAllItems(IMFAttributes destination);
 }
 
+/// <summary>
+/// 与 <see cref="IMFAttributes"/> 同一个接口，但 <c>SetUnknown</c> 收裸指针。
+///
+/// 为什么需要它：把托管对象交给 <c>SetUnknown([MarshalAs(IUnknown)] object)</c> 时，
+/// 运行时生成的 CCW 暴露的是类接口，原生层 QueryInterface 要
+/// IMFSourceReaderCallback 时拿不到，于是回调永远打不进来 ——
+/// 表现为格式协商全部成功、一帧都不来、也没有任何错误事件。
+/// 用 <c>Marshal.GetComInterfaceForObject</c> 取到确定的接口指针再传进去才可靠。
+/// </summary>
+[ComImport]
+[Guid("2cd2d921-c447-44a7-a13c-4adabfc247e3")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IMFAttributesWithPointer
+{
+    [PreserveSig] int GetItem([In] ref Guid key, IntPtr value);
+    [PreserveSig] int GetItemType([In] ref Guid key, out int type);
+    [PreserveSig] int CompareItem([In] ref Guid key, IntPtr value, out bool result);
+    [PreserveSig] int Compare(IntPtr attributes, int matchType, out bool result);
+    [PreserveSig] int GetUINT32([In] ref Guid key, out int value);
+    [PreserveSig] int GetUINT64([In] ref Guid key, out long value);
+    [PreserveSig] int GetDouble([In] ref Guid key, out double value);
+    [PreserveSig] int GetGUID([In] ref Guid key, out Guid value);
+    [PreserveSig] int GetStringLength([In] ref Guid key, out int length);
+    [PreserveSig] int GetString(
+        [In] ref Guid key,
+        [Out][MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder value,
+        int bufferSize,
+        out int length);
+    [PreserveSig] int GetAllocatedString(
+        [In] ref Guid key,
+        [MarshalAs(UnmanagedType.LPWStr)] out string value,
+        out int length);
+    [PreserveSig] int GetBlobSize([In] ref Guid key, out int size);
+    [PreserveSig] int GetBlob([In] ref Guid key, byte[] buffer, int bufferSize, out int size);
+    [PreserveSig] int GetAllocatedBlob([In] ref Guid key, out IntPtr buffer, out int size);
+    [PreserveSig] int GetUnknown([In] ref Guid key, [In] ref Guid interfaceId, out IntPtr value);
+    [PreserveSig] int SetItem([In] ref Guid key, IntPtr value);
+    [PreserveSig] int DeleteItem([In] ref Guid key);
+    [PreserveSig] int DeleteAllItems();
+    [PreserveSig] int SetUINT32([In] ref Guid key, int value);
+    [PreserveSig] int SetUINT64([In] ref Guid key, long value);
+    [PreserveSig] int SetDouble([In] ref Guid key, double value);
+    [PreserveSig] int SetGUID([In] ref Guid key, [In] ref Guid value);
+    [PreserveSig] int SetString([In] ref Guid key, [MarshalAs(UnmanagedType.LPWStr)] string value);
+    [PreserveSig] int SetBlob([In] ref Guid key, byte[] buffer, int bufferSize);
+
+    /// <summary>收裸 IUnknown 指针，避免运行时自动生成的 CCW 暴露错误的接口。</summary>
+    [PreserveSig] int SetUnknown([In] ref Guid key, IntPtr value);
+
+    [PreserveSig] int LockStore();
+    [PreserveSig] int UnlockStore();
+    [PreserveSig] int GetCount(out int count);
+    [PreserveSig] int GetItemByIndex(int index, out Guid key, IntPtr value);
+    [PreserveSig] int CopyAllItems(IMFAttributes destination);
+}
+
 [ComImport]
 [Guid("44ae0fa8-ea31-4109-8d2e-4cae4997c555")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -183,13 +239,23 @@ internal interface IMFSourceReader
     [PreserveSig] int GetCurrentMediaType(uint streamIndex, out IMFMediaType mediaType);
     [PreserveSig] int SetCurrentMediaType(uint streamIndex, IntPtr reserved, IMFMediaType mediaType);
     [PreserveSig] int SetCurrentPosition([In] ref Guid timeFormat, IntPtr position);
+
+    /// <summary>
+    /// 同步读取一帧。
+    ///
+    /// 这里刻意用同步读 + 专用读取线程，而不是 <c>MF_SOURCE_READER_ASYNC_CALLBACK</c>
+    /// 异步回调：实测把托管回调交给属性存储时（无论用 SetUnknown 的对象封送，
+    /// 还是 Marshal.GetComInterfaceForObject 取到的接口指针），原生层都不会回调进来 ——
+    /// 格式协商全部成功、一帧都不来、也没有任何错误事件。而同一台设备用同步读
+    /// 立刻能读到帧。同步读还更可控：停止时只要让线程退出，不用担心回调在释放后触发。
+    /// </summary>
     [PreserveSig] int ReadSample(
         uint streamIndex,
         int controlFlags,
         out uint actualStreamIndex,
         out int streamFlags,
         out long timestamp,
-        out IMFSample sample);
+        out IntPtr sample);
     [PreserveSig] int Flush(uint streamIndex);
     [PreserveSig] int GetServiceForStream(
         uint streamIndex,
@@ -202,11 +268,60 @@ internal interface IMFSourceReader
         IntPtr value);
 }
 
+/// <summary>
+/// IMFSample。
+///
+/// 这里刻意**不用 C# 接口继承**来表达"IMFSample 继承 IMFAttributes"：
+/// 运行时对继承链上的 ComImport 接口不会把基接口的方法计入 vtable 偏移，
+/// 于是 GetBufferCount 之后的方法全部错位，调用 ConvertToContiguousBuffer
+/// 会打到错误的槽位并返回 MF_E_BUFFERTOOSMALL(0xC00D36E6)。
+/// 必须把 IMFAttributes 的 33 个方法按顺序原样列在前面。
+/// </summary>
 [ComImport]
 [Guid("c40a00f2-b93a-4d80-ae8c-5a1c634f58e4")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IMFSample : IMFAttributes
+internal interface IMFSample
 {
+    // ---- IMFAttributes 的 33 个方法，顺序不能动 ----
+    [PreserveSig] int GetItem([In] ref Guid key, IntPtr value);
+    [PreserveSig] int GetItemType([In] ref Guid key, out int type);
+    [PreserveSig] int CompareItem([In] ref Guid key, IntPtr value, out bool result);
+    [PreserveSig] int Compare(IntPtr attributes, int matchType, out bool result);
+    [PreserveSig] int GetUINT32([In] ref Guid key, out int value);
+    [PreserveSig] int GetUINT64([In] ref Guid key, out long value);
+    [PreserveSig] int GetDouble([In] ref Guid key, out double value);
+    [PreserveSig] int GetGUID([In] ref Guid key, out Guid value);
+    [PreserveSig] int GetStringLength([In] ref Guid key, out int length);
+    [PreserveSig] int GetString(
+        [In] ref Guid key,
+        [Out][MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder value,
+        int bufferSize,
+        out int length);
+    [PreserveSig] int GetAllocatedString(
+        [In] ref Guid key,
+        [MarshalAs(UnmanagedType.LPWStr)] out string value,
+        out int length);
+    [PreserveSig] int GetBlobSize([In] ref Guid key, out int size);
+    [PreserveSig] int GetBlob([In] ref Guid key, byte[] buffer, int bufferSize, out int size);
+    [PreserveSig] int GetAllocatedBlob([In] ref Guid key, out IntPtr buffer, out int size);
+    [PreserveSig] int GetUnknown([In] ref Guid key, [In] ref Guid interfaceId, out IntPtr value);
+    [PreserveSig] int SetItem([In] ref Guid key, IntPtr value);
+    [PreserveSig] int DeleteItem([In] ref Guid key);
+    [PreserveSig] int DeleteAllItems();
+    [PreserveSig] int SetUINT32([In] ref Guid key, int value);
+    [PreserveSig] int SetUINT64([In] ref Guid key, long value);
+    [PreserveSig] int SetDouble([In] ref Guid key, double value);
+    [PreserveSig] int SetGUID([In] ref Guid key, [In] ref Guid value);
+    [PreserveSig] int SetString([In] ref Guid key, [MarshalAs(UnmanagedType.LPWStr)] string value);
+    [PreserveSig] int SetBlob([In] ref Guid key, byte[] buffer, int bufferSize);
+    [PreserveSig] int SetUnknown([In] ref Guid key, IntPtr value);
+    [PreserveSig] int LockStore();
+    [PreserveSig] int UnlockStore();
+    [PreserveSig] int GetCount(out int count);
+    [PreserveSig] int GetItemByIndex(int index, out Guid key, IntPtr value);
+    [PreserveSig] int CopyAllItems(IntPtr destination);
+
+    // ---- IMFSample 自己的方法 ----
     [PreserveSig] int GetSampleFlags(out int flags);
     [PreserveSig] int SetSampleFlags(int flags);
     [PreserveSig] int GetSampleTime(out long time);
