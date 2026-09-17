@@ -44,7 +44,7 @@ public sealed class MfCameraSourceTests
         try
         {
             Assert.True(
-                received.Wait(FrameWaitMs),
+                received.Wait(FrameWaitMs, TestContext.Current.CancellationToken),
                 $"{FrameWaitMs}ms 内没有收到任何帧，采集回调链可能断了");
             Assert.Equal(3, channels);
             Assert.True(width > 0 && height > 0);
@@ -85,7 +85,7 @@ public sealed class MfCameraSourceTests
         try
         {
             Assert.True(
-                enough.Wait(FrameWaitMs),
+                enough.Wait(FrameWaitMs, TestContext.Current.CancellationToken),
                 $"{FrameWaitMs}ms 内只收到 {frameCount} 帧，采集没有持续进行");
         }
         finally
@@ -125,7 +125,7 @@ public sealed class MfCameraSourceTests
 
         try
         {
-            if (!received.Wait(FrameWaitMs))
+            if (!received.Wait(FrameWaitMs, TestContext.Current.CancellationToken))
                 return;
 
             Mat frame = captured!;

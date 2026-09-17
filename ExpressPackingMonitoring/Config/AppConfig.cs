@@ -195,6 +195,19 @@ namespace ExpressPackingMonitoring.Config
         // 高清源色度矩阵校正。DirectShow 固定按 BT.601 解码，而 720p 及以上的源普遍是 BT.709，
         // 不校正会整体偏灰。auto=宽度达到 1280 自动校正，bt709=强制校正，bt601=不校正，off=关闭。
         public string CameraColorMatrix { get; set; } = "auto";
+
+        /// <summary>
+        /// 摄像头采集后端。
+        ///
+        /// auto（默认）：优先 Media Foundation，探测不到首帧时自动回退 AForge/DirectShow。
+        /// mediafoundation：强制新后端，失败时仍会回退（绝不能因为后端问题录不了像）。
+        /// directshow：强制旧后端，用于新后端在某台设备上表现异常时的出口。
+        ///
+        /// 新后端直接申请摄像头原生格式（YUY2/NV12）自己转 BGR，不经由 DirectShow
+        /// 固定按 BT.601 的系统转换器（高清源发灰的根因），还能读出设备声明的色彩空间
+        /// 而不必按分辨率猜；实测同一台设备 MF 能看到 32 种格式、AForge 只报 1 种。
+        /// </summary>
+        public string CameraBackend { get; set; } = "auto";
         public bool EnableSmartZoom { get; set; } = false;
         public double MaxZoomScale { get; set; } = 1.5;
         public double ZoomDelaySeconds { get; set; } = 0.0;

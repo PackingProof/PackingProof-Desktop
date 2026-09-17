@@ -26,6 +26,7 @@ using OpenCvSharp;
 using AForge.Video;
 using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Services.MediaFoundation;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
@@ -314,7 +315,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (_videoSource != null || _networkCameraSource != null)
+                if (_videoSource != null || _networkCameraSource != null || _mfCameraSource != null)
                 {
                     RuntimeLog.Warn("Camera", $"StartCamera skipped because previous source still exists, running={IsVideoSourceRunning()}");
                     return;
@@ -379,7 +380,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                 }
 
-                _videoSource = new VideoCaptureDevice(videoDevices[targetIndex].MonikerString);
+                string selectedMoniker = videoDevices[targetIndex].MonikerString;
+                // 先试新采集后端：它直接拿摄像头原生 YUY2/NV12 自己转 BGR，
+                // 不经由 DirectShow 固定按 BT.601 的系统转换器（高清源发灰的根因），
+                // 还能读出设备声明的色彩空间而不必按分辨率猜。
+                // 任何一步不成立都回退下面的 AForge 路径 —— 绝不能因为后端问题录不了像。
+                if (TryStartMediaFoundationCamera(selectedMoniker, previewSessionId))
+                    return;
+
+                _videoSource = new VideoCaptureDevice(selectedMoniker);
                 RuntimeLog.Info("Camera", $"StartCamera selected index={targetIndex}, name={videoDevices[targetIndex].Name}");
 
                 // 加载该摄像头的独立配置
@@ -444,13 +453,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _actualCameraFps = Config.Fps > 0 ? Config.Fps : 15;
                 }
                 _videoSource.NewFrame += VideoSource_NewFrame; _videoSource.Start();
-                _lastFrameTime = DateTime.Now; // 防止 VideoProcessLoop 启动时误判无帧
-                _lastPreviewPublishedAt = DateTime.Now;
-                long cameraReadyTicks = DateTime.UtcNow.Ticks;
-                Interlocked.Exchange(ref _archiveFrameUtcTicks, cameraReadyTicks);
-                Interlocked.Exchange(ref _archivePreviewUtcTicks, cameraReadyTicks);
-                Volatile.Write(ref _archiveCameraActive, 1);
-                _cameraEverConnected = true;
+                MarkCameraReady();
                 RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
             }
             catch (Exception ex)
@@ -458,6 +461,148 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Error("Camera", "StartCamera failed", ex);
                 ShowToast("摄像头启动失败", ToastSeverity.Error);
             }
+        }
+
+        /// <summary>
+        /// 尝试用 Media Foundation 后端启动摄像头。返回 false 表示这条路径不可用，
+        /// 调用方继续走 AForge 路径。
+        ///
+        /// 为什么要先探测再启动：格式协商成功并不代表能出帧，虚拟摄像头在后端没有画面时
+        /// 会协商成功、却一帧都不给（实测 Iriun 在手机端未连接时就是这样）。
+        /// 直接启动的话用户看到的是永久黑屏，所以必须先确认真的收到过一帧。
+        /// 代价是设备要开两次，换来的是"要么能用，要么干净回退"。
+        /// </summary>
+        private bool TryStartMediaFoundationCamera(string monikerString, int previewSessionId)
+        {
+            if (CameraBackendPolicy.IsMediaFoundationDisabled(Config.CameraBackend))
+                return false;
+
+            try
+            {
+                using MfPlatform platform = MfPlatform.TryStart();
+                if (platform == null)
+                    return false;
+
+                MfCaptureDevice device = MfDeviceMatcher.FindByMoniker(
+                    monikerString,
+                    MfCaptureDevice.Enumerate());
+                if (device == null)
+                    return false;
+
+                MfCaptureProbe.Result probe = MfCaptureProbe.Probe(
+                    device.SymbolicLink,
+                    Config.FrameWidth,
+                    Config.FrameHeight,
+                    Config.Fps,
+                    Config.CameraColorMatrix);
+                if (CameraBackendPolicy.Decide(Config.CameraBackend, probe.Usable)
+                    != CameraBackendKind.MediaFoundation)
+                {
+                    RuntimeLog.Info(
+                        "Camera",
+                        $"Media Foundation 后端不可用（{probe.Failure}），使用 DirectShow 后端");
+                    return false;
+                }
+
+                var source = new MfCameraSource(
+                    device.SymbolicLink,
+                    Config.FrameWidth,
+                    Config.FrameHeight,
+                    Config.Fps,
+                    Config.CameraColorMatrix);
+                source.FrameReady += MfCameraSource_FrameReady;
+                source.SourceError += MfCameraSource_SourceError;
+                if (!source.Start())
+                {
+                    source.FrameReady -= MfCameraSource_FrameReady;
+                    source.SourceError -= MfCameraSource_SourceError;
+                    source.Dispose();
+                    RuntimeLog.Warn(
+                        "Camera",
+                        $"Media Foundation 探测通过但启动失败（{source.LastStartFailure}），改用 DirectShow 后端");
+                    return false;
+                }
+
+                _mfCameraSource = source;
+                _actualCameraWidth = source.ActualWidth;
+                _actualCameraHeight = source.ActualHeight;
+                _actualCameraFps = source.ActualFps > 0
+                    ? (int)Math.Round(source.ActualFps)
+                    : (Config.Fps > 0 ? Config.Fps : 15);
+                MarkCameraReady();
+                RuntimeLog.Info(
+                    "Camera",
+                    $"StartCamera success（Media Foundation）{_actualCameraWidth}x{_actualCameraHeight}"
+                        + $"@{_actualCameraFps}，格式={source.ActualFormat}，bt709={source.UsesBt709}"
+                        + $"，configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}"
+                        + $"，previewSession={previewSessionId}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Camera", $"Media Foundation 后端启动异常，改用 DirectShow：{ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>新后端的帧到达。与 AForge 路径共用同一套限流、预录与录像逻辑。</summary>
+        private void MfCameraSource_FrameReady(object sender, MfFrameEventArgs e)
+        {
+            _lastFrameTime = DateTime.Now;
+            Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
+            UpdateCameraSourceFpsEstimate();
+            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
+                Volatile.Read(ref _isRecording),
+                CurrentPreviewTargetFps());
+            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
+            {
+                e.Frame.Dispose();
+                return;
+            }
+
+            try
+            {
+                // 帧已经是 BGR24，不需要 BitmapToMat 那次格式转换与克隆，
+                // 也不需要事后的色度校正（新后端在解码时就用了正确的矩阵）。
+                Mat frame = e.Frame;
+                if (ShouldCaptureEventRecordingBufferFrame())
+                    UpdatePreRecordBuffer(frame);
+                if (acceptedForPreview)
+                    HandleCameraFrame(frame);
+                else
+                    frame.Dispose();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Camera", "Media Foundation frame processing failed", ex);
+            }
+        }
+
+        private void MfCameraSource_SourceError(object sender, MfSourceErrorEventArgs e)
+        {
+            RuntimeLog.Warn("Camera", $"Media Foundation 采集错误：{e.Description}");
+            if (!e.DeviceLost)
+                return;
+
+            // 掉线要走与旧路径一致的重连流程，否则录像会静默停止。
+            _ = Application.Current?.Dispatcher.InvokeAsync(() =>
+            {
+                if (_isDisposed || _isCameraSleeping) return;
+                ShowToast("摄像头连接中断，正在重连...", ToastSeverity.Warning);
+                _ = RestartCameraWithRecordingStopAsync("mf-device-lost");
+            });
+        }
+
+        /// <summary>摄像头就绪后的公共状态设置，两条采集路径共用。</summary>
+        private void MarkCameraReady()
+        {
+            _lastFrameTime = DateTime.Now; // 防止 VideoProcessLoop 启动时误判无帧
+            _lastPreviewPublishedAt = DateTime.Now;
+            long cameraReadyTicks = DateTime.UtcNow.Ticks;
+            Interlocked.Exchange(ref _archiveFrameUtcTicks, cameraReadyTicks);
+            Interlocked.Exchange(ref _archivePreviewUtcTicks, cameraReadyTicks);
+            Volatile.Write(ref _archiveCameraActive, 1);
+            _cameraEverConnected = true;
         }
 
         private bool IsNetworkCameraConfigured()
@@ -557,6 +702,31 @@ namespace ExpressPackingMonitoring.ViewModels
                 ClearPendingEventRecordingFrames();
                 BeginPreviewSession(clearFrame: true);
                 RuntimeLog.Info("Camera", "StopNetworkCamera completed");
+                return true;
+            }
+
+            MfCameraSource mfSource = _mfCameraSource;
+            if (mfSource != null)
+            {
+                RuntimeLog.Info("Camera", $"StopCamera（Media Foundation）running={mfSource.IsRunning}");
+                try { mfSource.FrameReady -= MfCameraSource_FrameReady; } catch { }
+                try { mfSource.SourceError -= MfCameraSource_SourceError; } catch { }
+                try
+                {
+                    mfSource.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Camera", $"Media Foundation camera stop failed: {ex.Message}");
+                }
+                if (ReferenceEquals(_mfCameraSource, mfSource))
+                    _mfCameraSource = null;
+                lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                ClearPreRecordBuffer();
+                ClearPendingEventRecordingFrames();
+                BeginPreviewSession(clearFrame: true);
+                Volatile.Write(ref _archiveCameraActive, 0);
+                RuntimeLog.Info("Camera", "StopCamera（Media Foundation）completed");
                 return true;
             }
 
@@ -1486,6 +1656,21 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool IsVideoSourceRunning()
         {
+            // 三条采集路径按存在性依次判断，同一时刻只有一个非空。
+            // 漏掉任何一条都会让看门狗误判成"摄像头没在跑"并不断重连。
+            var mfSource = _mfCameraSource;
+            if (mfSource != null)
+            {
+                try
+                {
+                    return mfSource.IsRunning;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
             var networkSource = _networkCameraSource;
             if (networkSource != null)
             {
@@ -1519,6 +1704,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool IsCameraStreamReady()
         {
+            var mfSource = _mfCameraSource;
+            if (mfSource != null)
+                return mfSource.ActualWidth > 0 && mfSource.ActualHeight > 0 && mfSource.IsRunning;
+
             var networkSource = _networkCameraSource;
             if (networkSource != null)
                 return networkSource.ActualWidth > 0 && networkSource.ActualHeight > 0;

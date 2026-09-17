@@ -52,6 +52,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private VideoCaptureDevice _videoSource;
         private NetworkCameraSource _networkCameraSource;
+        // Media Foundation 采集源：直接拿摄像头原生 YUY2/NV12 自己转 BGR。
+        // 与 _videoSource（AForge/DirectShow）互斥，同一时刻只有一个非空。
+        private Services.MediaFoundation.MfCameraSource _mfCameraSource;
         private DateTime _networkCameraStartedAt = DateTime.MinValue;
         private Task _cameraForceStopTask;
         private Mat _latestFrame;
