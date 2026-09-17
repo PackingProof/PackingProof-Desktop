@@ -13,6 +13,9 @@
     <UseRidGraph>true</UseRidGraph>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Media Foundation 采集路径要按 BT.709 逐像素解 YUY2/NV12（MfFrameConverter），
+         这条路径每秒 60 帧 1080p，托管数组的边界检查开销占比过高。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);NU1701;MVVMTK0045;MSB3277</NoWarn>
@@ -206,6 +209,8 @@
     <Compile Include="Services\MediaFoundation\MfInterop.cs" />
     <Compile Include="Services\MediaFoundation\MfPlatform.cs" />
     <Compile Include="Services\MediaFoundation\MfCaptureSourceFactory.cs" />
+    <Compile Include="Services\MediaFoundation\MfFormatSelector.cs" />
+    <Compile Include="Services\MediaFoundation\MfFrameConverter.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
     <Compile Include="Services\NetworkArchiveErrorClassifier.cs" />
