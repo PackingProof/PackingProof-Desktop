@@ -60,7 +60,12 @@ public sealed class StoragePolicyTests
 
             Assert.Equal(300, snapshot.VideoBytes);
             Assert.True(snapshot.CapacityBytes >= snapshot.VideoBytes);
-            Assert.InRange(snapshot.UsagePercent, 0, 0.001);
+            // 不写死"占比必须小于千分之一"：容器/CI 的临时盘容量可能很小，
+            // 300 字节也能占到千分之一以上。直接校验比例与容量、字节数一致。
+            double expectedPercent = snapshot.CapacityBytes > 0
+                ? snapshot.VideoBytes * 100.0 / snapshot.CapacityBytes
+                : 0;
+            Assert.Equal(expectedPercent, snapshot.UsagePercent, 6);
         }
         finally
         {
