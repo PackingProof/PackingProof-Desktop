@@ -553,7 +553,7 @@ namespace ExpressPackingMonitoring.ViewModels
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
             bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording),
+                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
                 CurrentPreviewTargetFps());
             if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
             {
@@ -784,7 +784,7 @@ namespace ExpressPackingMonitoring.ViewModels
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
             bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording),
+                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
                 CurrentPreviewTargetFps());
             if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
                 return;
@@ -811,7 +811,7 @@ namespace ExpressPackingMonitoring.ViewModels
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
             bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording),
+                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
                 CurrentPreviewTargetFps());
             if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
             {
@@ -1315,7 +1315,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     frameTickCounter++;
                     int sleepMs = (int)Math.Max(0, frameDurationMs - (DateTime.Now - startTime).TotalMilliseconds);
-                    if (sleepMs > 0) await Task.Delay(sleepMs, token);
+                    // 满帧时下一轮按帧序号等待采集通知，避免额外定时睡眠引入唤醒延迟。
+                    // 后台限速预览和无帧状态仍延迟，防止断流或休眠时空转。
+                    if (sleepMs > 0 && (currentFrame == null
+                        || (!IsRecording && CurrentPreviewFrameInterval.HasValue)))
+                        await Task.Delay(sleepMs, token);
                 }
             }
             catch (OperationCanceledException) { }
