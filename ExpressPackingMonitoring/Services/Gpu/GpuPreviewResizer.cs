@@ -7,6 +7,10 @@ namespace ExpressPackingMonitoring.Services.Gpu;
 /// <summary>由视频处理循环独占，尺寸稳定后复用 GPU 资源，失败时整段会话回退 CPU。</summary>
 internal sealed class GpuPreviewResizer : IDisposable
 {
+    internal static InterpolationFlags ResolveInterpolation(int width, int height, int targetWidth, int targetHeight) =>
+        (long)targetWidth * 3 > width && (long)targetHeight * 3 > height
+            ? InterpolationFlags.Cubic : InterpolationFlags.Area;
+
     private GpuFrameConverter? _converter;
     private (int Width, int Height, int TargetWidth, int TargetHeight) _size;
     private long _sizeChangedAt;

@@ -10,7 +10,10 @@ public sealed class GpuPreviewResizeTests
     [InlineData(1920, 1080, 1488, 837)]
     [InlineData(1920, 1080, 640, 360)]
     [InlineData(641, 481, 337, 253)]
-    public void AreaResizeMatchesCpuIncludingPaddedRows(int width, int height, int targetWidth, int targetHeight)
+    [InlineData(1920, 1080, 960, 540)]
+    [InlineData(1920, 1080, 912, 513)]
+    [InlineData(1920, 1080, 1904, 1071)]
+    public void ResizeMatchesCpuIncludingPaddedRows(int width, int height, int targetWidth, int targetHeight)
     {
         using var converter = GpuFrameConverter.TryCreate(width, height, targetWidth, targetHeight,
             isNv12: false, isBgr24: true);
@@ -24,10 +27,11 @@ public sealed class GpuPreviewResizeTests
         using var outputStorage = new Mat(targetHeight + 2, targetWidth + 5, MatType.CV_8UC3);
         using var actual = new Mat(outputStorage, new Rect(2, 1, targetWidth, targetHeight));
         using var expected = new Mat();
-        Cv2.Resize(source, expected, new Size(targetWidth, targetHeight), interpolation: InterpolationFlags.Area);
+        Cv2.Resize(source, expected, new Size(targetWidth, targetHeight),
+            interpolation: GpuPreviewResizer.ResolveInterpolation(width, height, targetWidth, targetHeight));
         Assert.True(converter.TryRender(source.Data, (int)source.Step(), false));
         Assert.True(converter.TryReadBackInto(actual));
         Assert.True(Cv2.Norm(actual, expected, NormTypes.INF) <= 1,
-            "GPU 面积缩放与 CPU 输出的逐通道误差应不超过 1/255");
+            "GPU 缩放与 CPU 输出的逐通道误差应不超过 1/255");
     }
 }

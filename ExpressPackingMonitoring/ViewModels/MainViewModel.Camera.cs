@@ -1413,7 +1413,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             frame,
                             previewFrame,
                             new OpenCvSharp.Size(target.Value.Width, target.Value.Height),
-                            interpolation: InterpolationFlags.Area);
+                            interpolation: GpuPreviewResizer.ResolveInterpolation(
+                                frame.Width, frame.Height, target.Value.Width, target.Value.Height));
                     }
                 }
                 else
