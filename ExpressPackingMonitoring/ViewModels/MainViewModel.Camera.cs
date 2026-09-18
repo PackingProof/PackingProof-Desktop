@@ -381,6 +381,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 string selectedMoniker = videoDevices[targetIndex].MonikerString;
+                // 两个后端必须先恢复同一台摄像头的设置，MF 成功后会直接返回。
+                if (Config.CameraConfigs.TryGetValue(selectedMoniker, out var settings))
+                {
+                    Config.FrameWidth = settings.FrameWidth;
+                    Config.FrameHeight = settings.FrameHeight;
+                    Config.Fps = settings.Fps;
+                    Config.AudioDeviceName = settings.AudioDeviceName ?? "";
+                    Config.AudioSyncOffsetMs = settings.AudioSyncOffsetMs;
+                    Config.CameraRotate180 = settings.Rotate180;
+                }
+
                 // 先试新采集后端：它直接拿摄像头原生 YUY2/NV12 自己转 BGR，
                 // 不经由 DirectShow 固定按 BT.601 的系统转换器（高清源发灰的根因），
                 // 还能读出设备声明的色彩空间而不必按分辨率猜。
@@ -390,17 +401,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 _videoSource = new VideoCaptureDevice(selectedMoniker);
                 RuntimeLog.Info("Camera", $"StartCamera selected index={targetIndex}, name={videoDevices[targetIndex].Name}");
-
-                // 加载该摄像头的独立配置
-                if (Config.CameraConfigs.TryGetValue(videoDevices[targetIndex].MonikerString, out var settings))
-                {
-                    Config.FrameWidth = settings.FrameWidth;
-                    Config.FrameHeight = settings.FrameHeight;
-                    Config.Fps = settings.Fps;
-                        Config.AudioDeviceName = settings.AudioDeviceName ?? "";
-                        Config.AudioSyncOffsetMs = settings.AudioSyncOffsetMs;
-                        Config.CameraRotate180 = settings.Rotate180;
-                }
 
                 // 设置错误处理器（摄像头拔掉时 AForge 会触发此事件）
                 _videoSource.VideoSourceError += (s, e) => {
