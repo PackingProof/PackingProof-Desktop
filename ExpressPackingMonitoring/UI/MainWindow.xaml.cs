@@ -236,8 +236,7 @@ namespace ExpressPackingMonitoring.UI
                     vm.PropertyChanged += (sender, args) =>
                     {
                         if (args.PropertyName == nameof(MainViewModel.CameraFrameSize) ||
-                            args.PropertyName == nameof(MainViewModel.IsCameraBarcodeRecognitionEnabled) ||
-                            args.PropertyName == nameof(MainViewModel.PreviewGuideGeometry))
+                            args.PropertyName == nameof(MainViewModel.IsCameraBarcodeRecognitionEnabled))
                         {
                             Dispatcher.BeginInvoke(new Action(() => UpdateCameraOverlays(vm)));
                         }
@@ -321,7 +320,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            CameraBarcodeGuideGeometry geometry = vm.PreviewGuideGeometry ?? vm.CurrentCameraBarcodeGuideGeometry;
+            CameraBarcodeGuideGeometry geometry = vm.CurrentCameraBarcodeGuideGeometry;
             Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
             Rect guideRect = CameraBarcodeGuideLayout.ToDisplayRect(geometry, videoRect);
             if (guideRect.IsEmpty)
