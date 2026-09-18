@@ -44,10 +44,18 @@ public sealed class NasCircularCleanupServiceTests : IDisposable
         string archivePath = archivePathOverride
             ?? Path.Combine(_nasRoot, "2026-08-11", name);
         if (createLocal)
+        {
             File.WriteAllText(localPath, "12345678901");
+            // 文件时间必须和记录时间一致：服务按时间挑"最旧"的一条清理，
+            // 只在数据库里设时间、磁盘文件却是同一瞬间创建的，选谁就成了随机。
+            File.SetLastWriteTimeUtc(localPath, end);
+        }
         Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
         if (createNas)
+        {
             File.WriteAllText(archivePath, "12345678901");
+            File.SetLastWriteTimeUtc(archivePath, end);
+        }
         long id = _database.InsertVideoRecord(
             "单号" + name,
             "发货",
