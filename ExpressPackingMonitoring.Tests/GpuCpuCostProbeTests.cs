@@ -79,6 +79,39 @@ public sealed class GpuCpuCostProbeTests(ITestOutputHelper output)
         finally { handle.Free(); }
     }
 
+    [Fact]
+    public void ReportsPreviewResizeCpuCost()
+    {
+        if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
+            return;
+
+        using var source = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(64, 128, 192));
+        using var destination = new Mat();
+        int originalThreads = Cv2.GetNumThreads();
+        using var gpu = GpuFrameConverter.TryCreate(1920, 1080, 1488, 837, false, isBgr24: true);
+        Assert.NotNull(gpu);
+        using var gpuOutput = new Mat(837, 1488, MatType.CV_8UC3);
+        Action gpuResize = () =>
+        {
+            Assert.True(gpu.TryRender(source.Data, (int)source.Step(), false));
+            Assert.True(gpu.TryReadBackInto(gpuOutput));
+        };
+        for (int i = 0; i < 10; i++) gpuResize();
+        Measure("PreviewResize GPU", gpuResize, paced: true);
+        try
+        {
+            foreach (int threads in new[] { originalThreads, 1, originalThreads })
+            {
+                Cv2.SetNumThreads(threads);
+                Action resize = () => Cv2.Resize(source, destination, new Size(1488, 837),
+                    interpolation: InterpolationFlags.Area);
+                for (int i = 0; i < 10; i++) resize();
+                Measure($"PreviewResize threads={threads}", resize, paced: true);
+            }
+        }
+        finally { Cv2.SetNumThreads(originalThreads); }
+    }
+
     private void Measure(string name, Action convert, bool paced)
     {
         using var process = Process.GetCurrentProcess();

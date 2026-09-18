@@ -44,6 +44,7 @@ internal sealed class GpuFrameConverter : IDisposable
     private readonly int _sourceWidth;
     private readonly int _sourceHeight;
     private readonly bool _isNv12;
+    private readonly bool _isBgr24;
     private readonly object _sync = new();
 
     /// <summary>回读用的暂存纹理，首次回读时才建，之后复用。</summary>
@@ -68,6 +69,7 @@ internal sealed class GpuFrameConverter : IDisposable
         int targetWidth,
         int targetHeight,
         bool isNv12,
+        bool isBgr24,
         FeatureLevel featureLevel)
     {
         _device = device;
@@ -87,6 +89,7 @@ internal sealed class GpuFrameConverter : IDisposable
         TargetWidth = targetWidth;
         TargetHeight = targetHeight;
         _isNv12 = isNv12;
+        _isBgr24 = isBgr24;
         FeatureLevel = featureLevel;
     }
 
@@ -112,10 +115,12 @@ internal sealed class GpuFrameConverter : IDisposable
         int sourceHeight,
         int targetWidth,
         int targetHeight,
-        bool isNv12)
+        bool isNv12,
+        bool isBgr24 = false)
     {
         LastCreateFailure = "";
-        if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0)
+        if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0
+            || (isBgr24 && (isNv12 || targetWidth > sourceWidth || targetHeight > sourceHeight)))
         {
             LastCreateFailure = "尺寸非法";
             return null;
@@ -158,13 +163,14 @@ internal sealed class GpuFrameConverter : IDisposable
                 sourceHeight,
                 targetWidth,
                 targetHeight,
-                isNv12);
+                isNv12,
+                isBgr24);
             if (converter != null)
             {
                 RuntimeLog.Info(
                     "Camera",
                     $"GPU 转换就绪：{sourceWidth}x{sourceHeight} -> {targetWidth}x{targetHeight}"
-                        + $"，{(isNv12 ? "NV12" : "YUY2")}，功能级别 {featureLevel}");
+                        + $"，{(isBgr24 ? "BGR24" : isNv12 ? "NV12" : "YUY2")}，功能级别 {featureLevel}");
                 return converter;
             }
 
@@ -191,99 +197,119 @@ internal sealed class GpuFrameConverter : IDisposable
         int sourceHeight,
         int targetWidth,
         int targetHeight,
-        bool isNv12)
+        bool isNv12,
+        bool isBgr24)
     {
         // 着色器在运行时编译：很短、只在摄像头启动时编译一次，
         // 预编译要把 fxc 塞进构建流程并管理产物，不值得。
         if (!TryCompile(GpuConversionShaders.VertexShader, "vs_4_0", out byte[]? vertexBytecode)
             || !TryCompile(
-                isNv12 ? GpuConversionShaders.Nv12PixelShader : GpuConversionShaders.Yuy2PixelShader,
+                isBgr24 ? GpuPreviewResizeShader.PixelShader
+                    : isNv12 ? GpuConversionShaders.Nv12PixelShader : GpuConversionShaders.Yuy2PixelShader,
                 "ps_4_0",
                 out byte[]? pixelBytecode))
         {
             return null;
         }
 
-        ID3D11VertexShader vertexShader = device.CreateVertexShader(vertexBytecode!);
-        ID3D11PixelShader pixelShader = device.CreatePixelShader(pixelBytecode!);
-
-        // 渲染目标：BGRA 与 WPF 的位图格式一致；Shared 让 D3DImage 能拿到这张纹理，
-        // 从而省掉预览那次 6MB 位图搬运。
-        ID3D11Texture2D renderTarget = device.CreateTexture2D(new Texture2DDescription
+        var allocated = new Stack<IDisposable>();
+        T Own<T>(T resource) where T : IDisposable
         {
-            Width = (uint)targetWidth,
-            Height = (uint)targetHeight,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.B8G8R8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
-            CPUAccessFlags = CpuAccessFlags.None,
-            MiscFlags = ResourceOptionFlags.Shared,
-        });
-        ID3D11RenderTargetView renderTargetView = device.CreateRenderTargetView(renderTarget);
-
-        // 源纹理：YUY2 按 R8G8 上传（一个纹素 = 一个像素的亮度 + 半边色度）；
-        // NV12 拆成亮度面与半尺寸色度面，让采样器天然完成色度上采样。
-        ID3D11Texture2D lumaTexture = CreateUploadTexture(
-            device,
-            sourceWidth,
-            sourceHeight,
-            isNv12 ? Format.R8_UNorm : Format.R8G8_UNorm);
-        ID3D11ShaderResourceView lumaView = device.CreateShaderResourceView(lumaTexture);
-
-        ID3D11Texture2D? chromaTexture = null;
-        ID3D11ShaderResourceView? chromaView = null;
-        if (isNv12)
-        {
-            chromaTexture = CreateUploadTexture(
-                device,
-                sourceWidth / 2,
-                sourceHeight / 2,
-                Format.R8G8_UNorm);
-            chromaView = device.CreateShaderResourceView(chromaTexture);
+            allocated.Push(resource);
+            return resource;
         }
-
-        ID3D11Buffer constantBuffer = device.CreateBuffer(new BufferDescription
+        try
         {
-            ByteWidth = ConstantBufferSize,
-            Usage = ResourceUsage.Dynamic,
-            BindFlags = BindFlags.ConstantBuffer,
-            CPUAccessFlags = CpuAccessFlags.Write,
-        });
+            ID3D11VertexShader vertexShader = Own(device.CreateVertexShader(vertexBytecode!));
+            ID3D11PixelShader pixelShader = Own(device.CreatePixelShader(pixelBytecode!));
 
-        ID3D11SamplerState sampler = device.CreateSamplerState(new SamplerDescription
+            // 渲染目标：BGRA 与 WPF 的位图格式一致；Shared 让 D3DImage 能拿到这张纹理，
+            // 从而省掉预览那次 6MB 位图搬运。
+            ID3D11Texture2D renderTarget = Own(device.CreateTexture2D(new Texture2DDescription
+            {
+                Width = (uint)targetWidth,
+                Height = (uint)targetHeight,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.B8G8R8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.RenderTarget | BindFlags.ShaderResource,
+                CPUAccessFlags = CpuAccessFlags.None,
+                MiscFlags = ResourceOptionFlags.Shared,
+            }));
+            ID3D11RenderTargetView renderTargetView = Own(device.CreateRenderTargetView(renderTarget));
+
+            // 源纹理：YUY2 按 R8G8 上传（一个纹素 = 一个像素的亮度 + 半边色度）；
+            // NV12 拆成亮度面与半尺寸色度面，让采样器天然完成色度上采样。
+            ID3D11Texture2D lumaTexture = Own(CreateUploadTexture(
+                device,
+                isBgr24 ? checked(sourceWidth * 3) : sourceWidth,
+                sourceHeight,
+                isNv12 || isBgr24 ? Format.R8_UNorm : Format.R8G8_UNorm));
+            ID3D11ShaderResourceView lumaView = Own(device.CreateShaderResourceView(lumaTexture));
+
+            ID3D11Texture2D? chromaTexture = null;
+            ID3D11ShaderResourceView? chromaView = null;
+            if (isNv12)
+            {
+                chromaTexture = Own(CreateUploadTexture(
+                    device,
+                    sourceWidth / 2,
+                    sourceHeight / 2,
+                    Format.R8G8_UNorm));
+                chromaView = Own(device.CreateShaderResourceView(chromaTexture));
+            }
+
+            ID3D11Buffer constantBuffer = Own(device.CreateBuffer(new BufferDescription
+            {
+                ByteWidth = ConstantBufferSize,
+                Usage = ResourceUsage.Dynamic,
+                BindFlags = BindFlags.ConstantBuffer,
+                CPUAccessFlags = CpuAccessFlags.Write,
+            }));
+
+            ID3D11SamplerState sampler = Own(device.CreateSamplerState(new SamplerDescription
+            {
+                // 缩放与 NV12 色度上采样都要双线性；YUY2 解包用 Load 精确取纹素，不受影响。
+                Filter = Vortice.Direct3D11.Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                MaxAnisotropy = 1,
+                MinLOD = 0,
+                MaxLOD = float.MaxValue,
+            }));
+
+            var converter = new GpuFrameConverter(
+                device,
+                context,
+                vertexShader,
+                pixelShader,
+                constantBuffer,
+                sampler,
+                renderTarget,
+                renderTargetView,
+                lumaTexture,
+                lumaView,
+                chromaTexture,
+                chromaView,
+                sourceWidth,
+                sourceHeight,
+                targetWidth,
+                targetHeight,
+                isNv12,
+                isBgr24,
+                featureLevel);
+            allocated.Clear(); // 所有权已交给转换器。
+            return converter;
+        }
+        finally
         {
-            // 缩放与 NV12 色度上采样都要双线性；YUY2 解包用 Load 精确取纹素，不受影响。
-            Filter = Vortice.Direct3D11.Filter.MinMagMipLinear,
-            AddressU = TextureAddressMode.Clamp,
-            AddressV = TextureAddressMode.Clamp,
-            AddressW = TextureAddressMode.Clamp,
-            MaxAnisotropy = 1,
-            MinLOD = 0,
-            MaxLOD = float.MaxValue,
-        });
-
-        return new GpuFrameConverter(
-            device,
-            context,
-            vertexShader,
-            pixelShader,
-            constantBuffer,
-            sampler,
-            renderTarget,
-            renderTargetView,
-            lumaTexture,
-            lumaView,
-            chromaTexture,
-            chromaView,
-            sourceWidth,
-            sourceHeight,
-            targetWidth,
-            targetHeight,
-            isNv12,
-            featureLevel);
+            // 尺寸超过显卡上限或创建中途失败时也必须释放已经建立的纹理和视图。
+            while (allocated.TryPop(out IDisposable? resource))
+                DisposeSafely(resource);
+        }
     }
 
     private static ID3D11Texture2D CreateUploadTexture(
@@ -454,6 +480,9 @@ internal sealed class GpuFrameConverter : IDisposable
 
     private bool UploadSource(IntPtr source, int sourceStride)
     {
+        if (_isBgr24)
+            return TryUpload(_lumaTexture, source, sourceStride, _sourceHeight, _sourceWidth * 3);
+
         if (!_isNv12)
         {
             // YUY2：每行字节数是宽度乘二。
@@ -519,8 +548,8 @@ internal sealed class GpuFrameConverter : IDisposable
             float* data = (float*)mapped.DataPointer;
             data[0] = _sourceWidth;
             data[1] = _sourceHeight;
-            data[2] = useBt709 ? 1f : 0f;
-            data[3] = 0f;
+            data[2] = _isBgr24 ? TargetWidth : useBt709 ? 1f : 0f;
+            data[3] = _isBgr24 ? TargetHeight : 0f;
         }
         finally
         {

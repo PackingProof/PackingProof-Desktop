@@ -216,6 +216,8 @@
     <Compile Include="Services\MediaFoundation\CameraBackendPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfDeviceMatcher.cs" />
     <Compile Include="Services\Gpu\GpuConversionShaders.cs" />
+    <Compile Include="Services\Gpu\GpuPreviewResizeShader.cs" />
+    <Compile Include="Services\Gpu\GpuPreviewResizer.cs" />
     <Compile Include="Services\Gpu\GpuFrameConverter.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
