@@ -71,8 +71,18 @@ internal static class MfDeviceMatcher
     /// <summary>
     /// 从 moniker 或符号链接里取出可比较的设备实例键。
     ///
-    /// 两者的差别只是前缀和大小写，所以剥掉前缀、统一小写即可；
-    /// 末尾的接口 GUID 也保留 —— 同一个物理设备的不同功能（视频/音频）靠它区分。
+    /// 关键在于**必须去掉接口类 GUID**：两套 API 对同一台摄像头的同一个采集功能
+    /// 用的是不同的接口类，DirectShow 报 KSCATEGORY_CAPTURE
+    /// <c>{65e8773d-8f56-11d0-a3b9-00a0c9223196}</c>，
+    /// Media Foundation 报 KSCATEGORY_VIDEO_CAMERA
+    /// <c>{e5323777-f976-4f5b-9b55-b94699c46e44}</c>。
+    /// 本机实测同一台设备的两个标识除这一段之外逐字符相同，所以把它算进键里
+    /// 会让每一台物理摄像头都配不上，新后端永远退回旧路径 —— 之前正是这样，
+    /// GPU 与 MF 全部代码都在，却一次都没真正跑起来。
+    ///
+    /// 接口 GUID 之后的 API 专属后缀要丢弃：DirectShow moniker 通常在 GUID 结束，
+    /// MF 符号链接可能继续带上 <c>\\global</c> 等后缀。两侧都只枚举视频采集设备，
+    /// 所以保留 GUID 之前的物理实例路径即可区分同型号的多台设备。
     /// </summary>
     internal static string ExtractDeviceInstanceKey(string? identifier)
     {
@@ -86,6 +96,31 @@ internal static class MfDeviceMatcher
             value = value[SoftwarePrefix.Length..];
 
         // 两套 API 对反斜杠的写法一致，但大小写和转义可能不同，统一小写比较。
-        return value.Trim().ToLowerInvariant();
+        return StripInterfaceClass(value.Trim()).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// 去掉标识里的接口类 GUID，保留其余部分。
+    ///
+    /// 标识形如 <c>\\?\root#devgen#{实例}#{接口类}\后缀</c>：接口类是最后一个
+    /// <c>#</c> 之后、第一个 <c>\</c> 之前的那段。格式对不上时原样返回，
+    /// 不去猜 —— 猜错会把两台不同的设备判成同一台，那比配不上更糟。
+    /// </summary>
+    private static string StripInterfaceClass(string value)
+    {
+        int lastSeparator = value.LastIndexOf('#');
+        if (lastSeparator < 0 || lastSeparator == value.Length - 1)
+            return value;
+
+        string tail = value[(lastSeparator + 1)..];
+        if (tail.Length == 0 || tail[0] != '{')
+            return value;
+
+        int guidEnd = tail.IndexOf('}');
+        if (guidEnd < 0)
+            return value;
+
+        // 接口类 GUID 之后是 API 专属后缀（例如 "\global"），不参与跨 API 匹配。
+        return value[..lastSeparator];
     }
 }
