@@ -565,11 +565,10 @@
                     <!-- 行1条形码: 清除/发货/退货 -->
                     <Grid Grid.Row="0" Margin="0,0,0,6" Height="78">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Text="{Binding Barcode1Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,4"/>
-                        <Grid Grid.Row="1">
+                        <Grid Grid.Row="0">
                             <Image Source="{Binding Barcode1Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                 <StackPanel.Style>
@@ -586,6 +585,7 @@
                                 <controls:SmoothProgressBar Style="{StaticResource RoundedSmoothProgressBar}" ResetToMinimumImmediately="True" Height="6" Minimum="0" Maximum="100" AnimationDuration="{Binding BarcodeCooldownAnimationDuration}" TargetValue="{Binding Barcode1CooldownProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
                             </StackPanel>
                         </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding Barcode1Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,4,0,0"/>
                     </Grid>
                     <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,0,0,6">
                         <StackPanel>
