@@ -15,6 +15,44 @@ public sealed class MfCameraSourceTests
 {
     private const int FrameWaitMs = 4000;
 
+    [Fact]
+    public void StaCallerCanStartAndStopCapture()
+    {
+        if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
+            return;
+        Exception? failure = null;
+        var caller = new Thread(() =>
+        {
+            try
+            {
+                MfCaptureDevice? device = TryFindDevice();
+                Assert.NotNull(device);
+                for (int run = 0; run < 2; run++)
+                {
+                    using var source = new MfCameraSource(device.SymbolicLink, 1280, 720, 30);
+                    using var enough = new ManualResetEventSlim();
+                    int frames = 0;
+                    string error = "";
+                    source.FrameReady += (_, e) =>
+                    {
+                        e.Frame.Dispose();
+                        if (Interlocked.Increment(ref frames) >= 10) enough.Set();
+                    };
+                    source.SourceError += (_, e) => error = e.Description;
+                    Assert.True(source.Start(), source.LastStartFailure);
+                    Assert.True(enough.Wait(TimeSpan.FromSeconds(6)), $"frames={frames}, error={error}");
+                    source.Stop();
+                    Assert.False(source.IsRunning);
+                }
+            }
+            catch (Exception ex) { failure = ex; }
+        }) { IsBackground = true };
+        caller.SetApartmentState(ApartmentState.STA);
+        caller.Start();
+        Assert.True(caller.Join(TimeSpan.FromSeconds(30)), "STA capture caller did not finish");
+        Assert.Null(failure);
+    }
+
     /// <summary>核心验证：能打开摄像头并收到尺寸正确的 BGR 帧。</summary>
     [Fact]
     public void CapturesFramesFromRealDevice()
