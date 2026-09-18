@@ -651,6 +651,29 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
+                // 实时 AAC 管道初始化在正式公开 IsRecording 前可能持续数百毫秒。
+                // 这段时间摄像头仍在更新预录环形缓冲，补取启动期间的新帧，避免点击录制后
+                // 画面从旧快照直接跳到初始化完成时刻。
+                if (Config.EnableEventRecordingBuffer)
+                {
+                    List<Mat> startupPreRecordFrames = SnapshotPreRecordFrames(
+                        DateTime.Now,
+                        out DateTime? startupPreRecordStartTime,
+                        out List<DateTime> startupPreRecordTimestamps);
+                    if (startupPreRecordFrames.Count > 0)
+                    {
+                        _pendingPreRecordFrames ??= new List<Mat>();
+                        _pendingPreRecordTimestamps ??= new List<DateTime>();
+                        if (!_pendingPreRecordStartTime.HasValue && startupPreRecordStartTime.HasValue)
+                            _pendingPreRecordStartTime = startupPreRecordStartTime;
+                        _pendingPreRecordFrames.AddRange(startupPreRecordFrames);
+                        _pendingPreRecordTimestamps.AddRange(startupPreRecordTimestamps);
+                        RuntimeLog.Info(
+                            "Recording",
+                            $"Pre-record startup frames appended count={startupPreRecordFrames.Count}, total={_pendingPreRecordFrames.Count}");
+                    }
+                }
+
                 // 3. 开启新的生产者-消费者通道
                 lock (_videoLock)
                 {
