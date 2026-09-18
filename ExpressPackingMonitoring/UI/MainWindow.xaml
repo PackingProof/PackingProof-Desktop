@@ -235,8 +235,8 @@
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsPostRollActive}" Value="True">
                                                         <Setter TargetName="PostRollOverlay" Property="Visibility" Value="Visible"/>
-                                                        <Setter TargetName="RecordActionText" Property="Text" Value="收尾中"/>
-                                                        <Setter Property="ToolTip" Value="收尾中"/>
+                                                        <Setter TargetName="RecordActionText" Property="Text" Value="正在收尾"/>
+                                                        <Setter Property="ToolTip" Value="正在收尾"/>
                                                     </DataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
