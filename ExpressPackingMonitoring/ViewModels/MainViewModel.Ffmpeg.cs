@@ -84,11 +84,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 long writtenFrames = 0;
                 long duplicatedFrames = 0;
                 long paddedDuringPreRecord = 0;
+                long skippedAheadFrames = 0;
                 long liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
                 int preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
 
-                foreach (var frame in _videoWriteQueue.GetConsumingEnumerable())
+                foreach (var queuedFrame in _videoWriteQueue.GetConsumingEnumerable())
                 {
+                    Mat frame = queuedFrame.Frame;
                     // 检查 FFmpeg 进程是否已经崩溃。如果已经退出，直接退出循环
                     if (ffmpeg.HasExited)
                     {
@@ -120,6 +122,21 @@ namespace ExpressPackingMonitoring.ViewModels
 
                         if (ffmpeg.HasExited) { pipeError = true; break; }
 
+                        if (liveStartTicks <= 0)
+                        {
+                            liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
+                            preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
+                        }
+                        int liveTarget = queuedFrame.IsPreRecord ? 0
+                            : RecordingTimelinePolicy.CalculateLiveFrameTarget(
+                                liveStartTicks, queuedFrame.CapturedTicks, fps);
+                        if (!queuedFrame.IsPreRecord && liveStartTicks > 0
+                            && RecordingTimelinePolicy.CalculateLiveWrittenFrames(writtenFrames, preRecordFrames) >= liveTarget)
+                        {
+                            skippedAheadFrames++;
+                            continue;
+                        }
+
                         if (frame.IsContinuous() && frame.Type() == MatType.CV_8UC3)
                         {
                             Marshal.Copy(frame.Data, buffer, 0, expectedBytes);
@@ -139,16 +156,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             // 保证文件时长等于真实时长；否则录出来的片段是"快放"，
                             // 而音频是真实时间，越到后面越不同步。
                             // 只统计实时段：预录帧属于时间轴最前面那一段，不参与这里的落后判断。
-                            if (liveStartTicks <= 0)
-                            {
-                                liveStartTicks = Volatile.Read(ref _recordingLiveStartTicks);
-                                preRecordFrames = Volatile.Read(ref _recordingPreRecordFrameCount);
-                            }
-                            int catchUp = RecordingTimelinePolicy.CalculateCatchUpFrames(
-                                RecordingTimelinePolicy.CalculateExpectedFrameCount(
-                                    liveStartTicks,
-                                    Stopwatch.GetTimestamp(),
-                                    fps),
+                            int catchUp = queuedFrame.IsPreRecord ? 0 : RecordingTimelinePolicy.CalculateCatchUpFrames(
+                                liveTarget,
                                 writtenFrames,
                                 fps,
                                 preRecordFrames);
@@ -191,7 +200,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         liveStartTicks > 0 ? Stopwatch.GetTimestamp() - liveStartTicks : 0);
                     RuntimeLog.Info(
                         "FFmpeg",
-                        $"Timeline frames={writtenFrames}, preRecord={preRecordFrames}, duplicated={duplicatedFrames}, paddedPreRecord={paddedDuringPreRecord}, fileSeconds={fileSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
+                        $"Timeline frames={writtenFrames}, preRecord={preRecordFrames}, duplicated={duplicatedFrames}, skippedAhead={skippedAheadFrames}, paddedPreRecord={paddedDuringPreRecord}, fileSeconds={fileSeconds:F2}, wallSeconds={wallSeconds:F2}, file={Path.GetFileName(filePath)}");
                     if (paddedDuringPreRecord > 0)
                     {
                         // 预录段被补了重复帧：预录画面会定格成同一帧，必须当回归处理。

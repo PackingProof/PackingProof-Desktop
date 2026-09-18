@@ -13,6 +13,44 @@ public sealed class RecordingTimelinePolicyTests
 {
     private static readonly long Frequency = Stopwatch.Frequency;
 
+    [Theory]
+    [InlineData(21.33, 21)]
+    [InlineData(59.94, 60)]
+    [InlineData(30.2, 30)]
+    public void FractionalCaptureRateDoesNotAccumulateClockDrift(double captureFps, int encoderFps)
+    {
+        const int preRecord = 43;
+        const double seconds = 600;
+        long start = Frequency;
+        long written = preRecord;
+        int skipped = 0;
+        for (int frame = 0; frame < captureFps * seconds; frame++)
+        {
+            long captured = start + (long)(frame / captureFps * Frequency);
+            int target = RecordingTimelinePolicy.CalculateLiveFrameTarget(start, captured, encoderFps);
+            if (RecordingTimelinePolicy.CalculateLiveWrittenFrames(written, preRecord) >= target)
+            {
+                skipped++;
+                continue;
+            }
+            written++;
+            written += RecordingTimelinePolicy.CalculateCatchUpFrames(target, written, encoderFps, preRecord);
+        }
+        double liveSeconds = (written - preRecord) / (double)encoderFps;
+        Assert.InRange(Math.Abs(liveSeconds - seconds), 0, 1d / encoderFps);
+        if (captureFps > encoderFps) Assert.True(skipped > 0);
+    }
+
+    [Fact]
+    public void QueuedFrameTargetUsesCaptureTimeAndRejectsPreSessionFrames()
+    {
+        long start = Frequency;
+        Assert.Equal(0, RecordingTimelinePolicy.CalculateLiveFrameTarget(start, start - 1, 30));
+        Assert.Equal(1, RecordingTimelinePolicy.CalculateLiveFrameTarget(start, start, 30));
+        // 即使队列耗时数秒，采集后 100ms 的画面仍属于第四帧。
+        Assert.Equal(4, RecordingTimelinePolicy.CalculateLiveFrameTarget(start, start + Frequency / 10, 30));
+    }
+
     [Fact]
     public void ExpectedFramesFollowWallClock()
     {

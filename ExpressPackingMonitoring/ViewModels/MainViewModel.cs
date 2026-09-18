@@ -78,7 +78,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private DateTime? _pendingPreRecordStartTime;
         private const long PreRecordBufferHardMaxBytes = 8L * 1024 * 1024 * 1024;
 
-        private BlockingCollection<Mat> _videoWriteQueue;
+        private BlockingCollection<RecordingVideoFrame> _videoWriteQueue;
+        private long _latestFrameCapturedTicks;
         private Task _writeTask;
         private Task _lastFinalizeTask;
         private Task _mkvRecoveryTask;

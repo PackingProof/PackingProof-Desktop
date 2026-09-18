@@ -218,6 +218,7 @@
     <Compile Include="Services\Gpu\GpuConversionShaders.cs" />
     <Compile Include="Services\Gpu\GpuPreviewResizeShader.cs" />
     <Compile Include="Services\Gpu\GpuPreviewResizer.cs" />
+    <Compile Include="ViewModels\RecordingVideoFrame.cs" />
     <Compile Include="Services\Gpu\GpuFrameConverter.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
