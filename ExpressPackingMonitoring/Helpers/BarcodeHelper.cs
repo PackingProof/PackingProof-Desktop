@@ -25,8 +25,8 @@ namespace ExpressPackingMonitoring.Helpers
             new[]{3,1,1,2,2,2}, new[]{3,2,1,1,2,2}, new[]{3,2,1,2,2,1}, new[]{3,1,2,2,1,2},
             new[]{3,2,2,1,1,2}, new[]{3,2,2,2,1,1}, new[]{2,1,2,1,2,3}, new[]{2,1,2,3,2,1},
             new[]{2,3,2,1,2,1}, new[]{1,1,1,3,2,3}, new[]{1,3,1,1,2,3}, new[]{1,3,1,3,2,1},
-            new[]{1,1,2,3,2,3/*SPACE*/}, new[]{1,3,2,1,2,3/*SPACE*/}, new[]{1,3,2,3,2,1},
-            new[]{2,1,1,3,2,3}, new[]{2,3,1,1,2,3}, new[]{2,3,1,3,2,1}, new[]{1,1,2,1,3,3},
+            new[]{1,1,2,3,1,3}, new[]{1,3,2,1,1,3}, new[]{1,3,2,3,1,1},
+            new[]{2,1,1,3,1,3}, new[]{2,3,1,1,1,3}, new[]{2,3,1,3,1,1}, new[]{1,1,2,1,3,3},
             new[]{1,1,2,3,3,1}, new[]{1,3,2,1,3,1}, new[]{1,1,3,1,2,3}, new[]{1,1,3,3,2,1},
             new[]{1,3,3,1,2,1}, new[]{3,1,3,1,2,1}, new[]{2,1,1,3,3,1}, new[]{2,3,1,1,3,1},
             new[]{2,1,3,1,1,3}, new[]{2,1,3,3,1,1}, new[]{2,1,3,1,3,1}, new[]{3,1,1,1,2,3},
@@ -54,26 +54,7 @@ namespace ExpressPackingMonitoring.Helpers
         {
             if (string.IsNullOrEmpty(text)) text = " ";
 
-            // 编码字符值列表（Code 128B: value = ascii - 32）
-            var values = new List<int>();
-            foreach (char c in text)
-            {
-                int v = c - 32;
-                if (v < 0 || v > 94) v = 0; // 不可编码字符替换为空格
-                values.Add(v);
-            }
-
-            // 计算校验位
-            int startCode = 104; // Start B
-            int checksum = startCode;
-            for (int i = 0; i < values.Count; i++)
-                checksum += values[i] * (i + 1);
-            int checkValue = checksum % 103;
-
-            // 构建完整编码序列：Start B + data + checksum + Stop
-            var allCodes = new List<int> { startCode };
-            allCodes.AddRange(values);
-            allCodes.Add(checkValue);
+            int[] allCodes = BuildCodeValues(text);
 
             // 计算总宽度
             int totalModules = CalculateTotalModules(allCodes);
@@ -89,11 +70,12 @@ namespace ExpressPackingMonitoring.Helpers
                 dc.DrawRectangle(background, null, new Rect(0, 0, pixelWidth / dpiScale, heightDip));
 
                 double x = QuietZoneModules * moduleWidthDip;
-                // Draw all code patterns
-                foreach (var code in allCodes)
-                    x = DrawPattern(dc, Patterns[code], x, heightDip, moduleWidthDip, foreground);
-                // Draw stop pattern
-                DrawPattern(dc, StopPattern, x, heightDip, moduleWidthDip, foreground);
+                foreach ((bool isBar, int width) in BuildModules(text))
+                {
+                    if (isBar)
+                        dc.DrawRectangle(foreground, null, new Rect(x, 0, width * moduleWidthDip, heightDip));
+                    x += width * moduleWidthDip;
+                }
             }
 
             double dpi = 96 * dpiScale;
@@ -101,6 +83,54 @@ namespace ExpressPackingMonitoring.Helpers
             rtb.Render(visual);
             rtb.Freeze();
             return rtb;
+        }
+
+        /// <summary>
+        /// Code 128B 编码序列：Start B + 数据 + 校验位（不含 Stop）。
+        /// 渲染与测试共用同一份结果，避免"实际生成的条码"和"测试校验的编码"是两套。
+        /// </summary>
+        internal static int[] BuildCodeValues(string text)
+        {
+            if (string.IsNullOrEmpty(text)) text = " ";
+
+            // 编码字符值列表（Code 128B: value = ascii - 32）
+            var values = new List<int>();
+            foreach (char c in text)
+            {
+                int v = c - 32;
+                if (v < 0 || v > 94) v = 0; // 不可编码字符替换为空格
+                values.Add(v);
+            }
+
+            const int startCode = 104; // Start B
+            int checksum = startCode;
+            for (int i = 0; i < values.Count; i++)
+                checksum += values[i] * (i + 1);
+
+            var allCodes = new List<int> { startCode };
+            allCodes.AddRange(values);
+            allCodes.Add(checksum % 103);
+            return allCodes.ToArray();
+        }
+
+        /// <summary>条码模块序列（从黑条开始，逐段给出宽度），不含两侧静区</summary>
+        internal static List<(bool IsBar, int Width)> BuildModules(string text)
+        {
+            var modules = new List<(bool IsBar, int Width)>();
+            foreach (int code in BuildCodeValues(text))
+                AppendPattern(Patterns[code]);
+            AppendPattern(StopPattern);
+            return modules;
+
+            void AppendPattern(int[] pattern)
+            {
+                bool isBar = true;
+                foreach (int width in pattern)
+                {
+                    modules.Add((isBar, width));
+                    isBar = !isBar;
+                }
+            }
         }
 
         internal static int CalculateTotalModules(IEnumerable<int> codes)
@@ -136,25 +166,5 @@ namespace ExpressPackingMonitoring.Helpers
         private static Brush ResolveBrush(string resourceKey) =>
             Application.Current?.TryFindResource(resourceKey) as Brush
             ?? throw new InvalidOperationException($"Missing brush resource: {resourceKey}");
-
-        private static double DrawPattern(
-            DrawingContext dc,
-            int[] pattern,
-            double x,
-            double height,
-            double moduleWidth,
-            Brush foreground)
-        {
-            bool isBar = true;
-            foreach (var w in pattern)
-            {
-                double pixelWidth = w * moduleWidth;
-                if (isBar)
-                    dc.DrawRectangle(foreground, null, new Rect(x, 0, pixelWidth, height));
-                x += pixelWidth;
-                isBar = !isBar;
-            }
-            return x;
-        }
     }
 }
