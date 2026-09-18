@@ -23,13 +23,44 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
-        private async Task WaitForManualPostRollAsync()
-        {
-            if (!Config.EnableEventRecordingBuffer
-                || Config.SameCodePostRecordSeconds <= 0
-                || !IsRecording)
-                return;
+        /// <summary>停止前是否还要留收尾窗口：预录开启、配置了收尾时长，且录像仍在进行</summary>
+        private bool HasPendingPostRollWindow() =>
+            Config.EnableEventRecordingBuffer
+            && Config.SameCodePostRecordSeconds > 0
+            && IsRecording;
 
+        /// <summary>
+        /// 停止触发的即时反馈。收尾期间录制仍在继续，停止语音必须在这里先入队再进入等待，
+        /// 否则要等到收尾结束才响，和扫码同码停录触发时的即时播报不一致。
+        /// </summary>
+        private void AnnounceStopTriggered()
+        {
+            Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
+            PauseSpeechForRecording();
+        }
+
+        /// <summary>
+        /// 手动停止与停止指令共用的停止时序：有收尾窗口时先把停止语音播出去再等收尾画面，
+        /// 没有收尾窗口时保持先暂停播报、停录后再播报的顺序。
+        /// </summary>
+        private async Task StopWithManualAnnouncementAsync()
+        {
+            bool postRollStarted = await WaitForManualPostRollAsync();
+            if (!postRollStarted)
+                PauseSpeechForRecording();
+            await InternalStopRecordingAsync();
+            if (!postRollStarted)
+                Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
+        }
+
+        /// <summary>手动停止与停止指令共用的收尾等待</summary>
+        /// <returns>true 表示已进入收尾窗口并播报过停止语音，调用方不要再重复播报。</returns>
+        private async Task<bool> WaitForManualPostRollAsync()
+        {
+            if (!HasPendingPostRollWindow())
+                return false;
+
+            AnnounceStopTriggered();
             double seconds = Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5);
             IsPostRollActive = true;
             PostRollProgress = 0;
@@ -53,6 +84,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 PostRollProgress = 1;
             }
+
+            return true;
         }
 
         private async Task InternalStopRecordingAsync()
