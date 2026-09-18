@@ -14,15 +14,9 @@ namespace ExpressPackingMonitoring.Tests;
 /// </summary>
 public sealed class BarcodePrintLayoutTests
 {
-    private static readonly BarcodePrintService.BarcodePrintItem[] CommandBarcodes =
-    [
-        new("扫码清空输入", "CLEAR"),
-        new("扫码切换退货", "BACK"),
-        new("扫码切换发货", "SHIP"),
-        new("扫码停止录像", "STOP"),
-        new("扫码开始录像", "START"),
-        new("扫码开关手机手电筒", "FLASH")
-    ];
+    /// <summary>直接取指令清单：以后新增指令会自动纳入打印页与解码守卫</summary>
+    private static IReadOnlyList<BarcodePrintService.BarcodePrintItem> CommandBarcodes =>
+        BarcodeCommandCatalog.ResolveAll();
 
     [Fact]
     public void CommandCatalog_CoversDesktopAndPhoneCommands()
@@ -49,8 +43,8 @@ public sealed class BarcodePrintLayoutTests
     [Fact]
     public void WholeCommandSet_FitsOnOneA4Page()
     {
-        Assert.True(BarcodePrintLayout.FitsOnOnePage(CommandBarcodes.Length));
-        Assert.True(BarcodePrintLayout.GetRequiredHeight(CommandBarcodes.Length) <= BarcodePrintLayout.A4Height);
+        Assert.True(BarcodePrintLayout.FitsOnOnePage(CommandBarcodes.Count));
+        Assert.True(BarcodePrintLayout.GetRequiredHeight(CommandBarcodes.Count) <= BarcodePrintLayout.A4Height);
     }
 
     [Fact]
@@ -74,9 +68,9 @@ public sealed class BarcodePrintLayoutTests
     [Fact]
     public void RowTops_FollowRowHeight()
     {
-        IReadOnlyList<double> tops = BarcodePrintLayout.GetRowTops(CommandBarcodes.Length);
+        IReadOnlyList<double> tops = BarcodePrintLayout.GetRowTops(CommandBarcodes.Count);
 
-        Assert.Equal(CommandBarcodes.Length, tops.Count);
+        Assert.Equal(CommandBarcodes.Count, tops.Count);
         Assert.Equal(BarcodePrintLayout.Margin + BarcodePrintLayout.HeaderHeight, tops[0], 3);
         for (int index = 1; index < tops.Count; index++)
             Assert.Equal(BarcodePrintLayout.GetRowHeight(), tops[index] - tops[index - 1], 3);
@@ -91,7 +85,7 @@ public sealed class BarcodePrintLayoutTests
             try
             {
                 int written = BarcodePrintService.WriteAll(folder, CommandBarcodes, "指令条码", "打印说明");
-                Assert.Equal(CommandBarcodes.Length, written);
+                Assert.Equal(CommandBarcodes.Count, written);
                 foreach (BarcodePrintService.BarcodePrintItem item in CommandBarcodes)
                     Assert.True(File.Exists(Path.Combine(folder, BarcodePrintService.BuildImageFileName(item))));
 
@@ -102,7 +96,7 @@ public sealed class BarcodePrintLayoutTests
 
                 int rewritten = BarcodePrintService.WriteAll(folder, CommandBarcodes, "指令条码", "打印说明");
 
-                Assert.Equal(CommandBarcodes.Length, rewritten);
+                Assert.Equal(CommandBarcodes.Count, rewritten);
                 Assert.Equal(originalLength, new FileInfo(dirty).Length);
             }
             finally
@@ -169,8 +163,8 @@ public sealed class BarcodePrintLayoutTests
             var pixels = new byte[stride * bitmap.PixelHeight];
             bitmap.CopyPixels(pixels, stride, 0);
 
-            IReadOnlyList<double> rowTops = BarcodePrintLayout.GetRowTops(CommandBarcodes.Length);
-            for (int index = 0; index < CommandBarcodes.Length; index++)
+            IReadOnlyList<double> rowTops = BarcodePrintLayout.GetRowTops(CommandBarcodes.Count);
+            for (int index = 0; index < CommandBarcodes.Count; index++)
             {
                 BarcodePrintService.BarcodePrintItem item = CommandBarcodes[index];
                 string? decoded = DecodeBarcode(
