@@ -494,25 +494,24 @@ namespace ExpressPackingMonitoring.ViewModels
                 IsBusy = true;
                 BusyText = "正在关闭程序...";
 
-                if (IsRecording)
+                // 开录准备可能正在后台初始化音频，此时 IsRecording 还没有置真。
+                // 无论当前状态如何，都先等待录制串行锁，避免关闭时越过尚未结束的启动任务。
+                await _recorderLock.WaitAsync();
+                try
                 {
-                    progress?.Report("正在停止当前录像...");
-                    await _recorderLock.WaitAsync();
-                    try
+                    if (IsRecording)
                     {
-                        if (IsRecording)
-                        {
-                            _stopReason = "程序退出";
-                            PauseSpeechForRecording();
-                            await InternalStopRecordingAsync();
-                        }
+                        progress?.Report("正在停止当前录像...");
+                        _stopReason = "程序退出";
+                        PauseSpeechForRecording();
+                        await InternalStopRecordingAsync();
                     }
-                    finally
-                    {
-                        if (!IsRecording)
-                            ResumeSpeechWhenCameraIdle();
-                        _recorderLock.Release();
-                    }
+                }
+                finally
+                {
+                    if (!IsRecording)
+                        ResumeSpeechWhenCameraIdle();
+                    _recorderLock.Release();
                 }
 
                 if (_lastFinalizeTask != null)

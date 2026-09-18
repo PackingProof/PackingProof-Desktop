@@ -642,7 +642,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
-                if (useDirectAac && !PrepareDirectAudioPipe())
+                // 管道准备会清理上一轮音频，内部包含设备停止及写入任务等待。
+                // 录制串行锁仍由调用方持有，仅把设备工作移出 UI 线程。
+                if (useDirectAac && !await Task.Run(PrepareDirectAudioPipe))
                 {
                     ShowToast("实时 AAC 音频管道初始化失败，已取消开录", ToastSeverity.Error);
                     ClearCurrentAudioLogPath(audioLogPath);
@@ -799,7 +801,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     WriteAudioDiagnostic($"准备启动麦克风录制: name={Config.AudioDeviceName}, moniker={(string.IsNullOrWhiteSpace(Config.AudioDeviceMoniker) ? "(empty)" : Config.AudioDeviceMoniker)}");
                     for (int audioAttempt = 0; audioAttempt < RecordingAudioStartPolicy.AudioStartAttempts; audioAttempt++)
                     {
-                        if (StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac))
+                        var audioStartupWatch = Stopwatch.StartNew();
+                        long previewsBeforeAudio = Interlocked.Read(ref _previewPublishedTotal);
+                        // WASAPI 初始化和 AAC 管道连接可能耗时数秒，不能阻塞预览 Dispatcher。
+                        bool audioStarted = await Task.Run(() =>
+                            StartAudioRecording(useDirectAac ? null : audioFilePath, useDirectAac));
+                        long previewsDuringAudio = Interlocked.Read(ref _previewPublishedTotal) - previewsBeforeAudio;
+                        RuntimeLog.Info("Recording", $"Audio initialization completed elapsedMs={audioStartupWatch.ElapsedMilliseconds}, attempt={audioAttempt + 1}, success={audioStarted}, previewFramesDuringInit={previewsDuringAudio}");
+                        if (audioStarted)
                             break;
 
                         RecordingAudioStartPolicy.AudioStartFailureAction action =
