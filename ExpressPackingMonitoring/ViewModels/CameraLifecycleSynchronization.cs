@@ -227,6 +227,62 @@ internal sealed class PreviewSessionGate
     public void ClearCurrentPending() => Interlocked.Exchange(ref _pending, 0);
 }
 
+/// <summary>预览仅保留最新一帧；转移所有权后由接收方释放，跨采集会话的帧直接丢弃。</summary>
+internal sealed class LatestPreviewFrameSlot<T> where T : class, IDisposable
+{
+    private readonly object _sync = new();
+    private int _sessionId;
+    private T? _frame;
+    private long _capturedTicks;
+
+    public void Reset(int sessionId)
+    {
+        T? previous;
+        lock (_sync)
+        {
+            if (sessionId < _sessionId) return;
+            _sessionId = sessionId;
+            previous = _frame;
+            _frame = null;
+        }
+        previous?.Dispose();
+    }
+
+    public void Publish(int sessionId, T frame, long capturedTicks)
+    {
+        T? discarded;
+        lock (_sync)
+        {
+            if (sessionId != _sessionId)
+                discarded = frame;
+            else
+            {
+                discarded = _frame;
+                _frame = frame;
+                _capturedTicks = capturedTicks;
+            }
+        }
+        discarded?.Dispose();
+    }
+
+    public T? Take(int sessionId, out long capturedTicks)
+    {
+        lock (_sync)
+        {
+            capturedTicks = _capturedTicks;
+            if (sessionId != _sessionId) return null;
+            T? frame = _frame;
+            _frame = null;
+            return frame;
+        }
+    }
+
+    public bool HasFrame(int sessionId)
+    {
+        lock (_sync) return sessionId == _sessionId && _frame != null;
+    }
+}
+
 internal sealed class CameraFrameReadySignal
 {
     private readonly object _sync = new();

@@ -251,6 +251,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private int BeginPreviewSession(bool clearFrame)
         {
             int sessionId = _previewSessionGate.BeginSession();
+            _latestPreviewFrame.Reset(sessionId);
             _lastPreviewPublishedAt = DateTime.Now;
             Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
             _lastPreviewFreezeLogAt = DateTime.Now;
@@ -1114,7 +1115,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (previewFrameDue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);
-                            PublishPreviewFrameIfDue(processedFrame, previewResizer);
+                            PublishPreviewFrameIfDue(processedFrame, previewResizer, currentFrameCapturedTicks);
                         }
 
                         bool handedToRecorder;
@@ -1385,13 +1386,13 @@ namespace ExpressPackingMonitoring.ViewModels
         private int CurrentPreviewTargetFps() => PreviewFrameRatePolicy.ResolveTargetFps(_actualCameraFps);
 
         private bool IsPreviewFrameDue() =>
-            !SuppressVideoPreviewUpdates && !_isDisposed && !_previewSessionGate.IsPending;
+            !SuppressVideoPreviewUpdates && !_isDisposed;
 
-        private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer)
+        private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer, long capturedTicks)
         {
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
 
-            if (!_previewSessionGate.TryAcquire(out int previewSessionId)) return;
+            int previewSessionId = _previewSessionGate.CurrentSessionId;
 
             Mat previewFrame = null;
             try
@@ -1426,17 +1427,36 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (dispatcher == null)
                 {
                     previewFrame.Dispose();
-                    ReleasePreviewUpdate(previewSessionId);
                     return;
                 }
 
-                Mat frameToPublish = previewFrame;
+                _latestPreviewFrame.Publish(previewSessionId, previewFrame, capturedTicks);
                 previewFrame = null;
+                ScheduleLatestPreviewFrame(previewSessionId, dispatcher);
+            }
+            catch
+            {
+                previewFrame?.Dispose();
+                if (DateTime.Now - _lastPreviewConvertErrorLogAt > TimeSpan.FromSeconds(30))
+                {
+                    _lastPreviewConvertErrorLogAt = DateTime.Now;
+                    RuntimeLog.Warn("Preview", $"Preview bitmap conversion failed, {BuildResourceHealthSnapshot()}");
+                }
+            }
+        }
+
+        private void ScheduleLatestPreviewFrame(int previewSessionId, System.Windows.Threading.Dispatcher dispatcher)
+        {
+            if (!_previewSessionGate.IsCurrent(previewSessionId)
+                || !_previewSessionGate.TryAcquire(out previewSessionId)) return;
+            try
+            {
                 _ = dispatcher.BeginInvoke(new Action(() =>
                 {
+                    var frameToPublish = _latestPreviewFrame.Take(previewSessionId, out long frameCapturedTicks);
                     try
                     {
-                        if (!_isDisposed
+                        if (frameToPublish != null && !_isDisposed
                             && !SuppressVideoPreviewUpdates
                             && _previewSessionGate.IsCurrent(previewSessionId))
                         {
@@ -1482,6 +1502,15 @@ namespace ExpressPackingMonitoring.ViewModels
                             Interlocked.Add(ref _previewWriteTicksTotal, Stopwatch.GetTimestamp() - writeStarted);
                             Interlocked.Increment(ref _previewWriteCount);
                             Interlocked.Increment(ref _previewPublishedTotal);
+                            if (frameCapturedTicks > 0)
+                            {
+                                long ageTicks = Math.Max(0, Stopwatch.GetTimestamp() - frameCapturedTicks);
+                                Interlocked.Add(ref _previewFrameAgeTicks, ageTicks);
+                                Interlocked.Increment(ref _previewFrameAgeCount);
+                                // 只有 UI 线程写入最大值，后台诊断使用原子读取。
+                                long maximum = Volatile.Read(ref _previewFrameAgeMaxTicks);
+                                if (ageTicks > maximum) Interlocked.Exchange(ref _previewFrameAgeMaxTicks, ageTicks);
+                            }
                             Interlocked.Exchange(ref _publishedPreviewWidth, frameToPublish.Width);
                             Interlocked.Exchange(ref _publishedPreviewHeight, frameToPublish.Height);
                             _lastPreviewPublishedAt = DateTime.Now;
@@ -1490,20 +1519,19 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     finally
                     {
-                        frameToPublish.Dispose();
+                        frameToPublish?.Dispose();
                         ReleasePreviewUpdate(previewSessionId);
+                        // 处理本帧期间若已有新帧到达，主动续约，避免最后一帧留在槽中。
+                        if (_latestPreviewFrame.HasFrame(previewSessionId))
+                            ScheduleLatestPreviewFrame(previewSessionId, dispatcher);
                     }
                 }), System.Windows.Threading.DispatcherPriority.Render);
             }
-            catch
+            catch (Exception ex)
             {
-                previewFrame?.Dispose();
                 ReleasePreviewUpdate(previewSessionId);
-                if (DateTime.Now - _lastPreviewConvertErrorLogAt > TimeSpan.FromSeconds(30))
-                {
-                    _lastPreviewConvertErrorLogAt = DateTime.Now;
-                    RuntimeLog.Warn("Preview", $"Preview bitmap conversion failed, {BuildResourceHealthSnapshot()}");
-                }
+                _latestPreviewFrame.Take(previewSessionId, out _)?.Dispose();
+                RuntimeLog.Warn("Preview", $"Preview dispatch failed: {ex.Message}");
             }
         }
 
@@ -1571,7 +1599,11 @@ namespace ExpressPackingMonitoring.ViewModels
             int cameraFps = (int)Math.Round(Volatile.Read(ref _cameraSourceFpsEstimate));
             int publishedWidth = Volatile.Read(ref _publishedPreviewWidth);
             int publishedHeight = Volatile.Read(ref _publishedPreviewHeight);
-            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs=full, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, frame={_actualCameraWidth}x{_actualCameraHeight}, publishSize={publishedWidth}x{publishedHeight}, displayWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
+            long ageCount = Interlocked.Read(ref _previewFrameAgeCount);
+            double ageMs = ageCount > 0
+                ? Stopwatch.GetElapsedTime(0, Interlocked.Read(ref _previewFrameAgeTicks)).TotalMilliseconds / ageCount : -1;
+            double maxAgeMs = Stopwatch.GetElapsedTime(0, Interlocked.Read(ref _previewFrameAgeMaxTicks)).TotalMilliseconds;
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewFrameAgeMs={ageMs:F1}, previewMaxFrameAgeMs={maxAgeMs:F1}, previewIntervalMs=full, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, frame={_actualCameraWidth}x{_actualCameraHeight}, publishSize={publishedWidth}x{publishedHeight}, displayWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
         }
 
         /// <summary>

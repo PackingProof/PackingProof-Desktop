@@ -164,6 +164,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _previewPublishedTotal;
         private long _previewWriteTicksTotal;
         private long _previewWriteCount;
+        private long _previewFrameAgeTicks;
+        private long _previewFrameAgeCount;
+        private long _previewFrameAgeMaxTicks;
         private DateTime _lastPreviewFreezeLogAt = DateTime.MinValue;
         private DateTime _lastPreviewWatchdogRestartAt = DateTime.MinValue;
         private DateTime _lastRecordingQueueWarnAt = DateTime.MinValue;
@@ -181,6 +184,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _archiveCameraActive;
         private System.Windows.Threading.DispatcherTimer _uiHeartbeatTimer;
         private readonly PreviewSessionGate _previewSessionGate = new();
+        private readonly LatestPreviewFrameSlot<Mat> _latestPreviewFrame = new();
         private readonly CameraFrameReadySignal _cameraFrameReady = new();
         private readonly CameraFrameArrivalGate _cameraFrameArrival = new();
         private CancellationTokenSource _cts;
