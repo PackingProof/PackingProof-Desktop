@@ -125,6 +125,11 @@ public sealed partial class MfCameraSource : IDisposable
     /// </summary>
     internal bool Start()
     {
+        // WPF 在 STA 调用启动；SourceReader 必须在与读取线程相同的 MTA 中创建，
+        // 否则 RCW 跨 apartment 查询接口会失败，而 MTA 测试线程上无法复现。
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+            return Task.Run(Start).GetAwaiter().GetResult();
+
         lock (_sync)
         {
             if (_disposed)
@@ -174,6 +179,12 @@ public sealed partial class MfCameraSource : IDisposable
 
     internal void Stop()
     {
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        {
+            Task.Run(Stop).GetAwaiter().GetResult();
+            return;
+        }
+
         Thread? readThread;
         lock (_sync)
         {
