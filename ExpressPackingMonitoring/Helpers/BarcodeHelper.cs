@@ -133,6 +133,12 @@ namespace ExpressPackingMonitoring.Helpers
             }
         }
 
+        /// <summary>编码表自检用：完整图案表（下标即 Code 128 编码值）</summary>
+        internal static IReadOnlyList<int[]> EnumeratePatterns() => Patterns;
+
+        /// <summary>编码表自检用：Stop 图案</summary>
+        internal static IReadOnlyList<int> EnumerateStopPattern() => StopPattern;
+
         internal static int CalculateTotalModules(IEnumerable<int> codes)
         {
             int totalModules = QuietZoneModules * 2;
