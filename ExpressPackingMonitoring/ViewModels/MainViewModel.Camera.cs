@@ -1455,13 +1455,30 @@ namespace ExpressPackingMonitoring.ViewModels
                             }
 
                             int stride = checked((int)frameToPublish.Step());
-                            int bufferSize = checked(stride * frameToPublish.Height);
                             long writeStarted = Stopwatch.GetTimestamp();
-                            _previewWriteableBitmap.WritePixels(
-                                new Int32Rect(0, 0, frameToPublish.Width, frameToPublish.Height),
-                                frameToPublish.Data,
-                                bufferSize,
-                                stride);
+                            // WritePixels 会等待渲染线程解锁，繁忙时能卡住 UI 超过一帧。
+                            // 预览允许跳过来不及显示的帧，不等待旧帧占用的缓冲。
+                            if (!_previewWriteableBitmap.TryLock(new Duration(TimeSpan.Zero)))
+                                return;
+                            try
+                            {
+                                unsafe
+                                {
+                                    int rowBytes = checked(frameToPublish.Width * 3);
+                                    int destinationStride = _previewWriteableBitmap.BackBufferStride;
+                                    byte* source = (byte*)frameToPublish.Data;
+                                    byte* destination = (byte*)_previewWriteableBitmap.BackBuffer;
+                                    for (int row = 0; row < frameToPublish.Height; row++)
+                                        Buffer.MemoryCopy(source + row * stride,
+                                            destination + row * destinationStride, destinationStride, rowBytes);
+                                }
+                                _previewWriteableBitmap.AddDirtyRect(
+                                    new Int32Rect(0, 0, frameToPublish.Width, frameToPublish.Height));
+                            }
+                            finally
+                            {
+                                _previewWriteableBitmap.Unlock();
+                            }
                             Interlocked.Add(ref _previewWriteTicksTotal, Stopwatch.GetTimestamp() - writeStarted);
                             Interlocked.Increment(ref _previewWriteCount);
                             Interlocked.Increment(ref _previewPublishedTotal);
