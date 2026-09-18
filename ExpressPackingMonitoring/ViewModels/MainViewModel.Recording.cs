@@ -60,7 +60,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!IsRecording || _isDisposed) return;
 
             IsBusy = true;
-            BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止...";
+            BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止";
             IsRecording = false; // 1. 立即改变 UI 状态
             PublishPreRecordBufferStatus(force: true);
             _isScanning = false;
@@ -569,7 +569,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             var startupWatch = Stopwatch.StartNew();
             IsBusy = true;
-            BusyText = "正在启动...";
+            BusyText = "正在启动";
 
             try
             {

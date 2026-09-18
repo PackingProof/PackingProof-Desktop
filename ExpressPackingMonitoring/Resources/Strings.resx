@@ -51,6 +51,9 @@
   <data name="连接失败" xml:space="preserve"><value>Connection failed</value></data>
   <data name="开始录制" xml:space="preserve"><value>Start recording</value></data>
   <data name="停止录制" xml:space="preserve"><value>Stop recording</value></data>
+  <data name="正在启动" xml:space="preserve"><value>Starting</value></data>
+  <data name="正在停止" xml:space="preserve"><value>Stopping</value></data>
+  <data name="正在收尾" xml:space="preserve"><value>Wrapping up</value></data>
   <data name="发货模式" xml:space="preserve"><value>Shipping mode</value></data>
   <data name="退货模式" xml:space="preserve"><value>Return mode</value></data>
   <data name="重新检测" xml:space="preserve"><value>Detect again</value></data>
