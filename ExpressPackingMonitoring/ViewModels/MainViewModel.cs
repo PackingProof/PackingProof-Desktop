@@ -146,23 +146,19 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan PreviewFreezeRestartCooldown = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan ResourceHealthLogInterval = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan UiHeartbeatStaleThreshold = TimeSpan.FromSeconds(2);
-        private DateTime _lastPreviewFrameAt = DateTime.MinValue;
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
-        // 程序自己的窗口是否在前台。前台时预览满帧跑（用户在盯着看），
-        // 只有后台且长时间没人操作才逐级降帧，见 PreviewFrameRatePolicy。
+        // 程序自己的窗口是否在前台。仅用于资源诊断，不控制预览帧率。
         private volatile bool _isAppWindowFocused;
         // 预览控件的实际显示宽度（设备像素，取主界面与小窗中可见的那个较大者）。
         // 预览按这个尺寸发布，见 PreviewDownscalePolicy。
         private int _previewDisplayWidthMain;
         private int _previewDisplayWidthFloating;
         private int _previewDisplayWidth;
-        // 当前预览档位（满帧记 -1），只在降低时提示一次。
-        private int _previewRateTierFps;
         // 最近一次真正写进 WriteableBitmap 的尺寸：与控件显示尺寸对照就能判断有没有被放大。
         private int _publishedPreviewWidth;
         private int _publishedPreviewHeight;
         // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
-        // 用来判断"空闲降帧"到底省了多少（见 PreviewFrameRatePolicy）。
+        // 用于对比采集帧率与实际预览发布帧率。
         private DateTime _previewStatsWindowStart = DateTime.MinValue;
         private long _previewStatsWindowPublished;
         private long _previewPublishedTotal;
@@ -187,7 +183,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly PreviewSessionGate _previewSessionGate = new();
         private readonly CameraFrameReadySignal _cameraFrameReady = new();
         private readonly CameraFrameArrivalGate _cameraFrameArrival = new();
-        private readonly CameraFrameRateGate _cameraFrameRateGate = new();
         private CancellationTokenSource _cts;
 
         // 摄像头空闲休眠

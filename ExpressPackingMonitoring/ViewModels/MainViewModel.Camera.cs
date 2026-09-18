@@ -251,7 +251,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private int BeginPreviewSession(bool clearFrame)
         {
             int sessionId = _previewSessionGate.BeginSession();
-            _lastPreviewFrameAt = DateTime.MinValue;
             _lastPreviewPublishedAt = DateTime.Now;
             Interlocked.Exchange(ref _archivePreviewUtcTicks, DateTime.UtcNow.Ticks);
             _lastPreviewFreezeLogAt = DateTime.Now;
@@ -259,7 +258,6 @@ namespace ExpressPackingMonitoring.ViewModels
             if (clearFrame)
             {
                 _cameraFrameReady.BeginSession();
-                _cameraFrameRateGate.Reset();
                 Interlocked.Exchange(ref _cameraSourceLastTimestamp, 0);
                 Volatile.Write(ref _cameraSourceFpsEstimate, 0);
                 Interlocked.Exchange(ref _cameraSourceSampleCount, 0);
@@ -552,14 +550,6 @@ namespace ExpressPackingMonitoring.ViewModels
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
-            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
-                CurrentPreviewTargetFps());
-            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
-            {
-                e.Frame.Dispose();
-                return;
-            }
 
             try
             {
@@ -568,10 +558,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 Mat frame = e.Frame;
                 if (ShouldCaptureEventRecordingBufferFrame())
                     UpdatePreRecordBuffer(frame);
-                if (acceptedForPreview)
-                    HandleCameraFrame(frame);
-                else
-                    frame.Dispose();
+                HandleCameraFrame(frame);
             }
             catch (Exception ex)
             {
@@ -783,21 +770,13 @@ namespace ExpressPackingMonitoring.ViewModels
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
-            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
-                CurrentPreviewTargetFps());
-            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
-                return;
 
             try
             {
                 Mat frame = BitmapToMat(eventArgs.Frame);
                 if (ShouldCaptureEventRecordingBufferFrame())
                     UpdatePreRecordBuffer(frame);
-                if (acceptedForPreview)
-                    HandleCameraFrame(frame);
-                else
-                    frame.Dispose();
+                HandleCameraFrame(frame);
             }
             catch (Exception ex)
             {
@@ -810,21 +789,10 @@ namespace ExpressPackingMonitoring.ViewModels
             _lastFrameTime = DateTime.Now;
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
-            bool acceptedForPreview = _cameraFrameRateGate.ShouldAccept(
-                Volatile.Read(ref _isRecording) || !CurrentPreviewFrameInterval.HasValue,
-                CurrentPreviewTargetFps());
-            if (!acceptedForPreview && !Config.EnableEventRecordingBuffer)
-            {
-                e.Frame.Dispose();
-                return;
-            }
 
             if (ShouldCaptureEventRecordingBufferFrame())
                 UpdatePreRecordBuffer(e.Frame);
-            if (acceptedForPreview)
-                HandleCameraFrame(e.Frame);
-            else
-                e.Frame.Dispose();
+            HandleCameraFrame(e.Frame);
         }
 
         /// <summary>
@@ -935,7 +903,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 while (!token.IsCancellationRequested)
                 {
-                    // 录制时跟随硬件实际帧率；空闲时按预览档位（前台/刚操作=满帧，之后逐级降）。
+                    // 处理节奏跟随硬件实际帧率；有新帧时立即处理。
                     int processingFps = CameraFrameProcessingPolicy.GetProcessingFps(
                         IsRecording,
                         _actualCameraFps,
@@ -1316,9 +1284,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     frameTickCounter++;
                     int sleepMs = (int)Math.Max(0, frameDurationMs - (DateTime.Now - startTime).TotalMilliseconds);
                     // 满帧时下一轮按帧序号等待采集通知，避免额外定时睡眠引入唤醒延迟。
-                    // 后台限速预览和无帧状态仍延迟，防止断流或休眠时空转。
-                    if (sleepMs > 0 && (currentFrame == null
-                        || (!IsRecording && CurrentPreviewFrameInterval.HasValue)))
+                    // 无帧状态仍延迟，防止断流或休眠时空转。
+                    if (sleepMs > 0 && currentFrame == null)
                         await Task.Delay(sleepMs, token);
                 }
             }
@@ -1414,46 +1381,17 @@ namespace ExpressPackingMonitoring.ViewModels
             return t * t * (3 - 2 * t);
         }
 
-        /// <summary>
-        /// 当前预览发布间隔。null 表示不额外限流，跟着摄像头帧率满帧跑；
-        /// 程序窗口在前台、或刚有过鼠标/键盘/扫码操作时都是满帧，
-        /// 后台无人操作满 60 秒降到 12fps、满 5 分钟降到 4fps。
-        /// 录像管线不受影响。
-        /// </summary>
-        private TimeSpan? CurrentPreviewFrameInterval =>
-            PreviewFrameRatePolicy.ResolveInterval(DateTime.Now - _lastActivityTime, _isAppWindowFocused);
+        /// <summary>预览始终跟随采集帧率，不根据焦点或空闲时间降帧。</summary>
+        private int CurrentPreviewTargetFps() => PreviewFrameRatePolicy.ResolveTargetFps(_actualCameraFps);
 
-        /// <summary>
-        /// 当前预览档位对应的处理帧率：采集门限与处理循环都用它，
-        /// 否则采集被压在 15fps、处理循环被压在 24fps 时，预览再怎么"满帧"也上不去。
-        /// </summary>
-        private int CurrentPreviewTargetFps() =>
-            PreviewFrameRatePolicy.ResolveTargetFps(
-                _actualCameraFps,
-                CurrentPreviewFrameInterval,
-                Volatile.Read(ref _isRecording));
-
-        private bool IsPreviewFrameDue()
-        {
-            if (SuppressVideoPreviewUpdates || _isDisposed)
-                return false;
-
-            TimeSpan? interval = CurrentPreviewFrameInterval;
-            return (interval == null || DateTime.UtcNow - _lastPreviewFrameAt >= interval.Value)
-                && !_previewSessionGate.IsPending;
-        }
+        private bool IsPreviewFrameDue() =>
+            !SuppressVideoPreviewUpdates && !_isDisposed && !_previewSessionGate.IsPending;
 
         private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer)
         {
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
 
-            DateTime now = DateTime.UtcNow;
-            TimeSpan? interval = CurrentPreviewFrameInterval;
-            NotifyPreviewRateTierIfChanged(interval);
-            if (interval.HasValue && now - _lastPreviewFrameAt < interval.Value) return;
-
             if (!_previewSessionGate.TryAcquire(out int previewSessionId)) return;
-            _lastPreviewFrameAt = now;
 
             Mat previewFrame = null;
             try
@@ -1551,29 +1489,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        /// <summary>
-        /// 预览档位降下来时提示一次。用户看到画面变卡时只会以为是软件出问题，
-        /// 说清楚"长时间没人操作才降的、动一下鼠标就恢复"才能避免误报。
-        /// 只在下调时提示，恢复满帧不打扰。
-        /// </summary>
-        private void NotifyPreviewRateTierIfChanged(TimeSpan? interval)
-        {
-            int fps = interval.HasValue
-                ? (int)Math.Round(1000.0 / Math.Max(1.0, interval.Value.TotalMilliseconds))
-                : PreviewFrameRatePolicy.FullRateFpsMarker;
-            int previous = _previewRateTierFps;
-            if (fps == previous)
-                return;
-
-            _previewRateTierFps = fps;
-            if (previous == 0 || fps == PreviewFrameRatePolicy.FullRateFpsMarker)
-                return;
-
-            ShowToast(
-                AppLanguage.Format("长时间无人操作，预览已降到 {0}fps，动一下鼠标或扫码即可恢复", fps),
-                ToastSeverity.Information);
-        }
-
         private void LogResourceHealthIfDue(string reason, bool force = false)
         {
             DateTime now = DateTime.Now;
@@ -1613,7 +1528,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>
         /// 预览发布统计：采样窗口内的实际发布帧率、单帧写位图平均耗时、当前生效的发布间隔。
-        /// 空闲降帧的效果就靠这三个数对比（有人操作 vs 长时间没人碰）。
+        /// 用于检查采集和预览发布是否存在吞吐差距。
         /// </summary>
         private string BuildPreviewStatsSnapshot(DateTime now)
         {
@@ -1635,14 +1550,10 @@ namespace ExpressPackingMonitoring.ViewModels
             _previewStatsWindowStart = now;
             _previewStatsWindowPublished = published;
             double idleSeconds = _lastActivityTime == DateTime.MinValue ? -1 : (now - _lastActivityTime).TotalSeconds;
-            TimeSpan? interval = CurrentPreviewFrameInterval;
-            string intervalText = interval.HasValue
-                ? interval.Value.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)
-                : "full";
             int cameraFps = (int)Math.Round(Volatile.Read(ref _cameraSourceFpsEstimate));
             int publishedWidth = Volatile.Read(ref _publishedPreviewWidth);
             int publishedHeight = Volatile.Read(ref _publishedPreviewHeight);
-            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs={intervalText}, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, frame={_actualCameraWidth}x{_actualCameraHeight}, publishSize={publishedWidth}x{publishedHeight}, displayWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
+            return $"previewFps={publishedFps:F1}, previewWriteMs={writeMilliseconds:F1}, previewIntervalMs=full, previewTargetFps={CurrentPreviewTargetFps()}, cameraFps={cameraFps}, frame={_actualCameraWidth}x{_actualCameraHeight}, publishSize={publishedWidth}x{publishedHeight}, displayWidth={Volatile.Read(ref _previewDisplayWidth)}, focused={(_isAppWindowFocused ? 1 : 0)}, idle={idleSeconds:F0}s";
         }
 
         /// <summary>
