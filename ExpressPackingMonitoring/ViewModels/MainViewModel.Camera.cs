@@ -970,7 +970,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
 
-                        if (Config.EnableSmartZoom || PreviewZoomScale.HasValue)
+                        if (CanApplySmartZoom || PreviewZoomScale.HasValue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.MaxZoomScale;
@@ -1078,10 +1078,16 @@ namespace ExpressPackingMonitoring.ViewModels
                         else
                         {
                             if (LastZoomRect != System.Windows.Rect.Empty) LastZoomRect = System.Windows.Rect.Empty;
+                            if (_zoomPhase != ZoomPhase.None)
+                            {
+                                // 解锁识别框调整取景范围时中途停掉放大，预览回到整帧后拖动才准
+                                _zoomPhase = ZoomPhase.None;
+                                IsZoomingActive = false;
+                            }
                             if (_isScanning)
                             {
                                 _isScanning = false;
-                                Debug.WriteLine($"[Zoom] 扫码已触发但未执行缩放: EnableSmartZoom={Config.EnableSmartZoom}");
+                                Debug.WriteLine($"[Zoom] 扫码已触发但未执行缩放: EnableSmartZoom={Config.EnableSmartZoom}, GuideLocked={IsCameraBarcodeGuideLocked}");
                             }
                         }
 

@@ -29,6 +29,22 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- 识别框解锁后四角出现的拖拽把手 -->
+        <Style x:Key="CameraGuideHandleStyle" TargetType="Thumb">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Cursor" Value="SizeNWSE"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{StaticResource AccentBlue}"
+                                BorderBrush="{StaticResource TextOnAccent}"
+                                BorderThickness="2"
+                                CornerRadius="4"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- 修复 ComboBox 稳定性问题的核心代码 -->
         <Style TargetType="ComboBoxItem">
             <!-- 手动指定对齐方式，不再让系统去 FindAncestor，从而消除报错 -->
@@ -290,8 +306,7 @@
                               Width="0"
                               Height="0"
                               HorizontalAlignment="Center"
-                              VerticalAlignment="Center"
-                              IsHitTestVisible="False">
+                              VerticalAlignment="Center">
                             <Grid.Style>
                                 <Style TargetType="Grid">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -305,7 +320,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
-                            <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="3" StrokeDashArray="6 3">
+                            <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="3" StrokeDashArray="6 3" IsHitTestVisible="False">
                                 <Rectangle.Style>
                                     <Style TargetType="Rectangle">
                                         <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
@@ -323,29 +338,143 @@
                                     </Style>
                                 </Rectangle.Style>
                             </Rectangle>
-                            <Border HorizontalAlignment="Center"
-                                    VerticalAlignment="Top"
-                                    Margin="0,10,0,0"
-                                    Padding="12,6"
-                                    CornerRadius="6">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="{StaticResource AccentBlue}"/>
+                            <!-- 解锁后出现：拖动框体移动，拖动四角改变大小 -->
+                            <Grid x:Name="CameraBarcodeGuideEditLayer" Panel.ZIndex="10">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource AccentOrange}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource AccentGreen}"/>
+                                            <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </Border.Style>
-                                <TextBlock Text="{Binding CameraBarcodeStatusText}"
-                                           Foreground="{StaticResource TextOnAccent}"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"/>
-                            </Border>
+                                </Grid.Style>
+                                <Thumb x:Name="CameraGuideMoveThumb"
+                                       Cursor="SizeAll"
+                                       DragDelta="CameraGuideMoveThumb_DragDelta"
+                                       DragCompleted="CameraGuideDrag_Completed">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <!-- 只提供拖动命中区域：不吃系统默认 Thumb 外观，否则整框会被填成白色 -->
+                                            <Rectangle Fill="{StaticResource TransparentBrush}"/>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                                <Thumb x:Name="CameraGuideHandleTopLeft"
+                                       Style="{StaticResource CameraGuideHandleStyle}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-7,-7,0,0"
+                                       Tag="TopLeft"
+                                       DragDelta="CameraGuideHandleThumb_DragDelta"
+                                       DragCompleted="CameraGuideDrag_Completed"/>
+                                <Thumb x:Name="CameraGuideHandleTopRight"
+                                       Style="{StaticResource CameraGuideHandleStyle}"
+                                       Cursor="SizeNESW"
+                                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-7,-7,0"
+                                       Tag="TopRight"
+                                       DragDelta="CameraGuideHandleThumb_DragDelta"
+                                       DragCompleted="CameraGuideDrag_Completed"/>
+                                <Thumb x:Name="CameraGuideHandleBottomLeft"
+                                       Style="{StaticResource CameraGuideHandleStyle}"
+                                       Cursor="SizeNESW"
+                                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-7,0,0,-7"
+                                       Tag="BottomLeft"
+                                       DragDelta="CameraGuideHandleThumb_DragDelta"
+                                       DragCompleted="CameraGuideDrag_Completed"/>
+                                <Thumb x:Name="CameraGuideHandleBottomRight"
+                                       Style="{StaticResource CameraGuideHandleStyle}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-7,-7"
+                                       Tag="BottomRight"
+                                       DragDelta="CameraGuideHandleThumb_DragDelta"
+                                       DragCompleted="CameraGuideDrag_Completed"/>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Margin="0,10,0,0"
+                                        Panel.ZIndex="20">
+                                <Button x:Name="BtnCameraGuideLock"
+                                        Width="30"
+                                        Height="30"
+                                        Margin="0,0,8,0"
+                                        Focusable="False"
+                                        Cursor="Hand"
+                                        ToolTip="{Binding CameraBarcodeGuideLockTipText}"
+                                        Click="BtnCameraGuideLock_Click">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="{StaticResource AccentBlue}"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                CornerRadius="6">
+                                                            <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                <Path x:Name="LockShackleClosed"
+                                                                      Data="M4,8 V6 A3.2,3.2 0 0 1 10.4,6 V8"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.6"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"/>
+                                                                <Path x:Name="LockShackleOpen"
+                                                                      Data="M4,8 V6 A3.2,3.2 0 0 1 10.6,4.4"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.6"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      Visibility="Collapsed"/>
+                                                                <Border x:Name="LockBody"
+                                                                        Width="12"
+                                                                        Height="8"
+                                                                        Margin="0,0,0,1"
+                                                                        CornerRadius="2"
+                                                                        Background="{StaticResource TextOnAccent}"
+                                                                        HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Bottom"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCameraBarcodeGuideLocked}" Value="False">
+                                                                <Setter TargetName="LockShackleClosed" Property="Visibility" Value="Collapsed"/>
+                                                                <Setter TargetName="LockShackleOpen" Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Opacity" Value="0.85"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCameraBarcodeGuideLocked}" Value="False">
+                                                    <Setter Property="Background" Value="{StaticResource AccentOrange}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Border Padding="12,6"
+                                        CornerRadius="6"
+                                        IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource AccentBlue}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource AccentOrange}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource AccentGreen}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding CameraBarcodeStatusText}"
+                                               Foreground="{StaticResource TextOnAccent}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                            </StackPanel>
                         </Grid>
                         <StackPanel HorizontalAlignment="Left"
                                     VerticalAlignment="Bottom"

@@ -745,7 +745,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _lastScanTime = DateTime.Now;
                     _isScanning = true;
                     _delayBeforeZooming = Config.ZoomDelaySeconds > 0;
-                    if (!_delayBeforeZooming)
+                    if (!_delayBeforeZooming && CanApplySmartZoom)
                     {
                         _zoomPhase = ZoomPhase.ZoomingIn;
                         _zoomPhaseStartTime = DateTime.Now;
@@ -1044,7 +1044,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _lastScanTime = DateTime.Now;
                 _isScanning = true;
                 _delayBeforeZooming = Config.ZoomDelaySeconds > 0;
-                if (!_delayBeforeZooming)
+                if (!_delayBeforeZooming && CanApplySmartZoom)
                 {
                     _zoomPhase = ZoomPhase.ZoomingIn;
                     _zoomPhaseStartTime = DateTime.Now;

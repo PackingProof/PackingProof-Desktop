@@ -31,6 +31,10 @@ public static class AppLanguage
     public static bool IsChinese => Current == Chinese;
     public static string StartRecordingText => Get("开始录制");
     public static string StopRecordingText => Get("停止录制");
+    /// <summary>识别框锁住时锁图标的提示</summary>
+    public static string CameraBarcodeGuideLockedTipText => Get("点击解锁后可拖动调整识别框");
+    /// <summary>识别框解锁时锁图标的提示</summary>
+    public static string CameraBarcodeGuideUnlockedTipText => Get("可拖动调整识别框，点击锁住");
 
     public static void SetAutoLocalize(DependencyObject element, bool value) =>
         element.SetValue(AutoLocalizeProperty, value);

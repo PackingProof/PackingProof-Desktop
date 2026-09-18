@@ -234,6 +234,8 @@ namespace ExpressPackingMonitoring.Config
         public double CameraBarcodeGuideHeightRatio { get; set; } = 0.85;
         public double CameraBarcodeGuideOffsetX { get; set; } = 0;
         public double CameraBarcodeGuideOffsetY { get; set; } = 0;
+        // 识别框默认锁住，避免在主页面上被误拖动
+        public bool CameraBarcodeGuideLocked { get; set; } = true;
         public double CameraBarcodeRearmSeconds { get; set; } = 3.0;
         public double CameraSameBarcodeConfirmationSeconds { get; set; } = 2.0;
         public int CameraSameBarcodeConfirmationHits { get; set; } = 2;

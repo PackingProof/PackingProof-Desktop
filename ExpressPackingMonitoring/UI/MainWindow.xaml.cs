@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Logging;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Input;
@@ -317,24 +318,90 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            AppConfig config = vm.Config;
-            CameraBarcodeGuideGeometry geometry = vm.PreviewGuideGeometry
-                ?? new CameraBarcodeGuideGeometry(
-                    config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
-                    config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
-                    config?.CameraBarcodeGuideOffsetX ?? 0,
-                    config?.CameraBarcodeGuideOffsetY ?? 0);
+            CameraBarcodeGuideGeometry geometry = vm.PreviewGuideGeometry ?? vm.CurrentCameraBarcodeGuideGeometry;
+            Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
+            Rect guideRect = CameraBarcodeGuideLayout.ToDisplayRect(geometry, videoRect);
+            if (guideRect.IsEmpty)
+            {
+                CameraBarcodeGuide.Width = 0;
+                CameraBarcodeGuide.Height = 0;
+                CameraBarcodeGuide.RenderTransform = null;
+                return;
+            }
 
-            double scale = Math.Min(actualW / sourceW, actualH / sourceH);
-            CameraBarcodeGuide.Width = sourceW * geometry.WidthRatio * scale;
-            CameraBarcodeGuide.Height = sourceH * geometry.HeightRatio * scale;
-            double offsetXPx = (sourceW - sourceW * geometry.WidthRatio) / 2.0
-                * geometry.OffsetX
-                * scale;
-            double offsetYPx = (sourceH - sourceH * geometry.HeightRatio) / 2.0
-                * geometry.OffsetY
-                * scale;
-            CameraBarcodeGuide.RenderTransform = new TranslateTransform(offsetXPx, offsetYPx);
+            CameraBarcodeGuide.Width = guideRect.Width;
+            CameraBarcodeGuide.Height = guideRect.Height;
+            // 识别框在预览里居中摆放，再按几何偏移平移，与取景矩形用的是同一套换算
+            CameraBarcodeGuide.RenderTransform = new TranslateTransform(
+                guideRect.X - (actualW - guideRect.Width) / 2.0,
+                guideRect.Y - (actualH - guideRect.Height) / 2.0);
+        }
+
+        /// <summary>
+        /// 识别框解锁后可直接在主界面调整：拖动框体平移，拖动四角改变大小。
+        /// 拖动过程即时生效但不落盘，松手时才写配置，避免鼠标每动一下都写一次文件。
+        /// </summary>
+        private void CameraGuideMoveThumb_DragDelta(object sender, DragDeltaEventArgs e) =>
+            AdjustCameraBarcodeGuide(geometry => CameraBarcodeGuideLayout.Move(
+                geometry,
+                GetCameraGuideVideoRect(),
+                e.HorizontalChange,
+                e.VerticalChange));
+
+        private void CameraGuideHandleThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (sender is not Thumb thumb
+                || thumb.Tag is not string tag
+                || !Enum.TryParse(tag, out CameraBarcodeGuideHandle handle))
+            {
+                return;
+            }
+
+            AdjustCameraBarcodeGuide(geometry => CameraBarcodeGuideLayout.Resize(
+                geometry,
+                GetCameraGuideVideoRect(),
+                handle,
+                e.HorizontalChange,
+                e.VerticalChange));
+        }
+
+        private void CameraGuideDrag_Completed(object sender, DragCompletedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.ApplyCameraBarcodeGuideGeometry(vm.CurrentCameraBarcodeGuideGeometry, persist: true);
+        }
+
+        private void BtnCameraGuideLock_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.ToggleCameraBarcodeGuideLock();
+            UpdateCameraBarcodeGuide(vm);
+        }
+
+        private void AdjustCameraBarcodeGuide(Func<CameraBarcodeGuideGeometry, CameraBarcodeGuideGeometry> adjust)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            vm.ApplyCameraBarcodeGuideGeometry(adjust(vm.CurrentCameraBarcodeGuideGeometry), persist: false);
+            UpdateCameraBarcodeGuide(vm);
+        }
+
+        /// <summary>预览控件里画面实际占据的矩形；拖动换算必须和取景用的整帧比例一致</summary>
+        private Rect GetCameraGuideVideoRect()
+        {
+            if (DataContext is not MainViewModel vm)
+                return Rect.Empty;
+
+            return CameraBarcodeGuideLayout.GetVideoRect(
+                vm.CameraFrameSize.Width,
+                vm.CameraFrameSize.Height,
+                VideoImage.ActualWidth,
+                VideoImage.ActualHeight);
         }
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)

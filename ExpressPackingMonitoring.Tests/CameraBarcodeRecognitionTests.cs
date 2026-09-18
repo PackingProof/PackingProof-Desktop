@@ -88,6 +88,19 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(150, crop.Y);
     }
 
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, false)]
+    public void SmartZoomPolicyOnlyZoomsWhileGuideIsLocked(
+        bool smartZoomEnabled,
+        bool guideLocked,
+        bool expected)
+    {
+        Assert.Equal(expected, SmartZoomPolicy.ShouldApplyZoom(smartZoomEnabled, guideLocked));
+    }
+
     [Fact]
     public void DecoderExposesGeometryForOffCenterBarcode()
     {
@@ -1247,6 +1260,7 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.Equal(0.85, config.CameraBarcodeGuideHeightRatio);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetX);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
+        Assert.True(config.CameraBarcodeGuideLocked);
         Assert.Equal(3.0, config.CameraBarcodeRearmSeconds);
         Assert.Equal(2.0, config.CameraSameBarcodeConfirmationSeconds);
         Assert.Equal(2, config.CameraSameBarcodeConfirmationHits);
