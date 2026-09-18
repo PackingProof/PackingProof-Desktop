@@ -685,21 +685,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void ToggleMode()
         {
-            IsSwitchingToReturn = CurrentMode == "发货";
-            IsModeTransitionActive = true;
-            _ = AnimateModeTransitionAsync(IsSwitchingToReturn ? "退货" : "发货");
-        }
-
-        private async Task AnimateModeTransitionAsync(string targetMode)
-        {
-            try { await Task.Delay(420); }
-            finally
-            {
-                CurrentMode = targetMode;
-                IsModeTransitionActive = false;
-                ShowToast($"已切换为: {CurrentMode}");
-                Speak(CurrentMode == "发货" ? DefaultSpeechCatalog.SwitchToShipping : DefaultSpeechCatalog.SwitchToReturn);
-            }
+            // 切换立即生效：滑动动画由 ModeTransitionButton 自己播放，
+            // 这里再等一次动画时长只会让点击看起来没反应。
+            CurrentMode = CurrentMode == "发货" ? "退货" : "发货";
+            ShowToast($"已切换为: {CurrentMode}");
+            Speak(CurrentMode == "发货" ? DefaultSpeechCatalog.SwitchToShipping : DefaultSpeechCatalog.SwitchToReturn);
         }
 
         private void PauseSpeechForRecording() => _alertService?.PauseAudio();

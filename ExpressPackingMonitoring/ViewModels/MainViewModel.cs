@@ -542,10 +542,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private double _postRollProgress;
         public bool IsPostRollActive { get => _isPostRollActive; private set => SetProperty(ref _isPostRollActive, value); }
         public double PostRollProgress { get => _postRollProgress; private set => SetProperty(ref _postRollProgress, value); }
-        private bool _isModeTransitionActive;
-        private bool _isSwitchingToReturn;
-        public bool IsModeTransitionActive { get => _isModeTransitionActive; private set => SetProperty(ref _isModeTransitionActive, value); }
-        public bool IsSwitchingToReturn { get => _isSwitchingToReturn; private set => SetProperty(ref _isSwitchingToReturn, value); }
         private int _preRecordBufferFrameCount;
         private int _preRecordBufferCapacityFrames;
         private double _preRecordBufferProgress;
