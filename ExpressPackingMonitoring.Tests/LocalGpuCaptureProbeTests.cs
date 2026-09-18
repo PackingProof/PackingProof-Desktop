@@ -52,6 +52,7 @@ public sealed class LocalGpuCaptureProbeTests
         {
             var formats = MfCaptureDevice.ReadNativeFormats(device);
             _output.WriteLine($"  name={device.Name} formats={formats.Count}");
+            _output.WriteLine($"    link={device.SymbolicLink}");
         }
     }
 
