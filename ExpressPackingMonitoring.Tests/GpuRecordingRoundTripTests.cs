@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using ExpressPackingMonitoring.Services.Gpu;
 using ExpressPackingMonitoring.ViewModels;
 using OpenCvSharp;
@@ -11,15 +13,18 @@ namespace ExpressPackingMonitoring.Tests;
 /// <summary>显式启用的 GPU 帧音视频集成验证，不打开用户数据库或修改运行时配置。</summary>
 public sealed class GpuRecordingRoundTripTests(ITestOutputHelper output)
 {
-    [Fact]
-    public async Task GpuFramesPreserveWatermarkBurstTimingAndAudioSync()
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    public async Task GpuFramesPreserveWatermarkBurstTimingAndAudioSync(int fps)
     {
         if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
             return;
         string ffmpeg = Environment.GetEnvironmentVariable("EPM_FFMPEG_PATH") ?? "";
         Assert.True(File.Exists(ffmpeg), "EPM_FFMPEG_PATH is required");
         string encoder = Environment.GetEnvironmentVariable("EPM_GPU_ENCODER") ?? "h264_nvenc";
-        const int width = 640, height = 360, fps = 30, frames = 90;
+        const int width = 640, height = 360;
+        int frames = fps * 3;
         string directory = Path.Combine(Path.GetTempPath(), "PackingProof-gpu-roundtrip-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         string movie = Path.Combine(directory, "recording.mkv");
@@ -93,6 +98,11 @@ public sealed class GpuRecordingRoundTripTests(ITestOutputHelper output)
         {
             if (!process.HasExited) process.Kill(entireProcessTree: true);
         }
+        await AssertFrameTimeline(ffmpeg, movie, frames, fps);
+        string mp4 = Path.Combine(directory, "recording.mp4");
+        await Run(ffmpeg, MainViewModel.BuildMkvToMp4Args(movie, null, mp4, 0,
+            encoder.StartsWith("hevc", StringComparison.Ordinal) ? "h265" : "h264"));
+        await AssertFrameTimeline(ffmpeg, mp4, frames, fps);
         await Run(ffmpeg, $"-y -v error -i \"{movie}\" -map 0:v:0 -vsync 0 -f rawvideo -pix_fmt bgr24 \"{video}\"");
         await Run(ffmpeg, $"-y -v error -i \"{movie}\" -map 0:a:0 -f s16le -ar 48000 -ac 1 \"{audio}\"");
         byte[] decoded = await File.ReadAllBytesAsync(video, timeout.Token);
@@ -125,14 +135,33 @@ public sealed class GpuRecordingRoundTripTests(ITestOutputHelper output)
         UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardInput = input
     }) ?? throw new InvalidOperationException("Cannot start FFmpeg");
 
-    private static async Task Run(string ffmpeg, string arguments)
+    private static async Task AssertFrameTimeline(string ffmpeg, string movie, int frames, int fps)
+    {
+        // showinfo 读取实际解码后的显示时间，不依赖额外安装 ffprobe。
+        string errors = await Run(ffmpeg,
+            $"-v info -i \"{movie}\" -map 0:v:0 -vf showinfo -vsync 0 -f null -");
+        double[] timestamps = Regex.Matches(errors, @"\bn:\s*\d+\s+pts:\s*-?\d+\s+pts_time:([-\d.]+)")
+            .Select(match => double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)).ToArray();
+        Assert.Equal(frames, timestamps.Length);
+        for (int index = 1; index < timestamps.Length; index++)
+        {
+            // Matroska 使用毫秒时基，允许量化误差，但不允许重复、倒退或首段跳变。
+            double interval = timestamps[index] - timestamps[index - 1];
+            Assert.InRange(interval, 1.0 / fps - 0.0011, 1.0 / fps + 0.0011);
+        }
+        Assert.DoesNotContain("non monotonically increasing", errors);
+    }
+
+    private static async Task<string> Run(string ffmpeg, string arguments)
     {
         using var process = Start(ffmpeg, arguments);
         Task<string> errors = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
         try
         {
             await process.WaitForExitAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(30));
-            Assert.True(process.ExitCode == 0, await errors);
+            string stderr = await errors;
+            Assert.True(process.ExitCode == 0, stderr);
+            return stderr;
         }
         finally { if (!process.HasExited) process.Kill(entireProcessTree: true); }
     }

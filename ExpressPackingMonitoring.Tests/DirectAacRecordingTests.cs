@@ -23,6 +23,7 @@ public sealed class DirectAacRecordingTests
         Assert.Contains(@"-i \\.\pipe\test-audio-pipe", args);
         Assert.Contains("-map 0:v:0 -map 1:a:0", args);
         Assert.Contains("-c:a aac -profile:a aac_low -b:a 128k", args);
+        Assert.Contains("-avoid_negative_ts make_zero", args);
         Assert.DoesNotContain(".wav", args, StringComparison.OrdinalIgnoreCase);
     }
 
