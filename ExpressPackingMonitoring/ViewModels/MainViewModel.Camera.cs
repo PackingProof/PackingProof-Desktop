@@ -939,6 +939,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     double frameDurationMs = 1000.0 / processingFps;
                     DateTime startTime = DateTime.Now; Mat currentFrame = null;
                     long currentFrameSequence;
+                    bool waitingForNewFrame = false;
                     MarkRecordingFramePipelineStage(
                         RecordingFramePipelineStage.AcquireLatestFrame,
                         Volatile.Read(ref _latestFrameSequence));
@@ -946,17 +947,22 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         currentFrameSequence = _latestFrameSequence;
                         if (_latestFrame != null && !_latestFrame.IsDisposed)
-                            currentFrame = _latestFrame.Clone();
+                        {
+                            // 重复帧只等通知，避免先复制整帧再丢弃；过期帧仍进入断流检测。
+                            waitingForNewFrame = currentFrameSequence == lastProcessedFrameSequence
+                                && (DateTime.Now - _lastFrameTime).TotalSeconds <= 1.5;
+                            if (!waitingForNewFrame)
+                                currentFrame = _latestFrame.Clone();
+                        }
                     }
 
                     // _latestFrame 可能在摄像头下一帧到来前被循环多次读取。
                     // 录像只处理真正新到达的帧，避免把同一画面重复写入造成卡顿/闪烁。
-                    if (currentFrame != null && currentFrameSequence == lastProcessedFrameSequence)
+                    if (waitingForNewFrame)
                     {
                         MarkRecordingFramePipelineStage(
                             RecordingFramePipelineStage.WaitingForNextFrame,
                             currentFrameSequence);
-                        currentFrame.Dispose();
                         // 等"下一帧到达"通知，而不是睡满一个帧间隔：轮询节拍与摄像头一旦错开，
                         // 睡满一格就会整整丢掉一拍，60fps 的源只能喂到 47fps，编码器按固定帧率
                         // 生成时间戳，文件因此比真实时间快 20% 以上（音画不同步）。
