@@ -684,18 +684,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     useDirectAac,
                     useDirectAac ? _currentAudioPipeName : null));
 
-                // 先建立实时录制保护基准，再公开 IsRecording 状态并向队列灌入预录帧，
+                // 先建立实时录制保护基准，再在帧顺序锁内公开状态并灌入预录帧，
                 // 避免超时线程在状态切换或大缓冲入队期间使用预录起点误停录。
                 _recordingGracePeriodStartTime = DateTime.Now;
                 _lastMotionTime = _recordingGracePeriodStartTime;
                 Volatile.Write(ref _lastRecordingFrameProcessedTimestamp, Stopwatch.GetTimestamp());
                 Interlocked.Exchange(ref _recordingFrameRecoveryRequested, 0);
-                IsRecording = true;
                 _recordingFramePipelineDiagnostics.Enter(
                     RecordingFramePipelineStage.Startup,
                     Volatile.Read(ref _latestFrameSequence));
-                StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
-                PublishPreRecordBufferStatus(force: true);
                 _pendingPreRecordStartTime = null;
                 List<Mat>? preRecordFrames = _pendingPreRecordFrames;
                 List<DateTime>? preRecordTimestamps = _pendingPreRecordTimestamps;
@@ -714,6 +711,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 Volatile.Write(ref _recordingLiveStartTicks, Stopwatch.GetTimestamp());
                 lock (_recordingFrameOrderLock)
                 {
+                    // 与实时帧入队使用同一把锁，确保实时帧不能抢在预录帧之前。
+                    IsRecording = true;
                     if (preRecordFrames != null)
                     {
                         int preRecordDropped = 0;
@@ -766,6 +765,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         Volatile.Read(ref _latestFrameSequence));
                     EnqueueLatestFrameForRecording();
                 }
+                StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
+                PublishPreRecordBufferStatus(force: true);
                 _recordingFramePipelineDiagnostics.Enter(
                     RecordingFramePipelineStage.WaitingForNextFrame,
                     Volatile.Read(ref _latestFrameSequence));
