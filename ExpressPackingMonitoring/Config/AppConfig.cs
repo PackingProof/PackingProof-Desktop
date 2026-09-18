@@ -131,6 +131,12 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentWebProtectionSetupVersion = 1;
         public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
 
+        /// <summary>智能特写停留时间的当前默认值（秒）</summary>
+        public const double DefaultZoomDurationSeconds = 2.5;
+
+        /// <summary>历史默认值：老版本写过 3 秒，中间版本写过 1 秒，都会落进用户配置</summary>
+        private static readonly double[] LegacyZoomDurationSeconds = [3.0, 1.0];
+
         // 语音提醒设置迁移版本。旧配置没有该字段，加载后会从 0 迁移到当前版本。
         public int VoiceSettingsVersion { get; set; } = 0;
 
@@ -211,7 +217,7 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableSmartZoom { get; set; } = false;
         public double MaxZoomScale { get; set; } = 1.5;
         public double ZoomDelaySeconds { get; set; } = 0.0;
-        public double ZoomDurationSeconds { get; set; } = 2.0;
+        public double ZoomDurationSeconds { get; set; } = DefaultZoomDurationSeconds;
         public bool EnableZoomAnimation { get; set; } = true;
         public double ZoomAnimationDurationMs { get; set; } = 200.0;
         public bool EnableAutoStop { get; set; } = true;
@@ -721,6 +727,17 @@ namespace ExpressPackingMonitoring.Config
                 changed = true;
             }
             double normalizedZoomDurationSeconds = System.Math.Clamp(config.ZoomDurationSeconds, 0.0, 5.0);
+            // 旧默认值（3 秒 / 1 秒）会被写进用户配置，统一迁到现在的 2 秒；用户自己调过的其他值保持不动。
+            foreach (double legacyDuration in LegacyZoomDurationSeconds)
+            {
+                if (System.Math.Abs(config.ZoomDurationSeconds - legacyDuration) > 0.001)
+                    continue;
+
+                config.ZoomDurationSeconds = DefaultZoomDurationSeconds;
+                normalizedZoomDurationSeconds = DefaultZoomDurationSeconds;
+                changed = true;
+                break;
+            }
             if (System.Math.Abs(config.ZoomDurationSeconds - normalizedZoomDurationSeconds) > 0.001)
             {
                 config.ZoomDurationSeconds = normalizedZoomDurationSeconds;

@@ -31,10 +31,10 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
-    public void NewConfigurationUsesTwoSecondZoomDwellByDefault()
+    public void NewConfigurationUsesTwoPointFiveSecondZoomDwellByDefault()
     {
-        Assert.Equal(2.0, new AppConfig().ZoomDurationSeconds);
-        Assert.Equal(2.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
+        Assert.Equal(2.5, new AppConfig().ZoomDurationSeconds);
+        Assert.Equal(2.5, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
         Assert.Equal(200.0, new AppConfig().ZoomAnimationDurationMs);
         Assert.Equal(200.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomAnimationDurationMs);
     }
@@ -44,6 +44,26 @@ public sealed class DefaultConfigurationTests
     {
         Assert.Equal(1.5, new AppConfig().MaxZoomScale);
         Assert.Equal(1.5, JsonSerializer.Deserialize<AppConfig>("{}")!.MaxZoomScale);
+    }
+
+    /// <summary>
+    /// 老版本把智能特写停留时间的默认值写成 3 秒、中间版本写成 1 秒，并会被保存进用户配置；
+    /// 加载时要迁到现在的默认 2.5 秒，用户自己调过的其他值保持不动。
+    /// </summary>
+    [Theory]
+    [InlineData(3.0, 2.5)]
+    [InlineData(1.0, 2.5)]
+    [InlineData(2.5, 2.5)]
+    [InlineData(2.0, 2.0)]
+    [InlineData(0.5, 0.5)]
+    [InlineData(4.0, 4.0)]
+    public void LegacyZoomDwellDefaultsAreMigratedToCurrentDefaultOnLoad(double stored, double expected)
+    {
+        var config = JsonSerializer.Deserialize<AppConfig>($$"""{"ZoomDurationSeconds": {{stored}}}""")!;
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(expected, config.ZoomDurationSeconds);
     }
 
     /// <summary>旧配置里的 4.0 倍超出新上限，加载时必须被收敛到 3.0，滑块才不会越界。</summary>
