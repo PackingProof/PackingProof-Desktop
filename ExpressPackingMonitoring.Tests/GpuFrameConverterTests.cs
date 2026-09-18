@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using ExpressPackingMonitoring.Services.Gpu;
+using OpenCvSharp;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Xunit;
@@ -13,8 +14,10 @@ namespace ExpressPackingMonitoring.Tests;
 /// 渲染目标有没有真写进去"只有把结果读回来才知道 —— 而这些恰好是最容易错、
 /// 错了只表现为画面偏色的地方。
 ///
-/// 回读只用于测试：产品路径不回读（那会把省下的开销又加回去），
-/// 预览走 D3DImage 共享纹理、录像走硬件编码器直取。
+/// 回读原本只打算用于测试，实测后改成了产品路径的一部分：整帧回读加渲染
+/// 是 1.02 ms/帧，而 CPU 整帧解码要 2.28 ms/帧，所以保留"全分辨率 Mat"
+/// 这一对外契约仍然划得来（见 GpuVsCpuPreviewPathTests）。
+/// 更省的走法（D3DImage 共享纹理预览、硬件编码器直取显存）是后续的事。
 /// </summary>
 public sealed class GpuFrameConverterTests
 {
@@ -201,6 +204,99 @@ public sealed class GpuFrameConverterTests
         {
             handle.Free();
         }
+    }
+
+    /// <summary>
+    /// 生产用的回读要把整帧正确搬进 BGR 的 <c>Mat</c>。
+    ///
+    /// 采集路径就是靠这个方法把 GPU 结果喂给现有的全分辨率 Mat 契约，
+    /// 所以它错了不会崩、只会让录像和预览整体偏色 —— 必须按值核对。
+    /// </summary>
+    [Fact]
+    public void ReadsBackWholeFrameAsBgr()
+    {
+        const int width = 64;
+        const int height = 32;
+        using GpuFrameConverter? converter = GpuFrameConverter.TryCreate(
+            width, height, width, height, isNv12: false);
+        Assert.NotNull(converter ?? throw new Xunit.Sdk.XunitException($"创建失败：{GpuFrameConverter.LastCreateFailure}"));
+
+        // BT.709 纯红。
+        byte[] frame = CreateUniformYuy2(width, height, 63, 102, 240);
+        using var destination = new Mat(height, width, MatType.CV_8UC3);
+
+        GCHandle handle = GCHandle.Alloc(frame, GCHandleType.Pinned);
+        try
+        {
+            Assert.True(converter.TryRender(handle.AddrOfPinnedObject(), width * 2, useBt709: true));
+            Assert.True(converter.TryReadBackInto(destination), "回读失败");
+        }
+        finally
+        {
+            handle.Free();
+        }
+
+        // 每个像素都要是红的：只查中心点的话，行距算错会整帧错位而测试照样过。
+        Cv2.MinMaxLoc(destination.ExtractChannel(0), out double minB, out double maxB);
+        Cv2.MinMaxLoc(destination.ExtractChannel(1), out double minG, out double maxG);
+        Cv2.MinMaxLoc(destination.ExtractChannel(2), out double minR, out double maxR);
+        Assert.True(maxB <= 4, $"B 通道最大 {maxB}，纯红不该有蓝");
+        Assert.True(maxG <= 4, $"G 通道最大 {maxG}，纯红不该有绿");
+        Assert.True(minR >= 251, $"R 通道最小 {minR}，整帧该都是红");
+        Assert.True(minB >= 0 && minG >= 0 && maxR <= 255);
+    }
+
+    /// <summary>反复回读要复用暂存纹理，不能泄漏或在第二次崩。</summary>
+    [Fact]
+    public void SurvivesRepeatedReadback()
+    {
+        const int width = 320;
+        const int height = 180;
+        using GpuFrameConverter? converter = GpuFrameConverter.TryCreate(
+            width, height, width, height, isNv12: false);
+        Assert.NotNull(converter ?? throw new Xunit.Sdk.XunitException($"创建失败：{GpuFrameConverter.LastCreateFailure}"));
+
+        byte[] frame = CreateUniformYuy2(width, height, 126, 128, 128);
+        using var destination = new Mat(height, width, MatType.CV_8UC3);
+
+        GCHandle handle = GCHandle.Alloc(frame, GCHandleType.Pinned);
+        try
+        {
+            IntPtr source = handle.AddrOfPinnedObject();
+            for (int index = 0; index < 120; index++)
+            {
+                Assert.True(converter.TryRender(source, width * 2, useBt709: true));
+                Assert.True(converter.TryReadBackInto(destination), $"第 {index + 1} 次回读失败");
+            }
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
+    /// <summary>
+    /// 目标 Mat 不匹配时必须干净拒绝。
+    ///
+    /// 采集侧的缓冲区在格式变化时会重建，如果尺寸不符却照写，
+    /// 就是往错误大小的内存里拷一整帧。
+    /// </summary>
+    [Fact]
+    public void RejectsMismatchedReadbackTarget()
+    {
+        const int width = 32;
+        const int height = 16;
+        using GpuFrameConverter? converter = GpuFrameConverter.TryCreate(
+            width, height, width, height, isNv12: false);
+        Assert.NotNull(converter ?? throw new Xunit.Sdk.XunitException($"创建失败：{GpuFrameConverter.LastCreateFailure}"));
+
+        using var wrongSize = new Mat(height + 1, width, MatType.CV_8UC3);
+        using var wrongType = new Mat(height, width, MatType.CV_8UC4);
+        using var empty = new Mat();
+
+        Assert.False(converter.TryReadBackInto(wrongSize));
+        Assert.False(converter.TryReadBackInto(wrongType));
+        Assert.False(converter.TryReadBackInto(empty));
     }
 
     /// <summary>非法尺寸要干净失败，不能建出半成品转换器。</summary>

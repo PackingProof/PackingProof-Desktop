@@ -44,7 +44,7 @@ internal sealed class MfSourceErrorEventArgs : EventArgs
 /// 线程模型：帧在 MF 的工作线程上到达并在那里完成转换，事件也在那个线程触发，
 /// 订阅方需要自己切到 UI 线程 —— 和现有两条采集路径的约定一致。
 /// </summary>
-public sealed class MfCameraSource : IDisposable
+public sealed partial class MfCameraSource : IDisposable
 {
     private readonly string _symbolicLink;
     private readonly int _targetWidth;
@@ -465,6 +465,8 @@ public sealed class MfCameraSource : IDisposable
         _conversionBuffer?.Dispose();
         _conversionBuffer = new Mat(format.Height, format.Width, MatType.CV_8UC3);
 
+        SetUpGpuConversion(format);
+
         RuntimeLog.Info(
             "Camera",
             $"Media Foundation 采集：{format}，bt709={_useBt709}"
@@ -580,6 +582,12 @@ public sealed class MfCameraSource : IDisposable
             subtype = _activeSubtype;
         }
 
+        // GPU 可用时优先走它：一次 draw 就把解码与 BT.709 校正做完，
+        // 本机实测连同整帧回读 1.02 ms/帧，CPU 单是解码就要 2.28 ms/帧。
+        // 失败则本帧立即回退 CPU，并永久停用 GPU（见 DisableGpuConversion）。
+        if (TryConvertOnGpu(scanline0, pitch, buffer, useBt709, subtype))
+            return buffer.Clone();
+
         if (subtype == MfInterop.MFVideoFormat_YUY2)
         {
             MfFrameConverter.ConvertYuy2(scanline0, pitch, width, height, buffer, useBt709);
@@ -688,6 +696,8 @@ public sealed class MfCameraSource : IDisposable
             _mediaSource = null;
         }
 
+        _gpuConverter?.Dispose();
+        _gpuConverter = null;
         _conversionBuffer?.Dispose();
         _conversionBuffer = null;
         _platform?.Dispose();
