@@ -323,7 +323,9 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             args += $" {BuildFFmpegEncoderArgs(w, h, fps, encoder, videoCqp)}";
             if (withAudio)
-                args += " -map 0:v:0 -map 1:a:0 -c:a aac -profile:a aac_low -b:a 128k -af aresample=async=1:first_pts=0";
+                // 4.4 的 Matroska 默认负时间戳处理会在 AAC 延迟包到达后改变偏移，
+                // 使首个 GOP 的部分 B 帧错位；从首包统一平移音视频，保留帧间隔与同步。
+                args += " -map 0:v:0 -map 1:a:0 -c:a aac -profile:a aac_low -b:a 128k -af aresample=async=1:first_pts=0 -avoid_negative_ts make_zero";
             args += " -muxdelay 0 -muxpreload 0";
             args += $" \"{filePath}\"";
             return args;
