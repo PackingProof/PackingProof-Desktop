@@ -503,13 +503,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private double? _previewZoomScale;
         public double? PreviewZoomScale { get => _previewZoomScale; set => SetProperty(ref _previewZoomScale, value); }
 
-        private CameraBarcodeGuideGeometry? _previewGuideGeometry;
-        public CameraBarcodeGuideGeometry? PreviewGuideGeometry
-        {
-            get => _previewGuideGeometry;
-            set => SetProperty(ref _previewGuideGeometry, value);
-        }
-
         private bool _isZoomingActive;
         public bool IsZoomingActive
         {

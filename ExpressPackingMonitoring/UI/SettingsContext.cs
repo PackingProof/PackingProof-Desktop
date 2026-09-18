@@ -74,7 +74,6 @@ public sealed class SettingsContext
     public Func<IReadOnlyList<OrderIntegrationDeviceDisplayItem>>? GetOrderIntegrationDevices { get; init; }
     public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
     public Action<double?>? SetPreviewZoomScale { get; init; }
-    public Action<CameraBarcodeGuideGeometry?>? SetPreviewGuideGeometry { get; init; }
     public Func<bool>? SuspendCameraForSetupWizard { get; init; }
     public Action? ResumeCameraAfterSetupWizard { get; init; }
     public Action<string, ToastSeverity>? ShowToast { get; init; }
@@ -107,7 +106,6 @@ public sealed class SettingsContext
             GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,
             SetPreviewZoomScale = value => mainViewModel.PreviewZoomScale = value,
-            SetPreviewGuideGeometry = value => mainViewModel.PreviewGuideGeometry = value,
             SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
             ResumeCameraAfterSetupWizard = mainViewModel.ResumeCameraAfterSetupWizard,
             ShowToast = mainViewModel.ShowToast,
