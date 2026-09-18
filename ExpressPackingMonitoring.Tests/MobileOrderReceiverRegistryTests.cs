@@ -56,7 +56,9 @@ public sealed class MobileOrderReceiverRegistryTests
             DateTime now = new(2026, 8, 23, 0, 0, 0, DateTimeKind.Utc);
             var registry = new MobileOrderReceiverRegistry(path, () => now);
             registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
-            DateTime writtenAt = File.GetLastWriteTimeUtc(path);
+            // 用文件内容判断有没有落盘：文件系统时间戳精度在 CI 上会骗人（两次写入同一时刻），
+            // 内容里的 LastSeenUtc 是随注入时钟变化的，能稳定反映"这一轮到底写没写"。
+            string writtenContent = File.ReadAllText(path);
 
             // 连续几次"什么都没变"的心跳。
             for (int index = 0; index < 4; index++)
@@ -65,12 +67,12 @@ public sealed class MobileOrderReceiverRegistryTests
                 registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
             }
 
-            Assert.Equal(writtenAt, File.GetLastWriteTimeUtc(path));
+            Assert.Equal(writtenContent, File.ReadAllText(path));
 
             // 过了节流窗口后要落一次，活跃时间不能长期只存在内存里。
             now = now.AddMinutes(3);
             registry.Register(IPAddress.Parse("192.168.31.201"), "device-a", "安卓1");
-            Assert.NotEqual(writtenAt, File.GetLastWriteTimeUtc(path));
+            Assert.NotEqual(writtenContent, File.ReadAllText(path));
         }
         finally
         {
