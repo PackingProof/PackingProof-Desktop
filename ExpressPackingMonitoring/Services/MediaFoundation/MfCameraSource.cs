@@ -54,7 +54,7 @@ public sealed partial class MfCameraSource : IDisposable
     private readonly string _colorMatrixMode;
     private readonly object _sync = new();
 
-    /// <summary>等读取线程退出的上限。超时只记日志，不阻塞摄像头切换。</summary>
+    /// <summary>等读取线程退出的上限。超时后由读取线程退出时释放资源。</summary>
     private static readonly TimeSpan ReadThreadJoinTimeout = TimeSpan.FromSeconds(2);
 
     private MfPlatform? _platform;
@@ -138,7 +138,10 @@ public sealed partial class MfCameraSource : IDisposable
                 return false;
             }
             if (_reader != null)
-                return true;
+            {
+                if (_stopping) LastStartFailure = "上次采集仍在停止";
+                return !_stopping;
+            }
 
             LastStartFailure = "";
             _platform = MfPlatform.TryStart();
@@ -193,32 +196,26 @@ public sealed partial class MfCameraSource : IDisposable
 
             _stopping = true;
             readThread = _readThread;
-            _readThread = null;
         }
 
         // 在锁外等读取线程退出：它在循环里要拿 _sync，持锁等待就是死锁。
-        if (readThread != null && readThread.IsAlive)
+        if (readThread != null && readThread != Thread.CurrentThread && readThread.IsAlive)
         {
             if (!readThread.Join(ReadThreadJoinTimeout))
-                RuntimeLog.Warn("Camera", "Media Foundation 读取线程未能在超时内退出");
+                RuntimeLog.Warn("Camera", "Media Foundation 读取线程未能在超时内退出，资源将在读取结束后释放");
         }
-
-        lock (_sync)
-            ReleaseCore();
     }
 
     public void Dispose()
     {
-        Stop();
         lock (_sync)
         {
             if (_disposed)
                 return;
 
             _disposed = true;
-            _stopping = true;
-            ReleaseCore();
         }
+        Stop();
     }
 
     /// <summary>
@@ -226,6 +223,25 @@ public sealed partial class MfCameraSource : IDisposable
     /// 的注释：托管回调注册不进原生层，协商成功却一帧都不来。
     /// </summary>
     private void ReadLoop()
+    {
+        try
+        {
+            ReadLoopCore();
+        }
+        finally
+        {
+            // ReadSample、转换和订阅回调都已返回，才可以释放它们使用的 COM/Mat/GPU 对象。
+            // 即使 Stop 等待超时或由订阅回调自身调用，也不能在另一线程提前销毁。
+            lock (_sync)
+            {
+                _stopping = true;
+                _readThread = null;
+                ReleaseCore();
+            }
+        }
+    }
+
+    private void ReadLoopCore()
     {
         while (true)
         {
