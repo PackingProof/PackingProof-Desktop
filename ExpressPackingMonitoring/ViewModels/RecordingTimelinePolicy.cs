@@ -17,6 +17,13 @@ namespace ExpressPackingMonitoring.ViewModels
     /// </summary>
     internal static class RecordingTimelinePolicy
     {
+        /// <summary>实时帧按采集时刻对齐，不能让编码速度或队列积压改变画面时间。</summary>
+        internal static int CalculateLiveFrameTarget(long startTicks, long capturedTicks, int fps) =>
+            startTicks <= 0 || capturedTicks < startTicks || fps <= 0
+                ? 0
+                : (int)Math.Min(int.MaxValue,
+                    Math.Floor(StopwatchTicksToSeconds(capturedTicks - startTicks) * fps) + 1);
+
         /// <summary>
         /// 单帧最多补几帧。落后太多时不要用重复帧把卡顿摊平（那只会得到一个更长的假文件），
         /// 留一半秒的量给正常抖动，更长的停顿交给录制看门狗处理。

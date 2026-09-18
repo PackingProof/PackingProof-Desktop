@@ -897,6 +897,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     _latestFrame?.Dispose();
                     _latestFrame = frame;
+                    _latestFrameCapturedTicks = Stopwatch.GetTimestamp();
                     Interlocked.Increment(ref _latestFrameSequence);
                 }
                 _cameraFrameReady.Signal();
@@ -942,6 +943,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     double frameDurationMs = 1000.0 / processingFps;
                     DateTime startTime = DateTime.Now; Mat currentFrame = null;
                     long currentFrameSequence;
+                    long currentFrameCapturedTicks;
                     bool waitingForNewFrame = false;
                     MarkRecordingFramePipelineStage(
                         RecordingFramePipelineStage.AcquireLatestFrame,
@@ -949,6 +951,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     lock (_frameLock)
                     {
                         currentFrameSequence = _latestFrameSequence;
+                        currentFrameCapturedTicks = _latestFrameCapturedTicks;
                         if (_latestFrame != null && !_latestFrame.IsDisposed)
                         {
                             // 重复帧只等通知，避免先复制整帧再丢弃；过期帧仍进入断流检测。
@@ -1150,7 +1153,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.RecorderEnqueue, currentFrameSequence);
                         lock (_recordingFrameOrderLock)
                         {
-                            handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame);
+                            handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame, currentFrameCapturedTicks);
                         }
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameCleanup, currentFrameSequence);
                         if (processedFrame != currentFrame)
@@ -1766,7 +1769,7 @@ namespace ExpressPackingMonitoring.ViewModels
             currentFrame.CopyTo(_previousCheckFrame);
         }
 
-        private bool TryEnqueueFrameForRecording(Mat frame)
+        private bool TryEnqueueFrameForRecording(Mat frame, long capturedTicks = 0)
         {
             try
             {
@@ -1774,7 +1777,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_writeTask != null && _writeTask.IsCompleted) return false;
 
                 var queue = _videoWriteQueue;
-                bool added = queue != null && !queue.IsAddingCompleted && queue.TryAdd(frame, 5);
+                bool added = queue != null && !queue.IsAddingCompleted
+                    && queue.TryAdd(new RecordingVideoFrame(frame, capturedTicks), 5);
                 if (!added && DateTime.Now - _lastRecordingQueueWarnAt > TimeSpan.FromSeconds(5))
                 {
                     _lastRecordingQueueWarnAt = DateTime.Now;

@@ -38,7 +38,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _maxDurationWarned = false;
 
             CancellationTokenSource oldCts;
-            BlockingCollection<Mat> oldQueue;
+            BlockingCollection<RecordingVideoFrame> oldQueue;
             Task oldWriteTask;
             Process? oldFfmpegProcess;
             string? audioFilePath;
@@ -661,7 +661,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         recordingFps);
                     if (_pendingPreRecordFrames is { Count: > 0 })
                         queueCapacity = Math.Max(queueCapacity, _pendingPreRecordFrames.Count + 6);
-                    _videoWriteQueue = new BlockingCollection<Mat>(queueCapacity);
+                    _videoWriteQueue = new BlockingCollection<RecordingVideoFrame>(queueCapacity);
                     _writeCts = new CancellationTokenSource();
                     _lastRecordingQueueWarnAt = DateTime.MinValue;
                     // 写入端在拿到实时段起点之前不补帧，这里先清掉上一单留下的值。
@@ -710,8 +710,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 低处理频率帧的墙上时间跨度，否则会把 5 秒视频记成 12 秒以上。
                 _recordStartTime = DateTime.Now - TimeSpan.FromSeconds(_activePreRecordSeconds);
                 // 实时段起点与预录帧数：写入端据此按真实时间补齐实时帧数。
-                Volatile.Write(ref _recordingLiveStartTicks, Stopwatch.GetTimestamp());
                 Volatile.Write(ref _recordingPreRecordFrameCount, usablePreRecordFrameCount);
+                Volatile.Write(ref _recordingLiveStartTicks, Stopwatch.GetTimestamp());
                 lock (_recordingFrameOrderLock)
                 {
                     if (preRecordFrames != null)
@@ -1102,12 +1102,14 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
-                BlockingCollection<Mat>? queue = _videoWriteQueue;
+                BlockingCollection<RecordingVideoFrame>? queue = _videoWriteQueue;
                 if (queue == null || queue.IsAddingCompleted) return;
 
                 Mat? frame = null;
+                long capturedTicks;
                 lock (_frameLock)
                 {
+                    capturedTicks = _latestFrameCapturedTicks;
                     if (_latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty())
                         frame = _latestFrame.Clone();
                 }
@@ -1121,7 +1123,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         : Array.Empty<string>();
                     ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId, extensionLines);
                 }
-                if (!queue.TryAdd(frame, 5))
+                if (!queue.TryAdd(new RecordingVideoFrame(frame, capturedTicks), 5))
                     frame.Dispose();
             }
             catch { }
