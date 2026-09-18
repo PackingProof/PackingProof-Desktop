@@ -11,7 +11,7 @@ public partial class ModeTransitionButton : UserControl
     private const string ReturnMode = "退货";
     private const string PackMode = "发货";
     private const double FallbackSlideDistance = 160;
-    private const double SlideDurationMs = 180;
+    private const double SlideDurationMs = 260;
 
     public static readonly DependencyProperty IsCompactProperty = DependencyProperty.Register(
         nameof(IsCompact),
