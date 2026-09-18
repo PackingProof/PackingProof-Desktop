@@ -2,14 +2,54 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:ExpressPackingMonitoring.UI"
-             MinWidth="130" Height="52">
-    <Grid ClipToBounds="True">
-        <Border x:Name="BlueLayer" Background="{DynamicResource AccentBlue}" CornerRadius="8"/>
-        <Border x:Name="OrangeLayer" Background="{DynamicResource AccentOrange}" CornerRadius="8"/>
+             xmlns:localization="clr-namespace:ExpressPackingMonitoring.Localization"
+             Height="52">
+    <UserControl.Resources>
+        <localization:LocalizedTextConverter x:Key="ModeTextConverter"/>
+    </UserControl.Resources>
+    <!-- ClipToBounds 只按矩形裁剪，滑动的色块会从圆角处露出直角，所以用圆角裁剪 -->
+    <Grid ui:RoundedClip.Radius="8">
+        <!-- 蓝色是常驻底色；橙色层是唯一的动画层，统一从按钮右侧滑入、向右侧滑出。
+             两层都不带 CornerRadius，外形交给容器的圆角裁剪，滑动时才不会出现圆角接缝。 -->
+        <Border Background="{DynamicResource AccentBlue}"/>
+        <Border x:Name="OrangeLayer" Background="{DynamicResource AccentOrange}">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="OrangeSlide"/>
+            </Border.RenderTransform>
+        </Border>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,8,0"/>
-            <TextBlock x:Name="ModeText" Text="发货" FontSize="22" FontWeight="Black" Foreground="{StaticResource TextOnAccent}"/>
+            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}">
+                <Path.Style>
+                    <Style TargetType="Path">
+                        <Setter Property="Margin" Value="0,0,8,0"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=ui:ModeTransitionButton}}" Value="True">
+                                <Setter Property="Margin" Value="0"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Path.Style>
+            </Path>
+            <TextBlock x:Name="ModeText" Text="{Binding CurrentMode, Converter={StaticResource ModeTextConverter}}" FontSize="22" FontWeight="Black" Foreground="{StaticResource TextOnAccent}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=ui:ModeTransitionButton}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
-        <Button Command="{Binding ToggleModeCommand}" Background="Transparent" BorderThickness="0" Focusable="False" Cursor="Hand"/>
+        <!-- 只做命中区域：系统默认 Button 模板会在悬浮时画出灰蓝色方角边框，盖住底色和动画 -->
+        <Button Command="{Binding ToggleModeCommand}" Focusable="False" Cursor="Hand">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{StaticResource TransparentBrush}"/>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
     </Grid>
 </UserControl>

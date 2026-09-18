@@ -132,7 +132,22 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <ui:ModeTransitionButton x:Name="ModeButton" Grid.Column="0" Margin="0,0,16,0" ToolTip="点击切换模式"/>
+                            <ui:ModeTransitionButton x:Name="ModeButton" Grid.Column="0" Margin="0,0,16,0" ToolTip="点击切换模式"
+                                                     IsCompact="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <ui:ModeTransitionButton.Style>
+                                    <Style TargetType="ui:ModeTransitionButton">
+                                        <Setter Property="MinWidth" Value="130"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                                                <Setter Property="MinWidth" Value="52"/>
+                                            </DataTrigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="0.9"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:ModeTransitionButton.Style>
+                            </ui:ModeTransitionButton>
 
                             <Grid Grid.Column="1">
                                 <TextBox x:Name="ScanInputTextBox" Height="52" FontSize="22" Padding="16,0,36,0" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="2" VerticalContentAlignment="Center"
@@ -199,10 +214,11 @@
                                                 <Border x:Name="PostRollOverlay" Visibility="Collapsed" CornerRadius="8">
                                                     <Border.Background>
                                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentGreen}}" Offset="0"/>
-                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentGreen}}" Offset="{Binding PostRollProgress}"/>
-                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentRed}}" Offset="{Binding PostRollProgress}"/>
-                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentRed}}" Offset="1"/>
+                                                            <!-- 颜色只能取 ColorTokens 的 Color 资源；绑定画笔的 Color 属性会让 GradientStop 赋值失败并中断顶栏布局 -->
+                                                            <GradientStop Color="{DynamicResource Green500Color}" Offset="0"/>
+                                                            <GradientStop Color="{DynamicResource Green500Color}" Offset="{Binding PostRollProgress}"/>
+                                                            <GradientStop Color="{DynamicResource Red500Color}" Offset="{Binding PostRollProgress}"/>
+                                                            <GradientStop Color="{DynamicResource Red500Color}" Offset="1"/>
                                                         </LinearGradientBrush>
                                                     </Border.Background>
                                                 </Border>
