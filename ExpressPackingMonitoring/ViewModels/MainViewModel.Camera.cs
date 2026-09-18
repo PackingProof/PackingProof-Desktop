@@ -27,6 +27,7 @@ using AForge.Video;
 using AForge.Video.DirectShow;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Services.MediaFoundation;
+using ExpressPackingMonitoring.Services.Gpu;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.ComponentModel;
@@ -678,6 +679,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private bool StopCamera()
         {
+            LogResourceHealthIfDue("camera-stop", force: true);
             if (!_isDisposed)
                 ResetCameraBarcodeRecognition();
 
@@ -924,6 +926,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private async Task VideoProcessLoop(CancellationToken token)
         {
+            using var previewResizer = new GpuPreviewResizer();
             int frameTickCounter = 0;
             long lastProcessedFrameSequence = 0;
 
@@ -1140,7 +1143,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (previewFrameDue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);
-                            PublishPreviewFrameIfDue(processedFrame);
+                            PublishPreviewFrameIfDue(processedFrame, previewResizer);
                         }
 
                         bool handedToRecorder;
@@ -1433,7 +1436,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 && !_previewSessionGate.IsPending;
         }
 
-        private void PublishPreviewFrameIfDue(Mat frame)
+        private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer)
         {
             if (SuppressVideoPreviewUpdates || _isDisposed) return;
 
@@ -1457,11 +1460,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (target.HasValue)
                 {
                     previewFrame = new Mat();
-                    Cv2.Resize(
-                        frame,
-                        previewFrame,
-                        new OpenCvSharp.Size(target.Value.Width, target.Value.Height),
-                        interpolation: InterpolationFlags.Area);
+                    // GPU 采集路径继续用 GPU 做面积缩放；原始全尺寸帧仍用于录像和预录。
+                    if (_mfCameraSource == null
+                        || !previewResizer.TryResize(frame, previewFrame, target.Value.Width, target.Value.Height))
+                    {
+                        Cv2.Resize(
+                            frame,
+                            previewFrame,
+                            new OpenCvSharp.Size(target.Value.Width, target.Value.Height),
+                            interpolation: InterpolationFlags.Area);
+                    }
                 }
                 else
                 {
