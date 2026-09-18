@@ -1463,8 +1463,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (target.HasValue)
                 {
                     previewFrame = new Mat();
-                    // GPU 采集路径继续用 GPU 做面积缩放；原始全尺寸帧仍用于录像和预录。
-                    if (_mfCameraSource == null
+                    // 自动模式下虚拟/网络摄像头也可加速 BGR 预览；强制旧后端保留纯 CPU 排障出口。
+                    if (CameraBackendPolicy.IsMediaFoundationDisabled(Config.CameraBackend)
                         || !previewResizer.TryResize(frame, previewFrame, target.Value.Width, target.Value.Height))
                     {
                         Cv2.Resize(
