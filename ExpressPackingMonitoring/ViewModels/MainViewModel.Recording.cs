@@ -23,6 +23,19 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private async Task WaitForManualPostRollAsync()
+        {
+            if (!Config.EnableEventRecordingBuffer
+                || Config.SameCodePostRecordSeconds <= 0
+                || !IsRecording)
+                return;
+
+            double seconds = Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5);
+            RuntimeLog.Info("Recording", $"Manual post-roll scheduled seconds={seconds:F1}");
+            ShowToast($"已停止触发，将继续录制 {seconds:F1} 秒收尾画面", ToastSeverity.Information);
+            await Task.Delay(TimeSpan.FromSeconds(seconds));
+        }
+
         private async Task InternalStopRecordingAsync()
         {
             if (!IsRecording || _isDisposed) return;

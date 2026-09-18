@@ -725,6 +725,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (IsRecording)
                 {
                     PauseSpeechForRecording();
+                    await WaitForManualPostRollAsync();
                     await InternalStopRecordingAsync();
                     QueuePostStopMux("手动停止");
                     CurrentOrderId = "";
