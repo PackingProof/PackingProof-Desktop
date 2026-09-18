@@ -480,6 +480,18 @@
   <data name="Main.BarcodeReturn" xml:space="preserve"><value>Scan: Return mode</value></data>
   <data name="Main.BarcodeShipping" xml:space="preserve"><value>Scan: Shipping mode</value></data>
   <data name="Main.BarcodeStop" xml:space="preserve"><value>Scan: Stop recording</value></data>
+  <data name="打印此条码" xml:space="preserve"><value>Print this barcode</value></data>
+  <data name="打印整套指令条码" xml:space="preserve"><value>Print all command barcodes</value></data>
+  <data name="打印单条指令条码" xml:space="preserve"><value>Command barcode</value></data>
+  <data name="指令条码" xml:space="preserve"><value>Command barcodes</value></data>
+  <data name="打印条码说明" xml:space="preserve"><value>Print at 100% scale without shrinking, then place it in front of the camera with even lighting</value></data>
+  <data name="点击可打印或打开条码图片" xml:space="preserve"><value>Click to print or open the barcode images</value></data>
+  <data name="打开指令条码所在位置" xml:space="preserve"><value>Open command barcode folder</value></data>
+  <data name="已生成指令条码图片" xml:space="preserve"><value>{0} command barcode images generated</value></data>
+  <data name="条码图片生成失败" xml:space="preserve"><value>Failed to generate the barcode images</value></data>
+  <data name="指令条码已发送到打印机" xml:space="preserve"><value>Command barcodes sent to the printer</value></data>
+  <data name="打印失败，请检查打印机" xml:space="preserve"><value>Printing failed, please check the printer</value></data>
+  <data name="Main.BarcodeFlash" xml:space="preserve"><value>Scan: Toggle phone flashlight</value></data>
   <data name="Main.BarcodeStart" xml:space="preserve"><value>Scan: Start recording</value></data>
   <data name="编码器检测失败，已保留现有设置" xml:space="preserve"><value>Encoder detection failed, existing settings retained</value></data>
   <data name="部分历史录像转换失败，已保留原文件" xml:space="preserve"><value>The conversion of some historical videos failed and the original files have been retained.</value></data>

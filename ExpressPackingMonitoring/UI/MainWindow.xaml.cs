@@ -9,9 +9,12 @@ using System.Windows.Media;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.ViewModels;
 using ExpressPackingMonitoring.Services;
+using System.IO;
+using System.Windows.Media.Imaging;
 
 namespace ExpressPackingMonitoring.UI
 {
@@ -402,6 +405,133 @@ namespace ExpressPackingMonitoring.UI
                 vm.CameraFrameSize.Height,
                 VideoImage.ActualWidth,
                 VideoImage.ActualHeight);
+        }
+
+        /// <summary>
+        /// 条码区域左键也呼出菜单：现场更习惯直接点一下，不必记得右键。
+        /// </summary>
+        private void BarcodeArea_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement element
+                || element.ContextMenu is not ContextMenu menu)
+            {
+                return;
+            }
+
+            menu.PlacementTarget = element;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 条码右键菜单：现场常把指令条码打印出来贴墙给摄像头扫，这里提供
+        /// "打印这一条 / 打印整套 / 打开条码图片位置"；条码冷却隐藏时对应项置灰。
+        /// </summary>
+        private void BarcodeContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ContextMenu menu)
+                return;
+
+            BarcodePrintService.BarcodePrintItem? barcode = ResolveContextBarcode(menu);
+            menu.Tag = barcode;
+            foreach (object entry in menu.Items)
+            {
+                if (entry is MenuItem { Tag: "current" } item)
+                    item.IsEnabled = barcode != null;
+            }
+        }
+
+        private void PrintCurrentBarcode_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem item
+                || item.Parent is not ContextMenu menu
+                || menu.Tag is not BarcodePrintService.BarcodePrintItem barcode)
+            {
+                return;
+            }
+
+            PrintCommandBarcodes([barcode], AppLanguage.Get("打印单条指令条码"));
+        }
+
+        private void PrintAllBarcodes_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            PrintCommandBarcodes(vm.CommandBarcodePrintItems, AppLanguage.Get("指令条码"));
+        }
+
+        /// <summary>
+        /// 重新生成整套指令条码图片（固定放在用户数据目录下，覆盖旧文件）并打开该文件夹。
+        /// 菜单项和条码面板上的图标按钮共用这里，用户不需要再选保存位置。
+        /// </summary>
+        private void OpenBarcodeImageFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            int generated = vm.RefreshCommandBarcodeImageFiles();
+            if (generated <= 0)
+            {
+                AppDialog.Error(this, AppLanguage.Get("条码图片生成失败"), AppLanguage.Get("指令条码"));
+                return;
+            }
+
+            WindowsShellFileLocator.OpenFolder(AppPaths.CommandBarcodeImageDir);
+            vm.ShowToast(AppLanguage.Format("已生成指令条码图片", generated));
+        }
+
+        private void PrintCommandBarcodes(
+            IReadOnlyList<BarcodePrintService.BarcodePrintItem> items,
+            string title)
+        {
+            if (items.Count == 0)
+                return;
+
+            try
+            {
+                var dialog = new PrintDialog();
+                if (dialog.ShowDialog() != true)
+                    return;
+
+                DrawingVisual page = BarcodePrintService.BuildPage(
+                    items,
+                    dialog.PrintableAreaWidth,
+                    dialog.PrintableAreaHeight,
+                    title,
+                    AppLanguage.Get("打印条码说明"));
+                dialog.PrintVisual(page, title);
+                (DataContext as MainViewModel)?.ShowToast(AppLanguage.Get("指令条码已发送到打印机"));
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Print", "Printing command barcodes failed", ex);
+                AppDialog.Error(this, AppLanguage.Get("打印失败，请检查打印机"), AppLanguage.Get("指令条码"));
+            }
+        }
+
+        /// <summary>右键点的是哪一条条码；条码正在冷却、界面上没有条码时返回 null</summary>
+        private BarcodePrintService.BarcodePrintItem? ResolveContextBarcode(ContextMenu menu)
+        {
+            if (DataContext is not MainViewModel vm
+                || menu.PlacementTarget is not FrameworkElement target
+                || target.Tag is not string slot)
+            {
+                return null;
+            }
+
+            bool firstBarcode = slot == "1";
+            if (firstBarcode ? vm.Barcode1Image == null : vm.Barcode2Image == null)
+                return null;
+
+            string payload = firstBarcode ? vm.Barcode1Payload : vm.Barcode2Payload;
+            if (string.IsNullOrWhiteSpace(payload))
+                return null;
+
+            string label = firstBarcode ? vm.Barcode1Label : vm.Barcode2Label;
+            return new BarcodePrintService.BarcodePrintItem(
+                string.IsNullOrWhiteSpace(label) ? payload : label,
+                payload);
         }
 
         private void BtnSettings_Click(object sender, RoutedEventArgs e)

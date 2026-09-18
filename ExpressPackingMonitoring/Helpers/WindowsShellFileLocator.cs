@@ -16,7 +16,44 @@ internal enum FileLocationResult
 internal static class WindowsShellFileLocator
 {
     public static FileLocationResult Locate(string filePath) =>
-        Locate(filePath, TrySelectFile, OpenFolder);
+        Locate(filePath, TrySelectFile, OpenFolderCore);
+
+    /// <summary>
+    /// 只打开文件夹、不选中任何文件：批量导出整套图片后直接带用户去看结果。
+    /// </summary>
+    public static FileLocationResult OpenFolder(string folderPath) =>
+        OpenFolder(folderPath, OpenFolderCore);
+
+    internal static FileLocationResult OpenFolder(
+        string folderPath,
+        Action<string> openFolder)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath))
+            return FileLocationResult.Invalid;
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(folderPath);
+        }
+        catch
+        {
+            return FileLocationResult.Invalid;
+        }
+
+        if (!Directory.Exists(fullPath))
+            return FileLocationResult.Invalid;
+
+        try
+        {
+            openFolder(fullPath);
+            return FileLocationResult.OpenedFolder;
+        }
+        catch
+        {
+            return FileLocationResult.Failed;
+        }
+    }
 
     internal static FileLocationResult Locate(
         string filePath,
@@ -79,7 +116,7 @@ internal static class WindowsShellFileLocator
         }
     }
 
-    private static void OpenFolder(string folder)
+    private static void OpenFolderCore(string folder)
     {
         Process.Start(new ProcessStartInfo
         {
