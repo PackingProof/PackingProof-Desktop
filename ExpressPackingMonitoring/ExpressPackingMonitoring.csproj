@@ -211,6 +211,7 @@
     <Compile Include="Services\MediaFoundation\CameraColorSpacePolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfCameraSource.cs" />
     <Compile Include="Services\MediaFoundation\MfCameraSource.Gpu.cs" />
+    <Compile Include="Services\MediaFoundation\MfCameraSource.Diagnostics.cs" />
     <Compile Include="Services\MediaFoundation\MfCaptureProbe.cs" />
     <Compile Include="Services\MediaFoundation\CameraBackendPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfDeviceMatcher.cs" />

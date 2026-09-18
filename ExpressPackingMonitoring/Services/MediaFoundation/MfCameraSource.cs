@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Logging;
+using System.Diagnostics;
 using OpenCvSharp;
 using System.Runtime.InteropServices;
 
@@ -233,6 +234,7 @@ public sealed partial class MfCameraSource : IDisposable
             try
             {
                 Interlocked.Increment(ref _readCount);
+                long readStart = Stopwatch.GetTimestamp();
                 hr = reader.ReadSample(
                     MfInterop.MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                     0,
@@ -240,6 +242,7 @@ public sealed partial class MfCameraSource : IDisposable
                     out streamFlags,
                     out _,
                     out samplePointer);
+                Interlocked.Add(ref _readTicks, Stopwatch.GetTimestamp() - readStart);
                 _lastHr = hr;
                 _lastFlags = streamFlags;
                 if (samplePointer != IntPtr.Zero)
@@ -533,11 +536,33 @@ public sealed partial class MfCameraSource : IDisposable
                 return;
             }
 
+            long convertStart = Stopwatch.GetTimestamp();
             Mat? output = ConvertLockedBuffer(scanline0, pitch);
+            long publishStart = Stopwatch.GetTimestamp();
+            Interlocked.Add(ref _convertTicks, publishStart - convertStart);
+
             if (output != null)
-                FrameReady?.Invoke(this, new MfFrameEventArgs(output));
+
+            {
+
+                // 交给订阅方一份独立副本：共享的转换缓冲区下一帧就会被覆写。
+
+                // 复制算在发布这一段里，好让分段统计能把它和解码开销分开。
+
+                FrameReady?.Invoke(this, new MfFrameEventArgs(output.Clone()));
+
+            }
+
             else
+
+            {
+
                 LastFrameFailure = "转换返回空";
+
+            }
+
+            Interlocked.Add(ref _publishTicks, Stopwatch.GetTimestamp() - publishStart);
+            Interlocked.Increment(ref _timedFrames);
         }
         catch (Exception ex)
         {
@@ -586,7 +611,7 @@ public sealed partial class MfCameraSource : IDisposable
         // 本机实测连同整帧回读 1.02 ms/帧，CPU 单是解码就要 2.28 ms/帧。
         // 失败则本帧立即回退 CPU，并永久停用 GPU（见 DisableGpuConversion）。
         if (TryConvertOnGpu(scanline0, pitch, buffer, useBt709, subtype))
-            return buffer.Clone();
+            return buffer;
 
         if (subtype == MfInterop.MFVideoFormat_YUY2)
         {
@@ -615,9 +640,7 @@ public sealed partial class MfCameraSource : IDisposable
         {
             return null;
         }
-
-        // 交给订阅方一份独立副本：共享的转换缓冲区下一帧就会被覆写。
-        return buffer.Clone();
+        return buffer;
     }
 
     /// <summary>格式在运行中变了（部分摄像头切曝光模式时会）：重新读尺寸并重建缓冲区。</summary>

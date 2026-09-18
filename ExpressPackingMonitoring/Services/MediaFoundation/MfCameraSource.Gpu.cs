@@ -23,6 +23,23 @@ public sealed partial class MfCameraSource
     private bool _gpuDisabled;
     private int _loggedGpuFallback;
 
+    /// <summary>
+    /// 允许调用方一开始就不要 GPU。
+    ///
+    /// 用于两件事：出问题时把这条路径整体关掉排除嫌疑，以及在同一台设备上
+    /// 对照两条路径的实际开销 —— 否则"GPU 省了多少"只能靠不同机器的数字硬比。
+    /// </summary>
+    internal void DisableGpuConversionUpFront(string reason)
+    {
+        lock (_sync)
+        {
+            _gpuDisabled = true;
+            GpuDisableReason = reason;
+            _gpuConverter?.Dispose();
+            _gpuConverter = null;
+        }
+    }
+
     /// <summary>GPU 转换当前是否生效，供诊断与日志使用。</summary>
     internal bool UsesGpuConversion
     {
