@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- GPU 渲染结果的回读验证要用指针读映射内存（仅测试路径用到）。 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--
       窗口渲染守卫要真正创建 WPF 窗口。窗口 XAML 里的 Icon="/app.ico"
       只能从入口程序集（这里是测试程序集）的 WPF 资源里找，
