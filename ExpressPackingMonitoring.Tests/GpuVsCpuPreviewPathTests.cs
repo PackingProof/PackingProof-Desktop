@@ -89,6 +89,66 @@ public sealed class GpuVsCpuPreviewPathTests
     }
 
     /// <summary>
+    /// 全分辨率下的对照：GPU 渲染到 1920x1080 再整帧回读，对比 CPU 整帧解码。
+    ///
+    /// 这一组决定"能不能原地替换 <c>MfCameraSource.ConvertLockedBuffer</c>"。
+    /// 采集对外交出的是全分辨率 Mat（录像要用），所以最省事的接入方式是
+    /// 在那里把 CPU 解码换成 GPU 解码 —— 但那就必须整帧回读。
+    ///
+    /// 用例只记录数字、不断言方向：整帧回读要走 PCIe 把 8MB 拉回内存，
+    /// 结果可能比 CPU 解码更贵。贵就说明这条接入方式不成立，
+    /// 必须让预览与录像各自取自己需要的尺寸，而不是原地替换。
+    /// </summary>
+    [Fact]
+    public void RecordsFullResolutionReadbackCost()
+    {
+        using GpuFrameConverter? converter = GpuFrameConverter.TryCreate(
+            SourceWidth,
+            SourceHeight,
+            SourceWidth,
+            SourceHeight,
+            isNv12: false);
+        Assert.NotNull(converter ?? throw new Xunit.Sdk.XunitException(
+            $"GPU 转换器创建失败：{GpuFrameConverter.LastCreateFailure}"));
+
+        byte[] frame = CreateYuy2Frame();
+        using var gpuFull = new Mat(SourceHeight, SourceWidth, MatType.CV_8UC3);
+        using var cpuFull = new Mat(SourceHeight, SourceWidth, MatType.CV_8UC3);
+        using ID3D11Texture2D staging = CreateStagingTexture(converter);
+
+        GCHandle handle = GCHandle.Alloc(frame, GCHandleType.Pinned);
+        try
+        {
+            IntPtr source = handle.AddrOfPinnedObject();
+            const int stride = SourceWidth * 2;
+
+            for (int index = 0; index < 5; index++)
+            {
+                RunGpuPath(converter, staging, source, stride, gpuFull);
+                MfFrameConverter.ConvertYuy2(source, stride, SourceWidth, SourceHeight, cpuFull, useBt709: true);
+            }
+
+            const int iterations = 30;
+            var stopwatch = Stopwatch.StartNew();
+            for (int index = 0; index < iterations; index++)
+                RunGpuPath(converter, staging, source, stride, gpuFull);
+            double gpuMs = stopwatch.Elapsed.TotalMilliseconds / iterations;
+
+            stopwatch.Restart();
+            for (int index = 0; index < iterations; index++)
+                MfFrameConverter.ConvertYuy2(source, stride, SourceWidth, SourceHeight, cpuFull, useBt709: true);
+            double cpuMs = stopwatch.Elapsed.TotalMilliseconds / iterations;
+
+            _output.WriteLine(
+                $"full-res GPU+readback {gpuMs:F3} ms/frame, CPU decode {cpuMs:F3} ms/frame, ratio {cpuMs / gpuMs:F2}x");
+        }
+        finally
+        {
+            handle.Free();
+        }
+    }
+
+    /// <summary>
     /// 两条路径的输出要足够接近，切换时用户不该看到画面跳变。
     ///
     /// 容差放宽到 12/255：CPU 路径本身在饱和色上有损（BT.601 解码再乘校正矩阵，
