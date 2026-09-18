@@ -217,6 +217,8 @@
     <Compile Include="Services\MediaFoundation\MfCaptureProbe.cs" />
     <Compile Include="Services\MediaFoundation\CameraBackendPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfDeviceMatcher.cs" />
+    <Compile Include="Services\Gpu\D3D11Interop.cs" />
+    <Compile Include="Services\Gpu\D3D11DeviceHolder.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
     <Compile Include="Services\NetworkArchiveErrorClassifier.cs" />
