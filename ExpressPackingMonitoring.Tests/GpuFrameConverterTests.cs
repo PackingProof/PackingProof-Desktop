@@ -246,6 +246,37 @@ public sealed class GpuFrameConverterTests
         Assert.True(minB >= 0 && minG >= 0 && maxR <= 255);
     }
 
+    [Fact]
+    public void ReadbackPreservesPaddedDestinationAndChannelOrder()
+    {
+        const int width = 66, height = 18;
+        using var converter = GpuFrameConverter.TryCreate(width, height, width, height, false);
+        Assert.NotNull(converter);
+        using var parent = new Mat(height + 2, width + 8, MatType.CV_8UC3, new Scalar(17, 19, 23));
+        using var destination = new Mat(parent, new Rect(3, 1, width, height));
+        byte[] frame = CreateUniformYuy2(width, height, 63, 102, 240);
+        GCHandle handle = GCHandle.Alloc(frame, GCHandleType.Pinned);
+        try
+        {
+            Assert.True(converter.TryRender(handle.AddrOfPinnedObject(), width * 2, true));
+            Assert.True(converter.TryReadBackInto(destination));
+            for (int y = 0; y < parent.Rows; y++)
+            for (int x = 0; x < parent.Cols; x++)
+            {
+                Vec3b pixel = parent.At<Vec3b>(y, x);
+                if (y >= 1 && y <= height && x >= 3 && x < width + 3)
+                {
+                    Assert.InRange(pixel.Item0, (byte)0, (byte)4);
+                    Assert.InRange(pixel.Item1, (byte)0, (byte)4);
+                    Assert.InRange(pixel.Item2, (byte)251, (byte)255);
+                }
+                else
+                    Assert.Equal(new Vec3b(17, 19, 23), pixel);
+            }
+        }
+        finally { handle.Free(); }
+    }
+
     /// <summary>反复回读要复用暂存纹理，不能泄漏或在第二次崩。</summary>
     [Fact]
     public void SurvivesRepeatedReadback()
