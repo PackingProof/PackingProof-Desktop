@@ -36,6 +36,24 @@ public sealed class MfDeviceMatcherTests
     }
 
     /// <summary>
+    /// DirectShow 与 Media Foundation 对同一物理摄像头会挂不同的接口类 GUID，
+    /// 但实例路径主体相同；接口 GUID 不能参与匹配，否则新后端永远不会启动。
+    /// </summary>
+    [Fact]
+    public void MatchesWhenInterfaceClassGuidDiffers()
+    {
+        const string moniker =
+            @"@device:pnp:\\?\usb#vid_046d&pid_0825#abc123#{65e8773d-8f56-11d0-a3b9-00a0c9223196}";
+        const string symbolicLink =
+            @"\\?\usb#vid_046d&pid_0825#abc123#{e5323777-f976-4f5b-9b55-b94699c46e44}\global";
+        var devices = new[] { new MfCaptureDevice("摄像头", symbolicLink) };
+
+        MfCaptureDevice? matched = MfDeviceMatcher.FindByMoniker(moniker, devices);
+
+        Assert.Same(devices[0], matched);
+    }
+
+    /// <summary>
     /// 同型号的两台设备必须按实例路径区分开，不能按名字 ——
     /// 名字完全一样（"Iriun Webcam" 与 "Iriun Webcam #2" 只是显示名加后缀）。
     /// </summary>
