@@ -162,12 +162,12 @@ internal sealed class CameraFrameRateGate
 
     public void Reset() => Interlocked.Exchange(ref _lastAcceptedTimestamp, 0);
 
-    public bool ShouldAccept(bool isRecording, int targetFps) =>
-        ShouldAccept(isRecording, targetFps, Stopwatch.GetTimestamp(), Stopwatch.Frequency);
+    public bool ShouldAccept(bool acceptEveryFrame, int targetFps) =>
+        ShouldAccept(acceptEveryFrame, targetFps, Stopwatch.GetTimestamp(), Stopwatch.Frequency);
 
-    internal bool ShouldAccept(bool isRecording, int targetFps, long nowTimestamp, long timestampFrequency)
+    internal bool ShouldAccept(bool acceptEveryFrame, int targetFps, long nowTimestamp, long timestampFrequency)
     {
-        if (isRecording)
+        if (acceptEveryFrame)
         {
             Interlocked.Exchange(ref _lastAcceptedTimestamp, nowTimestamp);
             return true;
