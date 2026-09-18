@@ -721,14 +721,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (IsRecording)
                 {
-                    PauseSpeechForRecording();
-                    await WaitForManualPostRollAsync();
-                    await InternalStopRecordingAsync();
+                    await StopWithManualAnnouncementAsync();
                     QueuePostStopMux("手动停止");
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
-                    Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
                     return;
                 }
                 else
@@ -927,7 +924,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_currentScanRecord != null) _currentScanRecord.OrderId = upperResult;
                     }
                     _stopReason = "同码停录";
-                    if (Config.EnableEventRecordingBuffer && Config.SameCodePostRecordSeconds > 0)
+                    if (HasPendingPostRollWindow())
                     {
                         // 同码重复识别只允许首次触发收尾，避免反复重置定时器导致无限录制。
                         CancellationTokenSource pendingPostRoll = _sameCodePostRollCts;
@@ -938,10 +935,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             return;
                         }
 
-                        // 收尾是异步的，先给用户即时反馈；否则语音会等到收尾结束后才播报。
-                        // 在暂停录制期间的 AI 语音生成前入队，避免 PauseForRecording 阻塞这条提示。
-                        Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
-                        PauseSpeechForRecording();
+                        // 收尾是异步的，先给用户即时反馈；手动停止与停止指令共用同一段播报逻辑。
+                        AnnounceStopTriggered();
                         _sameCodePostRollCts?.Cancel();
                         var postRollCts = _sameCodePostRollCts = new CancellationTokenSource();
                         RuntimeLog.Info("Recording", $"Same-code post-roll scheduled seconds={Config.SameCodePostRecordSeconds:F1}");

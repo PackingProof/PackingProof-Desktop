@@ -712,10 +712,15 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!await _recorderLock.WaitAsync(0)) return;
             try
             {
-                PauseSpeechForRecording();
                 if (isManual)
-                    await WaitForManualPostRollAsync();
-                await InternalStopRecordingAsync();
+                {
+                    await StopWithManualAnnouncementAsync();
+                }
+                else
+                {
+                    PauseSpeechForRecording();
+                    await InternalStopRecordingAsync();
+                }
                 if (mergeAfterStop)
                     QueuePostStopMux(isManual ? "手动停止" : "最终停止");
                 if (isManual)
@@ -723,7 +728,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("已手动停止录制");
-                    Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
                 }
             }
             finally
