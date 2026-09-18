@@ -161,6 +161,7 @@
     <Compile Include="Services\BackupPairingTokenService.cs" />
     <Compile Include="Services\BackupUploadDeviceRegistration.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
+    <Compile Include="Services\CameraBarcodeGuideLayout.cs" />
     <Compile Include="Services\JdBarcodePolicy.cs" />
     <Compile Include="Services\SmartZoomPolicy.cs" />
     <Compile Include="Services\CameraFrameOrientation.cs" />
@@ -271,6 +272,7 @@
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />
+    <Compile Include="ViewModels\MainViewModel.CameraGuide.cs" />
     <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />
     <Compile Include="ViewModels\MainViewModel.Notifications.cs" />

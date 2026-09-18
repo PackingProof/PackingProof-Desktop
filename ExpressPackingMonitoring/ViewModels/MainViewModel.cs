@@ -192,7 +192,15 @@ namespace ExpressPackingMonitoring.ViewModels
         // 摄像头空闲休眠
         private bool _isCameraSleeping = false;
         private DateTime _lastActivityTime = DateTime.Now;
-        public bool IsCameraSleeping { get => _isCameraSleeping; private set => SetProperty(ref _isCameraSleeping, value); }
+        public bool IsCameraSleeping
+        {
+            get => _isCameraSleeping;
+            private set
+            {
+                if (SetProperty(ref _isCameraSleeping, value))
+                    OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
+            }
+        }
         private Task _cameraIdleWatchdogTask;
         private Task _videoTask;
         private object _videoLock = new object();
@@ -503,7 +511,15 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private bool _isZoomingActive;
-        public bool IsZoomingActive { get => _isZoomingActive; private set => SetProperty(ref _isZoomingActive, value); }
+        public bool IsZoomingActive
+        {
+            get => _isZoomingActive;
+            private set
+            {
+                if (SetProperty(ref _isZoomingActive, value))
+                    OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
+            }
+        }
 
         private volatile bool _suppressVideoPreviewUpdates;
         public bool SuppressVideoPreviewUpdates { get => _suppressVideoPreviewUpdates; set => _suppressVideoPreviewUpdates = value; }
@@ -584,6 +600,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         RefreshPreRecordBufferCapacityAfterConfigChange();
                     }
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
+                    OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
                     OnPropertyChanged(nameof(IsRecordingWorkstation));
                     OnPropertyChanged(nameof(IsMainConnectionVisible));
                     OnPropertyChanged(nameof(MainConnectionButtonText));

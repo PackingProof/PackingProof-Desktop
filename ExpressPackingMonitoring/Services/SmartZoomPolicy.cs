@@ -6,6 +6,13 @@ internal static class SmartZoomPolicy
 {
     internal const double BarcodeSafetyMargin = 1.15;
 
+    /// <summary>
+    /// 是否执行扫码放大。解锁识别框是在调整取景范围，放大后的预览已被裁切、取景框对不准，
+    /// 所以这种状态下不放大，锁回识别框后恢复。
+    /// </summary>
+    internal static bool ShouldApplyZoom(bool smartZoomEnabled, bool guideLocked) =>
+        smartZoomEnabled && guideLocked;
+
     internal static double GetBoundedScale(
         int frameWidth,
         int frameHeight,

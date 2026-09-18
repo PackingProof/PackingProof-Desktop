@@ -54,6 +54,8 @@
   <data name="正在启动" xml:space="preserve"><value>Starting</value></data>
   <data name="正在停止" xml:space="preserve"><value>Stopping</value></data>
   <data name="正在收尾" xml:space="preserve"><value>Wrapping up</value></data>
+  <data name="点击解锁后可拖动调整识别框" xml:space="preserve"><value>Click to unlock, then drag to adjust the recognition guide</value></data>
+  <data name="可拖动调整识别框，点击锁住" xml:space="preserve"><value>Drag to adjust the recognition guide; click to lock</value></data>
   <data name="发货模式" xml:space="preserve"><value>Shipping mode</value></data>
   <data name="退货模式" xml:space="preserve"><value>Return mode</value></data>
   <data name="重新检测" xml:space="preserve"><value>Detect again</value></data>
