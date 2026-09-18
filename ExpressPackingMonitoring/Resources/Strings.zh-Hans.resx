@@ -479,6 +479,18 @@
   <data name="Main.BarcodeReturn" xml:space="preserve"><value>扫码切换退货</value></data>
   <data name="Main.BarcodeShipping" xml:space="preserve"><value>扫码切换发货</value></data>
   <data name="Main.BarcodeStop" xml:space="preserve"><value>扫码停止录像</value></data>
+  <data name="打印此条码" xml:space="preserve"><value>打印此条码</value></data>
+  <data name="打印整套指令条码" xml:space="preserve"><value>打印整套指令条码</value></data>
+  <data name="打印单条指令条码" xml:space="preserve"><value>单条指令条码</value></data>
+  <data name="指令条码" xml:space="preserve"><value>指令条码</value></data>
+  <data name="打印条码说明" xml:space="preserve"><value>打印时请选择 100% 比例，不要缩放；贴在摄像头正对、光线均匀的位置</value></data>
+  <data name="点击可打印或打开条码图片" xml:space="preserve"><value>点击可打印或打开条码图片</value></data>
+  <data name="打开指令条码所在位置" xml:space="preserve"><value>打开指令条码所在位置</value></data>
+  <data name="已生成指令条码图片" xml:space="preserve"><value>已生成 {0} 张指令条码图片</value></data>
+  <data name="条码图片生成失败" xml:space="preserve"><value>条码图片生成失败</value></data>
+  <data name="指令条码已发送到打印机" xml:space="preserve"><value>指令条码已发送到打印机</value></data>
+  <data name="打印失败，请检查打印机" xml:space="preserve"><value>打印失败，请检查打印机</value></data>
+  <data name="Main.BarcodeFlash" xml:space="preserve"><value>扫码开关手机手电筒</value></data>
   <data name="Main.BarcodeStart" xml:space="preserve"><value>扫码开始录像</value></data>
   <data name="编码器检测失败，已保留现有设置" xml:space="preserve"><value>编码器检测失败，已保留现有设置</value></data>
   <data name="部分历史录像转换失败，已保留原文件" xml:space="preserve"><value>部分历史录像转换失败，已保留原文件</value></data>

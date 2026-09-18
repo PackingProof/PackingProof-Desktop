@@ -66,11 +66,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!_barcode1OnCooldown)
                 {
                     Barcode1Label = label1;
+                    Barcode1Payload = cmd1;
                     Barcode1Image = BarcodeHelper.Generate(cmd1, 52, 3);
                 }
                 if (!_barcode2OnCooldown)
                 {
                     Barcode2Label = label2;
+                    Barcode2Payload = cmd2;
                     Barcode2Image = BarcodeHelper.Generate(cmd2, 52, 3);
                 }
             }
@@ -260,7 +262,32 @@ namespace ExpressPackingMonitoring.ViewModels
             InitializeSystem();
             StartUiHeartbeat();
             RefreshBarcodes();
+            PrimeCommandBarcodeImages();
             InitGlobalKeyboardHook();
+        }
+
+        /// <summary>启动时预生成一次指令条码图片，用户点"打开所在位置"时目录里已经有文件</summary>
+        private void PrimeCommandBarcodeImages() => _ = Task.Run(RefreshCommandBarcodeImageFiles);
+
+        /// <summary>
+        /// 重新生成整套指令条码图片（固定目录、覆盖旧文件），返回生成的张数。
+        /// 图片是可再生内容，失败只记录日志，不影响界面。
+        /// </summary>
+        public int RefreshCommandBarcodeImageFiles()
+        {
+            try
+            {
+                return BarcodePrintService.WriteAll(
+                    AppPaths.CommandBarcodeImageDir,
+                    CommandBarcodePrintItems,
+                    AppLanguage.Get("指令条码"),
+                    AppLanguage.Get("打印条码说明"));
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Print", "Generating command barcode images failed", ex);
+                return 0;
+            }
         }
 
         private void InitGlobalKeyboardHook()

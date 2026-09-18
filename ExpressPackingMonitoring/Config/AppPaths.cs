@@ -28,6 +28,8 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string ExtensionMarketCacheDir = Path.Combine(CacheDir, "extension-market");
         public static readonly string UserscriptsDir = Path.Combine(UserDataDir, "userscripts");
         public static readonly string ExtensionsDir = Path.Combine(UserDataDir, "extensions");
+        // 指令条码图片：可随时重新生成，用户点"打开所在位置"时按最新配置覆盖一次。
+        public static readonly string CommandBarcodeImageDir = Path.Combine(UserDataDir, "command-barcodes");
 
         public static readonly string ConfigPath = Path.Combine(UserDataDir, "config.json");
         public static readonly string VideoDatabasePath = Path.Combine(UserDataDir, "videos.db");
@@ -63,6 +65,7 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(ExtensionMarketCacheDir);
             Directory.CreateDirectory(UserscriptsDir);
             Directory.CreateDirectory(ExtensionsDir);
+            Directory.CreateDirectory(CommandBarcodeImageDir);
         }
 
         private static void MigrateMobileBackupState()

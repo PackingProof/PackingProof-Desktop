@@ -664,12 +664,22 @@ namespace ExpressPackingMonitoring.ViewModels
         // 条形码（自动计算）
         private string _barcode1Label;
         private string _barcode2Label;
+        private string _barcode1Payload = "CLEAR";
+        private string _barcode2Payload = "START";
         private BitmapSource _barcode1Image;
         private BitmapSource _barcode2Image;
         private double _barcode1CooldownProgress;
         private double _barcode2CooldownProgress;
         public string Barcode1Label { get => _barcode1Label; set => SetProperty(ref _barcode1Label, value); }
         public string Barcode2Label { get => _barcode2Label; set => SetProperty(ref _barcode2Label, value); }
+        /// <summary>界面上第一条条码实际编码的指令，供右键打印使用</summary>
+        public string Barcode1Payload { get => _barcode1Payload; set => SetProperty(ref _barcode1Payload, value); }
+        /// <summary>界面上第二条条码实际编码的指令，供右键打印使用</summary>
+        public string Barcode2Payload { get => _barcode2Payload; set => SetProperty(ref _barcode2Payload, value); }
+
+        /// <summary>整套指令条码，顺序按现场使用习惯排列，供"打印整套指令条码"使用</summary>
+        public IReadOnlyList<BarcodePrintService.BarcodePrintItem> CommandBarcodePrintItems =>
+            BarcodeCommandCatalog.ResolveAll();
         public BitmapSource Barcode1Image { get => _barcode1Image; set => SetProperty(ref _barcode1Image, value); }
         public BitmapSource Barcode2Image { get => _barcode2Image; set => SetProperty(ref _barcode2Image, value); }
         public double Barcode1CooldownProgress { get => _barcode1CooldownProgress; set => SetProperty(ref _barcode1CooldownProgress, value); }

@@ -310,6 +310,11 @@ internal static class UninstallCleanupService
             Path.Combine(normalizedUserDataDirectory, "cache"),
             failures,
             logPath);
+        TryDeleteDirectoryInsideRoot(
+            normalizedUserDataDirectory,
+            Path.Combine(normalizedUserDataDirectory, "command-barcodes"),
+            failures,
+            logPath);
 
         bool success = failures.Count == 0;
         string message = success

@@ -130,6 +130,9 @@
     <Compile Include="Data\VideoDatabase.VideoSources.cs" />
     <Compile Include="Data\VideoDatabase.DeviceFolderMigration.cs" />
     <Compile Include="Helpers\BarcodeHelper.cs" />
+    <Compile Include="Helpers\BarcodePrintLayout.cs" />
+    <Compile Include="Helpers\BarcodePrintService.cs" />
+    <Compile Include="Helpers\BarcodeCommandCatalog.cs" />
     <Compile Include="Helpers\EncodingHelper.cs" />
     <Compile Include="Helpers\WindowsShellFileLocator.cs" />
     <Compile Include="Helpers\WindowsShellShortcut.cs" />
@@ -395,8 +398,7 @@
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libaccess_concat_plugin.dll" />
 
       <!-- 移除运行时不需要的诊断/设计时程序集，进一步压缩发布体积：
-           ReachFramework（XPS/打印，应用未使用）、WinForms 设计时程序集。 -->
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'ReachFramework'" />
+           WinForms 设计时程序集。ReachFramework 是 WPF 打印（指令条码打印）的运行时依赖，必须保留。 -->
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('System.Windows.Forms.Design'))" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'System.Design'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'System.Drawing.Design'" />

@@ -18,6 +18,16 @@
     <Window.Resources>
         <localization:LocalizedTextConverter x:Key="LocalizedTextConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <!-- 条码右键菜单：现场常要把指令条码打印出来贴墙给摄像头扫 -->
+        <ContextMenu x:Key="BarcodeContextMenu"
+                     x:Shared="False"
+                     Style="{StaticResource AppContextMenuStyle}"
+                     Opened="BarcodeContextMenu_Opened">
+            <MenuItem Tag="current" Header="打印此条码" Style="{StaticResource AppMenuItemStyle}" Click="PrintCurrentBarcode_Click"/>
+            <MenuItem Header="打印整套指令条码" Style="{StaticResource AppMenuItemStyle}" Click="PrintAllBarcodes_Click"/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"/>
+            <MenuItem Header="打开指令条码所在位置" Style="{StaticResource AppMenuItemStyle}" Click="OpenBarcodeImageFolder_Click"/>
+        </ContextMenu>
         <Style x:Key="RoundedSmoothProgressBar" TargetType="controls:SmoothProgressBar">
             <Setter Property="Template">
                 <Setter.Value>
@@ -697,7 +707,12 @@
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
+                        <Grid Grid.Row="0"
+                              Tag="1"
+                              Background="{StaticResource TransparentBrush}"
+                              ToolTip="点击可打印或打开条码图片"
+                              MouseLeftButtonUp="BarcodeArea_MouseLeftButtonUp"
+                              ContextMenu="{StaticResource BarcodeContextMenu}">
                             <Image Source="{Binding Barcode1Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                 <StackPanel.Style>
@@ -715,6 +730,32 @@
                             </StackPanel>
                         </Grid>
                         <TextBlock Grid.Row="1" Text="{Binding Barcode1Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,4,0,0"/>
+                        <Button x:Name="BtnExportAllBarcodes"
+                                Grid.Row="1"
+                                Width="24" Height="22"
+                                Margin="0,2,2,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Focusable="False"
+                                Cursor="Hand"
+                                ToolTip="打开指令条码所在位置"
+                                Background="{StaticResource TransparentBrush}"
+                                BorderThickness="0"
+                                Click="OpenBarcodeImageFolder_Click">
+                            <Path Data="{StaticResource FluentFolderIcon}" Width="14" Height="14" Stretch="Uniform" Fill="{DynamicResource TextSecondary}"/>
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                     </Grid>
                     <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,0,0,6">
                         <StackPanel>
@@ -1135,7 +1176,12 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <TextBlock Text="{Binding Barcode2Label}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,4"/>
-                            <Grid Grid.Row="1">
+                            <Grid Grid.Row="1"
+                                  Tag="2"
+                                  Background="{StaticResource TransparentBrush}"
+                                  ToolTip="点击可打印或打开条码图片"
+                                  MouseLeftButtonUp="BarcodeArea_MouseLeftButtonUp"
+                                  ContextMenu="{StaticResource BarcodeContextMenu}">
                                 <Image Source="{Binding Barcode2Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Stretch" Margin="12,0">
                                     <StackPanel.Style>
