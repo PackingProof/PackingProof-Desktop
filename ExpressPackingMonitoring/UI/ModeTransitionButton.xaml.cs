@@ -3,23 +3,38 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Shapes;
 
 namespace ExpressPackingMonitoring.UI;
 
 public partial class ModeTransitionButton : UserControl
 {
-    private string _mode = "发货";
-    private Border? _blueLayer;
-    private Border? _orangeLayer;
-    private TextBlock? _modeText;
-    private Path? _modeIcon;
+    private const string ReturnMode = "退货";
+    private const string PackMode = "发货";
+    private const double FallbackSlideDistance = 160;
+    private const double SlideDurationMs = 180;
+
+    public static readonly DependencyProperty IsCompactProperty = DependencyProperty.Register(
+        nameof(IsCompact),
+        typeof(bool),
+        typeof(ModeTransitionButton),
+        new PropertyMetadata(false));
+
+    private string _mode = PackMode;
 
     public ModeTransitionButton()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
         Loaded += (_, _) => ApplyMode(_mode, animate: false);
+        // 紧凑态切换会改变宽度，退货以外的静止位置必须跟着宽度重新落位，否则橙色层会露边
+        SizeChanged += (_, _) => { if (_mode != ReturnMode) ApplyMode(_mode, animate: false); };
+    }
+
+    /// <summary>窄窗口时只保留图标，由主窗口的 IsModeButtonCompact 驱动</summary>
+    public bool IsCompact
+    {
+        get => (bool)GetValue(IsCompactProperty);
+        set => SetValue(IsCompactProperty, value);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -44,35 +59,27 @@ public partial class ModeTransitionButton : UserControl
 
     private void ApplyMode(string mode, bool animate)
     {
-        _mode = mode == "退货" ? "退货" : "发货";
-        if (_blueLayer == null || _orangeLayer == null) return;
-        _blueLayer.RenderTransform ??= new TranslateTransform();
-        _orangeLayer.RenderTransform ??= new TranslateTransform();
-        var target = _mode == "退货" ? _orangeLayer : _blueLayer;
-        var other = ReferenceEquals(target, _orangeLayer) ? _blueLayer : _orangeLayer;
-        target.Visibility = Visibility.Visible;
-        other.Visibility = Visibility.Visible;
+        _mode = mode == ReturnMode ? ReturnMode : PackMode;
+        ModeIcon.Data = (Geometry)FindResource(_mode == ReturnMode ? "FluentReturnIcon" : "FluentBoxIcon");
+
+        // 退货静止在按钮内（X=0），发货静止在按钮右侧之外（X=宽度）
+        double restingX = _mode == ReturnMode
+            ? 0
+            : (ActualWidth > 0 ? ActualWidth : FallbackSlideDistance);
+
         if (!animate)
         {
-            target.Opacity = 1;
-            other.Opacity = 0;
-            target.RenderTransform = new TranslateTransform();
-            other.RenderTransform = new TranslateTransform();
+            OrangeSlide.BeginAnimation(TranslateTransform.XProperty, null);
+            OrangeSlide.X = restingX;
+            return;
         }
-        else
+
+        // 不指定 From，连续切换时从当前位置继续，避免来回跳。
+        // 用 EaseOut 而不是 EaseInOut：EaseInOut 起步慢，按下去会像没反应。
+        var animation = new DoubleAnimation(restingX, TimeSpan.FromMilliseconds(SlideDurationMs))
         {
-            other.Opacity = 1;
-            target.Opacity = 1;
-            var transform = (TranslateTransform)target.RenderTransform;
-            transform.X = _mode == "退货" ? 160 : -160;
-            var animation = new DoubleAnimation(0, TimeSpan.FromMilliseconds(420))
-                {
-                    EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
-                };
-            animation.Completed += (_, _) => other.Opacity = 0;
-            transform.BeginAnimation(TranslateTransform.XProperty, animation);
-        }
-        _modeText!.Text = _mode;
-        _modeIcon!.Data = FindResource(_mode == "退货" ? "FluentReturnIcon" : "FluentBoxIcon");
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        OrangeSlide.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 }
