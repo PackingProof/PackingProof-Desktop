@@ -13,7 +13,8 @@ public sealed class BarcodeDisplayTests
 
         int modules = BarcodeHelper.CalculateTotalModules([104, 35, 36, 33, 50, 52, 0]);
 
-        Assert.Equal(111, modules);
+        // 7 个编码字符各 11 模块 + 两侧静区 20 + Stop 13 = 110（每个字符必须正好 11 模块）
+        Assert.Equal(110, modules);
     }
 
     [Theory]
