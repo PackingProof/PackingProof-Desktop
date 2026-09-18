@@ -53,17 +53,13 @@
 
   <!-- 修复自包含发布时 ComboBox 因缺少 Accessibility.dll 报错的问题 -->
   <ItemGroup>
-    <Content Include="$(WinDir)\Microsoft.NET\Framework64\v4.0.30319\Accessibility.dll"
-             Link="Accessibility.dll"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest"
-             Visible="false" />
+    <Content Include="$(WinDir)\Microsoft.NET\Framework64\v4.0.30319\Accessibility.dll" Link="Accessibility.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj"
-                      ReferenceOutputAssembly="false"
-                      SkipGetTargetFrameworkProperties="true" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.6.2" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
+    <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
     <PackageReference Include="AForge.Video" Version="2.2.5" />
@@ -217,10 +213,8 @@
     <Compile Include="Services\MediaFoundation\MfCaptureProbe.cs" />
     <Compile Include="Services\MediaFoundation\CameraBackendPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfDeviceMatcher.cs" />
-    <Compile Include="Services\Gpu\D3D11Interop.cs" />
-    <Compile Include="Services\Gpu\D3D11DeviceHolder.cs" />
     <Compile Include="Services\Gpu\GpuConversionShaders.cs" />
-    <Compile Include="Services\Gpu\HlslCompiler.cs" />
+    <Compile Include="Services\Gpu\GpuFrameConverter.cs" />
     <Compile Include="Services\OrderIntegrationActivityRegistry.cs" />
     <Compile Include="Services\NetworkArchiveSpacePolicy.cs" />
     <Compile Include="Services\NetworkArchiveErrorClassifier.cs" />
@@ -362,15 +356,13 @@
   <!-- ffmpeg.exe 作为独立进程保留，但发布到 tools 子目录，避免根目录混杂依赖文件。
        开发构建优先复制钉死的 FFmpeg 基线缓存；缓存不存在时回退到项目根目录的 ffmpeg.exe。 -->
   <ItemGroup>
-    <Content Include="$(FFmpegBaselineExecutable)"
-             Condition="Exists('$(FFmpegBaselineExecutable)')">
+    <Content Include="$(FFmpegBaselineExecutable)" Condition="Exists('$(FFmpegBaselineExecutable)')">
       <TargetPath>tools\ffmpeg.exe</TargetPath>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
-    <Content Include="ffmpeg.exe"
-             Condition="!Exists('$(FFmpegBaselineExecutable)') And Exists('ffmpeg.exe')">
+    <Content Include="ffmpeg.exe" Condition="!Exists('$(FFmpegBaselineExecutable)') And Exists('ffmpeg.exe')">
       <TargetPath>tools\ffmpeg.exe</TargetPath>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
@@ -387,9 +379,7 @@
       <!-- 按目录收录播放相关插件，只排除与本地录像回放无关的目录
            （access 使用下方白名单；access_output/mux/services_discovery/
            stream_out/visualization/lua 与播放无关）。 -->
-      <LibVlcX64Plugin
-        Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*"
-        Exclude="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access_output\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\mux\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\services_discovery\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\stream_out\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\visualization\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\lua\**\*" />
+      <LibVlcX64Plugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\**\*" Exclude="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access_output\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\mux\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\services_discovery\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\stream_out\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\visualization\**\*;$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\lua\**\*" />
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libfilesystem_plugin.dll" />
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libidummy_plugin.dll" />
       <LibVlcX64AccessPlugin Include="$(NuGetPackageRoot)videolan.libvlc.windows\3.0.21\build\x64\plugins\access\libattachment_plugin.dll" />
@@ -421,13 +411,11 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="CopyWinTtsRuntimeToBuildOutput"
-          AfterTargets="Build"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+  <Target Name="CopyWinTtsRuntimeToBuildOutput" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
     <PropertyGroup>
       <WinTtsProjectPath>$(MSBuildProjectDirectory)\..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj</WinTtsProjectPath>
       <WinTtsPublishDirectory>$(IntermediateOutputPath)wintts-runtime</WinTtsPublishDirectory>
-      <WinTtsArtifactsArgument Condition="'$(ArtifactsPath)' != ''">--artifacts-path &quot;$(ArtifactsPath)&quot;</WinTtsArtifactsArgument>
+      <WinTtsArtifactsArgument Condition="'$(ArtifactsPath)' != ''">--artifacts-path "$(ArtifactsPath)"</WinTtsArtifactsArgument>
     </PropertyGroup>
     <Exec Command="dotnet publish &quot;$(WinTtsProjectPath)&quot; -c &quot;$(Configuration)&quot; --no-restore --nologo $(WinTtsArtifactsArgument) -o &quot;$(WinTtsPublishDirectory)&quot;" />
     <ItemGroup>
@@ -435,11 +423,8 @@
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\Microsoft.Windows.SDK.NET.dll" />
       <WinTtsRuntimeFile Include="$(WinTtsPublishDirectory)\WinRT.Runtime.dll" />
     </ItemGroup>
-    <Error Condition="!Exists('%(WinTtsRuntimeFile.Identity)')"
-           Text="WinTts runtime output missing: %(WinTtsRuntimeFile.Identity)" />
-    <Copy SourceFiles="@(WinTtsRuntimeFile)"
-          DestinationFolder="$(TargetDir)"
-          SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('%(WinTtsRuntimeFile.Identity)')" Text="WinTts runtime output missing: %(WinTtsRuntimeFile.Identity)" />
+    <Copy SourceFiles="@(WinTtsRuntimeFile)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>
