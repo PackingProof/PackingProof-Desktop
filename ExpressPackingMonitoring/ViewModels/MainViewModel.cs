@@ -705,6 +705,8 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 PauseSpeechForRecording();
+                if (isManual)
+                    await WaitForManualPostRollAsync();
                 await InternalStopRecordingAsync();
                 if (mergeAfterStop)
                     QueuePostStopMux(isManual ? "手动停止" : "最终停止");
