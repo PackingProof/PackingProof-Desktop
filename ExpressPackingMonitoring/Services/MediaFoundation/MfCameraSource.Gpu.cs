@@ -72,16 +72,6 @@ public sealed partial class MfCameraSource
             return;
         }
 
-        // YUY2 的 GPU 路径必须把整张 BGRA 纹理回读成 BGR Mat，
-        // 实测 1080p 下虽然转换阶段快约 1ms，但回读同步让总 CPU 占用翻倍。
-        // 在录像仍以 CPU BGR 管道为输入时，默认走成熟的 CPU 转换反而更省资源。
-        // NV12 保留 GPU 路径，后续可直接接硬件编码，避免这条回读代价。
-        if (!isNv12)
-        {
-            GpuDisableReason = "YUY2 GPU 回读成本高于 CPU 转换";
-            return;
-        }
-
         // 目标尺寸等于源尺寸：对外仍交出全分辨率帧。
         _gpuConverter = GpuFrameConverter.TryCreate(
             format.Width,

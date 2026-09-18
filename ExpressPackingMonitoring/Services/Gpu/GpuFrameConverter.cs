@@ -435,7 +435,8 @@ internal sealed class GpuFrameConverter : IDisposable
                         MatType.CV_8UC4,
                         mapped.DataPointer,
                         (int)mapped.RowPitch);
-                    Cv2.CvtColor(bgra, destination, ColorConversionCodes.BGRA2BGR);
+                    // 只丢弃 Alpha，不进行色彩转换；避免颜色转换的并行调度开销。
+                    Cv2.MixChannels([bgra], [destination], [0, 0, 1, 1, 2, 2]);
                 }
                 finally
                 {
