@@ -16,6 +16,60 @@ public sealed class MfCameraSourceTests
     private const int FrameWaitMs = 4000;
 
     [Fact]
+    public void StopTimeoutKeepsResourcesAliveUntilCallbackReturns()
+    {
+        if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
+            return;
+        MfCaptureDevice? device = TryFindDevice();
+        Assert.NotNull(device);
+        using var source = new MfCameraSource(device.SymbolicLink, 1280, 720, 30);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        source.FrameReady += (_, e) =>
+        {
+            e.Frame.Dispose();
+            entered.Set();
+            release.Wait(TimeSpan.FromSeconds(10));
+        };
+        Assert.True(source.Start(), source.LastStartFailure);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            Assert.True(source.UsesGpuConversion);
+            source.Stop();
+            Assert.False(source.IsRunning);
+            Assert.True(source.UsesGpuConversion); // 停止超时不能释放读取线程仍在使用的资源。
+            Assert.False(source.Start()); // 上一轮退出前不能重新使用这些字段。
+            source.Dispose();
+            Assert.True(source.UsesGpuConversion);
+        }
+        finally { release.Set(); }
+        Assert.True(SpinWait.SpinUntil(() => !source.UsesGpuConversion, TimeSpan.FromSeconds(5)));
+        Assert.False(source.Start());
+    }
+
+    [Fact]
+    public void CaptureCallbackCanStopItsOwnSource()
+    {
+        if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
+            return;
+        MfCaptureDevice? device = TryFindDevice();
+        Assert.NotNull(device);
+        using var source = new MfCameraSource(device.SymbolicLink, 1280, 720, 30);
+        using var stopped = new ManualResetEventSlim();
+        source.FrameReady += (_, e) =>
+        {
+            e.Frame.Dispose();
+            source.Stop();
+            stopped.Set();
+        };
+        Assert.True(source.Start(), source.LastStartFailure);
+        Assert.True(stopped.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+        Assert.False(source.IsRunning);
+        Assert.True(SpinWait.SpinUntil(() => !source.UsesGpuConversion, TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void StaCallerCanStartAndStopCapture()
     {
         if (Environment.GetEnvironmentVariable("PACKINGPROOF_CAPTURE_PROBE") != "1")
