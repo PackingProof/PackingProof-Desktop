@@ -538,12 +538,21 @@ namespace ExpressPackingMonitoring.ViewModels
                     ClearPreviewOrderNotice();
             }
         }
+        private bool _isPostRollActive;
+        private double _postRollProgress;
+        public bool IsPostRollActive { get => _isPostRollActive; private set => SetProperty(ref _isPostRollActive, value); }
+        public double PostRollProgress { get => _postRollProgress; private set => SetProperty(ref _postRollProgress, value); }
+        private bool _isModeTransitionActive;
+        private bool _isSwitchingToReturn;
+        public bool IsModeTransitionActive { get => _isModeTransitionActive; private set => SetProperty(ref _isModeTransitionActive, value); }
+        public bool IsSwitchingToReturn { get => _isSwitchingToReturn; private set => SetProperty(ref _isSwitchingToReturn, value); }
         private int _preRecordBufferFrameCount;
         private int _preRecordBufferCapacityFrames;
         private double _preRecordBufferProgress;
         private bool _isPreRecordBufferFull;
         private bool _isPreRecordBufferRolling;
         private bool _preRecordRollingTransitionPending;
+        private long _preRecordProgressStartTicks;
         private string _preRecordBufferStatusText = "预录制缓存未开始";
         private string _preRecordBufferFrameSummaryText = "0 / 0 帧";
 
@@ -652,6 +661,9 @@ namespace ExpressPackingMonitoring.ViewModels
         public BitmapSource Barcode2Image { get => _barcode2Image; set => SetProperty(ref _barcode2Image, value); }
         public double Barcode1CooldownProgress { get => _barcode1CooldownProgress; set => SetProperty(ref _barcode1CooldownProgress, value); }
         public double Barcode2CooldownProgress { get => _barcode2CooldownProgress; set => SetProperty(ref _barcode2CooldownProgress, value); }
+        public double BarcodeCooldownAnimationDuration => Math.Max(1, Config.BarcodeCooldownSeconds * 1000);
+        private double _preRecordBufferAnimationDuration = 1000;
+        public double PreRecordBufferAnimationDuration { get => _preRecordBufferAnimationDuration; private set => SetProperty(ref _preRecordBufferAnimationDuration, value); }
         public ICommand ClearScanInputCommand { get; }
         public ICommand ClearSearchCommand { get; }
         private CancellationTokenSource _barcode1CooldownCts;

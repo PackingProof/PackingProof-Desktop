@@ -31,9 +31,28 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             double seconds = Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5);
+            IsPostRollActive = true;
+            PostRollProgress = 0;
             RuntimeLog.Info("Recording", $"Manual post-roll scheduled seconds={seconds:F1}");
             ShowToast($"已停止触发，将继续录制 {seconds:F1} 秒收尾画面", ToastSeverity.Information);
-            await Task.Delay(TimeSpan.FromSeconds(seconds));
+            long started = Stopwatch.GetTimestamp();
+            try
+            {
+                while (true)
+                {
+                    double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
+                    double normalized = Math.Clamp(elapsed / seconds, 0, 1);
+                    PostRollProgress = normalized < 0.5
+                        ? 4 * normalized * normalized * normalized
+                        : 1 - Math.Pow(-2 * normalized + 2, 3) / 2;
+                    if (elapsed >= seconds) break;
+                    await Task.Delay(16);
+                }
+            }
+            finally
+            {
+                PostRollProgress = 1;
+            }
         }
 
         private async Task InternalStopRecordingAsync()
@@ -241,6 +260,8 @@ namespace ExpressPackingMonitoring.ViewModels
             // 退出期间由关闭流程持续管理 Busy，避免按钮短暂变回“开始录制”并被再次点击。
             if (Application.Current?.MainWindow != null && !_isDisposed && !_shutdownRequested)
             {
+                IsPostRollActive = false;
+                PostRollProgress = 0;
                 IsBusy = false;
             }
 
@@ -1198,6 +1219,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         _preRecordDroppedFrames = 0;
                         _preRecordBufferHasWrapped = false;
                         _preRecordRollingTransitionPending = false;
+                        _preRecordProgressStartTicks = 0;
                         RuntimeLog.Info("Recording", $"Pre-record buffer reset after frame size change {_preRecordWidth}x{_preRecordHeight}->{clone.Cols}x{clone.Rows}");
                     }
                     _preRecordWidth = clone.Cols;
@@ -1209,6 +1231,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         Bytes = bytes,
                         Sequence = Interlocked.Increment(ref _preRecordSequence)
                     });
+                    if (_preRecordProgressStartTicks <= 0)
+                        _preRecordProgressStartTicks = Stopwatch.GetTimestamp();
                     _preRecordBytes += bytes;
                     long maxBytes = GetPreRecordBufferMaxBytes();
                     if (_preRecordDisplayCapacityFrames <= 0 && bytes > 0 && maxBytes > 0)
@@ -1289,7 +1313,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 _preRecordDroppedFrames = 0;
                 _preRecordBufferHasWrapped = false;
                 _preRecordRollingTransitionPending = false;
+                _preRecordProgressStartTicks = 0;
             }
+            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                PreRecordBufferProgress = 0;
+                PreRecordBufferFrameCount = 0;
+                IsPreRecordBufferFull = false;
+                IsPreRecordBufferRolling = false;
+            }), System.Windows.Threading.DispatcherPriority.DataBind);
             PublishPreRecordBufferStatus(force: true);
         }
 
@@ -1374,12 +1406,12 @@ namespace ExpressPackingMonitoring.ViewModels
             bool rolling = enabled && (full || _preRecordRollingTransitionPending);
             if (thresholdReached && !rolling && !full)
                 _preRecordRollingTransitionPending = true;
-            double progress = enabled && capacity > 0
-                ? Math.Clamp(frameCount * 100d / rollingThresholdFrames, 0, 100)
-                : 0;
             int configuredFps = Config?.Fps ?? 0;
             if (configuredFps <= 0)
                 configuredFps = _actualCameraFps;
+            double progress = enabled && rollingThresholdFrames > 0
+                ? Math.Clamp(frameCount * 100d / rollingThresholdFrames, 0, 100)
+                : 0;
             double bufferedSeconds = enabled
                 ? CalculatePreRecordBufferedSeconds(frameCount, configuredFps)
                 : 0;

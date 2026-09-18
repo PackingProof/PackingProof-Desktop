@@ -18,6 +18,17 @@
     <Window.Resources>
         <localization:LocalizedTextConverter x:Key="LocalizedTextConverter"/>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <Style x:Key="RoundedSmoothProgressBar" TargetType="controls:SmoothProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="controls:SmoothProgressBar">
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3.5" ClipToBounds="True">
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <!-- 修复 ComboBox 稳定性问题的核心代码 -->
         <Style TargetType="ComboBoxItem">
             <!-- 手动指定对齐方式，不再让系统去 FindAncestor，从而消除报错 -->
@@ -121,46 +132,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button x:Name="ModeButton" Grid.Column="0" Command="{Binding ToggleModeCommand}" Focusable="False" Margin="0,0,16,0" Cursor="Hand" ToolTip="点击切换模式" Height="52">
-                                <Button.Style>
-                                    <Style TargetType="Button">
-                                        <Setter Property="MinWidth" Value="130"/>
-                                        <Setter Property="Foreground" Value="{StaticResource TextOnAccent}"/>
-                                        <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border Background="{TemplateBinding Background}" CornerRadius="8">
-                                                        <StackPanel x:Name="ModeContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16,0">
-                                                            <Path x:Name="ModeIcon" Data="{StaticResource FluentBoxIcon}" Width="22" Height="22" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                            <TextBlock x:Name="ModeText" Text="{Binding CurrentMode, Converter={StaticResource LocalizedTextConverter}}" FontSize="22" FontWeight="Black" VerticalAlignment="Center"/>
-                                                        </StackPanel>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding CurrentMode}" Value="退货">
-                                                            <Setter TargetName="ModeIcon" Property="Data" Value="{StaticResource FluentReturnIcon}"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsModeButtonCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                                                            <Setter Property="MinWidth" Value="52"/>
-                                                            <Setter TargetName="ModeText" Property="Visibility" Value="Collapsed"/>
-                                                            <Setter TargetName="ModeContent" Property="Margin" Value="0"/>
-                                                            <Setter TargetName="ModeIcon" Property="Margin" Value="0"/>
-                                                        </DataTrigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CurrentMode}" Value="退货">
-                                                <Setter Property="Background" Value="{DynamicResource AccentOrange}"/>
-                                            </DataTrigger>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Opacity" Value="0.9"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
+                            <ui:ModeTransitionButton x:Name="ModeButton" Grid.Column="0" Margin="0,0,16,0" ToolTip="点击切换模式"/>
 
                             <Grid Grid.Column="1">
                                 <TextBox x:Name="ScanInputTextBox" Height="52" FontSize="22" Padding="16,0,36,0" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}" Background="{DynamicResource ControlBackground}" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="2" VerticalContentAlignment="Center"
@@ -222,17 +194,33 @@
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                                                <Grid>
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="8"/>
+                                                <Border x:Name="PostRollOverlay" Visibility="Collapsed" CornerRadius="8">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentGreen}}" Offset="0"/>
+                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentGreen}}" Offset="{Binding PostRollProgress}"/>
+                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentRed}}" Offset="{Binding PostRollProgress}"/>
+                                                            <GradientStop Color="{Binding Color, Source={StaticResource AccentRed}}" Offset="1"/>
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                </Border>
                                                     <StackPanel x:Name="RecordActionContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Path x:Name="RecordActionIcon" Data="{StaticResource FluentRecordIcon}" Width="20" Height="20" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,8,0"/>
                                                         <TextBlock x:Name="RecordActionText" Text="{x:Static localization:AppLanguage.StartRecordingText}" Foreground="{StaticResource TextOnAccent}" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
                                                     </StackPanel>
-                                                </Border>
+                                                </Grid>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                                         <Setter TargetName="RecordActionIcon" Property="Data" Value="{StaticResource FluentStopIcon}"/>
                                                         <Setter TargetName="RecordActionText" Property="Text" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
                                                         <Setter Property="ToolTip" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsPostRollActive}" Value="True">
+                                                        <Setter TargetName="PostRollOverlay" Property="Visibility" Value="Visible"/>
+                                                        <Setter TargetName="RecordActionText" Property="Text" Value="收尾中"/>
+                                                        <Setter Property="ToolTip" Value="收尾中"/>
                                                     </DataTrigger>
                                                     <MultiDataTrigger>
                                                         <MultiDataTrigger.Conditions>
@@ -579,7 +567,7 @@
                                     </Style>
                                 </StackPanel.Style>
                                 <TextBlock Text="条码冷却中…" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding Barcode1CooldownProgress}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
+                                <controls:SmoothProgressBar Style="{StaticResource RoundedSmoothProgressBar}" ResetToMinimumImmediately="True" Height="6" Minimum="0" Maximum="100" AnimationDuration="{Binding BarcodeCooldownAnimationDuration}" TargetValue="{Binding Barcode1CooldownProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -596,7 +584,7 @@
                                     <TextBlock Grid.Column="1" Text="{Binding PreRecordBufferFrameSummaryText}" FontSize="11" Foreground="{DynamicResource TextMuted}"/>
                                 </Grid>
                                 <Grid Height="7" Margin="0,4,0,0" ClipToBounds="True">
-                                    <controls:SmoothProgressBar Minimum="0" Maximum="100" TargetValue="{Binding PreRecordBufferProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0">
+                                    <controls:SmoothProgressBar Minimum="0" Maximum="100" AnimationDuration="300" TargetValue="{Binding PreRecordBufferProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0">
                                         <controls:SmoothProgressBar.Style>
                                             <Style TargetType="controls:SmoothProgressBar">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -1016,7 +1004,7 @@
                                         </Style>
                                     </StackPanel.Style>
                                     <TextBlock Text="条码冷却中…" FontSize="12" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                    <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding Barcode2CooldownProgress}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
+                                    <controls:SmoothProgressBar Style="{StaticResource RoundedSmoothProgressBar}" ResetToMinimumImmediately="True" Height="6" Minimum="0" Maximum="100" AnimationDuration="{Binding BarcodeCooldownAnimationDuration}" TargetValue="{Binding Barcode2CooldownProgress, Mode=OneWay}" Foreground="{DynamicResource AccentBlue}" Background="{DynamicResource BorderStrong}" BorderThickness="0"/>
                                 </StackPanel>
                             </Grid>
                         </Grid>
