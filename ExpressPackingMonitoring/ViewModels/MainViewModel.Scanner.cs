@@ -85,20 +85,15 @@ namespace ExpressPackingMonitoring.ViewModels
             Barcode1Image = null; Barcode1Label = "";
             Barcode1CooldownProgress = 0;
             double totalMs = Config.BarcodeCooldownSeconds * 1000;
-            const int step = 50;
-            double elapsed = 0;
             try
             {
-                while (elapsed < totalMs)
-                {
-                    await Task.Delay(step, cts.Token);
-                    elapsed += step;
-                    Barcode1CooldownProgress = Math.Min(100, elapsed / totalMs * 100);
-                }
+                await Task.Yield();
+                Barcode1CooldownProgress = 100;
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Max(0, totalMs)), cts.Token);
             }
             catch { return; }
             _barcode1OnCooldown = false;
-            Barcode1CooldownProgress = 0;
+            Barcode1CooldownProgress = 100;
             if (!cts.IsCancellationRequested) RefreshBarcodes();
         }
 
@@ -110,20 +105,15 @@ namespace ExpressPackingMonitoring.ViewModels
             Barcode2Image = null; Barcode2Label = "";
             Barcode2CooldownProgress = 0;
             double totalMs = Config.BarcodeCooldownSeconds * 1000;
-            const int step = 50;
-            double elapsed = 0;
             try
             {
-                while (elapsed < totalMs)
-                {
-                    await Task.Delay(step, cts.Token);
-                    elapsed += step;
-                    Barcode2CooldownProgress = Math.Min(100, elapsed / totalMs * 100);
-                }
+                await Task.Yield();
+                Barcode2CooldownProgress = 100;
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Max(0, totalMs)), cts.Token);
             }
             catch { return; }
             _barcode2OnCooldown = false;
-            Barcode2CooldownProgress = 0;
+            Barcode2CooldownProgress = 100;
             if (!cts.IsCancellationRequested) RefreshBarcodes();
         }
 
@@ -693,7 +683,24 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private void ToggleMode() { CurrentMode = CurrentMode == "发货" ? "退货" : "发货"; ShowToast($"已切换为: {CurrentMode}"); Speak(CurrentMode == "发货" ? DefaultSpeechCatalog.SwitchToShipping : DefaultSpeechCatalog.SwitchToReturn); }
+        private void ToggleMode()
+        {
+            IsSwitchingToReturn = CurrentMode == "发货";
+            IsModeTransitionActive = true;
+            _ = AnimateModeTransitionAsync(IsSwitchingToReturn ? "退货" : "发货");
+        }
+
+        private async Task AnimateModeTransitionAsync(string targetMode)
+        {
+            try { await Task.Delay(420); }
+            finally
+            {
+                CurrentMode = targetMode;
+                IsModeTransitionActive = false;
+                ShowToast($"已切换为: {CurrentMode}");
+                Speak(CurrentMode == "发货" ? DefaultSpeechCatalog.SwitchToShipping : DefaultSpeechCatalog.SwitchToReturn);
+            }
+        }
 
         private void PauseSpeechForRecording() => _alertService?.PauseAudio();
 
@@ -1081,7 +1088,20 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5)), owner.Token);
+                double seconds = Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5);
+                IsPostRollActive = true;
+                PostRollProgress = 0;
+                long started = Stopwatch.GetTimestamp();
+                while (true)
+                {
+                    double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
+                    double normalized = Math.Clamp(elapsed / seconds, 0, 1);
+                    PostRollProgress = normalized < 0.5
+                        ? 4 * normalized * normalized * normalized
+                        : 1 - Math.Pow(-2 * normalized + 2, 3) / 2;
+                    if (elapsed >= seconds) break;
+                    await Task.Delay(16, owner.Token);
+                }
                 if (_isDisposed) return;
                 await _recorderLock.WaitAsync(owner.Token);
                 try
@@ -1103,6 +1123,7 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (OperationCanceledException) { }
             finally
             {
+                PostRollProgress = 1;
                 if (ReferenceEquals(_sameCodePostRollCts, owner))
                     _sameCodePostRollCts = null;
                 owner.Dispose();
