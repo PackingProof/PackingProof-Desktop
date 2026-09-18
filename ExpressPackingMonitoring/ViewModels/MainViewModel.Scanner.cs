@@ -1112,6 +1112,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (ReferenceEquals(_sameCodePostRollCts, owner))
                     _sameCodePostRollCts = null;
                 owner.Dispose();
+                // 进入收尾时暂停了 AI 语音生成，而外面那次恢复播报看到的还是录制中会被跳过；
+                // 收尾真正停录后要自己补一次，否则语音生成会一直停在暂停状态。
+                if (!IsRecording)
+                    ResumeSpeechWhenCameraIdle();
             }
         }
 
