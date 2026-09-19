@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -64,6 +65,43 @@ public sealed class ManualPatchInstallerTests
         Assert.NotEqual(0, result.ExitCode);
         Assert.Equal("old-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
         Assert.Contains("正在恢复原文件", result.StandardOutput);
+    }
+
+    /// <summary>
+    /// 同版本增量包必须能装：现场会把「同一版本 + 修复」的增量包直接发给用户双击更新，
+    /// 以前用 -ge 判断，安装版本等于补丁版本时会被当成「无需重复更新」直接退出。
+    /// </summary>
+    [Fact]
+    public async Task Installer_AppliesPatchWithSameVersionAsInstalled()
+    {
+        using var fixture = new ManualPatchFixture();
+        string version = fixture.InstallRealAppDll();
+        fixture.CreatePatch("new-content", useValidHash: true, latestVersion: version, baselineVersion: version);
+
+        ProcessResult result = await fixture.RunInstallerAsync(verifyVersion: true);
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"exit={result.ExitCode}{Environment.NewLine}stdout={result.StandardOutput}{Environment.NewLine}stderr={result.StandardError}");
+        Assert.Equal("new-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+        Assert.Contains("增量更新完成", result.StandardOutput);
+    }
+
+    /// <summary>比已安装版本更旧的增量包仍然要拦住，避免把程序降级。</summary>
+    [Fact]
+    public async Task Installer_SkipsPatchOlderThanInstalledVersion()
+    {
+        using var fixture = new ManualPatchFixture();
+        fixture.InstallRealAppDll();
+        fixture.CreatePatch("new-content", useValidHash: true, latestVersion: "0.0.1", baselineVersion: "0.0.1");
+
+        ProcessResult result = await fixture.RunInstallerAsync(verifyVersion: true);
+
+        Assert.True(
+            result.ExitCode == 0,
+            $"exit={result.ExitCode}{Environment.NewLine}stdout={result.StandardOutput}{Environment.NewLine}stderr={result.StandardError}");
+        Assert.Equal("old-content", File.ReadAllText(fixture.TargetFilePath, Encoding.UTF8));
+        Assert.Contains("无需更新", result.StandardOutput);
     }
 
     [Theory]
@@ -160,7 +198,30 @@ public sealed class ManualPatchInstallerTests
                 Encoding.UTF8);
         }
 
-        public void CreatePatch(string content, bool useValidHash)
+        /// <summary>
+        /// 把真实主程序 DLL 放进安装目录，返回它被解析出的版本号。
+        /// 版本判断用例需要真实 FileVersion，普通用例用假 DLL 并跳过版本检查。
+        /// </summary>
+        public string InstallRealAppDll()
+        {
+            string source = Path.Combine(AppContext.BaseDirectory, "ExpressPackingMonitoring.dll");
+            string target = Path.Combine(_appRoot, "ExpressPackingMonitoring.dll");
+            File.Copy(source, target, overwrite: true);
+            FileVersionInfo info = FileVersionInfo.GetVersionInfo(target);
+            foreach (string? candidate in new[] { info.ProductVersion, info.FileVersion })
+            {
+                Match match = Regex.Match(candidate ?? "", @"\d+\.\d+\.\d+(?:\.\d+)?");
+                if (match.Success)
+                    return match.Value;
+            }
+            throw new InvalidOperationException("测试用主程序 DLL 没有可解析的版本号");
+        }
+
+        public void CreatePatch(
+            string content,
+            bool useValidHash,
+            string latestVersion = "0.0.2",
+            string baselineVersion = "0.0.1")
         {
             string sourcePath = Path.Combine(_patchRoot, "files", "Web", "index.html");
             Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
@@ -178,7 +239,9 @@ public sealed class ManualPatchInstallerTests
                     sha256 = hash,
                     size = bytes.LongLength
                 }
-            ]);
+            ],
+            latestVersion,
+            baselineVersion);
         }
 
         public void CreatePartiallyFailingPatch()
@@ -312,13 +375,16 @@ public sealed class ManualPatchInstallerTests
             return path;
         }
 
-        private void WriteManifest(object[] files)
+        private void WriteManifest(
+            object[] files,
+            string latestVersion = "0.0.2",
+            string baselineVersion = "0.0.1")
         {
             var manifest = new
             {
                 type = "baseline_patch",
-                patch_baseline_version = "0.0.1",
-                latest_version = "0.0.2",
+                patch_baseline_version = baselineVersion,
+                latest_version = latestVersion,
                 files
             };
             Directory.CreateDirectory(_patchRoot);
@@ -330,7 +396,8 @@ public sealed class ManualPatchInstallerTests
 
         public async Task<ProcessResult> RunInstallerAsync(
             string appRootPath = "",
-            string? standardInput = null)
+            string? standardInput = null,
+            bool verifyVersion = false)
         {
             string powershellPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.System),
@@ -351,12 +418,13 @@ public sealed class ManualPatchInstallerTests
             startInfo.Environment["EPM_TEST_CONFIG_PATH"] = _configPath;
             startInfo.Environment["EPM_TEST_APP_ROOT_PATH"] = appRootPath;
             startInfo.Environment["EPM_TEST_MUTEX_NAME"] = _mutexName;
+            string versionSwitch = verifyVersion ? "" : " -SkipVersionCheck";
             foreach (string argument in new[]
             {
                 "-NoProfile",
                 "-ExecutionPolicy", "Bypass",
                 "-Command",
-                "$scriptText=[System.IO.File]::ReadAllText($env:EPM_TEST_PATCH_SCRIPT,[System.Text.Encoding]::UTF8); & ([ScriptBlock]::Create($scriptText)) -PatchRoot $env:EPM_TEST_PATCH_ROOT -ConfigPath $env:EPM_TEST_CONFIG_PATH -AppRootPath $env:EPM_TEST_APP_ROOT_PATH -SkipProcessCheck -SkipVersionCheck -MutexName $env:EPM_TEST_MUTEX_NAME"
+                "$scriptText=[System.IO.File]::ReadAllText($env:EPM_TEST_PATCH_SCRIPT,[System.Text.Encoding]::UTF8); & ([ScriptBlock]::Create($scriptText)) -PatchRoot $env:EPM_TEST_PATCH_ROOT -ConfigPath $env:EPM_TEST_CONFIG_PATH -AppRootPath $env:EPM_TEST_APP_ROOT_PATH -SkipProcessCheck" + versionSwitch + " -MutexName $env:EPM_TEST_MUTEX_NAME"
             })
             {
                 startInfo.ArgumentList.Add(argument);

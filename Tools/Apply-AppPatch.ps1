@@ -424,8 +424,11 @@ try {
     $latestVersion = Get-VersionNumber -Value ([string](Get-JsonProperty $manifest "latest_version"))
     if (-not $SkipVersionCheck) {
         $installedVersion = Get-InstalledVersion -DllPath $targetDllPath
-        if ($installedVersion -ge $latestVersion) {
-            Write-UpdateHost "当前已是 v$installedVersion，无需重复更新" -ForegroundColor Green
+        # 只拦比增量包更新的安装版本（那是降级）。同版本必须放行：
+        # 现场会把「同版本 + 修复」的增量包直接发给用户双击更新，
+        # 以前这里用 -ge，同版本会被判成「无需重复更新」直接退出。
+        if ($installedVersion -gt $latestVersion) {
+            Write-UpdateHost "当前已是 v$installedVersion，高于增量包 v$latestVersion，无需更新" -ForegroundColor Green
             Write-UpdateLog -LogPath $logPath -Message "Manual patch skipped: installed=$installedVersion, latest=$latestVersion"
             return
         }
