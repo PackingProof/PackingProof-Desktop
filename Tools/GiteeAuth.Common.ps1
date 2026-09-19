@@ -73,11 +73,17 @@ function Get-GiteeReleaseAttachments {
     }
 
     $headers = @{ Authorization = "Bearer $($env:GITEE_TOKEN)" }
-    return @(Invoke-RestMethod `
+    # Invoke-RestMethod 把 JSON 数组当成一个对象返回，必须先落到变量再包数组，
+    # 否则 @(Invoke-RestMethod ...) 会包成"只含一个数组元素"的数组。
+    $attachments = Invoke-RestMethod `
         -Uri "https://gitee.com/api/v5/repos/$Repository/releases/$ReleaseId/attach_files" `
         -Headers $headers `
         -Method Get `
-        -TimeoutSec 30)
+        -TimeoutSec 30
+    if ($null -eq $attachments) {
+        return @()
+    }
+    return @($attachments)
 }
 
 # gitee CLI 只能上传附件、不能删除附件；重复上传会在 Release 上留下同名文件，
