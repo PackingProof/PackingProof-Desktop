@@ -1,7 +1,7 @@
 # 把当前分支作为 PR 提交到远程。默认先提 Gitee，合并后再把主干同步到 GitHub。
 #
 #   pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-BodyFile <markdown>] `
-#       [-Target gitee|github|both] [-Base main] [-Merge] [-NoSync] [-Force] [-DryRun]
+#       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-NoSync] [-Force] [-DryRun]
 #
 # 约定（与 AGENTS.md、docs/development/RELEASE_AND_RUNTIME.md 一致）：
 # - 不直接向 main 推送提交，一律走 PR；合并用 rebase，保留每个提交，不 squash
@@ -9,6 +9,7 @@
 #   也可以用环境变量 PR_TARGET_HOST 或命令行 -Target 临时指定（-Target 优先级最高）
 # - PR 说明不传 -BodyFile 时，用"相对目标分支的提交列表"自动生成
 # - -Merge 用 rebase 合并 PR；合并后默认把合并结果同步到另一个远端（-NoSync 可关闭）
+# - Gitee 仓库要求"审查 / 测试"通过才能合并时，加 -Approve 先自动完成审查与测试标记
 # - 改写了自己推上去的 PR 分支（amend / rebase）时要加 -Force，脚本用 --force-with-lease 覆盖
 # - Gitee 令牌固定取 .env 的 GITEE_TOKEN，不打印、不落盘
 
@@ -22,6 +23,7 @@ param(
     [string]$GiteeRemote = "Gitee",
     [string]$GithubRemote = "Github",
     [switch]$Merge,
+    [switch]$Approve,
     [switch]$NoSync,
     [switch]$Force,
     [switch]$DryRun
@@ -190,15 +192,7 @@ function New-ChangePullRequest {
         throw "拉取 $RemoteName/$BaseBranch 失败"
     }
 
-    $existing = Get-ExistingPullRequest `
-        -Platform $Platform `
-        -Repository $Repository `
-        -HeadBranch $HeadBranch
-    if ($null -ne $existing) {
-        Write-Host "    PR 已存在：#$($existing.Number) $($existing.Url)"
-        return $existing
-    }
-
+    # 先推送再查 PR：分支被改写（amend / rebase / 补提交）时，PR 上要看到的是最新一次推送的内容。
     Write-Step "推送分支 $HeadBranch 到 $RemoteName"
     $pushArguments = @("push")
     if ($Force) { $pushArguments += "--force-with-lease" }
@@ -206,6 +200,15 @@ function New-ChangePullRequest {
     $pushExit = Invoke-External -FilePath "git" -Arguments $pushArguments
     if ($pushExit -ne 0) {
         throw "推送分支失败：$RemoteName $HeadBranch"
+    }
+
+    $existing = Get-ExistingPullRequest `
+        -Platform $Platform `
+        -Repository $Repository `
+        -HeadBranch $HeadBranch
+    if ($null -ne $existing) {
+        Write-Host "    PR 已存在：#$($existing.Number) $($existing.Url)"
+        return $existing
     }
 
     if ([string]::IsNullOrWhiteSpace($BodyText)) {
@@ -244,6 +247,14 @@ function Merge-ChangePullRequest {
     )
 
     Write-Step "以 rebase 方式合并 $Platform PR #$Number（保留每个提交）"
+    if ($Approve -and $Platform -eq "gitee") {
+        # Gitee 默认要求审查与测试都通过才允许合并；单人多仓场景下由本账号补上标记。
+        $null = Invoke-External -FilePath "gitee" -Arguments @(
+            "pr", "approve", "--force", "--repo", $Repository, "$Number")
+        $null = Invoke-External -FilePath "gitee" -Arguments @(
+            "pr", "test", "--force", "--repo", $Repository, "$Number")
+    }
+
     $cli = if ($Platform -eq "gitee") { "gitee" } else { "gh" }
     $exit = Invoke-External -FilePath $cli -Arguments @(
         "pr", "merge", "--repo", $Repository, "--rebase", "$Number")
