@@ -107,7 +107,8 @@ function Get-StaleGiteeAssets {
     )
 
     $uploadedSizes = @{}
-    foreach ($attachment in Get-GiteeReleaseAttachments -Repository $Repository -ReleaseId $ReleaseId) {
+    $attachments = @(Get-GiteeReleaseAttachments -Repository $Repository -ReleaseId $ReleaseId)
+    foreach ($attachment in $attachments) {
         $uploadedSizes["$($attachment.name)"] = [long]$attachment.size
     }
 
