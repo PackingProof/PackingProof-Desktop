@@ -502,11 +502,13 @@ public sealed class ReleasePackagingPolicyTests
         Assert.DoesNotContain("$tag.TrimStart('v')", publisher, StringComparison.Ordinal);
         Assert.DoesNotContain("\"package\\PackingProof+$tag\"", publisher, StringComparison.Ordinal);
 
-        // 标题用归一化版本号，tag 只用于创建 Release 本体。
+        // 标题用归一化版本号，tag 只用于创建 Release 本体；没写标题就拒绝发布，
+        // 避免发出去的版本名只有版本号、看不出本版改了什么。
         Assert.Contains(
-            "$releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $releaseTag }",
+            "$releaseTitle = \"$releaseTag $Title\"",
             publisher,
             StringComparison.Ordinal);
+        Assert.Contains("必须用 -Title", publisher, StringComparison.Ordinal);
         Assert.Contains("& gh release view $tag --repo $repoSlug", publisher, StringComparison.Ordinal);
     }
 
