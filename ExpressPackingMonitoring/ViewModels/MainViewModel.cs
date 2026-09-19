@@ -213,6 +213,12 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _consecutiveRestartFailures = 0;
         private const int MaxConsecutiveRestartFailures = 5;
         private const double MinRestartIntervalSeconds = 3.0;
+        // 启动失败重连：设备能启动却立刻报错时不能立刻重启，否则就是死循环，见 CameraStartupFailurePolicy。
+        private DateTime _lastCameraStartAt = DateTime.MinValue;
+        private int _consecutiveStartupFailures = 0;
+        private int _cameraStartupFailureRecorded = 0; // 同一轮启动只统计一次错误
+        private int _cameraStartupRetryPending = 0;    // 已排好下一次退避重试，不叠加
+        private volatile bool _cameraAutoReconnectSuspended = false;
         // RTSP 网络源首帧可能因等待关键帧延迟数秒，宽限期内不判信号丢失。
         private const double NetworkCameraConnectGraceSeconds = 20.0;
 

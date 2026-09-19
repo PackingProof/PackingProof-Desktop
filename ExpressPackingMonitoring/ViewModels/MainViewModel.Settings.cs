@@ -252,7 +252,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         else
                         {
                             ShowToast("配置已保存，重启相机", ToastSeverity.Information);
-                            _consecutiveRestartFailures = 0;
+                            ResetCameraRestartCounters();
                             RestartCamera();
                         }
                     }
@@ -359,7 +359,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _isSetupWizardActive = false;
                 if (pausedCamera && !IsRecording && !_isDisposed)
                 {
-                    _consecutiveRestartFailures = 0;
+                    ResetCameraRestartCounters();
                     RestartCamera();
                 }
             }
@@ -449,7 +449,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (IsRecording || _isDisposed)
                 return;
 
-            _consecutiveRestartFailures = 0;
+            ResetCameraRestartCounters();
             RestartCamera();
         }
 

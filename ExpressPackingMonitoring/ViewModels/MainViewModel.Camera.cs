@@ -164,10 +164,82 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        /// <summary>
+        /// 用户明确要求重连（设置里保存摄像头配置、手动重启、唤醒休眠）时清零重连计数。
+        /// 启动失败计数也必须一起清零，否则换到别的摄像头后第一次报错就会直接判定"连续失败"。
+        /// </summary>
+        private void ResetCameraRestartCounters()
+        {
+            _consecutiveRestartFailures = 0;
+            Interlocked.Exchange(ref _consecutiveStartupFailures, 0);
+            _cameraAutoReconnectSuspended = false;
+        }
+
+        /// <summary>
+        /// 摄像头"启动成功却立刻报错"：按退避重试，连续失败到上限就停止自动重连。
+        ///
+        /// 以前这条路径没有冷却，错误回调直接触发重启，而重启只看 IsRunning 就判定成功，
+        /// 于是同一台坏设备每秒被重开上百次，把界面、日志和句柄一起拖死。
+        /// </summary>
+        private void ReportCameraStartupFailure(string detail)
+        {
+            int failures = Interlocked.Increment(ref _consecutiveStartupFailures);
+            if (CameraStartupFailurePolicy.ShouldStopAutoReconnect(failures, MaxConsecutiveRestartFailures))
+            {
+                _cameraAutoReconnectSuspended = true;
+                // 这台设备每次启动都立刻报错，重试不可能自己变好：停下来等用户换设备。
+                // 只提示一次，不做"用户一动就重试"的兜底，否则变成每 20 秒重开一轮、
+                // 每轮再提示一次的刷屏，和原来的死循环只差一个数量级。
+                RuntimeLog.Error(
+                    "Camera",
+                    $"摄像头连续 {failures} 次启动失败，已停止自动重连。detail={detail}");
+                ShowToast($"摄像头连续 {MaxConsecutiveRestartFailures} 次启动失败，已停止自动重连。请更换摄像头或重新插拔后在设置中重启", ToastSeverity.Error);
+                SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
+                // 停掉这台只会报错的设备，避免日志和句柄继续增长
+                if (!_isRestartingCamera)
+                    StopCamera();
+                return;
+            }
+
+            TimeSpan backoff = CameraStartupFailurePolicy.GetRestartBackoff(failures);
+            RuntimeLog.Warn(
+                "Camera",
+                $"摄像头启动失败 {failures}/{MaxConsecutiveRestartFailures} 次，{backoff.TotalSeconds:F0}s 后重试。detail={detail}");
+            ScheduleCameraStartupRetry(backoff);
+        }
+
+        private void ScheduleCameraStartupRetry(TimeSpan delay)
+        {
+            if (Interlocked.CompareExchange(ref _cameraStartupRetryPending, 1, 0) != 0)
+                return; // 已经排了下一次退避重试，不再叠加
+
+            _ = RunCameraStartupRetryAsync(delay);
+        }
+
+        private async Task RunCameraStartupRetryAsync(TimeSpan delay)
+        {
+            try
+            {
+                await Task.Delay(delay);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+
+            Interlocked.Exchange(ref _cameraStartupRetryPending, 0);
+            if (_isSetupWizardActive || _isDisposed || _shutdownRequested) return;
+            if (_cameraAutoReconnectSuspended) return;
+            if (_isRestartingCamera) return;
+            if (Volatile.Read(ref _consecutiveStartupFailures) == 0) return; // 期间已经恢复出帧
+
+            await RestartCameraWithRecordingStopAsync("camera-startup-failure");
+        }
+
         /// <summary>用户手动触发摄像头重置（在设置或 UI 按钮调用）</summary>
         public void ManualRestartCamera()
         {
-            _consecutiveRestartFailures = 0;
+            ResetCameraRestartCounters();
             RestartCamera();
         }
 
@@ -183,16 +255,17 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isCameraSleeping)
             {
                 IsCameraSleeping = false;
-                _consecutiveRestartFailures = 0;
+                ResetCameraRestartCounters();
                 RuntimeLog.Info("Camera", "Wake requested by user activity");
                 StartCamera();
                 ShowToast("摄像头已唤醒");
                 Debug.WriteLine("[Idle] 用户活跃，摄像头唤醒");
             }
-            else if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
+            else if (_consecutiveRestartFailures >= MaxConsecutiveRestartFailures && !_cameraAutoReconnectSuspended)
             {
-                // 用户活动时如果摄像头已停止自动重连，重置并再试一次
-                _consecutiveRestartFailures = 0;
+                // 用户活动时如果摄像头已停止自动重连，重置并再试一次。
+                // 启动失败导致的停止不在这里兜底：那台设备每次都会报同样的错，重试只会刷屏。
+                ResetCameraRestartCounters();
                 Debug.WriteLine("[Camera] 用户活动，重置重连计数器并重试");
                 RestartCamera();
             }
@@ -403,13 +476,36 @@ namespace ExpressPackingMonitoring.ViewModels
                 RuntimeLog.Info("Camera", $"StartCamera selected index={targetIndex}, name={videoDevices[targetIndex].Name}");
 
                 // 设置错误处理器（摄像头拔掉时 AForge 会触发此事件）
-                _videoSource.VideoSourceError += (s, e) => {
-                    Debug.WriteLine($"[Camera] 视频源错误: {e.Description}");
-                    RuntimeLog.Error("Camera", $"VideoSourceError: {e.Description}");
+                _videoSource.VideoSourceError += (s, e) =>
+                {
+                    string description = e.Description;
+                    Debug.WriteLine($"[Camera] 视频源错误: {description}");
                     if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                         return;
-                    _ = Application.Current.Dispatcher.InvokeAsync(() => {
+                    if (_cameraAutoReconnectSuspended)
+                        return; // 已停止自动重连：不再重试，也不再刷日志
+
+                    // 时间差在事件线程上取，界面被拖慢的情况下也要能认出"启动后立刻报错"
+                    bool startupFailure = CameraStartupFailurePolicy.IsStartupFailure(DateTime.Now - _lastCameraStartAt);
+                    RuntimeLog.Error("Camera", $"VideoSourceError: {description}");
+                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
                         if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
+                            return;
+                        if (_cameraAutoReconnectSuspended)
+                            return;
+
+                        if (startupFailure)
+                        {
+                            // 同一轮启动的重复错误只统计一次，退避重试由 ReportCameraStartupFailure 统一安排
+                            if (Interlocked.CompareExchange(ref _cameraStartupFailureRecorded, 1, 0) != 0)
+                                return;
+                            ReportCameraStartupFailure(description);
+                            return;
+                        }
+
+                        // 运行中报错：冷却期内不重试，避免同一台设备被反复重开
+                        if ((DateTime.Now - _lastRestartAttempt).TotalSeconds < MinRestartIntervalSeconds)
                             return;
                         ShowToast("摄像头连接发生错误，尝试重连...", ToastSeverity.Warning);
                         _ = RestartCameraWithRecordingStopAsync("video-source-error");
@@ -452,7 +548,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     _actualCameraHeight = Config.FrameHeight;
                     _actualCameraFps = Config.Fps > 0 ? Config.Fps : 15;
                 }
-                _videoSource.NewFrame += VideoSource_NewFrame; _videoSource.Start();
+                _videoSource.NewFrame += VideoSource_NewFrame;
+                MarkCameraStarting();
+                _videoSource.Start();
                 MarkCameraReady();
                 RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
             }
@@ -512,6 +610,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.CameraColorMatrix);
                 source.FrameReady += MfCameraSource_FrameReady;
                 source.SourceError += MfCameraSource_SourceError;
+                MarkCameraStarting();
                 if (!source.Start())
                 {
                     source.FrameReady -= MfCameraSource_FrameReady;
@@ -549,6 +648,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void MfCameraSource_FrameReady(object sender, MfFrameEventArgs e)
         {
             _lastFrameTime = DateTime.Now;
+            MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
 
@@ -594,6 +694,27 @@ namespace ExpressPackingMonitoring.ViewModels
             _cameraEverConnected = true;
         }
 
+        /// <summary>
+        /// 设备真正开始启动前调用：记录启动时刻，并重新允许统计一次启动失败。
+        /// 必须在 Start() 之前调用 —— 设备可能刚启动就报错，那时时间戳还没写就认不出这条路径。
+        /// </summary>
+        private void MarkCameraStarting()
+        {
+            _lastCameraStartAt = DateTime.Now;
+            Volatile.Write(ref _cameraStartupFailureRecorded, 0);
+        }
+
+        /// <summary>
+        /// 真的收到画面帧才说明摄像头可用：把启动失败计数清零，解除"已停止自动重连"。
+        /// 只看 IsRunning 会把这台"能启动、不给帧"的设备当成连接成功，正是死循环的起点。
+        /// </summary>
+        private void MarkCameraStreamHealthy()
+        {
+            _cameraAutoReconnectSuspended = false;
+            if (Interlocked.Exchange(ref _consecutiveStartupFailures, 0) != 0)
+                RuntimeLog.Info("Camera", "摄像头恢复出帧，启动失败计数清零");
+        }
+
         private bool IsNetworkCameraConfigured()
         {
             return string.Equals(Config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase)
@@ -617,6 +738,7 @@ namespace ExpressPackingMonitoring.ViewModels
             source.FrameReady += NetworkCameraSource_FrameReady;
             source.SourceError += NetworkCameraSource_SourceError;
 
+            MarkCameraStarting();
             bool started = source.Start();
             if (!started)
             {
@@ -769,6 +891,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void VideoSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
             _lastFrameTime = DateTime.Now;
+            MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
 
@@ -788,6 +911,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void NetworkCameraSource_FrameReady(object sender, NetworkCameraFrameEventArgs e)
         {
             _lastFrameTime = DateTime.Now;
+            MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
 
@@ -1159,8 +1283,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_isCameraSleeping || _isSetupWizardActive)
                         {
                         }
-                        // 如果已达重连上限或正在重启中，不再尝试
-                        else if (_isRestartingCamera || _consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
+                        // 如果已达重连上限、正在重启中，或正在按退避等待重试，都不再重复触发
+                        else if (_isRestartingCamera
+                            || _cameraAutoReconnectSuspended
+                            || Volatile.Read(ref _cameraStartupRetryPending) != 0
+                            || _consecutiveRestartFailures >= MaxConsecutiveRestartFailures)
                         {
                         }
                         // 冷却期间不尝试重连（退避机制）

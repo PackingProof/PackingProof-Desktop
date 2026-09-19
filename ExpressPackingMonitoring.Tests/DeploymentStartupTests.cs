@@ -241,6 +241,30 @@ public sealed class DeploymentStartupTests
         Assert.Contains("RuntimeLog.Error(\"Camera\", $\"Camera restart failed", source, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 现场 bug 的守卫：虚拟摄像头"能启动却立刻报错"时，错误回调必须先判启动失败再退避重试。
+    /// 以前这里没有任何冷却、重启又立刻被判成功，10ms 一轮把界面、日志和句柄一起拖死。
+    /// </summary>
+    [Fact]
+    public void CameraVideoSourceErrorUsesStartupFailureBackoffInsteadOfImmediateRestart()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs");
+
+        int handlerStart = source.IndexOf("_videoSource.VideoSourceError += ", StringComparison.Ordinal);
+        Assert.True(handlerStart >= 0, "找不到 DirectShow 错误回调");
+        int handlerEnd = source.IndexOf("_videoSource.VideoCapabilities", handlerStart, StringComparison.Ordinal);
+        Assert.True(handlerEnd > handlerStart, "找不到错误回调的结束位置");
+
+        string handler = source[handlerStart..handlerEnd];
+
+        Assert.Contains("CameraStartupFailurePolicy.IsStartupFailure(", handler, StringComparison.Ordinal);
+        Assert.Contains("ReportCameraStartupFailure(", handler, StringComparison.Ordinal);
+        Assert.Contains("MinRestartIntervalSeconds", handler, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void RecordingToggleUsesAsyncCommandAndAwaitedScanPath()
     {

@@ -156,6 +156,39 @@ internal static class CameraReconnectPolicy
             : PreviewFreezeRecoveryAction.RestartCamera;
 }
 
+/// <summary>
+/// 摄像头启动失败的判定与重连退避。
+///
+/// 现场问题：选中的虚拟摄像头能 StartCamera 成功（IsRunning=true），紧接着抛
+/// VideoSourceError（例如 0x8007045A DLL 初始化失败）。原来的错误回调没有冷却，
+/// 而重启流程只看 IsRunning 就把"重连成功"写回，清零失败计数，于是
+/// 错误 → 重启 → 错误 不到 10ms 一轮：界面卡死、CPU 占满、日志暴涨、句柄泄漏。
+///
+/// 规则：启动后 <see cref="StartupErrorWindow"/> 内收到的错误算"启动失败"，
+/// 按 1s / 2s / 5s / 10s 退避重试；连续失败到上限后停止自动重连并提示用户。
+/// 只有真的收到画面帧才算恢复，所以"能启动、不给帧"的设备不会被当成连接成功。
+/// </summary>
+internal static class CameraStartupFailurePolicy
+{
+    /// <summary>启动后这段时间内收到的错误算启动失败，而不是运行中断线。</summary>
+    internal static readonly TimeSpan StartupErrorWindow = TimeSpan.FromSeconds(3);
+
+    public static bool IsStartupFailure(TimeSpan sinceStart) =>
+        sinceStart >= TimeSpan.Zero && sinceStart <= StartupErrorWindow;
+
+    /// <summary>连续启动失败后的重试间隔：1s、2s、5s，之后保持 10s。</summary>
+    public static TimeSpan GetRestartBackoff(int consecutiveFailures) => consecutiveFailures switch
+    {
+        <= 1 => TimeSpan.FromSeconds(1),
+        2 => TimeSpan.FromSeconds(2),
+        3 => TimeSpan.FromSeconds(5),
+        _ => TimeSpan.FromSeconds(10)
+    };
+
+    public static bool ShouldStopAutoReconnect(int consecutiveFailures, int maxFailures) =>
+        consecutiveFailures >= maxFailures;
+}
+
 internal sealed class CameraFrameRateGate
 {
     private long _lastAcceptedTimestamp;
