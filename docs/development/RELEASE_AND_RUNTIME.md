@@ -31,6 +31,8 @@
 
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 发布顺序固定为：提交并保持工作区干净 → 运行本地 CI → 核对版本与发布说明 → 创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 推送 `main` 与该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须先于正式构建，避免先构建测试身份再为正式标签重复编译。
+- 打包脚本会在产物目录生成 `release_commits_v<X.Y.Z>.txt`（上一个正式版以来的全部提交，仅本地核对、不上传），并按需生成或保留 `RELEASE_NOTES_v<X.Y.Z>.md`；重新打包不会再冲掉已经写好的发布笔记。
+- 发布脚本 `Tools/Publish-Releases.ps1` 属于门禁的一部分：它校验发布笔记的分段与占位符、校验 `update_v<X.Y.Z>.json` 的 `title` 与 `notes` 是否已填写，并在打印提交清单后要求显式传入 `-ConfirmCommitCoverage`。只想自检用 `-ValidateOnly`，已经发布过的版本要补正文用 `-UpdateNotes`（只更新正文与标题，不重复上传附件）。
 - 本地 CI 命令为 `pwsh -NoProfile -File Tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `Tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
 - 开始构建前先跑 `pwsh -NoProfile -File Tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。
@@ -49,10 +51,10 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 ## 发布笔记与资产
 
-- 发布笔记必须使用 `RELEASE_NOTES_TEMPLATE.md`，并先以 `git log --oneline <上一正式版标签>..HEAD` 核对全部提交。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化和未验证事项。
-- 发布笔记写到该版本自己的产物目录 `package/PackingProof+v<X.Y.Z>/RELEASE_NOTES_v<X.Y.Z>.md`，在打包生成产物目录之后写入。禁止放在仓库根目录，也禁止提交进仓库；`package/*` 已被 Git 忽略。注意 Windows 文件名不区分大小写，写入前先确认目标文件是否已有内容，不要直接覆盖。
+- 发布笔记必须使用 `RELEASE_NOTES_TEMPLATE.md`，并**逐条**核对 `release_commits_v<X.Y.Z>.txt` 里的全部提交（等价于 `git log --oneline <上一正式版标签>..HEAD`）。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化和未验证事项；纯工程或测试提交也要在《兼容与工程》里落到文字，不能只写几条最重要的就交付。
+- 发布笔记写到该版本自己的产物目录 `package/PackingProof+v<X.Y.Z>/RELEASE_NOTES_v<X.Y.Z>.md`，在打包生成产物目录之后写入。禁止放在仓库根目录，也禁止提交进仓库；`package/*` 已被 Git 忽略。打包脚本会在文件不存在时按模板生成骨架，在文件已存在时原样保留，正常流程不需要手工改文件名。
 - 标题固定为 `v<X.Y.Z> <一句话内容>`。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
-- `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。启动器会自动添加列表符号，完整内容留在 Release 页面。
+- `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致，`notes` 必须已经填写，发布脚本会直接拒绝“请填写更新标题”这类占位内容。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。启动器会自动添加列表符号，完整内容留在 Release 页面。
 - `notes` 面向的是店员等最终用户，只写他们能感知的变化。工程与内部改动一律不写，例如运行时版本、打包与增量包机制、CI 门禁、代码重构、测试补充；这些留在发布笔记的“兼容与工程”里。
 - 不生成 AppFull 或 ManualUpdate，不上传旧名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`。`launcher_manifest` 和 `release_info` 仅作本地校验交接，默认不上传。
 
@@ -64,4 +66,4 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release。二者默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`；免安装分发统一由 Setup 和目录包承担。
 
 - Gitee 发布令牌固定取仓库根目录 `.env` 的 `GITEE_TOKEN`，由脚本注入 `GITEE_TOKEN` 环境变量后交给 CLI；CLI 自己保存的登录态只作回退，而且它按身份字符串各存一份、`gitee auth status` 在令牌失效时仍返回 0，不能用来判断可用性。发布时对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
-- 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 <发布笔记路径> -Title "<一句话内容>" [-Prerelease]` 一次创建。脚本按上面的资产表挑文件，要求工作区干净且当前提交有精确 tag，GitHub 创建失败会自动重试；GitHub 登录态由 gh CLI 维护，Gitee 令牌由脚本从 `.env` 读取后注入环境变量，不打印、不落盘、不提交。
+- 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 -Title "<一句话内容>" -ConfirmCommitCoverage [-Prerelease]` 一次创建，发布笔记默认取产物目录里的 `RELEASE_NOTES_v<X.Y.Z>.md`（要指别处才传 `-NotesFile`）。脚本要求工作区干净、当前提交有精确 tag，并确认发布笔记已覆盖 `release_commits_v<X.Y.Z>.txt` 的全部提交后才按上面的资产表挑文件上传，GitHub 创建失败会自动重试；已发布版本补写正文用 `-UpdateNotes`，只校验不发布用 `-ValidateOnly`。GitHub 登录态由 gh CLI 维护，Gitee 令牌由脚本从 `.env` 读取后注入环境变量，不打印、不落盘、不提交。

@@ -1,6 +1,7 @@
 # 把当前 tag 的桌面端产物发布到 GitHub 与 Gitee Release。
 #
-#   pwsh -NoProfile -File Tools\Publish-Releases.ps1 <release-notes-file> [-Title "<一句话内容>"] [-Prerelease]
+#   pwsh -NoProfile -File Tools\Publish-Releases.ps1 [-NotesFile <release-notes-file>] `
+#       [-Title "<一句话内容>"] [-Prerelease] [-ConfirmCommitCoverage] [-UpdateNotes] [-ValidateOnly]
 #
 # 约定（与 docs/development/RELEASE_AND_RUNTIME.md 的资产表一致）：
 # - GitHub：Setup、update JSON、可选 AppPatch；仅新启动器基线时附 LauncherPatch
@@ -8,14 +9,21 @@
 # - 完整 7z 与完整 ZIP 是本地产物，任何渠道都不上传
 # - 产物必须已由 Tools\Publish-CleanPackage.ps1 生成并通过校验
 # - 标题固定 `v<X.Y.Z> <一句话内容>`，两个平台保持一致
+# - 发布笔记默认取 package 产物目录里的 RELEASE_NOTES_v<X.Y.Z>.md，且必须覆盖
+#   release_commits_v<X.Y.Z>.txt 里的全部提交；确认后加 -ConfirmCommitCoverage
+# - 已经发布过的版本要只更新正文时，用 -UpdateNotes 重跑
 # - GitHub 用 gh、Gitee 用 gitee CLI；Gitee 令牌固定取 .env 的 GITEE_TOKEN
 #   注入环境变量后交给 CLI，脚本不打印也不落盘凭据
 
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
-    [string]$NotesFile,
+    [Parameter(Position = 0)]
+    [string]$NotesFile = "",
+    [string]$Tag = "",
     [string]$Title = "",
-    [switch]$Prerelease
+    [switch]$Prerelease,
+    [switch]$ConfirmCommitCoverage,
+    [switch]$UpdateNotes,
+    [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,6 +35,7 @@ $repoSlug = "PackingProof/PackingProof-Desktop"
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 
 function Assert-Command {
     param([string]$Name, [string]$Hint)
@@ -43,25 +52,33 @@ function Test-IsInsidePackageDir {
     return $Path.StartsWith(($packageRoot.TrimEnd('\') + '\'), [System.StringComparison]::OrdinalIgnoreCase)
 }
 
-if (-not (Test-Path -LiteralPath $NotesFile)) {
-    throw "找不到发布笔记：$NotesFile"
-}
-$notesFullPath = (Resolve-Path -LiteralPath $NotesFile).Path
-
-# 发布笔记不入库，必须来自 package 下该版本自己的产物目录。
-if (-not (Test-IsInsidePackageDir -Path $notesFullPath -RepoRoot $repoRoot)) {
-    Write-Warning "发布笔记不在 package\ 产物目录下：$notesFullPath"
-}
-
 if (git status --porcelain --untracked-files=all) {
     throw "发布前 Git 工作区必须干净"
 }
 
-$tag = (git describe --tags --exact-match 2>$null)
-if ([string]::IsNullOrWhiteSpace($tag)) {
-    throw "当前提交没有精确 tag，请先建 v<X.Y.Z> 标签"
+# 正常发布时 tag 就在当前提交上；补写已发布版本的正文时 HEAD 会领先于 tag，
+# 这种情况显式传 -Tag <tag>（脚本会再校验 tag 是否真实存在）。
+if (-not [string]::IsNullOrWhiteSpace($Tag)) {
+    $tag = $Tag.Trim()
+    & git rev-parse --verify --quiet "$tag^{commit}" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "找不到 tag：$tag"
+    }
 }
-$tag = $tag.Trim()
+else {
+    $tag = (git describe --tags --exact-match 2>$null)
+    if ([string]::IsNullOrWhiteSpace($tag)) {
+        throw "当前提交没有精确 tag：请先建 v<X.Y.Z> 标签，或为已发布版本补正文时显式传 -Tag <tag>"
+    }
+    $tag = $tag.Trim()
+}
+
+$headCommit = (git rev-parse HEAD).Trim()
+$tagCommit = (git rev-parse "$tag^{commit}").Trim()
+$tagMatchesHead = [string]::Equals($headCommit, $tagCommit, [System.StringComparison]::OrdinalIgnoreCase)
+if (-not $tagMatchesHead -and -not ($UpdateNotes -or $ValidateOnly)) {
+    throw "当前提交不是 $tag 指向的提交：正式发布请切到该 tag 再执行；只补正文用 -UpdateNotes，只校验用 -ValidateOnly"
+}
 
 # 产物名由 Tools\Publish-CleanPackage.ps1 按归一化版本生成：目录与补丁包带 v<纯版本号>，
 # Setup 与更新清单用不带 v 的纯版本号。这里必须走同一套归一化，不能拿 tag 直接拼：
@@ -75,6 +92,26 @@ if (-not (Test-Path -LiteralPath $packageRoot)) {
         Select-Object -ExpandProperty Name)
     $hint = if ($candidates.Count -gt 0) { "；package\ 下与 $version 相关的目录有：$($candidates -join '、')" } else { "" }
     throw "找不到产物目录：$packageRoot，请先执行 Tools\Publish-CleanPackage.ps1$hint"
+}
+
+# 发布笔记不入库，必须来自 package 下该版本自己的产物目录；不传路径时按版本自动推断。
+$notesFileName = Get-ReleaseNotesFileName -NormalizedVersion $version
+$notesFullPath = if ([string]::IsNullOrWhiteSpace($NotesFile)) {
+    Join-Path $packageRoot $notesFileName
+}
+elseif (Test-Path -LiteralPath $NotesFile -PathType Leaf) {
+    (Resolve-Path -LiteralPath $NotesFile).Path
+}
+else {
+    throw "找不到发布笔记：$NotesFile"
+}
+if (-not (Test-IsInsidePackageDir -Path $notesFullPath -RepoRoot $repoRoot)) {
+    throw "发布笔记必须放在 package\ 产物目录下：$notesFullPath"
+}
+$notesProblems = Get-ReleaseNotesProblems -NotesPath $notesFullPath
+if ($notesProblems.Count -gt 0) {
+    $details = ($notesProblems | ForEach-Object { "  - $_" }) -join [Environment]::NewLine
+    throw "发布笔记校验未通过：$([Environment]::NewLine)$details"
 }
 
 # 按资产表挑文件：Setup 与 update JSON 必须存在，补丁包按本次是否生成决定。
@@ -106,8 +143,38 @@ if (Test-Path -LiteralPath $launcherPatchPath) {
 # 这样 tag 少写 v 或带后缀时，标题仍然与产物名一致。
 $releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $releaseTag } else { "$releaseTag $Title" }
 
+# 更新清单的标题和摘要以前总要手工补，现在改成发布前必须已经是填好的内容。
+Assert-UpdateManifestReady -UpdateJsonPath $updateJsonPath -ExpectedTitle $releaseTitle
+
+# 发布笔记必须覆盖上一个正式版以来的全部提交：先生成清单，再要求人工确认。
+$previousReleaseTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $releaseTag
+$commitChecklist = Write-ReleaseCommitChecklist `
+    -RepoRoot $repoRoot `
+    -PackageRoot $packageRoot `
+    -NormalizedVersion $version `
+    -FromTag $previousReleaseTag `
+    -ToRef $releaseTag
+
+Write-Host ""
+Write-Host "提交范围 $($commitChecklist.Range)（上一个正式版：$(if ([string]::IsNullOrWhiteSpace($previousReleaseTag)) { '无' } else { $previousReleaseTag })）"
+Write-Host "提交数：$($commitChecklist.Count)，清单：$(Split-Path -Leaf $commitChecklist.Path)"
+if (-not $ConfirmCommitCoverage) {
+    Write-Host ""
+    Write-Host "以下提交都必须能在 $notesFileName 里找到对应说明："
+    Get-ReleaseCommitSubjects -RepoRoot $repoRoot -FromTag $previousReleaseTag -ToRef $releaseTag |
+        ForEach-Object { Write-Host "    $_" }
+    Write-Host ""
+    throw "发布笔记尚未确认覆盖上述 $($commitChecklist.Count) 个提交；逐条核对后加 -ConfirmCommitCoverage 重新执行（只想先校验加 -ValidateOnly）"
+}
+
 Assert-Command -Name "gh" -Hint "GitHub Release 无法创建；安装后执行 gh auth login"
 Assert-Command -Name "gitee" -Hint "Gitee Release 无法创建；安装后执行 gitee auth login --token <token>"
+
+if ($ValidateOnly) {
+    Write-Host ""
+    Write-Host "仅校验模式：产物、发布笔记与更新清单均通过，未创建、未上传"
+    exit 0
+}
 
 # Gitee 令牌固定来自 .env；CLI 的登录态可能停在失效的旧身份上，先做一次真实调用确认可用。
 $giteeTokenSource = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
@@ -133,7 +200,16 @@ Write-Host ""
 Write-Host "==> GitHub Release"
 & gh release view $tag --repo $repoSlug *> $null
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "GitHub 上 $tag 已存在，跳过创建"
+    if ($UpdateNotes) {
+        & gh release edit $tag --repo $repoSlug --title $releaseTitle --notes-file $notesFullPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub Release 正文更新失败"
+        }
+        Write-Host "GitHub 上 $tag 已存在，正文与标题已按发布笔记更新"
+    }
+    else {
+        Write-Host "GitHub 上 $tag 已存在，跳过创建（要更新正文加 -UpdateNotes）"
+    }
 }
 else {
     $ghArgs = @("release", "create", $tag) + $githubAssets +
@@ -155,8 +231,19 @@ else {
 Write-Host ""
 Write-Host "==> Gitee Release"
 & gitee release view $tag --repo $repoSlug *> $null
+$giteeReleaseExisted = ($LASTEXITCODE -eq 0)
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Gitee 上 $tag 已存在，跳过创建"
+    if ($UpdateNotes) {
+        $existingNotesText = Get-Content -LiteralPath $notesFullPath -Raw
+        & gitee release edit --repo $repoSlug --name $releaseTitle --notes $existingNotesText $tag *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Gitee Release 正文更新失败"
+        }
+        Write-Host "Gitee 上 $tag 已存在，正文与标题已按发布笔记更新"
+    }
+    else {
+        Write-Host "Gitee 上 $tag 已存在，跳过创建（要更新正文加 -UpdateNotes）"
+    }
 }
 else {
     $notesText = Get-Content -LiteralPath $notesFullPath -Raw
@@ -175,13 +262,19 @@ else {
     }
 }
 
-foreach ($asset in $giteeAssets) {
-    & gitee release upload --repo $repoSlug $tag $asset *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Gitee 附件上传失败：$(Split-Path -Leaf $asset)"
-    }
+# 只更新正文时不要重复上传附件，避免 Gitee 上出现同名重复文件。
+if ($giteeReleaseExisted -and $UpdateNotes) {
+    Write-Host "Gitee 附件保持原样（-UpdateNotes 只更新正文与标题）"
 }
-Write-Host "Gitee 附件已上传（Gitee 会把文件名里的 + 显示成空格，属正常）"
+else {
+    foreach ($asset in $giteeAssets) {
+        & gitee release upload --repo $repoSlug $tag $asset *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Gitee 附件上传失败：$(Split-Path -Leaf $asset)"
+        }
+    }
+    Write-Host "Gitee 附件已上传（Gitee 会把文件名里的 + 显示成空格，属正常）"
+}
 
 Write-Host ""
 Write-Host "GitHub 与 Gitee Release 均已就绪：$tag"

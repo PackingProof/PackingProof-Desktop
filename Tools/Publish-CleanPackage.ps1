@@ -29,6 +29,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "FFmpegBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "AppPatchRuntimeCompatibility.Common.ps1")
@@ -389,6 +390,16 @@ $normalizedPatchBaselineVersion = $patchBaselineResolution.EffectiveVersion
 Invoke-CoreRegressionTests
 if (-not $ConfirmManualCoreChecks) {
     Write-Warning "Manual core business and recovery checks are not confirmed. Packaging will continue; review RELEASE_CHECKLIST.md and report any unverified real-device scenarios with the release."
+}
+
+# 重新打包会重建产物目录，发布笔记是人工写的，先留着别丢。
+$releaseNotesFileName = Get-ReleaseNotesFileName -NormalizedVersion $normalizedVersion
+$releaseNotesPath = Join-Path $outputFullPath $releaseNotesFileName
+$preservedReleaseNotes = if (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf) {
+    [System.IO.File]::ReadAllText($releaseNotesPath, [System.Text.Encoding]::UTF8)
+}
+else {
+    ""
 }
 
 if (Test-Path $outputFullPath) {
@@ -1553,6 +1564,26 @@ if ($patchSupported) {
 $releaseInfo = $releaseInfoLines -join [Environment]::NewLine
 $releaseInfo | Set-Content -LiteralPath $releaseInfoPath -Encoding UTF8
 
+# 发布笔记与提交覆盖：打包时就把"上一个正式版以来的全部提交"落成清单，
+# 并保证发布笔记文件存在，避免发布那一刻才发现漏写。
+$previousReleaseTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $releaseTag
+$commitChecklist = Write-ReleaseCommitChecklist `
+    -RepoRoot $repoRoot `
+    -PackageRoot $outputFullPath `
+    -NormalizedVersion $normalizedVersion `
+    -FromTag $previousReleaseTag
+if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotes)) {
+    [System.IO.File]::WriteAllText(
+        $releaseNotesPath,
+        $preservedReleaseNotes,
+        [System.Text.UTF8Encoding]::new($false))
+    Write-Host "Release notes kept from previous run: $releaseNotesPath"
+}
+elseif (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
+    Copy-Item -LiteralPath (Join-Path $repoRoot "RELEASE_NOTES_TEMPLATE.md") -Destination $releaseNotesPath
+    Write-Host "Release notes skeleton created: $releaseNotesPath"
+}
+
 Write-Host "Clean package created: $outputFullPath"
 Write-Host "Installer created: $setupPath"
 if ($IncludeSevenZip) {
@@ -1569,5 +1600,13 @@ else {
 }
 Write-Host "Update manifest created: $updateJsonPath"
 Write-Host "Release info created: $releaseInfoPath"
+Write-Host "Commit checklist created: $($commitChecklist.Path)"
+Write-Host "Release notes: $releaseNotesPath"
+Write-Host ""
+Write-Host "发布前必须完成："
+Write-Host "  1. 按 RELEASE_NOTES_TEMPLATE.md 填写 $releaseNotesFileName"
+Write-Host "  2. 逐条核对 $(Split-Path -Leaf $commitChecklist.Path)：$($commitChecklist.Range) 共 $($commitChecklist.Count) 个提交，用户可见变化都要写进发布笔记"
+Write-Host "  3. 填写 $(Split-Path -Leaf $updateJsonPath) 的 title 与 notes（面向启动器显示的简洁摘要）"
+Write-Host "  4. 运行 pwsh -NoProfile -File Tools\Publish-Releases.ps1 -ValidateOnly 自检后再正式发布"
 Write-Host "Root items:"
 Get-ChildItem -LiteralPath $outputFullPath | Sort-Object PSIsContainer, Name | Select-Object Name, Mode, Length | Format-Table -AutoSize

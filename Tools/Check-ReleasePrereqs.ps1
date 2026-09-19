@@ -11,6 +11,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
 
 $blockers = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
@@ -61,6 +62,10 @@ else {
     }
     elseif ($tag.Trim() -eq "v$projectVersion") {
         Write-Ok "当前提交的 tag $($tag.Trim()) 与 csproj 一致"
+        $previousTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $tag.Trim()
+        $subjects = Get-ReleaseCommitSubjects -RepoRoot $repoRoot -FromTag $previousTag
+        $rangeFrom = if ([string]::IsNullOrWhiteSpace($previousTag)) { "仓库起点" } else { $previousTag }
+        Write-Ok "发布笔记范围：$rangeFrom .. $($tag.Trim()) 共 $($subjects.Count) 个提交，必须逐条覆盖"
     }
     else {
         Write-Fail "tag $($tag.Trim()) 与 csproj 的 $projectVersion 不一致"
