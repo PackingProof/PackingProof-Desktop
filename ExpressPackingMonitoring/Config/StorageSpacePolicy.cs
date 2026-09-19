@@ -37,26 +37,24 @@ namespace ExpressPackingMonitoring.Config
         internal static long CalculateMinimumReserveBytes(
             long totalSize,
             StorageReserveKind kind)
+            => GetFloorReserveBytes(kind);
+
+        /// <summary>
+        /// 预留底线，用户配置不能低于它：系统盘 2GB，其他本地盘与网络位置 1GB。
+        /// 不再按容量百分比：1TB 盘按百分比会算出几十 GB，机器剩 90 多 GB 也会被判空间不足。
+        /// </summary>
+        internal static long GetFloorReserveBytes(StorageReserveKind kind) => kind switch
         {
-            long minimumBytes = kind switch
-            {
-                StorageReserveKind.LocalSystemDrive => 2L * BytesPerGiB,
-                StorageReserveKind.NetworkLocation => 1L * BytesPerGiB,
-                _ => 1L * BytesPerGiB
-            };
-            double percent = kind switch
-            {
-                StorageReserveKind.LocalSystemDrive => 0.05,
-                StorageReserveKind.NetworkLocation => 0.05,
-                _ => 0.05
-            };
-            long percentBytes = (long)Math.Ceiling(
-                Math.Max(0, totalSize) * percent
-                / (double)BytesPerGiB) * BytesPerGiB;
-            // 预留取"容量百分比"与固定值的较小者：百分比在小盘上更宽松，
-            // 但固定值封顶，避免 1TB 盘按 5% 直接吃掉 48GB。
-            return Math.Min(minimumBytes, percentBytes);
-        }
+            StorageReserveKind.LocalSystemDrive => 2L * BytesPerGiB,
+            _ => 1L * BytesPerGiB
+        };
+
+        /// <summary>用户没有单独设置时的默认预留：系统盘 10GB，其他本地盘与网络位置 5GB</summary>
+        internal static long GetDefaultReserveBytes(StorageReserveKind kind) => kind switch
+        {
+            StorageReserveKind.LocalSystemDrive => 10L * BytesPerGiB,
+            _ => 5L * BytesPerGiB
+        };
 
         private static long CalculateMinimumReserveBytes(string rootPath, long totalSize)
         {
@@ -70,36 +68,54 @@ namespace ExpressPackingMonitoring.Config
 
         public static long GetEffectiveReserveBytes(StorageLocation location, DriveInfo drive)
         {
-            long minimumReserveBytes = CalculateMinimumReserveBytes(drive);
-            long configuredReserveBytes = location.ReserveGB > 0
-                ? (long)Math.Ceiling(location.ReserveGB) * BytesPerGiB
-                : 0;
-            return Math.Max(minimumReserveBytes, configuredReserveBytes);
+            StorageReserveKind kind = ResolveKind(drive.RootDirectory.FullName);
+            return ResolveReserveBytes(location.ReserveGB, kind);
         }
 
         internal static long GetEffectiveReserveBytes(
             StorageLocation location,
             StorageVolumeInfo volume)
         {
-            long minimumReserveBytes = CalculateMinimumReserveBytes(volume);
-            long configuredReserveBytes = location.ReserveGB > 0
-                ? (long)Math.Ceiling(location.ReserveGB) * BytesPerGiB
-                : 0;
-            return Math.Max(minimumReserveBytes, configuredReserveBytes);
+            return ResolveReserveBytes(location.ReserveGB, ResolveKind(volume.RootPath));
         }
 
         public static double GetEffectiveReserveGB(StorageLocation location)
         {
-            double minimumReserveGB = GetMinimumReserveGB(location.Path);
-            return Math.Ceiling(Math.Max(minimumReserveGB, location.ReserveGB));
+            StorageReserveKind kind = ResolveKind(location.Path);
+            double floorGB = GetFloorReserveBytes(kind) / (double)BytesPerGiB;
+            double defaultGB = GetDefaultReserveBytes(kind) / (double)BytesPerGiB;
+            double requested = double.IsNaN(location.ReserveGB) || double.IsInfinity(location.ReserveGB)
+                ? defaultGB
+                : location.ReserveGB > 0 ? location.ReserveGB : defaultGB;
+            return Math.Ceiling(Math.Max(floorGB, requested));
         }
 
         public static double NormalizeReserveGB(string path, double reserveGB)
         {
-            double minimumReserveGB = GetMinimumReserveGB(path);
-            if (double.IsNaN(reserveGB) || double.IsInfinity(reserveGB))
-                return minimumReserveGB;
-            return Math.Ceiling(Math.Max(minimumReserveGB, reserveGB));
+            // 0 表示"用户没有单独设置"，保留 0 让默认值生效；其余按底线收口
+            if (double.IsNaN(reserveGB) || double.IsInfinity(reserveGB) || reserveGB <= 0)
+                return 0;
+
+            double floorGB = GetFloorReserveBytes(ResolveKind(path)) / (double)BytesPerGiB;
+            return Math.Ceiling(Math.Max(floorGB, reserveGB));
+        }
+
+        /// <summary>用户设置优先（可低于默认），没有设置就用默认值，两者都不低于底线</summary>
+        private static long ResolveReserveBytes(double configuredGB, StorageReserveKind kind)
+        {
+            long floorBytes = GetFloorReserveBytes(kind);
+            if (double.IsNaN(configuredGB) || double.IsInfinity(configuredGB) || configuredGB <= 0)
+                return Math.Max(floorBytes, GetDefaultReserveBytes(kind));
+
+            return Math.Max(floorBytes, (long)Math.Ceiling(configuredGB) * BytesPerGiB);
+        }
+
+        /// <summary>按路径判定预留类别：备份目标算网络位置，其余按是否系统盘区分</summary>
+        internal static StorageReserveKind ResolveKind(string path)
+        {
+            if (StorageVolumeInfo.IsBackupTargetPath(path))
+                return StorageReserveKind.NetworkLocation;
+            return IsSystemDrive(path) ? StorageReserveKind.LocalSystemDrive : StorageReserveKind.LocalOtherDrive;
         }
 
         public static double GetMinimumReserveGB(string path)
