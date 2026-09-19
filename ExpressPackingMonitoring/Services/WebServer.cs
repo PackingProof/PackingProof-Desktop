@@ -1302,7 +1302,8 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/recording-devices" when method == "GET":
                         HandleRecordingDevices(ctx);
                         break;
-                    case "/api/videos/export-order-numbers" when method == "GET":
+                    // 导出单号：GET 直接下载（老用法），POST .../tasks 起任务后轮询进度、可取消。
+                    case var p when p.StartsWith("/api/videos/export-order-numbers", StringComparison.OrdinalIgnoreCase):
                         HandleExportOrderNumbers(ctx);
                         break;
                     case "/api/videos":
@@ -4757,7 +4758,7 @@ namespace ExpressPackingMonitoring.Services
 
         /// <summary>导出单号供浏览器下载；实现在 OrderNumberExportEndpoint。</summary>
         private void HandleExportOrderNumbers(HttpListenerContext ctx) =>
-            OrderNumberExportEndpoint.Handle(ctx, _db, SendJson, GetCurrentSourceDeviceNames());
+            OrderNumberExportEndpoint.Handle(ctx, _db, SendJson, GetCurrentSourceDeviceNames(), _nodeName);
 
         private void HandleSearchVideos(HttpListenerContext ctx)
         {

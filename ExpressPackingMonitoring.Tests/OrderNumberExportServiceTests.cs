@@ -295,6 +295,63 @@ public sealed class OrderNumberExportServiceTests
     }
 
     /// <summary>
+    /// Web 端导出任务：后台跑、能查进度、完成后能下载，已结束的任务不允许再取消。
+    /// 浏览器那边就是靠这几个接口做进度条和取消按钮的。
+    /// </summary>
+    [Fact]
+    public async Task WebExportTask_ReportsProgressAndServesDownload()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO VideoRecords
+                        (OrderId, TrackingNumber, SourceOrderId, Mode, FilePath, StartTime, IsDeleted, SourceType, SourceDeviceName)
+                    VALUES
+                        ('WEB-TASK-1', 'WEB-TASK-1', '', '发货', 'task.mp4', '2026-08-01 10:00:00', 0, 'pc', '');";
+                command.ExecuteNonQuery();
+            }
+
+            string taskId = OrderNumberExportEndpoint.StartTask(
+                database,
+                OrderNumberExportEndpoint.ParseRequest(null, null, ""),
+                null,
+                "打包电脑A");
+
+            OrderNumberExportEndpoint.TaskSnapshot? snapshot = null;
+            for (int attempt = 0; attempt < 200; attempt++)
+            {
+                snapshot = OrderNumberExportEndpoint.GetSnapshot(taskId);
+                if (snapshot is null || snapshot.State != "running")
+                    break;
+                await Task.Delay(50, TestContext.Current.CancellationToken);
+            }
+
+            Assert.NotNull(snapshot);
+            Assert.Equal("succeeded", snapshot!.State);
+            Assert.Equal(1, snapshot.RowCount);
+            Assert.True(snapshot.CanDownload);
+            Assert.True(OrderNumberExportEndpoint.TryGetDownload(taskId, out byte[] content, out string fileName));
+            Assert.NotEmpty(content);
+            Assert.EndsWith(".xlsx", fileName, StringComparison.OrdinalIgnoreCase);
+            // 已结束的任务不能再取消，未知任务号查不到快照
+            Assert.False(OrderNumberExportEndpoint.CancelTask(taskId));
+            Assert.Null(OrderNumberExportEndpoint.GetSnapshot("unknown-task"));
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// 现场故障守卫：Web 端导出会一直占着数据库锁把整条查询跑完，而原来的 LEFT JOIN 用
     /// COLLATE NOCASE 去匹配 OrderInfoRecords 的 BINARY 主键索引，SQLite 只能对每行录像全表扫一遍
     /// 订单表（现场 1.17 万 × 5.85 千实测 55 秒），期间界面线程和其他任务一起被锁死。

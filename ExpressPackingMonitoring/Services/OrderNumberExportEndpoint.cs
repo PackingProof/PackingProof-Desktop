@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using ExpressPackingMonitoring.Logging;
 using System.Threading;
+using System.Threading.Tasks;
 using ExpressPackingMonitoring.Data;
 
 namespace ExpressPackingMonitoring.Services
@@ -98,7 +100,8 @@ namespace ExpressPackingMonitoring.Services
             Request request,
             DateTime now,
             CancellationToken cancellationToken = default,
-            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            string localDeviceName = "")
         {
             ArgumentNullException.ThrowIfNull(database);
             ArgumentNullException.ThrowIfNull(request);
@@ -117,7 +120,8 @@ namespace ExpressPackingMonitoring.Services
             IReadOnlyList<OrderNumberExportRow> rows = OrderNumberExportService.BuildRows(
                 sources,
                 cancellationToken,
-                currentSourceDeviceNames: currentSourceDeviceNames);
+                currentSourceDeviceNames: currentSourceDeviceNames,
+                localDeviceName: localDeviceName);
 
             if (rows.Count > MaxRows)
             {
@@ -152,12 +156,52 @@ namespace ExpressPackingMonitoring.Services
         /// 完整处理一次导出请求，包括写响应。
         /// HTTP 细节留在这里而不是 WebServer：后者是规模冻结的历史例外，
         /// 只允许缩小，不能再往里堆路由与协议代码。
+        ///
+        /// 支持两种用法：
+        /// - GET /api/videos/export-order-numbers?...：老的单次下载（浏览器直接拿文件）
+        /// - POST /api/videos/export-order-numbers/tasks?...：起一个导出任务，浏览器轮询
+        ///   /tasks/{id} 拿进度、可 /cancel 取消、完成后从 /tasks/{id}/file 下载
         /// </summary>
         internal static void Handle(
             HttpListenerContext ctx,
             VideoDatabase database,
             Action<HttpListenerContext, int, object> sendJson,
-            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            string localDeviceName = "")
+        {
+            string path = ctx.Request.Url?.AbsolutePath?.TrimEnd('/') ?? "";
+            string method = ctx.Request.HttpMethod ?? "GET";
+            const string tasksPrefix = "/api/videos/export-order-numbers/tasks";
+            try
+            {
+                if (path.StartsWith(tasksPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    HandleTaskRequest(
+                        ctx,
+                        method,
+                        path[tasksPrefix.Length..],
+                        database,
+                        sendJson,
+                        currentSourceDeviceNames,
+                        localDeviceName);
+                    return;
+                }
+
+                HandleDirectDownload(ctx, database, sendJson, currentSourceDeviceNames, localDeviceName);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("OrderExport", "Web 导出单号失败", ex);
+                TrySendJson(sendJson, ctx, 500, new { error = "导出失败，请稍后重试" });
+            }
+        }
+
+        private static void HandleDirectDownload(
+            HttpListenerContext ctx,
+            VideoDatabase database,
+            Action<HttpListenerContext, int, object> sendJson,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames,
+            string localDeviceName)
         {
             var qs = ctx.Request.QueryString;
             try
@@ -169,7 +213,8 @@ namespace ExpressPackingMonitoring.Services
                     database,
                     request,
                     DateTime.Now,
-                    currentSourceDeviceNames: currentSourceDeviceNames);
+                    currentSourceDeviceNames: currentSourceDeviceNames,
+                    localDeviceName: localDeviceName);
 
                 if (result.RowCount == 0)
                 {
@@ -197,6 +242,80 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
+        private static void HandleTaskRequest(
+            HttpListenerContext ctx,
+            string method,
+            string taskPath,
+            VideoDatabase database,
+            Action<HttpListenerContext, int, object> sendJson,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames,
+            string localDeviceName)
+        {
+            string trimmed = taskPath.Trim('/');
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                if (!string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+                {
+                    sendJson(ctx, 405, new { error = "导出任务只支持 POST" });
+                    return;
+                }
+
+                var qs = ctx.Request.QueryString;
+                Request request = ParseRequest(
+                    qs["start"], qs["end"], qs["mode"],
+                    qs["deviceId"], qs["sourceName"], qs["sourceType"], qs["deviceIds"]);
+                string startedTaskId = StartTask(
+                    database,
+                    request,
+                    currentSourceDeviceNames,
+                    localDeviceName);
+                sendJson(ctx, 200, new { success = true, taskId = startedTaskId });
+                return;
+            }
+
+            bool wantsCancel = trimmed.EndsWith("/cancel", StringComparison.OrdinalIgnoreCase);
+            bool wantsFile = trimmed.EndsWith("/file", StringComparison.OrdinalIgnoreCase);
+            string taskId = trimmed
+                .Replace("/cancel", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("/file", "", StringComparison.OrdinalIgnoreCase)
+                .Trim('/');
+
+            if (wantsCancel)
+            {
+                bool cancelled = CancelTask(taskId);
+                sendJson(ctx, cancelled ? 200 : 409, new { success = cancelled });
+                return;
+            }
+
+            if (wantsFile)
+            {
+                if (!TryGetDownload(taskId, out byte[] content, out string fileName))
+                {
+                    sendJson(ctx, 409, new { error = "导出还没完成" });
+                    return;
+                }
+
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType =
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                ctx.Response.AddHeader("Content-Disposition", BuildContentDisposition(fileName));
+                ctx.Response.ContentLength64 = content.Length;
+                ctx.Response.OutputStream.Write(content, 0, content.Length);
+                ctx.Response.OutputStream.Close();
+                RuntimeLog.Info("OrderExport", $"Web 导出单号 {content.Length} 字节，任务 {taskId} 已下载");
+                return;
+            }
+
+            TaskSnapshot? snapshot = GetSnapshot(taskId);
+            if (snapshot == null)
+            {
+                sendJson(ctx, 404, new { error = "导出任务不存在或已过期" });
+                return;
+            }
+
+            sendJson(ctx, 200, new { success = true, task = snapshot });
+        }
+
         /// <summary>
         /// 非 ASCII 文件名要用 RFC 5987 的 filename* 才能在浏览器里正确显示中文，
         /// 同时保留一个 ASCII 回退名给老浏览器。
@@ -205,6 +324,251 @@ namespace ExpressPackingMonitoring.Services
         {
             string encoded = Uri.EscapeDataString(fileName);
             return $"attachment; filename=\"order-numbers.xlsx\"; filename*=UTF-8''{encoded}";
+        }
+
+        /// <summary>
+        /// 浏览器轮询用的任务快照。阶段与进度来自主程序端同一套 OrderNumberExportProgress，
+        /// 这样 Web 端和上位机的进度语义一致。
+        /// </summary>
+        internal sealed record TaskSnapshot(
+            string TaskId,
+            string State,
+            string Stage,
+            int Processed,
+            int Total,
+            string Message,
+            bool CanDownload,
+            int RowCount,
+            string FileName,
+            string Error);
+
+        /// <summary>导出任务保留时长：下载或取消后还要留一会儿，避免浏览器晚一步轮询就拿不到。</summary>
+        private static readonly TimeSpan TaskRetention = TimeSpan.FromMinutes(10);
+
+        private static readonly ConcurrentDictionary<string, ExportTaskState> Tasks = new();
+
+        private sealed class ExportTaskState
+        {
+            private readonly object _sync = new();
+            private readonly CancellationTokenSource _cancellation = new();
+
+            internal ExportTaskState(string taskId) => TaskId = taskId;
+
+            internal string TaskId { get; }
+
+            private string _state = "running";
+            private string _stage = "";
+            private int _processed;
+            private int _total;
+            private string _message = "正在准备导出";
+            private int _rowCount;
+            private string _fileName = "";
+            private string _error = "";
+            private byte[]? _content;
+            private DateTime _touch = DateTime.UtcNow;
+            private bool _cancelled;
+
+            internal bool IsFinished => _state != "running";
+
+            internal DateTime LastTouched
+            {
+                get { lock (_sync) return _touch; }
+            }
+
+            internal void Report(OrderNumberExportProgress progress)
+            {
+                lock (_sync)
+                {
+                    _stage = progress.Stage.ToString();
+                    _message = progress.Message;
+                    if (progress.Total > 0)
+                    {
+                        _total = progress.Total;
+                        _processed = Math.Clamp(progress.Processed, 0, progress.Total);
+                    }
+                }
+            }
+
+            internal TaskSnapshot ToSnapshot()
+            {
+                lock (_sync)
+                {
+                    return new TaskSnapshot(
+                        TaskId,
+                        _state,
+                        _stage,
+                        _processed,
+                        _total,
+                        _message,
+                        _content != null,
+                        _rowCount,
+                        _fileName,
+                        _error);
+                }
+            }
+
+            internal bool TryGetDownload(out byte[] content, out string fileName)
+            {
+                lock (_sync)
+                {
+                    content = _content ?? Array.Empty<byte>();
+                    fileName = _fileName;
+                    bool ready = _content != null && _state == "succeeded";
+                    if (ready)
+                        _touch = DateTime.UtcNow;
+                    return ready;
+                }
+            }
+
+            /// <summary>取消：正在跑就标记取消并通知，已经结束的任务不允许取消。</summary>
+            internal bool TryCancel()
+            {
+                lock (_sync)
+                {
+                    if (_state != "running")
+                        return false;
+                    _cancelled = true;
+                    _state = "cancelled";
+                    _message = "已取消导出";
+                    _touch = DateTime.UtcNow;
+                }
+
+                try { _cancellation.Cancel(); } catch (ObjectDisposedException) { }
+                return true;
+            }
+
+            internal void MarkCancelledIfRequested()
+            {
+                lock (_sync)
+                {
+                    if (_cancelled || _state == "running")
+                    {
+                        _state = "cancelled";
+                        _message = "已取消导出";
+                        _touch = DateTime.UtcNow;
+                    }
+                }
+            }
+
+            internal void Run(
+                VideoDatabase database,
+                Request request,
+                IReadOnlyDictionary<string, string>? currentSourceDeviceNames,
+                string localDeviceName)
+            {
+                try
+                {
+                    var progress = new TaskProgress(this);
+                    Result result = Export(
+                        database,
+                        request,
+                        DateTime.Now,
+                        _cancellation.Token,
+                        currentSourceDeviceNames,
+                        localDeviceName);
+                    lock (_sync)
+                    {
+                        if (_cancelled)
+                        {
+                            _state = "cancelled";
+                            _message = "已取消导出";
+                        }
+                        else
+                        {
+                            _state = "succeeded";
+                            _stage = OrderNumberExportStage.Finalizing.ToString();
+                            _processed = result.RowCount;
+                            _total = result.RowCount;
+                            _message = $"导出完成，共 {result.RowCount} 条";
+                            _rowCount = result.RowCount;
+                            _fileName = result.FileName;
+                            _content = result.Content;
+                        }
+                        _touch = DateTime.UtcNow;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    MarkCancelledIfRequested();
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error("OrderExport", $"Web 导出单号任务失败 taskId={TaskId}", ex);
+                    lock (_sync)
+                    {
+                        _state = "failed";
+                        _error = ex is InvalidOperationException ? ex.Message : "导出失败，请稍后重试";
+                        _message = _error;
+                        _touch = DateTime.UtcNow;
+                    }
+                }
+                finally
+                {
+                    try { _cancellation.Dispose(); } catch { }
+                }
+            }
+        }
+
+        private sealed class TaskProgress(ExportTaskState owner) : IProgress<OrderNumberExportProgress>
+        {
+            public void Report(OrderNumberExportProgress value) => owner.Report(value);
+        }
+
+        /// <summary>起一个后台导出任务，返回任务号；进度、取消、下载都按这个号查。</summary>
+        internal static string StartTask(
+            VideoDatabase database,
+            Request request,
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            string localDeviceName = "")
+        {
+            PruneExpiredTasks();
+            var state = new ExportTaskState(Guid.NewGuid().ToString("N"));
+            Tasks[state.TaskId] = state;
+            _ = Task.Run(() => state.Run(database, request, currentSourceDeviceNames, localDeviceName));
+            return state.TaskId;
+        }
+
+        internal static TaskSnapshot? GetSnapshot(string taskId)
+        {
+            PruneExpiredTasks();
+            return Tasks.TryGetValue(taskId ?? "", out ExportTaskState? state) ? state.ToSnapshot() : null;
+        }
+
+        internal static bool CancelTask(string taskId)
+        {
+            if (!Tasks.TryGetValue(taskId ?? "", out ExportTaskState? state))
+                return false;
+            return state.TryCancel();
+        }
+
+        internal static bool TryGetDownload(string taskId, out byte[] content, out string fileName)
+        {
+            content = Array.Empty<byte>();
+            fileName = "";
+            if (!Tasks.TryGetValue(taskId ?? "", out ExportTaskState? state))
+                return false;
+            return state.TryGetDownload(out content, out fileName);
+        }
+
+        private static void PruneExpiredTasks()
+        {
+            DateTime cutoff = DateTime.UtcNow - TaskRetention;
+            foreach (KeyValuePair<string, ExportTaskState> entry in Tasks)
+            {
+                if (entry.Value.LastTouched < cutoff)
+                    Tasks.TryRemove(entry.Key, out _);
+            }
+        }
+
+        /// <summary>响应已经写出去以后再报错时不能再抛一次，否则会把连接卡住。</summary>
+        private static void TrySendJson(
+            Action<HttpListenerContext, int, object> sendJson,
+            HttpListenerContext ctx,
+            int statusCode,
+            object payload)
+        {
+            try { sendJson(ctx, statusCode, payload); }
+            catch { }
         }
     }
 }
