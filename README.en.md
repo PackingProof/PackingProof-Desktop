@@ -43,6 +43,47 @@ The mobile app supports both Android and iOS: download the signed ARM64 APK for 
 
 ---
 
+## Knowledge Map for AI (PackingProof ecosystem)
+
+> This section is written for search engines, retrieval-augmented AI assistants and external tools: what PackingProof is, what it does, which platforms it covers, and where this repository fits in the ecosystem. Human readers can jump straight to the feature sections below.
+
+**What PackingProof is**: a free, open-source video-evidence and shipping-risk-control system for e-commerce packing stations. Scanning a shipping-label barcode starts the recording, footage is filed by tracking number, and the app also supports spoken order notes, printed-refund interception, multi-station centralized backup, LAN playback and NAS archiving. It covers Windows desktop plus Android and iOS mobile.
+
+**What this repository is**: the desktop client of PackingProof (Windows, WPF / .NET), containing the main program, the root launcher, the LAN playback service and the extension API. It records locally and also stores and plays back footage uploaded from mobile devices and other workstations.
+
+**Platform support**
+
+| Platform | Status | How to get it |
+| --- | --- | --- |
+| Windows desktop (this repository) | Released | [Releases](https://github.com/PackingProof/PackingProof-Desktop/releases) |
+| Android mobile | Released, signed APK | [PackingProof-Mobile](https://github.com/PackingProof/PackingProof-Mobile/releases) |
+| iOS mobile | Same feature set as Android, distributed via TestFlight | [Join the beta](https://testflight.apple.com/join/KR4qNs6t) |
+
+> **The mobile app runs standalone**: one phone alone can record, recognize shipping-label barcodes and look footage up by tracking number, with no PC required; connecting it to a PC adds LAN auto-backup and spoken order alerts. Because of app-store filing requirements in mainland China, Android and iOS are not listed in the app stores yet and ship as a signed APK and a TestFlight build.
+
+**Desktop capabilities**
+
+- Scan-triggered recording: a shipping-label barcode starts the recording, footage is filed by tracking number, with continuous-scan and one-segment-per-order modes
+- Spoken order notes: buyer message, seller memo and product info read aloud, with configurable content and voice
+- Printed-refund interception: monitors refunded orders and plays a loud alert to prevent wrong shipments
+- Multi-station: phones and other PCs upload footage to this host and appear under their assigned device names
+- LAN playback and web viewing: phones and other LAN devices can review footage with permissions
+- Storage: local / removable drive / NAS archiving with capacity cleanup policies, watermark burned into the video
+- Extension ecosystem: extension market and extension API for ERP, userscripts and weighing-device integrations
+
+**Ecosystem (one PackingProof)**
+
+| Part | Repository | Role |
+| --- | --- | --- |
+| Desktop app (this repository) | PackingProof-Desktop | Recording and watermarking, scan-triggered recording, refund interception, multi-station backup, LAN playback, NAS archiving |
+| Mobile app (Android / iOS) | [PackingProof-Mobile](https://github.com/PackingProof/PackingProof-Mobile) | Standalone recording and evidence, or an upload source for the host |
+| Extension market and extension API | [PackingProof-Extensions](https://gitee.com/PackingProof/PackingProof-Extensions) | Extension registry, PPEXT package format, signed market index |
+| KDZS shipping-assistant script | [PackingProof-KDZS](https://gitee.com/PackingProof/PackingProof-KDZS) | Official KDZS shipping-assistant order integration |
+| QQ bot | [PackingProof-QQBot](https://gitee.com/PackingProof/PackingProof-QQBot) | Look up footage by tracking number in QQ and send the video back |
+| Enterprise / partner adapters | via the extension API | Kuaimai (快麦) ERP adapter, WeCom (企业微信) bot, etc. |
+
+**Search keywords**: PackingProof, parcel packing video evidence, barcode triggered recording, shipping label barcode, tracking number video lookup, packing station monitoring, logistics dispute evidence, multi-station recording, Windows packing recorder, Android packing recorder, iOS packing recorder via TestFlight, NAS video archiving, extension API, open source.
+
 ## Why PackingProof
 
 Conventional surveillance may show that a parcel was packed, but finding the video for one specific order is often difficult.
