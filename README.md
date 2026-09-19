@@ -152,7 +152,7 @@ PackingProof 将**快递单号、订单信息和打包录像关联起来**：
 
 ## 扩展市场
 
-PackingProof 已支持官方[扩展市场](https://gitee.com/PackingProof/PackingProof-Extensions)，可以安装用户脚本和外部适配器。扩展通过市场独立发布和更新，不再随 Desktop 安装包捆绑
+PackingProof 已支持官方[扩展市场](https://gitee.com/PackingProof/PackingProof-Extensions)，可以安装用户脚本和外部适配器；扩展通过市场独立发布和更新，与 Desktop 安装包分开安装
 
 目前已经支持的扩展包括：
 
