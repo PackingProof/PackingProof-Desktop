@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using Microsoft.Data.Sqlite;
 using MiniExcelLibs;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Xml.Linq;
@@ -280,6 +281,91 @@ public sealed class OrderNumberExportServiceTests
         string path = Path.Combine(Path.GetTempPath(), "OrderNumberExportTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    /// <summary>
+    /// 现场故障守卫：Web 端导出会一直占着数据库锁把整条查询跑完，而原来的 LEFT JOIN 用
+    /// COLLATE NOCASE 去匹配 OrderInfoRecords 的 BINARY 主键索引，SQLite 只能对每行录像全表扫一遍
+    /// 订单表（现场 1.17 万 × 5.85 千实测 55 秒），期间界面线程和其他任务一起被锁死。
+    /// 这里按同量级造数据确认查询已回到线性；阈值给得很宽，只用来拦住嵌套扫描。
+    /// </summary>
+    [Fact]
+    public void QueryOrderNumberExportSources_StaysLinearOnRealisticVolume()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using (var database = new VideoDatabase(databasePath))
+            {
+                SeedExportVolume(databasePath, videoCount: 6000, orderCount: 6000);
+
+                var stopwatch = Stopwatch.StartNew();
+                List<OrderNumberExportSource> sources = database.QueryOrderNumberExportSources(
+                    null,
+                    null,
+                    TestContext.Current.CancellationToken);
+                stopwatch.Stop();
+
+                Assert.Equal(6000, sources.Count);
+                // 平台订单号仍然来自 OrderInfoRecords 的补齐，去掉 JOIN 不能把这一列弄丢。
+                Assert.All(sources, source => Assert.StartsWith("PLATFORM-", source.SourceOrderId));
+                Assert.True(
+                    stopwatch.Elapsed < TimeSpan.FromSeconds(15),
+                    $"导出查询耗时 {stopwatch.Elapsed.TotalSeconds:F1}s，疑似又退回逐行全表扫描");
+            }
+        }
+        finally
+        {
+            SqliteTestPool.ClearPoolFor(directory);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static void SeedExportVolume(string databasePath, int videoCount, int orderCount)
+    {
+        using var connection = new SqliteConnection($"Data Source={databasePath}");
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        using (var order = connection.CreateCommand())
+        {
+            order.Transaction = transaction;
+            order.CommandText =
+                "INSERT INTO OrderInfoRecords (TrackingNumber, SourceOrderId, PushTime, CreatedAt, UpdatedAt) "
+                + "VALUES ($tracking, $source, '2026-08-01 09:00:00', '2026-08-01 09:00:00', '2026-08-01 09:00:00');";
+            var tracking = order.Parameters.Add("$tracking", SqliteType.Text);
+            var source = order.Parameters.Add("$source", SqliteType.Text);
+            for (int index = 0; index < orderCount; index++)
+            {
+                tracking.Value = $"ORDER{index:D8}";
+                source.Value = $"PLATFORM-{index:D8}";
+                order.ExecuteNonQuery();
+            }
+        }
+
+        using (var video = connection.CreateCommand())
+        {
+            video.Transaction = transaction;
+            video.CommandText =
+                "INSERT INTO VideoRecords (OrderId, TrackingNumber, SourceOrderId, Mode, FilePath, StartTime, IsDeleted, SourceType, SourceDeviceName) "
+                + "VALUES ($orderId, $tracking, '', '发货', $path, $start, 0, 'pc', '工作台A');";
+            var orderId = video.Parameters.Add("$orderId", SqliteType.Text);
+            var tracking = video.Parameters.Add("$tracking", SqliteType.Text);
+            var path = video.Parameters.Add("$path", SqliteType.Text);
+            var start = video.Parameters.Add("$start", SqliteType.Text);
+            var startTime = new DateTime(2026, 8, 1, 0, 0, 0);
+            for (int index = 0; index < videoCount; index++)
+            {
+                orderId.Value = $"ORDER{index:D8}";
+                tracking.Value = $"ORDER{index:D8}";
+                path.Value = $"video-{index}.mp4";
+                start.Value = startTime.AddSeconds(index).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                video.ExecuteNonQuery();
+            }
+        }
+
+        transaction.Commit();
     }
 
     private sealed class InlineProgress<T>(Action<T> callback) : IProgress<T>

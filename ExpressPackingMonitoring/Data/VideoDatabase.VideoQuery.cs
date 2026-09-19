@@ -324,6 +324,16 @@ public partial class VideoDatabase
                     0,
                     "正在读取录像记录",
                     IsIndeterminate: true));
+
+                // 平台订单号在内存里补，不再直接 LEFT JOIN OrderInfoRecords：
+                // 原 JOIN 条件是 o.TrackingNumber = <表达式> COLLATE NOCASE，而主键索引是 BINARY 排序，
+                // SQLite 用不上索引，只能对每行 VideoRecords 全表扫一遍 OrderInfoRecords。
+                // 现场库实测（1.17 万行录像 × 5.85 千行订单）这条查询要 55 秒，同一条查询去掉 JOIN 只要 0.02 秒；
+                // 而它全程占着 _lock，界面线程和其他后台任务只要碰数据库就一起卡死 ——
+                // 表现就是 Web 端一点导出，上位机界面假死两分半（日志里 UI 心跳停了 145 秒）。
+                // OrderInfoRecords 是主键表，一个单号最多一行，内存映射与原来的 JOIN 结果等价。
+                Dictionary<string, string> orderSourceOrderIds = ReadOrderInfoSourceOrderIds();
+
                 using var countCmd = _connection.CreateCommand();
                 countCmd.CommandText = "SELECT COUNT(1) FROM VideoRecords v " + whereSql + ";";
                 foreach ((string name, string value) in parameters)
@@ -339,15 +349,14 @@ public partial class VideoDatabase
                 cmd.CommandText = @"
                     SELECT
                         COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), TRIM(v.OrderId)) AS ExportTrackingNumber,
-                        COALESCE(NULLIF(TRIM(v.SourceOrderId), ''), TRIM(o.SourceOrderId), '') AS ExportSourceOrderId,
+                        TRIM(v.SourceOrderId) AS ExportSourceOrderId,
                         v.Mode,
                         v.StartTime,
                         v.SourceType,
                         v.SourceDeviceName,
                         v.SourceDeviceId
                     FROM VideoRecords v
-                    LEFT JOIN OrderInfoRecords o
-                      ON o.TrackingNumber = COALESCE(NULLIF(TRIM(v.TrackingNumber), ''), TRIM(v.OrderId)) COLLATE NOCASE "
+                    "
                     + whereSql;
                 foreach ((string name, string value) in parameters)
                     cmd.Parameters.AddWithValue("@" + name, value);
@@ -358,9 +367,17 @@ public partial class VideoDatabase
                 while (reader.Read())
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    string trackingNumber = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                    string exportSourceOrderId = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                    if (exportSourceOrderId.Length == 0
+                        && orderSourceOrderIds.TryGetValue(trackingNumber, out string fallbackSourceOrderId))
+                    {
+                        exportSourceOrderId = fallbackSourceOrderId;
+                    }
+
                     results.Add(new OrderNumberExportSource(
-                        reader.IsDBNull(0) ? "" : reader.GetString(0),
-                        reader.IsDBNull(1) ? "" : reader.GetString(1),
+                        trackingNumber,
+                        exportSourceOrderId,
                         reader.IsDBNull(2) ? "" : reader.GetString(2),
                         DateTime.Parse(reader.GetString(3)),
                         reader.IsDBNull(4) ? "" : reader.GetString(4),
@@ -377,5 +394,28 @@ public partial class VideoDatabase
                 }
                 return results;
             }
+        }
+
+        /// <summary>
+        /// 读取「快递单号 → 平台订单号」映射，供导出在内存里补空白的 SourceOrderId。
+        /// OrderInfoRecords 以单号为主键，一个单号最多一行；这里用序数忽略大小写比较，
+        /// 与原来 JOIN 上的 COLLATE NOCASE 语义一致。
+        /// </summary>
+        private Dictionary<string, string> ReadOrderInfoSourceOrderIds()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT TRIM(TrackingNumber), TRIM(SourceOrderId)
+                FROM OrderInfoRecords
+                WHERE TRIM(TrackingNumber) <> '' AND TRIM(SourceOrderId) <> '';";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                string trackingNumber = reader.GetString(0);
+                if (!map.ContainsKey(trackingNumber))
+                    map[trackingNumber] = reader.GetString(1);
+            }
+            return map;
         }
 }
