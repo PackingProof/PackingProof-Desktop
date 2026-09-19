@@ -70,6 +70,54 @@ public sealed class CameraLifecycleTests
             CameraReconnectPolicy.GetPreviewFreezeRecovery(TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(3)));
     }
 
+    /// <summary>
+    /// 设备能启动却立刻报错（虚拟摄像头 DLL 初始化失败）时必须按启动失败退避重试：
+    /// 以前错误回调立刻重启、重启又立刻被判成功，10ms 一轮把界面、日志和句柄一起拖死。
+    /// </summary>
+    [Theory]
+    [InlineData(0.0, true)]
+    [InlineData(2.9, true)]
+    [InlineData(3.0, true)]
+    [InlineData(3.1, false)]
+    [InlineData(600.0, false)]
+    public void CameraStartupFailurePolicy_OnlyEarlyErrorsCountAsStartupFailure(double elapsedSeconds, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CameraStartupFailurePolicy.IsStartupFailure(TimeSpan.FromSeconds(elapsedSeconds)));
+    }
+
+    [Fact]
+    public void CameraStartupFailurePolicy_NegativeElapsedTimeIsNotStartupFailure()
+    {
+        Assert.False(CameraStartupFailurePolicy.IsStartupFailure(TimeSpan.FromSeconds(-1)));
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    [InlineData(3, 5)]
+    [InlineData(4, 10)]
+    [InlineData(9, 10)]
+    public void CameraStartupFailurePolicy_BackoffGrowsThenStaysBounded(int consecutiveFailures, double expectedSeconds)
+    {
+        Assert.Equal(
+            TimeSpan.FromSeconds(expectedSeconds),
+            CameraStartupFailurePolicy.GetRestartBackoff(consecutiveFailures));
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(4, false)]
+    [InlineData(5, true)]
+    [InlineData(6, true)]
+    public void CameraStartupFailurePolicy_StopsAutoReconnectAtFailureBudget(int consecutiveFailures, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CameraStartupFailurePolicy.ShouldStopAutoReconnect(consecutiveFailures, 5));
+    }
+
     [Theory]
     [InlineData(4.9, 4.0, false)]
     [InlineData(5.0, 2.9, false)]
