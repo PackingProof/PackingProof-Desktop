@@ -213,7 +213,15 @@ if (Test-Path -LiteralPath $launcherPatchPath) {
 
 # 标题按文档固定成 v<X.Y.Z> <一句话内容>，用归一化后的版本号而不是原 tag，
 # 这样 tag 少写 v 或带后缀时，标题仍然与产物名一致。
-$releaseTitle = if ([string]::IsNullOrWhiteSpace($Title)) { $releaseTag } else { "$releaseTag $Title" }
+if ([string]::IsNullOrWhiteSpace($Title)) {
+    if (-not $ValidateOnly) {
+        throw "必须用 -Title 写一句话概括本版最核心的变化（例如「采集预览迁移 GPU 与存储判定重做」），不能只写版本号"
+    }
+    $releaseTitle = $releaseTag
+}
+else {
+    $releaseTitle = "$releaseTag $Title"
+}
 
 # 更新清单的标题和摘要以前总要手工补，现在改成发布前必须已经是填好的内容。
 Assert-UpdateManifestReady -UpdateJsonPath $updateJsonPath -ExpectedTitle $releaseTitle
