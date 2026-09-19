@@ -56,6 +56,95 @@ namespace ExpressPackingMonitoring.Config
             _ => 5L * BytesPerGiB
         };
 
+        /// <summary>
+        /// 该位置未单独设置时的默认预留（GB），等同建议值：低于它仍可录制，
+        /// 但磁盘写满风险上升，设置页需要提示用户。
+        /// </summary>
+        public static double GetDefaultReserveGB(string path) =>
+            GetDefaultReserveBytes(ResolveKind(path)) / (double)BytesPerGiB;
+
+        /// <summary>
+        /// 旧版本（0.0.67 及更早）按容量百分比自动算出的预留：
+        /// 系统盘 max(30GB, 10%)、其他本地盘 max(20GB, 5%)、网络位置 max(10GB, 2%)。
+        /// 只用于识别升级前的陈旧配置，不再是现行规则。
+        /// </summary>
+        internal static long CalculateLegacyAutoReserveBytes(
+            long totalSize,
+            StorageReserveKind kind)
+        {
+            long minimumBytes = kind switch
+            {
+                StorageReserveKind.LocalSystemDrive => 30L * BytesPerGiB,
+                StorageReserveKind.NetworkLocation => 10L * BytesPerGiB,
+                _ => 20L * BytesPerGiB
+            };
+            double percent = kind switch
+            {
+                StorageReserveKind.LocalSystemDrive => 0.10,
+                StorageReserveKind.NetworkLocation => 0.02,
+                _ => 0.05
+            };
+            long percentBytes = (long)Math.Ceiling(
+                Math.Max(0, totalSize) * percent
+                / (double)BytesPerGiB) * BytesPerGiB;
+            return Math.Max(minimumBytes, percentBytes);
+        }
+
+        /// <summary>
+        /// 升级迁移：只有与旧版自动值一致（容差 1GB）的预留才判定为旧规则自动写入，
+        /// 收敛到新的默认预留；用户自己调过的值原样保留，只做底线收口，
+        /// 避免把用户刻意留出的容量上限（上限越小，预留越大）改成默认值。
+        /// </summary>
+        public static double MigrateLegacyReserveGB(string path, double reserveGB)
+        {
+            if (double.IsNaN(reserveGB) || double.IsInfinity(reserveGB) || reserveGB <= 0)
+                return 0;
+
+            if (TryGetLocalDriveTotalBytes(path, out long totalSize))
+            {
+                return MigrateLegacyReserveGB(reserveGB, totalSize, ResolveKind(path));
+            }
+            return NormalizeReserveGB(path, reserveGB);
+        }
+
+        internal static double MigrateLegacyReserveGB(
+            double reserveGB,
+            long totalSize,
+            StorageReserveKind kind)
+        {
+            if (double.IsNaN(reserveGB) || double.IsInfinity(reserveGB) || reserveGB <= 0)
+                return 0;
+
+            double legacyAutoGB =
+                CalculateLegacyAutoReserveBytes(totalSize, kind) / (double)BytesPerGiB;
+            if (Math.Abs(reserveGB - legacyAutoGB) <= 1.0)
+                return GetDefaultReserveBytes(kind) / (double)BytesPerGiB;
+
+            double floorGB = GetFloorReserveBytes(kind) / (double)BytesPerGiB;
+            return Math.Ceiling(Math.Max(floorGB, reserveGB));
+        }
+
+        private static bool TryGetLocalDriveTotalBytes(string path, out long totalSize)
+        {
+            totalSize = 0;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(path)) return false;
+                string root = Path.GetPathRoot(Path.GetFullPath(path)) ?? "";
+                if (root.Length == 0 || root.StartsWith(@"\\", StringComparison.Ordinal))
+                    return false;
+
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady || drive.DriveType != DriveType.Fixed) return false;
+                totalSize = drive.TotalSize;
+                return totalSize > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static long CalculateMinimumReserveBytes(string rootPath, long totalSize)
         {
             StorageReserveKind kind = StorageVolumeInfo.IsBackupTargetPath(rootPath)
@@ -110,30 +199,28 @@ namespace ExpressPackingMonitoring.Config
             return Math.Max(floorBytes, (long)Math.Ceiling(configuredGB) * BytesPerGiB);
         }
 
-        /// <summary>按路径判定预留类别：备份目标算网络位置，其余按是否系统盘区分</summary>
+        /// <summary>
+        /// 按路径判定预留类别：备份目标算网络位置，其余按所在盘是否为系统盘区分。
+        /// 传入录像目录这类子目录时也要归到磁盘根上判断，否则系统盘上的目录会被当成其他盘。
+        /// </summary>
         internal static StorageReserveKind ResolveKind(string path)
         {
             if (StorageVolumeInfo.IsBackupTargetPath(path))
                 return StorageReserveKind.NetworkLocation;
-            return IsSystemDrive(path) ? StorageReserveKind.LocalSystemDrive : StorageReserveKind.LocalOtherDrive;
+            return IsSystemDrive(GetDriveRoot(path))
+                ? StorageReserveKind.LocalSystemDrive
+                : StorageReserveKind.LocalOtherDrive;
         }
 
-        public static double GetMinimumReserveGB(string path)
+        private static string GetDriveRoot(string path)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(path)) return 20.0;
-
-                string normalizedPath = Path.IsPathRooted(path)
-                    ? path
-                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
-                if (!StorageVolumeInfo.TryGet(normalizedPath, out StorageVolumeInfo volume))
-                    return 20.0;
-                return Math.Ceiling(CalculateMinimumReserveBytes(volume) / (double)BytesPerGiB);
+                return Path.GetPathRoot(Path.GetFullPath(path)) ?? path;
             }
             catch
             {
-                return 20.0;
+                return path;
             }
         }
 

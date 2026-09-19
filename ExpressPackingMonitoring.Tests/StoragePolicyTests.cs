@@ -606,4 +606,108 @@ public sealed class StoragePolicyTests
         Assert.Equal(@"\\localhost\share", loopbackIdentity);
         Assert.Equal(loopbackIdentity, localhostIdentity);
     }
+
+    [Fact]
+    public void GetDefaultReserveGB_MatchesApprovedDefaults()
+    {
+        // 系统盘上的录像目录也要按系统盘算（10GB），不能因为传的是子目录就降成其他盘的 5GB。
+        string systemRoot =
+            Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!;
+
+        Assert.Equal(
+            10,
+            StorageSpacePolicy.GetDefaultReserveGB(
+                Path.Combine(systemRoot, "快递打包视频")));
+        Assert.Equal(5, StorageSpacePolicy.GetDefaultReserveGB(@"Q:\快递打包视频"));
+        Assert.Equal(5, StorageSpacePolicy.GetDefaultReserveGB(@"\\NAS\share\快递打包视频"));
+    }
+
+    [Fact]
+    public void MigrateLegacyReserveGB_ReplacesLegacyPercentValueWithNewDefault()
+    {
+        // 旧规则是系统盘 max(30GB, 容量 10%)：960GiB 的盘会写入 96GB，
+        // 这正是"剩 90 多 GB 仍被判空间不足"的根因。
+        long totalBytes = 960L * StorageSpacePolicy.BytesPerGiB;
+
+        Assert.Equal(
+            96,
+            StorageSpacePolicy.CalculateLegacyAutoReserveBytes(
+                totalBytes,
+                StorageReserveKind.LocalSystemDrive)
+            / (double)StorageSpacePolicy.BytesPerGiB);
+        Assert.Equal(
+            10,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                96,
+                totalBytes,
+                StorageReserveKind.LocalSystemDrive));
+        Assert.Equal(
+            10,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                96.5,
+                totalBytes,
+                StorageReserveKind.LocalSystemDrive));
+    }
+
+    [Fact]
+    public void MigrateLegacyReserveGB_KeepsUserConfiguredCapacityLimit()
+    {
+        // 上限设成 200GB 时预留是 760GB，这是用户显式选择，迁移不能把它改成默认值。
+        long totalBytes = 960L * StorageSpacePolicy.BytesPerGiB;
+
+        Assert.Equal(
+            760,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                760,
+                totalBytes,
+                StorageReserveKind.LocalSystemDrive));
+
+        // 旧规则在其他本地盘上是 max(20GB, 容量 5%)：1000GiB 会写入 50GB，迁移后应为新默认 5GB。
+        Assert.Equal(
+            5,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                50,
+                1000L * StorageSpacePolicy.BytesPerGiB,
+                StorageReserveKind.LocalOtherDrive));
+        Assert.Equal(
+            400,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                400,
+                1000L * StorageSpacePolicy.BytesPerGiB,
+                StorageReserveKind.LocalOtherDrive));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void MigrateLegacyReserveGB_UnsetOrInvalidStaysUnset(double reserveGB)
+    {
+        Assert.Equal(
+            0,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                reserveGB,
+                960L * StorageSpacePolicy.BytesPerGiB,
+                StorageReserveKind.LocalSystemDrive));
+    }
+
+    [Fact]
+    public void MigrateLegacyReserveGB_ClampsSmallValuesToFloor()
+    {
+        long totalBytes = 960L * StorageSpacePolicy.BytesPerGiB;
+
+        Assert.Equal(
+            2,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                1,
+                totalBytes,
+                StorageReserveKind.LocalSystemDrive));
+        Assert.Equal(
+            1,
+            StorageSpacePolicy.MigrateLegacyReserveGB(
+                0.5,
+                totalBytes,
+                StorageReserveKind.LocalOtherDrive));
+    }
 }

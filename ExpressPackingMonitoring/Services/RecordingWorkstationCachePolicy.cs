@@ -216,7 +216,7 @@ internal static class RecordingWorkstationCachePolicy
             new StorageLocation
             {
                 Path = selected.Value.SuggestedPath,
-                ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(
+                ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(
                     selected.Value.SuggestedPath),
                 Priority = 0
             }

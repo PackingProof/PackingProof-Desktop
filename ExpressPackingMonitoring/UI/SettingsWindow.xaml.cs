@@ -986,7 +986,7 @@ namespace ExpressPackingMonitoring.UI
                 RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)!;
             location.Path = selectedPath;
             location.ReserveGB =
-                StorageSpacePolicy.GetMinimumReserveGB(selectedPath);
+                StorageSpacePolicy.GetDefaultReserveGB(selectedPath);
             location.Priority = 0;
             _recordingCacheLimitExplained = false;
             RecordingCacheDataGrid?.Items.Refresh();
@@ -1168,7 +1168,7 @@ namespace ExpressPackingMonitoring.UI
             var newLocation = new StorageLocation
             {
                 Path = selectedPath,
-                ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
+                ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(selectedPath),
                 Priority = Config.StorageLocations.Count
             };
             Config.StorageLocations.Add(newLocation);
@@ -1283,7 +1283,7 @@ namespace ExpressPackingMonitoring.UI
             var location = new StorageLocation
             {
                 Path = selectedPath,
-                ReserveGB = StorageSpacePolicy.GetMinimumReserveGB(selectedPath),
+                ReserveGB = StorageSpacePolicy.GetDefaultReserveGB(selectedPath),
                 Priority = Config.StorageLocations.Count,
                 IsBackupTarget = true
             };
