@@ -294,6 +294,29 @@ public sealed class StoragePlanTests : IDisposable
     }
 
     [Fact]
+    public void StorageSettings_WarnWhenReserveFallsBelowRecommendation()
+    {
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml"));
+        string settingsCode = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml.cs"));
+
+        Assert.Contains(
+            "x:Name=\"StorageReserveWarningHint\"",
+            settings,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Name=\"BackupReserveWarningHint\"",
+            settings,
+            StringComparison.Ordinal);
+        Assert.Contains("RefreshStorageReserveWarnings", settingsCode, StringComparison.Ordinal);
+        Assert.Contains(
+            "StorageReserveWarningPolicy.Evaluate",
+            settingsCode,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ArchivePathBuilder_LocalRecordingLayout()
     {
         string path = ArchivePathBuilder.BuildLocalRecordingArchivePath(

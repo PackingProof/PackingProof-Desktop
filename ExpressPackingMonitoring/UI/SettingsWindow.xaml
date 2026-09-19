@@ -2109,6 +2109,11 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
+                                    <TextBlock x:Name="StorageReserveWarningHint"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Foreground="{DynamicResource AccentOrange}"
+                                               Margin="0,8,0,0"
+                                               Visibility="Collapsed"/>
                                     <TextBlock Text="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少"
                                                Style="{StaticResource FieldHintStyle}"
                                                Margin="0,10,0,0"/>
@@ -2179,6 +2184,11 @@
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </Border>
+                                    <TextBlock x:Name="BackupReserveWarningHint"
+                                               Style="{StaticResource FieldHintStyle}"
+                                               Foreground="{DynamicResource AccentOrange}"
+                                               Margin="0,8,0,0"
+                                               Visibility="Collapsed"/>
                                     <TextBlock x:Name="BackupEmptyHint"
                                                Text="尚未配置网络备份位置；本地磁盘不能作为备份位置"
                                                Style="{StaticResource FieldHintStyle}"

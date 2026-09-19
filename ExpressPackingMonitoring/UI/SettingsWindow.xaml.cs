@@ -1616,6 +1616,7 @@ namespace ExpressPackingMonitoring.UI
         {
             _localStorageView?.View.Refresh();
             _backupStorageView?.View.Refresh();
+            RefreshStorageReserveWarnings();
             if (BackupEmptyHint != null)
             {
                 int networkCount = Config.StorageLocations?
@@ -1624,6 +1625,32 @@ namespace ExpressPackingMonitoring.UI
                     ? Visibility.Visible
                     : Visibility.Collapsed;
             }
+        }
+
+        /// <summary>
+        /// 预留下调到 1-2GB 底线时磁盘很容易写满，这里提示用户，但不阻断保存
+        /// </summary>
+        private void RefreshStorageReserveWarnings()
+        {
+            ApplyReserveWarningHint(StorageReserveWarningHint, isBackup: false);
+            ApplyReserveWarningHint(BackupReserveWarningHint, isBackup: true);
+        }
+
+        private void ApplyReserveWarningHint(TextBlock hint, bool isBackup)
+        {
+            if (hint == null) return;
+
+            IEnumerable<StorageLocation> locations = Config.StorageLocations == null
+                ? null
+                : Config.StorageLocations.Where(location =>
+                    StorageLocationResolver.IsBackupLocation(location) == isBackup);
+            StorageReserveWarning warning =
+                StorageReserveWarningPolicy.Evaluate(locations);
+
+            hint.Text = warning?.Message ?? "";
+            hint.Visibility = warning == null
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
 
         private void BackupStorageDataGrid_SelectionChanged(
