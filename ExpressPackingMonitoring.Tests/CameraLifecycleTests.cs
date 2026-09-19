@@ -118,6 +118,47 @@ public sealed class CameraLifecycleTests
             CameraStartupFailurePolicy.ShouldStopAutoReconnect(consecutiveFailures, 5));
     }
 
+    /// <summary>
+    /// 唤醒休眠摄像头时看门狗不能抢着判定掉线：启动窗口里设备本来就没在跑、帧时间也是旧的，
+    /// 判掉线就会排队重连，把刚起来的摄像头又关掉（现场：反复"正在重连"、十几秒连不上）。
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, false, false, false, false, 0, 600, false)]
+    [InlineData(false, true, false, false, false, false, 0, 600, false)]
+    [InlineData(false, false, true, false, false, false, 0, 600, false)]
+    [InlineData(false, false, false, true, false, false, 0, 600, false)]
+    [InlineData(false, false, false, false, true, false, 0, 600, false)]
+    [InlineData(false, false, false, false, false, true, 0, 600, false)]
+    [InlineData(false, false, false, false, false, false, 5, 600, false)]
+    [InlineData(false, false, false, false, false, false, 2, 5, false)]
+    [InlineData(false, false, false, false, false, false, 0, 600, true)]
+    [InlineData(false, false, false, false, false, false, 2, 6, true)]
+    public void CameraWatchdogPolicy_OnlyJudgesCameraLostWhenNothingElseExplainsIt(
+        bool cameraSleeping,
+        bool setupWizardActive,
+        bool cameraStarting,
+        bool cameraRestarting,
+        bool autoReconnectSuspended,
+        bool startupRetryPending,
+        int consecutiveRestartFailures,
+        double sinceLastRestartSeconds,
+        bool expected)
+    {
+        CameraWatchdogState state = new(
+            cameraSleeping,
+            setupWizardActive,
+            cameraStarting,
+            cameraRestarting,
+            autoReconnectSuspended,
+            startupRetryPending,
+            consecutiveRestartFailures,
+            5,
+            TimeSpan.FromSeconds(sinceLastRestartSeconds),
+            3.0);
+
+        Assert.Equal(expected, CameraWatchdogPolicy.CanJudgeCameraLost(state));
+    }
+
     [Theory]
     [InlineData(4.9, 4.0, false)]
     [InlineData(5.0, 2.9, false)]

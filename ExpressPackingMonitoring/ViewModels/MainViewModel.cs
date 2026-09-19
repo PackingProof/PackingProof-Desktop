@@ -207,6 +207,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         // 摄像头重连控制
         private volatile bool _isRestartingCamera = false;
+        // 正在启动（含唤醒、切换设备）：启动期间看门狗不得判定掉线，见 CameraWatchdogPolicy。
+        private volatile bool _isCameraStarting = false;
         private volatile bool _isSetupWizardActive = false;
         private volatile bool _cameraEverConnected = false; // 摄像头是否曾经成功连接过（区分启动vs断连）
         private DateTime _lastRestartAttempt = DateTime.MinValue;

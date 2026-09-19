@@ -189,6 +189,46 @@ internal static class CameraStartupFailurePolicy
         consecutiveFailures >= maxFailures;
 }
 
+/// <summary>
+/// 看门狗的一次判定输入。字段全部是"当前状态 + 上限/间隔常量"，便于单独测试。
+/// </summary>
+internal readonly record struct CameraWatchdogState(
+    bool CameraSleeping,
+    bool SetupWizardActive,
+    bool CameraStarting,
+    bool CameraRestarting,
+    bool AutoReconnectSuspended,
+    bool StartupRetryPending,
+    int ConsecutiveRestartFailures,
+    int MaxRestartFailures,
+    TimeSpan SinceLastRestartAttempt,
+    double MinRestartIntervalSeconds);
+
+/// <summary>
+/// 看门狗（VideoProcessLoop 的"没有新帧"分支）能不能判定摄像头掉线并重连。
+///
+/// 现场问题：唤醒休眠摄像头时先放开休眠标记再 StartCamera，看门狗在这中间看到
+/// "设备不在跑 + 帧时间过旧"，于是每 200ms 往 UI 线程排一次重连；而启动一次要 1 秒多，
+/// 排进去的请求会在启动完成后依次执行，把关掉的摄像头又一个个重开（Media Foundation
+/// 停一次约 1.8 秒），表现就是反复播"正在重连"、十几秒都拿不到画面。
+///
+/// 所以"正在启动"必须和休眠、设置向导、正在重启一样算作不可判定状态；
+/// 顺手把原先散在 if/else 链里的所有跳过条件收在一起，避免以后再漏。
+/// </summary>
+internal static class CameraWatchdogPolicy
+{
+    public static bool CanJudgeCameraLost(in CameraWatchdogState state) =>
+        !state.CameraSleeping
+        && !state.SetupWizardActive
+        && !state.CameraStarting
+        && !state.CameraRestarting
+        && !state.AutoReconnectSuspended
+        && !state.StartupRetryPending
+        && state.ConsecutiveRestartFailures < state.MaxRestartFailures
+        && state.SinceLastRestartAttempt.TotalSeconds
+            >= state.MinRestartIntervalSeconds * Math.Max(1, state.ConsecutiveRestartFailures);
+}
+
 internal sealed class CameraFrameRateGate
 {
     private long _lastAcceptedTimestamp;

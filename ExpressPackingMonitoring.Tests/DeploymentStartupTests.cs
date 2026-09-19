@@ -265,6 +265,37 @@ public sealed class DeploymentStartupTests
         Assert.Contains("MinRestartIntervalSeconds", handler, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 唤醒顺序守卫：必须先 StartCamera 再放开休眠标记。
+    /// 反过来的话，看门狗会在启动那一秒多里看到"设备已停 + 帧时间过旧"而排队重连，
+    /// 把刚起来的摄像头再关掉（现场：反复"正在重连"、十几秒连不上）。
+    /// </summary>
+    [Fact]
+    public void CameraWakeStartsSourceBeforeClearingSleepFlag()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Camera.cs");
+
+        int wakeStart = source.IndexOf("Wake requested by user activity", StringComparison.Ordinal);
+        Assert.True(wakeStart >= 0, "找不到唤醒分支");
+        int wakeEnd = source.IndexOf("ShowToast(\"摄像头已唤醒\")", wakeStart, StringComparison.Ordinal);
+        Assert.True(wakeEnd > wakeStart, "找不到唤醒分支的结束位置");
+
+        string wakeBranch = source[wakeStart..wakeEnd];
+        int startIndex = wakeBranch.IndexOf("StartCamera();", StringComparison.Ordinal);
+        int clearSleepIndex = wakeBranch.IndexOf("IsCameraSleeping = false;", StringComparison.Ordinal);
+
+        Assert.True(startIndex >= 0, "唤醒分支没有启动摄像头");
+        Assert.True(clearSleepIndex >= 0, "唤醒分支没有放开休眠标记");
+        Assert.True(
+            clearSleepIndex > startIndex,
+            "唤醒时必须先启动摄像头，再放开休眠标记，否则看门狗会排队重连");
+        // 启动期间还要挡住看门狗：StartCamera 自己设置这个标记
+        Assert.Contains("_isCameraStarting = true;", source, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void RecordingToggleUsesAsyncCommandAndAwaitedScanPath()
     {
