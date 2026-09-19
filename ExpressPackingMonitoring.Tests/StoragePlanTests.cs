@@ -6,8 +6,12 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
-public sealed class StoragePlanTests
+public sealed class StoragePlanTests : IDisposable
 {
+    private readonly IDisposable _volumeProbe = TestStorageVolumeProbe.Use();
+
+    public void Dispose() => _volumeProbe.Dispose();
+
     [Fact]
     public void SelectUsableArchiveRoot_PrefersPriorityAndSkipsUnavailable()
     {

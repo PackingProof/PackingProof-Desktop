@@ -18,6 +18,25 @@ internal readonly record struct RecordingStoragePlan(
 
 internal static class StorageLocationResolver
 {
+    /// <summary>
+    /// 卷信息探测。默认读真实磁盘；单元测试注入假实现，
+    /// 这样"剩余空间/容量"相关用例断言的是规则，而不是宿主机现在剩多少空间。
+    /// </summary>
+    internal static Func<string, StorageVolumeInfo?>? VolumeProbe { get; set; }
+
+    private static bool TryGetVolume(string path, out StorageVolumeInfo volume)
+    {
+        Func<string, StorageVolumeInfo?>? probe = VolumeProbe;
+        if (probe != null)
+        {
+            StorageVolumeInfo? injected = probe(path);
+            volume = injected ?? default;
+            return injected.HasValue;
+        }
+
+        return StorageVolumeInfo.TryGet(path, out volume);
+    }
+
     public static string Resolve(StorageLocation location)
     {
         ArgumentNullException.ThrowIfNull(location);
@@ -162,7 +181,7 @@ internal static class StorageLocationResolver
             string root = NormalizePath(location.Path);
             if (excludePath != null && IsPathUnderRoot(root, excludePath))
                 continue;
-            if (!StorageVolumeInfo.TryGet(root, out StorageVolumeInfo volume))
+            if (!TryGetVolume(root, out StorageVolumeInfo volume))
                 continue; // 离线/不可达
             long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);
             if (!NetworkArchiveSpacePolicy.IsBelowReserve(
@@ -202,7 +221,7 @@ internal static class StorageLocationResolver
             Directory.CreateDirectory(path);
             EnsureDirectoryWritable(path);
 
-            if (!StorageVolumeInfo.TryGet(path, out StorageVolumeInfo volume))
+            if (!TryGetVolume(path, out StorageVolumeInfo volume))
                 return StorageLocationEvaluation.Skip(path, "无法读取存储位置的可用空间");
 
             long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);

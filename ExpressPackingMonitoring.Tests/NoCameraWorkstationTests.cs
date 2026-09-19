@@ -13,8 +13,12 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
-public sealed class NoCameraWorkstationTests
+public sealed class NoCameraWorkstationTests : IDisposable
 {
+    private readonly IDisposable _volumeProbe = TestStorageVolumeProbe.Use();
+
+    public void Dispose() => _volumeProbe.Dispose();
+
     private const string AccessKey = "0123456789abcdef0123456789abcdef";
 
     [Fact]
