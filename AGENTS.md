@@ -84,6 +84,8 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - 修改或提交前按需检查 `git status` 和 `git diff`。每个独立功能、修复、重构、文档或维护任务分别提交，不 squash，不把无关改动放进同一提交。
 - 同一功能连续完善时，只有此前提交由当前代理创建、尚未推送或被他人依赖，且中间没有其他提交，才可 amend；否则创建新提交。
 - 分支整合优先 rebase，保持直线历史。已共享分支不得随意 rebase；merge 只用于共享功能分支、发布/长期分支或平台强制场景。
+- 改动一律通过远程 PR 合并到主干，禁止直接向 `main` 推送提交；默认先提 Gitee，合并后再把主干同步到 GitHub。PR 目标可通过仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `gitee`）配置，命令行 `-Target` 优先；统一用 `Tools\Submit-ChangePr.ps1` 提交。
+- PR 合并使用 rebase，保留每个提交，不 squash；发布标签必须打在已合并到主干的提交上。
 - 提交格式为 `<type>: <简洁主题>`，通常使用中文，并用正文说明修改内容与原因。提交前检查 staged diff。
 - 提交信息不得包含个人身份、设备信息、绝对本机路径、账号、内部 URL、令牌、密钥、证书或签名材料。
 - Pull Request 应包含摘要、验证步骤、关联问题；UI、播放或打包变更附截图或录像。

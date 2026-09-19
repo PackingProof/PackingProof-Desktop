@@ -512,6 +512,27 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("& gh release view $tag --repo $repoSlug", publisher, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ChangePrSubmitter_DefaultsToGiteeAndStaysConfigurable()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string submitter = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "Submit-ChangePr.ps1"),
+            Encoding.UTF8);
+        string releaseDocument = File.ReadAllText(
+            Path.Combine(repositoryRoot, "docs", "development", "RELEASE_AND_RUNTIME.md"),
+            Encoding.UTF8);
+
+        // 改动一律走 PR，默认先提 Gitee；脚本默认值和规范必须同步，
+        // 避免流程说一套、脚本做另一套。
+        Assert.Contains("$defaultTarget = \"gitee\"", submitter, StringComparison.Ordinal);
+        Assert.Contains("PR_TARGET_HOST", submitter, StringComparison.Ordinal);
+        Assert.Contains("Submit-ChangePr.ps1", submitter, StringComparison.Ordinal);
+        Assert.Contains("PR_TARGET_HOST", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("Submit-ChangePr.ps1", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("不再直接向 `main` 推送提交", releaseDocument, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
