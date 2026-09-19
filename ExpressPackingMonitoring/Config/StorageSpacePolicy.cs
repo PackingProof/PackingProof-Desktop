@@ -40,20 +40,22 @@ namespace ExpressPackingMonitoring.Config
         {
             long minimumBytes = kind switch
             {
-                StorageReserveKind.LocalSystemDrive => 30L * BytesPerGiB,
-                StorageReserveKind.NetworkLocation => 10L * BytesPerGiB,
-                _ => 20L * BytesPerGiB
+                StorageReserveKind.LocalSystemDrive => 2L * BytesPerGiB,
+                StorageReserveKind.NetworkLocation => 1L * BytesPerGiB,
+                _ => 1L * BytesPerGiB
             };
             double percent = kind switch
             {
-                StorageReserveKind.LocalSystemDrive => 0.10,
-                StorageReserveKind.NetworkLocation => 0.02,
+                StorageReserveKind.LocalSystemDrive => 0.05,
+                StorageReserveKind.NetworkLocation => 0.05,
                 _ => 0.05
             };
             long percentBytes = (long)Math.Ceiling(
                 Math.Max(0, totalSize) * percent
                 / (double)BytesPerGiB) * BytesPerGiB;
-            return Math.Max(minimumBytes, percentBytes);
+            // 预留取"容量百分比"与固定值的较小者：百分比在小盘上更宽松，
+            // 但固定值封顶，避免 1TB 盘按 5% 直接吃掉 48GB。
+            return Math.Min(minimumBytes, percentBytes);
         }
 
         private static long CalculateMinimumReserveBytes(string rootPath, long totalSize)

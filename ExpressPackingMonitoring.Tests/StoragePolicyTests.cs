@@ -226,13 +226,15 @@ public sealed class StoragePolicyTests
 
     public static TheoryData<long, long, Func<long, long>> ReserveCases => new()
     {
-        { 100L * StorageSpacePolicy.BytesPerGiB, 30L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: true) },
-        { 500L * StorageSpacePolicy.BytesPerGiB, 50L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: true) },
-        { 100L * StorageSpacePolicy.BytesPerGiB, 20L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: false) },
-        { 500L * StorageSpacePolicy.BytesPerGiB, 25L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: false) },
-        { 100L * StorageSpacePolicy.BytesPerGiB, 10L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes },
-        { 500L * StorageSpacePolicy.BytesPerGiB, 10L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes },
-        { 1000L * StorageSpacePolicy.BytesPerGiB, 20L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes }
+        // 预留取 min(容量 × 5%, 固定上限)：系统盘封顶 2GB，其他本地与网络封顶 1GB。
+        // 以前是 max(最小值, 百分比)，1TB 盘会算出 50GB 以上的预留，机器剩 90 多 GB 也会被判空间不足。
+        { 100L * StorageSpacePolicy.BytesPerGiB, 2L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: true) },
+        { 500L * StorageSpacePolicy.BytesPerGiB, 2L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: true) },
+        { 100L * StorageSpacePolicy.BytesPerGiB, 1L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: false) },
+        { 500L * StorageSpacePolicy.BytesPerGiB, 1L * StorageSpacePolicy.BytesPerGiB, total => StorageSpacePolicy.CalculateMinimumReserveBytes(total, isSystemDrive: false) },
+        { 100L * StorageSpacePolicy.BytesPerGiB, 1L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes },
+        { 500L * StorageSpacePolicy.BytesPerGiB, 1L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes },
+        { 1000L * StorageSpacePolicy.BytesPerGiB, 1L * StorageSpacePolicy.BytesPerGiB, StorageSpacePolicy.CalculateNetworkMinimumReserveBytes }
     };
 
     [Theory]

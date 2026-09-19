@@ -39,7 +39,8 @@ public sealed class RecordingWorkstationCacheTests
         RecordingCacheDriveCandidate[] candidates =
         [
             Candidate(@"C:\", isSystem: true, totalGb: 500, availableGb: 100),
-            Candidate(@"D:\", isSystem: false, totalGb: 100, availableGb: 5),
+            // 低于当前非系统盘预留（min(容量×5%, 1GB)），保证"非系统盘都放不下"的前提成立
+            Candidate(@"D:\", isSystem: false, totalGb: 100, availableGb: 0),
             Candidate(@"E:\", isSystem: false, totalGb: 100, availableGb: 40, isWritable: false)
         ];
 
@@ -54,8 +55,9 @@ public sealed class RecordingWorkstationCacheTests
     {
         RecordingCacheDriveCandidate[] candidates =
         [
-            Candidate(@"C:\", isSystem: true, totalGb: 100, availableGb: 31),
-            Candidate(@"D:\", isSystem: false, totalGb: 100, availableGb: 21)
+            // 都低于当前预留（系统盘 min(容量×5%, 2GB)、其他盘 min(容量×5%, 1GB)）
+            Candidate(@"C:\", isSystem: true, totalGb: 100, availableGb: 1),
+            Candidate(@"D:\", isSystem: false, totalGb: 100, availableGb: 0)
         ];
 
         Assert.Null(RecordingWorkstationCachePolicy.SelectPreferredDrive(candidates));
