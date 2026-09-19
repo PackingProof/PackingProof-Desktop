@@ -42,3 +42,70 @@ function Test-GiteeAuthentication {
     & gitee release list --repo $Repository *> $null
     return $LASTEXITCODE -eq 0
 }
+
+function Get-GiteeReleaseId {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Repository,
+        [Parameter(Mandatory = $true)] [string]$Tag
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+        throw "缺少 GITEE_TOKEN，无法读取 Gitee Release 附件"
+    }
+
+    $headers = @{ Authorization = "Bearer $($env:GITEE_TOKEN)" }
+    $release = Invoke-RestMethod `
+        -Uri "https://gitee.com/api/v5/repos/$Repository/releases/tags/$Tag" `
+        -Headers $headers `
+        -Method Get `
+        -TimeoutSec 30
+    return [long]$release.id
+}
+
+function Get-GiteeReleaseAttachments {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Repository,
+        [Parameter(Mandatory = $true)] [long]$ReleaseId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+        throw "缺少 GITEE_TOKEN，无法读取 Gitee Release 附件"
+    }
+
+    $headers = @{ Authorization = "Bearer $($env:GITEE_TOKEN)" }
+    return @(Invoke-RestMethod `
+        -Uri "https://gitee.com/api/v5/repos/$Repository/releases/$ReleaseId/attach_files" `
+        -Headers $headers `
+        -Method Get `
+        -TimeoutSec 30)
+}
+
+# gitee CLI 只能上传附件、不能删除附件；重复上传会在 Release 上留下同名文件，
+# 所以替换附件前先按名字删掉旧的。令牌只用请求头传递，不打印、不落盘。
+function Remove-GiteeReleaseAttachmentByName {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Repository,
+        [Parameter(Mandatory = $true)] [long]$ReleaseId,
+        [Parameter(Mandatory = $true)] [string]$FileName
+    )
+
+    $headers = @{ Authorization = "Bearer $($env:GITEE_TOKEN)" }
+    $attachments = Get-GiteeReleaseAttachments -Repository $Repository -ReleaseId $ReleaseId
+
+    $removed = 0
+    foreach ($attachment in $attachments) {
+        if (-not [string]::Equals(
+                "$($attachment.name)",
+                $FileName,
+                [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+        Invoke-RestMethod `
+            -Uri "https://gitee.com/api/v5/repos/$Repository/releases/$ReleaseId/attach_files/$($attachment.id)" `
+            -Headers $headers `
+            -Method Delete `
+            -TimeoutSec 30 | Out-Null
+        $removed++
+    }
+    return $removed
+}

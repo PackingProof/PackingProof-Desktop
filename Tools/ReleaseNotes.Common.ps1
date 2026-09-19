@@ -157,4 +157,11 @@ function Assert-UpdateManifestReady {
             throw "更新清单 notes 还是占位内容：$note"
         }
     }
+
+    # 启动器里逐条显示，太长没人看：按模块归并到 15-20 条，覆盖所有用户可见变化即可，
+    # 工程与内部改动不写进 notes（留在发布笔记的《兼容与工程》）。
+    $maxNotes = 20
+    if ($notes.Count -gt $maxNotes) {
+        throw "更新清单 notes 最多 $maxNotes 条，当前 $($notes.Count) 条：请按模块归并，不要把每个提交各写一条"
+    }
 }

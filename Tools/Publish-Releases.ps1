@@ -1,7 +1,8 @@
 # 把当前 tag 的桌面端产物发布到 GitHub 与 Gitee Release。
 #
 #   pwsh -NoProfile -File Tools\Publish-Releases.ps1 [-NotesFile <release-notes-file>] `
-#       [-Title "<一句话内容>"] [-Prerelease] [-ConfirmCommitCoverage] [-UpdateNotes] [-ValidateOnly]
+#       [-Title "<一句话内容>"] [-Prerelease] [-ConfirmCommitCoverage] `
+#       [-UpdateNotes] [-ReplaceAssets] [-ValidateOnly]
 #
 # 约定（与 docs/development/RELEASE_AND_RUNTIME.md 的资产表一致）：
 # - GitHub：Setup、update JSON、可选 AppPatch；仅新启动器基线时附 LauncherPatch
@@ -12,6 +13,8 @@
 # - 发布笔记默认取 package 产物目录里的 RELEASE_NOTES_v<X.Y.Z>.md，且必须覆盖
 #   release_commits_v<X.Y.Z>.txt 里的全部提交；确认后加 -ConfirmCommitCoverage
 # - 已经发布过的版本要只更新正文时，用 -UpdateNotes 重跑
+# - 已经发布过的版本要换附件（例如补写更新清单里的启动器摘要）时加 -ReplaceAssets；
+#   Gitee 会先删掉同名附件再上传，不会留重复文件
 # - GitHub 用 gh、Gitee 用 gitee CLI；Gitee 令牌固定取 .env 的 GITEE_TOKEN
 #   注入环境变量后交给 CLI，脚本不打印也不落盘凭据
 
@@ -23,6 +26,7 @@ param(
     [switch]$Prerelease,
     [switch]$ConfirmCommitCoverage,
     [switch]$UpdateNotes,
+    [switch]$ReplaceAssets,
     [switch]$ValidateOnly
 )
 
@@ -50,6 +54,73 @@ function Test-IsInsidePackageDir {
 
     $packageRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "package"))
     return $Path.StartsWith(($packageRoot.TrimEnd('\') + '\'), [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Get-LocalFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+# 只挑内容真的变了的附件：GitHub 附件带 sha256 可以直接比对，
+# Gitee 附件只有大小，用大小判断（更新清单这类文本文件大小一定会变）。
+function Get-StaleGitHubAssets {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string[]]$Assets
+    )
+
+    $assetsJson = & gh release view $Tag --repo $Repository --json assets
+    if ($LASTEXITCODE -ne 0) {
+        throw "读取 GitHub Release 附件失败"
+    }
+
+    $uploadedHashes = @{}
+    foreach ($asset in @((($assetsJson | ConvertFrom-Json).assets))) {
+        $digest = "$($asset.digest)"
+        $uploadedHashes["$($asset.name)"] = if ($digest.StartsWith("sha256:", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $digest.Substring(7).ToLowerInvariant()
+        }
+        else {
+            ""
+        }
+    }
+
+    $stale = @()
+    foreach ($asset in $Assets) {
+        $name = Split-Path -Leaf $asset
+        if ($uploadedHashes.ContainsKey($name) -and
+            $uploadedHashes[$name] -eq (Get-LocalFileSha256 -Path $asset)) {
+            continue
+        }
+        $stale += $asset
+    }
+    return $stale
+}
+
+function Get-StaleGiteeAssets {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][long]$ReleaseId,
+        [Parameter(Mandatory = $true)][string[]]$Assets
+    )
+
+    $uploadedSizes = @{}
+    foreach ($attachment in Get-GiteeReleaseAttachments -Repository $Repository -ReleaseId $ReleaseId) {
+        $uploadedSizes["$($attachment.name)"] = [long]$attachment.size
+    }
+
+    $stale = @()
+    foreach ($asset in $Assets) {
+        $name = Split-Path -Leaf $asset
+        $size = (Get-Item -LiteralPath $asset).Length
+        if ($uploadedSizes.ContainsKey($name) -and $uploadedSizes[$name] -eq $size) {
+            continue
+        }
+        $stale += $asset
+    }
+    return $stale
 }
 
 if (git status --porcelain --untracked-files=all) {
@@ -210,6 +281,25 @@ if ($LASTEXITCODE -eq 0) {
     else {
         Write-Host "GitHub 上 $tag 已存在，跳过创建（要更新正文加 -UpdateNotes）"
     }
+
+    if ($ReplaceAssets) {
+        $staleGitHubAssets = @(Get-StaleGitHubAssets `
+            -Repository $repoSlug `
+            -Tag $tag `
+            -Assets $githubAssets)
+        foreach ($asset in $staleGitHubAssets) {
+            & gh release upload $tag $asset --repo $repoSlug --clobber
+            if ($LASTEXITCODE -ne 0) {
+                throw "GitHub 附件替换失败：$(Split-Path -Leaf $asset)"
+            }
+        }
+        if ($staleGitHubAssets.Count -eq 0) {
+            Write-Host "GitHub 附件与本地产物一致，无需替换"
+        }
+        else {
+            Write-Host "GitHub 附件已替换：$(($staleGitHubAssets | ForEach-Object { Split-Path -Leaf $_ }) -join '、')"
+        }
+    }
 }
 else {
     $ghArgs = @("release", "create", $tag) + $githubAssets +
@@ -263,8 +353,33 @@ else {
 }
 
 # 只更新正文时不要重复上传附件，避免 Gitee 上出现同名重复文件。
-if ($giteeReleaseExisted -and $UpdateNotes) {
-    Write-Host "Gitee 附件保持原样（-UpdateNotes 只更新正文与标题）"
+if ($ReplaceAssets -and $giteeReleaseExisted) {
+    $giteeReleaseId = Get-GiteeReleaseId -Repository $repoSlug -Tag $tag
+    $staleGiteeAssets = @(Get-StaleGiteeAssets `
+        -Repository $repoSlug `
+        -ReleaseId $giteeReleaseId `
+        -Assets $giteeAssets)
+    foreach ($asset in $staleGiteeAssets) {
+        $assetName = Split-Path -Leaf $asset
+        $removed = Remove-GiteeReleaseAttachmentByName `
+            -Repository $repoSlug `
+            -ReleaseId $giteeReleaseId `
+            -FileName $assetName
+        Write-Host "Gitee 旧附件 $(if ($removed -gt 0) { "已删除 $removed 个" } else { "不存在" })：$assetName"
+        & gitee release upload --repo $repoSlug $tag $asset *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Gitee 附件替换失败：$assetName"
+        }
+    }
+    if ($staleGiteeAssets.Count -eq 0) {
+        Write-Host "Gitee 附件与本地产物一致，无需替换"
+    }
+    else {
+        Write-Host "Gitee 附件已替换：$(($staleGiteeAssets | ForEach-Object { Split-Path -Leaf $_ }) -join '、')"
+    }
+}
+elseif ($giteeReleaseExisted -and -not $ReplaceAssets) {
+    Write-Host "Gitee 附件保持原样（要替换附件加 -ReplaceAssets）"
 }
 else {
     foreach ($asset in $giteeAssets) {
