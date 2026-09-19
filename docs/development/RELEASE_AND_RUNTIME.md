@@ -54,7 +54,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 发布笔记必须使用 `RELEASE_NOTES_TEMPLATE.md`，并**逐条**核对 `release_commits_v<X.Y.Z>.txt` 里的全部提交（等价于 `git log --oneline <上一正式版标签>..HEAD`）。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化和未验证事项；纯工程或测试提交也要在《兼容与工程》里落到文字，不能只写几条最重要的就交付。
 - 发布笔记写到该版本自己的产物目录 `package/PackingProof+v<X.Y.Z>/RELEASE_NOTES_v<X.Y.Z>.md`，在打包生成产物目录之后写入。禁止放在仓库根目录，也禁止提交进仓库；`package/*` 已被 Git 忽略。打包脚本会在文件不存在时按模板生成骨架，在文件已存在时原样保留，正常流程不需要手工改文件名。
 - 标题固定为 `v<X.Y.Z> <一句话内容>`，且这句话必须点出本版本最核心的变化（本版投入最大的功能，或用户最痛的问题），例如「采集预览迁移 GPU 与存储判定重做」；只写版本号或只写“体验优化”都会被发布脚本拒绝（未传 `-Title` 直接报错）。
-- 条目顺序按重要性从高到低：本版重点功能 → 重要修复 → 小优化与文案调整；`update_v<X.Y.Z>.json` 的 `notes` 保持同一顺序。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
+- 条目顺序按重要性从高到低：本版重点功能 → 重要修复 → 小优化与文案调整；`update_v<X.Y.Z>.json` 的 `notes` 保持同一顺序。同一件事（同一模块的默认值、迁移、提示、界面入口等）必须合并成一条，不允许拆成多条重复描述。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
 - `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致，`notes` 必须已经填写，发布脚本会直接拒绝“请填写更新标题”这类占位内容。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。`notes` 按模块归并、控制在 15~20 条以内，但必须覆盖本版本全部用户可见变化，不能只写几条最重要的；超过 20 条发布脚本会拒绝。启动器会自动添加列表符号，完整内容留在 Release 页面。
 - `notes` 面向的是店员等最终用户，只写他们能感知的变化。工程与内部改动一律不写，例如运行时版本、打包与增量包机制、CI 门禁、代码重构、测试补充；这些留在发布笔记的“兼容与工程”里。
 - 不生成 AppFull 或 ManualUpdate，不上传旧名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`。`launcher_manifest` 和 `release_info` 仅作本地校验交接，默认不上传。
