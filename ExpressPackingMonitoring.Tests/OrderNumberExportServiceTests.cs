@@ -104,9 +104,20 @@ public sealed class OrderNumberExportServiceTests
         Assert.Equal(
             "从机2",
             Assert.Single(rows, row => row.TrackingNumber == "001234567890123457").SourceDevices);
+        // 表格会发给别的电脑，"本机"这种相对说法没有意义：本机录像要写这台电脑的实际名字。
         Assert.Equal(
-            "本机",
+            Environment.MachineName,
             Assert.Single(rows, row => row.TrackingNumber == "001234567890123458").SourceDevices);
+        Assert.DoesNotContain(rows, row => row.SourceDevices.Contains("本机", StringComparison.Ordinal));
+
+        IReadOnlyList<OrderNumberExportRow> namedRows = OrderNumberExportService.BuildRows(
+            sources,
+            TestContext.Current.CancellationToken,
+            currentSourceDeviceNames: currentNames,
+            localDeviceName: "打包电脑A");
+        Assert.Equal(
+            "打包电脑A",
+            Assert.Single(namedRows, row => row.TrackingNumber == "001234567890123458").SourceDevices);
     }
 
     [Fact]

@@ -51,7 +51,8 @@ internal static class OrderNumberExportService
         IEnumerable<OrderNumberExportSource> sources,
         CancellationToken cancellationToken = default,
         IProgress<OrderNumberExportProgress>? progress = null,
-        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+        string localDeviceName = "")
     {
         IReadOnlyList<OrderNumberExportSource> sourceList = sources as IReadOnlyList<OrderNumberExportSource>
             ?? sources.ToList();
@@ -76,7 +77,7 @@ internal static class OrderNumberExportService
                     group = new ExportGroup(trackingNumber, mode, source.StartTime);
                     groups.Add(key, group);
                 }
-                group.Add(source, currentSourceDeviceNames);
+                group.Add(source, currentSourceDeviceNames, localDeviceName);
             }
 
             int processed = index + 1;
@@ -195,7 +196,8 @@ internal static class OrderNumberExportService
     /// </summary>
     private static string GetSourceDevice(
         OrderNumberExportSource source,
-        IReadOnlyDictionary<string, string>? currentSourceDeviceNames)
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames,
+        string localDeviceName)
     {
         string name = RecordingSourceNameLookup.Resolve(
             currentSourceDeviceNames,
@@ -203,9 +205,12 @@ internal static class OrderNumberExportService
             source.SourceDeviceName);
         if (name.Length > 0)
             return name;
-        return string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
-            ? "外部设备"
-            : "本机";
+        if (string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase))
+            return "外部设备";
+
+        // 导出的表格会发给别的电脑，"本机"这种相对说法没有意义，写这台电脑的实际名字。
+        string localName = localDeviceName?.Trim() ?? "";
+        return localName.Length > 0 ? localName : Environment.MachineName;
     }
 
     private sealed class ExportGroup
@@ -226,12 +231,13 @@ internal static class OrderNumberExportService
 
         internal void Add(
             OrderNumberExportSource source,
-            IReadOnlyDictionary<string, string>? currentSourceDeviceNames)
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames,
+            string localDeviceName)
         {
             if (source.StartTime < FirstRecordingTime)
                 FirstRecordingTime = source.StartTime;
             AddIfNotEmpty(_sourceOrderIds, source.SourceOrderId);
-            AddIfNotEmpty(_sourceDevices, GetSourceDevice(source, currentSourceDeviceNames));
+            AddIfNotEmpty(_sourceDevices, GetSourceDevice(source, currentSourceDeviceNames, localDeviceName));
         }
 
         internal OrderNumberExportRow ToRow() => new(

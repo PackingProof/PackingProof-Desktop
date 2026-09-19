@@ -25,6 +25,7 @@ public partial class OrderNumberExportProgressDialog : Window
     private readonly OrderNumberExportFilter _filter;
     private readonly string _targetPath;
     private readonly IReadOnlyDictionary<string, string>? _currentSourceDeviceNames;
+    private readonly string _localDeviceName;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly DispatcherTimer _elapsedTimer;
     private readonly Stopwatch _elapsed = new();
@@ -36,13 +37,15 @@ public partial class OrderNumberExportProgressDialog : Window
         VideoDatabase database,
         OrderNumberExportFilter filter,
         string targetPath,
-        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+        IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+        string localDeviceName = "")
     {
         InitializeComponent();
         _database = database;
         _filter = filter;
         _targetPath = targetPath;
         _currentSourceDeviceNames = currentSourceDeviceNames;
+        _localDeviceName = localDeviceName;
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _elapsedTimer.Tick += (_, _) =>
             ElapsedTimeText.Text = $"已用时 {(int)_elapsed.Elapsed.TotalSeconds} 秒";
@@ -121,7 +124,8 @@ public partial class OrderNumberExportProgressDialog : Window
             sources,
             cancellationToken,
             progress,
-            _currentSourceDeviceNames);
+            _currentSourceDeviceNames,
+            _localDeviceName);
         RuntimeLog.Info("OrderExport", $"整理单号记录 {rows.Count} 条，耗时 {stage.ElapsedMilliseconds}ms");
         if (rows.Count == 0)
             return 0;

@@ -235,7 +235,8 @@ namespace ExpressPackingMonitoring.UI
                     _db,
                     filter,
                     saveDialog.FileName,
-                    _currentSourceDeviceNames)
+                    _currentSourceDeviceNames,
+                    _computerName)
                 {
                     Owner = this
                 };
