@@ -164,4 +164,12 @@ function Assert-UpdateManifestReady {
     if ($notes.Count -gt $maxNotes) {
         throw "更新清单 notes 最多 $maxNotes 条，当前 $($notes.Count) 条：请按模块归并，不要把每个提交各写一条"
     }
+
+    # 启动器虽然会折行，但一条太长折成多行后整页又乱又难读，所以这里卡死单条长度。
+    $maxNoteLength = 40
+    foreach ($note in $notes) {
+        if ($note.Length -gt $maxNoteLength) {
+            throw "更新清单 notes 单条最多 $maxNoteLength 个字，当前这条有 $($note.Length) 个字：$note"
+        }
+    }
 }

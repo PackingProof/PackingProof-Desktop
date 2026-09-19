@@ -533,6 +533,23 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("不再直接向 `main` 推送提交", releaseDocument, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void UpdateManifestNotes_KeepSingleLineShort()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string notesCommon = File.ReadAllText(
+            Path.Combine(repositoryRoot, "Tools", "ReleaseNotes.Common.ps1"),
+            Encoding.UTF8);
+        string template = File.ReadAllText(
+            Path.Combine(repositoryRoot, "RELEASE_NOTES_TEMPLATE.md"),
+            Encoding.UTF8);
+
+        // 启动器会折行，条目太长整页就乱，所以摘要必须卡住单条长度。
+        Assert.Contains("$maxNoteLength = 40", notesCommon, StringComparison.Ordinal);
+        Assert.Contains("单条最多 $maxNoteLength 个字", notesCommon, StringComparison.Ordinal);
+        Assert.Contains("硬上限 40 字", template, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

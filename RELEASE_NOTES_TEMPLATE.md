@@ -11,6 +11,7 @@
 > 发布目标为 GitHub 与 Gitee（PackingProof/PackingProof-Desktop）两个远端，二者都创建 Release 并上传 update JSON、可选 AppPatch，以及仅在建立新启动器基线时上传的 LauncherPatch；Setup 只在 GitHub 提供，旧个人 Gitee 仓库不再发布。
 > `update_vX.Y.Z.json` 的 `title` 与 Release 标题一致；`notes` 必须是纯文本字符串数组，每项只写一条用户可见变化。不要加入 Markdown 标题、列表减号、序号或下载说明，启动器会自动为每项添加列表符号，完整笔记以 Release 页面为准。
 > `notes` 按模块归并，控制在 15~20 条以内，但要覆盖本版本全部用户可见变化（不是只写几条最重要的）；工程与内部改动（打包、测试、重构、CI）不写进 `notes`，只留在发布笔记的《兼容与工程》里。发布脚本会拒绝超过 20 条的 `notes`。
+> `notes` 每条必须短：启动器虽然会折行，但一条太长会折成两三行，整页看起来又乱又难读。单条控制在 20~35 字，硬上限 40 字（含标点），超过会被发布脚本拒绝；一条说不完就拆成两条，或合并同类项后重写。
 
 `update_vX.Y.Z.json` 摘要示例：
 
