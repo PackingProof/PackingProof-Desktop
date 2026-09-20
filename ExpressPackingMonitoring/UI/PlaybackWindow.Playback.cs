@@ -94,6 +94,10 @@ public partial class PlaybackWindow
         if (_mediaPlayer == null)
             return;
 
+        // 最大化时宽高由系统决定，这里不插手（也不记进"已按这个分辨率调过"）
+        if (WindowState == WindowState.Maximized)
+            return;
+
         uint width = 0;
         uint height = 0;
         if (!_mediaPlayer.Size(0, ref width, ref height)
@@ -183,6 +187,8 @@ public partial class PlaybackWindow
         double chromeWidth = Math.Max(0, ActualWidth - PlayerView.ActualWidth);
         double chromeHeight = Math.Max(0, ActualHeight - PlayerView.ActualHeight);
         double preferredWidth = ActualWidth > 0 ? ActualWidth : Width;
+        // 高度只允许收缩、不主动变高：竖屏录像否则会把窗口顶到屏幕外（进度条跟着看不见）。
+        double preferredHeight = ActualHeight > 0 ? ActualHeight : Height;
 
         PlaybackWindowSize? size = PlaybackWindowFitPolicy.Calculate(
             videoWidth,
@@ -190,6 +196,7 @@ public partial class PlaybackWindow
             chromeWidth,
             chromeHeight,
             preferredWidth,
+            preferredHeight,
             SystemParameters.WorkArea.Width,
             SystemParameters.WorkArea.Height,
             MinWidth,

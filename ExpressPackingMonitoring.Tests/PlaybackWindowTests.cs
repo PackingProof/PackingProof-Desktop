@@ -487,6 +487,33 @@ public sealed class PlaybackWindowTests
         Assert.Contains("_mediaPlayer.Size(0, ref width, ref height)", playback, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 拖动进度条要恢复拖动前的状态：暂停时拖完仍是暂停（现场反馈"拖完自动变播放了"）。
+    /// </summary>
+    [Fact]
+    public void TimelineScrubKeepsPausedStateWhenPausedBeforeDrag()
+    {
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        int started = codeBehind.IndexOf("private void TimelineSlider_DragStarted", StringComparison.Ordinal);
+        int completed = codeBehind.IndexOf("private void TimelineSlider_DragCompleted", StringComparison.Ordinal);
+        int valueChanged = codeBehind.IndexOf("private void TimelineSlider_ValueChanged", StringComparison.Ordinal);
+        Assert.True(started >= 0 && completed > started && valueChanged > completed, "找不到进度条拖动处理");
+
+        string dragStarted = codeBehind[started..completed];
+        string dragCompleted = codeBehind[completed..valueChanged];
+
+        Assert.Contains("_wasPlayingBeforeScrub = _isPlaying", dragStarted, StringComparison.Ordinal);
+        Assert.Contains("if (_wasPlayingBeforeScrub)", dragCompleted, StringComparison.Ordinal);
+        Assert.Contains("SeekTo(TimelineSlider.Value);", dragCompleted, StringComparison.Ordinal);
+        // 放开播放只能出现在"拖动前在播"的分支里
+        int resumeIndex = dragCompleted.IndexOf("_mediaPlayer.SetPause(false);", StringComparison.Ordinal);
+        Assert.True(resumeIndex > 0, "找不到恢复播放的分支");
+        Assert.True(
+            dragCompleted.IndexOf("if (_wasPlayingBeforeScrub)", StringComparison.Ordinal) < resumeIndex,
+            "SetPause(false) 必须在 _wasPlayingBeforeScrub 分支里，否则暂停时拖动会变成播放");
+    }
+
     private static string FindRepositoryFile(params string[] relativeParts)
     {
         foreach (string startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })

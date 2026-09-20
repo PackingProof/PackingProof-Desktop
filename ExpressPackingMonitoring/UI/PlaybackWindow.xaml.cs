@@ -120,6 +120,8 @@ namespace ExpressPackingMonitoring.UI
         private List<VideoItem> _allVideos = new();
         private bool _isExportingOrderNumbers;
         private bool _isDragging;
+        /// <summary>拖动进度条前的播放状态：拖动时先暂停，拖完按这个状态恢复。</summary>
+        private bool _wasPlayingBeforeScrub;
         private bool _suppressTimelineValueChanged;
         private bool _isPlaying;
         private bool _isLoadingVideos;
@@ -1548,8 +1550,10 @@ namespace ExpressPackingMonitoring.UI
         private void TimelineSlider_DragStarted(object sender, DragStartedEventArgs e)
         {
             _isDragging = true;
-            if (_mediaPlayer?.IsPlaying == true)
-                _mediaPlayer.Pause();
+            // 记下拖动前的状态：暂停时拖动，拖完必须还是暂停（现场反馈：拖完自动变播放了）
+            _wasPlayingBeforeScrub = _isPlaying && _mediaPlayer?.IsPlaying == true;
+            if (_wasPlayingBeforeScrub)
+                _mediaPlayer?.Pause();
         }
 
         private void TimelineSlider_DragCompleted(object sender, DragCompletedEventArgs e)
@@ -1559,9 +1563,20 @@ namespace ExpressPackingMonitoring.UI
 
             _isDragging = false;
             SeekTo(TimelineSlider.Value);
-            _mediaPlayer.SetPause(false);
-            _timer.Start();
-            UpdatePlayState(true);
+            if (_wasPlayingBeforeScrub)
+            {
+                _mediaPlayer.SetPause(false);
+                _timer.Start();
+                UpdatePlayState(true);
+            }
+            else
+            {
+                // 暂停状态拖动：保持暂停，只把时间标签停在拖动后的位置
+                _timer.Stop();
+                UpdatePlayState(false);
+            }
+
+            _wasPlayingBeforeScrub = false;
         }
 
         private void TimelineSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
