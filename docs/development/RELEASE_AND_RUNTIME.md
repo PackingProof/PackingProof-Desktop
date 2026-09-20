@@ -47,6 +47,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
 - 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release。禁止普通 `main` push 触发发布包工作流。
 - 发布前执行 `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`；未验证场景必须报告。
+- 采集链路的现场结论（走哪条后端、GPU 转换有没有真生效、每帧整帧拷贝要花多少）用 `pwsh -NoProfile -File Tools/Diagnose-CameraPipeline.ps1` 一次跑出来：报告与探针日志写到输出目录，只读配置、录像和现场 `runtime.log`。整帧拷贝那一段不需要摄像头、也不用退出主程序，随手可跑；GPU/CPU 对照要独占摄像头，脚本会提示先关程序。
 - `RELEASE_CHECKLIST.md` 中的真实设备场景建议执行但不阻断发布；未验证项必须在交付和发布说明中明确列出。
 - 自动测试通过后仍要审计上一版本以来的完整变更，追踪录像、更新、授权、备份、删除和文件替换等关键路径；可信的正确性、数据安全、兼容性、性能或竞态问题均阻断发布，除非用户明确接受记录在案的例外。
 
