@@ -1866,7 +1866,7 @@ public sealed class DeploymentStartupTests
         string mainSource = RepositorySource.ReadMainViewModel();
         string recordingSource = RepositorySource.ReadMainViewModel();
         int methodStart = mainSource.IndexOf(
-            "private void OpenPlaybackWindow()",
+            "private async void OpenPlaybackWindow()",
             StringComparison.Ordinal);
         int methodEnd = mainSource.IndexOf(
             "private static bool ActivateExistingWindow",

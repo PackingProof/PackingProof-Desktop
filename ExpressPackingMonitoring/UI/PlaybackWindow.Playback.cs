@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.Data;
 using System.Windows;
 using System.Windows.Threading;
 using LibVLCSharp.Shared;
@@ -118,25 +119,21 @@ public partial class PlaybackWindow
     }
 
     /// <summary>
-    /// 打开窗口时（列表刚出来）先用第一条录像的分辨率把窗口调到没有黑边。
-    /// 列表按开始时间倒序，第一条就是最新那条；缺文件/已归档的跳过，取第一条能在本机播的。
+    /// 在窗口**显示之前**按"列表第一条能播的录像"把尺寸定好：调用方 await 完这个方法再 Show()，
+    /// 这样用户看到的就是最终尺寸，不会先看到默认大小再跳一下（现场反馈"应该开窗就调好"）。
+    ///
+    /// 列表按开始时间倒序，第一条就是最新那条；缺文件/已归档的跳过，取前几条里第一条能在本机播的。
+    /// 顺带把 libvlc 初始化掉，之后点播放不用再等它。
     /// </summary>
-    private async Task FitWindowToNewestPlayableVideoAsync()
+    internal async Task PrepareInitialWindowSizeAsync()
     {
         if (_initialWindowFitDone || _initialWindowFitRequested)
             return;
 
         _initialWindowFitRequested = true;
-        VideoItem? target = _allVideos?.FirstOrDefault(video => !video.IsUnavailable && !string.IsNullOrWhiteSpace(video.FullPath));
-        if (target == null)
-        {
-            _initialWindowFitRequested = false;
-            return;
-        }
-
         try
         {
-            (int Width, int Height)? size = await Task.Run(() => ProbeVideoSize(target.FullPath));
+            (int Width, int Height)? size = await Task.Run(ProbeNewestPlayableVideoSize);
             if (size is null || _isClosing)
             {
                 _initialWindowFitRequested = false;
@@ -158,15 +155,53 @@ public partial class PlaybackWindow
         }
     }
 
-    /// <summary>用 libvlc 解析文件头拿分辨率。只读本地文件，不建视频输出，也不影响正在播放的媒体。</summary>
-    private (int Width, int Height)? ProbeVideoSize(string path)
+    /// <summary>后台线程：查最新几条录像 → 取第一条能在本机播的 → 解析出分辨率。</summary>
+    private (int Width, int Height)? ProbeNewestPlayableVideoSize()
     {
-        LibVLC? libVlc = _libVLC;
-        if (libVlc == null || string.IsNullOrWhiteSpace(path))
+        if (_db == null)
             return null;
 
+        PagedVideoResult page = _db.QueryVideosPaged(
+            null,
+            null,
+            null,
+            page: 1,
+            pageSize: 5,
+            includeDeleted: ShouldIncludeDeletedVideos(_showDeletedVideos, keyword: null),
+            searchMode: VideoSearchMode.ExactOrderIdentifiers);
+        foreach (VideoRecord record in page.Records)
+        {
+            VideoItem item = CreateVideoItem(record, _computerName, _currentSourceDeviceNames);
+            if (item.IsUnavailable || string.IsNullOrWhiteSpace(item.FullPath))
+                continue;
+
+            (int Width, int Height)? size = ProbeVideoSize(item.FullPath);
+            if (size != null)
+                return size;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 用 libvlc 解析文件头拿分辨率。只读本地文件，不建视频输出，也不影响正在播放的媒体。
+    /// 顺带把 LibVLC 实例建好留给播放器复用（LibVLC 实例本身是进程级共享的，第二个几乎不花时间）。
+    /// </summary>
+    private (int Width, int Height)? ProbeVideoSize(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        Core.Initialize();
+        LibVLC? libVlc = _libVLC ??= new LibVLC("--avcodec-hw=any");
+
         using var media = new Media(libVlc, new Uri(path));
-        media.Parse(MediaParseOptions.ParseLocal, timeout: 2000);
+        MediaParsedStatus status = media.Parse(MediaParseOptions.ParseLocal, timeout: 2000)
+            .GetAwaiter()
+            .GetResult();
+        if (status != MediaParsedStatus.Done && media.Tracks.Length == 0)
+            return null;
+
         foreach (MediaTrack track in media.Tracks)
         {
             if (track.TrackType != TrackType.Video)
@@ -186,8 +221,7 @@ public partial class PlaybackWindow
     {
         double chromeWidth = Math.Max(0, ActualWidth - PlayerView.ActualWidth);
         double chromeHeight = Math.Max(0, ActualHeight - PlayerView.ActualHeight);
-        double preferredWidth = ActualWidth > 0 ? ActualWidth : Width;
-        // 高度只允许收缩、不主动变高：竖屏录像否则会把窗口顶到屏幕外（进度条跟着看不见）。
+        // 以高度为主：保持当前/默认高度，宽度按录像宽高比推出来。
         double preferredHeight = ActualHeight > 0 ? ActualHeight : Height;
 
         PlaybackWindowSize? size = PlaybackWindowFitPolicy.Calculate(
@@ -195,7 +229,6 @@ public partial class PlaybackWindow
             videoHeight,
             chromeWidth,
             chromeHeight,
-            preferredWidth,
             preferredHeight,
             SystemParameters.WorkArea.Width,
             SystemParameters.WorkArea.Height,

@@ -471,17 +471,22 @@ public sealed class PlaybackWindowTests
     }
 
     /// <summary>
-    /// 开窗时按列表第一条（开始时间倒序 = 最新那条）的分辨率先把窗口调好，播放时再按实际尺寸校正。
+    /// 窗口**显示之前**就按最新那条录像的分辨率定好尺寸（避免先看到默认大小再跳一下），
+    /// 播放过程中分辨率不同再按真实尺寸校正。
     /// </summary>
     [Fact]
     public void PlaybackWindowFitsWindowToVideoAspect()
     {
-        string codeBehind = File.ReadAllText(FindRepositoryFile(
-            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        string host = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "ViewModels", "MainViewModel.Media.cs"));
         string playback = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs"));
 
-        Assert.Contains("FitWindowToNewestPlayableVideoAsync()", codeBehind, StringComparison.Ordinal);
+        // 必须在 Show() 之前算好：调用方 await 完再显示窗口
+        int prepareIndex = host.IndexOf("await playbackWindow.PrepareInitialWindowSizeAsync();", StringComparison.Ordinal);
+        int showIndex = host.IndexOf("playbackWindow.Show();", StringComparison.Ordinal);
+        Assert.True(prepareIndex > 0 && showIndex > prepareIndex, "窗口必须先算好尺寸再 Show()");
+        Assert.Contains("PrepareInitialWindowSizeAsync", playback, StringComparison.Ordinal);
         Assert.Contains("FitWindowToPlayingVideo();", playback, StringComparison.Ordinal);
         Assert.Contains("PlaybackWindowFitPolicy.Calculate(", playback, StringComparison.Ordinal);
         Assert.Contains("_mediaPlayer.Size(0, ref width, ref height)", playback, StringComparison.Ordinal);

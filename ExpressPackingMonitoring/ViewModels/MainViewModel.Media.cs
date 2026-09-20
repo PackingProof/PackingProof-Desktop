@@ -51,7 +51,7 @@ namespace ExpressPackingMonitoring.ViewModels
             statsWindow.Show();
         }
 
-        private void OpenPlaybackWindow()
+        private async void OpenPlaybackWindow()
         {
             if (ActivateExistingWindow(_playbackWindow))
                 return;
@@ -90,6 +90,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     },
                     localComputerName: Config.NodeName,
                     currentSourceDeviceNames: _webServer?.GetCurrentSourceDeviceNames());
+                // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
+                await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;
                 playbackWindow.Closed += (_, _) =>
                 {
