@@ -610,7 +610,7 @@
 
                 <!-- 2. 控制条放在第 1 行 -->
                 <Border Grid.Row="1" Background="{DynamicResource ToastBackground}" Padding="15,10" Panel.ZIndex="99">
-                    <Grid>
+                    <Grid x:Name="PlaybackControlBar" SizeChanged="PlaybackControlBar_SizeChanged">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -626,17 +626,18 @@
                         </Button>
 
                         <Slider x:Name="TimelineSlider" Grid.Column="1" MinWidth="120" VerticalAlignment="Center" Minimum="0"
+                                Style="{StaticResource AccentSliderStyle}"
                                 IsMoveToPointEnabled="True"
                                 Thumb.DragStarted="TimelineSlider_DragStarted" 
                                 Thumb.DragCompleted="TimelineSlider_DragCompleted" 
                                 ValueChanged="TimelineSlider_ValueChanged"/>
 
-                        <TextBlock x:Name="TimeLabel" Grid.Column="2" MinWidth="145" Text="00:00:00 / 00:00:00" Foreground="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="15,0,0,0" FontFamily="Consolas"/>
+                        <TextBlock x:Name="TimeLabel" Grid.Column="2" MinWidth="110" Text="00:00 / 00:00" Foreground="{StaticResource TextOnAccent}" VerticalAlignment="Center" Margin="15,0,0,0" FontFamily="Consolas"/>
 
-                        <Button x:Name="BtnLocateFile" Grid.Column="3" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" Margin="15,0,0,0">
+                        <Button x:Name="BtnLocateFile" Grid.Column="3" Height="32" Style="{StaticResource PrimaryButtonStyle}" Click="BtnLocateFile_Click" ToolTip="定位文件" Margin="15,0,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <Path Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
-                                <TextBlock Text="定位文件"/>
+                                <Path x:Name="LocateFileIcon" Data="{StaticResource FluentFolderIcon}" Width="15" Height="15" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="LocateFileText" Text="定位文件"/>
                             </StackPanel>
                         </Button>
                     </Grid>

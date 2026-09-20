@@ -437,7 +437,7 @@ namespace ExpressPackingMonitoring.UI
                 _currentMediaLengthMs = 0;
                 SetTimelineMaximum(0);
                 SetTimelineValue(0);
-                TimeLabel.Text = "00:00:00 / 00:00:00";
+                TimeLabel.Text = PlaybackTimeLabelFormatter.FormatRange(0, 0);
                 ShowPlaybackCover("请选择录像开始播放");
             }
             finally
@@ -864,7 +864,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 _isLoadingVideos = false;
                 _videoLoadLoopRunning = false;
-                SetLoadingState(false, "00:00:00 / 00:00:00");
+                SetLoadingState(false, PlaybackTimeLabelFormatter.FormatRange(0, 0));
                 if (!_isClosing && _pendingVideoLoad.HasValue)
                     _ = ProcessVideoLoadQueueAsync();
             }
@@ -1639,7 +1639,22 @@ namespace ExpressPackingMonitoring.UI
 
         private void UpdateTimeLabel(long currentMs, long lengthMs)
         {
-            TimeLabel.Text = $"{TimeSpan.FromMilliseconds(currentMs):hh\\:mm\\:ss} / {TimeSpan.FromMilliseconds(lengthMs):hh\\:mm\\:ss}";
+            TimeLabel.Text = PlaybackTimeLabelFormatter.FormatRange(currentMs, lengthMs);
+        }
+
+        /// <summary>
+        /// 控制条窄的时候按钮只留图标（图标 + 文字的两个按钮太占宽度，会把进度条挤扁）；
+        /// 同时把图标与文字之间的间距、时间标签的最小宽度一起收掉，窄窗口里也留得下进度条。
+        /// </summary>
+        private void PlaybackControlBar_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            bool iconOnly = PlaybackControlBarPolicy.UseIconOnlyButtons(e.NewSize.Width);
+            Visibility textVisibility = iconOnly ? Visibility.Collapsed : Visibility.Visible;
+            PlayStateText.Visibility = textVisibility;
+            LocateFileText.Visibility = textVisibility;
+            PlayStateIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
+            LocateFileIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
+            TimeLabel.MinWidth = iconOnly ? 0 : 110;
         }
 
         private void UpdateLocateButtonState(VideoItem? video = null)

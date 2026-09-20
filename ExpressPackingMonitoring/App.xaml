@@ -14,6 +14,7 @@
                 <ResourceDictionary Source="Themes/ButtonTheme.xaml" />
                 <ResourceDictionary Source="Themes/ScrollBarTheme.xaml" />
                 <ResourceDictionary Source="Themes/FluentIcons.xaml" />
+                <ResourceDictionary Source="Themes/SliderTheme.xaml" />
                 <!-- 依赖 FluentIcons 的 StaticResource，必须排在它后面 -->
                 <ResourceDictionary Source="Themes/MenuTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
