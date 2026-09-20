@@ -376,9 +376,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (remaining <= TimeSpan.Zero)
                     return false;
 
-                // 就绪信号是一次性的，可能是更早那帧留下的：按小步长唤醒，等到真的重新来帧。
-                await _cameraFrameReady.WaitAsync(
-                    remaining < CameraFrameStaleThreshold ? remaining : CameraFrameStaleThreshold);
+                // 就绪信号是一次性的，可能是更早那帧留下的；而且本会话收到过帧之后 WaitAsync 会立即返回 true。
+                // 所以不能靠它节流：等完信号还要自己按固定节拍让出时间片，否则这里会空转满整个 timeout
+                // （一次扫码卡住时曾能把一个核跑满、界面跟着卡）。
+                TimeSpan step = CameraFrameWaitPolicy.ResolvePollDelay(remaining);
+                await _cameraFrameReady.WaitAsync(step);
+                if (!HasRecentCameraFrame())
+                    await Task.Delay(step);
             }
         }
 
