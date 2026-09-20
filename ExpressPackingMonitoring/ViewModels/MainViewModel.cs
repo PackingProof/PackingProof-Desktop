@@ -160,6 +160,8 @@ namespace ExpressPackingMonitoring.ViewModels
         // 最近一次真正写进 WriteableBitmap 的尺寸：与控件显示尺寸对照就能判断有没有被放大。
         private int _publishedPreviewWidth;
         private int _publishedPreviewHeight;
+        // 预览发布节流：处理循环是"来一帧处理一帧"，没有这道门限时空闲降档对预览不生效。
+        private readonly CameraFrameRateGate _previewPublishRateGate = new();
         // 预览发布统计：采样窗口内的发布帧率与单帧 WritePixels 平均耗时，
         // 用于对比采集帧率与实际预览发布帧率。
         private DateTime _previewStatsWindowStart = DateTime.MinValue;
