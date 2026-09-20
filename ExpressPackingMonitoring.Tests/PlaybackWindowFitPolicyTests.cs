@@ -1,4 +1,5 @@
 using ExpressPackingMonitoring.UI;
+using LibVLCSharp.Shared;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -60,6 +61,27 @@ public sealed class PlaybackWindowFitPolicyTests
     {
         Assert.Null(PlaybackWindowFitPolicy.Calculate(
             0, 0, ChromeWidth, ChromeHeight, PreferredHeight, WorkWidth, WorkHeight, MinWidth, MinHeight));
+    }
+
+    /// <summary>
+    /// 手机竖屏录像常是"1920x1080 + 旋转 90°"（现场 clips 里就有 orient=RightTop）：
+    /// 编码尺寸是横的、显示是竖的，必须按方向换宽高，否则窗口会按错的比例算。
+    /// </summary>
+    [Theory]
+    [InlineData(VideoOrientation.TopLeft, 1920, 1080)]
+    [InlineData(VideoOrientation.TopRight, 1920, 1080)]
+    [InlineData(VideoOrientation.BottomLeft, 1920, 1080)]
+    [InlineData(VideoOrientation.RightTop, 1080, 1920)]
+    [InlineData(VideoOrientation.LeftTop, 1080, 1920)]
+    public void ResolveDisplaySize_SwapsWidthAndHeightForQuarterTurns(
+        VideoOrientation orientation,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        (int width, int height) = PlaybackWindowFitPolicy.ResolveDisplaySize(1920, 1080, orientation);
+
+        Assert.Equal(expectedWidth, width);
+        Assert.Equal(expectedHeight, height);
     }
 
     [Fact]

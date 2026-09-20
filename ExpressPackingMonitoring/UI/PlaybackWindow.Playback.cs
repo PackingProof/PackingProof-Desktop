@@ -27,6 +27,10 @@ public partial class PlaybackWindow
     private int _fittedVideoHeight;
     private bool _initialWindowFitDone;
     private bool _initialWindowFitRequested;
+    /// <summary>当前这段录像的显示尺寸是否已经由解析得到（用来决定还要不要用播放器报的尺寸兜底）。</summary>
+    private bool _currentVideoSizeKnown;
+    private string _lastProbedPath = "";
+    private (int Width, int Height)? _lastProbedSize;
 
     private void EnsureStartUnpauseFallbackTimer()
     {
@@ -95,6 +99,11 @@ public partial class PlaybackWindow
         if (_mediaPlayer == null)
             return;
 
+        // 这段录像的尺寸已经解析出来了就以此为准：播放器刚切过去时 Size() 可能还是上一段的尺寸
+        // （现场就是"点了横屏录像，窗口还按竖屏算"）。
+        if (_currentVideoSizeKnown)
+            return;
+
         // 最大化时宽高由系统决定，这里不插手（也不记进"已按这个分辨率调过"）
         if (WindowState == WindowState.Maximized)
             return;
@@ -146,6 +155,9 @@ public partial class PlaybackWindow
                 _fittedVideoHeight = size.Value.Height;
             }
 
+            // 开窗时算的就是列表第一条，用户接着点它时不用再解析一次。
+            _lastProbedPath = _initialProbedPath;
+            _lastProbedSize = size;
             _initialWindowFitDone = true;
         }
         catch (Exception ex)
@@ -177,11 +189,16 @@ public partial class PlaybackWindow
 
             (int Width, int Height)? size = ProbeVideoSize(item.FullPath);
             if (size != null)
+            {
+                _initialProbedPath = item.FullPath;
                 return size;
+            }
         }
 
         return null;
     }
+
+    private string _initialProbedPath = "";
 
     /// <summary>
     /// 用 libvlc 解析文件头拿分辨率。只读本地文件，不建视频输出，也不影响正在播放的媒体。
@@ -210,10 +227,45 @@ public partial class PlaybackWindow
             uint width = track.Data.Video.Width;
             uint height = track.Data.Video.Height;
             if (width > 0 && height > 0)
-                return ((int)width, (int)height);
+                return PlaybackWindowFitPolicy.ResolveDisplaySize(width, height, track.Data.Video.Orientation);
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 点开某段录像时（起播之前）按它的分辨率把窗口调好 —— 不依赖播放器的视频输出状态，
+    /// 所以不会出现"播放器还报着上一段尺寸"的问题。解析结果带缓存，同一段只解析一次。
+    /// </summary>
+    private async Task<bool> FitWindowToVideoBeforePlaybackAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        _currentVideoSizeKnown = false;
+        (int Width, int Height)? size;
+        if (string.Equals(_lastProbedPath, path, StringComparison.OrdinalIgnoreCase) && _lastProbedSize != null)
+        {
+            size = _lastProbedSize;
+        }
+        else
+        {
+            size = await Task.Run(() => ProbeVideoSize(path));
+            _lastProbedPath = path;
+            _lastProbedSize = size;
+        }
+
+        if (size is null)
+            return false;
+
+        if (ApplyWindowFit(size.Value.Width, size.Value.Height))
+        {
+            _fittedVideoWidth = size.Value.Width;
+            _fittedVideoHeight = size.Value.Height;
+        }
+
+        _currentVideoSizeKnown = true;
+        return true;
     }
 
     /// <summary>按录像宽高比设置窗口尺寸；算不出来（尺寸未知/工作区异常）返回 false，窗口保持原样。</summary>

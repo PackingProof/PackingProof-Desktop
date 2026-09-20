@@ -479,6 +479,8 @@ public sealed class PlaybackWindowTests
     {
         string host = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "ViewModels", "MainViewModel.Media.cs"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
         string playback = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs"));
 
@@ -489,7 +491,11 @@ public sealed class PlaybackWindowTests
         Assert.Contains("PrepareInitialWindowSizeAsync", playback, StringComparison.Ordinal);
         Assert.Contains("FitWindowToPlayingVideo();", playback, StringComparison.Ordinal);
         Assert.Contains("PlaybackWindowFitPolicy.Calculate(", playback, StringComparison.Ordinal);
-        Assert.Contains("_mediaPlayer.Size(0, ref width, ref height)", playback, StringComparison.Ordinal);
+        // 切换录像必须先按这段录像解析出来的分辨率调窗口（不能靠播放器状态：刚切过去时
+        // Size() 还是上一段的尺寸，现场就是"点了横屏录像窗口还按竖屏算"）
+        Assert.Contains("FitWindowToVideoBeforePlaybackAsync(video.FullPath);", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("ProbeVideoSize(path)", playback, StringComparison.Ordinal);
+        Assert.Contains("ResolveDisplaySize(", playback, StringComparison.Ordinal);
     }
 
     /// <summary>
