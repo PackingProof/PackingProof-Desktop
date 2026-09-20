@@ -138,23 +138,20 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
-    /// issue #28：主界面最小化且小窗关闭时没有可见预览，以前会退回"按原始尺寸发布"，
-    /// 整帧克隆 + 写位图 + 传 GPU 缩放照跑，最小化后 GPU/CPU 降不下来。
-    /// 没有可见预览消费方就不发布；用户在设置里关掉实时预览同样不发布；其余情况照常发布。
+    /// 预览发布的硬停条件：拖动窗口、用户关闭实时预览、已释放、摄像头休眠时不发布；
+    /// 其余情况照常发布（"没有可见预览消费方"由帧率降到保活档处理，不再硬停，避免灰屏）。
     /// </summary>
     [Theory]
-    [InlineData(false, false, false, false, true, true)]
-    [InlineData(false, false, false, false, false, false)]
-    [InlineData(true, false, false, false, true, false)]
-    [InlineData(false, true, false, false, true, false)]
-    [InlineData(false, false, true, false, true, false)]
-    [InlineData(false, false, false, true, true, false)]
-    public void PreviewPublishPolicy_SkipsPublishingWithoutVisiblePreviewConsumerOrWhenDisabled(
+    [InlineData(false, false, false, false, true)]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(false, true, false, false, false)]
+    [InlineData(false, false, true, false, false)]
+    [InlineData(false, false, false, true, false)]
+    public void PreviewPublishPolicy_StopsOnlyOnExplicitConditions(
         bool suppressed,
         bool disabledByUser,
         bool disposed,
         bool cameraSleeping,
-        bool hasVisiblePreviewConsumer,
         bool expected)
     {
         Assert.Equal(
@@ -163,7 +160,23 @@ public sealed class PreviewDownscalePolicyTests
                 suppressed,
                 disabledByUser,
                 disposed,
-                cameraSleeping,
-                hasVisiblePreviewConsumer));
+                cameraSleeping));
+    }
+
+    /// <summary>
+    /// issue #28 的解法：没有可见预览消费方时把预览帧率降到保活档，而不是完全不发布。
+    /// 预览每帧都要整帧克隆 + 缩放 + 写位图，降帧能省掉绝大部分开销；画面只是变慢，不会变灰。
+    /// </summary>
+    [Theory]
+    [InlineData(60, true, 60)]
+    [InlineData(60, false, PreviewFrameRatePolicy.KeepAliveFps)]
+    [InlineData(0, false, PreviewFrameRatePolicy.KeepAliveFps)]
+    [InlineData(0, true, PreviewFrameRatePolicy.FallbackCameraFps)]
+    public void PreviewFrameRatePolicy_KeepsAliveRateWhenNothingIsWatching(
+        int cameraFps,
+        bool hasVisibleConsumer,
+        int expected)
+    {
+        Assert.Equal(expected, PreviewFrameRatePolicy.ResolveTargetFps(cameraFps, hasVisibleConsumer));
     }
 }
