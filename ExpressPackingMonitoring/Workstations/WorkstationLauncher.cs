@@ -10,12 +10,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
-using System.Windows;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Services;
-using ExpressPackingMonitoring.UI;
-using ExpressPackingMonitoring.ViewModels;
 
 namespace ExpressPackingMonitoring;
 
@@ -246,7 +243,7 @@ public static class WorkstationConfigStore
     }
 }
 
-public static class WorkstationNetwork
+public static partial class WorkstationNetwork
 {
     private const int DefaultHttpPort = 5280;
     private const int MaxSubnetDiscoveryHosts = 1022;
@@ -1208,43 +1205,6 @@ public static class WorkstationNetwork
             && string.IsNullOrEmpty(finalUri.Fragment);
     }
 
-    public static bool TryRestartApplication(string reason = "unspecified", Window? owner = null)
-    {
-        try
-        {
-            string? exePath = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
-                exePath = Process.GetCurrentProcess().MainModule?.FileName;
-            if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
-                return false;
-
-            if (!TryScheduleRestart(exePath, AppContext.BaseDirectory, reason))
-                return false;
-
-            RuntimeLog.RecordShutdownRequest("ApplicationRestart", reason);
-            RuntimeLog.Info("Restart",
-                $"Replacement process scheduled after resource cleanup currentPid={Environment.ProcessId}, reason={reason}");
-            try
-            {
-                if (owner != null)
-                    owner.Close();
-                else
-                    Application.Current.Shutdown();
-            }
-            catch
-            {
-                CancelPendingRestart();
-                throw;
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            RuntimeLog.Error("Restart", $"Failed to restart application reason={reason}", ex);
-            return false;
-        }
-    }
-
     public static bool TryScheduleRootLauncherRestart(string reason = "app-update")
     {
         if (!LauncherUpdateService.TryResolveInstalledLauncher(
@@ -1391,18 +1351,6 @@ public static class WorkstationNetwork
             error = $"等待旧程序退出失败：{ex.Message}";
             return false;
         }
-    }
-
-    public static bool RestartAfterPurposeChange(Window? owner = null)
-    {
-        if (TryRestartApplication("workstation-role-change", owner))
-            return true;
-
-        AppDialog.Error(
-            owner,
-            "自动重启失败，请手动关闭后重新打开程序",
-            "切换用途");
-        return false;
     }
 
     internal static IReadOnlyList<int> GetDiscoveryPorts(int configuredPort)

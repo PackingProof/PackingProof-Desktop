@@ -18,7 +18,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using ExpressPackingMonitoring.ViewModels;
 using ExpressPackingMonitoring.Services.Extensions;
 using Microsoft.Win32;
 
