@@ -2418,6 +2418,14 @@ namespace ExpressPackingMonitoring.Services
         {
             switch (exception)
             {
+                case MobileBackupStorageUnavailableException storageUnavailable:
+                    // 存储盘未接入、未就绪或空间不足：客户端保留本地录像并按 storage_unavailable 自动重试
+                    SendJson(ctx, 503, new
+                    {
+                        errorCode = "storage_unavailable",
+                        error = storageUnavailable.Message
+                    });
+                    break;
                 case MobileBackupOffsetException offset:
                     SendJson(ctx, 409, new
                     {
