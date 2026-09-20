@@ -869,21 +869,22 @@ function Write-FrameCopyCost {
         $Cost.Width, $Cost.Height, (Format-Number $frameMb "F2"))
     Add-Line ("  每档跑 {0} 遍 × {1} 次，取每遍平均耗时的中位数：" -f $Cost.Rounds, $Cost.Iterations)
     Add-Line ("  Clone（分配 + 拷贝）：{0} ms/帧" -f (Format-Number $Cost.CloneMs "F3"))
+    if ($Cost.CloneCycles -gt 0) {
+        Add-Line ("    每帧 CPU 周期 {0} M" -f (Format-Number ($Cost.CloneCycles / 1e6) "F3"))
+    }
     if ($Cost.CloneMaxMs -gt 0 -and $Cost.CloneMaxMs -gt $Cost.CloneMinMs) {
         Add-Line ("    各遍区间 {0}–{1} ms（区间越宽说明当时机器越吵，关掉别的程序再量一次更准）" -f `
             (Format-Number $Cost.CloneMinMs "F3"), (Format-Number $Cost.CloneMaxMs "F3"))
     }
-    if ($Cost.CloneCycles -gt 0) {
-        Add-Line ("    其中每帧 CPU 周期 {0} M；分配 {1} ms、纯拷贝 {2} ms" -f `
-            (Format-Number ($Cost.CloneCycles / 1e6) "F3"), `
-            (Format-Number $Cost.AllocMs "F3"), `
-            (Format-Number $Cost.CopyMs "F3"))
-    }
+    $pixelAllocMs = [Math]::Max(0.0, $Cost.CloneMs - $Cost.CopyMs)
+    Add-Line ("    其中纯拷贝 {0} ms（{1} GB/s），剩下 ≈ {2} ms 是每帧重新申请像素缓冲区再触碰新页" -f `
+        (Format-Number $Cost.CopyMs "F3"), `
+        (Format-Number $Cost.GigaBytesPerSecond "F1"), `
+        (Format-Number $pixelAllocMs "F3"))
     Add-Line ("  CopyTo（复用缓冲，只拷贝）：{0} ms/帧" -f (Format-Number $Cost.CopyMs "F3"))
-    Add-Line ("  只建 Mat 不碰像素：{0} ms/帧（像素要等第一次写入才分配）" -f (Format-Number $Cost.AllocMs "F3"))
-    Add-Line ("  纯拷贝等效带宽：{0} GB/s" -f (Format-Number $Cost.GigaBytesPerSecond "F1"))
-    Add-Line "  说明：整帧 Clone 的大头是每次都要新分配一块几 MB 的内存再把页碰一遍，"
-    Add-Line "        所以它比纯拷贝贵十几倍；复用缓冲的 CopyTo 才是纯拷贝那点钱。"
+    Add-Line ("  只建 Mat 头、不申请像素：{0} ms/帧（像素要等第一次写入才分配）" -f (Format-Number $Cost.AllocMs "F3"))
+    Add-Line "  说明：整帧 Clone 的大头不是 memcpy，而是每帧新申请一块几 MB 内存再把新页碰一遍；"
+    Add-Line "        复用缓冲的 CopyTo 才是纯拷贝那点钱。"
 
     $fps = if ($Cost.Fps -gt 0) { $Cost.Fps } else { 30 }
     Add-Line ""
