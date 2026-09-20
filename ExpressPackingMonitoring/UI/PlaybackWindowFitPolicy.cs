@@ -1,3 +1,5 @@
+using LibVLCSharp.Shared;
+
 namespace ExpressPackingMonitoring.UI;
 
 /// <summary>按录像分辨率算出来的窗口尺寸。</summary>
@@ -14,6 +16,24 @@ internal readonly record struct PlaybackWindowSize(double Width, double Height);
 /// </summary>
 internal static class PlaybackWindowFitPolicy
 {
+    /// <summary>
+    /// 录像的显示尺寸：手机竖屏录像常常是"1920x1080 + 旋转 90°"（现场 clips 里就有 orient=RightTop），
+    /// 编码尺寸是横的、显示出来是竖的，必须按方向把宽高换过来，否则窗口会按错的比例算。
+    /// </summary>
+    internal static (int Width, int Height) ResolveDisplaySize(
+        uint codedWidth,
+        uint codedHeight,
+        VideoOrientation orientation)
+    {
+        bool swapped = orientation is VideoOrientation.LeftTop
+            or VideoOrientation.LeftBottom
+            or VideoOrientation.RightTop
+            or VideoOrientation.RightBottom;
+        return swapped
+            ? ((int)codedHeight, (int)codedWidth)
+            : ((int)codedWidth, (int)codedHeight);
+    }
+
     internal static PlaybackWindowSize? Calculate(
         int videoWidth,
         int videoHeight,

@@ -1375,6 +1375,11 @@ namespace ExpressPackingMonitoring.UI
                 SetTimelineValue(0);
                 TimeLabel.Text = "正在切换视频...";
 
+                // 起播前先按这段录像的分辨率把窗口调好（解析文件头，不依赖播放器状态）
+                await FitWindowToVideoBeforePlaybackAsync(video.FullPath);
+                if (_isClosing)
+                    return;
+
                 // 2. 在后台线程执行阻塞的 Stop 操作
                 await Task.Run(() =>
                 {
