@@ -12,6 +12,7 @@ param(
     [string]$Tag = "",
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
+    [switch]$SkipSetup,
     [switch]$UploadGitee,
     [string]$GiteeRepository = "PackingProof/PackingProof-Desktop"
 )
@@ -116,14 +117,41 @@ if ($zipSize -gt 100MB) {
     throw "产物超过 Gitee 单附件上限 100MB，需要进一步精简"
 }
 
+# 同样打一份安装向导：Gitee 用户和 GitHub 用户拿到的是同一种"双击安装"体验。
+$setupPath = ""
+if (-not $SkipSetup) {
+    $setupName = "PackingProof_Setup_${releaseTag}_no-runtime.exe"
+    $installerBuilder = Join-Path $PSScriptRoot "Build-Installer.ps1"
+    Write-Host "==> 生成安装向导（不含运行时）"
+    & $installerBuilder `
+        -SourceDir $packageDir `
+        -Version $normalizedVersion `
+        -OutputDir $packageRoot `
+        -OutputFileName $setupName
+    $setupPath = Join-Path $packageRoot $setupName
+    if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
+        throw "安装向导没有生成：$setupPath"
+    }
+    $setupSize = (Get-Item -LiteralPath $setupPath).Length
+    Write-Host ("==> 安装向导：{0}（{1:N1} MB）" -f $setupPath, ($setupSize / 1MB))
+    if ($setupSize -gt 100MB) {
+        Write-Host "提示：安装向导超过 Gitee 单附件上限 100MB，只上传 ZIP 版本" -ForegroundColor Yellow
+        $setupPath = ""
+    }
+}
+
 if ($UploadGitee) {
     $null = Import-GiteeTokenFromEnvFile -RepoRoot $repoRoot
     Write-Host "==> 上传到 Gitee Release $releaseTag"
-    & gitee release upload --repo $GiteeRepository --tag $releaseTag --file $zipPath
+    $uploadFiles = @($zipPath)
+    if (-not [string]::IsNullOrWhiteSpace($setupPath)) {
+        $uploadFiles += $setupPath
+    }
+    & gitee release upload --repo $GiteeRepository $releaseTag @uploadFiles
     if ($LASTEXITCODE -ne 0) {
         throw "Gitee 附件上传失败，退出码 $LASTEXITCODE"
     }
-    Write-Host "Gitee 已上传：$zipName"
+    Write-Host ("Gitee 已上传：{0}" -f (($uploadFiles | ForEach-Object { Split-Path -Leaf $_ }) -join ", "))
 }
 
 Remove-Item -LiteralPath $workRoot -Recurse -Force
