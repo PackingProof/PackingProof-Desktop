@@ -869,6 +869,10 @@ function Write-FrameCopyCost {
         $Cost.Width, $Cost.Height, (Format-Number $frameMb "F2"))
     Add-Line ("  每档跑 {0} 遍 × {1} 次，取每遍平均耗时的中位数：" -f $Cost.Rounds, $Cost.Iterations)
     Add-Line ("  Clone（分配 + 拷贝）：{0} ms/帧" -f (Format-Number $Cost.CloneMs "F3"))
+    if ($Cost.CloneMaxMs -gt 0 -and $Cost.CloneMaxMs -gt $Cost.CloneMinMs) {
+        Add-Line ("    各遍区间 {0}–{1} ms（区间越宽说明当时机器越吵，关掉别的程序再量一次更准）" -f `
+            (Format-Number $Cost.CloneMinMs "F3"), (Format-Number $Cost.CloneMaxMs "F3"))
+    }
     if ($Cost.CloneCycles -gt 0) {
         Add-Line ("    其中每帧 CPU 周期 {0} M；分配 {1} ms、纯拷贝 {2} ms" -f `
             (Format-Number ($Cost.CloneCycles / 1e6) "F3"), `
@@ -899,6 +903,12 @@ function Write-FrameCopyCost {
     }
     Add-Line "  说明：上面是省下来的纯分配与拷贝开销。采集线程原来要等这次整帧拷贝做完才能发布下一帧，"
     Add-Line "        分辨率和帧率越高，延迟与抖动上的收益越明显。"
+
+    Add-Line ""
+    Add-Line "内存（顺带）：旧版除录像队列之外还常驻 1 份整帧（处理循环的克隆源），录制或发预览时"
+    Add-Line ("  同一时刻最多活着 3 份；新版不常驻、最多 2 份，恒常少 1 份 ≈ {0} MB（{1}x{2}）" -f `
+        (Format-Number $frameMb "F2"), $Cost.Width, $Cost.Height)
+    Add-Line "  录像队列里待编码帧的份数和事件预录缓冲都没变，这两处不省内存。"
 }
 
 <#
@@ -931,6 +941,8 @@ function Measure-FrameCopyCost {
         Rounds = [Math]::Max(1, $Rounds)
         FrameBytes = 0
         CloneMs = 0.0
+        CloneMinMs = 0.0
+        CloneMaxMs = 0.0
         CloneCycles = 0.0
         CopyMs = 0.0
         AllocMs = 0.0
@@ -1050,6 +1062,11 @@ function Measure-FrameCopyCost {
         $copyMs = Get-MedianValue @($copySamples)
         $allocMs = Get-MedianValue @($allocSamples)
         $cloneCycles = Get-MedianValue @($cycleSamples)
+        $positiveCloneSamples = @($cloneSamples | Where-Object { $_ -gt 0 })
+        if ($positiveCloneSamples.Count -gt 0) {
+            $result.CloneMinMs = ($positiveCloneSamples | Measure-Object -Minimum).Minimum
+            $result.CloneMaxMs = ($positiveCloneSamples | Measure-Object -Maximum).Maximum
+        }
 
         $result.CloneMs = $cloneMs
         $result.CloneCycles = $cloneCycles
