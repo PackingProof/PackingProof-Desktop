@@ -1655,6 +1655,14 @@ namespace ExpressPackingMonitoring.UI
             PlayStateIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
             LocateFileIcon.Margin = iconOnly ? new Thickness(0) : new Thickness(0, 0, 6, 0);
             TimeLabel.MinWidth = iconOnly ? 0 : 110;
+            // 只隐藏文字是不够的：基础按钮样式带 96px 最小宽度，按钮还是那么宽。
+            // 换成纯图标样式（去最小宽度、收内边距、方形宽度），宽回来再换回主按钮样式。
+            Style buttonStyle = (Style)FindResource(iconOnly ? "IconOnlyButtonStyle" : "PrimaryButtonStyle");
+            if (!ReferenceEquals(BtnTogglePlay.Style, buttonStyle))
+            {
+                BtnTogglePlay.Style = buttonStyle;
+                BtnLocateFile.Style = buttonStyle;
+            }
         }
 
         private void UpdateLocateButtonState(VideoItem? video = null)

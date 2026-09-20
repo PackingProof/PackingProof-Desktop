@@ -534,6 +534,8 @@ public sealed class PlaybackWindowTests
     {
         string theme = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "Themes", "SliderTheme.xaml"));
+        string buttonTheme = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "Themes", "ButtonTheme.xaml"));
         string settings = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml"));
         string playbackXaml = File.ReadAllText(FindRepositoryFile(
@@ -547,6 +549,11 @@ public sealed class PlaybackWindowTests
         Assert.Contains("x:Name=\"PlaybackControlBar\"", playbackXaml, StringComparison.Ordinal);
         Assert.Contains("PlaybackControlBar_SizeChanged", codeBehind, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LocateFileText\"", playbackXaml, StringComparison.Ordinal);
+        // 轨道必须在整个高度里居中（Auto 会把 18px 轨道贴顶，看起来整根偏上）
+        Assert.Contains("<RowDefinition Height=\"*\"/>", theme, StringComparison.Ordinal);
+        // 只隐藏文字不够：基础按钮有 96px 最小宽度，必须换成纯图标样式
+        Assert.Contains("x:Key=\"IconOnlyButtonStyle\"", buttonTheme, StringComparison.Ordinal);
+        Assert.Contains("IconOnlyButtonStyle", codeBehind, StringComparison.Ordinal);
         // 时间只显示分:秒
         Assert.Contains("PlaybackTimeLabelFormatter.FormatRange(", codeBehind, StringComparison.Ordinal);
         Assert.DoesNotContain("hh\\:mm\\:ss", codeBehind, StringComparison.Ordinal);

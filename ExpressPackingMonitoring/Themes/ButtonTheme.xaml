@@ -55,6 +55,16 @@
         </Style.Triggers>
     </Style>
 
+    <!--
+        只放图标的按钮：基础样式的最小宽度是 96px，隐藏文字后按钮还是那么宽（现场反馈"宽度没变"）。
+        这一版把最小宽度与内边距收掉、宽度固定成方形，图标由模板居中。
+    -->
+    <Style x:Key="IconOnlyButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="Width" Value="36"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
     <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
