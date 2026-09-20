@@ -17,7 +17,9 @@
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="{TemplateBinding Height}" VerticalAlignment="Center">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
+                            <!-- 用 * 让轨道在整个高度里居中：Auto 会把 18px 的轨道贴到顶部，
+                                 看起来整根进度条偏上（现场反馈） -->
+                            <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Track x:Name="PART_Track"
                                Grid.Row="0"
