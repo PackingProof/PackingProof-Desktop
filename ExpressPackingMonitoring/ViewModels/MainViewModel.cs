@@ -154,6 +154,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private int _previewDisplayWidthMain;
         private int _previewDisplayWidthFloating;
         private int _previewDisplayWidth;
+        // 主界面预览是否可见（最小化/隐藏时为 false）。小窗是否在显示见 IsFloatingPreviewActive。
+        private volatile bool _isMainPreviewVisible = true;
         // 最近一次真正写进 WriteableBitmap 的尺寸：与控件显示尺寸对照就能判断有没有被放大。
         private int _publishedPreviewWidth;
         private int _publishedPreviewHeight;

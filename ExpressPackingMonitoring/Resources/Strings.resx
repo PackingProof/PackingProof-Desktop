@@ -202,6 +202,8 @@
   <data name="空闲超过这个时间后关闭摄像头" xml:space="preserve"><value>Turn off the camera after being idle for longer than this time</value></data>
   <data name="空闲超时" xml:space="preserve"><value>Idle timeout</value></data>
   <data name="空闲时省资源，有操作时再恢复" xml:space="preserve"><value>Save resources when idle and resume when operations are required</value></data>
+  <data name="关闭实时预览" xml:space="preserve"><value>Turn off the live preview</value></data>
+  <data name="只停预览画面，录像与扫码识别照常，可省 GPU" xml:space="preserve"><value>Stops only the preview image; recording and barcode recognition keep working, which saves GPU</value></data>
   <data name="快递打包监控" xml:space="preserve"><value>Express packaging monitoring</value></data>
   <data name="快要自动停止录像前，提前多久提醒" xml:space="preserve"><value>How long to remind before automatically stopping recording</value></data>
   <data name="离线语音" xml:space="preserve"><value>Offline voice</value></data>

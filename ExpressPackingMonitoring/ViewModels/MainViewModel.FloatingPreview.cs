@@ -67,6 +67,15 @@ namespace ExpressPackingMonitoring.ViewModels
         public void ReportFloatingPreviewDisplayWidth(double width) =>
             UpdatePreviewDisplayWidths(ref _previewDisplayWidthFloating, width);
 
+        /// <summary>
+        /// 主界面预览是否可见：最小化或隐藏时传 false。没有可见预览消费方时不再发布预览帧
+        /// （见 <see cref="PreviewPublishPolicy"/>），省下整帧克隆、写位图与 GPU 缩放。
+        /// </summary>
+        public void ReportMainPreviewVisibility(bool visible) => _isMainPreviewVisible = visible;
+
+        /// <summary>当前是否有可见的预览消费方（主界面可见，或小窗正在显示）。</summary>
+        private bool HasVisiblePreviewConsumer => _isMainPreviewVisible || IsFloatingPreviewActive;
+
         private void UpdatePreviewDisplayWidths(ref int slot, double width)
         {
             int pixels = double.IsFinite(width) && width > 0 ? (int)Math.Round(width) : 0;

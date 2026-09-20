@@ -1447,7 +1447,16 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void CheckPreviewWatchdog()
         {
-            if (_isDisposed || _isCameraSleeping || SuppressVideoPreviewUpdates) return;
+            // 没有可见预览时本来就不发布，看门狗不能把这当成"预览卡住"去重连摄像头
+            if (!PreviewPublishPolicy.ShouldPublish(
+                    SuppressVideoPreviewUpdates,
+                    Config.DisableLivePreview,
+                    _isDisposed,
+                    _isCameraSleeping,
+                    HasVisiblePreviewConsumer))
+            {
+                return;
+            }
             if (!IsVideoSourceRunning() || !_cameraEverConnected) return;
             if (_lastFrameTime == DateTime.MinValue || _lastPreviewPublishedAt == DateTime.MinValue) return;
             if (IsNetworkCameraGracePeriod()) return;
@@ -1525,12 +1534,24 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>预览始终跟随采集帧率，不根据焦点或空闲时间降帧。</summary>
         private int CurrentPreviewTargetFps() => PreviewFrameRatePolicy.ResolveTargetFps(_actualCameraFps);
 
-        private bool IsPreviewFrameDue() =>
-            !SuppressVideoPreviewUpdates && !_isDisposed;
+        private bool IsPreviewFrameDue() => PreviewPublishPolicy.ShouldPublish(
+            SuppressVideoPreviewUpdates,
+            Config.DisableLivePreview,
+            _isDisposed,
+            _isCameraSleeping,
+            HasVisiblePreviewConsumer);
 
         private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer, long capturedTicks)
         {
-            if (SuppressVideoPreviewUpdates || _isDisposed) return;
+            if (!PreviewPublishPolicy.ShouldPublish(
+                    SuppressVideoPreviewUpdates,
+                    Config.DisableLivePreview,
+                    _isDisposed,
+                    _isCameraSleeping,
+                    HasVisiblePreviewConsumer))
+            {
+                return;
+            }
 
             int previewSessionId = _previewSessionGate.CurrentSessionId;
 

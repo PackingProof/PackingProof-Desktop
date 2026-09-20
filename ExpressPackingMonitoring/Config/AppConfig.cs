@@ -227,6 +227,8 @@ namespace ExpressPackingMonitoring.Config
         public double MinRecordingSeconds { get; set; } = 3.0;
         public int MinVideoFileSizeKB { get; set; } = 50;
         public bool EnableCameraIdle { get; set; } = false;
+        // 关闭实时预览：只停预览发布，录像、条码识别与运动检测照常，用于省 GPU/CPU
+        public bool DisableLivePreview { get; set; } = false;
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
         public bool EnableEventRecordingBuffer { get; set; } = false;

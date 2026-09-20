@@ -1371,6 +1371,25 @@
                                             <Slider x:Name="SameCodePostRecordSecondsSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0" Maximum="5" TickFrequency="0.5" Value="{Binding Config.SameCodePostRecordSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="关闭实时预览" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="只停预览画面，录像与扫码识别照常，可省 GPU"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="DisableLivePreviewCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.DisableLivePreview}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
