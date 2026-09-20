@@ -1,11 +1,12 @@
-# 把当前分支作为 PR 提交到远程。默认先提 Gitee，合并后再把主干同步到 GitHub。
+# 把当前分支作为 PR 提交到远程。默认提到 GitHub，合并后再把主干同步到 Gitee。
 #
 #   pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-BodyFile <markdown>] `
 #       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-NoSync] [-Force] [-DryRun]
 #
 # 约定（与 AGENTS.md、docs/development/RELEASE_AND_RUNTIME.md 一致）：
 # - 不直接向 main 推送提交，一律走 PR；合并用 rebase，保留每个提交，不 squash
-# - 默认目标是 Gitee；可按仓库覆盖：仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github|both，
+# - 默认目标是 GitHub（我们自己发现的问题先在 GitHub 开 issue 并在 PR 里关联）；
+#   可按仓库覆盖：仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github|both，
 #   也可以用环境变量 PR_TARGET_HOST 或命令行 -Target 临时指定（-Target 优先级最高）
 # - PR 说明不传 -BodyFile 时，用"相对目标分支的提交列表"自动生成
 # - -Merge 用 rebase 合并 PR；合并后默认把合并结果同步到另一个远端（-NoSync 可关闭）
@@ -36,7 +37,7 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 
-$defaultTarget = "gitee"
+$defaultTarget = "github"
 
 function Write-Step {
     param([string]$Message)
@@ -57,7 +58,7 @@ function Read-DotEnvValue {
     return ""
 }
 
-# 目标优先级：命令行 -Target > 环境变量 > .env 的 PR_TARGET_HOST > 脚本默认（Gitee）
+# 目标优先级：命令行 -Target > 环境变量 > .env 的 PR_TARGET_HOST > 脚本默认（GitHub）
 function Resolve-PrTargets {
     param([string]$Requested)
 

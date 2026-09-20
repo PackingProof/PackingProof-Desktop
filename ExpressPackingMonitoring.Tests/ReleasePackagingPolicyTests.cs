@@ -513,7 +513,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void ChangePrSubmitter_DefaultsToGiteeAndStaysConfigurable()
+    public void ChangePrSubmitter_DefaultsToGithubAndStaysConfigurable()
     {
         string repositoryRoot = FindRepositoryRoot();
         string submitter = File.ReadAllText(
@@ -522,15 +522,22 @@ public sealed class ReleasePackagingPolicyTests
         string releaseDocument = File.ReadAllText(
             Path.Combine(repositoryRoot, "docs", "development", "RELEASE_AND_RUNTIME.md"),
             Encoding.UTF8);
+        string agentGuide = File.ReadAllText(
+            Path.Combine(repositoryRoot, "AGENTS.md"),
+            Encoding.UTF8);
 
-        // 改动一律走 PR，默认先提 Gitee；脚本默认值和规范必须同步，
-        // 避免流程说一套、脚本做另一套。
-        Assert.Contains("$defaultTarget = \"gitee\"", submitter, StringComparison.Ordinal);
+        // 改动一律走 PR：我们自己发现的问题先在 GitHub 开 issue，再提 PR 并在说明里关联，
+        // PR 默认提到 GitHub；别人在某个平台提的 issue 就提到那个平台。
+        // 脚本默认值和规范必须同步，避免流程说一套、脚本做另一套。
+        Assert.Contains("$defaultTarget = \"github\"", submitter, StringComparison.Ordinal);
         Assert.Contains("PR_TARGET_HOST", submitter, StringComparison.Ordinal);
         Assert.Contains("Submit-ChangePr.ps1", submitter, StringComparison.Ordinal);
         Assert.Contains("PR_TARGET_HOST", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("Submit-ChangePr.ps1", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("不再直接向 `main` 推送提交", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("先在 GitHub 开 issue", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("先在 GitHub 开 issue", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("别人在某平台提的 issue", agentGuide, StringComparison.Ordinal);
     }
 
     [Fact]
