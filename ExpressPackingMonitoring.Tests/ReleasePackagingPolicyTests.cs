@@ -526,7 +526,8 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "AGENTS.md"),
             Encoding.UTF8);
 
-        // 改动一律走 PR：我们自己发现的问题先在 GitHub 开 issue，再提 PR 并在说明里关联，
+        // 改动一律走 PR：我们自己发现的 bug 先在 GitHub 开 issue，再提 PR 并在说明里关联；
+        // 性能、功能、工具、文档这类不是 bug 的改动直接提 PR，不必为了留痕再补 issue。
         // PR 默认提到 GitHub；别人在某个平台提的 issue 就提到那个平台。
         // 脚本默认值和规范必须同步，避免流程说一套、脚本做另一套。
         Assert.Contains("$defaultTarget = \"github\"", submitter, StringComparison.Ordinal);
@@ -538,6 +539,8 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("先在 GitHub 开 issue", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("先在 GitHub 开 issue", agentGuide, StringComparison.Ordinal);
         Assert.Contains("别人在某平台提的 issue", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("不是 bug", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("不是 bug", releaseDocument, StringComparison.Ordinal);
     }
 
     [Fact]
