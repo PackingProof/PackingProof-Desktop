@@ -73,8 +73,15 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         public void ReportMainPreviewVisibility(bool visible) => _isMainPreviewVisible = visible;
 
-        /// <summary>当前是否有可见的预览消费方（主界面可见，或小窗正在显示）。</summary>
-        private bool HasVisiblePreviewConsumer => _isMainPreviewVisible || IsFloatingPreviewActive;
+        /// <summary>
+        /// 当前是否有可见的预览消费方。除主界面可见性与小窗状态外，只要任一预览控件报过显示宽度
+        /// 就一律认为有人在看：宁可多发布几帧，也不能因为状态没刷新到把画面停成灰屏。
+        /// 只有主界面被最小化/隐藏、小窗也没显示、且两边宽度都是 0 时，才判定为"没人看"。
+        /// </summary>
+        private bool HasVisiblePreviewConsumer =>
+            _isMainPreviewVisible
+            || IsFloatingPreviewActive
+            || Volatile.Read(ref _previewDisplayWidth) > 0;
 
         private void UpdatePreviewDisplayWidths(ref int slot, double width)
         {
