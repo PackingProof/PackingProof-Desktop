@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    macOS/Linux 可用的保存主机：复用主工程的录像、数据库、Web 与备份代码，
+    只排除 Windows 专有与摄像头采集相关的实现。
+    目标框架是 net8.0（不带 -windows），因此这里引用到的文件都必须是跨平台代码。
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>ExpressPackingMonitoring.Host</AssemblyName>
+    <RootNamespace>ExpressPackingMonitoring</RootNamespace>
+    <CoreProjectDirectory>$(MSBuildProjectDirectory)/../ExpressPackingMonitoring/</CoreProjectDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="MiniExcel" Version="1.45.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(CoreProjectDirectory)Resources/Strings.resx"
+                      LogicalName="ExpressPackingMonitoring.Resources.Strings.resources" />
+    <EmbeddedResource Include="$(CoreProjectDirectory)Resources/Strings.zh-Hans.resx"
+                      LogicalName="ExpressPackingMonitoring.Resources.Strings.zh-Hans.resources" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(CoreProjectDirectory)Services/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Data/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Config/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Logging/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Localization/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Helpers/**/*.cs" />
+    <Compile Include="$(CoreProjectDirectory)Workstations/**/*.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Platform/MobileConnectionService.Mac.cs" />
+
+    <!-- Windows 专有：托盘、剪贴板、注册表、任务栏、WinRT、设备卷与预录缓冲 -->
+    <Compile Remove="$(CoreProjectDirectory)Services/TrayIconService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/ClipboardHelper.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/AutoStartService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/TaskbarIdentityService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/WinRtPlacementService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/NoCameraWorkstationHost.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/MobileConnectionService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/UninstallCleanupService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Helpers/WindowsShellFileLocator.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Workstations/**/*.xaml.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Workstations/WorkstationNetwork.Wpf.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Workstations/WorkstationInstanceCoordinator.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Workstations/ManualHostConnectionWindow.xaml.cs" />
+    <!-- 条码打印与编码器选项属于 Windows 界面能力，Mac 主机不需要 -->
+    <Compile Remove="$(CoreProjectDirectory)Helpers/BarcodeHelper.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Helpers/BarcodeCommandCatalog.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Helpers/BarcodePrintLayout.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Helpers/BarcodePrintService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Helpers/EncodingHelper.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Localization/AppLanguage.Wpf.cs" />
+
+    <!-- 摄像头采集与识别：Mac 主机不录像 -->
+    <Compile Remove="$(CoreProjectDirectory)Services/CameraBarcodeGuideLayout.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/CameraBarcodeRecognitionService.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/CameraFrameOrientation.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/SmartZoomPolicy.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/NetworkCameraSource.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/Gpu/**/*.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/MediaFoundation/**/*.cs" />
+    <Compile Remove="$(CoreProjectDirectory)Services/RecordingProfileDetector.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(CoreProjectDirectory)Web/index.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Web/index.html</Link>
+    </Content>
+    <Content Include="$(CoreProjectDirectory)Web/kuaidizs-install-guide.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Web/kuaidizs-install-guide.html</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>

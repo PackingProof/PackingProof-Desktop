@@ -141,6 +141,7 @@
     <Compile Include="Input\ScannerAutoSubmitPolicy.cs" />
     <Compile Include="Logging\RuntimeLog.cs" />
     <Compile Include="Localization\AppLanguage.cs" />
+    <Compile Include="Localization\AppLanguage.Wpf.cs" />
     <Compile Include="Services\UpdateCheckOptions.cs" />
     <Compile Include="Services\OrderNumberExportService.cs" />
     <Compile Include="Services\OrderNumberExportEndpoint.cs" />
@@ -340,6 +341,7 @@
     <Compile Include="Workstations\PrintWorkstationWindow.xaml.cs" />
     <Compile Include="Workstations\ViewerClientWindow.xaml.cs" />
     <Compile Include="Workstations\WorkstationLauncher.cs" />
+    <Compile Include="Workstations\WorkstationNetwork.Wpf.cs" />
     <Compile Include="Workstations\WorkstationSelectionWindow.xaml.cs" />
   </ItemGroup>
 
