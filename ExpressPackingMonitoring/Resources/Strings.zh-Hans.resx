@@ -226,6 +226,8 @@
   <data name="普通播报声线" xml:space="preserve"><value>普通播报声线</value></data>
   <data name="启用局域网查看" xml:space="preserve"><value>启用局域网查看</value></data>
   <data name="启用录像水印" xml:space="preserve"><value>启用录像水印</value></data>
+  <data name="关闭实时预览" xml:space="preserve"><value>关闭实时预览</value></data>
+  <data name="只停预览画面，录像与扫码识别照常，可省 GPU" xml:space="preserve"><value>只停预览画面，录像与扫码识别照常，可省 GPU</value></data>
   <data name="启用面单放大" xml:space="preserve"><value>启用面单放大</value></data>
   <data name="清除已保存的显卡编码检测结果，下次重新判断可用编码器" xml:space="preserve"><value>清除已保存的显卡编码检测结果，下次重新判断可用编码器</value></data>
   <data name="全局键盘监听" xml:space="preserve"><value>全局键盘监听</value></data>

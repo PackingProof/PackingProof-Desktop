@@ -210,11 +210,13 @@ namespace ExpressPackingMonitoring.UI
                     RestoreCapsLockState();
                     // 最小化后画面交给小窗，预览按小窗尺寸发布。
                     (DataContext as MainViewModel)?.ReportMainPreviewDisplayWidth(0);
+                    (DataContext as MainViewModel)?.ReportMainPreviewVisibility(false);
                 }
                 else
                 {
                     ApplyCapsLockForScanInput();
                     ReportPreviewDisplayWidth();
+                    (DataContext as MainViewModel)?.ReportMainPreviewVisibility(true);
                 }
             };
             // 小窗只由最小化触发，主界面不新增按钮，所以控制器必须在这里提前挂好。
@@ -294,11 +296,13 @@ namespace ExpressPackingMonitoring.UI
             if (WindowState == WindowState.Minimized || !IsVisible)
             {
                 vm.ReportMainPreviewDisplayWidth(0);
+                vm.ReportMainPreviewVisibility(false);
                 return;
             }
 
             double dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleX;
             vm.ReportMainPreviewDisplayWidth(VideoImage.ActualWidth * dpiScale);
+            vm.ReportMainPreviewVisibility(true);
         }
 
         private void UpdateCameraOverlays(MainViewModel vm)

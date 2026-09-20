@@ -136,4 +136,34 @@ public sealed class PreviewDownscalePolicyTests
     {
         Assert.Null(PreviewDownscalePolicy.ResolveTarget(width, height, displayWidth));
     }
+
+    /// <summary>
+    /// issue #28：主界面最小化且小窗关闭时没有可见预览，以前会退回"按原始尺寸发布"，
+    /// 整帧克隆 + 写位图 + 传 GPU 缩放照跑，最小化后 GPU/CPU 降不下来。
+    /// 没有可见预览消费方就不发布；用户在设置里关掉实时预览同样不发布；其余情况照常发布。
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, false, false, true, true)]
+    [InlineData(false, false, false, false, false, false)]
+    [InlineData(true, false, false, false, true, false)]
+    [InlineData(false, true, false, false, true, false)]
+    [InlineData(false, false, true, false, true, false)]
+    [InlineData(false, false, false, true, true, false)]
+    public void PreviewPublishPolicy_SkipsPublishingWithoutVisiblePreviewConsumerOrWhenDisabled(
+        bool suppressed,
+        bool disabledByUser,
+        bool disposed,
+        bool cameraSleeping,
+        bool hasVisiblePreviewConsumer,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            PreviewPublishPolicy.ShouldPublish(
+                suppressed,
+                disabledByUser,
+                disposed,
+                cameraSleeping,
+                hasVisiblePreviewConsumer));
+    }
 }

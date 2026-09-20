@@ -71,4 +71,29 @@ namespace ExpressPackingMonitoring.ViewModels
             return left;
         }
     }
+
+    /// <summary>
+    /// 是否要发布预览帧。
+    ///
+    /// 关键一条：**没有可见预览消费方时不要发布**。主界面最小化/隐藏、并且小窗也关掉时，
+    /// 以前会走 <see cref="PreviewDownscalePolicy.ResolveTarget"/> 的"尺寸未知按原始尺寸发布"
+    /// 分支，于是最小化后反而在克隆 2560×1440 整帧、写位图、再传 GPU 缩放，GPU/CPU 一点没省下来
+    /// （issue #28）。判断依据用"窗口可见性 + 小窗是否在显示"，不用宽度是否为 0——
+    /// 窗口刚打开还没测量到宽度时也必须照常发布，否则预览会一直空白。
+    /// 跳过发布不影响录像、条码识别与运动检测，窗口重新可见时下一帧自动恢复。
+    /// </summary>
+    internal static class PreviewPublishPolicy
+    {
+        public static bool ShouldPublish(
+            bool suppressedByWindowState,
+            bool disabledByUser,
+            bool disposed,
+            bool cameraSleeping,
+            bool hasVisiblePreviewConsumer)
+            => !suppressedByWindowState
+            && !disabledByUser
+            && !disposed
+            && !cameraSleeping
+            && hasVisiblePreviewConsumer;
+    }
 }
