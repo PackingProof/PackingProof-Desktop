@@ -149,13 +149,13 @@ public sealed class LocalizationTests
                 inlineText.Inlines.Add(new Run("今日:"));
                 inlineText.Inlines.Add(new Run("0"));
                 var businessDataContainer = new StackPanel();
-                AppLanguage.SetAutoLocalize(businessDataContainer, false);
+                WpfLocalization.SetAutoLocalize(businessDataContainer, false);
                 var businessDataText = new TextBlock { Text = "开始录制" };
                 businessDataContainer.Children.Add(businessDataText);
 
-                Assert.True(AppLanguage.ShouldLocalizeTextProperty(ordinaryText));
-                Assert.False(AppLanguage.ShouldLocalizeTextProperty(inlineText));
-                Assert.False(AppLanguage.ShouldLocalizeTextProperty(businessDataText));
+                Assert.True(WpfLocalization.ShouldLocalizeTextProperty(ordinaryText));
+                Assert.False(WpfLocalization.ShouldLocalizeTextProperty(inlineText));
+                Assert.False(WpfLocalization.ShouldLocalizeTextProperty(businessDataText));
             }
             catch (Exception ex)
             {

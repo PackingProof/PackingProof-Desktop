@@ -4,7 +4,7 @@ using System.Resources;
 
 namespace ExpressPackingMonitoring.Localization;
 
-public static partial class AppLanguage
+public static class AppLanguage
 {
     public const string Auto = "Auto";
     public const string Chinese = "zh-Hans";

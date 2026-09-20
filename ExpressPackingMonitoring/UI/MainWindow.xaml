@@ -4,6 +4,7 @@
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         xmlns:ui="clr-namespace:ExpressPackingMonitoring.UI"
         xmlns:localization="clr-namespace:ExpressPackingMonitoring.Localization"
+        xmlns:core="clr-namespace:ExpressPackingMonitoring.Localization;assembly=ExpressPackingMonitoring.Core"
         xmlns:vm="clr-namespace:ExpressPackingMonitoring.ViewModels"
         Title="打包监控" Height="850" Width="1350"
         Background="{DynamicResource WindowBackground}" WindowState="Maximized" Closing="Window_Closing"
@@ -225,7 +226,7 @@
                             </Grid>
                         </Grid>
 
-                        <Button x:Name="RecordButton" Grid.Column="1" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Cursor="Hand" ToolTip="{x:Static localization:AppLanguage.StartRecordingText}">
+                        <Button x:Name="RecordButton" Grid.Column="1" Command="{Binding ToggleRecordingCommand}" Focusable="False" Height="52" Cursor="Hand" ToolTip="{x:Static core:AppLanguage.StartRecordingText}">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource ModernBtn}">
                                     <Setter Property="Width" Value="160"/>
@@ -250,14 +251,14 @@
                                                 </Border>
                                                     <StackPanel x:Name="RecordActionContent" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <Path x:Name="RecordActionIcon" Data="{StaticResource FluentRecordIcon}" Width="20" Height="20" Stretch="Uniform" Fill="{StaticResource TextOnAccent}" Margin="0,0,8,0"/>
-                                                        <TextBlock x:Name="RecordActionText" Text="{x:Static localization:AppLanguage.StartRecordingText}" Foreground="{StaticResource TextOnAccent}" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
+                                                        <TextBlock x:Name="RecordActionText" Text="{x:Static core:AppLanguage.StartRecordingText}" Foreground="{StaticResource TextOnAccent}" FontWeight="{TemplateBinding FontWeight}" FontSize="{TemplateBinding FontSize}"/>
                                                     </StackPanel>
                                                 </Grid>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsRecording}" Value="True">
                                                         <Setter TargetName="RecordActionIcon" Property="Data" Value="{StaticResource FluentStopIcon}"/>
-                                                        <Setter TargetName="RecordActionText" Property="Text" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
-                                                        <Setter Property="ToolTip" Value="{x:Static localization:AppLanguage.StopRecordingText}"/>
+                                                        <Setter TargetName="RecordActionText" Property="Text" Value="{x:Static core:AppLanguage.StopRecordingText}"/>
+                                                        <Setter Property="ToolTip" Value="{x:Static core:AppLanguage.StopRecordingText}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsPostRollActive}" Value="True">
                                                         <Setter TargetName="PostRollOverlay" Property="Visibility" Value="Visible"/>
@@ -491,7 +492,7 @@
                                     Margin="16"
                                     MaxWidth="560"
                                     IsHitTestVisible="False"
-                                    localization:AppLanguage.AutoLocalize="False"
+                                    localization:WpfLocalization.AutoLocalize="False"
                                     Panel.ZIndex="30">
                             <Border CornerRadius="8"
                                     Padding="12,10"

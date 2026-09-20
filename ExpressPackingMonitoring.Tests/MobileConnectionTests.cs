@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Services;
@@ -69,7 +71,7 @@ public sealed class MobileConnectionTests
     public void GeneratedQrDecodesToExactAccessUrl()
     {
         const string expected = "http://192.168.1.20:5280/?key=0123456789abcdef";
-        var bitmap = MobileConnectionService.CreateQrBitmap(expected, 320);
+        var bitmap = WpfQrCode.CreateBitmap(expected, 320);
         int stride = bitmap.PixelWidth * 4;
         var pixels = new byte[stride * bitmap.PixelHeight];
         bitmap.CopyPixels(pixels, stride, 0);
@@ -78,6 +80,46 @@ public sealed class MobileConnectionTests
             pixels,
             bitmap.PixelWidth,
             bitmap.PixelHeight,
+            RGBLuminanceSource.BitmapFormat.BGRA32);
+        var decoded = new BarcodeReaderGeneric().Decode(luminance);
+
+        Assert.NotNull(decoded);
+        Assert.Equal(expected, decoded.Text);
+    }
+
+    [Fact]
+    public void NonWindowsSvgQrDecodesToExactAccessUrl()
+    {
+        // 非 Windows 宿主（macOS 保存主机）用内置 SVG 输出二维码，这里把它还原成像素再解码验证
+        const string expected = "http://192.168.1.20:5280/?key=0123456789abcdef";
+        const string prefix = "data:image/svg+xml;base64,";
+        string dataUri = QrCodeRenderer.CreateSvgDataUri(expected, 320);
+        Assert.StartsWith(prefix, dataUri, StringComparison.Ordinal);
+        string svg = Encoding.UTF8.GetString(Convert.FromBase64String(dataUri[prefix.Length..]));
+
+        Match viewBox = Regex.Match(svg, @"viewBox=""0 0 (\d+) (\d+)""");
+        int width = int.Parse(viewBox.Groups[1].Value);
+        int height = int.Parse(viewBox.Groups[2].Value);
+        var pixels = new byte[width * height * 4];
+        for (int index = 3; index < pixels.Length; index += 4) pixels[index] = 255;
+        foreach (Match run in Regex.Matches(svg, @"M(\d+) (\d+)h(\d+)v1H\d+z"))
+        {
+            int x = int.Parse(run.Groups[1].Value);
+            int y = int.Parse(run.Groups[2].Value);
+            int length = int.Parse(run.Groups[3].Value);
+            for (int offset = 0; offset < length; offset++)
+            {
+                int index = ((y * width) + x + offset) * 4;
+                pixels[index] = 0;
+                pixels[index + 1] = 0;
+                pixels[index + 2] = 0;
+            }
+        }
+
+        var luminance = new RGBLuminanceSource(
+            pixels,
+            width,
+            height,
             RGBLuminanceSource.BitmapFormat.BGRA32);
         var decoded = new BarcodeReaderGeneric().Decode(luminance);
 

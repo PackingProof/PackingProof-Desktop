@@ -44,7 +44,7 @@ public sealed class WorkstationRestartTests
     [Fact]
     public void RestartWithoutParentArgumentDoesNotWait()
     {
-        Assert.True(WorkstationNetwork.WaitForRestartParentExit([], 0, out string error));
+        Assert.True(ApplicationRestart.WaitForRestartParentExit([], 0, out string error));
         Assert.Empty(error);
     }
 
@@ -54,7 +54,7 @@ public sealed class WorkstationRestartTests
     [InlineData("--wait-for-process-exit", "0")]
     public void InvalidRestartParentArgumentIsRejected(params string[] arguments)
     {
-        Assert.False(WorkstationNetwork.WaitForRestartParentExit(arguments, 0, out string error));
+        Assert.False(ApplicationRestart.WaitForRestartParentExit(arguments, 0, out string error));
         Assert.Contains("参数无效", error, StringComparison.Ordinal);
     }
 

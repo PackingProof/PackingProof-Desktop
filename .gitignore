@@ -18,6 +18,8 @@ ExpressPackingMonitoring.UpdateCore/bin/
 ExpressPackingMonitoring.UpdateCore/obj/
 ExpressPackingMonitoring.Host/bin/
 ExpressPackingMonitoring.Host/obj/
+ExpressPackingMonitoring.Core/bin/
+ExpressPackingMonitoring.Core/obj/
 ExpressPackingMonitoring.WinTts/bin/
 ExpressPackingMonitoring.WinTts/obj/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/

@@ -243,7 +243,7 @@ public static class WorkstationConfigStore
     }
 }
 
-public static partial class WorkstationNetwork
+public static class WorkstationNetwork
 {
     private const int DefaultHttpPort = 5280;
     private const int MaxSubnetDiscoveryHosts = 1022;
@@ -1302,53 +1302,6 @@ public static partial class WorkstationNetwork
         catch (Exception ex)
         {
             RuntimeLog.Error("Restart", $"Failed to start replacement process reason={pending.Reason}", ex);
-            return false;
-        }
-    }
-
-    internal static bool WaitForRestartParentExit(
-        IReadOnlyList<string> arguments,
-        int timeoutMilliseconds,
-        out string error)
-    {
-        error = "";
-        int optionIndex = -1;
-        for (int i = 0; i < arguments.Count; i++)
-        {
-            if (string.Equals(arguments[i], "--wait-for-process-exit", StringComparison.OrdinalIgnoreCase))
-            {
-                optionIndex = i;
-                break;
-            }
-        }
-
-        if (optionIndex < 0)
-            return true;
-        if (optionIndex + 1 >= arguments.Count ||
-            !int.TryParse(arguments[optionIndex + 1], NumberStyles.None, CultureInfo.InvariantCulture, out int processId) ||
-            processId <= 0 ||
-            processId == Environment.ProcessId)
-        {
-            error = "自动重启参数无效，请手动关闭程序后重新打开";
-            return false;
-        }
-
-        try
-        {
-            using Process parent = Process.GetProcessById(processId);
-            if (parent.WaitForExit(timeoutMilliseconds))
-                return true;
-
-            error = $"旧程序进程（PID {processId}）未能正常退出，请先在任务管理器中关闭旧程序再重新打开";
-            return false;
-        }
-        catch (ArgumentException)
-        {
-            return true;
-        }
-        catch (Exception ex)
-        {
-            error = $"等待旧程序退出失败：{ex.Message}";
             return false;
         }
     }
