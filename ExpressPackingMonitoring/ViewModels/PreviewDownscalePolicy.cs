@@ -14,8 +14,15 @@ namespace ExpressPackingMonitoring.ViewModels
     /// </summary>
     internal static class PreviewDownscalePolicy
     {
-        /// <summary>下限：再小就没有缩放的意义（也避免窗口很小时糊成一片）。</summary>
-        internal const int MinimumWidth = 640;
+        /// <summary>
+        /// 下限：比这再小就没有缩放的意义（也避免窗口很小时糊成一片）。
+        ///
+        /// 原来是 640，但小窗的预览控件只有 340px 宽：按 640 发布等于白白多搬运一倍多的像素，
+        /// 小窗模式下预览的开销几乎和主界面一样（现场反馈"小窗占用为什么不比主界面小"）。
+        /// 降到 320 后小窗按约 352×198 发布，与控件宽度匹配、画面依旧清晰，
+        /// 主界面预览远宽于 640，不受影响。
+        /// </summary>
+        internal const int MinimumWidth = 320;
 
         /// <summary>
         /// 允许的最大比例步长。16:9、4:3 这些常规比例约简后步长只有 16 和 4，按步长吸附

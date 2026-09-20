@@ -38,6 +38,21 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
+    /// 小窗预览只有约 340px 宽：发布尺寸要贴住它，而不是按主界面那档搬运。
+    /// 现场反馈"小窗占用为什么不比主界面小"，根因就是下限 640 让小窗白白多搬一倍多像素。
+    /// </summary>
+    [Fact]
+    public void FloatingWindowPublishesNearItsOwnWidth()
+    {
+        (int Width, int Height)? target = PreviewDownscalePolicy.ResolveTarget(1920, 1080, 340);
+
+        Assert.NotNull(target);
+        Assert.InRange(target!.Value.Width, 320, 400);
+        // 保持严格同比例：16:9
+        Assert.Equal(9d / 16d, (double)target.Value.Height / target.Value.Width, precision: 3);
+    }
+
+    /// <summary>
     /// 还没量到显示尺寸（窗口尚未布局）时按原始尺寸发布：发布得比控件小就会被 WPF 放大，
     /// 画面立刻发糊 —— 镜像套镜像时一层比一层糊，宁可贵一点也不放大。
     /// </summary>
