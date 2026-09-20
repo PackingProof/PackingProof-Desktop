@@ -355,7 +355,7 @@ PackingProof_Setup_vX.Y.Z.exe
 | `PackingProof_Setup_vX.Y.Z.exe`                | 推荐，大多数用户选择这个          |
 | `PackingProof_AppPatch_vX.Y.Z.zip`             | 手动更新主程序                    |
 | `PackingProof_LauncherPatch_vX.Y.Z.zip`        | 手动更新根目录启动器              |
-| `PackingProof_Setup_vX.Y.Z_no-runtime.exe`     | Gitee 专属：不含 .NET 运行时（约 60MB），需先安装 .NET 8 Desktop Runtime (x64) |
+| `PackingProof_Setup_no-runtime_vX.Y.Z.exe`     | Gitee 专属：不含 .NET 运行时（约 60MB），需先安装 .NET 8 Desktop Runtime (x64) |
 
 正式发布包通常已经包含运行所需的 .NET 运行时和 FFmpeg，不需要额外安装。
 

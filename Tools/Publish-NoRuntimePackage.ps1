@@ -48,7 +48,7 @@ $workRoot = Join-Path $repoRoot "package\.no-runtime-work"
 $publishDir = Join-Path $workRoot "publish"
 $packageDir = Join-Path $workRoot "package"
 $buildArtifacts = Join-Path $workRoot "build-artifacts"
-$zipName = "PackingProof_${releaseTag}_no-runtime.zip"
+$zipName = "PackingProof_no-runtime_$releaseTag.zip"
 $zipPath = Join-Path $packageRoot $zipName
 
 if (Test-Path -LiteralPath $workRoot) {
@@ -127,7 +127,8 @@ if ($IncludeZip) {
 # 同样打一份安装向导：Gitee 用户和 GitHub 用户拿到的是同一种"双击安装"体验。
 $setupPath = ""
 if (-not $SkipSetup) {
-    $setupName = "PackingProof_Setup_${releaseTag}_no-runtime.exe"
+    # 命名与其它产物一致：版本号放最后（PackingProof_Setup_vX.Y.Z.exe / PackingProof_AppPatch_vX.Y.Z.zip）。
+    $setupName = "PackingProof_Setup_no-runtime_$releaseTag.exe"
     $installerBuilder = Join-Path $PSScriptRoot "Build-Installer.ps1"
     Write-Host "==> 生成安装向导（不含运行时）"
     & $installerBuilder `
