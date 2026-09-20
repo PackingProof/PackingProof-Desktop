@@ -85,7 +85,7 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - 同一功能连续完善时，只有此前提交由当前代理创建、尚未推送或被他人依赖，且中间没有其他提交，才可 amend；否则创建新提交。
 - 分支整合优先 rebase，保持直线历史。已共享分支不得随意 rebase；merge 只用于共享功能分支、发布/长期分支或平台强制场景。
 - 改动一律通过远程 PR 合并到主干，禁止直接向 `main` 推送提交。
-- PR 提到哪个平台按问题来源定：我们自己发现的问题，先在 GitHub 开 issue，再提 PR 并在 PR 说明里关联那个 issue，PR 默认也提到 GitHub；别人在某平台提的 issue，就把 PR 提到那个平台（Gitee 的 issue 交 Gitee PR，GitHub 的交 GitHub PR）。
+- PR 提到哪个平台按问题来源定：我们自己发现的 **bug**，先在 GitHub 开 issue，再提 PR 并在 PR 说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某平台提的 issue，就把 PR 提到那个平台（Gitee 的 issue 交 Gitee PR，GitHub 的交 GitHub PR）。PR 默认提到 GitHub。
 - 合并后把主干同步到另一个远端。PR 目标可通过仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `github`）配置，命令行 `-Target` 优先；统一用 `Tools\Submit-ChangePr.ps1` 提交。
 - PR 提到哪个平台按问题来源决定：自己发现的 bug 默认提 Gitee；别人在某个平台提的 issue，PR 就提到那个平台（在 Gitee 提的 issue 提 Gitee PR，在 GitHub 提的 issue 提 GitHub PR）。
 - PR 合并使用 rebase，保留每个提交，不 squash；发布标签必须打在已合并到主干的提交上。
