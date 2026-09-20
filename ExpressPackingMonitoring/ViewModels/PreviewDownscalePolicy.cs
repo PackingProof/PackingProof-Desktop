@@ -75,10 +75,9 @@ namespace ExpressPackingMonitoring.ViewModels
     /// <summary>
     /// 是否要发布预览帧（硬停条件）。
     ///
-    /// 注意"没有可见预览消费方"**不在这里硬停**：那种情况由
-    /// <see cref="PreviewFrameRatePolicy.ResolveTargetFps(int, bool)"/> 降到保活帧率，
-    /// 既能省下绝大部分预览开销，又不会因为窗口状态没刷新到而把画面停成灰屏（issue #28 的教训）。
-    /// 这里只保留明确的停止条件：拖动窗口、用户主动关闭实时预览、已释放、摄像头休眠。
+    /// 停止条件：拖动窗口、用户主动关闭实时预览、已释放、摄像头休眠，以及**没有可见预览消费方**
+    /// （主界面最小化或隐藏、且小窗也没显示）。最后一条是 issue #28 的核心：没人看就不发布，
+    /// 不再走"尺寸未知按原始尺寸发布"那条最费资源的路径。
     /// </summary>
     internal static class PreviewPublishPolicy
     {
@@ -86,10 +85,12 @@ namespace ExpressPackingMonitoring.ViewModels
             bool suppressedByWindowState,
             bool disabledByUser,
             bool disposed,
-            bool cameraSleeping)
+            bool cameraSleeping,
+            bool hasVisiblePreviewConsumer)
             => !suppressedByWindowState
             && !disabledByUser
             && !disposed
-            && !cameraSleeping;
+            && !cameraSleeping
+            && hasVisiblePreviewConsumer;
     }
 }
