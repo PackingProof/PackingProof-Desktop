@@ -126,7 +126,7 @@ namespace ExpressPackingMonitoring.UI
         private bool _isClosing;
         private bool _videoLoadLoopRunning;
         private bool _playerInitializationFailed;
-        private bool _playerInitializing;
+        private Task<bool>? _playerReadyTask;
         private bool _awaitingFirstFrame;
         private int _currentPage = 1;
         private int _totalVideos;
@@ -429,6 +429,7 @@ namespace ExpressPackingMonitoring.UI
 
                 _timer.Stop();
                 _awaitingFirstFrame = false;
+                CancelAwaitingFirstFrame();
                 await Task.Run(() => _mediaPlayer?.Stop());
                 UpdatePlayState(false);
                 _currentMediaLengthMs = 0;
@@ -496,6 +497,9 @@ namespace ExpressPackingMonitoring.UI
         {
             ApplyDatePickerLimits();
             RequestVideoLoad();
+            // 提前把播放器（和 libvlc 实例）准备好：一是开窗时就能解析列表第一条录像的分辨率、
+            // 把窗口调到没有黑边；二是首次点播放不用再等初始化。
+            _ = EnsurePlayerReadyAsync();
         }
 
         private void DateFilterChanged(object sender, SelectionChangedEventArgs e)
@@ -1211,6 +1215,8 @@ namespace ExpressPackingMonitoring.UI
         private void ShowCurrentPage()
         {
             VideoList.ItemsSource = _allVideos;
+            // 列表按开始时间倒序，第一条就是最新那条：用它先把窗口调到没有黑边。
+            _ = FitWindowToNewestPlayableVideoAsync();
             int pageCount = GetPageCount();
             PageStatusText.Text = pageCount == 0
                     ? "共 0 条"
@@ -1263,6 +1269,7 @@ namespace ExpressPackingMonitoring.UI
             // 1. 停止计时器
             _timer?.Stop();
             _searchTimer?.Stop();
+            CancelAwaitingFirstFrame();
 
             // 2. 彻底释放 LibVLC 资源（注意顺序）
             if (_mediaPlayer != null)
@@ -1274,6 +1281,8 @@ namespace ExpressPackingMonitoring.UI
                     _mediaPlayer.TimeChanged -= MediaPlayer_TimeChanged;
                     _mediaPlayer.EndReached -= MediaPlayer_EndReached;
                     _mediaPlayer.EncounteredError -= MediaPlayer_EncounteredError;
+                    _mediaPlayer.Vout -= MediaPlayer_Vout;
+                    _mediaPlayer.Paused -= MediaPlayer_Paused;
 
                     if (_mediaPlayer.IsPlaying)
                     {
@@ -1377,16 +1386,19 @@ namespace ExpressPackingMonitoring.UI
 
                 // 增加一些优化参数，减少内存压力
                 media.AddOption(":file-caching=300"); // 减小缓存
+                // 先以暂停状态打开媒体：等 libvlc 解出首帧、视频输出建好（见 PlaybackWindow.Playback.cs）
+                // 再放开播放。否则时钟立刻开始走，画面还没上屏的前几帧就被丢掉了。
+                media.AddOption(":start-paused");
 
-                _awaitingFirstFrame = true;
+                BeginAwaitingFirstFrame();
                 if (!_mediaPlayer!.Play(media))
                     throw new InvalidOperationException("播放器未能启动该文件");
 
-                _timer.Start();
-                UpdatePlayState(true);
+                // 放开播放与开始计时都交给"首帧就绪"那一步，这里不再提前把状态改成播放中。
             }
             catch (Exception ex)
             {
+                CancelAwaitingFirstFrame();
                 ShowPlaybackCover("视频播放失败");
                 UpdatePlayState(false);
                 AppDialog.Error(this, $"视频播放失败：{ex.Message}", "播放错误");
@@ -1400,7 +1412,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void BtnTogglePlay_Click(object sender, RoutedEventArgs e)
         {
-            if (_mediaPlayer?.Media == null)
+            if (_mediaPlayer == null)
                 return;
 
             if (_isPlaying)
@@ -1408,13 +1420,23 @@ namespace ExpressPackingMonitoring.UI
                 _mediaPlayer.Pause();
                 _timer.Stop();
                 UpdatePlayState(false);
+                return;
             }
-            else
+
+            // 播完（Ended）/ 停止（Stopped）/ 出错（Error）之后媒体已经不在可播放状态，
+            // SetPause(false) 不会让它重新开始 —— 现场表现就是"第一次播完再点播放没反应"。
+            // 这几种情况要从头重播这一段。
+            if (_mediaPlayer.Media == null
+                || _mediaPlayer.State is VLCState.Ended or VLCState.Stopped or VLCState.Error)
             {
-                _mediaPlayer.SetPause(false);
-                _timer.Start();
-                UpdatePlayState(true);
+                if (VideoList.SelectedItem is VideoItem video && !video.IsUnavailable)
+                    PlaySelectedVideo(video);
+                return;
             }
+
+            _mediaPlayer.SetPause(false);
+            _timer.Start();
+            UpdatePlayState(true);
         }
 
         private void BtnLocateFile_Click(object sender, RoutedEventArgs e)
@@ -1468,7 +1490,9 @@ namespace ExpressPackingMonitoring.UI
             Dispatcher.BeginInvoke(() =>
             {
                 if (!this.IsLoaded) return;
-                RevealPlaybackSurfaceAfterFirstFrame();
+                // 等首帧期间 libvlc 也会报时间变化，这时不能揭掉封面，否则会先看到一块黑底。
+                if (!_pendingStartUnpause)
+                    RevealPlaybackSurfaceAfterFirstFrame();
                 SetTimelineValue(e.Time / 1000.0);
                 UpdateTimeLabel(e.Time, _currentMediaLengthMs);
             });
@@ -1476,6 +1500,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void MediaPlayer_EndReached(object? sender, EventArgs e)
         {
+            CancelAwaitingFirstFrame();
             Dispatcher.Invoke(() =>
             {
                 _timer.Stop();
@@ -1486,6 +1511,7 @@ namespace ExpressPackingMonitoring.UI
 
         private void MediaPlayer_EncounteredError(object? sender, EventArgs e)
         {
+            CancelAwaitingFirstFrame();
             Dispatcher.Invoke(() =>
             {
                 ShowPlaybackCover("视频解码失败");
@@ -1604,7 +1630,14 @@ namespace ExpressPackingMonitoring.UI
             BtnLocateFile.IsEnabled = current != null && !current.IsUnavailable;
         }
 
-        private async Task<bool> EnsurePlayerReadyAsync()
+        /// <summary>
+        /// 播放器只初始化一次；开窗时的提前初始化和用户第一次点播放共享同一个任务，
+        /// 否则"初始化进行中"的那次点击会被当成失败直接返回（点了没反应）。
+        /// </summary>
+        private Task<bool> EnsurePlayerReadyAsync() =>
+            _playerReadyTask ??= InitializePlayerAsync();
+
+        private async Task<bool> InitializePlayerAsync()
         {
             if (_playerInitializationFailed)
                 return false;
@@ -1612,10 +1645,6 @@ namespace ExpressPackingMonitoring.UI
             if (_mediaPlayer != null)
                 return true;
 
-            if (_playerInitializing)
-                return false;
-
-            _playerInitializing = true;
             TimeLabel.Text = "正在加载播放器...";
             BtnTogglePlay.IsEnabled = false;
             TimelineSlider.IsEnabled = false;
@@ -1638,6 +1667,9 @@ namespace ExpressPackingMonitoring.UI
                 _mediaPlayer.TimeChanged += MediaPlayer_TimeChanged;
                 _mediaPlayer.EndReached += MediaPlayer_EndReached;
                 _mediaPlayer.EncounteredError += MediaPlayer_EncounteredError;
+                // 首帧/视频输出就绪：这一对事件决定什么时候放开播放（见 PlaybackWindow.Playback.cs）
+                _mediaPlayer.Vout += MediaPlayer_Vout;
+                _mediaPlayer.Paused += MediaPlayer_Paused;
                 PlayerView.MediaPlayer = _mediaPlayer;
                 BtnTogglePlay.IsEnabled = true;
                 TimelineSlider.IsEnabled = true;
@@ -1648,10 +1680,6 @@ namespace ExpressPackingMonitoring.UI
                 _playerInitializationFailed = true;
                 AppDialog.Error(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放", "回放错误");
                 return false;
-            }
-            finally
-            {
-                _playerInitializing = false;
             }
         }
 

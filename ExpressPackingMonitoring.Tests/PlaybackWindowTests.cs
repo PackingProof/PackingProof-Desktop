@@ -433,6 +433,60 @@ public sealed class PlaybackWindowTests
         Assert.DoesNotContain("PlaybackFileResolver.ResolvePlaybackPath", codeBehind, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 起播必须等首帧：媒体以 :start-paused 打开，Vout/Paused（或兜底计时）到了再放开播放。
+    /// 否则时钟立刻开始走，画面还没上屏的前几帧会被丢掉（现场反馈"开头少几帧"）。
+    /// </summary>
+    [Fact]
+    public void PlaybackStartsPausedAndUnpausesAfterFirstFrame()
+    {
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        string playback = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs"));
+
+        Assert.Contains("media.AddOption(\":start-paused\")", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("BeginAwaitingFirstFrame();", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("_mediaPlayer.Vout += MediaPlayer_Vout;", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("_mediaPlayer.Paused += MediaPlayer_Paused;", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("_mediaPlayer.SetPause(false);", playback, StringComparison.Ordinal);
+        Assert.Contains("FirstFrameFallback", playback, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 第一次播完（Ended）之后再点播放按钮必须从头重播：SetPause(false) 在结束状态上不起作用。
+    /// </summary>
+    [Fact]
+    public void TogglePlayRestartsAfterPlaybackEnded()
+    {
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        int handlerStart = codeBehind.IndexOf("private void BtnTogglePlay_Click", StringComparison.Ordinal);
+        Assert.True(handlerStart >= 0, "找不到播放/暂停按钮处理");
+        int handlerEnd = codeBehind.IndexOf("private void BtnLocateFile_Click", handlerStart, StringComparison.Ordinal);
+        string handler = codeBehind[handlerStart..handlerEnd];
+
+        Assert.Contains("VLCState.Ended", handler, StringComparison.Ordinal);
+        Assert.Contains("PlaySelectedVideo(video)", handler, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 开窗时按列表第一条（开始时间倒序 = 最新那条）的分辨率先把窗口调好，播放时再按实际尺寸校正。
+    /// </summary>
+    [Fact]
+    public void PlaybackWindowFitsWindowToVideoAspect()
+    {
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+        string playback = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs"));
+
+        Assert.Contains("FitWindowToNewestPlayableVideoAsync()", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("FitWindowToPlayingVideo();", playback, StringComparison.Ordinal);
+        Assert.Contains("PlaybackWindowFitPolicy.Calculate(", playback, StringComparison.Ordinal);
+        Assert.Contains("_mediaPlayer.Size(0, ref width, ref height)", playback, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] relativeParts)
     {
         foreach (string startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
