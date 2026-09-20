@@ -648,6 +648,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (e.Raw.HasValue)
                 {
+                    Interlocked.Increment(ref _cameraRawOnlyFrames);
                     // 这一帧只有原始采样：唯一消费者是预录环，当场拷进环形缓冲就完事，
                     // 不做 NV12→BGR，也不进处理循环（这个状态下预览、识别、录像都不需要帧）。
                     if (ShouldCaptureEventRecordingBufferFrame())
@@ -660,6 +661,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 Mat frame = e.Frame;
                 if (frame == null)
                     return;
+                Interlocked.Increment(ref _cameraBgrFrames);
                 if (ShouldCaptureEventRecordingBufferFrame())
                     UpdatePreRecordBuffer(frame);
                 HandleCameraFrame(frame);
@@ -895,6 +897,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _lastFrameTime = DateTime.Now;
             Interlocked.Increment(ref _cameraFramesDelivered);
+            Interlocked.Increment(ref _cameraBgrFrames);
             MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
@@ -916,6 +919,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             _lastFrameTime = DateTime.Now;
             Interlocked.Increment(ref _cameraFramesDelivered);
+            Interlocked.Increment(ref _cameraBgrFrames);
             MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
@@ -1773,12 +1777,26 @@ namespace ExpressPackingMonitoring.ViewModels
                 long managedMb = GC.GetTotalMemory(false) / 1024 / 1024;
                 long workingSetMb = process.WorkingSet64 / 1024 / 1024;
                 long privateMb = process.PrivateMemorySize64 / 1024 / 1024;
-                return $"ws={workingSetMb}MB, private={privateMb}MB, managed={managedMb}MB, handles={process.HandleCount}, threads={process.Threads.Count}, gc0={GC.CollectionCount(0)}, gc1={GC.CollectionCount(1)}, gc2={GC.CollectionCount(2)}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
+                return $"ws={workingSetMb}MB, private={privateMb}MB, managed={managedMb}MB, handles={process.HandleCount}, threads={process.Threads.Count}, gc0={GC.CollectionCount(0)}, gc1={GC.CollectionCount(1)}, gc2={GC.CollectionCount(2)}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, {BuildFrameRequestSnapshot()}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
             }
             catch (Exception ex)
             {
-                return $"health unavailable: {ex.Message}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
+                return $"health unavailable: {ex.Message}, frameAge={frameAge:F1}s, previewAge={previewAge:F1}s, uiAge={uiAge:F1}s, {previewStats}, {BuildFrameRequestSnapshot()}, pending={(_previewSessionGate.IsPending ? 1 : 0)}, recording={IsRecording}, videoQueue={videoQueueCount}, audioQueue={audioQueueCount}";
             }
+        }
+
+        /// <summary>
+        /// 采集帧的交付模式与累计计数：raw 模式只在"预录是唯一消费者"时生效，
+        /// 现场看这一项就知道这条路到底有没有被触发、触发占比多少（配合 cpu/内存一起看）。
+        /// rawOnly 与 bgr 都是自启动以来的累计值，两条对比即可算出比例。
+        /// </summary>
+        private string BuildFrameRequestSnapshot()
+        {
+            long rawOnly = Volatile.Read(ref _cameraRawOnlyFrames);
+            long bgr = Volatile.Read(ref _cameraBgrFrames);
+            long total = rawOnly + bgr;
+            double rawPercent = total > 0 ? rawOnly * 100.0 / total : 0;
+            return $"frameRequest={(CameraFrameNeedsBgr() ? "bgr" : "raw")}, rawOnlyFrames={rawOnly}, bgrFrames={bgr}, rawPercent={rawPercent:F1}";
         }
 
         /// <summary>

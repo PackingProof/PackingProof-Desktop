@@ -76,6 +76,10 @@ namespace ExpressPackingMonitoring.ViewModels
         private Mat _preRecordDecodeBuffer;
         /// <summary>采集端累计交付的帧数（含只有原始采样的那些），供录制前的就绪判断使用。</summary>
         private long _cameraFramesDelivered;
+        /// <summary>只交原始采样、不进处理循环的帧数（raw 模式生效的证据，见 Health 日志）。</summary>
+        private long _cameraRawOnlyFrames;
+        /// <summary>正常转成 BGR 交付的帧数。</summary>
+        private long _cameraBgrFrames;
         private const long PreRecordBufferHardMaxBytes = 8L * 1024 * 1024 * 1024;
 
         private BlockingCollection<RecordingVideoFrame> _videoWriteQueue;
