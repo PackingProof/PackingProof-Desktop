@@ -1451,7 +1451,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     SuppressVideoPreviewUpdates,
                     Config.DisableLivePreview,
                     _isDisposed,
-                    _isCameraSleeping))
+                    _isCameraSleeping,
+                    HasVisiblePreviewConsumer))
             {
                 return;
             }
@@ -1536,14 +1537,14 @@ namespace ExpressPackingMonitoring.ViewModels
         private int CurrentPreviewTargetFps() =>
             PreviewFrameRatePolicy.ResolveTargetFps(
                 _actualCameraFps,
-                HasVisiblePreviewConsumer,
                 DateTime.Now - _lastActivityTime);
 
         private bool IsPreviewFrameDue() => PreviewPublishPolicy.ShouldPublish(
             SuppressVideoPreviewUpdates,
             Config.DisableLivePreview,
             _isDisposed,
-            _isCameraSleeping);
+            _isCameraSleeping,
+            HasVisiblePreviewConsumer);
 
         private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer, long capturedTicks)
         {
@@ -1551,8 +1552,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     SuppressVideoPreviewUpdates,
                     Config.DisableLivePreview,
                     _isDisposed,
-                    _isCameraSleeping))
+                    _isCameraSleeping,
+                    HasVisiblePreviewConsumer))
             {
+                LogPreviewPausedIfDue();
                 return;
             }
 
@@ -1607,6 +1610,24 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Warn("Preview", $"Preview bitmap conversion failed, {BuildResourceHealthSnapshot()}");
                 }
             }
+        }
+
+        /// <summary>
+        /// 预览因为"没有可见消费方"或用户关闭而暂停时，按 30 秒节流记一条状态，
+        /// 现场再看"画面为什么不动/为什么灰"时一眼能看出是哪个条件生效。
+        /// </summary>
+        private void LogPreviewPausedIfDue()
+        {
+            DateTime now = DateTime.Now;
+            if (now - _lastPreviewPauseLogAt < TimeSpan.FromSeconds(30))
+                return;
+
+            _lastPreviewPauseLogAt = now;
+            RuntimeLog.Info(
+                "Preview",
+                $"预览已暂停：mainVisible={_isMainPreviewVisible}, floatingActive={IsFloatingPreviewActive}, "
+                    + $"displayWidth={Volatile.Read(ref _previewDisplayWidth)}, userDisabled={Config.DisableLivePreview}, "
+                    + $"suppressed={SuppressVideoPreviewUpdates}, sleeping={_isCameraSleeping}, recording={IsRecording}");
         }
 
         private void ScheduleLatestPreviewFrame(int previewSessionId, System.Windows.Threading.Dispatcher dispatcher)

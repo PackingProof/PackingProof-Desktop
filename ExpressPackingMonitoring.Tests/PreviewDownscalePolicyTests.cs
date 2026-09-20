@@ -138,20 +138,22 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
-    /// 预览发布的硬停条件：拖动窗口、用户关闭实时预览、已释放、摄像头休眠时不发布；
-    /// 其余情况照常发布（"没有可见预览消费方"由帧率降到保活档处理，不再硬停，避免灰屏）。
+    /// 预览发布的停止条件：拖动窗口、用户关闭实时预览、已释放、摄像头休眠，
+    /// 以及**没有可见预览消费方**（最小化/隐藏且小窗未显示）——没人看就不浪费资源。
     /// </summary>
     [Theory]
-    [InlineData(false, false, false, false, true)]
-    [InlineData(true, false, false, false, false)]
-    [InlineData(false, true, false, false, false)]
-    [InlineData(false, false, true, false, false)]
-    [InlineData(false, false, false, true, false)]
-    public void PreviewPublishPolicy_StopsOnlyOnExplicitConditions(
+    [InlineData(false, false, false, false, true, true)]
+    [InlineData(false, false, false, false, false, false)]
+    [InlineData(true, false, false, false, true, false)]
+    [InlineData(false, true, false, false, true, false)]
+    [InlineData(false, false, true, false, true, false)]
+    [InlineData(false, false, false, true, true, false)]
+    public void PreviewPublishPolicy_StopsWhenNobodyIsWatching(
         bool suppressed,
         bool disabledByUser,
         bool disposed,
         bool cameraSleeping,
+        bool hasVisiblePreviewConsumer,
         bool expected)
     {
         Assert.Equal(
@@ -160,29 +162,27 @@ public sealed class PreviewDownscalePolicyTests
                 suppressed,
                 disabledByUser,
                 disposed,
-                cameraSleeping));
+                cameraSleeping,
+                hasVisiblePreviewConsumer));
     }
 
     /// <summary>
-    /// 预览按"有没有人在看"分档：有人在看且刚操作过 → 满帧；界面还显示但 1 分钟没人动 → 15fps；
-    /// 5 分钟没人动 → 4fps；没有可见预览消费方 → 2fps 保活（不硬停，避免灰屏）。
+    /// 界面可见时的空闲降档：刚操作过 → 满帧；1 分钟没人动 → 15fps；5 分钟没人动 → 4fps。
     /// 降档只在低于摄像头帧率时生效，摄像头本来只有 10fps 时不会被"提高"到 15fps。
+    /// （没人看时不走这里，直接不发布，见 PreviewPublishPolicy。）
     /// </summary>
     [Theory]
-    [InlineData(60, true, 0, 60)]
-    [InlineData(60, true, 59, 60)]
-    [InlineData(60, true, 60, PreviewFrameRatePolicy.ReducedFps)]
-    [InlineData(60, true, 299, PreviewFrameRatePolicy.ReducedFps)]
-    [InlineData(60, true, 300, PreviewFrameRatePolicy.LowFps)]
-    [InlineData(60, true, 3600, PreviewFrameRatePolicy.LowFps)]
-    [InlineData(60, false, 0, PreviewFrameRatePolicy.KeepAliveFps)]
-    [InlineData(60, false, 3600, PreviewFrameRatePolicy.KeepAliveFps)]
-    [InlineData(0, true, 0, PreviewFrameRatePolicy.FallbackCameraFps)]
-    [InlineData(10, true, 0, 10)]
-    [InlineData(10, true, 60, 10)]
-    public void PreviewFrameRatePolicy_TiersByIdleAndVisibleConsumer(
+    [InlineData(60, 0, 60)]
+    [InlineData(60, 59, 60)]
+    [InlineData(60, 60, PreviewFrameRatePolicy.ReducedFps)]
+    [InlineData(60, 299, PreviewFrameRatePolicy.ReducedFps)]
+    [InlineData(60, 300, PreviewFrameRatePolicy.LowFps)]
+    [InlineData(60, 3600, PreviewFrameRatePolicy.LowFps)]
+    [InlineData(0, 0, PreviewFrameRatePolicy.FallbackCameraFps)]
+    [InlineData(10, 0, 10)]
+    [InlineData(10, 60, 10)]
+    public void PreviewFrameRatePolicy_TiersByIdle(
         int cameraFps,
-        bool hasVisibleConsumer,
         int idleSeconds,
         int expected)
     {
@@ -190,7 +190,6 @@ public sealed class PreviewDownscalePolicyTests
             expected,
             PreviewFrameRatePolicy.ResolveTargetFps(
                 cameraFps,
-                hasVisibleConsumer,
                 TimeSpan.FromSeconds(idleSeconds)));
     }
 }
