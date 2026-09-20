@@ -224,7 +224,8 @@ else {
 }
 
 # 更新清单的标题和摘要以前总要手工补，现在改成发布前必须已经是填好的内容。
-Assert-UpdateManifestReady -UpdateJsonPath $updateJsonPath -ExpectedTitle $releaseTitle
+# 顺带守卫：产物里已经有 AppPatch 时，清单必须带上它，否则启动器拿不到增量更新。
+Assert-UpdateManifestReady -UpdateJsonPath $updateJsonPath -ExpectedTitle $releaseTitle -AppPatchPath $appPatchPath
 
 # 发布笔记必须覆盖上一个正式版以来的全部提交：先生成清单，再要求人工确认。
 $previousReleaseTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $releaseTag

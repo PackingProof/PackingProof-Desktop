@@ -135,7 +135,8 @@ function Get-ReleaseNotesProblems {
 function Assert-UpdateManifestReady {
     param(
         [Parameter(Mandatory = $true)][string]$UpdateJsonPath,
-        [Parameter(Mandatory = $true)][string]$ExpectedTitle
+        [Parameter(Mandatory = $true)][string]$ExpectedTitle,
+        [string]$AppPatchPath = ""
     )
 
     if (-not (Test-Path -LiteralPath $UpdateJsonPath -PathType Leaf)) {
@@ -155,6 +156,17 @@ function Assert-UpdateManifestReady {
     foreach ($note in $notes) {
         if ($note.Contains("请填写", [System.StringComparison]::Ordinal)) {
             throw "更新清单 notes 还是占位内容：$note"
+        }
+    }
+
+    # 产物里已经生成了增量包时，清单必须带上它。现场踩过：打包后手工还原了"生成补丁包之前"
+    # 的清单，patch_supported=false / patch_package=null，发布出去的清单不带补丁包，
+    # 启动器就永远拿不到增量更新，只能靠人工发现（v0.0.69 出过一次）。
+    if (-not [string]::IsNullOrWhiteSpace($AppPatchPath) -and
+        (Test-Path -LiteralPath $AppPatchPath -PathType Leaf)) {
+        $patchDeclared = ($manifest.patch_supported -eq $true) -and ($null -ne $manifest.patch_package)
+        if (-not $patchDeclared) {
+            throw "更新清单没有带上已生成的增量包：$UpdateJsonPath 里 patch_supported=$($manifest.patch_supported)、patch_package=$($manifest.patch_package)，但产物目录里存在 $(Split-Path -Leaf $AppPatchPath)。请把补丁包的 type、url、github_url、gitee_url、sha256、size 写进清单（可直接对已生成的补丁包算哈希）后再发布"
         }
     }
 
