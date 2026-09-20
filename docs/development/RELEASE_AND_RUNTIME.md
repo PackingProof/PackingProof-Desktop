@@ -66,7 +66,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 | --- | --- |
 | GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch |
 | Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup |
-| Gitee 专属（可选） | `PackingProof_vX.Y.Z_no-runtime.zip`：不含 .NET 运行时的清爽包。Gitee 单附件上限 100MB，自包含 Setup 放不下，这个包约 90MB 可以作为 Gitee 用户的全量下载入口。用 `pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 用 `--self-contained false` 重新发布。运行时没变时 AppPatch 不含运行时文件，所以这类安装同样能正常自动更新 |
+| Gitee 专属（可选） | `PackingProof_Setup_vX.Y.Z_no-runtime.exe`：不含 .NET 运行时的安装向导（约 60MB），给 Gitee 用户一个"双击安装"的全量入口 —— Gitee 单附件上限 100MB，自包含 Setup 约 110MB 传不上去。用 `pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 用 `--self-contained false` 重新发布。运行时没变时 AppPatch 不含运行时文件，所以这类安装同样能正常自动更新。默认不上传 ZIP 免安装包，确有需要时加 `-IncludeZip` |
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release，默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`。对外分发只有 Setup、AppPatch 与 update JSON（普通用户通过启动器自动更新，无需手动下载清单）。
 
