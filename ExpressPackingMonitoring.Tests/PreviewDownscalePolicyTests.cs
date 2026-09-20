@@ -164,19 +164,33 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
-    /// issue #28 的解法：没有可见预览消费方时把预览帧率降到保活档，而不是完全不发布。
-    /// 预览每帧都要整帧克隆 + 缩放 + 写位图，降帧能省掉绝大部分开销；画面只是变慢，不会变灰。
+    /// 预览按"有没有人在看"分档：有人在看且刚操作过 → 满帧；界面还显示但 1 分钟没人动 → 15fps；
+    /// 5 分钟没人动 → 4fps；没有可见预览消费方 → 2fps 保活（不硬停，避免灰屏）。
+    /// 降档只在低于摄像头帧率时生效，摄像头本来只有 10fps 时不会被"提高"到 15fps。
     /// </summary>
     [Theory]
-    [InlineData(60, true, 60)]
-    [InlineData(60, false, PreviewFrameRatePolicy.KeepAliveFps)]
-    [InlineData(0, false, PreviewFrameRatePolicy.KeepAliveFps)]
-    [InlineData(0, true, PreviewFrameRatePolicy.FallbackCameraFps)]
-    public void PreviewFrameRatePolicy_KeepsAliveRateWhenNothingIsWatching(
+    [InlineData(60, true, 0, 60)]
+    [InlineData(60, true, 59, 60)]
+    [InlineData(60, true, 60, PreviewFrameRatePolicy.ReducedFps)]
+    [InlineData(60, true, 299, PreviewFrameRatePolicy.ReducedFps)]
+    [InlineData(60, true, 300, PreviewFrameRatePolicy.LowFps)]
+    [InlineData(60, true, 3600, PreviewFrameRatePolicy.LowFps)]
+    [InlineData(60, false, 0, PreviewFrameRatePolicy.KeepAliveFps)]
+    [InlineData(60, false, 3600, PreviewFrameRatePolicy.KeepAliveFps)]
+    [InlineData(0, true, 0, PreviewFrameRatePolicy.FallbackCameraFps)]
+    [InlineData(10, true, 0, 10)]
+    [InlineData(10, true, 60, 10)]
+    public void PreviewFrameRatePolicy_TiersByIdleAndVisibleConsumer(
         int cameraFps,
         bool hasVisibleConsumer,
+        int idleSeconds,
         int expected)
     {
-        Assert.Equal(expected, PreviewFrameRatePolicy.ResolveTargetFps(cameraFps, hasVisibleConsumer));
+        Assert.Equal(
+            expected,
+            PreviewFrameRatePolicy.ResolveTargetFps(
+                cameraFps,
+                hasVisibleConsumer,
+                TimeSpan.FromSeconds(idleSeconds)));
     }
 }

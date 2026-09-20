@@ -1530,10 +1530,14 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 预览帧率跟随采集帧率；没有可见预览消费方时降到保活帧率（见 PreviewFrameRatePolicy）。
+        /// 预览帧率：有人在看且有操作时跟采集帧率；空闲 1 分钟降到 15fps、5 分钟降到 4fps；
+        /// 没有可见预览消费方时降到 2fps 保活。见 PreviewFrameRatePolicy。
         /// </summary>
         private int CurrentPreviewTargetFps() =>
-            PreviewFrameRatePolicy.ResolveTargetFps(_actualCameraFps, HasVisiblePreviewConsumer);
+            PreviewFrameRatePolicy.ResolveTargetFps(
+                _actualCameraFps,
+                HasVisiblePreviewConsumer,
+                DateTime.Now - _lastActivityTime);
 
         private bool IsPreviewFrameDue() => PreviewPublishPolicy.ShouldPublish(
             SuppressVideoPreviewUpdates,
