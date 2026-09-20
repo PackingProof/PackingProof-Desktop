@@ -1244,18 +1244,22 @@ namespace ExpressPackingMonitoring.ViewModels
                             }
                         }
 
+                        // 运动检测只读原始画面：水印就地绘制之前先算，免得上一次的水印时间被当成画面变化。
+                        if (IsRecording && frameTickCounter % 30 == 0)
+                        {
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.MotionDetection, currentFrameSequence);
+                            TryPerformMotionDetection(currentFrame);
+                        }
+
                         bool previewPublishDue = ShouldPublishPreviewFrameNow();
 
-                        // 非录制状态只为真正要发布的预览帧绘制水印，避免按摄像头满帧率克隆整帧。
+                        // 水印直接画在处理循环独占的这一帧上；非录制状态只为真正要发布的预览帧绘制，
+                        // 空闲降档时不会按摄像头满帧率反复画水印。
                         if (Config.EnableWatermark && (IsRecording || previewPublishDue))
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Watermark, currentFrameSequence);
                             try
                             {
-                                if (processedFrame == currentFrame)
-                                {
-                                    processedFrame = currentFrame.Clone();
-                                }
                                 string orderId = IsRecording ? _recordingOrderId : CurrentOrderId;
                                 IReadOnlyList<string> extensionLines = Config.EnableThirdPartyWatermark && IsRecording
                                     && string.Equals(_recordingWatermarkSnapshot.RecordingSessionId, _recordingSessionId, StringComparison.Ordinal)
@@ -1266,11 +1270,6 @@ namespace ExpressPackingMonitoring.ViewModels
                             catch { }
                         }
 
-                        if (IsRecording && frameTickCounter % 30 == 0)
-                        {
-                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.MotionDetection, currentFrameSequence);
-                            TryPerformMotionDetection(currentFrame);
-                        }
                         if (previewPublishDue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);

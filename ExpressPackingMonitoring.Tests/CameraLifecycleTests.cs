@@ -316,6 +316,7 @@ public sealed class CameraLifecycleTests
     /// <summary>
     /// 处理循环必须取走整帧所有权，不能每轮整帧克隆：1080p 一帧 6MB，60fps 就是 360MB/s 的拷贝，
     /// 而且原来那次拷贝还在 _frameLock 里做，采集线程要等它拷完才能发布下一帧。
+    /// 水印同理：帧已经归处理循环独占，就地绘制即可，不要再克隆一份。
     /// </summary>
     [Fact]
     public void VideoProcessLoopTakesFrameOwnershipInsteadOfCloningEveryFrame()
@@ -327,5 +328,6 @@ public sealed class CameraLifecycleTests
 
         Assert.Contains("_latestCameraFrame.Take()", loop, StringComparison.Ordinal);
         Assert.DoesNotContain("currentFrame = _latestFrame.Clone()", loop, StringComparison.Ordinal);
+        Assert.DoesNotContain("processedFrame = currentFrame.Clone();", loop, StringComparison.Ordinal);
     }
 }
