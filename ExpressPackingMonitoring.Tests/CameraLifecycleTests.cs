@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ExpressPackingMonitoring.ViewModels;
 using Xunit;
 
@@ -264,6 +265,37 @@ public sealed class CameraLifecycleTests
         bool ready = await signal.WaitAsync(TimeSpan.FromMilliseconds(30));
 
         Assert.False(ready);
+    }
+
+    /// <summary>
+    /// 就绪信号是一次性的：本会话收到过帧之后 WaitAsync 立即返回 true。
+    /// 等新帧的逻辑必须自己按固定节拍让出时间片，否则"等新帧"会变成空转（扫码卡住时能把界面拖死）。
+    /// </summary>
+    [Fact]
+    public void CameraFrameWaitPolicy_AlwaysYieldsForPositiveRemainingTime()
+    {
+        Assert.Equal(TimeSpan.FromMilliseconds(50), CameraFrameWaitPolicy.ResolvePollDelay(TimeSpan.FromSeconds(3)));
+        Assert.Equal(TimeSpan.FromMilliseconds(50), CameraFrameWaitPolicy.ResolvePollDelay(TimeSpan.FromMilliseconds(50)));
+        Assert.Equal(TimeSpan.FromMilliseconds(10), CameraFrameWaitPolicy.ResolvePollDelay(TimeSpan.FromMilliseconds(10)));
+        Assert.True(CameraFrameWaitPolicy.ResolvePollDelay(TimeSpan.FromTicks(1)) > TimeSpan.Zero);
+    }
+
+    /// <summary>已完成的一次性信号必须立刻返回——这正是轮询循环要自己 sleep 的原因。</summary>
+    [Fact]
+    public async Task CameraFrameReadySignal_CompletedSessionReturnsImmediately()
+    {
+        var signal = new CameraFrameReadySignal();
+        signal.BeginSession();
+        signal.Signal();
+
+        var watch = Stopwatch.StartNew();
+        bool ready = await signal.WaitAsync(TimeSpan.FromSeconds(2));
+        watch.Stop();
+
+        Assert.True(ready);
+        Assert.True(
+            watch.Elapsed < TimeSpan.FromMilliseconds(500),
+            $"已完成的一次性信号应立即返回，实际等了 {watch.ElapsedMilliseconds}ms");
     }
 
     /// <summary>
