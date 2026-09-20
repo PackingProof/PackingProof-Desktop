@@ -4617,6 +4617,7 @@ namespace ExpressPackingMonitoring.Services
                 return new
                 {
                     path = path.DisplayPath,
+                    fullPath = path.Path,
                     totalGB = Math.Round(StorageDisplayFormatter.BytesToGB(path.TotalBytes), 1),
                     usedGB = Math.Round(StorageDisplayFormatter.BytesToGB(pathUsed), 1),
                     freeGB = Math.Round(StorageDisplayFormatter.BytesToGB(pathFree), 1),
