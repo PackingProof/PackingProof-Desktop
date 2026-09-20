@@ -63,14 +63,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private readonly object _frameLock = new object();
         private readonly object _eventBufferLock = new();
         private readonly object _recordingFrameOrderLock = new();
-        private readonly LinkedList<PreRecordFrame> _preRecordFrames = new();
-        private long _preRecordBytes;
-        private long _preRecordDroppedFrames;
-        private bool _preRecordBufferHasWrapped;
-        private long _preRecordSequence;
-        private int _preRecordWidth;
-        private int _preRecordHeight;
-        private int _preRecordDisplayCapacityFrames;
+        /// <summary>事件预录的原始帧环形缓冲（满时复用最旧槽位，不再逐帧整块分配）。</summary>
+        private readonly PreRecordFrameRing _preRecordRing = new();
         private long _lastPreRecordUiPublishTicks;
         private int _preRecordUiPublishQueued;
         private long _preRecordUiPublishVersion;
@@ -245,13 +239,6 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _pendingScanDuringCooldownFromCamera;
         private CancellationTokenSource _sameCodePostRollCts;
 
-        private sealed class PreRecordFrame
-        {
-            public required Mat Frame { get; init; }
-            public required DateTime Timestamp { get; init; }
-            public required long Bytes { get; init; }
-            public required long Sequence { get; init; }
-        }
         private readonly CameraBarcodeFailedStartSuppression _cameraStartFailedSuppression = new();
         private Process _currentFfmpegProcess;
         private TaskCompletionSource<long> _firstRecordingFrameWritten;
