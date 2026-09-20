@@ -155,6 +155,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\StorageDisplayFormatter.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\StorageLocationResolver.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\StorageUsageCalculator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\StorageAvailabilityPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\UdpDiscovery.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\UpdateCheckOptions.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\UpdateCheckService.cs" />
