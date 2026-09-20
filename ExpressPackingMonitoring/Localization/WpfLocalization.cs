@@ -11,17 +11,17 @@ using System.Windows.Threading;
 namespace ExpressPackingMonitoring.Localization;
 
 /// <summary>
-/// AppLanguage 的 WPF 部分：控件树自动翻译与绑定转换器。
+/// 本地化的 WPF 部分：控件树自动翻译与绑定转换器。
 /// 拆分出来是为了让不引用 WPF 的宿主（例如 macOS 保存主机）能共用同一份文案逻辑。
 /// </summary>
-public static partial class AppLanguage
+public static class WpfLocalization
 {
     private static readonly ConditionalWeakTable<DependencyObject, HashSet<DependencyProperty>> WatchedProperties = new();
 
     public static readonly DependencyProperty AutoLocalizeProperty = DependencyProperty.RegisterAttached(
         "AutoLocalize",
         typeof(bool),
-        typeof(AppLanguage),
+        typeof(WpfLocalization),
         new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.Inherits));
 
     public static void SetAutoLocalize(DependencyObject element, bool value) =>
@@ -40,7 +40,7 @@ public static partial class AppLanguage
 
     private static void LocalizeElement(FrameworkElement? element)
     {
-        if (IsChinese || element == null) return;
+        if (AppLanguage.IsChinese || element == null) return;
         if (element is Window windowRoot)
         {
             windowRoot.Dispatcher.BeginInvoke(
@@ -92,25 +92,25 @@ public static partial class AppLanguage
         switch (element)
         {
             case Window window:
-                window.SetCurrentValue(Window.TitleProperty, Translate(window.Title));
+                window.SetCurrentValue(Window.TitleProperty, AppLanguage.Translate(window.Title));
                 Watch(window, Window.TitleProperty);
                 break;
             case TextBlock textBlock when ShouldLocalizeTextProperty(textBlock):
-                textBlock.SetCurrentValue(TextBlock.TextProperty, Translate(textBlock.Text));
+                textBlock.SetCurrentValue(TextBlock.TextProperty, AppLanguage.Translate(textBlock.Text));
                 Watch(textBlock, TextBlock.TextProperty);
                 break;
             case ContentControl control when control.Content is string text:
-                control.SetCurrentValue(ContentControl.ContentProperty, Translate(text));
+                control.SetCurrentValue(ContentControl.ContentProperty, AppLanguage.Translate(text));
                 Watch(control, ContentControl.ContentProperty);
                 break;
             case HeaderedContentControl control when control.Header is string header:
-                control.SetCurrentValue(HeaderedContentControl.HeaderProperty, Translate(header));
+                control.SetCurrentValue(HeaderedContentControl.HeaderProperty, AppLanguage.Translate(header));
                 Watch(control, HeaderedContentControl.HeaderProperty);
                 break;
         }
 
         if (element.ToolTip is string tooltip)
-            element.SetCurrentValue(FrameworkElement.ToolTipProperty, Translate(tooltip));
+            element.SetCurrentValue(FrameworkElement.ToolTipProperty, AppLanguage.Translate(tooltip));
     }
 
     internal static bool ShouldLocalizeTextProperty(TextBlock textBlock) =>
@@ -119,10 +119,10 @@ public static partial class AppLanguage
 
     private static void LocalizeContentElement(FrameworkContentElement? element)
     {
-        if (IsChinese || element == null || !GetAutoLocalize(element)) return;
+        if (AppLanguage.IsChinese || element == null || !GetAutoLocalize(element)) return;
         if (element is Run run)
         {
-            run.SetCurrentValue(Run.TextProperty, Translate(run.Text));
+            run.SetCurrentValue(Run.TextProperty, AppLanguage.Translate(run.Text));
             Watch(run, Run.TextProperty);
         }
     }
@@ -138,7 +138,7 @@ public static partial class AppLanguage
             object value = element.GetValue(property);
             if (value is string text)
             {
-                string translated = Translate(text);
+                string translated = AppLanguage.Translate(text);
                 if (translated != text) element.SetCurrentValue(property, translated);
             }
         });

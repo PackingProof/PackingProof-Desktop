@@ -1,0 +1,176 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    平台中立的业务核心：录像库、存储策略、Web 服务、备份接收、扩展与工位协议。
+    Windows 界面工程与 macOS 主机工程都引用本工程，任何一方都不再按目录猜哪些文件能用。
+    本工程只允许跨平台代码：不得引用 WPF、WinForms、注册表或摄像头采集实现。
+
+    注意：核心源码暂时仍与 Windows 界面工程放在同一目录下，这里用显式文件列表声明归属，
+    不做任何 glob 或排除。待 Windows 侧改动平稳后再把它们整体搬进本目录，届时只需改路径。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <AssemblyName>ExpressPackingMonitoring.Core</AssemblyName>
+    <RootNamespace>ExpressPackingMonitoring</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.EncodingIntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.Host</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageReference Include="MiniExcel" Version="1.45.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\ExpressPackingMonitoring\Resources\Strings.resx"
+                      LogicalName="ExpressPackingMonitoring.Resources.Strings.resources" />
+    <EmbeddedResource Include="..\ExpressPackingMonitoring\Resources\Strings.zh-Hans.resx"
+                      LogicalName="ExpressPackingMonitoring.Resources.Strings.zh-Hans.resources" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppPaths.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppVersion.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\CameraBarcodeSpeed.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\DeploymentPreset.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\EarlyStartupConfig.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\PreRecordBufferPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\StorageLocationMetadata.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\StorageSpacePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\StorageVolumeInfo.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\ArchiveBackupStatePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\ExtensionOrderSourceStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\ExtensionResultInboxStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\MkvConversionResult.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\MkvConversionTracking.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\OrderNumberExportFilter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\RecordingModeFilter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\RecordingTransferQueueStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\SharedFileMigrationRecords.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.DeviceFolderMigration.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.Duration.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.RecordingIdentity.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.Schema.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Helpers\WindowsShellShortcut.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.VideoQuery.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.VideoSources.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Data\VideoSourceFilterOptions.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Localization\AppLanguage.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Logging\RuntimeLog.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\AlertService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\AppPatchDownloadService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveBackupCardModel.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ArchivePathBuilder.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveTransferThrottle.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ArchiveWorkerOptions.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupCompatibilityPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupDeviceIdentity.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupPairingTokenService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupRequestAuthentication.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupStorageLocationPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\BackupUploadDeviceRegistration.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\CompletedVideoSpecificationProbe.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ConnectedClientRegistry.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionAuthorizationStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionEnrollmentService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionMeasurementResultApplier.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionOrderResultApplier.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRecordingDeliveryService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRecordingQueryService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRequestAuthentication.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionResultInboxProcessor.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRuntime.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionInstallationService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketClient.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketModels.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionPackageService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionProcessManager.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\OfficialUserscriptMigrationService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanResultContract.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanResultSubmissionCoordinator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionScanTaskBroker.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\FfmpegWorkLimiter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\IArchiveProvider.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\JdBarcodePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LanRequestRateLimiter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LauncherUpdateService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LegacyOrderPushDeduplicator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LocalCopyCleanupPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LocalMissingRepair.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ManualCleanupService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdatePolicyProvider.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileBackupSharedFileMigrator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileConnectionService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\MobileOrderReceiverRegistry.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\NasArchiveProvider.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\NasCircularCleanupService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\NetworkArchiveErrorClassifier.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\NetworkArchiveSpacePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\NetworkCameraUrlPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\OrderInfo.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\OrderInfoRelay.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\OrderIntegrationActivityRegistry.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\OrderNumberExportEndpoint.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\OrderNumberExportService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\PackingProofNodeInfo.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\PlaybackFileResolver.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\PrintedRefundLookupCoordinator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\QrCodeRenderer.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingComputerNicknameRegistry.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceCatalog.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderMigrator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderNaming.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderShortcuts.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingSourceNameLookup.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingWorkstationCachePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RemoteFileProbe.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RootLauncherStartupService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\ShortLivedSnapshotCache.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\StorageDisplayFormatter.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\StorageLocationResolver.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\StorageUsageCalculator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UdpDiscovery.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UpdateCheckOptions.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UpdateCheckService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptCatalog.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptConfigRevisionStore.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptGuideNavigation.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptStatusCardModel.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\UserscriptTargetState.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoClipService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoCodecProbe.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoFolderImportService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\VideoLifecycleCoordinator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\WebServer.VideoSources.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Workstations\PrintToolInstallGuide.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Workstations\WorkstationLauncher.cs" />
+  </ItemGroup>
+
+</Project>

@@ -37,7 +37,7 @@ public partial class MobileConnectionWindow : Window
         ApplyConnectionState(url, accessProtected, unavailableMessage, canOpenSettings);
 
         UpdateMobileAppDownload(MobileAppUpdatePolicyProvider.Shared.LatestRelease);
-        TestFlightQrCodeImage.Source = MobileConnectionService.CreateQrBitmap(
+        TestFlightQrCodeImage.Source = WpfQrCode.CreateBitmap(
             MobileAppUpdatePolicyProvider.TestFlightJoinUrl);
         Loaded += MobileConnectionWindow_Loaded;
         Loaded += (_, _) => ResolveInitialFocus().Focus();
@@ -69,7 +69,7 @@ public partial class MobileConnectionWindow : Window
         if (isReady)
         {
             AccessUrlTextBox.Text = _url;
-            QrCodeImage.Source = MobileConnectionService.CreateQrBitmap(_url);
+            QrCodeImage.Source = WpfQrCode.CreateBitmap(_url);
             SecurityNotice.Visibility = _accessProtected || _containsAccessKey
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -111,7 +111,7 @@ public partial class MobileConnectionWindow : Window
     {
         _mobileAppDownloadUrl = MobileAppUpdatePolicyProvider.ReleasesUrl;
         MobileAppQrCodeImage.Source =
-            MobileConnectionService.CreateQrBitmap(_mobileAppDownloadUrl);
+            WpfQrCode.CreateBitmap(_mobileAppDownloadUrl);
         MobileAppVersionText.Text = release == null
             ? AppLanguage.Get("Android 版 · 扫码打开下载页")
             : AppLanguage.Format("Android 最新版 v{0}", release.Version);

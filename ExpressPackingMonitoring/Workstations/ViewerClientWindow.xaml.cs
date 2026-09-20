@@ -810,7 +810,7 @@ public partial class ViewerClientWindow : Window
         _config.DeploymentSchemaVersion = savedConfig.DeploymentSchemaVersion;
         _config.WorkstationRole = savedConfig.WorkstationRole;
         _config.EnableWebServer = savedConfig.EnableWebServer;
-        WorkstationNetwork.RestartAfterPurposeChange(this);
+        ApplicationRestart.RestartAfterPurposeChange(this);
     }
 
     private void CompleteDeploymentSetup(PackingProofNodeInfo node)

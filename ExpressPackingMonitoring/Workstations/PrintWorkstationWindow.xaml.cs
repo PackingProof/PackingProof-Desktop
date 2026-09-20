@@ -847,7 +847,7 @@ public partial class PrintWorkstationWindow : Window
             if (!savePurpose())
                 return false;
 
-            return WorkstationNetwork.RestartAfterPurposeChange(this);
+            return ApplicationRestart.RestartAfterPurposeChange(this);
         }
         catch (OperationCanceledException)
         {

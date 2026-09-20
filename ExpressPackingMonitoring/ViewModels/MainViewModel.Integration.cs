@@ -804,7 +804,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     return false;
 
                 Config = nextConfig;
-                return WorkstationNetwork.RestartAfterPurposeChange(Application.Current?.MainWindow);
+                return ApplicationRestart.RestartAfterPurposeChange(Application.Current?.MainWindow);
             }
             catch (OperationCanceledException)
             {

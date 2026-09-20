@@ -58,6 +58,10 @@ internal sealed class RecordingDeviceFolderShortcuts
         IEnumerable<MobileOrderReceiverInfo>? devices,
         IEnumerable<RecordingComputerNicknameInfo>? computers = null)
     {
+        // “昵称 → 设备目录”的对照目前只有 Windows 外壳快捷方式实现；
+        // 非 Windows 宿主（macOS 保存主机）先跳过，录像与目录本身不受影响。
+        if (!OperatingSystem.IsWindows()) return 0;
+
         string root = recordingRoot?.Trim() ?? "";
         if (root.Length == 0)
             return 0;

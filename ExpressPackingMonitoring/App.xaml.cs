@@ -29,7 +29,7 @@ namespace ExpressPackingMonitoring
             ApplyConfiguredWpfRenderingMode();
             WinRtPlacementService.Apply();
             base.OnStartup(e);
-            if (!WorkstationNetwork.WaitForRestartParentExit(e.Args, 15000, out string restartWaitError))
+            if (!ApplicationRestart.WaitForRestartParentExit(e.Args, 15000, out string restartWaitError))
             {
                 AppDialog.Error(null, restartWaitError, "切换用途失败");
                 Shutdown(1);
@@ -53,7 +53,8 @@ namespace ExpressPackingMonitoring
             CameraBarcodeRuntimeOptions.Initialize(e.Args);
             var config = WorkstationConfigStore.Load();
             AppLanguage.Initialize(config.Language);
-            AppLanguage.EnableAutomaticWpfLocalization();
+            WpfLocalization.EnableAutomaticWpfLocalization();
+            WpfQrCode.UseWpfRenderer();
             ThemeManager.ApplyConfiguredTheme(config.Theme);
             RegisterRuntimeExceptionLogging();
             RuntimeLog.Info("App", "Application startup");
