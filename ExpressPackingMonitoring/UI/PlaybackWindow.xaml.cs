@@ -1217,8 +1217,6 @@ namespace ExpressPackingMonitoring.UI
         private void ShowCurrentPage()
         {
             VideoList.ItemsSource = _allVideos;
-            // 列表按开始时间倒序，第一条就是最新那条：用它先把窗口调到没有黑边。
-            _ = FitWindowToNewestPlayableVideoAsync();
             int pageCount = GetPageCount();
             PageStatusText.Text = pageCount == 0
                     ? "共 0 条"
@@ -1672,7 +1670,8 @@ namespace ExpressPackingMonitoring.UI
                 await Task.Run(() =>
                 {
                     Core.Initialize();
-                    libVLC = new LibVLC("--avcodec-hw=any");
+                    // 开窗时解析分辨率那一步已经建过实例（进程级共享），这里直接复用。
+                    libVLC = _libVLC ?? new LibVLC("--avcodec-hw=any");
                     mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(libVLC);
                 });
 

@@ -7,10 +7,10 @@ internal readonly record struct PlaybackWindowSize(double Width, double Height);
 /// 回放窗口尺寸：视频区严格贴住录像的宽高比，窗口再补上左侧列表、标题和控制条这些固定占位，
 /// 这样打开窗口（以及切换到另一段录像）都不会再出现上下黑边。
 ///
-/// 宽度以调用方给的期望宽度为准（默认窗口宽度，或用户当前宽度），高度按比例换算，
-/// 但**只在窗口下限到"期望高度/工作区高度"之间**取值：宽高比撑不满时宁可让 LibVLC 居中留边，
-/// 也不把窗口拉长/拉宽 —— 上一次的写法在竖屏录像（9:16）上会把窗口顶到接近满屏高，
-/// 窗口位置却没跟着上移，下半截连进度条一起跑到屏幕外（现场反馈）。
+/// 以**窗口高度**为主：高度取调用方给的期望高度（默认或当前高度，夹在工作区里），宽度由录像宽高比推出来。
+/// 按宽度优先算的话，16:9 会把窗口压成又宽又扁的一条（现场反馈"16:9 太扁"）；
+/// 竖屏（9:16）按比例算出来的宽度会低于窗口下限，这时宽度顶住下限，
+/// 竖直方向多出来的空间由 LibVLC 居中留边 —— 绝不把窗口拉长到屏幕外（那样连进度条都看不见）。
 /// </summary>
 internal static class PlaybackWindowFitPolicy
 {
@@ -19,7 +19,6 @@ internal static class PlaybackWindowFitPolicy
         int videoHeight,
         double chromeWidth,
         double chromeHeight,
-        double preferredWindowWidth,
         double preferredWindowHeight,
         double workAreaWidth,
         double workAreaHeight,
@@ -40,16 +39,27 @@ internal static class PlaybackWindowFitPolicy
         double effectiveMinHeight = Math.Min(minWindowHeight, workAreaHeight);
         double aspect = videoWidth / (double)videoHeight;
 
-        double windowWidth = Math.Clamp(preferredWindowWidth, effectiveMinWidth, workAreaWidth);
-        double videoAreaWidth = Math.Max(1, windowWidth - chromeWidth);
-        double windowHeight = chromeHeight + videoAreaWidth / aspect;
-
-        // 不主动把窗口变得比现在更高：竖屏录像就是这一条把它挡在屏幕内的。
-        double maximumHeight = Math.Clamp(
+        double windowHeight = Math.Clamp(
             preferredWindowHeight > 0 ? preferredWindowHeight : workAreaHeight,
             effectiveMinHeight,
             workAreaHeight);
-        windowHeight = Math.Clamp(windowHeight, effectiveMinHeight, maximumHeight);
+        double videoAreaHeight = Math.Max(1, windowHeight - chromeHeight);
+        double windowWidth = chromeWidth + videoAreaHeight * aspect;
+
+        if (windowWidth > workAreaWidth)
+        {
+            // 超宽比例（21:9 / 32:9）先把宽度夹进工作区，再按比例回算高度
+            windowWidth = workAreaWidth;
+            windowHeight = Math.Clamp(
+                chromeHeight + Math.Max(1, windowWidth - chromeWidth) / aspect,
+                effectiveMinHeight,
+                workAreaHeight);
+        }
+        else if (windowWidth < effectiveMinWidth)
+        {
+            // 竖屏：宽度顶住窗口下限，竖直方向由播放器居中留边
+            windowWidth = effectiveMinWidth;
+        }
 
         return new PlaybackWindowSize(
             Math.Clamp(windowWidth, effectiveMinWidth, workAreaWidth),
