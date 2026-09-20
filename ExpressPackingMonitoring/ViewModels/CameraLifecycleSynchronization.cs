@@ -356,6 +356,57 @@ internal sealed class LatestPreviewFrameSlot<T> where T : class, IDisposable
     }
 }
 
+/// <summary>
+/// 采集帧交接槽：摄像头回调把整帧所有权直接交给处理循环，循环取走后自行释放，
+/// 还没被取走就被下一帧替换的帧由这里释放。
+///
+/// 处理循环原来每轮都 <c>_latestFrame.Clone()</c>：1080p 一帧 6MB，60fps 就是
+/// 360MB/s 的整帧拷贝，而且拷贝还在 <c>_frameLock</c> 里做，采集线程要等它拷完
+/// 才能发布下一帧。改成所有权交接后，同一条链路上不再有整帧拷贝。
+///
+/// 只保留最新一帧：处理慢的时候宁可跳到新帧，也不积压旧帧。
+/// </summary>
+internal sealed class LatestFrameHandoffSlot<T> where T : class, IDisposable
+{
+    private readonly object _sync = new();
+    private T? _frame;
+
+    /// <summary>发布一帧并接管所有权；调用方之后不得再引用或释放这一帧。</summary>
+    public void Publish(T frame)
+    {
+        T? replaced;
+        lock (_sync)
+        {
+            replaced = _frame;
+            _frame = frame;
+        }
+        replaced?.Dispose();
+    }
+
+    /// <summary>取走最新一帧，调用方接管所有权；槽内没有帧时返回 null。</summary>
+    public T? Take()
+    {
+        lock (_sync)
+        {
+            T? frame = _frame;
+            _frame = null;
+            return frame;
+        }
+    }
+
+    /// <summary>丢弃槽内还没被取走的帧（停摄像头、断流清理时用）。</summary>
+    public void Clear()
+    {
+        T? frame;
+        lock (_sync)
+        {
+            frame = _frame;
+            _frame = null;
+        }
+        frame?.Dispose();
+    }
+}
+
 internal sealed class CameraFrameReadySignal
 {
     private readonly object _sync = new();

@@ -859,7 +859,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     _recordingFramePipelineDiagnostics.Enter(
                         RecordingFramePipelineStage.PreRecordEnqueue,
                         Volatile.Read(ref _latestFrameSequence));
-                    EnqueueLatestFrameForRecording();
                 }
                 StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
                 PublishPreRecordBufferStatus(force: true);
@@ -1192,45 +1191,6 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Error("Recording", "Failed to mark recording failure in database", ex);
             }
-        }
-
-        private void EnqueueLatestFrameForRecording()
-        {
-            lock (_recordingFrameOrderLock)
-            {
-                EnqueueLatestFrameForRecordingCore();
-            }
-        }
-
-        private void EnqueueLatestFrameForRecordingCore()
-        {
-            try
-            {
-                BlockingCollection<RecordingVideoFrame>? queue = _videoWriteQueue;
-                if (queue == null || queue.IsAddingCompleted) return;
-
-                Mat? frame = null;
-                long capturedTicks;
-                lock (_frameLock)
-                {
-                    capturedTicks = _latestFrameCapturedTicks;
-                    if (_latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty())
-                        frame = _latestFrame.Clone();
-                }
-
-                if (frame == null) return;
-                if (Config.EnableWatermark)
-                {
-                    IReadOnlyList<string> extensionLines = Config.EnableThirdPartyWatermark
-                        && _recordingWatermarkSnapshot.RecordingSessionId == _recordingSessionId
-                        ? _recordingWatermarkSnapshot.Lines
-                        : Array.Empty<string>();
-                    ApplyWatermarkToFrame(frame, DateTimeOffset.Now, _recordingOrderId, extensionLines);
-                }
-                if (!queue.TryAdd(new RecordingVideoFrame(frame, capturedTicks), 5))
-                    frame.Dispose();
-            }
-            catch { }
         }
 
         private void UpdatePreRecordBuffer(Mat frame)

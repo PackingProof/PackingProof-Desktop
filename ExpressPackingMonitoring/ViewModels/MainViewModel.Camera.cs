@@ -364,20 +364,35 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isDisposed)
                 return false;
 
-            // 摄像头已在持续采集时直接复用最新帧，避免扫码启动被一次性的就绪信号误判为超时
-            lock (_frameLock)
+            // 摄像头已在持续采集时立即返回，避免扫码启动被一次性的就绪信号误判为超时。
+            // 帧本身由处理循环持有，这里只按"最近还在来帧"判断，不去动那一帧的所有权。
+            DateTime deadline = DateTime.Now + timeout;
+            while (true)
             {
-                if (_latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty())
+                if (HasRecentCameraFrame())
                     return true;
-            }
 
-            if (!await _cameraFrameReady.WaitAsync(timeout))
+                TimeSpan remaining = deadline - DateTime.Now;
+                if (remaining <= TimeSpan.Zero)
+                    return false;
+
+                // 就绪信号是一次性的，可能是更早那帧留下的：按小步长唤醒，等到真的重新来帧。
+                await _cameraFrameReady.WaitAsync(
+                    remaining < CameraFrameStaleThreshold ? remaining : CameraFrameStaleThreshold);
+            }
+        }
+
+        /// <summary>最近是否真的来过摄像头帧（按断流判定同一个时间窗，避免拿残帧开录）。</summary>
+        private bool HasRecentCameraFrame()
+        {
+            if (_isDisposed || !_cameraEverConnected)
+                return false;
+            if (Volatile.Read(ref _latestFrameSequence) <= 0)
                 return false;
 
-            lock (_frameLock)
-            {
-                return _latestFrame != null && !_latestFrame.IsDisposed && !_latestFrame.Empty();
-            }
+            DateTime lastFrameTime = _lastFrameTime;
+            return lastFrameTime != DateTime.MinValue
+                && DateTime.Now - lastFrameTime <= CameraFrameStaleThreshold;
         }
 
         private void StartCamera()
@@ -401,6 +416,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 int previewSessionId = BeginPreviewSession(clearFrame: true);
                 ClearPreRecordBuffer();
                 ClearPendingEventRecordingFrames();
+                // 上一次停止时可能还有采集线程正在收尾，这里丢掉那期间留下的帧，新会话从头开始。
+                lock (_frameLock) { _latestCameraFrame.Clear(); }
 
                 if (IsNetworkCameraConfigured())
                 {
@@ -817,7 +834,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 if (ReferenceEquals(_networkCameraSource, networkSource))
                     _networkCameraSource = null;
-                lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                lock (_frameLock) { _latestCameraFrame.Clear(); }
                 ClearPreRecordBuffer();
                 ClearPendingEventRecordingFrames();
                 BeginPreviewSession(clearFrame: true);
@@ -841,7 +858,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 if (ReferenceEquals(_mfCameraSource, mfSource))
                     _mfCameraSource = null;
-                lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                lock (_frameLock) { _latestCameraFrame.Clear(); }
                 ClearPreRecordBuffer();
                 ClearPendingEventRecordingFrames();
                 BeginPreviewSession(clearFrame: true);
@@ -887,7 +904,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _videoSource = null;
                 _cameraForceStopTask = null;
             }
-            lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+            lock (_frameLock) { _latestCameraFrame.Clear(); }
             ClearPreRecordBuffer();
             ClearPendingEventRecordingFrames();
             BeginPreviewSession(clearFrame: true);
@@ -991,24 +1008,30 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void HandleCameraFrame(Mat frame)
         {
+            bool published = false;
             try
             {
                 CameraFrameOrientation.Apply(frame, Config.CameraRotate180);
                 lock (_frameLock)
                 {
-                    _latestFrame?.Dispose();
-                    _latestFrame = frame;
+                    // 整帧所有权交给处理循环：它取走后自己释放，不再逐帧克隆。
+                    _latestCameraFrame.Publish(frame);
                     _latestFrameCapturedTicks = Stopwatch.GetTimestamp();
                     Interlocked.Increment(ref _latestFrameSequence);
                 }
-                _cameraFrameReady.Signal();
-                _cameraFrameArrival.Signal();
+                published = true;
             }
             catch (Exception ex)
             {
-                frame.Dispose();
+                // 只有还没交接出去时才由这里释放，交接过的帧归处理循环。
+                if (!published)
+                    frame.Dispose();
                 RuntimeLog.Error("Camera", "NewFrame processing failed", ex);
+                return;
             }
+
+            _cameraFrameReady.Signal();
+            _cameraFrameArrival.Signal();
         }
 
         private Mat BitmapToMat(Bitmap bitmap)
@@ -1053,18 +1076,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         currentFrameSequence = _latestFrameSequence;
                         currentFrameCapturedTicks = _latestFrameCapturedTicks;
-                        if (_latestFrame != null && !_latestFrame.IsDisposed)
-                        {
-                            // 重复帧只等通知，避免先复制整帧再丢弃；过期帧仍进入断流检测。
-                            waitingForNewFrame = currentFrameSequence == lastProcessedFrameSequence
-                                && (DateTime.Now - _lastFrameTime).TotalSeconds <= 1.5;
-                            if (!waitingForNewFrame)
-                                currentFrame = _latestFrame.Clone();
-                        }
+                        // 重复帧只等通知，不去取帧；过期帧仍进入断流检测。
+                        waitingForNewFrame = currentFrameSequence == lastProcessedFrameSequence
+                            && DateTime.Now - _lastFrameTime <= CameraFrameStaleThreshold;
+                        // 取走整帧所有权，不再克隆：这一帧处理完由本循环释放或交给录像队列。
+                        if (!waitingForNewFrame)
+                            currentFrame = _latestCameraFrame.Take();
                     }
 
-                    // _latestFrame 可能在摄像头下一帧到来前被循环多次读取。
-                    // 录像只处理真正新到达的帧，避免把同一画面重复写入造成卡顿/闪烁。
+                    // 录像只处理真正新到达的帧，避免把同一画面重复写入造成卡顿/闪烁；
+                    // 帧序号没变时直接等下一帧通知，不取帧。
                     if (waitingForNewFrame)
                     {
                         MarkRecordingFramePipelineStage(
@@ -1080,15 +1101,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (currentFrame != null)
                         lastProcessedFrameSequence = currentFrameSequence;
 
-                    // 检测摄像头是否已断开：_latestFrame 是旧帧不会自动清除，必须用 _lastFrameTime 判断
+                    // 检测摄像头是否已断开：槽里的帧不会自己超时，必须用 _lastFrameTime 判断。
                     if (currentFrame != null && _cameraEverConnected && !_isCameraSleeping)
                     {
                         double sinceLastNewFrame = (DateTime.Now - _lastFrameTime).TotalSeconds;
-                        if (sinceLastNewFrame > 1.5)
+                        if (sinceLastNewFrame > CameraFrameStaleThreshold.TotalSeconds)
                         {
                             currentFrame.Dispose();
                             currentFrame = null;
-                            lock (_frameLock) { _latestFrame?.Dispose(); _latestFrame = null; }
+                            lock (_frameLock) { _latestCameraFrame.Clear(); }
                         }
                     }
 
@@ -1284,6 +1305,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     else
                     {
+                        // 取到的是空帧（摄像头刚断开时的畸形帧）：这一帧已经归本循环，必须自己释放。
+                        currentFrame?.Dispose();
+                        currentFrame = null;
                         MarkRecordingFramePipelineStage(
                             RecordingFramePipelineStage.NoFrame,
                             Volatile.Read(ref _latestFrameSequence));
@@ -1308,7 +1332,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     // 网络源等待首个关键帧期间不判信号丢失。
                                 }
-                                else if (noFrameSeconds > 1.5)
+                                else if (noFrameSeconds > CameraFrameStaleThreshold.TotalSeconds)
                                 {
                                     Debug.WriteLine($"[Camera] 信号丢失 {noFrameSeconds:F1}s，尝试重连 (失败次数={_consecutiveRestartFailures})");
                                     _ = Application.Current.Dispatcher.InvokeAsync(() => {

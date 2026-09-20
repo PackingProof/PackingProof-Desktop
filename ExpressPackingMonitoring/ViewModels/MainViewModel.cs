@@ -57,7 +57,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private Services.MediaFoundation.MfCameraSource _mfCameraSource;
         private DateTime _networkCameraStartedAt = DateTime.MinValue;
         private Task _cameraForceStopTask;
-        private Mat _latestFrame;
+        /// <summary>最新采集帧交接槽：处理循环取走整帧所有权，不再逐帧克隆。</summary>
+        private readonly LatestFrameHandoffSlot<Mat> _latestCameraFrame = new();
         private long _latestFrameSequence;
         private readonly object _frameLock = new object();
         private readonly object _eventBufferLock = new();
@@ -146,6 +147,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan PreviewFreezeRestartCooldown = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan ResourceHealthLogInterval = TimeSpan.FromMinutes(5);
         private static readonly TimeSpan UiHeartbeatStaleThreshold = TimeSpan.FromSeconds(2);
+        // 摄像头断流判定时间窗：处理循环取帧、录制前就绪检查共用同一个门限。
+        private static readonly TimeSpan CameraFrameStaleThreshold = TimeSpan.FromSeconds(1.5);
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
         // 程序自己的窗口是否在前台。仅用于资源诊断，不控制预览帧率。
         private volatile bool _isAppWindowFocused;
