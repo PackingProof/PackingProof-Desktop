@@ -113,7 +113,7 @@ public sealed class LocalGpuCaptureProbeTests
         source.FrameReady += (_, args) =>
         {
             Interlocked.Increment(ref frames);
-            args.Frame.Dispose();
+            args.Frame?.Dispose();
         };
 
         if (!source.Start())

@@ -359,42 +359,6 @@ namespace ExpressPackingMonitoring.ViewModels
             _previewSessionGate.Release(sessionId);
         }
 
-        private async Task<bool> WaitForCameraFrameAsync(TimeSpan timeout)
-        {
-            if (_isDisposed)
-                return false;
-
-            // 摄像头已在持续采集时立即返回，避免扫码启动被一次性的就绪信号误判为超时。
-            // 帧本身由处理循环持有，这里只按"最近还在来帧"判断，不去动那一帧的所有权。
-            DateTime deadline = DateTime.Now + timeout;
-            while (true)
-            {
-                if (HasRecentCameraFrame())
-                    return true;
-
-                TimeSpan remaining = deadline - DateTime.Now;
-                if (remaining <= TimeSpan.Zero)
-                    return false;
-
-                // 就绪信号是一次性的，可能是更早那帧留下的：按小步长唤醒，等到真的重新来帧。
-                await _cameraFrameReady.WaitAsync(
-                    remaining < CameraFrameStaleThreshold ? remaining : CameraFrameStaleThreshold);
-            }
-        }
-
-        /// <summary>最近是否真的来过摄像头帧（按断流判定同一个时间窗，避免拿残帧开录）。</summary>
-        private bool HasRecentCameraFrame()
-        {
-            if (_isDisposed || !_cameraEverConnected)
-                return false;
-            if (Volatile.Read(ref _latestFrameSequence) <= 0)
-                return false;
-
-            DateTime lastFrameTime = _lastFrameTime;
-            return lastFrameTime != DateTime.MinValue
-                && DateTime.Now - lastFrameTime <= CameraFrameStaleThreshold;
-        }
-
         private void StartCamera()
         {
             // 启动窗口内看门狗不得判定掉线：设备还没就绪，判定只会把刚起来的摄像头再关掉
@@ -635,6 +599,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     Config.CameraColorMatrix);
                 source.FrameReady += MfCameraSource_FrameReady;
                 source.SourceError += MfCameraSource_SourceError;
+                // 采集端每帧问一次"要不要 BGR"：只有预录环在消费时可以只要原始采样。
+                source.BgrFrameRequestProvider = CameraFrameNeedsBgr;
                 MarkCameraStarting();
                 if (!source.Start())
                 {
@@ -673,15 +639,27 @@ namespace ExpressPackingMonitoring.ViewModels
         private void MfCameraSource_FrameReady(object sender, MfFrameEventArgs e)
         {
             _lastFrameTime = DateTime.Now;
+            Interlocked.Increment(ref _cameraFramesDelivered);
             MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
 
             try
             {
+                if (e.Raw.HasValue)
+                {
+                    // 这一帧只有原始采样：唯一消费者是预录环，当场拷进环形缓冲就完事，
+                    // 不做 NV12→BGR，也不进处理循环（这个状态下预览、识别、录像都不需要帧）。
+                    if (ShouldCaptureEventRecordingBufferFrame())
+                        UpdatePreRecordBuffer(e.Raw.Value);
+                    return;
+                }
+
                 // 帧已经是 BGR24，不需要 BitmapToMat 那次格式转换与克隆，
                 // 也不需要事后的色度校正（新后端在解码时就用了正确的矩阵）。
                 Mat frame = e.Frame;
+                if (frame == null)
+                    return;
                 if (ShouldCaptureEventRecordingBufferFrame())
                     UpdatePreRecordBuffer(frame);
                 HandleCameraFrame(frame);
@@ -916,6 +894,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void VideoSource_NewFrame(object sender, NewFrameEventArgs eventArgs)
         {
             _lastFrameTime = DateTime.Now;
+            Interlocked.Increment(ref _cameraFramesDelivered);
             MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();
@@ -936,6 +915,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void NetworkCameraSource_FrameReady(object sender, NetworkCameraFrameEventArgs e)
         {
             _lastFrameTime = DateTime.Now;
+            Interlocked.Increment(ref _cameraFramesDelivered);
             MarkCameraStreamHealthy();
             Interlocked.Exchange(ref _archiveFrameUtcTicks, DateTime.UtcNow.Ticks);
             UpdateCameraSourceFpsEstimate();

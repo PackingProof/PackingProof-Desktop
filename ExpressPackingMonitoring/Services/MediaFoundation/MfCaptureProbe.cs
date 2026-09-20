@@ -57,7 +57,7 @@ internal static class MfCaptureProbe
 
         source.FrameReady += (_, args) =>
         {
-            args.Frame.Dispose();
+            args.Frame?.Dispose();
             firstFrame.Set();
         };
         source.SourceError += (_, args) =>

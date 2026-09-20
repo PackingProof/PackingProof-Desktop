@@ -208,6 +208,8 @@
     <Compile Include="Services\NetworkCameraUrlPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfInterop.cs" />
     <Compile Include="Services\MediaFoundation\MfPlatform.cs" />
+    <Compile Include="Services\MediaFoundation\CameraRawFrame.cs" />
+    <Compile Include="Services\MediaFoundation\MfCameraSource.Raw.cs" />
     <Compile Include="Services\MediaFoundation\MfCaptureSourceFactory.cs" />
     <Compile Include="Services\MediaFoundation\MfFormatSelector.cs" />
     <Compile Include="Services\MediaFoundation\MfFrameConverter.cs" />
@@ -276,6 +278,7 @@
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />
+    <Compile Include="ViewModels\MainViewModel.CameraRaw.cs" />
     <Compile Include="ViewModels\MainViewModel.CameraGuide.cs" />
     <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />

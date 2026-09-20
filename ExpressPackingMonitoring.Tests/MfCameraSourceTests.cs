@@ -27,7 +27,7 @@ public sealed class MfCameraSourceTests
         using var release = new ManualResetEventSlim();
         source.FrameReady += (_, e) =>
         {
-            e.Frame.Dispose();
+            e.Frame?.Dispose();
             entered.Set();
             release.Wait(TimeSpan.FromSeconds(10));
         };
@@ -59,7 +59,7 @@ public sealed class MfCameraSourceTests
         using var stopped = new ManualResetEventSlim();
         source.FrameReady += (_, e) =>
         {
-            e.Frame.Dispose();
+            e.Frame?.Dispose();
             source.Stop();
             stopped.Set();
         };
@@ -89,7 +89,7 @@ public sealed class MfCameraSourceTests
                     string error = "";
                     source.FrameReady += (_, e) =>
                     {
-                        e.Frame.Dispose();
+                        e.Frame?.Dispose();
                         if (Interlocked.Increment(ref frames) >= 10) enough.Set();
                     };
                     source.SourceError += (_, e) => error = e.Description;
@@ -123,7 +123,7 @@ public sealed class MfCameraSourceTests
 
         source.FrameReady += (_, args) =>
         {
-            using Mat frame = args.Frame;
+            using Mat frame = args.Frame!;
             width = frame.Cols;
             height = frame.Rows;
             channels = frame.Channels();
@@ -166,7 +166,7 @@ public sealed class MfCameraSourceTests
 
         source.FrameReady += (_, args) =>
         {
-            args.Frame.Dispose();
+            args.Frame?.Dispose();
             if (Interlocked.Increment(ref frameCount) >= 10)
                 enough.Set();
         };
@@ -204,9 +204,9 @@ public sealed class MfCameraSourceTests
 
         source.FrameReady += (_, args) =>
         {
-            if (Interlocked.CompareExchange(ref captured, args.Frame, null) != null)
+            if (Interlocked.CompareExchange(ref captured, args.Frame!, null) != null)
             {
-                args.Frame.Dispose();
+                args.Frame?.Dispose();
                 return;
             }
             received.Set();
@@ -254,7 +254,7 @@ public sealed class MfCameraSourceTests
         int frameCount = 0;
         source.FrameReady += (_, args) =>
         {
-            args.Frame.Dispose();
+            args.Frame?.Dispose();
             Interlocked.Increment(ref frameCount);
         };
 
@@ -284,7 +284,7 @@ public sealed class MfCameraSourceTests
         for (int round = 0; round < 3; round++)
         {
             using var source = new MfCameraSource(device.SymbolicLink, 1280, 720, 30);
-            source.FrameReady += (_, args) => args.Frame.Dispose();
+            source.FrameReady += (_, args) => args.Frame?.Dispose();
             if (!source.Start())
                 return;
 

@@ -12,8 +12,19 @@ internal sealed class MfFrameEventArgs : EventArgs
         Frame = frame ?? throw new ArgumentNullException(nameof(frame));
     }
 
-    /// <summary>BGR24 帧。所有权交给订阅方，用完必须 Dispose。</summary>
-    internal Mat Frame { get; }
+    internal MfFrameEventArgs(CameraRawFrame raw)
+    {
+        Raw = raw;
+    }
+
+    /// <summary>BGR24 帧。所有权交给订阅方，用完必须 Dispose；只有原始采样的那一帧为 null。</summary>
+    internal Mat? Frame { get; }
+
+    /// <summary>
+    /// 原始采样视图（NV12/YUY2）。非 null 表示这一帧没有做 BGR 转换 ——
+    /// 订阅方必须在本回调内拷走，回调结束后底层缓冲区就会被下一帧覆盖。
+    /// </summary>
+    internal CameraRawFrame? Raw { get; }
 }
 
 internal sealed class MfSourceErrorEventArgs : EventArgs
@@ -89,6 +100,12 @@ public sealed partial class MfCameraSource : IDisposable
 
     internal event EventHandler<MfFrameEventArgs>? FrameReady;
     internal event EventHandler<MfSourceErrorEventArgs>? SourceError;
+
+    /// <summary>
+    /// 订阅方在转换前插话：返回 true = 这一帧需要 BGR；false = 只要原始采样
+    /// （预录环这种"只存不处理"的消费者）。没设回调时一律按需要 BGR 处理。
+    /// </summary>
+    internal Func<bool>? BgrFrameRequestProvider { get; set; }
 
     internal int ActualWidth { get; private set; }
     internal int ActualHeight { get; private set; }
@@ -564,11 +581,26 @@ public sealed partial class MfCameraSource : IDisposable
             }
 
             long convertStart = Stopwatch.GetTimestamp();
-            Mat? output = ConvertLockedBuffer(scanline0, pitch);
+            Mat? output = null;
+            CameraRawFrame? rawOnly = null;
+            // 订阅方说这一帧不需要 BGR（只有预录环在消费）时，直接给锁里的缓冲区描一个原始采样视图：
+            // 跳过 NV12→BGR 那次转换，也跳过发布用的整帧克隆，订阅方在回调里当场把字节拷走。
+            if (!BgrFramesRequested() && TryDescribeRawFrame(scanline0, pitch, out CameraRawFrame raw))
+                rawOnly = raw;
+            else
+                output = ConvertLockedBuffer(scanline0, pitch);
             long publishStart = Stopwatch.GetTimestamp();
             Interlocked.Add(ref _convertTicks, publishStart - convertStart);
 
-            if (output != null)
+            if (rawOnly.HasValue)
+
+            {
+
+                FrameReady?.Invoke(this, new MfFrameEventArgs(rawOnly.Value));
+
+            }
+
+            else if (output != null)
 
             {
 

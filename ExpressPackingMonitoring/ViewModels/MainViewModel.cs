@@ -68,9 +68,14 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _lastPreRecordUiPublishTicks;
         private int _preRecordUiPublishQueued;
         private long _preRecordUiPublishVersion;
-        private List<Mat> _pendingPreRecordFrames;
-        private List<DateTime> _pendingPreRecordTimestamps;
+        private List<PreRecordPayload> _pendingPreRecordFrames;
         private DateTime? _pendingPreRecordStartTime;
+        /// <summary>写入端把预录的原始采样解码成 BGR 用；一次录制一个，随写入任务结束释放。</summary>
+        private Services.MediaFoundation.CameraRawFrameDecoder _rawFrameDecoder;
+        /// <summary>写入端解码预录原始采样用的复用缓冲（按帧顺序解码后立刻写管道）。</summary>
+        private Mat _preRecordDecodeBuffer;
+        /// <summary>采集端累计交付的帧数（含只有原始采样的那些），供录制前的就绪判断使用。</summary>
+        private long _cameraFramesDelivered;
         private const long PreRecordBufferHardMaxBytes = 8L * 1024 * 1024 * 1024;
 
         private BlockingCollection<RecordingVideoFrame> _videoWriteQueue;

@@ -283,7 +283,7 @@ public sealed class DeploymentStartupTests
             "MainViewModel.Recording.cs");
 
         int injectionStart = source.IndexOf(
-            "List<Mat>? preRecordFrames = _pendingPreRecordFrames;",
+            "List<PreRecordPayload>? preRecordFrames = _pendingPreRecordFrames;",
             StringComparison.Ordinal);
         Assert.True(injectionStart >= 0, "找不到预录帧注入段");
 
@@ -299,6 +299,27 @@ public sealed class DeploymentStartupTests
         Assert.True(rotateIndex > 0, "注入预录帧时没有补 180° 旋转");
         Assert.True(watermarkIndex > 0, "找不到预录帧水印调用");
         Assert.True(rotateIndex < watermarkIndex, "预录帧必须先旋转再画水印");
+
+        // 原始采样那一路（NV12/YUY2）的旋转与水印挪到了写入端，顺序同样不能反。
+        string writerSource = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Ffmpeg.cs");
+        int writerPrepare = writerSource.IndexOf(
+            "private void PreparePreRecordFrameFromRaw(",
+            StringComparison.Ordinal);
+        Assert.True(writerPrepare >= 0, "找不到写入端的原始采样准备段");
+        int writerRotate = writerSource.IndexOf(
+            "CameraFrameOrientation.Apply(destination, Config.CameraRotate180)",
+            writerPrepare,
+            StringComparison.Ordinal);
+        int writerWatermark = writerSource.IndexOf(
+            "ApplyWatermarkToFrame(destination,",
+            writerPrepare,
+            StringComparison.Ordinal);
+        Assert.True(writerRotate > 0, "写入端解码原始采样后没有补 180° 旋转");
+        Assert.True(writerWatermark > 0, "写入端解码原始采样后没有画水印");
+        Assert.True(writerRotate < writerWatermark, "写入端也必须先旋转再画水印");
     }
 
     [Fact]

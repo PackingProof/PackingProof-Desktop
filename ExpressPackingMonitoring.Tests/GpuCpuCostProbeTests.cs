@@ -27,7 +27,7 @@ public sealed class GpuCpuCostProbeTests(ITestOutputHelper output)
             using var source = new MfCameraSource(devices[0].SymbolicLink, 1920, 1080, 30);
             if (!gpu) source.DisableGpuConversionUpFront("CPU probe");
             int frames = 0;
-            source.FrameReady += (_, e) => { e.Frame.Dispose(); Interlocked.Increment(ref frames); };
+            source.FrameReady += (_, e) => { e.Frame?.Dispose(); Interlocked.Increment(ref frames); };
             Assert.True(source.Start(), source.LastStartFailure);
             Thread.Sleep(2000);
             int framesBefore = Volatile.Read(ref frames);

@@ -723,18 +723,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 画面从旧快照直接跳到初始化完成时刻。
                 if (Config.EnableEventRecordingBuffer)
                 {
-                    List<Mat> startupPreRecordFrames = SnapshotPreRecordFrames(
+                    List<PreRecordPayload> startupPreRecordFrames = SnapshotPreRecordFrames(
                         DateTime.Now,
-                        out DateTime? startupPreRecordStartTime,
-                        out List<DateTime> startupPreRecordTimestamps);
+                        out DateTime? startupPreRecordStartTime);
                     if (startupPreRecordFrames.Count > 0)
                     {
-                        _pendingPreRecordFrames ??= new List<Mat>();
-                        _pendingPreRecordTimestamps ??= new List<DateTime>();
+                        _pendingPreRecordFrames ??= new List<PreRecordPayload>();
                         if (!_pendingPreRecordStartTime.HasValue && startupPreRecordStartTime.HasValue)
                             _pendingPreRecordStartTime = startupPreRecordStartTime;
                         _pendingPreRecordFrames.AddRange(startupPreRecordFrames);
-                        _pendingPreRecordTimestamps.AddRange(startupPreRecordTimestamps);
                         RuntimeLog.Info(
                             "Recording",
                             $"Pre-record startup frames appended count={startupPreRecordFrames.Count}, total={_pendingPreRecordFrames.Count}");
@@ -786,10 +783,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     RecordingFramePipelineStage.Startup,
                     Volatile.Read(ref _latestFrameSequence));
                 _pendingPreRecordStartTime = null;
-                List<Mat>? preRecordFrames = _pendingPreRecordFrames;
-                List<DateTime>? preRecordTimestamps = _pendingPreRecordTimestamps;
+                List<PreRecordPayload>? preRecordFrames = _pendingPreRecordFrames;
                 _pendingPreRecordFrames = null;
-                _pendingPreRecordTimestamps = null;
                 int timelineFps = GetEffectiveRecordingFps();
                 int usablePreRecordFrameCount = preRecordFrames?.Count ?? 0;
                 _activePreRecordSeconds = usablePreRecordFrameCount > 0 && timelineFps > 0
@@ -811,9 +806,25 @@ namespace ExpressPackingMonitoring.ViewModels
                         string? preRecordDropReason = null;
                         for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
                         {
-                            Mat preFrame = preRecordFrames[preFrameIndex];
+                            PreRecordPayload payload = preRecordFrames[preFrameIndex];
                             try
                             {
+                                if (payload.IsRaw)
+                                {
+                                    // 原始采样这一路：转换、旋转与水印都在写入端做（扫码这一刻只搬指针）。
+                                    _recordingFramePipelineDiagnostics.Enter(
+                                        RecordingFramePipelineStage.PreRecordEnqueue,
+                                        preFrameIndex);
+                                    if (!TryEnqueueFrameForRecording(payload))
+                                    {
+                                        preRecordDropped++;
+                                        preRecordDropReason ??= "队列已满";
+                                        payload.Dispose();
+                                    }
+                                    continue;
+                                }
+
+                                Mat preFrame = payload.Bgr!;
                                 // 预录帧要和实时帧走同一条准备链：实时帧在 HandleCameraFrame 里先按 180° 设置旋转，
                                 // 再在写录像前画水印。预录帧是旋转前缓存下来的，这里必须先补旋转，否则开启旋转后
                                 // 预录那几秒是倒的（现场反馈）。
@@ -824,28 +835,26 @@ namespace ExpressPackingMonitoring.ViewModels
                                         RecordingFramePipelineStage.PreRecordWatermark,
                                         preFrameIndex);
                                     // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
-                                    DateTime watermarkTime = DateTime.Now;
-                                    // 时间戳与帧一一对应，由快照阶段保存到并行列表。
-                                    if (preRecordTimestamps != null && preFrameIndex < preRecordTimestamps.Count)
-                                        watermarkTime = preRecordTimestamps[preFrameIndex];
-                                    ApplyWatermarkToFrame(preFrame, watermarkTime, _recordingOrderId, Array.Empty<string>());
+                                    ApplyWatermarkToFrame(preFrame, payload.Timestamp, _recordingOrderId, Array.Empty<string>());
                                 }
                                 _recordingFramePipelineDiagnostics.Enter(
                                     RecordingFramePipelineStage.PreRecordEnqueue,
                                     preFrameIndex);
-                                if (!TryEnqueueFrameForRecording(preFrame))
+                                // BGR 载荷：像素已经在手上，直接连所有权交给队列，不用再走一次载荷包装。
+                                if (!TryEnqueueFrameForRecording(payload.TakeBgr()!, capturedTicks: 0))
                                 {
                                     preRecordDropped++;
                                     preRecordDropReason ??= "队列已满";
                                     preFrame.Dispose();
                                 }
+                                payload.Dispose();
                             }
                             catch (Exception ex)
                             {
                                 // 静默丢弃会让"预录开头几秒消失"变成无据可查，这里至少要留一条线索。
                                 preRecordDropped++;
                                 preRecordDropReason ??= ex.Message;
-                                preFrame.Dispose();
+                                payload.Dispose();
                             }
                         }
                         if (preRecordDropped > 0)
@@ -1206,22 +1215,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 lock (_eventBufferLock)
                 {
                     added = _preRecordRing.Add(frame, DateTime.Now, maxBytes);
-                    if (added.ResetAfterSizeChange)
-                    {
-                        _preRecordRollingTransitionPending = false;
-                        _preRecordProgressStartTicks = Stopwatch.GetTimestamp();
-                    }
-                    else if (_preRecordProgressStartTicks <= 0)
-                        _preRecordProgressStartTicks = Stopwatch.GetTimestamp();
+                    NotePreRecordFrameAdded(added);
                 }
 
-                if (added.ResetAfterSizeChange)
-                {
-                    RuntimeLog.Info(
-                        "Recording",
-                        $"Pre-record buffer reset after frame size change {added.PreviousWidth}x{added.PreviousHeight}->{frame.Cols}x{frame.Rows}");
-                }
-
+                LogPreRecordBufferReset(added, frame.Cols, frame.Rows);
                 PublishPreRecordBufferStatus();
             }
             catch (Exception ex)
@@ -1230,19 +1227,70 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private List<Mat> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp, out List<DateTime> timestamps)
+        /// <summary>
+        /// 只存原始采样的预录帧（NV12/YUY2）：1.5 字节/像素，转换、旋转与水印都留到写入端做。
+        /// 采集端在这些帧上连 NV12→BGR 都不做，所以这一段是纯拷贝。
+        /// </summary>
+        private void UpdatePreRecordBuffer(Services.MediaFoundation.CameraRawFrame raw)
+        {
+            if (!Config.EnableEventRecordingBuffer || raw.Width <= 0 || raw.Height <= 0)
+                return;
+            long maxBytes = GetPreRecordBufferMaxBytes();
+            if (maxBytes <= 0)
+                return;
+            try
+            {
+                PreRecordAddResult added;
+                lock (_eventBufferLock)
+                {
+                    added = _preRecordRing.AddRaw(raw, DateTime.Now, maxBytes);
+                    NotePreRecordFrameAdded(added);
+                }
+
+                LogPreRecordBufferReset(added, raw.Width, raw.Height);
+                PublishPreRecordBufferStatus();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn("Recording", $"Pre-record raw frame capture skipped: {ex.Message}");
+            }
+        }
+
+        /// <summary>调用方持 _eventBufferLock。</summary>
+        private void NotePreRecordFrameAdded(PreRecordAddResult added)
+        {
+            if (added.ResetAfterSizeChange)
+            {
+                _preRecordRollingTransitionPending = false;
+                _preRecordProgressStartTicks = Stopwatch.GetTimestamp();
+            }
+            else if (_preRecordProgressStartTicks <= 0)
+            {
+                _preRecordProgressStartTicks = Stopwatch.GetTimestamp();
+            }
+        }
+
+        private void LogPreRecordBufferReset(PreRecordAddResult added, int width, int height)
+        {
+            if (!added.ResetAfterSizeChange)
+                return;
+
+            RuntimeLog.Info(
+                "Recording",
+                $"Pre-record buffer reset after frame size change {added.PreviousWidth}x{added.PreviousHeight}->{width}x{height}");
+        }
+
+        private List<PreRecordPayload> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp)
         {
             firstTimestamp = null;
-            timestamps = new List<DateTime>();
-            var result = new List<Mat>();
-            long snapshotBytes = 0;
+            var result = new List<PreRecordPayload>();
             if (!Config.EnableEventRecordingBuffer || Config.PreRecordBufferMB <= 0)
                 return result;
             lock (_eventBufferLock)
             {
                 // 转移事件前帧的所有权，避免为 1GB 原始帧缓冲再复制一份造成瞬时内存峰值。
                 // 事件后新帧会继续进入环形缓冲，下一次扫码仍可获得最新预录窗口。
-                snapshotBytes = _preRecordRing.TakeUntil(eventTime, result, timestamps, out firstTimestamp);
+                long snapshotBytes = _preRecordRing.TakeUntil(eventTime, result, out firstTimestamp);
                 if (result.Count > 0)
                 {
                     RuntimeLog.Info(
@@ -1400,14 +1448,13 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void ClearPendingEventRecordingFrames()
         {
-            List<Mat>? pending = _pendingPreRecordFrames;
+            List<PreRecordPayload>? pending = _pendingPreRecordFrames;
             _pendingPreRecordFrames = null;
-            _pendingPreRecordTimestamps = null;
             _pendingPreRecordStartTime = null;
             if (pending == null) return;
-            foreach (Mat frame in pending)
+            foreach (PreRecordPayload payload in pending)
             {
-                try { frame.Dispose(); } catch { }
+                try { payload.Dispose(); } catch { }
             }
         }
 

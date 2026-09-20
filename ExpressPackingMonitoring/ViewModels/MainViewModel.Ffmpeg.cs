@@ -90,24 +90,25 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 foreach (var queuedFrame in _videoWriteQueue.GetConsumingEnumerable())
                 {
-                    Mat frame = queuedFrame.Frame;
-                    // 检查 FFmpeg 进程是否已经崩溃。如果已经退出，直接退出循环
-                    if (ffmpeg.HasExited)
-                    {
-                        frame?.Dispose();
-                        break;
-                    }
-
-                    if (token.IsCancellationRequested)
-                    {
-                        frame?.Dispose();
-                        break;
-                    }
-                    if (frame == null || frame.IsDisposed) continue;
-
                     bool pipeError = false;
                     try
                     {
+                        Mat? frame = queuedFrame.Frame;
+                        // 预录里存原始采样的那一帧：转换、旋转、水印都在写入端做，
+                        // 扫码那一刻只把载荷指针交给队列（不转换、不拷贝）。
+                        if (frame == null && queuedFrame.Payload?.Raw is { } rawPayload)
+                        {
+                            // 复用同一块解码缓冲：预录帧按顺序解码后立刻写进管道，不必每帧新分配整块
+                            _preRecordDecodeBuffer ??= new Mat();
+                            PreparePreRecordFrameFromRaw(queuedFrame, rawPayload, _preRecordDecodeBuffer);
+                            frame = _preRecordDecodeBuffer;
+                        }
+                        if (frame == null || frame.IsDisposed) continue;
+
+                        // 检查 FFmpeg 进程是否已经崩溃。如果已经退出，直接退出循环
+                        if (ffmpeg.HasExited) break;
+                        if (token.IsCancellationRequested) break;
+
                         if (frame.Width != w || frame.Height != h)
                         {
                             if (!unexpectedFrameSizeLogged)
@@ -181,7 +182,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     finally
                     {
-                        frame.Dispose();
+                        // 队列元素独占自己那一份（BGR 或原始采样）；解码缓冲由写入任务结束时统一释放。
+                        queuedFrame.Dispose();
                     }
 
                     if (pipeError) break;
@@ -275,7 +277,40 @@ namespace ExpressPackingMonitoring.ViewModels
                 finally
                 {
                     try { ffmpeg?.Dispose(); } catch { }
+                    _rawFrameDecoder?.Dispose();
+                    _rawFrameDecoder = null;
+                    _preRecordDecodeBuffer?.Dispose();
+                    _preRecordDecodeBuffer = null;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 写入端把预录的原始采样解成 BGR，再补上采集端的旋转与预录水印。
+        ///
+        /// 放在这里的理由：扫码开录那一刻只把载荷指针交给队列，转换与画水印都摊到这个独立线程上，
+        /// 边转边喂 ffmpeg；放在注入段做的话，150 帧的转换会全部压在扫码那一刻。
+        /// </summary>
+        private void PreparePreRecordFrameFromRaw(
+            RecordingVideoFrame queuedFrame,
+            Services.MediaFoundation.PreRecordRawPayload rawPayload,
+            Mat destination)
+        {
+            _rawFrameDecoder ??= new Services.MediaFoundation.CameraRawFrameDecoder(
+                rawPayload.Format,
+                rawPayload.Width,
+                rawPayload.Height);
+            _rawFrameDecoder.DecodeToBgr(rawPayload.AsView(), destination);
+
+            // 与实时帧同一条准备链：先补 180° 旋转（预录是旋转前缓存下来的），再画水印。
+            CameraFrameOrientation.Apply(destination, Config.CameraRotate180);
+            if (Config.EnableWatermark)
+            {
+                // 预录帧按采集时刻绘制水印，不能用注入/写入时刻，否则整段预录的时间水印会静止。
+                DateTime watermarkTime = queuedFrame.WatermarkTime == DateTime.MinValue
+                    ? DateTime.Now
+                    : queuedFrame.WatermarkTime;
+                ApplyWatermarkToFrame(destination, watermarkTime, _recordingOrderId, Array.Empty<string>());
             }
         }
 

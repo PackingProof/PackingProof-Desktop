@@ -786,8 +786,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         _pendingPreRecordFrames = SnapshotPreRecordFrames(
                             DateTime.Now,
-                            out _pendingPreRecordStartTime,
-                            out _pendingPreRecordTimestamps);
+                            out _pendingPreRecordStartTime);
                     }
                     await InternalStartRecordingAsync();
                     ScanInputText = ""; // 启动录制后清空
@@ -1008,11 +1007,10 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。
-                List<Mat> pendingPreRecordFrames = null;
+                List<PreRecordPayload> pendingPreRecordFrames = null;
                 DateTime? pendingPreRecordStartTime = null;
-                List<DateTime> pendingPreRecordTimestamps = new();
                 if (Config.EnableEventRecordingBuffer)
-                    pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime, out pendingPreRecordTimestamps);
+                    pendingPreRecordFrames = SnapshotPreRecordFrames(DateTime.Now, out pendingPreRecordStartTime);
 
                 // 扫码切换：立即打断上一轮可能还在播放的语音（如"重复单号"×2）
                 _alertService?.InterruptAudio();
@@ -1023,7 +1021,6 @@ namespace ExpressPackingMonitoring.ViewModels
                     await InternalStopRecordingAsync();
                 }
                 _pendingPreRecordFrames = pendingPreRecordFrames;
-                _pendingPreRecordTimestamps = pendingPreRecordTimestamps;
                 _pendingPreRecordStartTime = pendingPreRecordStartTime;
                 await InternalStartRecordingAsync();
                 PublishExtensionScanTaskIfRecordingStarted(upperResult);
