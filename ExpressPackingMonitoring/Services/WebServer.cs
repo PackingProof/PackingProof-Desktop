@@ -4638,6 +4638,10 @@ namespace ExpressPackingMonitoring.Services
                 estimatedRetentionDays = estimatedRetentionDays.HasValue ? Math.Round(estimatedRetentionDays.Value, 0) : (double?)null,
                 estimateBasis,
                 pathCount = configuredPaths.Count,
+                unavailableLocations = configuredPaths
+                    .Where(path => StorageAvailabilityPolicy.IsLocationUnavailable(path.Path))
+                    .Select(path => path.Path)
+                    .ToList(),
                 paths = pathDtos
             }, _jsonOptions);
         }
@@ -4649,6 +4653,18 @@ namespace ExpressPackingMonitoring.Services
                 .Where(location => !string.IsNullOrWhiteSpace(location.Path))
                 .Where(location => !StorageLocationResolver.IsBackupLocation(location))
                 .OrderBy(location => location.Priority)
+                .ToList();
+        }
+
+        /// <summary>
+        /// 当前访问不了的录像存储位置（配置里还在、磁盘却不在）。
+        /// 只用于对外说明"录音在盘上、盘没接"这种情形，判定口径见 StorageAvailabilityPolicy。
+        /// </summary>
+        private IReadOnlyList<string> GetUnavailableStorageLocations()
+        {
+            return GetStorageOverviewLocations(LoadAppConfig())
+                .Select(location => NormalizeStoragePath(location.Path))
+                .Where(StorageAvailabilityPolicy.IsLocationUnavailable)
                 .ToList();
         }
 
@@ -4821,6 +4837,8 @@ namespace ExpressPackingMonitoring.Services
             }
             // SQL 层只取当前页，文件存在性仅对当前页记录检查。
             IReadOnlyDictionary<string, string> currentSourceNames = GetCurrentSourceDeviceNames();
+            // 只有"配置里的存储位置现在访问不了"才对外说磁盘不在；文件没了但目录还在的，仍按文件丢失显示
+            IReadOnlyList<string> unavailableLocations = GetUnavailableStorageLocations();
             var paged = result.Records.Select(r => new
             {
                 r.Id,
@@ -4857,6 +4875,9 @@ namespace ExpressPackingMonitoring.Services
                     ? (string.IsNullOrWhiteSpace(r.DeleteReason) ? "已清理" : r.DeleteReason)
                     : (string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)) ? "监控端未在记录的文件位置找到录像，可能已被移动、删除或清理" : ""),
                 exists = !r.IsDeleted && !string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r)),
+                storageUnavailable = !r.IsDeleted
+                    && string.IsNullOrWhiteSpace(PlaybackFileResolver.ResolvePlaybackPath(r))
+                    && StorageAvailabilityPolicy.IsUnderUnavailableLocation(r.FilePath, unavailableLocations),
                 playUrl = $"/api/videos/{r.Id}/play?compat=0",
                 thumbnailUrl = $"/api/videos/{r.Id}/thumbnail",
                 remote = true
