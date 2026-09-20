@@ -270,6 +270,37 @@ public sealed class DeploymentStartupTests
     /// 反过来的话，看门狗会在启动那一秒多里看到"设备已停 + 帧时间过旧"而排队重连，
     /// 把刚起来的摄像头再关掉（现场：反复"正在重连"、十几秒连不上）。
     /// </summary>
+    /// <summary>
+    /// 预录帧注入录像前必须补 180° 旋转：实时帧在 HandleCameraFrame 里先旋转再画水印，
+    /// 预录帧是旋转前缓存下来的克隆，漏了这一步就会出现"开启旋转后预录那几秒是倒的"（现场反馈）。
+    /// </summary>
+    [Fact]
+    public void PreRecordFramesAreRotatedBeforeWatermarkWhenInjected()
+    {
+        string source = ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Recording.cs");
+
+        int injectionStart = source.IndexOf(
+            "List<Mat>? preRecordFrames = _pendingPreRecordFrames;",
+            StringComparison.Ordinal);
+        Assert.True(injectionStart >= 0, "找不到预录帧注入段");
+
+        int rotateIndex = source.IndexOf(
+            "CameraFrameOrientation.Apply(preFrame, Config.CameraRotate180)",
+            injectionStart,
+            StringComparison.Ordinal);
+        int watermarkIndex = source.IndexOf(
+            "ApplyWatermarkToFrame(preFrame,",
+            injectionStart,
+            StringComparison.Ordinal);
+
+        Assert.True(rotateIndex > 0, "注入预录帧时没有补 180° 旋转");
+        Assert.True(watermarkIndex > 0, "找不到预录帧水印调用");
+        Assert.True(rotateIndex < watermarkIndex, "预录帧必须先旋转再画水印");
+    }
+
     [Fact]
     public void CameraWakeStartsSourceBeforeClearingSleepFlag()
     {

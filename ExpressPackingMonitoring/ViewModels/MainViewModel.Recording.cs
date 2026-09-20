@@ -814,6 +814,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             Mat preFrame = preRecordFrames[preFrameIndex];
                             try
                             {
+                                // 预录帧要和实时帧走同一条准备链：实时帧在 HandleCameraFrame 里先按 180° 设置旋转，
+                                // 再在写录像前画水印。预录帧是旋转前缓存下来的，这里必须先补旋转，否则开启旋转后
+                                // 预录那几秒是倒的（现场反馈）。
+                                CameraFrameOrientation.Apply(preFrame, Config.CameraRotate180);
                                 if (Config.EnableWatermark)
                                 {
                                     _recordingFramePipelineDiagnostics.Enter(
