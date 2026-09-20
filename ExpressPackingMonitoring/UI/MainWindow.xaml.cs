@@ -219,6 +219,10 @@ namespace ExpressPackingMonitoring.UI
                     (DataContext as MainViewModel)?.ReportMainPreviewVisibility(true);
                 }
             };
+            // 显示/隐藏（例如最小化到托盘）也要同步：只靠 StateChanged 会漏掉 hide/show
+            IsVisibleChanged += (s, e) =>
+                (DataContext as MainViewModel)?.ReportMainPreviewVisibility(
+                    IsVisible && WindowState != WindowState.Minimized);
             // 小窗只由最小化触发，主界面不新增按钮，所以控制器必须在这里提前挂好。
             if (DataContext is MainViewModel floatingPreviewViewModel)
                 _floatingPreviewController = new FloatingPreviewController(this, floatingPreviewViewModel);
