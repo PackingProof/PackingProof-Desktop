@@ -1769,6 +1769,201 @@ public sealed class MobileBackupTests
         }
     }
 
+    [Fact]
+    public void UploadStagingLandsOnStorageVolumeInsteadOfSystemDisk()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("staged on storage volume");
+            string sha = Sha256(file);
+            string stateDirectory = Path.Combine(directory, "state");
+            string storageRoot = Path.Combine(directory, "recordings");
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            var service = new MobileBackupService(database, stateDirectory, () => storageRoot);
+
+            Assert.Equal(0, service.CreateOrResume(CreateRequest(sha, file.Length)).Offset);
+
+            byte[] first = file[..8];
+            service.AppendChunk(sha, 0, 7, file.Length, first, Sha256(first));
+
+            string stagedPart = Path.Combine(
+                storageRoot,
+                MobileBackupService.StagingDirectoryName,
+                $"{sha}.part");
+            Assert.True(File.Exists(stagedPart), "分片应暂存在目标存储卷的暂存目录");
+            Assert.False(
+                File.Exists(Path.Combine(stateDirectory, $"{sha}.part")),
+                "分片不得再占用系统盘");
+
+            byte[] remaining = file[8..];
+            service.AppendChunk(sha, 8, file.Length - 1, file.Length, remaining, Sha256(remaining));
+            service.Complete(sha, CompleteRequest(sha, "session-staging", "TRACK-STAGE", "phone-1", "打包手机"));
+
+            Assert.False(File.Exists(stagedPart), "完成后暂存分片应被移走");
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void UploadRejectedWhenStorageUnavailableWithoutWritingStagingToSystemDisk()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("storage offline payload");
+            string sha = Sha256(file);
+            string stateDirectory = Path.Combine(directory, "state");
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            var service = new MobileBackupService(
+                database,
+                stateDirectory,
+                () => throw new IOException("没有可用的本地录像保存位置"));
+
+            Assert.Throws<MobileBackupStorageUnavailableException>(
+                () => service.CreateOrResume(CreateRequest(sha, file.Length)));
+            Assert.False(
+                Directory.Exists(stateDirectory)
+                    && Directory.EnumerateFiles(stateDirectory, "*.part").Any(),
+                "存储不可用时不得把分片写到系统盘");
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void LegacyStagedPartKeepsResumingUntilUploadCompletes()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("legacy staging payload");
+            string sha = Sha256(file);
+            string stateDirectory = Path.Combine(directory, "state");
+            string storageRoot = Path.Combine(directory, "recordings");
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            var service = new MobileBackupService(database, stateDirectory, () => storageRoot);
+            Assert.Equal(0, service.CreateOrResume(CreateRequest(sha, file.Length)).Offset);
+
+            // 模拟升级前遗留：分片仍在状态目录，服务重启后必须能继续传完
+            Directory.CreateDirectory(stateDirectory);
+            File.WriteAllBytes(Path.Combine(stateDirectory, $"{sha}.part"), file[..8]);
+
+            var restarted = new MobileBackupService(database, stateDirectory, () => storageRoot);
+            Assert.Equal(8, restarted.CreateOrResume(CreateRequest(sha, file.Length)).Offset);
+            byte[] remaining = file[8..];
+            Assert.Equal(
+                file.Length,
+                restarted.AppendChunk(sha, 8, file.Length - 1, file.Length, remaining, Sha256(remaining)));
+            restarted.Complete(sha, CompleteRequest(sha, "session-legacy", "TRACK-LEGACY", "phone-1", "打包手机"));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public void OrphanStagingPartsAreCleanedUpWithoutDeletingActiveUploads()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string stateDirectory = Path.Combine(directory, "state");
+            string storageRoot = Path.Combine(directory, "recordings");
+            string stagingDirectory = Path.Combine(storageRoot, MobileBackupService.StagingDirectoryName);
+            Directory.CreateDirectory(stagingDirectory);
+            string orphanPart = Path.Combine(stagingDirectory, $"{new string('c', 64)}.part");
+            File.WriteAllBytes(orphanPart, [1, 2, 3]);
+
+            byte[] file = Encoding.UTF8.GetBytes("active staging payload");
+            string activeSha = Sha256(file);
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            var service = new MobileBackupService(database, stateDirectory, () => storageRoot);
+            service.CreateOrResume(CreateRequest(activeSha, file.Length));
+            byte[] first = file[..4];
+            service.AppendChunk(activeSha, 0, 3, file.Length, first, Sha256(first));
+            string activePart = Path.Combine(stagingDirectory, $"{activeSha}.part");
+            Assert.True(File.Exists(activePart));
+
+            // 构造函数内执行孤儿分片清理
+            new MobileBackupService(database, stateDirectory, () => storageRoot);
+
+            Assert.False(File.Exists(orphanPart), "没有上传状态的孤儿分片应被清理");
+            Assert.True(File.Exists(activePart), "有上传状态的分片不得被清理");
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
+    [Fact]
+    public async Task UploadCreateReportsStorageUnavailableWhenStorageDiskIsMissing()
+    {
+        string directory = CreateTempDirectory();
+        int port = GetFreeTcpPort();
+        try
+        {
+            byte[] file = Encoding.UTF8.GetBytes("disk missing payload");
+            string sha = Sha256(file);
+            string stateDirectory = Path.Combine(directory, "state");
+            using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
+            using var server = new WebServer(
+                database,
+                port,
+                requireAccessKey: false,
+                accessKey: AccessKey,
+                listenerHost: "127.0.0.1",
+                mobileBackupComputerId: "computer-1",
+                mobileBackupComputerName: "打包电脑",
+                mobileBackupStateDirectory: stateDirectory,
+                // 模拟存储盘被拔掉：fail-closed 的存储位置解析直接失败
+                mobileBackupRecordingRootResolver: () => throw new IOException("没有可用的本地录像保存位置"),
+                backupDeviceEnrollmentApprover: _ => BackupDeviceEnrollmentApprovalDecision.Approved);
+            server.Start();
+            using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+
+            const string deviceId = "phone-disk-missing";
+            using HttpResponseMessage enrollment = await client.PostAsJsonAsync(
+                "/api/mobile-backup/enroll",
+                CreateCompatibleEnrollment(deviceId, "测试手机"),
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.OK, enrollment.StatusCode);
+            using JsonDocument enrollmentJson = JsonDocument.Parse(
+                await enrollment.Content.ReadAsStringAsync(cancellationToken));
+            string deviceToken = enrollmentJson.RootElement.GetProperty("deviceToken").GetString()!;
+
+            byte[] createBody = JsonSerializer.SerializeToUtf8Bytes(CreateRequest(sha, file.Length));
+            using HttpResponseMessage create = await SendSignedAsync(
+                client,
+                HttpMethod.Post,
+                "/api/mobile-backup/uploads",
+                deviceId,
+                deviceToken,
+                createBody,
+                cancellationToken);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, create.StatusCode);
+            using JsonDocument body = JsonDocument.Parse(
+                await create.Content.ReadAsStringAsync(cancellationToken));
+            Assert.Equal("storage_unavailable", body.RootElement.GetProperty("errorCode").GetString());
+            Assert.False(
+                Directory.EnumerateFiles(stateDirectory, "*.part").Any(),
+                "存储不可用时不得把分片写到系统盘");
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
     private static MobileBackupService CreateService(VideoDatabase database, string directory, Func<string, OrderInfo?>? resolver = null) =>
         new(database, Path.Combine(directory, "state"), () => Path.Combine(directory, "recordings"), resolver);
 

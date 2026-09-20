@@ -310,7 +310,14 @@ namespace ExpressPackingMonitoring.ViewModels
         private string ResolveBestStoragePath() =>
             ResolveBestStoragePlan().WorkingRootPath;
 
-        private RecordingStoragePlan ResolveBestStoragePlan()
+        /// <summary>
+        /// 备份上传必须落在真实可用的存储位置，禁止回退到程序目录。
+        /// 不可用时由 MobileBackupService 按 storage_unavailable 拒收，等待磁盘接回。
+        /// </summary>
+        private string ResolveBackupStoragePath() =>
+            ResolveBestStoragePlan(allowDefaultFallback: false).WorkingRootPath;
+
+        private RecordingStoragePlan ResolveBestStoragePlan(bool allowDefaultFallback = true)
         {
             if (IsRecordingWorkstation)
             {
@@ -320,7 +327,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 string resolved = StorageLocationResolver.Resolve(location);
                 return new RecordingStoragePlan(resolved, "", false);
             }
-            return StorageLocationResolver.ResolveRecordingPlan(Config, allowDefaultFallback: true);
+            return StorageLocationResolver.ResolveRecordingPlan(Config, allowDefaultFallback);
         }
 
         private StorageLocationEvaluation TryEvaluateStorageLocation(StorageLocation loc)

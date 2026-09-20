@@ -13,6 +13,12 @@ internal sealed class MobileBackupService
     internal const int ChunkSizeBytes = 4 * 1024 * 1024;
     internal static readonly TimeSpan UploadRetention = TimeSpan.FromDays(3);
 
+    /// <summary>
+    /// 备份分片暂存目录名。暂存必须与录像落在同一存储卷：既不占用系统盘，
+    /// 也让完成落盘成为同卷改名，避免跨卷复制中断留下不完整的目标文件。
+    /// </summary>
+    internal const string StagingDirectoryName = ".packingproof-staging";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -88,6 +94,10 @@ internal sealed class MobileBackupService
                 }
             }
 
+            // 备份分片必须落在目标存储卷：磁盘未接入、未就绪或空间不足时立即拒收，
+            // 客户端保留本地录像并按 storage_unavailable 自动重试。
+            string stagingDirectory = EnsureStagingDirectory();
+
             MobileBackupUploadState? state = LoadState(uploadId);
             if (state != null)
             {
@@ -105,6 +115,7 @@ internal sealed class MobileBackupService
                 }
 
                 long offset = File.Exists(PartPath(uploadId)) ? new FileInfo(PartPath(uploadId)).Length : 0;
+                EnsureStagingFreeSpace(stagingDirectory, request.TotalBytes - offset);
                 state.ReceivedBytes = offset;
                 state.UpdatedAtUtc = DateTime.UtcNow;
                 SaveState(state);
@@ -112,6 +123,7 @@ internal sealed class MobileBackupService
                 return new MobileBackupCreateResult(uploadId, offset, ChunkSizeBytes, false);
             }
 
+            EnsureStagingFreeSpace(stagingDirectory, request.TotalBytes);
             state = new MobileBackupUploadState
             {
                 UploadId = uploadId,
@@ -160,6 +172,8 @@ internal sealed class MobileBackupService
             if (expectedLength != content.LongLength || content.Length > ChunkSizeBytes)
                 throw new MobileBackupValidationException("invalid_chunk_size", "分块长度不正确或超过服务端上限");
 
+            // 存储卷不可用时不得写入分片，避免落到系统盘或错误位置
+            EnsureStagingDirectory();
             string partPath = PartPath(uploadId);
             long expectedOffset = File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
             if (start != expectedOffset)
@@ -203,6 +217,10 @@ internal sealed class MobileBackupService
                 MarkUploadCompleted(uploadId);
                 return new MobileBackupCompleteResult("verified", fileSha256, completed.Id, true);
             }
+
+            // 完成落盘前再次确认存储卷可用：磁盘被拔掉时按 storage_unavailable 拒收，
+            // 客户端保留上传状态，磁盘接回后继续完成
+            EnsureStagingDirectory();
 
             string finalPath;
             long fileSize;
@@ -365,6 +383,8 @@ internal sealed class MobileBackupService
                 }
             }
         }
+
+        CleanupOrphanStagingParts();
     }
 
     private static bool IsUploadStateFileName(string statePath)
@@ -375,11 +395,53 @@ internal sealed class MobileBackupService
         {
             return false;
         }
-        foreach (char character in fileName.AsSpan(0, 64))
+        return IsUploadId(fileName[..64]);
+    }
+
+    private static bool IsUploadId(string value)
+    {
+        if (value.Length != 64) return false;
+        foreach (char character in value)
         {
             if (!Uri.IsHexDigit(character)) return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// 清理没有对应上传状态的孤儿分片：目标盘暂存目录与状态目录里遗留的旧分片。
+    /// 存储位置不可用时静默跳过，等磁盘接回后再清理。
+    /// </summary>
+    private void CleanupOrphanStagingParts()
+    {
+        foreach (string directory in EnumeratePartDirectories())
+        {
+            try
+            {
+                if (!Directory.Exists(directory)) continue;
+                foreach (string partPath in Directory.EnumerateFiles(
+                    directory,
+                    "*.part",
+                    SearchOption.TopDirectoryOnly))
+                {
+                    string uploadId = Path.GetFileNameWithoutExtension(partPath);
+                    if (!IsUploadId(uploadId)) continue;
+                    if (File.Exists(StatePath(uploadId))) continue;
+                    TryDelete(partPath);
+                }
+            }
+            catch
+            {
+                // 单个目录不可读不影响其它位置的清理
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumeratePartDirectories()
+    {
+        string? stagingDirectory = TryResolveStagingDirectory();
+        if (stagingDirectory != null) yield return stagingDirectory;
+        yield return _stateDirectory;
     }
 
     private object GetUploadLock(string uploadId) => _uploadLocks[GetUploadLockStripeIndex(uploadId)];
@@ -393,7 +455,93 @@ internal sealed class MobileBackupService
 
     private string StatePath(string uploadId) => Path.Combine(_stateDirectory, $"{uploadId}.json");
 
-    private string PartPath(string uploadId) => Path.Combine(_stateDirectory, $"{uploadId}.part");
+    /// <summary>
+    /// 暂存分片路径。优先使用目标存储卷的暂存目录；旧版本遗留在状态目录的分片继续用到完成，
+    /// 不打断升级前正在进行的上传。这里只做路径计算，解析失败也不会创建任何目录。
+    /// </summary>
+    private string PartPath(string uploadId)
+    {
+        string? stagingDirectory = TryResolveStagingDirectory();
+        if (stagingDirectory != null
+            && File.Exists(Path.Combine(stagingDirectory, $"{uploadId}.part")))
+        {
+            return Path.Combine(stagingDirectory, $"{uploadId}.part");
+        }
+
+        string legacy = Path.Combine(_stateDirectory, $"{uploadId}.part");
+        if (File.Exists(legacy) || stagingDirectory == null) return legacy;
+        return Path.Combine(stagingDirectory, $"{uploadId}.part");
+    }
+
+    /// <summary>
+    /// 解析并准备暂存目录；存储位置不可用时抛 <see cref="MobileBackupStorageUnavailableException"/>。
+    /// 录像根目录由 StorageLocationResolver 做 fail-closed 校验，挂载点断开时不会回退到系统盘上的同名目录。
+    /// </summary>
+    private string EnsureStagingDirectory()
+    {
+        string root;
+        try
+        {
+            root = _recordingRootResolver()?.Trim() ?? "";
+        }
+        catch (Exception ex)
+        {
+            throw new MobileBackupStorageUnavailableException($"录像保存位置不可用：{ex.Message}");
+        }
+        if (string.IsNullOrWhiteSpace(root))
+            throw new MobileBackupStorageUnavailableException("录像保存位置为空，无法接收备份");
+
+        string directory = Path.Combine(root, StagingDirectoryName);
+        try
+        {
+            Directory.CreateDirectory(directory);
+        }
+        catch (Exception ex)
+        {
+            throw new MobileBackupStorageUnavailableException($"无法在 {root} 下创建暂存目录：{ex.Message}");
+        }
+        return directory;
+    }
+
+    private string? TryResolveStagingDirectory()
+    {
+        try
+        {
+            return EnsureStagingDirectory();
+        }
+        catch (MobileBackupStorageUnavailableException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 剩余空间不足时提前拒收，避免在目标盘上写入半截分片；读不到空间信息时不阻断上传。
+    /// </summary>
+    private static void EnsureStagingFreeSpace(string stagingDirectory, long requiredBytes)
+    {
+        if (requiredBytes <= 0) return;
+        try
+        {
+            string? root = Path.GetPathRoot(Path.GetFullPath(stagingDirectory));
+            if (string.IsNullOrWhiteSpace(root)) return;
+            var drive = new DriveInfo(root);
+            if (!drive.IsReady)
+                throw new MobileBackupStorageUnavailableException($"存储位置 {root} 未就绪");
+            long availableBytes = drive.AvailableFreeSpace;
+            if (availableBytes >= requiredBytes) return;
+            throw new MobileBackupStorageUnavailableException(
+                $"存储位置剩余空间不足，本次备份还需约 {requiredBytes / (1024 * 1024)} MB，当前可用约 {availableBytes / (1024 * 1024)} MB");
+        }
+        catch (MobileBackupStorageUnavailableException)
+        {
+            throw;
+        }
+        catch
+        {
+            // 读不到空间信息时交由后续写入与完成校验兜底
+        }
+    }
 
     private bool TryUseStateFinalFile(MobileBackupUploadState? state, out string finalPath, out long fileSize)
     {
@@ -417,9 +565,17 @@ internal sealed class MobileBackupService
         string trackingNumber = session.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
         if (string.IsNullOrWhiteSpace(trackingNumber)) trackingNumber = "未识别面单";
         DateTime startedAt = session.StartedAt.ToLocalTime().DateTime;
-        string root = _recordingRootResolver()?.Trim() ?? "";
+        string root;
+        try
+        {
+            root = _recordingRootResolver()?.Trim() ?? "";
+        }
+        catch (Exception ex)
+        {
+            throw new MobileBackupStorageUnavailableException($"录像保存位置不可用：{ex.Message}");
+        }
         if (string.IsNullOrWhiteSpace(root))
-            throw new IOException("电脑录像存储路径为空");
+            throw new MobileBackupStorageUnavailableException("电脑录像存储路径为空，无法接收备份");
 
         string dateDirectory = Path.Combine(
             Path.GetFullPath(root),
@@ -696,6 +852,12 @@ internal sealed class MobileBackupValidationException(string errorCode, string m
 {
     public string ErrorCode { get; } = errorCode;
 }
+
+/// <summary>
+/// 保存主机的存储位置当前不可用：磁盘未接入、未就绪、不可写或空间不足。
+/// 服务端按 storage_unavailable 拒收，客户端保留本地录像与上传队列并自动重试。
+/// </summary>
+internal sealed class MobileBackupStorageUnavailableException(string message) : Exception(message);
 
 internal sealed class MobileBackupOffsetException(long expectedOffset) : Exception("上传偏移与服务端不一致")
 {
