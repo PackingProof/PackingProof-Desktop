@@ -266,6 +266,7 @@
     <Compile Include="ViewModels\MainViewModel.Cleanup.cs" />
     <Compile Include="ViewModels\CameraLifecycleSynchronization.cs" />
     <Compile Include="ViewModels\RecordingBufferPolicy.cs" />
+    <Compile Include="ViewModels\PreRecordFrameRing.cs" />
     <Compile Include="ViewModels\PreviewFrameRatePolicy.cs" />
     <Compile Include="ViewModels\CameraFrameConverter.cs" />
     <Compile Include="ViewModels\CameraColorMatrixPolicy.cs" />
