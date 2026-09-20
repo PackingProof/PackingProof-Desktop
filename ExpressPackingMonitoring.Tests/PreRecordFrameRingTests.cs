@@ -132,6 +132,26 @@ public sealed class PreRecordFrameRingTests
         Assert.Equal(0, ring.DroppedFrames);
     }
 
+    /// <summary>
+    /// 换分辨率后显示容量必须按新尺寸重算：抽取前的老代码在重建时会把容量清零重算，
+    /// 漏了这一步界面会拿旧尺寸算出来的帧数继续显示进度。
+    /// </summary>
+    [Fact]
+    public void Add_WhenFrameSizeChanges_RecomputesDisplayCapacity()
+    {
+        using var ring = new PreRecordFrameRing();
+        using Mat small = CreateFrame(8, 6, value: 1);
+        using Mat large = CreateFrame(16, 12, value: 2);
+        long maxBytes = FrameBytes(16, 12) * 4;
+
+        ring.Add(small, BaseTime, maxBytes);
+        Assert.Equal(maxBytes / FrameBytes(8, 6), ring.DisplayCapacityFrames);
+
+        ring.Add(large, BaseTime.AddSeconds(1), maxBytes);
+
+        Assert.Equal(maxBytes / FrameBytes(16, 12), ring.DisplayCapacityFrames);
+    }
+
     [Fact]
     public void TrimTo_DropsOldestFramesUntilUnderLimit()
     {

@@ -200,7 +200,6 @@ internal sealed class PreRecordFrameRing : IDisposable
     public void Clear()
     {
         ClearCore();
-        DisplayCapacityFrames = 0;
     }
 
     public void Dispose() => Clear();
@@ -213,6 +212,9 @@ internal sealed class PreRecordFrameRing : IDisposable
         _bytes = 0;
         _width = 0;
         _height = 0;
+        // 换分辨率重建后必须让容量按新尺寸重算（抽取前的老代码在这里也会清零），
+        // 否则界面进度条会继续拿旧尺寸算出来的帧数显示。
+        DisplayCapacityFrames = 0;
         DroppedFrames = 0;
         HasWrapped = false;
     }
