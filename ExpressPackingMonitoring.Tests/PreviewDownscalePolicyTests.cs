@@ -27,14 +27,20 @@ public sealed class PreviewDownscalePolicyTests
         Assert.Null(PreviewDownscalePolicy.ResolveTarget(1920, 1080, 1920));
     }
 
-    /// <summary>窗口被拉得很小时保留下限，避免糊成一片。</summary>
+    /// <summary>
+    /// 发布尺寸跟着控件的实际宽度走：120px 的窗口按 128px 发布（向上吸附到比例步长），
+    /// 不再像以前那样被 640 下限拉到 640。下限只防极端值。
+    /// </summary>
     [Fact]
-    public void KeepsMinimumWidth()
+    public void FollowsActualControlWidthEvenWhenSmall()
     {
-        (int Width, int Height)? target = PreviewDownscalePolicy.ResolveTarget(1920, 1080, 120);
+        (int Width, int Height)? small = PreviewDownscalePolicy.ResolveTarget(1920, 1080, 120);
+        Assert.NotNull(small);
+        Assert.InRange(small!.Value.Width, 120, 136);
 
-        Assert.NotNull(target);
-        Assert.Equal(PreviewDownscalePolicy.MinimumWidth, target!.Value.Width);
+        (int Width, int Height)? tiny = PreviewDownscalePolicy.ResolveTarget(1920, 1080, 8);
+        Assert.NotNull(tiny);
+        Assert.Equal(PreviewDownscalePolicy.MinimumWidth, tiny!.Value.Width);
     }
 
     /// <summary>
