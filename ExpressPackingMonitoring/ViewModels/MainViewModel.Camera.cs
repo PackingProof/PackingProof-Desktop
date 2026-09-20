@@ -1223,10 +1223,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             }
                         }
 
-                        bool previewFrameDue = IsPreviewFrameDue();
+                        bool previewPublishDue = ShouldPublishPreviewFrameNow();
 
                         // 非录制状态只为真正要发布的预览帧绘制水印，避免按摄像头满帧率克隆整帧。
-                        if (Config.EnableWatermark && (IsRecording || previewFrameDue))
+                        if (Config.EnableWatermark && (IsRecording || previewPublishDue))
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Watermark, currentFrameSequence);
                             try
@@ -1250,7 +1250,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.MotionDetection, currentFrameSequence);
                             TryPerformMotionDetection(currentFrame);
                         }
-                        if (previewFrameDue)
+                        if (previewPublishDue)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PreviewPublish, currentFrameSequence);
                             PublishPreviewFrameIfDue(processedFrame, previewResizer, currentFrameCapturedTicks);
@@ -1545,6 +1545,27 @@ namespace ExpressPackingMonitoring.ViewModels
             _isDisposed,
             _isCameraSleeping,
             HasVisiblePreviewConsumer);
+
+        /// <summary>
+        /// 这一轮要不要发布预览：先过停止条件，再按空闲分档限流。
+        ///
+        /// 分档必须在这里真正限流：处理循环是"摄像头来一帧就处理一帧"，循环节奏只当等待超时用，
+        /// 不限制发布频率；没有这道门限时空闲降档对预览完全不起作用（现场反馈"降帧没生效"）。
+        /// 满帧档放行每一帧（避免 60fps 抖动被误丢），降档后按 15/4fps 放行。
+        /// 只影响预览发布，录像、条码识别、运动检测照常。
+        /// </summary>
+        private bool ShouldPublishPreviewFrameNow()
+        {
+            if (!IsPreviewFrameDue())
+            {
+                LogPreviewPausedIfDue();
+                return false;
+            }
+
+            int previewTargetFps = CurrentPreviewTargetFps();
+            bool acceptEveryFrame = previewTargetFps >= PreviewFrameRatePolicy.ResolveTargetFps(_actualCameraFps);
+            return _previewPublishRateGate.ShouldAccept(acceptEveryFrame, previewTargetFps);
+        }
 
         private void PublishPreviewFrameIfDue(Mat frame, GpuPreviewResizer previewResizer, long capturedTicks)
         {
