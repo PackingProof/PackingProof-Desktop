@@ -16,6 +16,9 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     await page.waitForFunction(() => /^第 \d+ \/ \d+ 页$/.test(
       document.querySelector('#resultsInfo')?.textContent?.trim() || ''));
 
+    // 存储盘在线时不得出现拔盘提示条
+    assert.equal(await page.locator('#storageBanner').isVisible(), false);
+
     // 筛选面板：按钮呼出、条件即时生效、徽章与导出状态联动
     const filterButton = page.locator('#filterButton');
     const filterPanel = page.locator('#filterPanel');
