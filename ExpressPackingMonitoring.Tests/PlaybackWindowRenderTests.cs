@@ -51,7 +51,7 @@ public sealed class PlaybackWindowRenderTests
         [
             "ColorTokens.xaml", "LightTheme.xaml", "ComboBoxTheme.xaml", "DatePickerTheme.xaml",
             "SpinBoxTheme.xaml", "TextBoxTheme.xaml", "ButtonTheme.xaml", "ScrollBarTheme.xaml",
-            "FluentIcons.xaml", "MenuTheme.xaml"
+            "FluentIcons.xaml", "SliderTheme.xaml", "MenuTheme.xaml"
         ];
 
         var merged = new ResourceDictionary();

@@ -322,6 +322,7 @@
     <Compile Include="UI\PlaybackWindow.xaml.cs" />
     <Compile Include="UI\PlaybackWindow.Playback.cs" />
     <Compile Include="UI\PlaybackWindowFitPolicy.cs" />
+    <Compile Include="UI\PlaybackControlBarPolicy.cs" />
     <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />

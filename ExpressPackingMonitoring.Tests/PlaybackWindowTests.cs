@@ -525,6 +525,33 @@ public sealed class PlaybackWindowTests
             "SetPause(false) 必须在 _wasPlayingBeforeScrub 分支里，否则暂停时拖动会变成播放");
     }
 
+    /// <summary>
+    /// 回放进度条复用设置页那套滑杆外观（Themes/SliderTheme.xaml 的 AccentSliderStyle），
+    /// 不再各写一套模板；控制条窄宽度时按钮只留图标。
+    /// </summary>
+    [Fact]
+    public void PlaybackControlBar_ReusesSharedSliderStyleAndCollapsesButtonText()
+    {
+        string theme = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "Themes", "SliderTheme.xaml"));
+        string settings = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml"));
+        string playbackXaml = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml"));
+        string codeBehind = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("x:Key=\"AccentSliderStyle\"", theme, StringComparison.Ordinal);
+        Assert.Contains("BasedOn=\"{StaticResource AccentSliderStyle}\"", settings, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource AccentSliderStyle}\"", playbackXaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PlaybackControlBar\"", playbackXaml, StringComparison.Ordinal);
+        Assert.Contains("PlaybackControlBar_SizeChanged", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LocateFileText\"", playbackXaml, StringComparison.Ordinal);
+        // 时间只显示分:秒
+        Assert.Contains("PlaybackTimeLabelFormatter.FormatRange(", codeBehind, StringComparison.Ordinal);
+        Assert.DoesNotContain("hh\\:mm\\:ss", codeBehind, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] relativeParts)
     {
         foreach (string startPath in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
