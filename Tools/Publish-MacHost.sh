@@ -16,7 +16,13 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_root="${1:-${repository_root}/package/mac-host}"
 runtime_id="${2:-osx-arm64}"
-version="${3:-0.0.1}"
+# 版本号默认跟随桌面端工程（Mac 包和桌面端同一次发布，版本必须一致）
+version="${3:-}"
+if [ -z "${version}" ]; then
+  version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' \
+    "${repository_root}/ExpressPackingMonitoring.Core/ExpressPackingMonitoring.Core.csproj" | head -1)"
+  version="${version:-0.0.1}"
+fi
 notary_profile="${NOTARY_PROFILE:-PackingProofNotary}"
 notarize="${NOTARIZE:-0}"
 
