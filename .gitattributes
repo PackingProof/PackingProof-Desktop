@@ -5,6 +5,10 @@ Tools/Publish-MacHost.sh text eol=lf
 Tools/Publish-MacRelease.sh text eol=lf
 Tools/Prepare-PinnedFFmpegMac.sh text eol=lf
 
+# 签名用的 entitlements 必须是 LF：codesign 走 AMFI 解析，CRLF 会直接
+# 报 "AMFIUnserializeXML: syntax error near line 1" 而签不上 Developer ID。
+Tools/MacHost.entitlements text eol=lf
+
 # 市场目录签名覆盖原始字节，测试夹具禁止检出时转换行尾。
 ExpressPackingMonitoring.Tests/Fixtures/ExtensionMarket/catalog.v1.json -text
 ExpressPackingMonitoring.Tests/Fixtures/ExtensionMarket/catalog.v1.sig -text
