@@ -133,16 +133,29 @@ else
     --sign "${sign_identity}" "${app_bundle}"
 fi
 
+# 对外分发用 DMG：整包替换是 macOS 上唯一不破坏签名与公证的方式，
+# 所以不做 Windows 那套逐文件增量补丁
+echo "==> 生成 DMG"
+dmg_path="${output_root}/PackingProof-macOS-${version}.dmg"
+rm -f "${dmg_path}"
+dmg_staging="$(mktemp -d)"
+cp -R "${app_bundle}" "${dmg_staging}/"
+ln -s /Applications "${dmg_staging}/Applications"
+hdiutil create -volname "PackingProof ${version}" -srcfolder "${dmg_staging}" \
+  -ov -format UDZO "${dmg_path}" >/dev/null
+rm -rf "${dmg_staging}"
+
+if [ "${sign_identity}" != "-" ]; then
+  codesign --force --timestamp --sign "${sign_identity}" "${dmg_path}"
+fi
+
 if [ "${notarize}" = "1" ] && [ "${sign_identity}" != "-" ]; then
-  echo "==> 公证（keychain-profile: ${notary_profile}）"
-  zip_path="${output_root}/PackingProof-macOS-${version}.zip"
-  rm -f "${zip_path}"
-  ditto -c -k --keepParent "${app_bundle}" "${zip_path}"
-  xcrun notarytool submit "${zip_path}" --keychain-profile "${notary_profile}" --wait
+  echo "==> 公证 DMG（keychain-profile: ${notary_profile}）"
+  xcrun notarytool submit "${dmg_path}" --keychain-profile "${notary_profile}" --wait
+  # DMG 与里面的 .app 都装订票据，离线首次启动也能过 Gatekeeper
+  xcrun stapler staple "${dmg_path}"
   xcrun stapler staple "${app_bundle}"
-  rm -f "${zip_path}"
-  ditto -c -k --keepParent "${app_bundle}" "${zip_path}"
-  echo "已公证并装订，可分发压缩包: ${zip_path}"
+  echo "已公证并装订"
 fi
 
 # 改一下 bundle 时间戳，促使 Finder 刷新图标缓存
