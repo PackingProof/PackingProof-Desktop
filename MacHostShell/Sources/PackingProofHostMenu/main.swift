@@ -125,6 +125,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }
 
         image.size = NSSize(width: 18, height: 18)
+        // 系统菜单栏图标都是单色模板，跟随明暗主题；彩色图标会和系统项明显不一致
+        image.isTemplate = true
         item.button?.image = image
         item.button?.imagePosition = .imageOnly
     }
