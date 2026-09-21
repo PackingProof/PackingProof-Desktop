@@ -26,6 +26,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostProblem = ""
     /// 刚发起过启动、还没开始监听：界面上说"启动中"而不是"未运行"
     private var hostLaunching = false
+    /// 界面内提示的代次：新的提示会顶掉旧的自动消失
+    private var bannerGeneration = 0
     private var hostServing = false
     private var viewerRunning = false
 
@@ -215,8 +217,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
             connectManually: { [weak self] input in await self?.connectManuallyAsync(input) },
             switchPurpose: { [weak self] viewer in await self?.switchPurposeAsync(viewer: viewer) },
             openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
-            promptCapacity: { [weak self] path in self?.promptCapacity(path: path) },
-            promptReserve: { [weak self] path in self?.promptReserve(path: path) },
+            setCapacity: { [weak self] path, gigabytes in
+                self?.applyStorageLimit(path: path, byCapacity: true, gigabytes: gigabytes)
+            },
+            setReserve: { [weak self] path, gigabytes in
+                self?.applyStorageLimit(path: path, byCapacity: false, gigabytes: gigabytes)
+            },
             addDisk: { [weak self] path in self?.addStorageDisk(root: path) },
             toggleAutostart: { [weak self] in self?.toggleAutostart() },
             openLogs: { [weak self] in self?.openLogs() })
@@ -257,11 +263,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func clearRememberedHostAsync() async {
-        guard confirmForgetHost() else { return }
         _ = await runHostCommandAsync(["--forget-host"])
         refreshSettings()
         viewerState = ""
         viewerStatusText = statusWord("notBound")
+        showBanner("已忘记当前主机，重新搜索后再连接即可")
         rebuildMenu()
         await searchAsync()
     }
@@ -308,7 +314,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
         guard !root.isEmpty else { return }
         let path = (root as NSString).appendingPathComponent("快递打包视频")
         applySettings(addStoragePath: path, afterApply: { [weak self] in
-            self?.confirmRestart(after: "已添加保存位置 \(path)")
+            // 保存主机启动时只读一次录像根目录，新增磁盘后自动重启，不再问一遍
+            self?.restartHost()
+            self?.showBanner("已添加保存位置 \(path)，正在重启主机")
         })
     }
 
@@ -458,45 +466,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(viewerItem)
         menu.addItem(.separator())
 
-        // 保存位置、容量上限、添加磁盘、开机自启都只属于保存主机：查看端不录像也不保存，
-        // 这些项摆出来只会让人以为查看端也会占盘
-        if !isViewer {
-            if storagePaths.isEmpty {
-                menu.addItem(disabledItem("保存位置：未设置"))
-            } else {
-                for (index, path) in storagePaths.enumerated() {
-                    // 点一下就在 Finder 里打开该目录（以前这里是禁用项，点不动）
-                    let item = NSMenuItem(
-                        title: "保存位置\(index + 1)：\(path)",
-                        action: #selector(openStorageLocation(_:)),
-                        keyEquivalent: "")
-                    item.target = self
-                    item.representedObject = path
-                    menu.addItem(item)
-                }
-            }
-
-            let capacityItem = NSMenuItem(title: "存储空间上限…", action: nil, keyEquivalent: "")
-            capacityItem.submenu = buildStorageLimitMenu()
-            menu.addItem(capacityItem)
-
-            let diskMenu = NSMenu()
-            for volume in mountedVolumes() {
-                let item = NSMenuItem(title: "添加 \(volume.lastPathComponent)", action: #selector(addVolume(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = volume.path
-                diskMenu.addItem(item)
-            }
-            if diskMenu.items.isEmpty { diskMenu.addItem(disabledItem("没有可用磁盘")) }
-            let diskItem = NSMenuItem(title: "添加磁盘…", action: nil, keyEquivalent: "")
-            diskItem.submenu = diskMenu
-            menu.addItem(diskItem)
-            let autostartItem = actionItem("开机自启", #selector(toggleAutostart))
-            autostartItem.state = autostartInstalled ? .on : .off
-            menu.addItem(autostartItem)
-            menu.addItem(.separator())
-        }
-
+        // 保存位置、容量、磁盘、开机自启、日志都在主界面的"设置"里，
+        // 菜单栏只留最常用的动作，不再堆配置项
         if isViewer {
             // 查看端这里是"要连哪台主机"，不是本机用途，所以叫连接主机
             let hostsItem = NSMenuItem(title: "连接主机…", action: nil, keyEquivalent: "")
@@ -508,76 +479,13 @@ final class HostShell: NSObject, NSApplicationDelegate {
         // 查看端只要记住了一台主机就允许点：还没拿到主机允许时，点它就是去申请接入
         playbackItem.isEnabled = isViewer ? !hostAddress.isEmpty : hostServing
         menu.addItem(playbackItem)
-        menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
+        menu.addItem(actionItem("设置…", #selector(openSettingsAction)))
         menu.addItem(.separator())
         menu.addItem(actionItem("退出", #selector(quit)))
 
         pushStateToModel()
         updateWindowTitle()
         statusItem?.menu = menu
-    }
-
-    /// 每个保存位置一个子菜单：先摆现状，再给"设置容量上限 / 设置预留空间"两个入口
-    private func buildStorageLimitMenu() -> NSMenu {
-        let menu = NSMenu()
-        guard !storageLocations.isEmpty else {
-            menu.addItem(disabledItem("还没有可用的保存位置"))
-            return menu
-        }
-
-        for location in storageLocations {
-            guard let path = location["path"] as? String else { continue }
-            let name = (location["displayName"] as? String) ?? path
-            let available = (location["available"] as? Bool) ?? false
-            let capacityKnown = (location["capacityKnown"] as? Bool) ?? false
-            let submenu = NSMenu()
-
-            if !available {
-                submenu.addItem(disabledItem("磁盘未接入，暂时读不到容量"))
-            } else if capacityKnown {
-                let capacity = formatNumber(number(location["capacityGB"]))
-                let reserve = formatNumber(number(location["reserveGB"]))
-                submenu.addItem(disabledItem("容量上限 \(capacity) GB，预留 \(reserve) GB"))
-                let recommended = number(location["recommendedReserveGB"])
-                if number(location["reserveGB"]) < recommended {
-                    submenu.addItem(disabledItem("预留偏低，建议至少 \(formatNumber(recommended)) GB"))
-                }
-            } else {
-                submenu.addItem(disabledItem("磁盘太小，放不下最低预留"))
-            }
-
-            let capacityAction = NSMenuItem(
-                title: "设置容量上限…",
-                action: #selector(promptCapacity(_:)),
-                keyEquivalent: "")
-            capacityAction.target = self
-            capacityAction.representedObject = path
-            capacityAction.isEnabled = capacityKnown
-            submenu.addItem(capacityAction)
-
-            let reserveAction = NSMenuItem(
-                title: "设置预留空间…",
-                action: #selector(promptReserve(_:)),
-                keyEquivalent: "")
-            reserveAction.target = self
-            reserveAction.representedObject = path
-            reserveAction.isEnabled = capacityKnown
-            submenu.addItem(reserveAction)
-
-            let openAction = NSMenuItem(
-                title: "在 Finder 中打开",
-                action: #selector(openStorageLocation(_:)),
-                keyEquivalent: "")
-            openAction.target = self
-            openAction.representedObject = path
-            submenu.addItem(openAction)
-
-            let entry = NSMenuItem(title: name, action: nil, keyEquivalent: "")
-            entry.submenu = submenu
-            menu.addItem(entry)
-        }
-
-        return menu
     }
 
     /// 查看端：把发现到的主机做成子菜单，标出当前那台，点选即切换，可移除
@@ -627,21 +535,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func dumpMenu() -> String {
         var lines: [String] = []
+        lines.append("· 打开主界面")
+        lines.append("· —")
         lines.append("· \(hostPurposeTitle) \(purpose == "MobileBackupHost" ? "✓" : "")")
         lines.append("· \(viewerPurposeTitle) \(purpose == "ViewerClient" ? "✓" : "")")
-        // 与真实菜单一致：保存位置、容量上限、开机自启只在保存主机下出现
-        if !isViewer {
-            if storagePaths.isEmpty {
-                lines.append("· 保存位置：未设置")
-            } else {
-                for (index, path) in storagePaths.enumerated() {
-                    lines.append("· 保存位置\(index + 1)：\(path)（点击在 Finder 中打开）")
-                }
-            }
-            lines.append(contentsOf: storageSummaryLines())
-            lines.append("· 添加磁盘…（选磁盘后用默认子目录）")
-            lines.append("· 开机自启 \(autostartInstalled ? "✓" : "")")
-        }
+        lines.append("· —")
         if isViewer {
             lines.append("· 连接主机…：\(hostMenuSummary())")
         }
@@ -649,7 +547,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
             ? (viewerConnected ? "已连接 \(hostAddress)" : "禁用（\(viewerStatusText)）")
             : (hostServing ? "本机" : "未启动，禁用")
         lines.append("· 打开网页回放（\(playback)）")
-        lines.append("· 打开日志目录")
+        lines.append("· 设置…（主界面里的设置页）")
+        lines.append("· —")
         lines.append("· 退出")
         return lines.joined(separator: "\n")
     }
@@ -722,7 +621,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
         stopHost()
         stopUntrackedHostProcesses()
 
-        notify("已切换为查看端，本机保存主机已停止")
         refresh()
     }
 
@@ -732,7 +630,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
         lastLaunchAttempt = Date()
         startHostProcess()
 
-        notify("已切换为保存主机")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.refresh() }
     }
 
@@ -797,7 +694,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                           afterApply: { [weak self] in
                               // 取消托管后由壳继续看着主机，别让录像主机跟着一起停掉
                               self?.startHostProcess()
-                              self?.notify("已取消开机自启")
+                              self?.showBanner("已取消开机自启")
                           })
             return
         }
@@ -811,7 +708,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                                     // 装 plist 时 launchd 已经按 RunAtLoad 把主机拉起来了，
                                     // 这里不要再 kickstart，否则刚起来的进程会被顶掉
                                     self?.refresh()
-                                    self?.notify("已注册开机自启")
+                                    self?.showBanner("已注册开机自启")
                                 })
         }
     }
@@ -823,11 +720,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
             includingResourceValuesForKeys: keys,
             options: [.skipHiddenVolumes]) ?? []
         return volumes.filter { $0.path != "/" }
-    }
-
-    @objc private func addVolume(_ sender: NSMenuItem) {
-        guard let root = sender.representedObject as? String else { return }
-        addStorageDisk(root: root)
     }
 
     /// 改配置一律走主机命令行：查看端不常驻 HTTP 服务，
@@ -849,7 +741,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 guard let json, (json["ok"] as? Bool) == true else {
                     let message = (json?["error"] as? String) ?? "设置失败"
-                    self.notify("设置未生效：\(message)")
+                    self.showBanner("设置未生效：\(message)", isError: true)
                     return
                 }
 
@@ -866,22 +758,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
                     // 用途切换要先把进程收拾干净，提示由 afterApply 自己给（内容更准）
                     afterApply()
                 } else if let success {
-                    self.notify(success)
+                    self.showBanner(success)
                 }
             }
-        }
-    }
-
-    /// 改完设置问一次：是否立即重启，让新用途/新位置马上生效
-    private func confirmRestart(after message: String) {
-        statusItem?.menu?.cancelTracking()
-        let alert = NSAlert()
-        alert.messageText = message
-        alert.informativeText = "是否立即重启主机让设置生效？"
-        alert.addButton(withTitle: "立即重启")
-        alert.addButton(withTitle: "稍后")
-        if alert.runModal() == .alertFirstButtonReturn {
-            restartHost()
         }
     }
 
@@ -902,7 +781,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.refresh()
                 if self.purpose == "MobileBackupHost" && !self.hostServing, let reason = self.readHostFailure() {
-                    self.notify("主机没有起来：\(reason)")
+                    self.showBanner("主机没有起来：\(reason)", isError: true)
                 }
             }
         }
@@ -914,7 +793,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         if isViewer {
             // 查看端：打开已连接的主机，而不是本机地址
             guard !hostAddress.isEmpty else {
-                notify("还没有连接保存主机。请先在“连接主机…”里选一台")
+                showBanner("还没有连接保存主机。请先在“连接主机…”里选一台")
                 return
             }
             if viewerConnected {
@@ -947,11 +826,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
     // MARK: - 保存位置与容量上限
 
     /// 在 Finder 中打开保存位置；目录还没建出来时退到最近的已有上级目录，避免点了没反应
-    @objc private func openStorageLocation(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String, !path.isEmpty else { return }
-        openStorageLocation(path: path)
-    }
-
     private func openStorageLocation(path: String) {
         guard !path.isEmpty else { return }
         var isDirectory: ObjCBool = false
@@ -967,80 +841,21 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(fileURLWithPath: parent.isEmpty ? "/" : parent))
     }
 
-    @objc private func promptCapacity(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-        promptCapacity(path: path)
-    }
-
-    private func promptCapacity(path: String) {
-        let location = storageLocation(for: path) ?? [:]
-        let maximum = number(location["maximumCapacityGB"])
-        let message = maximum > 0
-            ? "这片磁盘最多留给录像 \(formatNumber(maximum)) GB"
-            : "这片磁盘留给录像多少 GB"
-        guard let gigabytes = promptForNumber(
-            title: "设置容量上限（GB）",
-            message: message,
-            current: number(location["capacityGB"])) else { return }
-        applyStorageChange(
-            ["--set-storage-capacity", formatNumber(gigabytes), "--storage-path", path],
-            success: "已设置容量上限")
-    }
-
-    @objc private func promptReserve(_ sender: NSMenuItem) {
-        guard let path = sender.representedObject as? String else { return }
-        promptReserve(path: path)
-    }
-
-    private func promptReserve(path: String) {
-        let location = storageLocation(for: path) ?? [:]
-        let recommended = number(location["recommendedReserveGB"])
-        let message = recommended > 0
-            ? "磁盘写满前始终留出的空闲空间；建议至少 \(formatNumber(recommended)) GB"
-            : "磁盘写满前始终留出的空闲空间（GB）"
-        guard let gigabytes = promptForNumber(
-            title: "设置预留空间（GB）",
-            message: message,
-            current: number(location["reserveGB"])) else { return }
-        applyStorageChange(
-            ["--set-storage-reserve", formatNumber(gigabytes), "--storage-path", path],
-            success: "已设置预留空间")
-    }
-
-    private func promptForNumber(title: String, message: String, current: Double) -> Double? {
-        statusItem?.menu?.cancelTracking()
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.addButton(withTitle: "保存")
-        alert.addButton(withTitle: "取消")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
-        field.stringValue = current > 0 ? formatNumber(current) : ""
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-
-        let raw = field.stringValue.trimmingCharacters(in: .whitespaces)
-        guard let value = Double(raw), value.isFinite, value > 0 else {
-            notify("请输入大于 0 的数字（单位 GB）")
-            return nil
-        }
-        return value
-    }
-
-    /// 容量与预留都写进配置里的同一个预留值，换算规则由核心负责；改完不需要重启主机
-    private func applyStorageChange(_ arguments: [String], success: String) {
-        runHostCommand(arguments) { [weak self] json in
+    /// 容量上限与预留都在设置页里就地编辑（不再弹输入框），这里只负责落盘。
+    /// 两者写的是配置里同一个预留值，换算规则由核心负责；改完不需要重启主机
+    private func applyStorageLimit(path: String, byCapacity: Bool, gigabytes: Double) {
+        let option = byCapacity ? "--set-storage-capacity" : "--set-storage-reserve"
+        runHostCommand([option, formatNumber(gigabytes), "--storage-path", path]) { [weak self] json in
             guard let self else { return }
             guard let json, (json["ok"] as? Bool) == true else {
-                self.notify((json?["error"] as? String) ?? "设置未生效")
+                self.showBanner((json?["error"] as? String) ?? "设置未生效", isError: true)
                 return
             }
 
             self.refreshStorageSummary(force: true)
             let capacity = self.formatNumber(self.number(json["capacityGB"]))
             let reserve = self.formatNumber(self.number(json["reserveGB"]))
-            self.notify("\(success)：容量上限 \(capacity) GB，预留 \(reserve) GB")
+            self.showBanner("已更新：容量上限 \(capacity) GB，预留 \(reserve) GB")
         }
     }
 
@@ -1070,7 +885,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         ) { [weak self] json in
             guard let self else { return }
             guard let json, (json["ok"] as? Bool) == true else {
-                self.notify((json?["error"] as? String) ?? "切换主机失败")
+                self.showBanner((json?["error"] as? String) ?? "切换主机失败", isError: true)
                 return
             }
 
@@ -1096,31 +911,19 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     @objc private func forgetHost() {
-        guard confirmForgetHost() else { return }
-
         runHostCommand(["--forget-host"]) { [weak self] json in
             guard let self else { return }
             guard let json, (json["ok"] as? Bool) == true else {
-                self.notify((json?["error"] as? String) ?? "移除失败")
+                self.showBanner((json?["error"] as? String) ?? "移除失败", isError: true)
                 return
             }
 
             self.refreshSettings()
             self.viewerState = ""
             self.viewerStatusText = self.statusWord("notBound")
+            self.showBanner("已忘记当前主机，重新搜索后再连接即可")
             self.rebuildMenu()
         }
-    }
-
-    /// 换主机/移除主机要先确认：这一步会把地址与密钥一起忘掉
-    private func confirmForgetHost() -> Bool {
-        statusItem?.menu?.cancelTracking()
-        let alert = NSAlert()
-        alert.messageText = "更换保存主机"
-        alert.informativeText = "本机会忘掉当前主机的地址与密钥，需要重新搜索并让主机允许接入"
-        alert.addButton(withTitle: "更换")
-        alert.addButton(withTitle: "取消")
-        return alert.runModal() == .alertFirstButtonReturn
     }
 
     // MARK: - 数值与主机取值
@@ -1145,13 +948,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { NSApp.terminate(nil) }
     }
 
-    private func notify(_ text: String) {
-        // 弹窗前收起菜单，否则菜单会卡在展开状态，看起来像点不动
-        statusItem?.menu?.cancelTracking()
-        let alert = NSAlert()
-        alert.messageText = "PackingProof 保存主机"
-        alert.informativeText = text
-        alert.runModal()
+    /// 界面内提示，不再弹系统对话框；失败时让 Dock 图标跳一下，避免用户没看到
+    private func showBanner(_ text: String, isError: Bool = false) {
+        model.banner = text
+        model.bannerIsError = isError
+        if isError { NSApp.requestUserAttention(.informationalRequest) }
+        bannerGeneration += 1
+        let generation = bannerGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            guard let self, generation == self.bannerGeneration else { return }
+            self.model.banner = nil
+        }
     }
 
     // MARK: - 配置与进程
@@ -1472,7 +1279,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func runHost(arguments: [String]) {
         guard let executable = hostExecutable() else {
-            notify("未找到主机程序。请把菜单栏壳与保存主机放在同一个 .app 里。")
+            showBanner("未找到主机程序：请把外壳与保存主机放在同一个 .app 里", isError: true)
             return
         }
 
@@ -1506,7 +1313,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             try process.run()
             launchedHosts.append(process)
         } catch {
-            notify("启动主机失败：\(error.localizedDescription)")
+            showBanner("启动主机失败：\(error.localizedDescription)", isError: true)
         }
     }
 
@@ -1523,5 +1330,5 @@ final class HostShell: NSObject, NSApplicationDelegate {
 let application = NSApplication.shared
 let shell = HostShell()
 application.delegate = shell
-application.setActivationPolicy(.accessory)
+application.setActivationPolicy(.regular)
 application.run()

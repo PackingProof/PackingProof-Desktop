@@ -84,6 +84,9 @@ final class AppStateModel: ObservableObject {
     @Published var appVersion = ""
     /// 壳里按 ⌘, 时用它通知窗口打开设置页
     @Published var settingsRequestToken = 0
+    /// 界面内提示：成功/失败都走这里，不再弹系统对话框
+    @Published var banner: String?
+    @Published var bannerIsError = false
 
     var actions: Actions?
 
@@ -95,8 +98,8 @@ final class AppStateModel: ObservableObject {
         var connectManually: (String) async -> String?
         var switchPurpose: (Bool) async -> Void
         var openStorageLocation: (String) -> Void
-        var promptCapacity: (String) -> Void
-        var promptReserve: (String) -> Void
+        var setCapacity: (String, Double) -> Void
+        var setReserve: (String, Double) -> Void
         var addDisk: (String) -> Void
         var toggleAutostart: () -> Void
         var openLogs: () -> Void
@@ -150,5 +153,18 @@ final class AppStateModel: ObservableObject {
 
     func requestSettings() {
         settingsRequestToken += 1
+    }
+
+    /// 容量上限与预留都写同一个预留值，这里直接调，不再弹输入框
+    func setCapacity(path: String, gigabytes: Double) {
+        actions?.setCapacity(path, gigabytes)
+    }
+
+    func setReserve(path: String, gigabytes: Double) {
+        actions?.setReserve(path, gigabytes)
+    }
+
+    func dismissBanner() {
+        banner = nil
     }
 }
