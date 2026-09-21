@@ -18,6 +18,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostAddress = ""
     private var hostKey = ""
     private var hostNodeId = ""
+    private var hostNodeName = ""
     private var storagePaths: [String] = []
     private var hostProblem = ""
     private var hostServing = false
@@ -59,7 +60,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             } else {
                 loadStorageSummarySync()
             }
-            print("第一行: \(statusText)")
+            print("用途: \(statusText)")
             print("本机主机服务: \(serving ? "运行中" : "未运行")")
             if isViewer {
                 print("查看端状态: \(viewerState.isEmpty ? "—" : viewerState) \(viewerStatusText)")
@@ -67,9 +68,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 for line in storageSummaryLines() { print(line) }
             }
             if CommandLine.arguments.contains("--hosts") && isViewer {
-                print("发现主机: \(discoveredHosts.isEmpty ? statusWord("notFound") : discoveredHosts.map { describeHost($0) }.joined(separator: "、"))")
+                let rows = hostRows()
+                print("发现主机: \(rows.isEmpty ? statusWord("notFound") : rows.map { describeHost($0) }.joined(separator: "、"))")
             }
-            print("回放项: \(isViewer ? (viewerConnected ? "可用" : "禁用") : (serving ? "可用" : "禁用"))")
+            // 查看端只要记住了一台主机就能点：未授权时点它会去申请接入
+            print("回放项: \(isViewer ? (hostAddress.isEmpty ? "禁用" : "可用") : (serving ? "可用" : "禁用"))")
             exit(0)
         }
 
@@ -128,13 +131,23 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }.resume()
     }
 
+    /// 用途项自己就是状态位：菜单不再单占一行显示"当前用途"
+    private var hostPurposeTitle: String {
+        // 只在当前就是保存主机时把起不来的原因摆出来，用户不必去翻日志
+        guard purpose == "MobileBackupHost", !hostProblem.isEmpty else { return "保存主机" }
+        return "保存主机未启动：\(hostProblem)"
+    }
+
+    private var viewerPurposeTitle: String {
+        guard isViewer, !viewerStatusText.isEmpty else { return "查看端" }
+        return "查看端（\(viewerStatusText)）"
+    }
+
+    /// 排查用的单行状态（--status 输出）
     private var statusText: String {
-        if purpose == "ViewerClient" {
-            return viewerStatusText.isEmpty ? "查看端" : "查看端（\(viewerStatusText)）"
-        }
+        if isViewer { return viewerPurposeTitle }
         if purpose.isEmpty { return "未启动" }
-        // 起不来时直接把原因摆在菜单第一行，用户不必去翻日志
-        return hostProblem.isEmpty ? "保存主机" : "保存主机未启动：\(hostProblem)"
+        return hostPurposeTitle
     }
 
     /// 主机没在跑就把它拉起来；失败重试间隔 30 秒，避免配置有问题时反复拉起
@@ -155,14 +168,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func rebuildMenu() {
         let menu = NSMenu()
-        menu.addItem(disabledItem(statusText))
-        menu.addItem(.separator())
-
-        let hostItem = actionItem("保存主机", #selector(useHostPurpose))
+        // 状态直接挂在用途项上：已经显示用途了，不再单占一行
+        let hostItem = actionItem(hostPurposeTitle, #selector(useHostPurpose))
         hostItem.state = purpose == "MobileBackupHost" ? .on : .off
         menu.addItem(hostItem)
 
-        let viewerItem = actionItem("查看端", #selector(useViewerPurpose))
+        let viewerItem = actionItem(viewerPurposeTitle, #selector(useViewerPurpose))
         viewerItem.state = purpose == "ViewerClient" ? .on : .off
         menu.addItem(viewerItem)
         menu.addItem(.separator())
@@ -207,13 +218,15 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }
 
         if isViewer {
-            let hostsItem = NSMenuItem(title: "保存主机…", action: nil, keyEquivalent: "")
+            // 查看端这里是"要连哪台主机"，不是本机用途，所以叫连接主机
+            let hostsItem = NSMenuItem(title: "连接主机…", action: nil, keyEquivalent: "")
             hostsItem.submenu = buildHostMenu()
             menu.addItem(hostsItem)
         }
 
         let playbackItem = actionItem("打开网页回放", #selector(openPlayback))
-        playbackItem.isEnabled = isViewer ? viewerConnected : hostServing
+        // 查看端只要记住了一台主机就允许点：还没拿到主机允许时，点它就是去申请接入
+        playbackItem.isEnabled = isViewer ? !hostAddress.isEmpty : hostServing
         menu.addItem(playbackItem)
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
@@ -286,16 +299,30 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     /// 查看端：把发现到的主机做成子菜单，标出当前那台，点选即切换，可移除
+    /// 可选主机 = 这次扫到的 + 已经连上的那台（扫不到也保留，避免菜单和回放状态互相矛盾）
+    private func hostRows() -> [[String: Any]] {
+        // 已经连上的主机即使这次没扫到也要列出来：否则菜单会显示"没有找到主机"，
+        // 而"打开网页回放"其实照样能用，前后自相矛盾
+        var rows = discoveredHosts
+        if !hostNodeId.isEmpty, !hostAddress.isEmpty,
+           !rows.contains(where: { ($0["nodeId"] as? String) == hostNodeId }) {
+            rows.insert(
+                ["nodeId": hostNodeId, "nodeName": hostNodeName, "address": hostAddress],
+                at: 0)
+        }
+        return rows
+    }
+
     private func buildHostMenu() -> NSMenu {
         let menu = NSMenu()
-        if hostSearchInFlight {
-            let searching = statusWord("searching")
-            menu.addItem(disabledItem(searching.isEmpty ? statusText : searching))
-        } else if discoveredHosts.isEmpty {
-            let notFound = statusWord("notFound")
-            if !notFound.isEmpty { menu.addItem(disabledItem(notFound)) }
+        let rows = hostRows()
+        // 有主机就照常列出来：后台重扫期间不能把已知主机换成"正在搜索"，
+        // 否则已经连上的主机看起来像丢了。搜索状态由"查看端"那一行体现
+        if rows.isEmpty {
+            let word = statusWord(hostSearchInFlight ? "searching" : "notFound")
+            if !word.isEmpty { menu.addItem(disabledItem(word)) }
         } else {
-            for host in discoveredHosts {
+            for host in rows {
                 let nodeId = (host["nodeId"] as? String) ?? ""
                 let item = NSMenuItem(
                     title: describeHost(host),
@@ -318,9 +345,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func dumpMenu() -> String {
         var lines: [String] = []
-        lines.append("第一行: \(statusText)")
-        lines.append("· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")")
-        lines.append("· 查看端 \(purpose == "ViewerClient" ? "✓" : "")")
+        lines.append("· \(hostPurposeTitle) \(purpose == "MobileBackupHost" ? "✓" : "")")
+        lines.append("· \(viewerPurposeTitle) \(purpose == "ViewerClient" ? "✓" : "")")
         // 与真实菜单一致：保存位置、容量上限、开机自启只在保存主机下出现
         if !isViewer {
             if storagePaths.isEmpty {
@@ -335,7 +361,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             lines.append("· 开机自启 \(autostartInstalled ? "✓" : "")")
         }
         if isViewer {
-            lines.append("· 保存主机…：\(hostMenuSummary())")
+            lines.append("· 连接主机…：\(hostMenuSummary())")
         }
         let playback = isViewer
             ? (viewerConnected ? "已连接 \(hostAddress)" : "禁用（\(viewerStatusText)）")
@@ -360,9 +386,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func hostMenuSummary() -> String {
-        if hostSearchInFlight { return statusWord("searching") }
-        if discoveredHosts.isEmpty { return statusWord("notFound") }
-        return discoveredHosts.map { host in
+        let rows = hostRows()
+        if rows.isEmpty { return statusWord(hostSearchInFlight ? "searching" : "notFound") }
+        return rows.map { host in
             let nodeId = (host["nodeId"] as? String) ?? ""
             return (nodeId == hostNodeId && !nodeId.isEmpty ? "✓ " : "") + describeHost(host)
         }.joined(separator: "、")
@@ -554,7 +580,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 self.refreshAutostart()
                 if self.isViewer {
                     self.refreshViewerStatus()
-                    self.refreshDiscoveredHosts(force: true)
+                    self.refreshDiscoveredHosts(force: true, announce: true)
                 } else {
                     self.refreshStorageSummary(force: true)
                 }
@@ -607,20 +633,33 @@ final class HostShell: NSObject, NSApplicationDelegate {
     // MARK: - 其它菜单动作
 
     @objc private func openPlayback() {
-        if purpose == "ViewerClient" {
+        if isViewer {
             // 查看端：打开已连接的主机，而不是本机地址
-            guard !hostAddress.isEmpty else { return }
-            var hostUrl = hostAddress
-            if !hostKey.isEmpty {
-                hostUrl += (hostAddress.contains("?") ? "&" : "?") + "key=\(hostKey)"
+            guard !hostAddress.isEmpty else {
+                notify("还没有连接保存主机。请先在“连接主机…”里选一台")
+                return
             }
-            if let url = URL(string: hostUrl) { NSWorkspace.shared.open(url) }
+            if viewerConnected {
+                openHostPlaybackUrl()
+            } else {
+                // 还没拿到主机允许（或主机离线）：和桌面端查看窗口一样，
+                // 点"打开网页回放"就去走一次接入申请，而不是把按钮禁掉让人无从下手
+                connectSelectedHost()
+            }
             return
         }
 
         var url = "http://127.0.0.1:\(port)/"
         if let key = readAccessKey() { url += "?key=\(key)" }
         NSWorkspace.shared.open(URL(string: url)!)
+    }
+
+    private func openHostPlaybackUrl() {
+        var hostUrl = hostAddress
+        if !hostKey.isEmpty {
+            hostUrl += (hostAddress.contains("?") ? "&" : "?") + "key=\(hostKey)"
+        }
+        if let url = URL(string: hostUrl) { NSWorkspace.shared.open(url) }
     }
 
     @objc private func openLogs() {
@@ -749,7 +788,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     @objc private func rescanHosts() {
         discoveredHosts = []
         hostSearchInFlight = false
-        refreshDiscoveredHosts(force: true)
+        refreshDiscoveredHosts(force: true, announce: true)
         rebuildMenu()
     }
 
@@ -825,6 +864,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             purpose = ""
             storagePath = ""
             hostNodeId = ""
+            hostNodeName = ""
             return
         }
 
@@ -832,6 +872,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         hostAddress = (json["LastKnownHostAddress"] as? String) ?? ""
         hostKey = (json["LastKnownHostWebAccessKey"] as? String) ?? ""
         hostNodeId = (json["LastKnownHostNodeId"] as? String) ?? ""
+        hostNodeName = (json["LastKnownHostNodeName"] as? String) ?? ""
         let locations = json["StorageLocations"] as? [[String: Any]]
         let ordered = (locations ?? [])
             .filter { (($0["Path"] as? String) ?? "").isEmpty == false }
@@ -842,9 +883,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     // MARK: - 主机命令行
 
+    /// 命令行调用完成后只允许回调一次（正常结束与超时保护之间抢跑）
+    private final class CommandCompletion {
+        var finished = false
+    }
+
     /// 运行主机自带命令并读回 JSON。容量、主机发现与状态词都在核心实现里，
     /// 壳只做展示，不再自己算容量或自己编状态词。
-    private func runHostCommand(_ arguments: [String], completion: @escaping ([String: Any]?) -> Void) {
+    private func runHostCommand(
+        _ arguments: [String],
+        timeout: TimeInterval = 60,
+        completion: @escaping ([String: Any]?) -> Void) {
         guard let executable = hostExecutable() else {
             completion(nil)
             return
@@ -856,15 +905,29 @@ final class HostShell: NSObject, NSApplicationDelegate {
         let output = Pipe()
         process.standardOutput = output
         process.standardError = Pipe()
+        let state = CommandCompletion()
         process.terminationHandler = { _ in
             let data = output.fileHandleForReading.readDataToEndOfFile()
             let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-            DispatchQueue.main.async { completion(json) }
+            DispatchQueue.main.async {
+                guard !state.finished else { return }
+                state.finished = true
+                completion(json)
+            }
         }
         do {
             try process.run()
         } catch {
             DispatchQueue.main.async { completion(nil) }
+            return
+        }
+
+        // 子进程卡住时不能让界面一直停在"正在搜索"
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+            guard !state.finished else { return }
+            state.finished = true
+            if process.isRunning { process.terminate() }
+            completion(nil)
         }
     }
 
@@ -930,7 +993,15 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func applyViewerStatus(_ json: [String: Any]?) {
-        guard let json else { return }
+        guard let json else {
+            // 探测没回来时不能停在"正在搜索"上：按有没有记住主机给一个确定的说法
+            let bound = !hostNodeId.isEmpty || !hostAddress.isEmpty
+            viewerState = bound ? "offline" : "notBound"
+            let word = statusWord(bound ? "hostOfflineOrChanged" : "notBound")
+            if !word.isEmpty { viewerStatusText = word }
+            rebuildMenu()
+            return
+        }
         if let words = json["texts"] as? [String: String] { viewerStatusWords = words }
         guard let text = json["text"] as? String, !text.isEmpty else { return }
         viewerStatusText = text
@@ -940,13 +1011,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func statusWord(_ key: String) -> String { viewerStatusWords[key] ?? "" }
 
-    /// 主机发现较慢（要扫整个网段），按需刷新并把结果缓存在壳里
-    private func refreshDiscoveredHosts(force: Bool = false) {
+    /// 主机发现较慢（要扫整个网段），按需刷新并把结果缓存在壳里。
+    /// announce 只在用户主动搜索（或还没有连过主机）时为 true：后台每 60 秒静默重扫一次列表，
+    /// 不能把已经连上的状态顶成"正在搜索"，否则菜单会一直闪"在搜索"
+    private func refreshDiscoveredHosts(force: Bool = false, announce: Bool = false) {
         guard purpose == "ViewerClient", !hostSearchInFlight else { return }
         guard force || Date().timeIntervalSince(lastHostSearch) > 60 else { return }
         hostSearchInFlight = true
         lastHostSearch = Date()
-        refreshViewerStatus(state: "searching")
+        if announce || (hostNodeId.isEmpty && hostAddress.isEmpty) {
+            refreshViewerStatus(state: "searching")
+        }
         runHostCommand(["--list-hosts"]) { [weak self] json in
             guard let self else { return }
             self.hostSearchInFlight = false
