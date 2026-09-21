@@ -38,7 +38,7 @@
 
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 代码改动一律走远程 PR，不再直接向 `main` 推送提交。提到哪个平台按问题来源决定：我们自己发现的 **bug** 先在 GitHub 开 issue，再提 PR 并在说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某个平台提的 issue，PR 就提到那个平台（Gitee 的 issue 提 Gitee PR，GitHub 的 issue 提 GitHub PR）。PR 默认提到 GitHub；目标可以用仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `github`）或命令行 `-Target` 覆盖。用 `pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-Merge]` 推送分支、创建 PR，并在需要时用 rebase 合并、把主干同步到另一个远端。
-- 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（rebase 合并，保留每个提交，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
+- 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（rebase 合并，保留每个提交，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物 → **生成并上传 Gitee 专属的 no-runtime 安装包**（`pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee`，见下方资产表；macOS 包由 Mac 侧 `Tools/Publish-MacRelease.sh` 挂到同一个 Release）。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
 - 打包脚本会在产物目录生成 `release_commits_v<X.Y.Z>.txt`（上一个正式版以来的全部提交，仅本地核对、不上传），并按需生成或保留 `RELEASE_NOTES_v<X.Y.Z>.md`；重新打包不会再冲掉已经写好的发布笔记。
 - 发布脚本 `Tools/Publish-Releases.ps1` 属于门禁的一部分：它校验发布笔记的分段与占位符、校验 `update_v<X.Y.Z>.json` 的 `title` 与 `notes` 是否已填写，并在打印提交清单后要求显式传入 `-ConfirmCommitCoverage`。只想自检用 `-ValidateOnly`，已经发布过的版本要补正文用 `-UpdateNotes`（只更新正文与标题，不重复上传附件）。
 - 本地 CI 命令为 `pwsh -NoProfile -File Tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `Tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
@@ -63,6 +63,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 发布笔记必须使用 `RELEASE_NOTES_TEMPLATE.md`，并**逐条**核对 `release_commits_v<X.Y.Z>.txt` 里的全部提交（等价于 `git log --oneline <上一正式版标签>..HEAD`）。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化和未验证事项；纯工程或测试提交也要在《兼容与工程》里落到文字，不能只写几条最重要的就交付。
 - 发布笔记写到该版本自己的产物目录 `package/PackingProof+v<X.Y.Z>/RELEASE_NOTES_v<X.Y.Z>.md`，在打包生成产物目录之后写入。禁止放在仓库根目录，也禁止提交进仓库；`package/*` 已被 Git 忽略。打包脚本会在文件不存在时按模板生成骨架，在文件已存在时原样保留，正常流程不需要手工改文件名。
 - 标题固定为 `v<X.Y.Z> <一句话内容>`，且这句话必须点出本版本最核心的变化（本版投入最大的功能，或用户最痛的问题），例如「采集预览迁移 GPU 与存储判定重做」；只写版本号或只写“体验优化”都会被发布脚本拒绝（未传 `-Title` 直接报错）。
+- 《下载与更新说明》必须与本次实际上传的资产逐条对齐：GitHub 的 Setup、Gitee 专属的 no-runtime 安装包、macOS 的 DMG、建立新启动器基线时的 LauncherPatch；少写一项就属于发布不规范，多写未上传的资产同样算错。
 - 条目顺序按重要性从高到低：本版重点功能 → 重要修复 → 小优化与文案调整；`update_v<X.Y.Z>.json` 的 `notes` 保持同一顺序。同一件事（同一模块的默认值、迁移、提示、界面入口等）必须合并成一条，不允许拆成多条重复描述。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
 - `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致，`notes` 必须已经填写，发布脚本会直接拒绝“请填写更新标题”这类占位内容。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。`notes` 按模块归并、控制在 15~20 条以内，但必须覆盖本版本全部用户可见变化，不能只写几条最重要的；超过 20 条发布脚本会拒绝。
 - `notes` 面向的是店员等最终用户，只写他们能感知的变化。工程与内部改动一律不写，例如运行时版本、打包与增量包机制、CI 门禁、代码重构、测试补充；这些留在发布笔记的“兼容与工程”里。
@@ -73,7 +74,7 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 | --- | --- |
 | GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；macOS 包 `PackingProof-macOS-<版本>.dmg`（在 Mac 上用 `Tools/Publish-MacRelease.sh` 上传） |
 | Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup；macOS 包 `PackingProof-macOS-<版本>.dmg` 同上 |
-| Gitee 专属（可选） | `PackingProof_Setup_no-runtime_vX.Y.Z.exe`：不含 .NET 运行时的安装向导（约 60MB），给 Gitee 用户一个"双击安装"的全量入口 —— Gitee 单附件上限 100MB，自包含 Setup 约 110MB 传不上去。用 `pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 用 `--self-contained false` 重新发布。运行时没变时 AppPatch 不含运行时文件，所以这类安装同样能正常自动更新。默认不上传 ZIP 免安装包（`PackingProof_no-runtime_vX.Y.Z.zip`），确有需要时加 `-IncludeZip` |
+| Gitee 专属（每次发布都要传） | `PackingProof_Setup_no-runtime_vX.Y.Z.exe`：不含 .NET 运行时的安装向导（约 60MB），Gitee 用户唯一的"双击安装"入口 —— Gitee 单附件上限 100MB，自包含 Setup 约 110MB 传不上去，漏掉它 Gitee 侧就只剩增量包。用 `pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 用 `--self-contained false` 重新发布。运行时没变时 AppPatch 不含运行时文件，所以这类安装同样能正常自动更新。默认不上传 ZIP 免安装包（`PackingProof_no-runtime_vX.Y.Z.zip`），确有需要时加 `-IncludeZip` |
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release，默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`。对外分发只有 Setup、AppPatch 与 update JSON（普通用户通过启动器自动更新，无需手动下载清单）。
 
