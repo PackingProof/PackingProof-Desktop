@@ -1199,7 +1199,12 @@ public sealed class DeploymentStartupTests
         Assert.Contains("DeviceToken", source, StringComparison.Ordinal);
         Assert.Contains("automatic != null", source, StringComparison.Ordinal);
         Assert.Contains("preferred ?? (compatibleHosts.Count == 1", source, StringComparison.Ordinal);
-        Assert.Contains("等待保存主机允许连接", source, StringComparison.Ordinal);
+        // 等待主机允许的文案移到核心的唯一来源（ViewerConnectionStatusText），
+        // 守卫改为盯着这里的调用：换词可以，但不能在查看窗口里自己另写一套
+        Assert.Contains(
+            "ViewerConnectionStatusText.WaitingForHostApproval(node.NodeName)",
+            source,
+            StringComparison.Ordinal);
         Assert.Contains("PendingRecordingTransferCount > 0", source, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(searchCancellation, _searchCancellation)", source, StringComparison.Ordinal);
         Assert.Contains("_isChoosingHost = true;", source, StringComparison.Ordinal);

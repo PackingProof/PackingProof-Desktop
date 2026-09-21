@@ -61,7 +61,7 @@ public partial class ViewerClientWindow : Window
             ViewerActionPanel.Visibility = Visibility.Collapsed;
             UserscriptStatusText.Visibility = Visibility.Collapsed;
             DiscoveryHeadingText.Text = "选择保存主机";
-            SearchStatusText.Text = "正在查找同一局域网中可用的保存主机";
+            SearchStatusText.Text = ViewerConnectionStatusText.SearchingBindingHost;
             DeferBindingButton.Visibility = Visibility.Visible;
             ScanPhonePairingButton.Visibility = Visibility.Visible;
             ViewerDetailsPanel.Visibility = Visibility.Collapsed;
@@ -69,8 +69,8 @@ public partial class ViewerClientWindow : Window
         ApplyConnectionViewState(
             ConnectionViewState.Searching,
             _bindingOnly
-                ? "正在查找同一局域网中可用的保存主机"
-                : "正在搜索同一网络中的主机");
+                ? ViewerConnectionStatusText.SearchingBindingHost
+                : ViewerConnectionStatusText.SearchingViewer);
         _onlineTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         _onlineTimer.Tick += async (_, _) => await RefreshBoundHostAsync();
         Loaded += ViewerClientWindow_Loaded;
@@ -126,7 +126,7 @@ public partial class ViewerClientWindow : Window
         string address = _config.LastKnownHostAddress;
         if (string.IsNullOrWhiteSpace(address))
         {
-            SetOffline("尚未绑定主机");
+            SetOffline(ViewerConnectionStatusText.NotBound);
             return;
         }
 
@@ -135,7 +135,7 @@ public partial class ViewerClientWindow : Window
             || (!string.IsNullOrWhiteSpace(_config.LastKnownHostNodeId)
                 && !string.Equals(node.NodeId, _config.LastKnownHostNodeId, StringComparison.OrdinalIgnoreCase)))
         {
-            SetOffline("主机离线或身份已变化");
+            SetOffline(ViewerConnectionStatusText.HostOfflineOrChanged);
             return;
         }
 
@@ -143,7 +143,7 @@ public partial class ViewerClientWindow : Window
         CompleteDeploymentSetup(node);
         HostNameText.Text = node.NodeName;
         HostAddressText.Text = node.Address;
-        OnlineStatusText.Text = "在线";
+        OnlineStatusText.Text = ViewerConnectionStatusText.Online;
         Brush onlineStatusBrush = (Brush)FindResource("AccentGreen");
         OnlineStatusText.Foreground = onlineStatusBrush;
         OnlineStatusIndicator.Fill = onlineStatusBrush;
@@ -183,7 +183,7 @@ public partial class ViewerClientWindow : Window
             ? "—"
             : _config.LastKnownHostAddress;
         OnlineStatusText.Text = _bindingOnly && hasSavedHost
-            ? "暂时离线，稍后会自动重试"
+            ? ViewerConnectionStatusText.TemporaryOffline
             : status;
         Brush offlineStatusBrush = (Brush)FindResource("TextSecondary");
         OnlineStatusText.Foreground = offlineStatusBrush;
@@ -214,7 +214,7 @@ public partial class ViewerClientWindow : Window
             showBoundRecordingHost
                 ? ""
                 : hasSavedHost
-                    ? "正在查找其他可用主机"
+                    ? ViewerConnectionStatusText.SearchingOtherHosts
                     : status);
     }
 
@@ -236,8 +236,8 @@ public partial class ViewerClientWindow : Window
         ApplyConnectionViewState(
             ConnectionViewState.Searching,
             _bindingOnly
-                ? "正在查找同一局域网中可用的保存主机"
-                : "正在搜索同一网络中的主机");
+                ? ViewerConnectionStatusText.SearchingBindingHost
+                : ViewerConnectionStatusText.SearchingViewer);
         await Dispatcher.Yield(DispatcherPriority.Render);
         try
         {
@@ -296,12 +296,12 @@ public partial class ViewerClientWindow : Window
             string message = compatibleHosts.Count switch
             {
                 0 when _bindingOnly && hosts.Any(IsRecordingReceiverHost) =>
-                    "找到了保存主机，但版本过旧，请更新保存主机电脑",
+                    ViewerConnectionStatusText.FoundOutdatedRecordingReceiver,
                 0 when _bindingOnly && hosts.Count > 0 =>
-                    "找到了主机，但没有可接收录像的保存主机",
-                0 => "没有找到主机，请检查两台电脑是否连接同一网络",
-                1 => "找到 1 台主机，确认后即可连接",
-                _ => $"找到 {compatibleHosts.Count} 台主机，请选择要连接的主机"
+                    ViewerConnectionStatusText.FoundNoRecordingReceiver,
+                0 => ViewerConnectionStatusText.NotFound,
+                1 => ViewerConnectionStatusText.FoundSingle,
+                _ => ViewerConnectionStatusText.FoundMany(compatibleHosts.Count)
             };
             ApplyConnectionViewState(ConnectionViewState.Ready, message);
             if (_bindingOnly)
@@ -328,7 +328,9 @@ public partial class ViewerClientWindow : Window
         catch (OperationCanceledException)
         {
             if (ReferenceEquals(searchCancellation, _searchCancellation))
-                ApplyConnectionViewState(ConnectionViewState.Ready, "搜索已取消");
+                ApplyConnectionViewState(
+                    ConnectionViewState.Ready,
+                    ViewerConnectionStatusText.SearchCanceled);
         }
         catch (Exception ex)
         {
@@ -336,7 +338,7 @@ public partial class ViewerClientWindow : Window
             {
                 ApplyConnectionViewState(
                     ConnectionViewState.Error,
-                    $"搜索主机失败：{ex.Message}");
+                    ViewerConnectionStatusText.SearchFailed(ex.Message));
             }
         }
         finally
@@ -394,7 +396,7 @@ public partial class ViewerClientWindow : Window
         {
             ApplyConnectionViewState(
                 ConnectionViewState.Connecting,
-                $"已找到“{node.NodeName}”，等待保存主机允许连接");
+                ViewerConnectionStatusText.WaitingForHostApproval(node.NodeName));
             try
             {
                 BackupDeviceEnrollmentResult enrollment = await WorkstationNetwork.EnrollBackupDeviceAsync(
@@ -417,7 +419,7 @@ public partial class ViewerClientWindow : Window
         }
         ApplyConnectionViewState(
             ConnectionViewState.Connecting,
-            $"正在连接“{node.NodeName}”");
+            ViewerConnectionStatusText.Connecting(node.NodeName));
         string previousHostNodeId = _config.LastKnownHostNodeId;
         if (!WorkstationConfigStore.TryUpdate(
                 config =>
@@ -601,7 +603,7 @@ public partial class ViewerClientWindow : Window
             ClearSavedWebAccessKey();
         }
 
-        SearchStatusText.Text = "正在请求保存主机允许连接";
+        SearchStatusText.Text = ViewerConnectionStatusText.RequestingHostApproval;
         string url;
         try
         {
@@ -619,14 +621,14 @@ public partial class ViewerClientWindow : Window
         }
         catch (Exception ex)
         {
-            SearchStatusText.Text = "未取得网页访问权限";
+            SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
             AppDialog.Error(this, ex.Message, "打开录像网页");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(url))
         {
-            SearchStatusText.Text = "未取得网页访问权限";
+            SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
             AppDialog.Error(this, "保存主机未返回网页访问链接，请更新保存主机后重试", "打开录像网页");
             return;
         }
@@ -634,7 +636,7 @@ public partial class ViewerClientWindow : Window
         WorkstationNetwork.ParseHostConnectionInput(url, out _, out string issuedKey);
         if (issuedKey.Length == 0)
         {
-            SearchStatusText.Text = "未取得网页访问权限";
+            SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
             AppDialog.Error(this, "保存主机返回的网页访问链接无效，请更新保存主机后重试", "打开录像网页");
             return;
         }
@@ -643,13 +645,13 @@ public partial class ViewerClientWindow : Window
             await WorkstationNetwork.ProbeWebAccessAsync(address, issuedKey);
         if (finalProbe != WorkstationNetwork.WebAccessProbeResult.Authorized)
         {
-            SearchStatusText.Text = "未取得网页访问权限";
+            SearchStatusText.Text = ViewerConnectionStatusText.AccessNotGranted;
             AppDialog.Error(this, "网页访问验证失败，请在保存主机上确认后重试", "打开录像网页");
             return;
         }
 
         SaveWebAccessKey(issuedKey);
-        SearchStatusText.Text = "已允许访问";
+        SearchStatusText.Text = ViewerConnectionStatusText.AccessGranted;
         WorkstationNetwork.OpenUrl(WorkstationNetwork.BuildWebAccessUrl(address, issuedKey));
     }
 
