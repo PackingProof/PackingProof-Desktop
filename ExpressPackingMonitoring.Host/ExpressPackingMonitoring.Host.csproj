@@ -22,6 +22,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="HostOptions.cs" />
+    <Compile Include="LaunchAgentInstaller.cs" />
     <Compile Include="MacDeploymentSetup.cs" />
     <Compile Include="HostSession.cs" />
     <Compile Include="ViewerSession.cs" />
