@@ -35,9 +35,17 @@ app_name="PackingProofHost"
 app_bundle="${output_root}/${app_name}.app"
 host_binary_name="ExpressPackingMonitoring.Host"
 shell_binary_name="PackingProofHostMenu"
+ffmpeg_source="${repository_root}/package/dependency-cache/ffmpeg-macos/current/ffmpeg"
+
+# Mac 不自带 FFmpeg，缺了它缩略图/预览/网页转码全部失效（网页会显示"编码未知"
+# 并回退到直接播放原片），所以打进包里，和 Windows 包带 tools\ffmpeg.exe 一致
+if [[ ! -x "${ffmpeg_source}" ]]; then
+  echo "缺少 macOS 版 FFmpeg：先运行 Tools/Prepare-PinnedFFmpegMac.sh" >&2
+  exit 2
+fi
 
 rm -rf "${app_bundle}"
-mkdir -p "${app_bundle}/Contents/MacOS/Host" "${app_bundle}/Contents/Resources"
+mkdir -p "${app_bundle}/Contents/MacOS/Host/tools" "${app_bundle}/Contents/Resources"
 
 echo "==> 发布 ${runtime_id} 自包含版本"
 dotnet publish "${repository_root}/ExpressPackingMonitoring.Host/ExpressPackingMonitoring.Host.csproj" \
@@ -52,6 +60,11 @@ echo "==> 构建菜单栏壳"
 (cd "${repository_root}/MacHostShell" && swift build -c release)
 cp "${repository_root}/MacHostShell/.build/release/${shell_binary_name}" \
   "${app_bundle}/Contents/MacOS/${shell_binary_name}"
+
+ffmpeg_version="$(basename "$(cd "$(dirname "${ffmpeg_source}")" && pwd -P)")"
+echo "==> 拷入 FFmpeg ${ffmpeg_version}（$(basename "${ffmpeg_source}")）"
+cp "${ffmpeg_source}" "${app_bundle}/Contents/MacOS/Host/tools/ffmpeg"
+chmod +x "${app_bundle}/Contents/MacOS/Host/tools/ffmpeg"
 
 # 图标一律复用仓库里已有的 app.ico：菜单栏要 36px PNG，应用包要 .icns
 app_icon_source="${repository_root}/ExpressPackingMonitoring/app.ico"
