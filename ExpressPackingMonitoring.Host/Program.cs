@@ -86,6 +86,21 @@ if (installAutostart)
     return 0;
 }
 
+// 双击打开时给一个切换用途的入口：命令行有 --switch-purpose，但普通人拿不到参数
+if (HostOptions.DialogsEnabled && !HostOptions.ServiceMode && !installAutostart
+    && DeploymentPresets.IsKnown(config.DeploymentPreset)
+    && MacDialog.AskSwitchPurpose(DeploymentPresets.GetDisplayName(config.DeploymentPreset)))
+{
+    AppConfig.ResetDeploymentSetupForRetry(config);
+    if (!MacDeploymentSetup.TryConfigure(config, out string switchError))
+    {
+        Console.Error.WriteLine(switchError);
+        return 2;
+    }
+
+    config = WorkstationConfigStore.Load();
+}
+
 using var cancellation = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
