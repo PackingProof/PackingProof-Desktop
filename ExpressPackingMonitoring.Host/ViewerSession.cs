@@ -37,6 +37,7 @@ internal static class ViewerSession
         }
 
         string address = host.Address;
+        RememberHost(config, host, "");
         string? targetUrl = null;
         switch (await WorkstationNetwork.ProbeWebAccessAsync(address, null, token))
         {
@@ -45,13 +46,23 @@ internal static class ViewerSession
                 break;
             case WorkstationNetwork.WebAccessProbeResult.Unauthorized:
                 Console.WriteLine("主机开启了网页访问保护，正在申请接入，请到主机上点允许…");
-                BackupDeviceEnrollmentResult enrollment = await WorkstationNetwork.EnrollBackupDeviceAsync(
-                    address,
-                    config.NodeId,
-                    config.NodeName,
-                    "viewer",
-                    token,
-                    platform: "macos");
+                BackupDeviceEnrollmentResult enrollment;
+                try
+                {
+                    enrollment = await WorkstationNetwork.EnrollBackupDeviceAsync(
+                        address,
+                        config.NodeId,
+                        config.NodeName,
+                        "viewer",
+                        token,
+                        platform: "macos");
+                }
+                catch (Exception ex)
+                {
+                    MacDialog.ShowMessage($"连接 {host.NodeName} 需要主机确认，本次未完成：{ex.Message}");
+                    return 1;
+                }
+
                 targetUrl = enrollment.WebAccessUrl;
                 if (string.IsNullOrWhiteSpace(targetUrl))
                 {
@@ -64,7 +75,7 @@ internal static class ViewerSession
                 return 1;
         }
 
-        RememberHost(config, host);
+        RememberHost(config, host, targetUrl!);
         HostOptions.OpenUrl(targetUrl!);
         Console.WriteLine($"已连接 {host.NodeName}，网页回放 {targetUrl}");
         return 0;
@@ -96,10 +107,29 @@ internal static class ViewerSession
             ? host.Address
             : $"{host.NodeName}（{host.Address}）";
 
-    private static void RememberHost(AppConfig config, PackingProofNodeInfo host)
+    /// <summary>
+    /// 记住主机：除了身份，还要记下**地址**与网页访问密钥，
+    /// 否则桌面的"打开网页回放"只能打开本机地址（曾经就是这个 bug）。
+    /// </summary>
+    private static void RememberHost(AppConfig config, PackingProofNodeInfo host, string accessUrl)
     {
         config.LastKnownHostNodeId = host.NodeId;
         config.LastKnownHostNodeName = host.NodeName;
+        config.LastKnownHostAddress = host.Address;
+        config.LastKnownHostWebAccessKey = ExtractAccessKey(accessUrl);
         WorkstationConfigStore.TrySave(config, out _);
+    }
+
+    private static string ExtractAccessKey(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)) return "";
+        foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = pair.Split('=', 2);
+            if (parts.Length == 2 && string.Equals(parts[0], "key", StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(parts[1]);
+        }
+
+        return "";
     }
 }
