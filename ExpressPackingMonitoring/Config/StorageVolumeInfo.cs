@@ -34,6 +34,8 @@ namespace ExpressPackingMonitoring.Config
         {
             volume = default;
             if (string.IsNullOrWhiteSpace(path)) return false;
+            if (!OperatingSystem.IsWindows())
+                return TryGetUnixVolume(path, out volume);
 
             try
             {
@@ -68,6 +70,75 @@ namespace ExpressPackingMonitoring.Config
                 return false;
             }
         }
+
+        /// <summary>
+        /// macOS / Linux 的卷信息：DriveInfo 按路径所在的挂载点读真实容量，
+        /// 与 Windows 侧 GetDiskFreeSpaceEx 对同一件事给同一套语义——
+        /// 路径不存在或卷没挂载时一律返回 false（fail-closed），
+        /// 上层就知道"这个位置现在读不到空间"，不会把它当成 0 容量的可用磁盘。
+        /// </summary>
+        private static bool TryGetUnixVolume(string path, out StorageVolumeInfo volume)
+        {
+            volume = default;
+            try
+            {
+                string fullPath = Path.GetFullPath(path);
+                // 路径不存在、卷未挂载时构造函数抛 DriveNotFoundException，按不可用处理
+                var drive = new DriveInfo(fullPath);
+                if (!drive.IsReady) return false;
+
+                long totalBytes = drive.TotalSize;
+                if (totalBytes <= 0) return false;
+
+                string root = ResolveUnixMountPoint(fullPath);
+                volume = new StorageVolumeInfo(
+                    root,
+                    totalBytes,
+                    Math.Max(0, drive.AvailableFreeSpace),
+                    GetVolumeIdForRoot(root));
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 取路径所在挂载点：DriveInfo.GetDrives() 里最长且是路径前缀的那个，
+        /// 找不到就退回 "/"。Unix 的 Path.GetPathRoot 只会返回 "/"，
+        /// 用它区分不出系统盘与外接盘，预留空间的分档会算错。
+        /// </summary>
+        internal static string ResolveUnixMountPoint(string fullPath)
+        {
+            string best = "/";
+            try
+            {
+                foreach (DriveInfo drive in DriveInfo.GetDrives())
+                {
+                    string name = NormalizeUnixMountPoint(drive.Name);
+                    if (name.Length <= best.Length) continue;
+                    if (IsSameOrChildUnixPath(fullPath, name)) best = name;
+                }
+            }
+            catch
+            {
+                // 读不到挂载表就按根挂载点处理，容量本身仍取自真实卷
+            }
+
+            return best;
+        }
+
+        private static string NormalizeUnixMountPoint(string name)
+        {
+            string trimmed = (name ?? "").Trim().TrimEnd('/');
+            return trimmed.Length == 0 ? "/" : trimmed;
+        }
+
+        private static bool IsSameOrChildUnixPath(string path, string root) =>
+            root == "/"
+            || string.Equals(path, root, StringComparison.Ordinal)
+            || path.StartsWith(root + "/", StringComparison.Ordinal);
 
         /// <summary>
         /// 判断路径是否为网络位置（UNC 或映射网络盘）。
