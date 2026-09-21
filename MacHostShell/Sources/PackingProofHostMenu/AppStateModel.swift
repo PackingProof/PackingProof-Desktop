@@ -3,70 +3,121 @@
 
 import Foundation
 
-/// 主窗口与菜单栏共用的界面状态。
+/// 发现到的主机。字段与 MacViewer 的 DiscoveredHost 一致，视图代码才能原样搬过来。
+struct DiscoveredHost: Identifiable, Equatable {
+    let nodeId: String
+    let nodeName: String
+    let address: String
+    var capabilitySummary: String = ""
+
+    var id: String { nodeId.isEmpty ? address : nodeId }
+}
+
+/// 一个保存位置：与 MacViewer 的卡片同一套呈现方式。
+struct StorageItem: Identifiable, Equatable {
+    let path: String
+    let name: String
+    let available: Bool
+    let capacityKnown: Bool
+    let capacityGB: Double
+    let reserveGB: Double
+    let recommendedReserveGB: Double
+
+    var id: String { path }
+
+    var summary: String {
+        guard available else { return "磁盘未接入" }
+        guard capacityKnown else { return "磁盘太小，放不下最低预留" }
+        return "容量上限 \(Self.numberText(capacityGB)) GB，预留 \(Self.numberText(reserveGB)) GB"
+    }
+
+    private static func numberText(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
+
+/// 窗口的界面状态。
 ///
-/// 状态只有一份，由 HostShell 在每次 rebuildMenu() 时灌进来，
-/// 所以窗口和菜单栏永远不会出现"一个说已连接、一个说没连"。
-/// 不加 @MainActor：壳本身（NSObject 子类）不是主 actor，而它的所有回调
-/// （定时器、菜单动作、命令行回调）本来都已经切回主线程。
+/// 属性与动作刻意对齐 MacViewer 的 ViewerModel：视图代码照搬，只有数据来源换成
+/// 本机主机的命令行（同一份 config.json）。若连它的服务一起搬，
+/// 主机与密钥会存成两份，窗口和菜单栏就会各说各话。
 final class AppStateModel: ObservableObject {
-    struct HostRow: Identifiable, Equatable {
-        let id: String
-        let name: String
-        let address: String
-    }
+    @Published var hosts: [DiscoveredHost] = []
+    @Published var status = ""
+    @Published var isSearching = false
+    @Published var isOpeningWeb = false
+    @Published var selectedHostId: String?
+    @Published var onlineNodeIds: Set<String> = []
 
-    struct StorageRow: Identifiable, Equatable {
-        let id: String
-        let name: String
-        let available: Bool
-        let capacityKnown: Bool
-        let capacityGB: Double
-        let reserveGB: Double
-        let recommendedReserveGB: Double
-    }
-
-    /// 窗口上的按钮怎么落到主机动作上：全部转给菜单栏壳里已有的实现
-    struct Actions {
-        var useHostPurpose: () -> Void
-        var useViewerPurpose: () -> Void
-        var rescanHosts: () -> Void
-        var forgetHost: () -> Void
-        var selectHost: (String) -> Void
-        var openPlayback: () -> Void
-        var openLogs: () -> Void
-        var quit: () -> Void
-        var openStorageLocation: (String) -> Void
-        var promptCapacity: (String) -> Void
-        var promptReserve: (String) -> Void
-        var toggleAutostart: () -> Void
-    }
-
-    @Published var purposeTitle = "未启动"
-    @Published var hostPurposeTitle = "保存主机"
-    @Published var viewerPurposeTitle = "查看端"
+    /// 本机用途：查看端 / 保存主机
     @Published var isViewer = false
-    @Published var hostServing = false
-    @Published var hostProblem = ""
-    @Published var viewerStatusText = ""
-    @Published var viewerConnected = false
-    @Published var searchingHosts = false
-    @Published var hosts: [HostRow] = []
-    @Published var currentHostId = ""
+    @Published var hostStatusText = ""
+    @Published var hostRunning = false
+    @Published var isSwitchingPurpose = false
+    @Published var storages: [StorageItem] = []
     @Published var storePaths: [String] = []
-    @Published var storages: [StorageRow] = []
     @Published var autostartInstalled = false
-    @Published var playbackEnabled = false
 
     var actions: Actions?
 
-    /// 保存主机这一侧的一句话状态
-    var hostStatusText: String {
-        if hostServing { return "运行中" }
-        return hostProblem.isEmpty ? "未运行" : hostProblem
+    struct Actions {
+        var startupRefresh: () async -> Void
+        var search: () async -> Void
+        var clearRememberedHost: () async -> Void
+        var openWebPlayback: () async -> Void
+        var connectManually: (String) async -> String?
+        var switchPurpose: (Bool) async -> Void
+        var openStorageLocation: (String) -> Void
+        var promptCapacity: (String) -> Void
+        var promptReserve: (String) -> Void
+        var addStorage: (String) -> Void
+        var toggleAutostart: () -> Void
+        var openLogs: () -> Void
     }
 
-    var viewerStatusLine: String {
-        viewerStatusText.isEmpty ? "—" : viewerStatusText
+    var selectedHost: DiscoveredHost? {
+        guard let selectedHostId else { return nil }
+        return hosts.first { $0.id == selectedHostId }
+    }
+
+    func startupRefresh() async {
+        await actions?.startupRefresh()
+    }
+
+    func search() async {
+        guard !isSearching else { return }
+        await actions?.search()
+    }
+
+    func clearRememberedHost() async {
+        await actions?.clearRememberedHost()
+    }
+
+    func openWebPlayback() async {
+        guard !isOpeningWeb else { return }
+        await actions?.openWebPlayback()
+    }
+
+    func connectManually(_ input: String) async -> String? {
+        await actions?.connectManually(input)
+    }
+
+    func switchPurpose(viewer: Bool) async {
+        guard viewer != isViewer, !isSwitchingPurpose else { return }
+        isSwitchingPurpose = true
+        await actions?.switchPurpose(viewer)
+        isSwitchingPurpose = false
+    }
+
+    func addStorage(_ path: String) {
+        actions?.addStorage(path)
+    }
+
+    func toggleAutostart() {
+        actions?.toggleAutostart()
+    }
+
+    func openLogs() {
+        actions?.openLogs()
     }
 }
