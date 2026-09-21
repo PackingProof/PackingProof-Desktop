@@ -87,17 +87,31 @@ namespace ExpressPackingMonitoring.Config
         }
 
         internal static string FindFFmpeg(string baseDir, string pathEnvironment)
+            => FindFFmpeg(baseDir, pathEnvironment, DefaultFFmpegFileName());
+
+        /// <summary>
+        /// Windows 上是 ffmpeg.exe，macOS/Linux 上是 ffmpeg。
+        /// 以前只找 ffmpeg.exe，Mac 主机上因此永远找不到（连用户自己装的也不行），
+        /// 表现就是网页显示"编码未知"并回退到直接播放原片。
+        /// </summary>
+        internal static string DefaultFFmpegFileName() =>
+            OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg";
+
+        internal static string FindFFmpeg(string baseDir, string pathEnvironment, string fileName)
         {
-            string toolsPath = Path.Combine(baseDir, "tools", "ffmpeg.exe");
+            if (string.IsNullOrWhiteSpace(fileName))
+                fileName = DefaultFFmpegFileName();
+
+            string toolsPath = Path.Combine(baseDir, "tools", fileName);
             if (File.Exists(toolsPath)) return toolsPath;
 
-            string legacyPath = Path.Combine(baseDir, "ffmpeg.exe");
+            string legacyPath = Path.Combine(baseDir, fileName);
             if (File.Exists(legacyPath)) return legacyPath;
 
             var dir = new DirectoryInfo(baseDir);
             for (int i = 0; i < 6 && dir != null; i++, dir = dir.Parent)
             {
-                string projectPath = Path.Combine(dir.FullName, "ffmpeg.exe");
+                string projectPath = Path.Combine(dir.FullName, fileName);
                 if (File.Exists(projectPath)) return projectPath;
             }
 
@@ -113,7 +127,7 @@ namespace ExpressPackingMonitoring.Config
 
                     try
                     {
-                        string pathFfmpeg = Path.Combine(directory, "ffmpeg.exe");
+                        string pathFfmpeg = Path.Combine(directory, fileName);
                         if (File.Exists(pathFfmpeg))
                             return Path.GetFullPath(pathFfmpeg);
                     }
