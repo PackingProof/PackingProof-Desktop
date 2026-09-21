@@ -21,6 +21,11 @@ internal static class ViewerConnectionStatusText
     public const string SearchCanceled = "搜索已取消";
     public const string SearchingOtherHosts = "正在查找其他可用主机";
     public const string RequestingHostApproval = "正在请求保存主机允许连接";
+    /// <summary>
+    /// 稳态措辞：主机开着访问保护而本机还没有有效密钥。和"正在请求…"区分开，
+    /// 因为菜单这类常显位置需要说明"现在是什么状态"，而不是"正在做什么"。
+    /// </summary>
+    public const string NeedsHostApproval = "需要主机允许连接";
     public const string AccessGranted = "已允许访问";
     public const string AccessNotGranted = "未取得网页访问权限";
     public const string Online = "在线";
@@ -57,6 +62,7 @@ internal static class ViewerConnectionStatusText
             ["searchCanceled"] = SearchCanceled,
             ["searchingOtherHosts"] = SearchingOtherHosts,
             ["requestingHostApproval"] = RequestingHostApproval,
+            ["needsApproval"] = NeedsHostApproval,
             ["accessGranted"] = AccessGranted,
             ["accessNotGranted"] = AccessNotGranted,
             ["online"] = Online,
