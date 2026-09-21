@@ -14,10 +14,18 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var lastLaunchAttempt = Date.distantPast
     private var launchedHosts: [Process] = []
     private var autostartInstalled = false
+    private var purposeName = "保存主机"
+    private var isViewer = false
 
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--dump-menu") {
+            refreshAutostart()
+            print(dumpMenu())
+            exit(0)
+        }
+
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "PP"
         statusItem = item
@@ -42,20 +50,25 @@ final class HostShell: NSObject, NSApplicationDelegate {
         request.timeoutInterval = 3
         URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
             var name: String?
+            var preset = ""
             if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 name = json["nodeName"] as? String
+                preset = (json["preset"] as? String) ?? ""
             }
 
             let reachable = (response as? HTTPURLResponse)?.statusCode == 200
             DispatchQueue.main.async {
-                self?.apply(reachable: reachable, nodeName: name)
+                self?.apply(reachable: reachable, nodeName: name, preset: preset)
             }
         }.resume()
     }
 
-    private func apply(reachable: Bool, nodeName: String?) {
+    private func apply(reachable: Bool, nodeName: String?, preset: String) {
         onlineNodeName = reachable ? nodeName : nil
-        status = reachable ? "保存主机运行中（\(nodeName ?? "未命名")）" : "保存主机未运行"
+        isViewer = reachable && preset == "ViewerClient"
+        purposeName = isViewer ? "查看端" : "保存主机"
+        // 第一行只说用途，不带电脑名与括号
+        status = reachable ? purposeName : "未启动"
         // 不加指示灯，标题保持固定
         statusItem?.button?.title = "PP"
         rebuildMenu()
@@ -77,9 +90,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(disabledItem(status))
         menu.addItem(.separator())
 
-        // 启动与关闭是同一个开关，按当前状态只显示一项
-        let running = onlineNodeName != nil
-        menu.addItem(actionItem(running ? "停止主机" : "启动主机", #selector(toggleHost)))
+        // 打开就是使用，不提供"启动/停止主机"；只想看录像时切成查看端
+        menu.addItem(actionItem("切换为只查看", #selector(switchToViewer)))
         menu.addItem(actionItem("打开设置", #selector(openSettings)))
         menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
         menu.addItem(.separator())
@@ -92,6 +104,18 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(actionItem("退出", #selector(quit)))
 
         statusItem?.menu = menu
+    }
+
+    /// 菜单内容的自检输出：不依赖人工点开，直接打印第一行与各项
+    private func dumpMenu() -> String {
+        var lines = ["第一行: \(status)"]
+        if !isViewer { lines.append("· 切换为只查看") }
+        lines.append("· 打开设置")
+        lines.append("· 打开网页回放")
+        lines.append("· \(autostartInstalled ? "取消开机自启" : "注册开机自启")")
+        lines.append("· 打开日志目录")
+        lines.append("· 退出")
+        return lines.joined(separator: "\n")
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
@@ -122,14 +146,24 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(string: url)!)
     }
 
-    /// 启动或停止主机：和"打开程序就是启动、关掉就停止"的预期保持一致
-    @objc private func toggleHost() {
-        if onlineNodeName != nil {
-            stopHost()
-        } else {
-            lastLaunchAttempt = Date()
-            runHost(arguments: ["--no-browser"])
+    /// 切换为只查看：把用途改成查看端，弹窗告知，并停止再作为主机服务
+    @objc private func switchToViewer() {
+        notify("只查看\n\n这台电脑已切换为查看端，不再作为保存主机。\n网页回放仍可正常使用。")
+        setPurpose("viewer")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.stopHost()
+            self?.refreshStatus()
         }
+    }
+
+    /// 通过本机设置接口改用途；服务端只接受本机请求
+    private func setPurpose(_ purpose: String) {
+        guard let url = URL(string: "http://127.0.0.1:\(port)/api/local-settings") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["purpose": purpose])
+        URLSession.shared.dataTask(with: request).resume()
     }
 
     @objc private func toggleAutostart() {
