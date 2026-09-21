@@ -12,6 +12,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var status = "正在检查保存主机…"
     private var onlineNodeName: String?
     private var lastLaunchAttempt = Date.distantPast
+    private var launchedHosts: [Process] = []
+    private var autostartInstalled = false
 
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
 
@@ -26,9 +28,15 @@ final class HostShell: NSObject, NSApplicationDelegate {
         refreshStatus()
     }
 
+    /// 注销或关机时也要把自己拉起的主机带走
+    func applicationWillTerminate(_ notification: Notification) {
+        stopHost()
+    }
+
     // MARK: - 状态
 
     private func refreshStatus() {
+        refreshAutostart()
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/node-info") else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
@@ -48,7 +56,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private func apply(reachable: Bool, nodeName: String?) {
         onlineNodeName = reachable ? nodeName : nil
         status = reachable ? "保存主机运行中（\(nodeName ?? "未命名")）" : "保存主机未运行"
-        statusItem?.button?.title = reachable ? "PP ●" : "PP ○"
+        // 不加指示灯，标题保持固定
+        statusItem?.button?.title = "PP"
         rebuildMenu()
         if !reachable { ensureHostRunning() }
     }
@@ -68,14 +77,19 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(disabledItem(status))
         menu.addItem(.separator())
 
+        // 启动与关闭是同一个开关，按当前状态只显示一项
+        let running = onlineNodeName != nil
+        menu.addItem(actionItem(running ? "停止主机" : "启动主机", #selector(toggleHost)))
+        menu.addItem(actionItem("打开设置", #selector(openSettings)))
         menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
-        menu.addItem(actionItem("切换用途…", #selector(switchPurpose)))
         menu.addItem(.separator())
-        menu.addItem(actionItem("注册开机自启", #selector(installAutostart)))
-        menu.addItem(actionItem("取消开机自启", #selector(uninstallAutostart)))
+        // 开机自启同样按状态只显示一项
+        menu.addItem(actionItem(
+            autostartInstalled ? "取消开机自启" : "注册开机自启",
+            #selector(toggleAutostart)))
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
-        menu.addItem(actionItem("退出菜单", #selector(quit)))
+        menu.addItem(actionItem("退出", #selector(quit)))
 
         statusItem?.menu = menu
     }
@@ -100,21 +114,36 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(string: url)!)
     }
 
-    @objc private func switchPurpose() {
-        // 主机进程自己在交互模式下会问用途；这里只负责把它拉起来
-        runHost(arguments: ["--switch-purpose"])
+    /// 打开设置：网页里的本机设置面板，带上锚点直接滚到那里
+    @objc private func openSettings() {
+        var url = "http://127.0.0.1:\(port)/"
+        if let key = readAccessKey() { url += "?key=\(key)" }
+        url += "#localSettings"
+        NSWorkspace.shared.open(URL(string: url)!)
     }
 
-    @objc private func installAutostart() {
-        runHost(arguments: ["--install-autostart"]) { [weak self] output in
+    /// 启动或停止主机：和"打开程序就是启动、关掉就停止"的预期保持一致
+    @objc private func toggleHost() {
+        if onlineNodeName != nil {
+            stopHost()
+        } else {
+            lastLaunchAttempt = Date()
+            runHost(arguments: ["--no-browser"])
+        }
+    }
+
+    @objc private func toggleAutostart() {
+        let arguments = autostartInstalled ? ["--uninstall-autostart"] : ["--install-autostart"]
+        runHost(arguments: arguments) { [weak self] output in
             self?.notify(output)
         }
     }
 
-    @objc private func uninstallAutostart() {
-        runHost(arguments: ["--uninstall-autostart"]) { [weak self] output in
-            self?.notify(output)
+    private func stopHost() {
+        for pid in runningHostPIDs() {
+            kill(pid, SIGTERM)
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshStatus() }
     }
 
     @objc private func openLogs() {
@@ -125,7 +154,20 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() {
-        NSApp.terminate(nil)
+        // 退出即停止：关掉程序就把自己拉起的主机一起停掉，不留没人管的进程
+        stopHost()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { NSApp.terminate(nil) }
+    }
+
+    private func refreshAutostart() {
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/com.packingproof.host.plist")
+        autostartInstalled = FileManager.default.fileExists(atPath: path.path)
+    }
+
+    private func runningHostPIDs() -> [Int32] {
+        launchedHosts = launchedHosts.filter { $0.isRunning }
+        return launchedHosts.map { $0.processIdentifier }
     }
 
     private func notify(_ text: String) {
@@ -165,6 +207,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
         do {
             try process.run()
+            launchedHosts.append(process)
         } catch {
             notify("启动主机失败：\(error.localizedDescription)")
             return
