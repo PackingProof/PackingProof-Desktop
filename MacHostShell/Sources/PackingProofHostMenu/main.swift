@@ -17,12 +17,27 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var autostartInstalled = false
     private var hostAddress = ""
     private var hostKey = ""
+    private var hostNodeId = ""
     private var storagePaths: [String] = []
     private var hostProblem = ""
-    private var viewerConnected = false
-    private var viewerHint = "未连接主机"
     private var hostServing = false
     private var viewerRunning = false
+
+    /// 查看端状态与文案全部取自主机命令行的同一份口径（与 Windows 查看窗口一致），
+    /// 壳不认识任何一个状态词，也不自己做网络预检。
+    private var viewerState = ""
+    private var viewerStatusText = ""
+    private var viewerStatusWords: [String: String] = [:]
+    private var viewerStatusGeneration = 0
+
+    /// 存储位置容量现状与已发现主机：都由主机命令行返回，壳只负责显示
+    private var storageLocations: [[String: Any]] = []
+    private var lastStorageSummary = Date.distantPast
+    private var discoveredHosts: [[String: Any]] = []
+    private var hostSearchInFlight = false
+    private var lastHostSearch = Date.distantPast
+
+    private var viewerConnected: Bool { viewerState == "online" }
 
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
 
@@ -35,10 +50,20 @@ final class HostShell: NSObject, NSApplicationDelegate {
             let serving = probeStatus(URL(string: "http://127.0.0.1:\(port)/api/node-info")!) == 200
             hostServing = serving
             if purpose == "MobileBackupHost" && !serving { hostProblem = readHostFailure() ?? "" }
-            refreshViewerConnection()
+            loadStorageSummarySync()
+            if purpose == "ViewerClient" {
+                loadViewerStatusSync()
+                loadDiscoveredHostsSync()
+            }
             print("第一行: \(statusText)")
             print("本机主机服务: \(serving ? "运行中" : "未运行")")
-            print("查看端连接: \(viewerConnected ? "已连接" : viewerHint)")
+            if purpose == "ViewerClient" {
+                print("查看端状态: \(viewerState.isEmpty ? "—" : viewerState) \(viewerStatusText)")
+            }
+            for line in storageSummaryLines() { print(line) }
+            if CommandLine.arguments.contains("--hosts") && purpose == "ViewerClient" {
+                print("发现主机: \(discoveredHosts.isEmpty ? statusWord("notFound") : discoveredHosts.map { describeHost($0) }.joined(separator: "、"))")
+            }
             print("回放项: \(purpose == "MobileBackupHost" ? (serving ? "可用" : "禁用") : (viewerConnected ? "可用" : "禁用"))")
             exit(0)
         }
@@ -46,6 +71,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--dump-menu") {
             refreshSettings()
             refreshAutostart()
+            loadStorageSummarySync()
+            if purpose == "ViewerClient" {
+                loadViewerStatusSync()
+                if CommandLine.arguments.contains("--hosts") { loadDiscoveredHostsSync() }
+            }
             print(dumpMenu())
             exit(0)
         }
@@ -68,6 +98,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private func refresh() {
         refreshSettings()
         refreshAutostart()
+        refreshStorageSummary()
+        refreshViewerStatus()
+        refreshDiscoveredHosts()
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/node-info") else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
@@ -84,14 +117,15 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 } else if serving {
                     self.hostProblem = ""
                 }
-                self.refreshViewerConnection()
                 self.rebuildMenu()
             }
         }.resume()
     }
 
     private var statusText: String {
-        if purpose == "ViewerClient" { return "查看端（\(viewerHint)）" }
+        if purpose == "ViewerClient" {
+            return viewerStatusText.isEmpty ? "查看端" : "查看端（\(viewerStatusText)）"
+        }
         if purpose.isEmpty { return "未启动" }
         // 起不来时直接把原因摆在菜单第一行，用户不必去翻日志
         return hostProblem.isEmpty ? "保存主机" : "保存主机未启动：\(hostProblem)"
@@ -124,9 +158,20 @@ final class HostShell: NSObject, NSApplicationDelegate {
             menu.addItem(disabledItem("保存位置：未设置"))
         } else {
             for (index, path) in storagePaths.enumerated() {
-                menu.addItem(disabledItem("保存位置\(index + 1)：\(path)"))
+                // 点一下就在 Finder 里打开该目录（以前这里是禁用项，点不动）
+                let item = NSMenuItem(
+                    title: "保存位置\(index + 1)：\(path)",
+                    action: #selector(openStorageLocation(_:)),
+                    keyEquivalent: "")
+                item.target = self
+                item.representedObject = path
+                menu.addItem(item)
             }
         }
+
+        let capacityItem = NSMenuItem(title: "存储空间上限…", action: nil, keyEquivalent: "")
+        capacityItem.submenu = buildStorageLimitMenu()
+        menu.addItem(capacityItem)
 
         let diskMenu = NSMenu()
         for volume in mountedVolumes() {
@@ -144,6 +189,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(autostartItem)
         menu.addItem(.separator())
 
+        if purpose == "ViewerClient" {
+            let hostsItem = NSMenuItem(title: "保存主机…", action: nil, keyEquivalent: "")
+            hostsItem.submenu = buildHostMenu()
+            menu.addItem(hostsItem)
+        }
+
         let playbackItem = actionItem("打开网页回放", #selector(openPlayback))
         playbackItem.isEnabled = purpose == "MobileBackupHost" ? hostServing : viewerConnected
         menu.addItem(playbackItem)
@@ -154,18 +205,147 @@ final class HostShell: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
     }
 
+    /// 每个保存位置一个子菜单：先摆现状，再给"设置容量上限 / 设置预留空间"两个入口
+    private func buildStorageLimitMenu() -> NSMenu {
+        let menu = NSMenu()
+        guard !storageLocations.isEmpty else {
+            menu.addItem(disabledItem("还没有可用的保存位置"))
+            return menu
+        }
+
+        for location in storageLocations {
+            guard let path = location["path"] as? String else { continue }
+            let name = (location["displayName"] as? String) ?? path
+            let available = (location["available"] as? Bool) ?? false
+            let capacityKnown = (location["capacityKnown"] as? Bool) ?? false
+            let submenu = NSMenu()
+
+            if !available {
+                submenu.addItem(disabledItem("磁盘未接入，暂时读不到容量"))
+            } else if capacityKnown {
+                let capacity = formatNumber(number(location["capacityGB"]))
+                let reserve = formatNumber(number(location["reserveGB"]))
+                submenu.addItem(disabledItem("容量上限 \(capacity) GB，预留 \(reserve) GB"))
+                let recommended = number(location["recommendedReserveGB"])
+                if number(location["reserveGB"]) < recommended {
+                    submenu.addItem(disabledItem("预留偏低，建议至少 \(formatNumber(recommended)) GB"))
+                }
+            } else {
+                submenu.addItem(disabledItem("磁盘太小，放不下最低预留"))
+            }
+
+            let capacityAction = NSMenuItem(
+                title: "设置容量上限…",
+                action: #selector(promptCapacity(_:)),
+                keyEquivalent: "")
+            capacityAction.target = self
+            capacityAction.representedObject = path
+            capacityAction.isEnabled = capacityKnown
+            submenu.addItem(capacityAction)
+
+            let reserveAction = NSMenuItem(
+                title: "设置预留空间…",
+                action: #selector(promptReserve(_:)),
+                keyEquivalent: "")
+            reserveAction.target = self
+            reserveAction.representedObject = path
+            reserveAction.isEnabled = capacityKnown
+            submenu.addItem(reserveAction)
+
+            let openAction = NSMenuItem(
+                title: "在 Finder 中打开",
+                action: #selector(openStorageLocation(_:)),
+                keyEquivalent: "")
+            openAction.target = self
+            openAction.representedObject = path
+            submenu.addItem(openAction)
+
+            let entry = NSMenuItem(title: name, action: nil, keyEquivalent: "")
+            entry.submenu = submenu
+            menu.addItem(entry)
+        }
+
+        return menu
+    }
+
+    /// 查看端：把发现到的主机做成子菜单，标出当前那台，点选即切换，可移除
+    private func buildHostMenu() -> NSMenu {
+        let menu = NSMenu()
+        if hostSearchInFlight {
+            let searching = statusWord("searching")
+            menu.addItem(disabledItem(searching.isEmpty ? statusText : searching))
+        } else if discoveredHosts.isEmpty {
+            let notFound = statusWord("notFound")
+            if !notFound.isEmpty { menu.addItem(disabledItem(notFound)) }
+        } else {
+            for host in discoveredHosts {
+                let nodeId = (host["nodeId"] as? String) ?? ""
+                let item = NSMenuItem(
+                    title: describeHost(host),
+                    action: #selector(selectHost(_:)),
+                    keyEquivalent: "")
+                item.target = self
+                item.representedObject = host
+                item.state = (!nodeId.isEmpty && nodeId == hostNodeId) ? .on : .off
+                menu.addItem(item)
+            }
+        }
+
+        menu.addItem(.separator())
+        menu.addItem(actionItem("重新搜索", #selector(rescanHosts)))
+        let forgetItem = actionItem("移除当前主机", #selector(forgetHost))
+        forgetItem.isEnabled = !hostNodeId.isEmpty || !hostAddress.isEmpty
+        menu.addItem(forgetItem)
+        return menu
+    }
+
     private func dumpMenu() -> String {
-        [
-            "第一行: \(statusText)",
-            "· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")",
-            "· 查看端 \(purpose == "ViewerClient" ? "✓" : "")",
-            "· 保存位置：\(storagePaths.isEmpty ? "未设置" : storagePaths.joined(separator: " > "))",
-            "· 添加磁盘…（选磁盘后用默认子目录）",
-            "· 开机自启 \(autostartInstalled ? "✓" : "")",
-            "· 打开网页回放（\(purpose == "ViewerClient" ? (hostAddress.isEmpty ? "未连接主机，禁用" : "已连接 \(hostAddress)") : (hostServing ? "本机" : "未启动，禁用"))）",
-            "· 打开日志目录",
-            "· 退出"
-        ].joined(separator: "\n")
+        var lines: [String] = []
+        lines.append("第一行: \(statusText)")
+        lines.append("· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")")
+        lines.append("· 查看端 \(purpose == "ViewerClient" ? "✓" : "")")
+        if storagePaths.isEmpty {
+            lines.append("· 保存位置：未设置")
+        } else {
+            for (index, path) in storagePaths.enumerated() {
+                lines.append("· 保存位置\(index + 1)：\(path)（点击在 Finder 中打开）")
+            }
+        }
+        lines.append(contentsOf: storageSummaryLines())
+        lines.append("· 添加磁盘…（选磁盘后用默认子目录）")
+        lines.append("· 开机自启 \(autostartInstalled ? "✓" : "")")
+        if purpose == "ViewerClient" {
+            lines.append("· 保存主机…：\(hostMenuSummary())")
+        }
+        let playback = purpose == "ViewerClient"
+            ? (viewerConnected ? "已连接 \(hostAddress)" : "禁用（\(viewerStatusText)）")
+            : (hostServing ? "本机" : "未启动，禁用")
+        lines.append("· 打开网页回放（\(playback)）")
+        lines.append("· 打开日志目录")
+        lines.append("· 退出")
+        return lines.joined(separator: "\n")
+    }
+
+    private func storageSummaryLines() -> [String] {
+        guard !storageLocations.isEmpty else { return ["· 存储空间上限：暂不可用"] }
+        return storageLocations.map { location in
+            let name = (location["displayName"] as? String) ?? ""
+            guard (location["available"] as? Bool) ?? false else {
+                return "· 存储空间上限 \(name)：磁盘未接入"
+            }
+            let capacity = formatNumber(number(location["capacityGB"]))
+            let reserve = formatNumber(number(location["reserveGB"]))
+            return "· 存储空间上限 \(name)：\(capacity) GB，预留 \(reserve) GB"
+        }
+    }
+
+    private func hostMenuSummary() -> String {
+        if hostSearchInFlight { return statusWord("searching") }
+        if discoveredHosts.isEmpty { return statusWord("notFound") }
+        return discoveredHosts.map { host in
+            let nodeId = (host["nodeId"] as? String) ?? ""
+            return (nodeId == hostNodeId && !nodeId.isEmpty ? "✓ " : "") + describeHost(host)
+        }.joined(separator: "、")
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
@@ -263,6 +443,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
                 self.refreshSettings()
                 self.refreshAutostart()
+                self.refreshStorageSummary(force: true)
+                if self.purpose == "ViewerClient" {
+                    self.refreshViewerStatus()
+                    self.refreshDiscoveredHosts(force: true)
+                }
                 self.rebuildMenu()
                 if askRestart {
                     self.confirmRestart(after: success)
@@ -336,6 +521,170 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(Self.logDirectory)
     }
 
+    // MARK: - 保存位置与容量上限
+
+    /// 在 Finder 中打开保存位置；目录还没建出来时退到最近的已有上级目录，避免点了没反应
+    @objc private func openStorageLocation(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String, !path.isEmpty else { return }
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            return
+        }
+
+        var parent = (path as NSString).deletingLastPathComponent
+        while !parent.isEmpty && parent != "/" && !FileManager.default.fileExists(atPath: parent) {
+            parent = (parent as NSString).deletingLastPathComponent
+        }
+        NSWorkspace.shared.open(URL(fileURLWithPath: parent.isEmpty ? "/" : parent))
+    }
+
+    @objc private func promptCapacity(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        let location = storageLocation(for: path) ?? [:]
+        let maximum = number(location["maximumCapacityGB"])
+        let message = maximum > 0
+            ? "这片磁盘最多留给录像 \(formatNumber(maximum)) GB"
+            : "这片磁盘留给录像多少 GB"
+        guard let gigabytes = promptForNumber(
+            title: "设置容量上限（GB）",
+            message: message,
+            current: number(location["capacityGB"])) else { return }
+        applyStorageChange(
+            ["--set-storage-capacity", formatNumber(gigabytes), "--storage-path", path],
+            success: "已设置容量上限")
+    }
+
+    @objc private func promptReserve(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        let location = storageLocation(for: path) ?? [:]
+        let recommended = number(location["recommendedReserveGB"])
+        let message = recommended > 0
+            ? "磁盘写满前始终留出的空闲空间；建议至少 \(formatNumber(recommended)) GB"
+            : "磁盘写满前始终留出的空闲空间（GB）"
+        guard let gigabytes = promptForNumber(
+            title: "设置预留空间（GB）",
+            message: message,
+            current: number(location["reserveGB"])) else { return }
+        applyStorageChange(
+            ["--set-storage-reserve", formatNumber(gigabytes), "--storage-path", path],
+            success: "已设置预留空间")
+    }
+
+    private func promptForNumber(title: String, message: String, current: Double) -> Double? {
+        statusItem?.menu?.cancelTracking()
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.stringValue = current > 0 ? formatNumber(current) : ""
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+
+        let raw = field.stringValue.trimmingCharacters(in: .whitespaces)
+        guard let value = Double(raw), value.isFinite, value > 0 else {
+            notify("请输入大于 0 的数字（单位 GB）")
+            return nil
+        }
+        return value
+    }
+
+    /// 容量与预留都写进配置里的同一个预留值，换算规则由核心负责；改完不需要重启主机
+    private func applyStorageChange(_ arguments: [String], success: String) {
+        runHostCommand(arguments) { [weak self] json in
+            guard let self else { return }
+            guard let json, (json["ok"] as? Bool) == true else {
+                self.notify((json?["error"] as? String) ?? "设置未生效")
+                return
+            }
+
+            self.refreshStorageSummary(force: true)
+            let capacity = self.formatNumber(self.number(json["capacityGB"]))
+            let reserve = self.formatNumber(self.number(json["reserveGB"]))
+            self.notify("\(success)：容量上限 \(capacity) GB，预留 \(reserve) GB")
+        }
+    }
+
+    // MARK: - 查看端主机
+
+    /// 切换主机：先记住新主机，再走一次查看端接入流程（申请接入 → 记住密钥 → 打开网页）
+    @objc private func selectHost(_ sender: NSMenuItem) {
+        guard let host = sender.representedObject as? [String: Any],
+              let address = host["address"] as? String else { return }
+        let nodeId = (host["nodeId"] as? String) ?? ""
+        let nodeName = (host["nodeName"] as? String) ?? ""
+
+        runHostCommand(
+            ["--select-host", address, "--host-node-id", nodeId, "--host-node-name", nodeName]
+        ) { [weak self] json in
+            guard let self else { return }
+            guard let json, (json["ok"] as? Bool) == true else {
+                self.notify((json?["error"] as? String) ?? "切换主机失败")
+                return
+            }
+
+            self.refreshSettings()
+            self.refreshViewerStatus()
+            self.rebuildMenu()
+            self.connectSelectedHost()
+        }
+    }
+
+    /// 接入流程与桌面端一致：发现主机 → 需要时申请接入 → 记住地址与密钥 → 打开回放网页
+    private func connectSelectedHost() {
+        runHost(arguments: ["--service"])
+    }
+
+    @objc private func rescanHosts() {
+        discoveredHosts = []
+        hostSearchInFlight = false
+        refreshDiscoveredHosts(force: true)
+        rebuildMenu()
+    }
+
+    @objc private func forgetHost() {
+        statusItem?.menu?.cancelTracking()
+        let alert = NSAlert()
+        alert.messageText = "移除当前保存主机"
+        alert.informativeText = "移除后要重新搜索主机，并让主机允许接入"
+        alert.addButton(withTitle: "移除")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        runHostCommand(["--forget-host"]) { [weak self] json in
+            guard let self else { return }
+            guard let json, (json["ok"] as? Bool) == true else {
+                self.notify((json?["error"] as? String) ?? "移除失败")
+                return
+            }
+
+            self.refreshSettings()
+            self.viewerState = ""
+            self.viewerStatusText = self.statusWord("notBound")
+            self.rebuildMenu()
+        }
+    }
+
+    // MARK: - 数值与主机取值
+
+    private func number(_ value: Any?) -> Double {
+        if let doubleValue = value as? Double { return doubleValue }
+        if let intValue = value as? Int { return Double(intValue) }
+        if let numberValue = value as? NSNumber { return numberValue.doubleValue }
+        return 0
+    }
+
+    private func formatNumber(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
+    }
+
+    private func storageLocation(for path: String) -> [String: Any]? {
+        storageLocations.first { ($0["path"] as? String) == path }
+    }
+
     @objc private func quit() {
         stopHost()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { NSApp.terminate(nil) }
@@ -367,12 +716,14 @@ final class HostShell: NSObject, NSApplicationDelegate {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             purpose = ""
             storagePath = ""
+            hostNodeId = ""
             return
         }
 
         purpose = (json["DeploymentPreset"] as? String) ?? ""
         hostAddress = (json["LastKnownHostAddress"] as? String) ?? ""
         hostKey = (json["LastKnownHostWebAccessKey"] as? String) ?? ""
+        hostNodeId = (json["LastKnownHostNodeId"] as? String) ?? ""
         let locations = json["StorageLocations"] as? [[String: Any]]
         let ordered = (locations ?? [])
             .filter { (($0["Path"] as? String) ?? "").isEmpty == false }
@@ -381,39 +732,130 @@ final class HostShell: NSObject, NSApplicationDelegate {
         storagePath = storagePaths.first ?? ""
     }
 
-    /// 查看端：只有主机真的能连上（或已有密钥）才算"已连接"，否则禁用回放项
-    private func refreshViewerConnection() {
-        guard purpose == "ViewerClient", !hostAddress.isEmpty else {
-            viewerConnected = false
-            viewerHint = hostAddress.isEmpty ? "未连接主机" : viewerHint
+    // MARK: - 主机命令行
+
+    /// 运行主机自带命令并读回 JSON。容量、主机发现与状态词都在核心实现里，
+    /// 壳只做展示，不再自己算容量或自己编状态词。
+    private func runHostCommand(_ arguments: [String], completion: @escaping ([String: Any]?) -> Void) {
+        guard let executable = hostExecutable() else {
+            completion(nil)
             return
         }
 
-        // 异步探测：主线程等待网络会让菜单点不动（曾经就是这样）
-        var request = URLRequest(url: URL(string: hostAddress + "/")!)
-        request.timeoutInterval = 4
-        URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            DispatchQueue.main.async {
-                guard let self else { return }
-                switch status {
-                case 200, 302:
-                    self.viewerConnected = true
-                    self.viewerHint = "已连接 \(self.hostName)"
-                case 401:
-                    self.viewerConnected = !self.hostKey.isEmpty
-                    self.viewerHint = self.viewerConnected ? "已连接 \(self.hostName)" : "等待主机确认接入"
-                default:
-                    self.viewerConnected = false
-                    self.viewerHint = "未连接主机"
-                }
-                self.rebuildMenu()
-            }
-        }.resume()
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        process.terminationHandler = { _ in
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            DispatchQueue.main.async { completion(json) }
+        }
+        do {
+            try process.run()
+        } catch {
+            DispatchQueue.main.async { completion(nil) }
+        }
     }
 
-    private var hostName: String {
-        hostAddress.isEmpty ? "主机" : hostAddress
+    /// 同步版本，只给 --status 排查输出用；超时就放弃，避免命令行没按预期退出时卡住菜单
+    private func runHostCommandSync(_ arguments: [String], timeout: TimeInterval = 30) -> [String: Any]? {
+        guard let executable = hostExecutable() else { return nil }
+        let process = Process()
+        process.executableURL = executable
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning && Date() < deadline {
+            usleep(50_000)
+        }
+        if process.isRunning {
+            process.terminate()
+            return nil
+        }
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    private func refreshStorageSummary(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastStorageSummary) > 30 else { return }
+        lastStorageSummary = Date()
+        runHostCommand(["--storage-summary"]) { [weak self] json in
+            guard let self, let locations = json?["locations"] as? [[String: Any]] else { return }
+            self.storageLocations = locations
+            self.rebuildMenu()
+        }
+    }
+
+    private func loadStorageSummarySync() {
+        guard let json = runHostCommandSync(["--storage-summary"]),
+              let locations = json["locations"] as? [[String: Any]] else { return }
+        storageLocations = locations
+    }
+
+    /// 查看端状态：探测与措辞都由核心决定；state 非空时只取词表，不碰网络
+    private func refreshViewerStatus(state: String? = nil) {
+        guard purpose == "ViewerClient" else { return }
+        viewerStatusGeneration += 1
+        let generation = viewerStatusGeneration
+        var arguments = ["--viewer-status"]
+        if let state { arguments += ["--state", state] }
+        runHostCommand(arguments) { [weak self] json in
+            guard let self, generation == self.viewerStatusGeneration else { return }
+            self.applyViewerStatus(json)
+        }
+    }
+
+    private func loadViewerStatusSync() {
+        applyViewerStatus(runHostCommandSync(["--viewer-status"]))
+    }
+
+    private func applyViewerStatus(_ json: [String: Any]?) {
+        guard let json else { return }
+        if let words = json["texts"] as? [String: String] { viewerStatusWords = words }
+        guard let text = json["text"] as? String, !text.isEmpty else { return }
+        viewerStatusText = text
+        viewerState = (json["state"] as? String) ?? ""
+        rebuildMenu()
+    }
+
+    private func statusWord(_ key: String) -> String { viewerStatusWords[key] ?? "" }
+
+    /// 主机发现较慢（要扫整个网段），按需刷新并把结果缓存在壳里
+    private func refreshDiscoveredHosts(force: Bool = false) {
+        guard purpose == "ViewerClient", !hostSearchInFlight else { return }
+        guard force || Date().timeIntervalSince(lastHostSearch) > 60 else { return }
+        hostSearchInFlight = true
+        lastHostSearch = Date()
+        refreshViewerStatus(state: "searching")
+        runHostCommand(["--list-hosts"]) { [weak self] json in
+            guard let self else { return }
+            self.hostSearchInFlight = false
+            self.discoveredHosts = (json?["hosts"] as? [[String: Any]]) ?? []
+            self.refreshViewerStatus()
+            self.rebuildMenu()
+        }
+    }
+
+    private func loadDiscoveredHostsSync() {
+        guard let json = runHostCommandSync(["--list-hosts"]),
+              let hosts = json["hosts"] as? [[String: Any]] else { return }
+        discoveredHosts = hosts
+    }
+
+    private func describeHost(_ host: [String: Any]) -> String {
+        let name = (host["nodeName"] as? String) ?? ""
+        let address = (host["address"] as? String) ?? ""
+        return name.isEmpty ? address : "\(name)（\(address)）"
     }
 
     /// 主机启动失败时，日志最后一行就是原因
