@@ -13,6 +13,7 @@ struct MainWindowView: View {
     @ObservedObject var model: AppStateModel
     @State private var showManualConnection = false
     @State private var showSettings = false
+    @State private var showPurposeChooser = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,8 +46,20 @@ struct MainWindowView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(model: model)
         }
+        .sheet(isPresented: $showPurposeChooser) {
+            PurposeChooserView(currentIsViewer: model.isViewer) { viewer in
+                model.choosePurpose(viewer: viewer)
+            }
+        }
         .onChange(of: model.settingsRequestToken) { _ in
             showSettings = true
+        }
+        .onChange(of: model.purposeChooserToken) { _ in
+            showPurposeChooser = true
+        }
+        .onAppear {
+            // 首次启动还没选过用途：直接把用途选择摆出来
+            if model.needsPurposeSetup { showPurposeChooser = true }
         }
     }
 
@@ -65,19 +78,12 @@ struct MainWindowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            // 这台电脑既能当保存主机也能当查看端，切换放在标题旁边
-            Picker(
-                "",
-                selection: Binding(
-                    get: { model.isViewer },
-                    set: { newValue in Task { await model.switchPurpose(viewer: newValue) } })
-            ) {
-                Text("保存主机").tag(false)
-                Text("查看端").tag(true)
+            // 用途切换与电脑端一致：就一个按钮，点开再选，不在标题栏摆选择器
+            Button {
+                showPurposeChooser = true
+            } label: {
+                Label("切换用途", systemImage: AppTheme.Symbol.changeHost)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 190)
             .disabled(model.isSwitchingPurpose)
 
             Circle()

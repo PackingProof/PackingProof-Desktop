@@ -107,6 +107,13 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         openMainWindow()
 
+        // 首次启动还没选过用途：让窗口直接把"选择这台电脑的用途"摆出来
+        refreshSettings()
+        if purpose.isEmpty {
+            model.needsPurposeSetup = true
+            model.requestPurposeChooser()
+        }
+
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
         }
@@ -152,6 +159,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
         model.requestSettings()
     }
 
+    /// ⌘U 打开用途选择（与主界面右上角"切换用途"是同一个界面）
+    @objc private func openPurposeChooserAction() {
+        openMainWindow()
+        model.requestPurposeChooser()
+    }
+
     /// 常规窗口应用需要的应用菜单：没有它菜单栏上会是一片空白
     private func setUpApplicationMenu() {
         let appName = "PackingProof"
@@ -176,6 +189,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
             keyEquivalent: ",")
         settingsItem.target = self
         appMenu.addItem(settingsItem)
+        let purposeItem = NSMenuItem(
+            title: "切换用途…",
+            action: #selector(openPurposeChooserAction),
+            keyEquivalent: "u")
+        purposeItem.target = self
+        appMenu.addItem(purposeItem)
         appMenu.addItem(.separator())
         appMenu.addItem(
             withTitle: "隐藏 \(appName)",
@@ -216,6 +235,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
             openWebPlayback: { [weak self] in await self?.openWebPlaybackAsync() },
             connectManually: { [weak self] input in await self?.connectManuallyAsync(input) },
             switchPurpose: { [weak self] viewer in await self?.switchPurposeAsync(viewer: viewer) },
+            confirmPurpose: { [weak self] viewer in
+                viewer ? self?.useViewerPurpose() : self?.useHostPurpose()
+            },
             openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
             setCapacity: { [weak self] path, gigabytes in
                 self?.applyStorageLimit(path: path, byCapacity: true, gigabytes: gigabytes)
@@ -345,6 +367,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             : (hostProblem.isEmpty ? (isHostLaunching ? "启动中" : "未运行") : hostProblem)
         model.hostLaunching = isHostLaunching
         model.appVersion = appVersion
+        model.needsPurposeSetup = purpose.isEmpty
         model.storePaths = storagePaths
         model.autostartInstalled = autostartInstalled
         model.devices = hostDevices.map { device in

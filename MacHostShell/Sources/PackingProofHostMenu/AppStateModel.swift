@@ -84,6 +84,9 @@ final class AppStateModel: ObservableObject {
     @Published var appVersion = ""
     /// 壳里按 ⌘, 时用它通知窗口打开设置页
     @Published var settingsRequestToken = 0
+    /// 还没选过用途（首次启动）：窗口起来就弹用途选择
+    @Published var needsPurposeSetup = false
+    @Published var purposeChooserToken = 0
     /// 界面内提示：成功/失败都走这里，不再弹系统对话框
     @Published var banner: String?
     @Published var bannerIsError = false
@@ -97,6 +100,7 @@ final class AppStateModel: ObservableObject {
         var openWebPlayback: () async -> Void
         var connectManually: (String) async -> String?
         var switchPurpose: (Bool) async -> Void
+        var confirmPurpose: (Bool) -> Void
         var openStorageLocation: (String) -> Void
         var setCapacity: (String, Double) -> Void
         var setReserve: (String, Double) -> Void
@@ -153,6 +157,15 @@ final class AppStateModel: ObservableObject {
 
     func requestSettings() {
         settingsRequestToken += 1
+    }
+
+    func requestPurposeChooser() {
+        purposeChooserToken += 1
+    }
+
+    /// 用途选择窗口确认：true = 查看端
+    func choosePurpose(viewer: Bool) {
+        actions?.confirmPurpose(viewer)
     }
 
     /// 容量上限与预留都写同一个预留值，这里直接调，不再弹输入框
