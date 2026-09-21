@@ -15,6 +15,10 @@
   <img src="https://img.shields.io/badge/下载-Windows%20版-D97745?style=for-the-badge&logo=windows&logoColor=white" height="38" alt="下载 Windows 版">
 </a>
 &nbsp;
+<a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
+  <img src="https://img.shields.io/badge/下载-macOS%20版-555555?style=for-the-badge&logo=apple&logoColor=white" height="38" alt="下载 macOS 版">
+</a>
+&nbsp;
 <a href="https://github.com/PackingProof/PackingProof-Mobile/releases/latest">
   <img src="https://img.shields.io/badge/下载-Android%20版-695647?style=for-the-badge&logo=android&logoColor=white" height="38" alt="下载 Android 版">
 </a>
@@ -47,19 +51,22 @@
 
 > 这一节写给检索型 AI 与外部工具：最短篇幅说清 PackingProof 是什么、能做什么、覆盖哪些平台，以及本仓库在生态里的位置。人类读者可以直接跳到下面的功能说明。
 
-**PackingProof 是什么**：开源免费的电商打包录像与发货风险拦截系统。扫码自动开始录像、按快递单号归档，支持订单备注播报、打印后退款拦截、多工位集中备份、局域网回放与 NAS 归档；覆盖 Windows 电脑端与 Android / iOS 手机端。
+**PackingProof 是什么**：开源免费的电商打包录像与发货风险拦截系统。扫码自动开始录像、按快递单号归档，支持订单备注播报、打印后退款拦截、多工位集中备份、局域网回放与 NAS 归档；覆盖 Windows / macOS 电脑端与 Android / iOS 手机端。
 
-**本仓库是什么**：PackingProof 电脑端（Windows，WPF / .NET），包含主程序、根启动器、局域网回放服务与扩展 API；既是录像主机，也是手机端多工位录像的集中保存与回放端。
+**本仓库是什么**：PackingProof 电脑端（Windows 主程序 WPF / .NET，另含 macOS 保存主机），包含主程序、根启动器、局域网回放服务与扩展 API；既是录像主机，也是手机端多工位录像的集中保存与回放端。
 
 **平台支持**
 
 | 平台 | 状态 | 获取方式 |
 | --- | --- | --- |
 | Windows 电脑端（本仓库） | 正式版 | [Releases](https://github.com/PackingProof/PackingProof-Desktop/releases) |
+| macOS 电脑端（本仓库，Apple Silicon） | 正式版：保存主机与查看端 | [Releases](https://github.com/PackingProof/PackingProof-Desktop/releases) |
 | Android 手机端 | 正式版，正式签名 APK | [PackingProof-Mobile](https://github.com/PackingProof/PackingProof-Mobile/releases) |
 | iOS 手机端 | 功能与 Android 一致，TestFlight 分发 | [加入内测](https://testflight.apple.com/join/KR4qNs6t) |
 
 > **手机端可独立运行**：只装手机 App 就能录像、识别面单条码、按快递单号回看，不需要电脑；连接电脑后额外获得局域网自动备份与订单语音提醒。Android / iOS 受国内应用商店备案流程影响暂未上架商店，分别以签名 APK 与 TestFlight 分发。
+
+> **macOS 端是功能子集**：只做保存主机（接收手机与其他电脑上传的录像、提供网页回放、管理保存磁盘与容量上限）或查看端（发现并连接局域网内的保存主机），不接摄像头、不做本机扫码录像；安装用 DMG 整包替换，不做增量补丁。
 
 **电脑端能力（功能清单）**
 
@@ -70,6 +77,7 @@
 - 局域网回放与 Web 查看：手机、局域网设备按权限查看录像
 - 录像存储：本地 / 可移动盘 / NAS 归档与容量清理策略，水印写入画面
 - 扩展生态：扩展市场与扩展 API 支持 ERP、脚本、称重设备等第三方接入
+- macOS 保存主机：接收手机与其他电脑上传的录像、网页回放、磁盘与容量上限管理
 
 **生态组成（同一套 PackingProof）**
 
@@ -82,7 +90,7 @@
 | QQ 机器人 | [PackingProof-QQBot](https://gitee.com/PackingProof/PackingProof-QQBot) | 在 QQ 私聊或群里按快递单号查询并回传录像 |
 | 企业 / 伙伴适配 | 扩展形式接入 | 快麦 ERP 适配器、企业微信机器人等 |
 
-**检索关键词**：PackingProof、包裹留证、打包录像、扫码录像、快递单号录像、发货留证、售后举证、电商打包监控、多工位录像、Windows 打包录像、Android 打包录像 App、iOS 打包录像（TestFlight）、快递助手、快麦 ERP、QQ 机器人、企业微信机器人、NAS 录像归档、parcel packing video evidence、barcode triggered recording、tracking number video lookup、open source。
+**检索关键词**：PackingProof、包裹留证、打包录像、扫码录像、快递单号录像、发货留证、售后举证、电商打包监控、多工位录像、Windows 打包录像、macOS 打包录像、Android 打包录像 App、iOS 打包录像（TestFlight）、快递助手、快麦 ERP、QQ 机器人、企业微信机器人、NAS 录像归档、parcel packing video evidence、barcode triggered recording、tracking number video lookup、open source。
 
 ## 为什么需要 PackingProof
 
@@ -477,6 +485,7 @@ PackingProof_LauncherPatch_vX.Y.Z.zip
 * .NET 8 SDK
 * FFmpeg
 * Windows 10/11 x64
+* macOS 12+（Apple Silicon，用于构建 macOS 保存主机）
 
 FFmpeg 正式发布包内置 4.4.1 Essentials（兼容 Win7 老显卡硬件编码）；选择 AV1 时会自动回退 H.265。高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe`，官方不保证支持。
 
