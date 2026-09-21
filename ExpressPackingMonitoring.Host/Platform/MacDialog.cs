@@ -29,6 +29,16 @@ internal static class MacDialog
     }
 
     /// <summary>选择录像保存位置，取消返回 null。</summary>
+    /// <summary>手动打开程序时问是否切换用途；返回 true 表示要切换。</summary>
+    internal static bool AskSwitchPurpose(string currentPurposeName)
+    {
+        string? answer = Run(
+            $"set messageText to \"当前用途：{Escape(currentPurposeName)}\"",
+            "set answer to button returned of (display dialog messageText buttons {\"继续使用\", \"切换用途\"} default button \"继续使用\" with title \"PackingProof\" with icon note)",
+            "return answer");
+        return answer == "切换用途";
+    }
+
     internal static string? ChooseFolder(string prompt, string? defaultPath)
     {
         bool hasDefault = !string.IsNullOrWhiteSpace(defaultPath) && Directory.Exists(defaultPath);
