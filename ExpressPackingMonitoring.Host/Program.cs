@@ -103,6 +103,18 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 Console.WriteLine($"当前用途：{DeploymentPresets.GetDisplayName(config.DeploymentPreset)}");
+
+// 查看端不常驻：被 launchd 以服务方式拉起时什么都不做。
+// 否则登录（或主机进程退出）后 launchd 会反复拉起一个查看端，它又去连本机那台主机，
+// 于是"自己请求连接自己"的授权框会一遍遍弹出来。退出码必须是 0，
+// 否则 KeepAlive 会把它判成失败并继续重启。
+if (DeploymentPresets.Normalize(config.DeploymentPreset) == DeploymentPresets.ViewerClient
+    && HostOptions.ServiceMode)
+{
+    Console.WriteLine("查看端不常驻，服务模式不做任何事；请从菜单栏连接保存主机");
+    return 0;
+}
+
 return DeploymentPresets.Normalize(config.DeploymentPreset) == DeploymentPresets.ViewerClient
     ? await ViewerSession.RunAsync(config, cancellation.Token)
     : await HostSession.RunAsync(config, cancellation.Token);

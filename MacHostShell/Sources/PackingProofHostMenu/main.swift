@@ -39,6 +39,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private var viewerConnected: Bool { viewerState == "online" }
 
+    /// 查看端与保存主机是两种功能：保存位置、容量上限、开机自启只对保存主机有意义
+    private var isViewer: Bool { purpose == "ViewerClient" }
+
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
 
     // MARK: - 生命周期
@@ -50,31 +53,34 @@ final class HostShell: NSObject, NSApplicationDelegate {
             let serving = probeStatus(URL(string: "http://127.0.0.1:\(port)/api/node-info")!) == 200
             hostServing = serving
             if purpose == "MobileBackupHost" && !serving { hostProblem = readHostFailure() ?? "" }
-            loadStorageSummarySync()
-            if purpose == "ViewerClient" {
+            if isViewer {
                 loadViewerStatusSync()
-                loadDiscoveredHostsSync()
+                if CommandLine.arguments.contains("--hosts") { loadDiscoveredHostsSync() }
+            } else {
+                loadStorageSummarySync()
             }
             print("第一行: \(statusText)")
             print("本机主机服务: \(serving ? "运行中" : "未运行")")
-            if purpose == "ViewerClient" {
+            if isViewer {
                 print("查看端状态: \(viewerState.isEmpty ? "—" : viewerState) \(viewerStatusText)")
+            } else {
+                for line in storageSummaryLines() { print(line) }
             }
-            for line in storageSummaryLines() { print(line) }
-            if CommandLine.arguments.contains("--hosts") && purpose == "ViewerClient" {
+            if CommandLine.arguments.contains("--hosts") && isViewer {
                 print("发现主机: \(discoveredHosts.isEmpty ? statusWord("notFound") : discoveredHosts.map { describeHost($0) }.joined(separator: "、"))")
             }
-            print("回放项: \(purpose == "MobileBackupHost" ? (serving ? "可用" : "禁用") : (viewerConnected ? "可用" : "禁用"))")
+            print("回放项: \(isViewer ? (viewerConnected ? "可用" : "禁用") : (serving ? "可用" : "禁用"))")
             exit(0)
         }
 
         if CommandLine.arguments.contains("--dump-menu") {
             refreshSettings()
             refreshAutostart()
-            loadStorageSummarySync()
-            if purpose == "ViewerClient" {
+            if isViewer {
                 loadViewerStatusSync()
                 if CommandLine.arguments.contains("--hosts") { loadDiscoveredHostsSync() }
+            } else {
+                loadStorageSummarySync()
             }
             print(dumpMenu())
             exit(0)
@@ -135,6 +141,13 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private func ensureHostRunning() {
         guard Date().timeIntervalSince(lastLaunchAttempt) > 30 else { return }
         lastLaunchAttempt = Date()
+        startHostProcess()
+    }
+
+    /// 启动保存主机：装了开机自启就交给 launchd（壳再拉一个会两个主机抢同一个端口，
+    /// 抢不到的那个被 launchd 反复重启），托管不可用时退回壳直接拉起
+    private func startHostProcess() {
+        if autostartInstalled, restartLaunchAgent() { return }
         runHost(arguments: ["--no-browser", "--service"])
     }
 
@@ -154,49 +167,53 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(viewerItem)
         menu.addItem(.separator())
 
-        if storagePaths.isEmpty {
-            menu.addItem(disabledItem("保存位置：未设置"))
-        } else {
-            for (index, path) in storagePaths.enumerated() {
-                // 点一下就在 Finder 里打开该目录（以前这里是禁用项，点不动）
-                let item = NSMenuItem(
-                    title: "保存位置\(index + 1)：\(path)",
-                    action: #selector(openStorageLocation(_:)),
-                    keyEquivalent: "")
-                item.target = self
-                item.representedObject = path
-                menu.addItem(item)
+        // 保存位置、容量上限、添加磁盘、开机自启都只属于保存主机：查看端不录像也不保存，
+        // 这些项摆出来只会让人以为查看端也会占盘
+        if !isViewer {
+            if storagePaths.isEmpty {
+                menu.addItem(disabledItem("保存位置：未设置"))
+            } else {
+                for (index, path) in storagePaths.enumerated() {
+                    // 点一下就在 Finder 里打开该目录（以前这里是禁用项，点不动）
+                    let item = NSMenuItem(
+                        title: "保存位置\(index + 1)：\(path)",
+                        action: #selector(openStorageLocation(_:)),
+                        keyEquivalent: "")
+                    item.target = self
+                    item.representedObject = path
+                    menu.addItem(item)
+                }
             }
+
+            let capacityItem = NSMenuItem(title: "存储空间上限…", action: nil, keyEquivalent: "")
+            capacityItem.submenu = buildStorageLimitMenu()
+            menu.addItem(capacityItem)
+
+            let diskMenu = NSMenu()
+            for volume in mountedVolumes() {
+                let item = NSMenuItem(title: "添加 \(volume.lastPathComponent)", action: #selector(addVolume(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = volume.path
+                diskMenu.addItem(item)
+            }
+            if diskMenu.items.isEmpty { diskMenu.addItem(disabledItem("没有可用磁盘")) }
+            let diskItem = NSMenuItem(title: "添加磁盘…", action: nil, keyEquivalent: "")
+            diskItem.submenu = diskMenu
+            menu.addItem(diskItem)
+            let autostartItem = actionItem("开机自启", #selector(toggleAutostart))
+            autostartItem.state = autostartInstalled ? .on : .off
+            menu.addItem(autostartItem)
+            menu.addItem(.separator())
         }
 
-        let capacityItem = NSMenuItem(title: "存储空间上限…", action: nil, keyEquivalent: "")
-        capacityItem.submenu = buildStorageLimitMenu()
-        menu.addItem(capacityItem)
-
-        let diskMenu = NSMenu()
-        for volume in mountedVolumes() {
-            let item = NSMenuItem(title: "添加 \(volume.lastPathComponent)", action: #selector(addVolume(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = volume.path
-            diskMenu.addItem(item)
-        }
-        if diskMenu.items.isEmpty { diskMenu.addItem(disabledItem("没有可用磁盘")) }
-        let diskItem = NSMenuItem(title: "添加磁盘…", action: nil, keyEquivalent: "")
-        diskItem.submenu = diskMenu
-        menu.addItem(diskItem)
-        let autostartItem = actionItem("开机自启", #selector(toggleAutostart))
-        autostartItem.state = autostartInstalled ? .on : .off
-        menu.addItem(autostartItem)
-        menu.addItem(.separator())
-
-        if purpose == "ViewerClient" {
+        if isViewer {
             let hostsItem = NSMenuItem(title: "保存主机…", action: nil, keyEquivalent: "")
             hostsItem.submenu = buildHostMenu()
             menu.addItem(hostsItem)
         }
 
         let playbackItem = actionItem("打开网页回放", #selector(openPlayback))
-        playbackItem.isEnabled = purpose == "MobileBackupHost" ? hostServing : viewerConnected
+        playbackItem.isEnabled = isViewer ? viewerConnected : hostServing
         menu.addItem(playbackItem)
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
@@ -304,20 +321,23 @@ final class HostShell: NSObject, NSApplicationDelegate {
         lines.append("第一行: \(statusText)")
         lines.append("· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")")
         lines.append("· 查看端 \(purpose == "ViewerClient" ? "✓" : "")")
-        if storagePaths.isEmpty {
-            lines.append("· 保存位置：未设置")
-        } else {
-            for (index, path) in storagePaths.enumerated() {
-                lines.append("· 保存位置\(index + 1)：\(path)（点击在 Finder 中打开）")
+        // 与真实菜单一致：保存位置、容量上限、开机自启只在保存主机下出现
+        if !isViewer {
+            if storagePaths.isEmpty {
+                lines.append("· 保存位置：未设置")
+            } else {
+                for (index, path) in storagePaths.enumerated() {
+                    lines.append("· 保存位置\(index + 1)：\(path)（点击在 Finder 中打开）")
+                }
             }
+            lines.append(contentsOf: storageSummaryLines())
+            lines.append("· 添加磁盘…（选磁盘后用默认子目录）")
+            lines.append("· 开机自启 \(autostartInstalled ? "✓" : "")")
         }
-        lines.append(contentsOf: storageSummaryLines())
-        lines.append("· 添加磁盘…（选磁盘后用默认子目录）")
-        lines.append("· 开机自启 \(autostartInstalled ? "✓" : "")")
-        if purpose == "ViewerClient" {
+        if isViewer {
             lines.append("· 保存主机…：\(hostMenuSummary())")
         }
-        let playback = purpose == "ViewerClient"
+        let playback = isViewer
             ? (viewerConnected ? "已连接 \(hostAddress)" : "禁用（\(viewerStatusText)）")
             : (hostServing ? "本机" : "未启动，禁用")
         lines.append("· 打开网页回放（\(playback)）")
@@ -377,20 +397,115 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     @objc private func useHostPurpose() {
         guard purpose != "MobileBackupHost" else { return }
-        applySettings(purpose: "host", storagePath: nil, autostart: nil,
-                      success: "已切换为保存主机")
+        applySettings(purpose: "host", autostart: nil,
+                      afterApply: { [weak self] in self?.startHostAfterPurposeSwitch() })
     }
 
     @objc private func useViewerPurpose() {
         guard purpose != "ViewerClient" else { return }
-        applySettings(purpose: "viewer", storagePath: nil, autostart: nil,
-                      success: "已切换为查看端")
+        applySettings(purpose: "viewer", autostart: nil,
+                      afterApply: { [weak self] in self?.stopHostAfterPurposeSwitch() })
+    }
+
+    /// 切到查看端必须把本机保存主机真正停掉：不停的话端口还占着、
+    /// 本机也仍被自己当成一台可连的主机，紧接着就会弹出"自己请求连接自己"
+    private func stopHostAfterPurposeSwitch() {
+        hostProblem = ""
+        stopHost()
+        stopUntrackedHostProcesses()
+
+        notify("已切换为查看端，本机保存主机已停止")
+        refresh()
+    }
+
+    /// 切回保存主机：马上拉起来；自启由 launchd 托管时交给它重启，避免壳再拉起第二个
+    private func startHostAfterPurposeSwitch() {
+        hostProblem = ""
+        lastLaunchAttempt = Date()
+        startHostProcess()
+
+        notify("已切换为保存主机")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.refresh() }
+    }
+
+    /// 停掉同一个包里的主机进程：换用途时端口还被旧进程占着，
+    /// 查看端就会把本机当成一台保存主机连上去
+    private func stopUntrackedHostProcesses() {
+        guard let executable = hostExecutable() else { return }
+        let path = executable.path
+        // 只允许对我们自己的包内主机进程下手
+        guard path.contains("/Contents/MacOS/Host/") else { return }
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill.arguments = ["-f", path]
+        try? kill.run()
+        kill.waitUntilExit()
+    }
+
+    private var launchdServiceTarget: String { "gui/\(getuid())/com.packingproof.host" }
+
+    private static var autostartPlistURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/com.packingproof.host.plist")
+    }
+
+    /// 重新加载自启任务（bootout + bootstrap）并按 RunAtLoad 立刻拉起保存主机。
+    /// 不用 kickstart：launchd 对刚退出的任务有 60 秒节流，kickstart 会被拖到一分钟以后，
+    /// 同步等它还会把菜单卡死。返回 false 表示托管不可用，调用方要自己拉起主机
+    private func restartLaunchAgent() -> Bool {
+        guard FileManager.default.fileExists(atPath: Self.autostartPlistURL.path) else { return false }
+        if isLaunchAgentLoaded() {
+            _ = runLaunchctl(["bootout", launchdServiceTarget])
+        }
+        return runLaunchctl(["bootstrap", "gui/\(getuid())", Self.autostartPlistURL.path]) == 0
+    }
+
+    /// 任务是否已被 launchd 加载
+    private func isLaunchAgentLoaded() -> Bool {
+        runLaunchctl(["print", launchdServiceTarget]) == 0
+    }
+
+    @discardableResult
+    private func runLaunchctl(_ arguments: [String], wait: Bool = true) -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = arguments
+        let output = Pipe()
+        if wait {
+            process.standardOutput = output
+            process.standardError = output
+        }
+        guard (try? process.run()) != nil else { return -1 }
+        guard wait else { return 0 }
+        // launchctl 输出很短，读掉以免管道写满卡住子进程
+        _ = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 
     @objc private func toggleAutostart() {
-        applySettings(purpose: nil, storagePath: nil, autostart: !autostartInstalled,
-                      success: autostartInstalled ? "已取消开机自启" : "已注册开机自启",
-                      askRestart: false)
+        if autostartInstalled {
+            applySettings(autostart: false,
+                          afterApply: { [weak self] in
+                              // 取消托管后由壳继续看着主机，别让录像主机跟着一起停掉
+                              self?.startHostProcess()
+                              self?.notify("已取消开机自启")
+                          })
+            return
+        }
+
+        // 先让壳自己那个主机退出，再装自启：否则 launchd 拉起的那个抢不到端口，
+        // 要等一个节流周期才能恢复
+        stopHost()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.applySettings(autostart: true,
+                                afterApply: { [weak self] in
+                                    // 装 plist 时 launchd 已经按 RunAtLoad 把主机拉起来了，
+                                    // 这里不要再 kickstart，否则刚起来的进程会被顶掉
+                                    self?.refresh()
+                                    self?.notify("已注册开机自启")
+                                })
+        }
     }
 
     /// 已挂载的磁盘：与桌面端一致，选磁盘分区，路径用默认子目录
@@ -406,56 +521,52 @@ final class HostShell: NSObject, NSApplicationDelegate {
         guard let root = sender.representedObject as? String else { return }
         // 桌面端也是这样：磁盘根 + 固定子目录名
         let path = (root as NSString).appendingPathComponent("快递打包视频")
-        applySettings(purpose: nil, storagePath: nil, autostart: nil,
-                      success: "已添加保存位置 \(path)", addStoragePath: path)
+        applySettings(addStoragePath: path, afterApply: { [weak self] in
+            // 保存主机启动时只读一次录像根目录，新增位置要重启才生效
+            self?.confirmRestart(after: "已添加保存位置 \(path)")
+        })
     }
 
-    /// 通过本机设置接口改配置；改完问一次是否立即重启主机
+    /// 改配置一律走主机命令行：查看端不常驻 HTTP 服务，
+    /// 走本地设置接口在查看端会直接失败（切不回保存主机）
     private func applySettings(
-        purpose newPurpose: String?,
-        storagePath newStorage: String?,
-        autostart: Bool?,
-        success: String,
-        askRestart: Bool = true,
-        addStoragePath: String? = nil) {
-        var payload: [String: Any] = [:]
-        if let newPurpose { payload["purpose"] = newPurpose }
-        if let newStorage { payload["storagePath"] = newStorage }
-        if let addStoragePath { payload["addStoragePath"] = addStoragePath }
-        if let autostart { payload["autostart"] = autostart }
+        purpose newPurpose: String? = nil,
+        autostart: Bool? = nil,
+        addStoragePath: String? = nil,
+        success: String? = nil,
+        afterApply: (() -> Void)? = nil) {
+        var arguments: [String] = []
+        if let newPurpose { arguments += ["--set-purpose", newPurpose] }
+        if let addStoragePath { arguments += ["--add-storage", addStoragePath] }
+        if let autostart { arguments += ["--set-autostart", autostart ? "on" : "off"] }
+        guard !arguments.isEmpty else { return }
 
-        guard let url = URL(string: "http://127.0.0.1:\(port)/api/local-settings") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let body = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        runHostCommand(arguments) { [weak self] json in
             DispatchQueue.main.async {
                 guard let self else { return }
-                guard error == nil, status == 200 else {
-                    let message = (body?["error"] as? String) ?? error?.localizedDescription ?? "设置失败"
+                guard let json, (json["ok"] as? Bool) == true else {
+                    let message = (json?["error"] as? String) ?? "设置失败"
                     self.notify("设置未生效：\(message)")
                     return
                 }
 
                 self.refreshSettings()
                 self.refreshAutostart()
-                self.refreshStorageSummary(force: true)
-                if self.purpose == "ViewerClient" {
+                if self.isViewer {
                     self.refreshViewerStatus()
                     self.refreshDiscoveredHosts(force: true)
+                } else {
+                    self.refreshStorageSummary(force: true)
                 }
                 self.rebuildMenu()
-                if askRestart {
-                    self.confirmRestart(after: success)
-                } else {
+                if let afterApply {
+                    // 用途切换要先把进程收拾干净，提示由 afterApply 自己给（内容更准）
+                    afterApply()
+                } else if let success {
                     self.notify(success)
                 }
             }
-        }.resume()
+        }
     }
 
     /// 改完设置问一次：是否立即重启，让新用途/新位置马上生效
@@ -472,22 +583,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func restartHost() {
-        if autostartInstalled {
-            // 装机自启时进程由 launchd 托管，必须让 launchd 重启它，否则会顶掉托管关系
-            let uid = String(getuid())
-            let kickstart = Process()
-            kickstart.executableURL = URL(fileURLWithPath: "/bin/launchctl")
-            kickstart.arguments = ["kickstart", "-k", "gui/\(uid)/com.packingproof.host"]
-            try? kickstart.run()
-        } else {
+        // 装了开机自启就交给 launchd 重新加载（见 startHostProcess），不要自己停，
+        // 否则托管关系被顶掉、launchd 又会拉起第二个主机
+        if !autostartInstalled {
             stopHost()
         }
 
         lastLaunchAttempt = Date()
         hostProblem = ""
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             guard let self else { return }
-            if !self.autostartInstalled { self.runHost(arguments: ["--no-browser", "--service"]) }
+            self.startHostProcess()
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
                 guard let self else { return }
                 self.refresh()
@@ -627,15 +733,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
             }
 
             self.refreshSettings()
-            self.refreshViewerStatus()
+            // 接入流程要重新发现主机，先把状态切成"正在搜索"，别让菜单停在旧结论上
+            self.refreshViewerStatus(state: "searching")
             self.rebuildMenu()
             self.connectSelectedHost()
         }
     }
 
     /// 接入流程与桌面端一致：发现主机 → 需要时申请接入 → 记住地址与密钥 → 打开回放网页
+    /// 不加 --service：第一次连接要在本机弹出"请到主机上点允许"，服务模式会把弹窗吞掉
     private func connectSelectedHost() {
-        runHost(arguments: ["--service"])
+        runHost(arguments: [])
     }
 
     @objc private func rescanHosts() {
@@ -787,6 +895,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStorageSummary(force: Bool = false) {
+        // 查看端不录像也不保存，不去问容量
+        guard !isViewer else { return }
         guard force || Date().timeIntervalSince(lastStorageSummary) > 30 else { return }
         lastStorageSummary = Date()
         runHostCommand(["--storage-summary"]) { [weak self] json in
@@ -921,6 +1031,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
+        // 进程结束后回读配置与状态：查看端连上主机后菜单要马上显示已连接，
+        // 主机起不来时第一行也要尽快给出原因
+        process.terminationHandler = { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshSettings()
+                self.refreshViewerStatus()
+                self.refreshAutostart()
+                self.rebuildMenu()
+            }
+        }
         // 主机输出写进日志，出问题时能查；不再丢掉
         try? FileManager.default.createDirectory(at: Self.logDirectory, withIntermediateDirectories: true)
         let logURL = Self.logDirectory.appendingPathComponent("host.log")
