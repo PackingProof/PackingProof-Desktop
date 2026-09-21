@@ -1288,6 +1288,8 @@ namespace ExpressPackingMonitoring.Services
                     case "/api/storage":
                         HandleStorageOverview(ctx);
                         break;
+                    case var p when LocalSettingsEndpoints.CanHandle(p, method) && LocalSettingsEndpoints.TryHandle(ctx, p, method):
+                        break;
                     case "/api/mobile-app-download" when method == "GET":
                         HandleMobileAppDownload(ctx);
                         break;

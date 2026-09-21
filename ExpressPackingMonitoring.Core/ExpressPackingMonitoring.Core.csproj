@@ -125,6 +125,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\LauncherUpdateService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LegacyOrderPushDeduplicator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalCopyCleanupPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LocalSettingsEndpoints.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalMissingRepair.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ManualCleanupService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\MobileAppUpdatePolicyProvider.cs" />
