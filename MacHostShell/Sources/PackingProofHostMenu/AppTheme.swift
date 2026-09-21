@@ -20,7 +20,7 @@ enum AppTheme {
 
         // 保存主机这一侧沿用同一套图标习惯
         static let storage = "externaldrive"
-        static let addStorage = "plus.circle"
+        static let addStorage = "externaldrive.badge.plus"
         static let capacity = "chart.pie"
         static let autostart = "power"
         static let logs = "doc.text.magnifyingglass"

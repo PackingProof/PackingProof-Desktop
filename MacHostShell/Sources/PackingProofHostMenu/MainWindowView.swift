@@ -224,11 +224,23 @@ struct MainWindowView: View {
             }
 
             HStack(spacing: 8) {
-                Button {
-                    addStorageViaPanel()
+                // 保存位置按磁盘算：同一张盘上再选目录没有任何意义，所以只能选磁盘
+                Menu {
+                    if model.disks.isEmpty {
+                        Text("没有可添加的磁盘")
+                    } else {
+                        ForEach(model.disks) { disk in
+                            Button(disk.isUsed ? "\(disk.name)（已在使用）" : disk.name) {
+                                model.addDisk(disk.path)
+                            }
+                            .disabled(disk.isUsed)
+                        }
+                    }
                 } label: {
-                    Label("添加保存位置", systemImage: AppTheme.Symbol.addStorage)
+                    Label("添加磁盘", systemImage: AppTheme.Symbol.addStorage)
                 }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
 
                 Button {
                     model.toggleAutostart()
@@ -260,18 +272,6 @@ struct MainWindowView: View {
         .padding(.vertical, 10)
     }
 
-    private func addStorageViaPanel() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "使用这个位置"
-        panel.message = "选择录像保存位置（可以选外接硬盘）"
-        if panel.runModal() == .OK, let url = panel.url {
-            model.addStorage(url.path)
-        }
-    }
 }
 
 private struct HostCard: View {

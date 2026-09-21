@@ -200,7 +200,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
             promptCapacity: { [weak self] path in self?.promptCapacity(path: path) },
             promptReserve: { [weak self] path in self?.promptReserve(path: path) },
-            addStorage: { [weak self] path in self?.addStorage(path: path) },
+            addDisk: { [weak self] path in self?.addStorageDisk(root: path) },
             toggleAutostart: { [weak self] in self?.toggleAutostart() },
             openLogs: { [weak self] in self?.openLogs() })
     }
@@ -285,8 +285,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
         pushStateToModel()
     }
 
-    /// 窗口里"添加保存位置"：追加后问一次是否立刻重启主机（主机启动时只读一次录像根目录）
-    private func addStorage(path: String) {
+    /// 添加磁盘：追加后问一次是否立刻重启主机（主机启动时只读一次录像根目录）。
+    /// 磁盘根 + 固定子目录名，与菜单栏"添加磁盘…"完全同一条路径
+    private func addStorageDisk(root: String) {
+        guard !root.isEmpty else { return }
+        let path = (root as NSString).appendingPathComponent("快递打包视频")
         applySettings(addStoragePath: path, afterApply: { [weak self] in
             self?.confirmRestart(after: "已添加保存位置 \(path)")
         })
@@ -317,6 +320,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
             : (hostProblem.isEmpty ? "未运行" : hostProblem)
         model.storePaths = storagePaths
         model.autostartInstalled = autostartInstalled
+        model.disks = mountedVolumes().map { volume in
+            let root = volume.path
+            let prefix = root.hasSuffix("/") ? root : root + "/"
+            let used = storagePaths.contains { $0 == root || $0.hasPrefix(prefix) }
+            return DiskItem(path: root, name: volume.lastPathComponent, isUsed: used)
+        }
         model.storages = storageLocations.compactMap { location in
             guard let path = location["path"] as? String else { return nil }
             return StorageItem(
@@ -776,12 +785,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     @objc private func addVolume(_ sender: NSMenuItem) {
         guard let root = sender.representedObject as? String else { return }
-        // 桌面端也是这样：磁盘根 + 固定子目录名
-        let path = (root as NSString).appendingPathComponent("快递打包视频")
-        applySettings(addStoragePath: path, afterApply: { [weak self] in
-            // 保存主机启动时只读一次录像根目录，新增位置要重启才生效
-            self?.confirmRestart(after: "已添加保存位置 \(path)")
-        })
+        addStorageDisk(root: root)
     }
 
     /// 改配置一律走主机命令行：查看端不常驻 HTTP 服务，
