@@ -53,8 +53,13 @@ struct DeviceItem: Identifiable, Equatable {
     let typeText: String
     let address: String
     let online: Bool
+    /// 今日备份条数：与电脑端主机主窗口"手机/电脑备份"卡片同口径，没上传就是 0
+    var todayBackupCount: Int = 0
 
     var id: String { nodeId.isEmpty ? address : nodeId }
+
+    /// 与电脑端卡片一模一样的文案："{名字} · 今日备份 N 个"
+    var backupSummary: String { "今日备份 \(todayBackupCount) 个" }
 }
 
 /// 窗口的界面状态。

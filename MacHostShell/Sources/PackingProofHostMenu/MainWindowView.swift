@@ -535,6 +535,10 @@ private struct DeviceCard: View {
                 Text(device.typeText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                // 与电脑端"手机/电脑备份"卡片同一条信息：今日备份了多少个
+                Text(device.backupSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if !device.address.isEmpty {
                     Text(device.address)
                         .font(.caption)
