@@ -101,7 +101,14 @@ public sealed class MobileConnectionTests
         int width = int.Parse(viewBox.Groups[1].Value);
         int height = int.Parse(viewBox.Groups[2].Value);
         var pixels = new byte[width * height * 4];
-        for (int index = 3; index < pixels.Length; index += 4) pixels[index] = 255;
+        // 先铺白底：只把模块涂黑，否则整张图都是黑的，解码必然失败
+        for (int index = 0; index < pixels.Length; index += 4)
+        {
+            pixels[index] = 255;
+            pixels[index + 1] = 255;
+            pixels[index + 2] = 255;
+            pixels[index + 3] = 255;
+        }
         foreach (Match run in Regex.Matches(svg, @"M(\d+) (\d+)h(\d+)v1H\d+z"))
         {
             int x = int.Parse(run.Groups[1].Value);
