@@ -77,8 +77,8 @@
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>` 更新为本次版本，并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
-- 发布流程顺序：提交并通过本地 CI → 创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验 → 推送 `main` 与标签 → 创建并同步 Release；禁止普通 `main` push 触发发布包工作流
-- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、下载与更新说明准确、未验证事项逐项列出，且与 `update_vX.Y.Z.json` 的标题和说明同步
+- 发布流程顺序：改动经 PR 合并到主干并通过本地 CI → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验 → 推送标签到 GitHub 与 Gitee → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 生成并上传 Gitee 专属的 no-runtime 安装向导；禁止普通 `main` push 触发发布包工作流
+- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、下载与更新说明与实际上传资产一致（含 Gitee 的 no-runtime 安装向导与 macOS DMG）、未验证事项逐项列出，且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容
 - 生成 AppPatch 前必须验证固定基线 FFmpeg 的大小和 SHA256 位于兼容白名单，并确认当前保留的每个 LibVLC 必需文件在基线中存在且哈希一致；基线多出的旧 VLC 插件可以保留
