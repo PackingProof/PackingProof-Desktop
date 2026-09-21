@@ -124,6 +124,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\LanRequestRateLimiter.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LauncherUpdateService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LegacyOrderPushDeduplicator.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\LaunchAgentInstaller.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalCopyCleanupPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalSettingsEndpoints.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\LocalMissingRepair.cs" />

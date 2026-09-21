@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text;
 using ExpressPackingMonitoring.Config;
 
-namespace ExpressPackingMonitoring.Host;
+namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
 /// 把保存主机注册成登录自启的后台服务（launchd LaunchAgent）。

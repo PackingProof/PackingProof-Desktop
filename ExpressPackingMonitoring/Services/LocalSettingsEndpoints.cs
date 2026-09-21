@@ -66,6 +66,21 @@ internal static class LocalSettingsEndpoints
             return true;
         }
 
+        bool autostartChanged = false;
+        if (request.Autostart.HasValue)
+        {
+            bool ok = request.Autostart.Value
+                ? LaunchAgentInstaller.TryInstall(out error)
+                : LaunchAgentInstaller.TryUninstall(out error);
+            if (!ok)
+            {
+                WriteJson(ctx, 500, new { errorCode = "autostart_failed", error });
+                return true;
+            }
+
+            autostartChanged = true;
+        }
+
         if (changed && !WorkstationConfigStore.TrySave(config, out error))
         {
             WriteJson(ctx, 500, new { errorCode = "save_failed", error });
@@ -74,7 +89,8 @@ internal static class LocalSettingsEndpoints
 
         WriteJson(ctx, 200, new
         {
-            saved = changed,
+            saved = changed || autostartChanged,
+            autostartChanged,
             restartRequired = changed,
             settings = Describe(WorkstationConfigStore.Load())
         });
@@ -210,5 +226,6 @@ internal static class LocalSettingsEndpoints
     {
         public string? Purpose { get; set; }
         public string? StoragePath { get; set; }
+        public bool? Autostart { get; set; }
     }
 }
