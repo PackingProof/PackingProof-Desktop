@@ -36,6 +36,15 @@ struct StorageItem: Identifiable, Equatable {
     }
 }
 
+/// 可添加为保存位置的磁盘。保存位置按磁盘算：同一张盘上再加目录没有意义。
+struct DiskItem: Identifiable, Equatable {
+    let path: String
+    let name: String
+    let isUsed: Bool
+
+    var id: String { path }
+}
+
 /// 窗口的界面状态。
 ///
 /// 属性与动作刻意对齐 MacViewer 的 ViewerModel：视图代码照搬，只有数据来源换成
@@ -55,6 +64,7 @@ final class AppStateModel: ObservableObject {
     @Published var hostRunning = false
     @Published var isSwitchingPurpose = false
     @Published var storages: [StorageItem] = []
+    @Published var disks: [DiskItem] = []
     @Published var storePaths: [String] = []
     @Published var autostartInstalled = false
 
@@ -70,7 +80,7 @@ final class AppStateModel: ObservableObject {
         var openStorageLocation: (String) -> Void
         var promptCapacity: (String) -> Void
         var promptReserve: (String) -> Void
-        var addStorage: (String) -> Void
+        var addDisk: (String) -> Void
         var toggleAutostart: () -> Void
         var openLogs: () -> Void
     }
@@ -109,8 +119,8 @@ final class AppStateModel: ObservableObject {
         isSwitchingPurpose = false
     }
 
-    func addStorage(_ path: String) {
-        actions?.addStorage(path)
+    func addDisk(_ path: String) {
+        actions?.addDisk(path)
     }
 
     func toggleAutostart() {
