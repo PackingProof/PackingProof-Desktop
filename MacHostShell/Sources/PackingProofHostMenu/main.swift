@@ -191,45 +191,136 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 窗口按钮全部转给菜单栏壳里已有的实现，逻辑与状态只有一份
     private func setUpModelActions() {
         model.actions = AppStateModel.Actions(
-            useHostPurpose: { [weak self] in self?.useHostPurpose() },
-            useViewerPurpose: { [weak self] in self?.useViewerPurpose() },
-            rescanHosts: { [weak self] in self?.rescanHosts() },
-            forgetHost: { [weak self] in self?.forgetHost() },
-            selectHost: { [weak self] nodeId in self?.connectHost(nodeId: nodeId) },
-            openPlayback: { [weak self] in self?.openPlayback() },
-            openLogs: { [weak self] in self?.openLogs() },
-            quit: { [weak self] in self?.quit() },
+            startupRefresh: { [weak self] in await self?.startupRefreshAsync() },
+            search: { [weak self] in await self?.searchAsync() },
+            clearRememberedHost: { [weak self] in await self?.clearRememberedHostAsync() },
+            openWebPlayback: { [weak self] in await self?.openWebPlaybackAsync() },
+            connectManually: { [weak self] input in await self?.connectManuallyAsync(input) },
+            switchPurpose: { [weak self] viewer in await self?.switchPurposeAsync(viewer: viewer) },
             openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
             promptCapacity: { [weak self] path in self?.promptCapacity(path: path) },
             promptReserve: { [weak self] path in self?.promptReserve(path: path) },
-            toggleAutostart: { [weak self] in self?.toggleAutostart() })
+            addStorage: { [weak self] path in self?.addStorage(path: path) },
+            toggleAutostart: { [weak self] in self?.toggleAutostart() },
+            openLogs: { [weak self] in self?.openLogs() })
+    }
+
+    // MARK: - 窗口动作（与菜单栏走同一套实现）
+
+    private func runHostCommandAsync(
+        _ arguments: [String],
+        timeout: TimeInterval = 60
+    ) async -> [String: Any]? {
+        await withCheckedContinuation { continuation in
+            runHostCommand(arguments, timeout: timeout) { json in
+                continuation.resume(returning: json)
+            }
+        }
+    }
+
+    /// 壳里的搜索是异步的：等它把状态收干净，窗口的转圈才停得下来
+    private func waitForHostSearch() async {
+        var waited = 0.0
+        while hostSearchInFlight && waited < 60 {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            waited += 0.2
+        }
+    }
+
+    private func startupRefreshAsync() async {
+        refresh()
+        pushStateToModel()
+    }
+
+    private func searchAsync() async {
+        refreshViewerStatus(state: "searching")
+        refreshDiscoveredHosts(force: true, announce: true)
+        await waitForHostSearch()
+        pushStateToModel()
+    }
+
+    private func clearRememberedHostAsync() async {
+        guard confirmForgetHost() else { return }
+        _ = await runHostCommandAsync(["--forget-host"])
+        refreshSettings()
+        viewerState = ""
+        viewerStatusText = statusWord("notBound")
+        rebuildMenu()
+        await searchAsync()
+    }
+
+    private func openWebPlaybackAsync() async {
+        model.isOpeningWeb = true
+        openPlayback()
+        // 打开浏览器是要等主机那边点允许的长流程，不能让界面一直转圈
+        try? await Task.sleep(nanoseconds: 1_200_000_000)
+        model.isOpeningWeb = false
+        pushStateToModel()
+    }
+
+    private func connectManuallyAsync(_ input: String) async -> String? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "请输入主机地址或连接链接" }
+        let response = await runHostCommandAsync(["--select-host", trimmed])
+        guard let response, (response["ok"] as? Bool) == true else {
+            return (response?["error"] as? String) ?? "地址无法识别"
+        }
+
+        refreshSettings()
+        refreshViewerStatus(state: "searching")
+        rebuildMenu()
+        connectSelectedHost()
+        return nil
+    }
+
+    private func switchPurposeAsync(viewer: Bool) async {
+        if viewer {
+            useViewerPurpose()
+        } else {
+            useHostPurpose()
+        }
+        // 切用途要改配置并停/起主机，等它落定再回填界面
+        try? await Task.sleep(nanoseconds: 2_500_000_000)
+        refresh()
+        pushStateToModel()
+    }
+
+    /// 窗口里"添加保存位置"：追加后问一次是否立刻重启主机（主机启动时只读一次录像根目录）
+    private func addStorage(path: String) {
+        applySettings(addStoragePath: path, afterApply: { [weak self] in
+            self?.confirmRestart(after: "已添加保存位置 \(path)")
+        })
     }
 
     /// 把壳里唯一那份状态灌给窗口：每次重建菜单都同步一次
     private func pushStateToModel() {
-        model.purposeTitle = statusText
-        model.hostPurposeTitle = hostPurposeTitle
-        model.viewerPurposeTitle = viewerPurposeTitle
-        model.isViewer = isViewer
-        model.hostServing = hostServing
-        model.hostProblem = hostProblem
-        model.viewerStatusText = viewerStatusText
-        model.viewerConnected = viewerConnected
-        model.searchingHosts = hostSearchInFlight
-        model.currentHostId = hostNodeId
-        model.storePaths = storagePaths
-        model.autostartInstalled = autostartInstalled
-        model.playbackEnabled = isViewer ? !hostAddress.isEmpty : hostServing
-        model.hosts = hostRows().map { host in
-            AppStateModel.HostRow(
-                id: (host["nodeId"] as? String) ?? (host["address"] as? String) ?? "",
-                name: (host["nodeName"] as? String) ?? "",
+        let hosts = hostRows().map { host in
+            DiscoveredHost(
+                nodeId: (host["nodeId"] as? String) ?? "",
+                nodeName: (host["nodeName"] as? String) ?? "",
                 address: (host["address"] as? String) ?? "")
         }
+        // 与 MacViewer 一样：记住哪台就选哪台；只发现一台时直接选中
+        let selected = hostNodeId.isEmpty
+            ? (hosts.count == 1 ? hosts[0].id : nil)
+            : hosts.first { $0.nodeId == hostNodeId }?.id
+
+        model.hosts = hosts
+        model.status = viewerStatusText.isEmpty ? statusWord("notBound") : viewerStatusText
+        model.isSearching = hostSearchInFlight
+        model.isViewer = isViewer
+        model.selectedHostId = selected
+        model.onlineNodeIds = (viewerConnected && !hostNodeId.isEmpty) ? [hostNodeId] : []
+        model.hostRunning = hostServing
+        model.hostStatusText = hostServing
+            ? "运行中"
+            : (hostProblem.isEmpty ? "未运行" : hostProblem)
+        model.storePaths = storagePaths
+        model.autostartInstalled = autostartInstalled
         model.storages = storageLocations.compactMap { location in
             guard let path = location["path"] as? String else { return nil }
-            return AppStateModel.StorageRow(
-                id: path,
+            return StorageItem(
+                path: path,
                 name: (location["displayName"] as? String) ?? path,
                 available: (location["available"] as? Bool) ?? false,
                 capacityKnown: (location["capacityKnown"] as? Bool) ?? false,
@@ -958,13 +1049,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     @objc private func forgetHost() {
-        statusItem?.menu?.cancelTracking()
-        let alert = NSAlert()
-        alert.messageText = "移除当前保存主机"
-        alert.informativeText = "移除后要重新搜索主机，并让主机允许接入"
-        alert.addButton(withTitle: "移除")
-        alert.addButton(withTitle: "取消")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard confirmForgetHost() else { return }
 
         runHostCommand(["--forget-host"]) { [weak self] json in
             guard let self else { return }
@@ -978,6 +1063,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
             self.viewerStatusText = self.statusWord("notBound")
             self.rebuildMenu()
         }
+    }
+
+    /// 换主机/移除主机要先确认：这一步会把地址与密钥一起忘掉
+    private func confirmForgetHost() -> Bool {
+        statusItem?.menu?.cancelTracking()
+        let alert = NSAlert()
+        alert.messageText = "更换保存主机"
+        alert.informativeText = "本机会忘掉当前主机的地址与密钥，需要重新搜索并让主机允许接入"
+        alert.addButton(withTitle: "更换")
+        alert.addButton(withTitle: "取消")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     // MARK: - 数值与主机取值
