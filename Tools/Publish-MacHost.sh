@@ -43,6 +43,22 @@ echo "==> 构建菜单栏壳"
 cp "${repository_root}/MacHostShell/.build/release/${shell_binary_name}" \
   "${app_bundle}/Contents/MacOS/${shell_binary_name}"
 
+# 图标一律复用仓库里已有的 app.ico：菜单栏要 36px PNG，应用包要 .icns
+app_icon_source="${repository_root}/ExpressPackingMonitoring/app.ico"
+sips -s format png -Z 36 "${app_icon_source}" \
+  --out "${app_bundle}/Contents/Resources/MenuIcon.png" >/dev/null
+
+icon_work="$(mktemp -d)"
+mkdir -p "${icon_work}/AppIcon.iconset"
+for size in 16 32 128 256; do
+  sips -s format png -Z "${size}" "${app_icon_source}" \
+    --out "${icon_work}/AppIcon.iconset/icon_${size}x${size}.png" >/dev/null
+  sips -s format png -Z "$((size * 2))" "${app_icon_source}" \
+    --out "${icon_work}/AppIcon.iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "${icon_work}/AppIcon.iconset" -o "${app_bundle}/Contents/Resources/AppIcon.icns"
+rm -rf "${icon_work}"
+
 cat > "${app_bundle}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,6 +72,8 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
   <string>com.packingproof.host</string>
   <key>CFBundleExecutable</key>
   <string>${shell_binary_name}</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
