@@ -162,17 +162,7 @@ internal static class WindowsShellShortcut
     }
 
     private static void ReleaseComObject(object? instance)
-    {
-        try
-        {
-            if (instance != null && Marshal.IsComObject(instance))
-                Marshal.FinalReleaseComObject(instance);
-        }
-        catch
-        {
-            // 释放失败不影响调用方，进程退出时会回收。
-        }
-    }
+        => Services.WindowsPlatformSupport.ReleaseComObject(instance);
 
     private static class ShellLinkNative
     {

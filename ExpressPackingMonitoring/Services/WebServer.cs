@@ -469,19 +469,12 @@ namespace ExpressPackingMonitoring.Services
         internal static readonly TimeSpan IdleConnectionTimeout = TimeSpan.FromMinutes(2);
 
         private static void ConfigureListenerTimeouts(HttpListener listener)
-        {
-            try
-            {
-                listener.TimeoutManager.HeaderWait = RequestHeaderWaitTimeout;
-                listener.TimeoutManager.EntityBody = RequestEntityBodyTimeout;
-                listener.TimeoutManager.IdleConnection = IdleConnectionTimeout;
-                listener.TimeoutManager.DrainEntityBody = TimeSpan.FromSeconds(10);
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Warn("WebServer", $"Unable to configure HTTP request timeouts: {ex.Message}");
-            }
-        }
+            => WindowsPlatformSupport.ConfigureHttpListenerTimeouts(
+                listener,
+                RequestHeaderWaitTimeout,
+                RequestEntityBodyTimeout,
+                IdleConnectionTimeout,
+                TimeSpan.FromSeconds(10));
 
         public void Start(bool allowAccessSetup = false)
         {
@@ -639,10 +632,7 @@ namespace ExpressPackingMonitoring.Services
         private static void ConfigureLanAccess(int port, bool includeUrlAcl)
         {
             EnsureFirewallServicesAvailable();
-            using WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            string userSid = identity.User?.Value;
-            if (string.IsNullOrWhiteSpace(userSid))
-                throw new InvalidOperationException("无法获取当前用户 SID，不能配置局域网服务监听权限");
+            string userSid = WindowsPlatformSupport.GetCurrentUserSidOrThrow();
 
             RunElevatedCmd(BuildAccessSetupCommand(port, userSid, includeUrlAcl), "配置局域网服务访问权限");
         }
@@ -851,11 +841,8 @@ namespace ExpressPackingMonitoring.Services
             object policyObject = null;
             try
             {
-                Type policyType = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-                if (policyType == null)
+                if (!WindowsPlatformSupport.TryCreateComInstance("HNetCfg.FwPolicy2", out policyObject))
                     return false;
-
-                policyObject = Activator.CreateInstance(policyType);
                 dynamic policy = policyObject;
                 bool tcpFound = false;
                 bool udpFound = false;
@@ -913,12 +900,7 @@ namespace ExpressPackingMonitoring.Services
             }
             finally
             {
-                try
-                {
-                    if (policyObject != null && Marshal.IsComObject(policyObject))
-                        Marshal.FinalReleaseComObject(policyObject);
-                }
-                catch { }
+                WindowsPlatformSupport.ReleaseComObject(policyObject);
             }
         }
 
@@ -1036,18 +1018,7 @@ namespace ExpressPackingMonitoring.Services
             };
 
         internal static bool IsCurrentProcessElevated()
-        {
-            try
-            {
-                using WindowsIdentity identity = WindowsIdentity.GetCurrent();
-                return new WindowsPrincipal(identity)
-                    .IsInRole(WindowsBuiltInRole.Administrator);
-            }
-            catch
-            {
-                return false;
-            }
-        }
+            => WindowsPlatformSupport.IsCurrentProcessElevated();
 
         internal static string ExtractLastLanSetupStep(string output)
         {
