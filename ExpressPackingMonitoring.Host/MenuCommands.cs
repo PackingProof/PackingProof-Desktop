@@ -181,6 +181,35 @@ internal static class MenuCommands
             return;
         }
 
+        AppConfig config = WorkstationConfigStore.Load();
+        List<StorageLocation> locations = OrderedLocations(config);
+
+        // 保存位置按磁盘算：同一张盘上再加一个目录没有任何意义（容量与预留都是同一张盘的），
+        // 直接拒掉。放在建目录之前，避免被拒的磁盘还是留下了空目录
+        string newVolume = ResolveVolumeKey(full);
+        foreach (StorageLocation existing in locations)
+        {
+            if (string.Equals(TrimPath(existing.Path), TrimPath(full), StringComparison.Ordinal))
+            {
+                WriteJson(new { ok = true, path = existing.Path });
+                return;
+            }
+
+            if (!string.Equals(ResolveVolumeKey(existing.Path), newVolume, StringComparison.Ordinal))
+                continue;
+
+            RuntimeLog.Info(
+                "MenuCommands",
+                $"AddStorage rejected volume={newVolume}, existing={existing.Path}");
+            WriteJson(new
+            {
+                ok = false,
+                error = $"这张磁盘已经有保存位置了：{existing.Path}",
+                path = existing.Path
+            });
+            return;
+        }
+
         try
         {
             Directory.CreateDirectory(full);
@@ -191,24 +220,19 @@ internal static class MenuCommands
             return;
         }
 
-        AppConfig config = WorkstationConfigStore.Load();
-        List<StorageLocation> locations = OrderedLocations(config);
-        if (!locations.Any(location => string.Equals(location.Path, full, StringComparison.Ordinal)))
+        RuntimeLog.Info("MenuCommands", $"AddStorage path={full}");
+        int nextPriority = locations.Count == 0 ? 1 : locations.Max(location => location.Priority) + 1;
+        locations.Add(new StorageLocation
         {
-            RuntimeLog.Info("MenuCommands", $"AddStorage path={full}");
-            int nextPriority = locations.Count == 0 ? 1 : locations.Max(location => location.Priority) + 1;
-            locations.Add(new StorageLocation
-            {
-                Path = full,
-                Priority = nextPriority,
-                IsBackupTarget = false
-            });
-            config.StorageLocations = locations;
-            if (!WorkstationConfigStore.TrySave(config, out string saveError))
-            {
-                WriteJson(new { ok = false, error = saveError });
-                return;
-            }
+            Path = full,
+            Priority = nextPriority,
+            IsBackupTarget = false
+        });
+        config.StorageLocations = locations;
+        if (!WorkstationConfigStore.TrySave(config, out string saveError))
+        {
+            WriteJson(new { ok = false, error = saveError });
+            return;
         }
 
         WriteJson(new { ok = true, path = full });
@@ -467,6 +491,23 @@ internal static class MenuCommands
 
     private static string TrimPath(string path) =>
         path.Trim().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// 保存位置的"磁盘"身份：macOS/Linux 取挂载点，Windows 取盘符根。
+    private static string ResolveVolumeKey(string path)
+    {
+        try
+        {
+            string full = Path.GetFullPath(path);
+            if (!OperatingSystem.IsWindows())
+                return StorageVolumeInfo.ResolveUnixMountPoint(full);
+
+            return Path.GetPathRoot(full) ?? full;
+        }
+        catch
+        {
+            return path;
+        }
+    }
 
     /// 从"主机地址或连接链接"里取出 ?key=，取不到返回空串。
     private static string ExtractAccessKey(string input)
