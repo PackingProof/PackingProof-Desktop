@@ -106,9 +106,5 @@ internal static class HostSession
     private static void ReportStorageProblem(string message) =>
         ReportProblem($"{message}。可用 --switch-purpose 重新设置");
 
-    private static void ReportProblem(string message)
-    {
-        Console.Error.WriteLine(message);
-        MacDialog.ShowMessage(message);
-    }
+    private static void ReportProblem(string message) => HostOptions.ReportProblem(message);
 }

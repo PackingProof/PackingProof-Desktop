@@ -7,9 +7,12 @@ using ExpressPackingMonitoring.Host;
 //   --purpose host|viewer  跳过询问，直接指定用途（自动化与排查用）
 //   --storage <目录>       保存主机的录像保存位置
 //   --switch-purpose       重新选择用途
+//   --install-autostart    注册成登录自启的后台服务（仅保存主机）
+//   --uninstall-autostart  取消开机自启
 if (args.Any(argument => argument is "-h" or "--help"))
 {
-    Console.WriteLine("用法: ExpressPackingMonitoring.Host [--purpose host|viewer] [--storage <目录>] [--switch-purpose] [--no-browser] [--no-dialog]");
+    Console.WriteLine("用法: ExpressPackingMonitoring.Host [--purpose host|viewer] [--storage <目录>] [--switch-purpose]"
+        + " [--install-autostart] [--uninstall-autostart] [--no-browser] [--no-dialog]");
     return 0;
 }
 
@@ -22,6 +25,21 @@ if (args.Any(argument => string.Equals(argument, "--switch-purpose", StringCompa
 
 string? purpose = ReadOption(args, "--purpose");
 string? storageDirectory = ReadOption(args, "--storage");
+bool installAutostart = args.Any(argument => string.Equals(argument, "--install-autostart", StringComparison.OrdinalIgnoreCase));
+bool uninstallAutostart = args.Any(argument => string.Equals(argument, "--uninstall-autostart", StringComparison.OrdinalIgnoreCase));
+
+if (uninstallAutostart)
+{
+    if (!LaunchAgentInstaller.TryUninstall(out string uninstallError))
+    {
+        Console.Error.WriteLine(uninstallError);
+        return 2;
+    }
+
+    Console.WriteLine("已取消开机自启");
+    return 0;
+}
+
 if (!string.IsNullOrWhiteSpace(purpose))
 {
     if (!TryApplyPurpose(config, purpose, storageDirectory, out string applyError))
@@ -34,6 +52,12 @@ if (!string.IsNullOrWhiteSpace(purpose))
 }
 else if (MacDeploymentSetup.NeedsSetup(config))
 {
+    if (HostOptions.ServiceMode)
+    {
+        Console.Error.WriteLine("尚未选择用途，服务模式不弹窗；请先运行一次程序完成用途设置");
+        return 2;
+    }
+
     if (!MacDeploymentSetup.TryConfigure(config, out string setupError))
     {
         Console.Error.WriteLine(setupError);
@@ -41,6 +65,25 @@ else if (MacDeploymentSetup.NeedsSetup(config))
     }
 
     config = WorkstationConfigStore.Load();
+}
+
+if (installAutostart)
+{
+    if (DeploymentPresets.Normalize(config.DeploymentPreset) != DeploymentPresets.MobileBackupHost)
+    {
+        Console.Error.WriteLine("只有保存主机才需要开机自启；当前用途是查看端");
+        return 2;
+    }
+
+    if (!LaunchAgentInstaller.TryInstall(out string installError))
+    {
+        Console.Error.WriteLine(installError);
+        return 2;
+    }
+
+    Console.WriteLine($"已注册开机自启：{LaunchAgentInstaller.PlistPath}");
+    Console.WriteLine("登录后会自动启动保存主机；取消用 --uninstall-autostart");
+    return 0;
 }
 
 using var cancellation = new CancellationTokenSource();
