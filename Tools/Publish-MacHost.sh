@@ -23,10 +23,11 @@ fi
 
 app_name="PackingProofHost"
 app_bundle="${output_root}/${app_name}.app"
-binary_name="ExpressPackingMonitoring.Host"
+host_binary_name="ExpressPackingMonitoring.Host"
+shell_binary_name="PackingProofHostMenu"
 
 rm -rf "${app_bundle}"
-mkdir -p "${app_bundle}/Contents/MacOS" "${app_bundle}/Contents/Resources"
+mkdir -p "${app_bundle}/Contents/MacOS/Host" "${app_bundle}/Contents/Resources"
 
 echo "==> 发布 ${runtime_id} 自包含版本"
 dotnet publish "${repository_root}/ExpressPackingMonitoring.Host/ExpressPackingMonitoring.Host.csproj" \
@@ -35,7 +36,12 @@ dotnet publish "${repository_root}/ExpressPackingMonitoring.Host/ExpressPackingM
   --self-contained true \
   -p:Version="${version}" \
   -p:InformationalVersion="${version}" \
-  -o "${app_bundle}/Contents/MacOS"
+  -o "${app_bundle}/Contents/MacOS/Host"
+
+echo "==> 构建菜单栏壳"
+(cd "${repository_root}/MacHostShell" && swift build -c release)
+cp "${repository_root}/MacHostShell/.build/release/${shell_binary_name}" \
+  "${app_bundle}/Contents/MacOS/${shell_binary_name}"
 
 cat > "${app_bundle}/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -49,7 +55,7 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key>
   <string>com.packingproof.host</string>
   <key>CFBundleExecutable</key>
-  <string>${binary_name}</string>
+  <string>${shell_binary_name}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -66,10 +72,11 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
 PLIST
 
 echo "==> 签名（未设置 SIGN_IDENTITY 时用临时签名）"
+codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}/Contents/MacOS/Host/${host_binary_name}"
 codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}"
 
 echo "==> 校验产物"
-if [[ -e "${app_bundle}/Contents/MacOS/config.json" || -e "${app_bundle}/Contents/MacOS/videos.db" ]]; then
+if [[ -e "${app_bundle}/Contents/MacOS/Host/config.json" || -e "${app_bundle}/Contents/MacOS/Host/videos.db" || -e "${app_bundle}/Contents/MacOS/Host/log" ]]; then
   echo "产物里不该出现运行数据" >&2
   exit 1
 fi
