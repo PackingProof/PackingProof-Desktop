@@ -89,7 +89,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         // 打开就是使用，不提供"启动/停止主机"；只想看录像时切成查看端
-        menu.addItem(actionItem("切换为只查看", #selector(switchToViewer)))
+        menu.addItem(actionItem(
+            isViewer ? "切换为保存主机" : "切换为只查看",
+            isViewer ? #selector(switchToHost) : #selector(switchToViewer)))
         menu.addItem(actionItem("打开设置", #selector(openSettings)))
         menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
         menu.addItem(.separator())
@@ -107,7 +109,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 菜单内容的自检输出：不依赖人工点开，直接打印第一行与各项
     private func dumpMenu() -> String {
         var lines = ["第一行: \(status)"]
-        if !isViewer { lines.append("· 切换为只查看") }
+        lines.append(isViewer ? "· 切换为保存主机" : "· 切换为只查看")
         lines.append("· 打开设置")
         lines.append("· 打开网页回放")
         lines.append("· \(autostartInstalled ? "取消开机自启" : "注册开机自启")")
@@ -166,6 +168,20 @@ final class HostShell: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.stopHost()
             self?.refreshStatus()
+        }
+    }
+
+    /// 切换为保存主机：改用途并重启主机，让它重新对外提供网页与备份服务
+    @objc private func switchToHost() {
+        notify("保存主机\n\n这台电脑已切换为保存主机，将接收手机与电脑上传的录像。")
+        setPurpose("host")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self else { return }
+            self.stopHost()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                self.lastLaunchAttempt = Date()
+                self.runHost(arguments: ["--no-browser", "--service"])
+            }
         }
     }
 
