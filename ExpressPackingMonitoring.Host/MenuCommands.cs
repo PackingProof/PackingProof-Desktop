@@ -27,6 +27,27 @@ internal static class MenuCommands
             return true;
         }
 
+        string? setPurpose = ReadOption(arguments, "--set-purpose");
+        if (setPurpose != null)
+        {
+            ApplyPurpose(setPurpose);
+            return true;
+        }
+
+        string? addStorage = ReadOption(arguments, "--add-storage");
+        if (addStorage != null)
+        {
+            AddStorageLocation(addStorage);
+            return true;
+        }
+
+        string? setAutostart = ReadOption(arguments, "--set-autostart");
+        if (setAutostart != null)
+        {
+            ApplyAutostart(setAutostart);
+            return true;
+        }
+
         string? setCapacity = ReadOption(arguments, "--set-storage-capacity");
         string? setReserve = ReadOption(arguments, "--set-storage-reserve");
         if (setCapacity != null || setReserve != null)
@@ -112,6 +133,100 @@ internal static class MenuCommands
         return summaries;
     }
 
+    /// <summary>切换用途（只写配置，不启动任何会话；进程由菜单栏壳负责）。</summary>
+    private static void ApplyPurpose(string purpose)
+    {
+        string mapped = purpose.Trim().ToLowerInvariant() switch
+        {
+            "host" => DeploymentPresets.MobileBackupHost,
+            "viewer" => DeploymentPresets.ViewerClient,
+            _ => ""
+        };
+        if (mapped.Length == 0)
+        {
+            WriteJson(new { ok = false, error = "用途只能是保存主机或查看端" });
+            return;
+        }
+
+        AppConfig config = WorkstationConfigStore.Load();
+        if (!string.Equals(config.DeploymentPreset, mapped, StringComparison.Ordinal))
+        {
+            config.DeploymentPreset = mapped;
+            AppConfig.NormalizeAfterLoad(config);
+            AppConfig.MarkDeploymentSetupCompleted(config);
+            if (!WorkstationConfigStore.TrySave(config, out string saveError))
+            {
+                WriteJson(new { ok = false, error = saveError });
+                return;
+            }
+        }
+
+        WriteJson(new
+        {
+            ok = true,
+            purpose = DeploymentPresets.Normalize(config.DeploymentPreset),
+            purposeName = DeploymentPresets.GetDisplayName(config.DeploymentPreset)
+        });
+    }
+
+    /// <summary>追加一个保存位置（按优先级排在最后），与桌面端"添加磁盘"一致。</summary>
+    private static void AddStorageLocation(string path)
+    {
+        string full = (path ?? "").Trim();
+        if (full.Length == 0 || !Path.IsPathRooted(full))
+        {
+            WriteJson(new { ok = false, error = "存储位置必须是绝对路径" });
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(full);
+        }
+        catch (Exception ex)
+        {
+            WriteJson(new { ok = false, error = $"无法使用该目录：{ex.Message}" });
+            return;
+        }
+
+        AppConfig config = WorkstationConfigStore.Load();
+        List<StorageLocation> locations = OrderedLocations(config);
+        if (!locations.Any(location => string.Equals(location.Path, full, StringComparison.Ordinal)))
+        {
+            int nextPriority = locations.Count == 0 ? 1 : locations.Max(location => location.Priority) + 1;
+            locations.Add(new StorageLocation
+            {
+                Path = full,
+                Priority = nextPriority,
+                IsBackupTarget = false
+            });
+            config.StorageLocations = locations;
+            if (!WorkstationConfigStore.TrySave(config, out string saveError))
+            {
+                WriteJson(new { ok = false, error = saveError });
+                return;
+            }
+        }
+
+        WriteJson(new { ok = true, path = full });
+    }
+
+    /// <summary>开关开机自启；装了自启时保存主机归 launchd 托管。</summary>
+    private static void ApplyAutostart(string value)
+    {
+        bool enable = value.Trim().ToLowerInvariant() is "on" or "true" or "1";
+        bool ok = enable
+            ? LaunchAgentInstaller.TryInstall(out string error)
+            : LaunchAgentInstaller.TryUninstall(out error);
+        if (!ok)
+        {
+            WriteJson(new { ok = false, error });
+            return;
+        }
+
+        WriteJson(new { ok = true, autostartInstalled = LaunchAgentInstaller.IsInstalled });
+    }
+
     /// <summary>设置容量上限或预留空间；两者共用桌面端同一套换算，写进同一个 ReserveGB。</summary>
     private static void ApplyStorageLimit(bool byCapacity, string rawValue, string? requestedPath)
     {
@@ -176,7 +291,9 @@ internal static class MenuCommands
             token);
 
         return hosts
-            .Where(host => host.IsValidHost)
+            // 本机自己不能连自己：用途互斥，列出来只会让人点到"自己"
+            .Where(host => host.IsValidHost
+                && !string.Equals(host.NodeId, config.NodeId, StringComparison.OrdinalIgnoreCase))
             .OrderBy(host => host.NodeName, StringComparer.CurrentCulture)
             .Select(host => (object)new
             {
