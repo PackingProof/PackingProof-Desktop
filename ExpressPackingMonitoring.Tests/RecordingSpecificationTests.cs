@@ -481,6 +481,30 @@ public sealed class RecordingSpecificationTests
     }
 
     [Fact]
+    public void FindFfmpegAcceptsUnixBinaryName()
+    {
+        // macOS/Linux 上二进制叫 ffmpeg（没有 .exe）。以前只找 ffmpeg.exe，
+        // Mac 主机上连用户自己装的 FFmpeg 都找不到，表现是网页显示"编码未知"
+        // 并回退到直接播放原片（缩略图与转码全部失效）。
+        string root = CreateTempDirectory();
+        try
+        {
+            string tools = Directory.CreateDirectory(Path.Combine(root, "tools")).FullName;
+            string unixFfmpeg = Path.Combine(tools, "ffmpeg");
+            File.WriteAllText(unixFfmpeg, "");
+
+            Assert.Equal(unixFfmpeg, AppPaths.FindFFmpeg(root, "", "ffmpeg"));
+            Assert.Equal(
+                OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg",
+                AppPaths.DefaultFFmpegFileName());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MissingFfmpegDoesNotProduceValidatedEncoderOrSuccessState()
     {
         EncoderDetectionResult result =
