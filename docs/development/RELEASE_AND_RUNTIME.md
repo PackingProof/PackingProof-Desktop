@@ -29,6 +29,8 @@
 
 ## 打包与发布流程
 
+- macOS 包（`Tools/Publish-MacHost.sh`）产出 `.app` 与 `PackingProof-macOS-<版本>.dmg`；设置 `SIGN_IDENTITY` 时走 Developer ID + 加固运行时并在 DMG 与 .app 上装订公证票据。macOS 不做增量补丁：逐文件替换会破坏签名与公证，升级一律整包替换（下载 DMG、拖进应用程序）。Mac 端只通过 `UpdateCheckService` 检查并提示新版本，不在应用内替换自身。
+
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 代码改动一律走远程 PR，不再直接向 `main` 推送提交。提到哪个平台按问题来源决定：我们自己发现的 **bug** 先在 GitHub 开 issue，再提 PR 并在说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某个平台提的 issue，PR 就提到那个平台（Gitee 的 issue 提 Gitee PR，GitHub 的 issue 提 GitHub PR）。PR 默认提到 GitHub；目标可以用仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `github`）或命令行 `-Target` 覆盖。用 `pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-Merge]` 推送分支、创建 PR，并在需要时用 rebase 合并、把主干同步到另一个远端。
 - 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（rebase 合并，保留每个提交，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
