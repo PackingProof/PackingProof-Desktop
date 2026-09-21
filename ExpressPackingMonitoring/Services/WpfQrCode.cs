@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using ZXing;
@@ -15,6 +16,13 @@ internal static class WpfQrCode
     /// <summary>启动时注册，让网页二维码与手机连接窗口使用同一套 WPF 渲染。</summary>
     internal static void UseWpfRenderer()
         => QrCodeRenderer.UseRenderer(CreatePngDataUri);
+
+    /// <summary>
+    /// 程序集一被加载就注册：Windows 上不管是谁在跑（主程序、测试宿主），
+    /// 网页二维码都保持原有的 PNG 输出，只有非 Windows 宿主才用内置 SVG。
+    /// </summary>
+    [ModuleInitializer]
+    internal static void RegisterOnLoad() => UseWpfRenderer();
 
     public static string CreatePngDataUri(string url, int size = 260)
         => $"data:image/png;base64,{Convert.ToBase64String(CreatePng(url, size))}";
