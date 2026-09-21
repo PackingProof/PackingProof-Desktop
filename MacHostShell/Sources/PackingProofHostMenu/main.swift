@@ -15,6 +15,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var purpose = ""
     private var storagePath = ""
     private var autostartInstalled = false
+    private var hostAddress = ""
+    private var hostKey = ""
+    private var storagePaths: [String] = []
     private var hostServing = false
     private var viewerRunning = false
 
@@ -93,14 +96,33 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(viewerItem)
         menu.addItem(.separator())
 
-        menu.addItem(disabledItem("保存位置：\(storagePath.isEmpty ? "未设置" : storagePath)"))
-        menu.addItem(actionItem("选择保存位置…", #selector(chooseStorage)))
+        if storagePaths.isEmpty {
+            menu.addItem(disabledItem("保存位置：未设置"))
+        } else {
+            for (index, path) in storagePaths.enumerated() {
+                menu.addItem(disabledItem("保存位置\(index + 1)：\(path)"))
+            }
+        }
+
+        let diskMenu = NSMenu()
+        for volume in mountedVolumes() {
+            let item = NSMenuItem(title: "添加 \(volume.lastPathComponent)", action: #selector(addVolume(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = volume.path
+            diskMenu.addItem(item)
+        }
+        if diskMenu.items.isEmpty { diskMenu.addItem(disabledItem("没有可用磁盘")) }
+        let diskItem = NSMenuItem(title: "添加磁盘…", action: nil, keyEquivalent: "")
+        diskItem.submenu = diskMenu
+        menu.addItem(diskItem)
         let autostartItem = actionItem("开机自启", #selector(toggleAutostart))
         autostartItem.state = autostartInstalled ? .on : .off
         menu.addItem(autostartItem)
         menu.addItem(.separator())
 
-        menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
+        let playbackItem = actionItem("打开网页回放", #selector(openPlayback))
+        playbackItem.isEnabled = purpose == "MobileBackupHost" ? hostServing : !hostAddress.isEmpty
+        menu.addItem(playbackItem)
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
         menu.addItem(actionItem("退出", #selector(quit)))
@@ -113,10 +135,10 @@ final class HostShell: NSObject, NSApplicationDelegate {
             "第一行: \(statusText)",
             "· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")",
             "· 查看端 \(purpose == "ViewerClient" ? "✓" : "")",
-            "· 保存位置：\(storagePath.isEmpty ? "未设置" : storagePath)",
-            "· 选择保存位置…",
+            "· 保存位置：\(storagePaths.isEmpty ? "未设置" : storagePaths.joined(separator: " > "))",
+            "· 添加磁盘…（选磁盘后用默认子目录）",
             "· 开机自启 \(autostartInstalled ? "✓" : "")",
-            "· 打开网页回放",
+            "· 打开网页回放（\(purpose == "ViewerClient" ? (hostAddress.isEmpty ? "未连接主机，禁用" : "已连接 \(hostAddress)") : (hostServing ? "本机" : "未启动，禁用"))）",
             "· 打开日志目录",
             "· 退出"
         ].joined(separator: "\n")
@@ -143,8 +165,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }
 
         image.size = NSSize(width: 18, height: 18)
-        // 系统菜单栏图标都是单色模板，跟随明暗主题
-        image.isTemplate = true
         item.button?.image = image
         item.button?.imagePosition = .imageOnly
     }
@@ -169,17 +189,21 @@ final class HostShell: NSObject, NSApplicationDelegate {
                       askRestart: false)
     }
 
-    @objc private func chooseStorage() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "选择"
-        panel.message = "选择录像保存位置（可以选外接硬盘）"
-        if !storagePath.isEmpty { panel.directoryURL = URL(fileURLWithPath: storagePath) }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        applySettings(purpose: nil, storagePath: url.path, autostart: nil,
-                      success: "保存位置已改为 \(url.path)")
+    /// 已挂载的磁盘：与桌面端一致，选磁盘分区，路径用默认子目录
+    private func mountedVolumes() -> [URL] {
+        let keys: [URLResourceKey] = [.volumeNameKey, .volumeIsBrowsableKey, .volumeIsInternalKey]
+        let volumes = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: keys,
+            options: [.skipHiddenVolumes]) ?? []
+        return volumes.filter { $0.path != "/" }
+    }
+
+    @objc private func addVolume(_ sender: NSMenuItem) {
+        guard let root = sender.representedObject as? String else { return }
+        // 桌面端也是这样：磁盘根 + 固定子目录名
+        let path = (root as NSString).appendingPathComponent("快递打包视频")
+        applySettings(purpose: nil, storagePath: nil, autostart: nil,
+                      success: "已添加保存位置 \(path)", addStoragePath: path)
     }
 
     /// 通过本机设置接口改配置；改完问一次是否立即重启主机
@@ -188,10 +212,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
         storagePath newStorage: String?,
         autostart: Bool?,
         success: String,
-        askRestart: Bool = true) {
+        askRestart: Bool = true,
+        addStoragePath: String? = nil) {
         var payload: [String: Any] = [:]
         if let newPurpose { payload["purpose"] = newPurpose }
         if let newStorage { payload["storagePath"] = newStorage }
+        if let addStoragePath { payload["addStoragePath"] = addStoragePath }
         if let autostart { payload["autostart"] = autostart }
 
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/local-settings") else { return }
@@ -250,6 +276,17 @@ final class HostShell: NSObject, NSApplicationDelegate {
     // MARK: - 其它菜单动作
 
     @objc private func openPlayback() {
+        if purpose == "ViewerClient" {
+            // 查看端：打开已连接的主机，而不是本机地址
+            guard !hostAddress.isEmpty else { return }
+            var hostUrl = hostAddress
+            if !hostKey.isEmpty {
+                hostUrl += (hostAddress.contains("?") ? "&" : "?") + "key=\(hostKey)"
+            }
+            if let url = URL(string: hostUrl) { NSWorkspace.shared.open(url) }
+            return
+        }
+
         var url = "http://127.0.0.1:\(port)/"
         if let key = readAccessKey() { url += "?key=\(key)" }
         NSWorkspace.shared.open(URL(string: url)!)
@@ -292,8 +329,14 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }
 
         purpose = (json["DeploymentPreset"] as? String) ?? ""
+        hostAddress = (json["LastKnownHostAddress"] as? String) ?? ""
+        hostKey = (json["LastKnownHostWebAccessKey"] as? String) ?? ""
         let locations = json["StorageLocations"] as? [[String: Any]]
-        storagePath = (locations?.first?["Path"] as? String) ?? ""
+        let ordered = (locations ?? [])
+            .filter { (($0["Path"] as? String) ?? "").isEmpty == false }
+            .sorted { (($0["Priority"] as? Int) ?? 99) < (($1["Priority"] as? Int) ?? 99) }
+        storagePaths = ordered.compactMap { $0["Path"] as? String }
+        storagePath = storagePaths.first ?? ""
     }
 
     private func refreshAutostart() {
