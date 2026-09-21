@@ -1562,7 +1562,9 @@ namespace ExpressPackingMonitoring.Services
                     ? _mobileOrderReceivers.GetKnownRecordingDevices()
                     : _mobileOrderReceivers.GetRecordingDevices(),
                 _connectedClients.GetSnapshot(),
-                includeOffline: includeKnown);
+                includeOffline: includeKnown,
+                // 复用主机主窗口那张卡片的数据源，口径一致
+                dailyBackupCounts: _db.GetMobileBackupDailyCounts(DateTime.Today));
         }
 
         internal static bool IsMobileBackupPath(string path) =>

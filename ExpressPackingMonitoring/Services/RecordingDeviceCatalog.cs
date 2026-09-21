@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Serialization;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Data;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -24,6 +25,13 @@ public sealed class RecordingDeviceInfo
 
     [JsonPropertyName("online")]
     public bool Online { get; set; }
+
+    /// <summary>
+    /// 今天备份到本机的条数。口径与主机主窗口"手机/电脑备份"卡片一致：
+    /// 取 VideoDatabase.GetMobileBackupDailyCounts(今天)，没上传过的设备就是 0。
+    /// </summary>
+    [JsonPropertyName("todayBackupCount")]
+    public int TodayBackupCount { get; set; }
 }
 
 internal static class RecordingDeviceCatalog
@@ -36,7 +44,8 @@ internal static class RecordingDeviceCatalog
         string hostAddress,
         IEnumerable<MobileOrderReceiverInfo>? mobileOrderReceivers,
         IEnumerable<ConnectedClientInfo>? connectedClients,
-        bool includeOffline = false)
+        bool includeOffline = false,
+        IReadOnlyList<MobileBackupDailyCount>? dailyBackupCounts = null)
     {
         var candidates = new List<RecordingDeviceInfo>();
         string normalizedPreset = DeploymentPresets.Normalize(deploymentPreset);
@@ -122,6 +131,22 @@ internal static class RecordingDeviceCatalog
             }
 
             result.Add(device);
+        }
+
+        // 今日备份条数按设备号对齐：主机主窗口那张卡片也是这么算的（同一个查询）
+        if (dailyBackupCounts is { Count: > 0 })
+        {
+            var countByDevice = dailyBackupCounts
+                .GroupBy(item => item.DeviceId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Sum(item => item.VideoCount),
+                    StringComparer.OrdinalIgnoreCase);
+            foreach (RecordingDeviceInfo device in result)
+            {
+                if (countByDevice.TryGetValue(device.NodeId, out int todayCount))
+                    device.TodayBackupCount = todayCount;
+            }
         }
 
         return result;
