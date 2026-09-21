@@ -95,8 +95,15 @@ internal static class MacDeploymentSetup
     private static bool IsUsableConfiguredLocation(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return false;
-        // 桌面端默认值在 Mac 上没有意义，首次使用必须重新选
-        if (path.StartsWith(@"D:\", StringComparison.OrdinalIgnoreCase)) return false;
-        return Path.IsPathRooted(path);
+        // 只认"根目录下面确实存在"的位置：桌面端默认值（D:\快递打包视频）在 Mac 上
+        // 会被归一化成 /快递打包视频 这种不存在的路径，靠字符串判断拦不住，必须看实际目录
+        try
+        {
+            return Path.IsPathRooted(path) && Directory.Exists(path);
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

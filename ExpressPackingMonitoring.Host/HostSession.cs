@@ -15,11 +15,19 @@ internal static class HostSession
         string storageDirectory = config.StorageLocations?.FirstOrDefault()?.Path?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(storageDirectory))
         {
-            MacDialog.ShowMessage("尚未设置录像保存位置。请用 --switch-purpose 重新选择用途与目录。");
+            ReportStorageProblem("尚未设置录像保存位置。请用 --switch-purpose 重新选择用途与目录");
             return 1;
         }
 
-        Directory.CreateDirectory(storageDirectory);
+        try
+        {
+            Directory.CreateDirectory(storageDirectory);
+        }
+        catch (Exception ex)
+        {
+            ReportStorageProblem($"录像保存位置不可用：{storageDirectory}（{ex.Message}）");
+            return 1;
+        }
 
         // 手机扫码要用局域网地址，启动时解析一次；解析不到时手机连接页会提示尚未准备好
         string lanAddress = await WorkstationNetwork.GetVerifiedLocalAccessAddressAsync(config.WebServerPort, token);
@@ -48,7 +56,16 @@ internal static class HostSession
             nodeName: config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
             backupDeviceEnrollmentApprover: ApproveDeviceEnrollment);
-        server.Start();
+        try
+        {
+            server.Start();
+        }
+        catch (Exception ex)
+        {
+            // 端口被占、权限不足等都以可读信息退出，不抛堆栈
+            ReportProblem($"保存主机启动失败：{ex.Message}");
+            return 1;
+        }
 
         Console.WriteLine($"保存主机已启动，存储目录 {storageDirectory}");
         Console.WriteLine($"本机网页地址 {localUrl}");
@@ -84,5 +101,14 @@ internal static class HostSession
         AppDomain.CurrentDomain.ProcessExit += (_, _) => completion.TrySetResult();
         await completion.Task;
         return 0;
+    }
+
+    private static void ReportStorageProblem(string message) =>
+        ReportProblem($"{message}。可用 --switch-purpose 重新设置");
+
+    private static void ReportProblem(string message)
+    {
+        Console.Error.WriteLine(message);
+        MacDialog.ShowMessage(message);
     }
 }
