@@ -378,7 +378,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
                     ? "手机录像设备"
                     : "电脑录像设备",
                 address: (device["address"] as? String) ?? "",
-                online: (device["online"] as? Bool) ?? false)
+                online: (device["online"] as? Bool) ?? false,
+                todayBackupCount: (device["todayBackupCount"] as? Int) ?? 0)
         }
         model.disks = mountedVolumes().map { volume in
             let root = volume.path
@@ -1207,8 +1208,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
         guard var components = URLComponents(
             string: "http://127.0.0.1:\(port)/api/recording-devices") else { return }
+        // 带上 known：配对过但还没上传过录像的设备也要列出来，
+        // 否则"已经连上、还没上传"的设备在列表里根本看不到
+        components.queryItems = [URLQueryItem(name: "scope", value: "known")]
         if let key = readAccessKey() {
-            components.queryItems = [URLQueryItem(name: "key", value: key)]
+            components.queryItems?.append(URLQueryItem(name: "key", value: key))
         }
         guard let url = components.url else { return }
 
