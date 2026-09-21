@@ -3,11 +3,14 @@
 
 import AppKit
 import Foundation
+import SwiftUI
 
 /// 菜单栏壳：菜单里直接设置用途、保存位置与开机自启；
 /// 业务逻辑一律交给 .NET 主机，壳只做展示与转发。
 final class HostShell: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var mainWindow: NSWindow?
+    private let model = AppStateModel()
     private var refreshTimer: Timer?
     private var launchedHosts: [Process] = []
     private var lastLaunchAttempt = Date.distantPast
@@ -92,6 +95,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         applyIcon(to: item)
         statusItem = item
+        setUpModelActions()
+        setUpApplicationMenu()
+        // 常规窗口应用：有 Dock 图标，主窗口是主要入口，菜单栏图标保留做快捷操作
+        NSApp.setActivationPolicy(.regular)
+        openMainWindow()
 
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
@@ -101,6 +109,135 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 退出即停止：关掉程序就把自己拉起的主机一起停掉，不留没人管的进程
     func applicationWillTerminate(_ notification: Notification) { stopHost() }
+
+    /// 主窗口关掉不等于退出：保存主机还要继续跑，菜单栏也还在
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// 点 Dock 图标重新打开主窗口
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openMainWindow() }
+        return true
+    }
+
+    // MARK: - 主窗口与应用菜单
+
+    private func openMainWindow() {
+        if mainWindow == nil {
+            let hosting = NSHostingController(rootView: MainWindowView(model: model))
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "PackingProof"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            window.setContentSize(NSSize(width: 620, height: 500))
+            window.isReleasedWhenClosed = false
+            window.center()
+            mainWindow = window
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        mainWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func openMainWindowAction() { openMainWindow() }
+
+    /// 常规窗口应用需要的应用菜单：没有它菜单栏上会是一片空白
+    private func setUpApplicationMenu() {
+        let appName = "PackingProof"
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(
+            withTitle: "关于 \(appName)",
+            action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let openItem = NSMenuItem(
+            title: "打开主界面",
+            action: #selector(openMainWindowAction),
+            keyEquivalent: "0")
+        openItem.target = self
+        appMenu.addItem(openItem)
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            withTitle: "隐藏 \(appName)",
+            action: #selector(NSApplication.hide(_:)),
+            keyEquivalent: "h")
+        appMenu.addItem(.separator())
+        appMenu.addItem(
+            withTitle: "退出 \(appName)",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q")
+        appMenuItem.submenu = appMenu
+        mainMenu.addItem(appMenuItem)
+
+        let windowMenuItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "窗口")
+        windowMenu.addItem(
+            withTitle: "最小化",
+            action: #selector(NSWindow.performMiniaturize(_:)),
+            keyEquivalent: "m")
+        let reopenItem = NSMenuItem(
+            title: "主界面",
+            action: #selector(openMainWindowAction),
+            keyEquivalent: "")
+        reopenItem.target = self
+        windowMenu.addItem(reopenItem)
+        windowMenuItem.submenu = windowMenu
+        mainMenu.addItem(windowMenuItem)
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    /// 窗口按钮全部转给菜单栏壳里已有的实现，逻辑与状态只有一份
+    private func setUpModelActions() {
+        model.actions = AppStateModel.Actions(
+            useHostPurpose: { [weak self] in self?.useHostPurpose() },
+            useViewerPurpose: { [weak self] in self?.useViewerPurpose() },
+            rescanHosts: { [weak self] in self?.rescanHosts() },
+            forgetHost: { [weak self] in self?.forgetHost() },
+            selectHost: { [weak self] nodeId in self?.connectHost(nodeId: nodeId) },
+            openPlayback: { [weak self] in self?.openPlayback() },
+            openLogs: { [weak self] in self?.openLogs() },
+            quit: { [weak self] in self?.quit() },
+            openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
+            promptCapacity: { [weak self] path in self?.promptCapacity(path: path) },
+            promptReserve: { [weak self] path in self?.promptReserve(path: path) },
+            toggleAutostart: { [weak self] in self?.toggleAutostart() })
+    }
+
+    /// 把壳里唯一那份状态灌给窗口：每次重建菜单都同步一次
+    private func pushStateToModel() {
+        model.purposeTitle = statusText
+        model.hostPurposeTitle = hostPurposeTitle
+        model.viewerPurposeTitle = viewerPurposeTitle
+        model.isViewer = isViewer
+        model.hostServing = hostServing
+        model.hostProblem = hostProblem
+        model.viewerStatusText = viewerStatusText
+        model.viewerConnected = viewerConnected
+        model.searchingHosts = hostSearchInFlight
+        model.currentHostId = hostNodeId
+        model.storePaths = storagePaths
+        model.autostartInstalled = autostartInstalled
+        model.playbackEnabled = isViewer ? !hostAddress.isEmpty : hostServing
+        model.hosts = hostRows().map { host in
+            AppStateModel.HostRow(
+                id: (host["nodeId"] as? String) ?? (host["address"] as? String) ?? "",
+                name: (host["nodeName"] as? String) ?? "",
+                address: (host["address"] as? String) ?? "")
+        }
+        model.storages = storageLocations.compactMap { location in
+            guard let path = location["path"] as? String else { return nil }
+            return AppStateModel.StorageRow(
+                id: path,
+                name: (location["displayName"] as? String) ?? path,
+                available: (location["available"] as? Bool) ?? false,
+                capacityKnown: (location["capacityKnown"] as? Bool) ?? false,
+                capacityGB: number(location["capacityGB"]),
+                reserveGB: number(location["reserveGB"]),
+                recommendedReserveGB: number(location["recommendedReserveGB"]))
+        }
+    }
 
     // MARK: - 状态
 
@@ -168,6 +305,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func rebuildMenu() {
         let menu = NSMenu()
+        menu.addItem(actionItem("打开主界面", #selector(openMainWindowAction)))
+        menu.addItem(.separator())
         // 状态直接挂在用途项上：已经显示用途了，不再单占一行
         let hostItem = actionItem(hostPurposeTitle, #selector(useHostPurpose))
         hostItem.state = purpose == "MobileBackupHost" ? .on : .off
@@ -232,6 +371,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(actionItem("退出", #selector(quit)))
 
+        pushStateToModel()
         statusItem?.menu = menu
     }
 
@@ -671,6 +811,11 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 在 Finder 中打开保存位置；目录还没建出来时退到最近的已有上级目录，避免点了没反应
     @objc private func openStorageLocation(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String, !path.isEmpty else { return }
+        openStorageLocation(path: path)
+    }
+
+    private func openStorageLocation(path: String) {
+        guard !path.isEmpty else { return }
         var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
             NSWorkspace.shared.open(URL(fileURLWithPath: path))
@@ -686,6 +831,10 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     @objc private func promptCapacity(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
+        promptCapacity(path: path)
+    }
+
+    private func promptCapacity(path: String) {
         let location = storageLocation(for: path) ?? [:]
         let maximum = number(location["maximumCapacityGB"])
         let message = maximum > 0
@@ -702,6 +851,10 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     @objc private func promptReserve(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
+        promptReserve(path: path)
+    }
+
+    private func promptReserve(path: String) {
         let location = storageLocation(for: path) ?? [:]
         let recommended = number(location["recommendedReserveGB"])
         let message = recommended > 0
@@ -759,9 +912,21 @@ final class HostShell: NSObject, NSApplicationDelegate {
     @objc private func selectHost(_ sender: NSMenuItem) {
         guard let host = sender.representedObject as? [String: Any],
               let address = host["address"] as? String else { return }
-        let nodeId = (host["nodeId"] as? String) ?? ""
-        let nodeName = (host["nodeName"] as? String) ?? ""
+        connectHost(address: address,
+                    nodeId: (host["nodeId"] as? String) ?? "",
+                    nodeName: (host["nodeName"] as? String) ?? "")
+    }
 
+    /// 主窗口按 NodeId 点"连接"：从同一份主机列表里取出那一台
+    private func connectHost(nodeId: String) {
+        guard let host = hostRows().first(where: { ($0["nodeId"] as? String) == nodeId }),
+              let address = host["address"] as? String else { return }
+        connectHost(address: address,
+                    nodeId: (host["nodeId"] as? String) ?? "",
+                    nodeName: (host["nodeName"] as? String) ?? "")
+    }
+
+    private func connectHost(address: String, nodeId: String, nodeName: String) {
         runHostCommand(
             ["--select-host", address, "--host-node-id", nodeId, "--host-node-name", nodeName]
         ) { [weak self] json in
