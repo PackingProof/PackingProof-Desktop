@@ -10,7 +10,13 @@
 - 对应版本、下载地址、文件大小和 SHA256：`Tools/ffmpeg-baseline.json`
 - FFmpeg 源代码：[FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg)
 
-发布包只携带独立的 `ffmpeg.exe`，用于录像编码、封装、转码、缩略图和剪辑。
+- macOS 二进制来源：[Martin Riedl FFmpeg Build Server](https://ffmpeg.martin-riedl.de/)
+- 发布变体：macOS Apple Silicon arm64 release 静态构建
+- 许可证：GPLv3（该构建未启用 `--enable-nonfree`，可以随包分发）
+- 对应版本、下载地址、文件大小和 SHA256：`Tools/ffmpeg-macos-baseline.json`
+- FFmpeg 源代码：[FFmpeg/FFmpeg](https://github.com/FFmpeg/FFmpeg)
+
+发布包只携带独立的 `ffmpeg.exe`（Windows）或 `ffmpeg`（macOS），用于录像编码、封装、转码、缩略图和剪辑。macOS 主机上它位于 `PackingProofHost.app/Contents/MacOS/Host/tools/ffmpeg`。
 
 ## LibVLC
 
