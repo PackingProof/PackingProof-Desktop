@@ -4,23 +4,27 @@
 import AppKit
 import Foundation
 
-/// 菜单栏壳：显示保存主机是否在跑，并把菜单动作转成主机进程的命令行调用。
-/// 业务逻辑一律不在这里实现，避免和 .NET 核心出现第二套实现。
+/// 菜单栏壳：菜单里直接设置用途、保存位置与开机自启；
+/// 业务逻辑一律交给 .NET 主机，壳只做展示与转发。
 final class HostShell: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var refreshTimer: Timer?
-    private var status = "正在检查保存主机…"
-    private var onlineNodeName: String?
-    private var lastLaunchAttempt = Date.distantPast
     private var launchedHosts: [Process] = []
+    private var lastLaunchAttempt = Date.distantPast
+
+    private var purpose = ""
+    private var storagePath = ""
     private var autostartInstalled = false
-    private var purposeName = "保存主机"
-    private var isViewer = false
+    private var hostServing = false
+    private var viewerRunning = false
 
     private let port = Int(ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_PORT"] ?? "") ?? 5280
 
+    // MARK: - 生命周期
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if CommandLine.arguments.contains("--dump-menu") {
+            refreshSettings()
             refreshAutostart()
             print(dumpMenu())
             exit(0)
@@ -31,50 +35,42 @@ final class HostShell: NSObject, NSApplicationDelegate {
         statusItem = item
 
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            self?.refreshStatus()
+            self?.refresh()
         }
-        refreshStatus()
+        refresh()
     }
 
-    /// 注销或关机时也要把自己拉起的主机带走
-    func applicationWillTerminate(_ notification: Notification) {
-        stopHost()
-    }
+    /// 退出即停止：关掉程序就把自己拉起的主机一起停掉，不留没人管的进程
+    func applicationWillTerminate(_ notification: Notification) { stopHost() }
 
     // MARK: - 状态
 
-    private func refreshStatus() {
+    private func refresh() {
+        refreshSettings()
         refreshAutostart()
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/node-info") else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
-            var name: String?
-            var preset = ""
-            if let data, let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                name = json["nodeName"] as? String
-                preset = (json["preset"] as? String) ?? ""
-            }
-
-            let reachable = (response as? HTTPURLResponse)?.statusCode == 200
+        URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+            let serving = (response as? HTTPURLResponse)?.statusCode == 200
             DispatchQueue.main.async {
-                self?.apply(reachable: reachable, nodeName: name, preset: preset)
+                guard let self else { return }
+                self.hostServing = serving
+                self.viewerRunning = self.launchedHosts.contains { $0.isRunning } && !serving
+                self.rebuildMenu()
+                // 只有保存主机才需要在后台常驻；查看端由用户显式点开回放
+                if self.purpose == "MobileBackupHost" && !serving { self.ensureHostRunning() }
             }
         }.resume()
     }
 
-    private func apply(reachable: Bool, nodeName: String?, preset: String) {
-        onlineNodeName = reachable ? nodeName : nil
-        isViewer = reachable && preset == "ViewerClient"
-        purposeName = isViewer ? "查看端" : "保存主机"
-        // 第一行只说用途，不带电脑名与括号
-        status = reachable ? purposeName : "未启动"
-        rebuildMenu()
-        if !reachable { ensureHostRunning() }
+    private var statusText: String {
+        if purpose == "ViewerClient" { return viewerRunning ? "查看端（正在搜索主机）" : "查看端" }
+        if purpose.isEmpty { return "未启动" }
+        return "保存主机"
     }
 
-    /// 主机没在跑就把它拉起来：菜单栏壳是用户双击的入口，不能只显示状态不干活。
-    /// 失败重试间隔 30 秒，避免配置有问题时反复拉起。
+    /// 主机没在跑就把它拉起来；失败重试间隔 30 秒，避免配置有问题时反复拉起
     private func ensureHostRunning() {
         guard Date().timeIntervalSince(lastLaunchAttempt) > 30 else { return }
         lastLaunchAttempt = Date()
@@ -85,20 +81,26 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     private func rebuildMenu() {
         let menu = NSMenu()
-        menu.addItem(disabledItem(status))
+        menu.addItem(disabledItem(statusText))
         menu.addItem(.separator())
 
-        // 打开就是使用，不提供"启动/停止主机"；只想看录像时切成查看端
-        menu.addItem(actionItem(
-            isViewer ? "切换为保存主机" : "切换为只查看",
-            isViewer ? #selector(switchToHost) : #selector(switchToViewer)))
-        menu.addItem(actionItem("打开设置", #selector(openSettings)))
-        menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
+        let hostItem = actionItem("保存主机", #selector(useHostPurpose))
+        hostItem.state = purpose == "MobileBackupHost" ? .on : .off
+        menu.addItem(hostItem)
+
+        let viewerItem = actionItem("查看端", #selector(useViewerPurpose))
+        viewerItem.state = purpose == "ViewerClient" ? .on : .off
+        menu.addItem(viewerItem)
         menu.addItem(.separator())
-        // 开机自启同样按状态只显示一项
-        menu.addItem(actionItem(
-            autostartInstalled ? "取消开机自启" : "注册开机自启",
-            #selector(toggleAutostart)))
+
+        menu.addItem(disabledItem("保存位置：\(storagePath.isEmpty ? "未设置" : storagePath)"))
+        menu.addItem(actionItem("选择保存位置…", #selector(chooseStorage)))
+        let autostartItem = actionItem("开机自启", #selector(toggleAutostart))
+        autostartItem.state = autostartInstalled ? .on : .off
+        menu.addItem(autostartItem)
+        menu.addItem(.separator())
+
+        menu.addItem(actionItem("打开网页回放", #selector(openPlayback)))
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
         menu.addItem(actionItem("退出", #selector(quit)))
@@ -106,31 +108,18 @@ final class HostShell: NSObject, NSApplicationDelegate {
         statusItem?.menu = menu
     }
 
-    /// 菜单内容的自检输出：不依赖人工点开，直接打印第一行与各项
     private func dumpMenu() -> String {
-        var lines = ["第一行: \(status)"]
-        lines.append(isViewer ? "· 切换为保存主机" : "· 切换为只查看")
-        lines.append("· 打开设置")
-        lines.append("· 打开网页回放")
-        lines.append("· \(autostartInstalled ? "取消开机自启" : "注册开机自启")")
-        lines.append("· 打开日志目录")
-        lines.append("· 退出")
-        return lines.joined(separator: "\n")
-    }
-
-    /// 菜单栏图标用应用自己的图标（打包时由 app.ico 转出），没有时退回文字
-    private func applyIcon(to item: NSStatusItem) {
-        guard let path = Bundle.main.resourceURL?.appendingPathComponent("MenuIcon.png"),
-              let image = NSImage(contentsOf: path) else {
-            item.button?.title = "PP"
-            return
-        }
-
-        image.size = NSSize(width: 18, height: 18)
-        // 系统菜单栏图标都是单色模板，跟随明暗主题；彩色图标会和系统项明显不一致
-        image.isTemplate = true
-        item.button?.image = image
-        item.button?.imagePosition = .imageOnly
+        [
+            "第一行: \(statusText)",
+            "· 保存主机 \(purpose == "MobileBackupHost" ? "✓" : "")",
+            "· 查看端 \(purpose == "ViewerClient" ? "✓" : "")",
+            "· 保存位置：\(storagePath.isEmpty ? "未设置" : storagePath)",
+            "· 选择保存位置…",
+            "· 开机自启 \(autostartInstalled ? "✓" : "")",
+            "· 打开网页回放",
+            "· 打开日志目录",
+            "· 退出"
+        ].joined(separator: "\n")
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
@@ -145,7 +134,120 @@ final class HostShell: NSObject, NSApplicationDelegate {
         return item
     }
 
-    // MARK: - 动作
+    /// 菜单栏图标用应用自己的图标（打包时由 app.ico 转出），没有时退回文字
+    private func applyIcon(to item: NSStatusItem) {
+        guard let path = Bundle.main.resourceURL?.appendingPathComponent("MenuIcon.png"),
+              let image = NSImage(contentsOf: path) else {
+            item.button?.title = "PP"
+            return
+        }
+
+        image.size = NSSize(width: 18, height: 18)
+        // 系统菜单栏图标都是单色模板，跟随明暗主题
+        image.isTemplate = true
+        item.button?.image = image
+        item.button?.imagePosition = .imageOnly
+    }
+
+    // MARK: - 设置动作
+
+    @objc private func useHostPurpose() {
+        guard purpose != "MobileBackupHost" else { return }
+        applySettings(purpose: "host", storagePath: nil, autostart: nil,
+                      success: "已切换为保存主机")
+    }
+
+    @objc private func useViewerPurpose() {
+        guard purpose != "ViewerClient" else { return }
+        applySettings(purpose: "viewer", storagePath: nil, autostart: nil,
+                      success: "已切换为查看端")
+    }
+
+    @objc private func toggleAutostart() {
+        applySettings(purpose: nil, storagePath: nil, autostart: !autostartInstalled,
+                      success: autostartInstalled ? "已取消开机自启" : "已注册开机自启",
+                      askRestart: false)
+    }
+
+    @objc private func chooseStorage() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "选择"
+        panel.message = "选择录像保存位置（可以选外接硬盘）"
+        if !storagePath.isEmpty { panel.directoryURL = URL(fileURLWithPath: storagePath) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        applySettings(purpose: nil, storagePath: url.path, autostart: nil,
+                      success: "保存位置已改为 \(url.path)")
+    }
+
+    /// 通过本机设置接口改配置；改完问一次是否立即重启主机
+    private func applySettings(
+        purpose newPurpose: String?,
+        storagePath newStorage: String?,
+        autostart: Bool?,
+        success: String,
+        askRestart: Bool = true) {
+        var payload: [String: Any] = [:]
+        if let newPurpose { payload["purpose"] = newPurpose }
+        if let newStorage { payload["storagePath"] = newStorage }
+        if let autostart { payload["autostart"] = autostart }
+
+        guard let url = URL(string: "http://127.0.0.1:\(port)/api/local-settings") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard error == nil, status == 200 else {
+                    let message = (body?["error"] as? String) ?? error?.localizedDescription ?? "设置失败"
+                    self.notify("设置未生效：\(message)")
+                    return
+                }
+
+                self.refreshSettings()
+                self.refreshAutostart()
+                self.rebuildMenu()
+                if askRestart {
+                    self.confirmRestart(after: success)
+                } else {
+                    self.notify(success)
+                }
+            }
+        }.resume()
+    }
+
+    /// 改完设置问一次：是否立即重启，让新用途/新位置马上生效
+    private func confirmRestart(after message: String) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = "是否立即重启主机让设置生效？"
+        alert.addButton(withTitle: "立即重启")
+        alert.addButton(withTitle: "稍后")
+        if alert.runModal() == .alertFirstButtonReturn {
+            restartHost()
+        }
+    }
+
+    private func restartHost() {
+        stopHost()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self else { return }
+            self.lastLaunchAttempt = Date()
+            self.runHost(arguments: self.purpose == "ViewerClient"
+                ? ["--no-browser", "--service"]
+                : ["--no-browser", "--service"])
+            self.refresh()
+        }
+    }
+
+    // MARK: - 其它菜单动作
 
     @objc private func openPlayback() {
         var url = "http://127.0.0.1:\(port)/"
@@ -153,73 +255,45 @@ final class HostShell: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(string: url)!)
     }
 
-    /// 打开设置：网页里的本机设置面板，带上锚点直接滚到那里
-    @objc private func openSettings() {
-        var url = "http://127.0.0.1:\(port)/"
-        if let key = readAccessKey() { url += "?key=\(key)" }
-        url += "#localSettings"
-        NSWorkspace.shared.open(URL(string: url)!)
-    }
-
-    /// 切换为只查看：把用途改成查看端，弹窗告知，并停止再作为主机服务
-    @objc private func switchToViewer() {
-        notify("只查看\n\n这台电脑已切换为查看端，不再作为保存主机。\n网页回放仍可正常使用。")
-        setPurpose("viewer")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            self?.stopHost()
-            self?.refreshStatus()
-        }
-    }
-
-    /// 切换为保存主机：改用途并重启主机，让它重新对外提供网页与备份服务
-    @objc private func switchToHost() {
-        notify("保存主机\n\n这台电脑已切换为保存主机，将接收手机与电脑上传的录像。")
-        setPurpose("host")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            guard let self else { return }
-            self.stopHost()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.lastLaunchAttempt = Date()
-                self.runHost(arguments: ["--no-browser", "--service"])
-            }
-        }
-    }
-
-    /// 通过本机设置接口改用途；服务端只接受本机请求
-    private func setPurpose(_ purpose: String) {
-        guard let url = URL(string: "http://127.0.0.1:\(port)/api/local-settings") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: ["purpose": purpose])
-        URLSession.shared.dataTask(with: request).resume()
-    }
-
-    @objc private func toggleAutostart() {
-        let arguments = autostartInstalled ? ["--uninstall-autostart"] : ["--install-autostart"]
-        runHost(arguments: arguments) { [weak self] output in
-            self?.notify(output)
-        }
-    }
-
-    private func stopHost() {
-        for pid in runningHostPIDs() {
-            kill(pid, SIGTERM)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshStatus() }
-    }
-
     @objc private func openLogs() {
-        let logDirectory = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ExpressPackingMonitoring/log", isDirectory: true)
-        NSWorkspace.shared.open(logDirectory)
+        NSWorkspace.shared.open(Self.logDirectory)
     }
 
     @objc private func quit() {
-        // 退出即停止：关掉程序就把自己拉起的主机一起停掉，不留没人管的进程
         stopHost()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { NSApp.terminate(nil) }
+    }
+
+    private func notify(_ text: String) {
+        let alert = NSAlert()
+        alert.messageText = "PackingProof 保存主机"
+        alert.informativeText = text
+        alert.runModal()
+    }
+
+    // MARK: - 配置与进程
+
+    private static var configURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/ExpressPackingMonitoring/config.json")
+    }
+
+    private static var logDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/ExpressPackingMonitoring/log")
+    }
+
+    private func refreshSettings() {
+        guard let data = try? Data(contentsOf: Self.configURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            purpose = ""
+            storagePath = ""
+            return
+        }
+
+        purpose = (json["DeploymentPreset"] as? String) ?? ""
+        let locations = json["StorageLocations"] as? [[String: Any]]
+        storagePath = (locations?.first?["Path"] as? String) ?? ""
     }
 
     private func refreshAutostart() {
@@ -233,16 +307,14 @@ final class HostShell: NSObject, NSApplicationDelegate {
         return launchedHosts.map { $0.processIdentifier }
     }
 
-    private func notify(_ text: String) {
-        let alert = NSAlert()
-        alert.messageText = "PackingProof 保存主机"
-        alert.informativeText = text
-        alert.runModal()
+    private func stopHost() {
+        for pid in runningHostPIDs() { kill(pid, SIGTERM) }
+        hostServing = false
+        viewerRunning = false
+        rebuildMenu()
     }
 
-    // MARK: - 主机进程
-
-    /// 主机可执行文件：优先用同一个 .app 内的副本，其次用环境变量指向的路径（开发时用）。
+    /// 主机可执行文件：优先用同一个 .app 内的副本，其次用环境变量指向的路径（开发时用）
     private func hostExecutable() -> URL? {
         let fileManager = FileManager.default
         if let override = ProcessInfo.processInfo.environment["PACKINGPROOF_HOST_BIN"],
@@ -255,7 +327,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         return fileManager.isExecutableFile(atPath: bundled.path) ? bundled : nil
     }
 
-    private func runHost(arguments: [String], completion: ((String) -> Void)? = nil) {
+    private func runHost(arguments: [String]) {
         guard let executable = hostExecutable() else {
             notify("未找到主机程序。请把菜单栏壳与保存主机放在同一个 .app 里。")
             return
@@ -264,40 +336,29 @@ final class HostShell: NSObject, NSApplicationDelegate {
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        // 主机输出写进日志，出问题时能查；不再丢掉
+        try? FileManager.default.createDirectory(at: Self.logDirectory, withIntermediateDirectories: true)
+        let logURL = Self.logDirectory.appendingPathComponent("host.log")
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        if let handle = try? FileHandle(forWritingTo: logURL) {
+            handle.seekToEndOfFile()
+            process.standardOutput = handle
+            process.standardError = handle
+        }
 
         do {
             try process.run()
             launchedHosts.append(process)
         } catch {
             notify("启动主机失败：\(error.localizedDescription)")
-            return
-        }
-
-        guard let completion else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshStatus() }
-            return
-        }
-
-        DispatchQueue.global().async {
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            DispatchQueue.main.async {
-                completion(output.isEmpty ? (process.terminationStatus == 0 ? "操作完成" : "操作失败（退出码 \(process.terminationStatus)）") : output)
-                self.refreshStatus()
-            }
         }
     }
 
-    /// 网页访问密钥来自主机自己的配置，菜单栏只是照抄它去打开页面。
+    /// 网页访问密钥来自主机自己的配置
     private func readAccessKey() -> String? {
-        let configURL = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ExpressPackingMonitoring/config.json")
-        guard let data = try? Data(contentsOf: configURL),
+        guard let data = try? Data(contentsOf: Self.configURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let key = json["WebAccessKey"] as? String,
               !key.isEmpty else { return nil }
