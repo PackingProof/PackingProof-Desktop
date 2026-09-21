@@ -89,7 +89,8 @@ namespace ExpressPackingMonitoring.Services
         {
             var metadataClient = new UpdateMetadataClient(
                 _httpClient,
-                log: message => RuntimeLog.Info("Update", message));
+                log: message => RuntimeLog.Info("Update", message),
+                apiTokenProvider: UpdateCheckOptions.GetApiToken);
             using ResolvedUpdateRelease resolved = await metadataClient.FetchLatestReleaseAsync(
                 UpdateCheckOptions.GetUpdateCheckUrls(),
                 cancellationToken);

@@ -17,6 +17,36 @@ namespace ExpressPackingMonitoring.Services
             return GetUpdateCheckUrls()[0];
         }
 
+        /// <summary>
+        /// 可选的接口令牌：只在检查地址属于对应平台时返回，没配置就返回空串，
+        /// 请求行为与以前完全一致。未认证的 GitHub API 每 IP 每小时只有 60 次，
+        /// 同一出口 IP 下的多台机器会互相挤掉配额；配上令牌可以稳定检查更新。
+        /// </summary>
+        public static string GetApiToken(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return "";
+
+            if (url.Contains("github.com", StringComparison.OrdinalIgnoreCase))
+                return FirstConfigured("GITHUB_TOKEN", "GH_TOKEN");
+            if (url.Contains("gitee.com", StringComparison.OrdinalIgnoreCase))
+                return FirstConfigured("GITEE_TOKEN");
+            return "";
+        }
+
+        private static string FirstConfigured(params string[] names)
+        {
+            foreach (string name in names)
+            {
+                string? value = Environment.GetEnvironmentVariable(name);
+                if (string.IsNullOrWhiteSpace(value))
+                    value = ReadEnvFileValue(name);
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value.Trim();
+            }
+
+            return "";
+        }
+
         public static IReadOnlyList<string> GetUpdateCheckUrls()
         {
             string? primary = Environment.GetEnvironmentVariable(UrlKey);
