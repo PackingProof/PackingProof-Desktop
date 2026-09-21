@@ -137,6 +137,15 @@ fi
 # 所以不做 Windows 那套逐文件增量补丁
 echo "==> 生成 DMG"
 dmg_path="${output_root}/PackingProof-macOS-${version}.dmg"
+# 更新检查靠"文件名里带 macOS 的 .dmg"识别 Mac 包，名字改了更新提示就永远不会出现
+dmg_name="$(basename "${dmg_path}")"
+case "${dmg_name}" in
+  *[Mm][Aa][Cc][Oo][Ss]*.dmg) ;;
+  *)
+    echo "DMG 名字必须是 *macOS*.dmg（更新检查按这个名字识别平台包）：${dmg_name}" >&2
+    exit 1
+    ;;
+esac
 rm -f "${dmg_path}"
 dmg_staging="$(mktemp -d)"
 cp -R "${app_bundle}" "${dmg_staging}/"
