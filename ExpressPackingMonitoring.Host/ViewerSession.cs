@@ -11,7 +11,7 @@ internal static class ViewerSession
 {
     internal static async Task<int> RunAsync(AppConfig config, CancellationToken token)
     {
-        Console.WriteLine("正在查找同一网络中的保存主机…");
+        Console.WriteLine(ViewerConnectionStatusText.SearchingViewer);
         IReadOnlyList<PackingProofNodeInfo> hosts = await WorkstationNetwork.FindHostsAsync(
             lastKnownAddress: null,
             config.WebServerPort,
@@ -19,17 +19,25 @@ internal static class ViewerSession
             hostProgress: null,
             token);
 
-        if (hosts.Count == 0)
+        // 本机不能连自己：这台电脑自己是保存主机时，连自己会在同一台机器上弹"设备请求连接本机"，
+        // 而用途是互斥的，本机永远排除在可选主机之外
+        IReadOnlyList<PackingProofNodeInfo> candidates = hosts
+            .Where(host => !IsSelf(config, host))
+            .ToList();
+
+        if (candidates.Count == 0)
         {
-            MacDialog.ShowMessage("未找到保存主机。请确认主机已开机，并且与本机在同一个局域网。");
+            MacDialog.ShowMessage(hosts.Count > 0
+                ? "只找到本机自己。请确认另一台保存主机已开机，并且与本机在同一个局域网。"
+                : "未找到保存主机。请确认主机已开机，并且与本机在同一个局域网。");
             return 1;
         }
 
-        Console.WriteLine($"发现 {hosts.Count} 台保存主机：");
-        foreach (PackingProofNodeInfo discovered in hosts)
+        Console.WriteLine($"发现 {candidates.Count} 台保存主机：");
+        foreach (PackingProofNodeInfo discovered in candidates)
             Console.WriteLine($"  · {Describe(discovered)}");
 
-        PackingProofNodeInfo? host = SelectHost(config, hosts);
+        PackingProofNodeInfo? host = SelectHost(config, candidates);
         if (host == null)
         {
             Console.WriteLine("已取消选择主机");
@@ -37,15 +45,34 @@ internal static class ViewerSession
         }
 
         string address = host.Address;
-        RememberHost(config, host, "");
+        // 同一台主机沿用已保存的网页访问密钥：换了主机才丢旧密钥，
+        // 否则每次启动都要重新申请一次授权，主机那边会反复弹"设备请求连接"
+        string savedKey = string.Equals(
+                config.LastKnownHostNodeId,
+                host.NodeId,
+                StringComparison.OrdinalIgnoreCase)
+            ? (config.LastKnownHostWebAccessKey ?? "").Trim()
+            : "";
+        RememberHost(config, host, savedKey);
         string? targetUrl = null;
-        switch (await WorkstationNetwork.ProbeWebAccessAsync(address, null, token))
+        switch (await WorkstationNetwork.ProbeWebAccessAsync(
+                    address,
+                    savedKey.Length > 0 ? savedKey : null,
+                    token))
         {
             case WorkstationNetwork.WebAccessProbeResult.Authorized:
-                targetUrl = WorkstationNetwork.BuildWebAccessUrl(address, null);
+                // 已有可用密钥时直接用同一把密钥打开，不再走申请流程
+                targetUrl = WorkstationNetwork.BuildWebAccessUrl(
+                    address,
+                    savedKey.Length > 0 ? savedKey : null);
                 break;
             case WorkstationNetwork.WebAccessProbeResult.Unauthorized:
-                Console.WriteLine("主机开启了网页访问保护，正在申请接入，请到主机上点允许…");
+                // 首次连接必须让主人知道要去主机上点允许，否则只会在主机端莫名弹窗
+                MacDialog.ShowMessage(
+                    $"「{Describe(host)}」还没有允许这台电脑查看。\n\n"
+                        + "请到保存主机上点“允许”，允许后这台电脑以后可以直接查看，不用再确认。",
+                    "PackingProof 查看端");
+                Console.WriteLine($"主机开启了网页访问保护，正在申请接入，请到 {Describe(host)} 上点允许…");
                 BackupDeviceEnrollmentResult enrollment;
                 try
                 {
@@ -75,7 +102,7 @@ internal static class ViewerSession
                 return 1;
         }
 
-        RememberHost(config, host, targetUrl!);
+        RememberHost(config, host, ExtractAccessKey(targetUrl!));
         HostOptions.OpenUrl(targetUrl!);
         Console.WriteLine($"已连接 {host.NodeName}，网页回放 {targetUrl}");
         return 0;
@@ -107,17 +134,39 @@ internal static class ViewerSession
             ? host.Address
             : $"{host.NodeName}（{host.Address}）";
 
+    /// <summary>本机自己就是这台主机（NodeId 相同）时不能作为查看端连自己。</summary>
+    private static bool IsSelf(AppConfig config, PackingProofNodeInfo host) =>
+        !string.IsNullOrWhiteSpace(config.NodeId)
+        && string.Equals(config.NodeId, host.NodeId, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// 记住主机：除了身份，还要记下**地址**与网页访问密钥，
-    /// 否则桌面的"打开网页回放"只能打开本机地址（曾经就是这个 bug）。
+    /// 记住主机：除了身份，还要记下**地址**与网页访问密钥。
+    /// 密钥按调用方传入的值整体覆盖（换主机传空串即丢弃旧密钥），
+    /// 不能在这里自己从地址里猜，否则拿不到密钥的调用会把已保存的密钥清掉。
+    /// 用 TryUpdate 在锁内读最新配置再改：连接主机要等对方点允许，
+    /// 这段时间用户可能在菜单里改别的设置，整份回写旧配置会把那些改动冲掉。
     /// </summary>
-    private static void RememberHost(AppConfig config, PackingProofNodeInfo host, string accessUrl)
+    private static void RememberHost(AppConfig config, PackingProofNodeInfo host, string webAccessKey)
     {
-        config.LastKnownHostNodeId = host.NodeId;
-        config.LastKnownHostNodeName = host.NodeName;
-        config.LastKnownHostAddress = host.Address;
-        config.LastKnownHostWebAccessKey = ExtractAccessKey(accessUrl);
-        WorkstationConfigStore.TrySave(config, out _);
+        string key = (webAccessKey ?? "").Trim();
+        if (!WorkstationConfigStore.TryUpdate(
+                latest =>
+                {
+                    latest.LastKnownHostNodeId = host.NodeId;
+                    latest.LastKnownHostNodeName = host.NodeName;
+                    latest.LastKnownHostAddress = host.Address;
+                    latest.LastKnownHostWebAccessKey = key;
+                },
+                out AppConfig saved,
+                out _))
+        {
+            return;
+        }
+
+        config.LastKnownHostNodeId = saved.LastKnownHostNodeId;
+        config.LastKnownHostNodeName = saved.LastKnownHostNodeName;
+        config.LastKnownHostAddress = saved.LastKnownHostAddress;
+        config.LastKnownHostWebAccessKey = saved.LastKnownHostWebAccessKey;
     }
 
     private static string ExtractAccessKey(string url)
