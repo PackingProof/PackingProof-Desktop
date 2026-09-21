@@ -226,6 +226,19 @@ namespace ExpressPackingMonitoring.Config
 
         public static bool IsSystemDrive(string driveRoot)
         {
+            if (string.IsNullOrWhiteSpace(driveRoot)) return false;
+
+            // macOS / Linux 的系统盘就是根挂载点；外接盘与网络卷挂在 /Volumes 之类下面，不是系统盘
+            if (!OperatingSystem.IsWindows())
+            {
+                return string.Equals(
+                    Path.GetFullPath(driveRoot).TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar),
+                    "",
+                    StringComparison.Ordinal);
+            }
+
             string systemRoot = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? "";
             return string.Equals(
                 Path.GetFullPath(driveRoot).TrimEnd(Path.DirectorySeparatorChar),
