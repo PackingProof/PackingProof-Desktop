@@ -328,6 +328,9 @@ internal static class MenuCommands
             config.LastKnownHostNodeId,
             normalizedNodeId,
             StringComparison.OrdinalIgnoreCase);
+        // 手动连接允许直接粘贴带 key 的完整链接（与 MacViewer 的手动连接一致）：
+        // 拿到 key 就不用再走一次申请授权
+        string keyFromInput = ExtractAccessKey(address);
 
         RuntimeLog.Info(
             "MenuCommands",
@@ -336,7 +339,14 @@ internal static class MenuCommands
         config.LastKnownHostAddress = normalizedAddress;
         config.LastKnownHostNodeId = normalizedNodeId;
         config.LastKnownHostNodeName = (nodeName ?? "").Trim();
-        if (nodeChanged) config.LastKnownHostWebAccessKey = "";
+        if (keyFromInput.Length > 0)
+        {
+            config.LastKnownHostWebAccessKey = keyFromInput;
+        }
+        else if (nodeChanged)
+        {
+            config.LastKnownHostWebAccessKey = "";
+        }
 
         if (!WorkstationConfigStore.TrySave(config, out string error))
         {
@@ -457,6 +467,22 @@ internal static class MenuCommands
 
     private static string TrimPath(string path) =>
         path.Trim().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+    /// 从"主机地址或连接链接"里取出 ?key=，取不到返回空串。
+    private static string ExtractAccessKey(string input)
+    {
+        if (!Uri.TryCreate(input?.Trim() ?? "", UriKind.Absolute, out Uri? uri))
+            return "";
+
+        foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = pair.Split('=', 2);
+            if (parts.Length == 2 && string.Equals(parts[0], "key", StringComparison.OrdinalIgnoreCase))
+                return Uri.UnescapeDataString(parts[1]);
+        }
+
+        return "";
+    }
 
     private static bool HasFlag(string[] arguments, string name) =>
         arguments.Any(argument => string.Equals(argument, name, StringComparison.OrdinalIgnoreCase));
