@@ -18,6 +18,10 @@ struct MainWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if model.updateAvailable && !model.updateDismissed {
+                Divider()
+                updateRow
+            }
             if let banner = model.banner {
                 Divider()
                 bannerRow(banner)
@@ -125,6 +129,37 @@ struct MainWindowView: View {
         .padding(.vertical, 8)
         .background(
             (model.bannerIsError ? AppTheme.errorRed : AppTheme.successGreen).opacity(0.12))
+    }
+
+    /// 检查更新的提示：只说有新版本并给下载入口，不在应用里替换自己
+    private var updateRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundStyle(AppTheme.accentBlue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("发现新版本 \(model.updateVersion)")
+                    .font(.system(size: 13, weight: .semibold))
+                if !model.updateTitle.isEmpty {
+                    Text(model.updateTitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            Button("打开下载页") { model.openUpdatePage() }
+                .controlSize(.small)
+            Button {
+                model.dismissUpdate()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(AppTheme.accentBlue.opacity(0.12))
     }
 
     private static var appIcon: NSImage {
@@ -457,6 +492,22 @@ private struct SettingsView: View {
                      : "接收手机与其他电脑上传的录像，并对外提供网页回放")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await model.checkUpdate() }
+                    } label: {
+                        Label("检查更新", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .controlSize(.small)
+                    if model.updateAvailable {
+                        Text("有新版本 \(model.updateVersion)")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.accentBlue)
+                        Button("打开下载页") { model.openUpdatePage() }
+                            .controlSize(.small)
+                    }
+                }
+                .padding(.top, 6)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)

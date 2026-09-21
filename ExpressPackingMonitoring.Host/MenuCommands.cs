@@ -88,7 +88,39 @@ internal static class MenuCommands
             return true;
         }
 
+        if (HasFlag(arguments, "--check-update"))
+        {
+            await WriteUpdateStatusAsync();
+            return true;
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// 检查有没有新版本：复用桌面端的 UpdateCheckService（跨平台），
+    /// 菜单栏壳只负责把结果画出来，判断逻辑不在这里重写。
+    /// </summary>
+    private static async Task WriteUpdateStatusAsync()
+    {
+        try
+        {
+            var service = new UpdateCheckService();
+            UpdateCheckResult result = await service.CheckManualAsync();
+            WriteJson(new
+            {
+                ok = true,
+                currentVersion = AppVersion.Current,
+                hasUpdate = result.HasUpdate,
+                latestVersion = result.LatestVersion,
+                title = result.Title,
+                downloadUrl = result.DownloadUrl
+            });
+        }
+        catch (Exception ex)
+        {
+            WriteJson(new { ok = false, error = ex.Message });
+        }
     }
 
     /// <summary>各保存位置的容量现状：总量、可用、容量上限与预留，全部按真实卷计算。</summary>

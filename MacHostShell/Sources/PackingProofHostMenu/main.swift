@@ -28,6 +28,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostLaunching = false
     /// 界面内提示的代次：新的提示会顶掉旧的自动消失
     private var bannerGeneration = 0
+    /// 检查更新：启动后查一次，之后每天一次（只提示，不下载不替换）
+    private var lastUpdateCheck = Date.distantPast
+    private var updateDownloadUrl = ""
     private var hostServing = false
     private var viewerRunning = false
 
@@ -113,6 +116,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             model.needsPurposeSetup = true
             model.requestPurposeChooser()
         }
+        refreshUpdateStatus(force: true)
 
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             self?.refresh()
@@ -247,8 +251,50 @@ final class HostShell: NSObject, NSApplicationDelegate {
             },
             addDisk: { [weak self] path in self?.addStorageDisk(root: path) },
             toggleAutostart: { [weak self] in self?.toggleAutostart() },
-            openLogs: { [weak self] in self?.openLogs() })
+            openLogs: { [weak self] in self?.openLogs() },
+            checkUpdate: { [weak self] in await self?.checkUpdateAsync() },
+            openUpdatePage: { [weak self] in self?.openUpdatePage() })
     }
+
+    // MARK: - 检查更新（只提示，不下载不替换）
+
+    /// 启动后查一次，之后每天一次；判重与版本比较都在核心的 UpdateCheckService 里
+    private func refreshUpdateStatus(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastUpdateCheck) > 24 * 60 * 60 else { return }
+        lastUpdateCheck = Date()
+
+        runHostCommand(["--check-update"], timeout: 30) { [weak self] json in
+            guard let self, let json, (json["ok"] as? Bool) == true else { return }
+
+            let hasUpdate = (json["hasUpdate"] as? Bool) ?? false
+            self.updateDownloadUrl = (json["downloadUrl"] as? String) ?? ""
+            DispatchQueue.main.async {
+                self.model.updateAvailable = hasUpdate
+                self.model.updateVersion = (json["latestVersion"] as? String) ?? ""
+                self.model.updateTitle = (json["title"] as? String) ?? ""
+                self.model.updateDownloadUrl = self.updateDownloadUrl
+                if hasUpdate { self.model.updateDismissed = false }
+                self.rebuildMenu()
+            }
+        }
+    }
+
+    private func checkUpdateAsync() async {
+        lastUpdateCheck = Date.distantPast
+        refreshUpdateStatus(force: true)
+    }
+
+    @objc private func checkUpdateAction() { Task { await checkUpdateAsync() } }
+
+    /// 打开下载页：优先用发布页地址；没有就退到 GitHub 的 releases 页
+    private func openUpdatePage() {
+        let fallback = "https://github.com/PackingProof/PackingProof-Desktop/releases/latest"
+        let target = updateDownloadUrl.isEmpty ? fallback : updateDownloadUrl
+        guard let url = URL(string: target) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func openUpdatePageAction() { openUpdatePage() }
 
     // MARK: - 窗口动作（与菜单栏走同一套实现）
 
@@ -408,6 +454,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         refreshStorageSummary()
         refreshViewerStatus()
         refreshDiscoveredHosts()
+        refreshUpdateStatus()
         guard let url = URL(string: "http://127.0.0.1:\(port)/api/node-info") else { return }
         var request = URLRequest(url: url)
         request.timeoutInterval = 3
@@ -503,6 +550,10 @@ final class HostShell: NSObject, NSApplicationDelegate {
         // 查看端只要记住了一台主机就允许点：还没拿到主机允许时，点它就是去申请接入
         playbackItem.isEnabled = isViewer ? !hostAddress.isEmpty : hostServing
         menu.addItem(playbackItem)
+        if model.updateAvailable && !model.updateDismissed {
+            menu.addItem(actionItem("有新版本 \(model.updateVersion)…", #selector(openUpdatePageAction)))
+        }
+        menu.addItem(actionItem("检查更新", #selector(checkUpdateAction)))
         menu.addItem(actionItem("设置…", #selector(openSettingsAction)))
         menu.addItem(.separator())
         menu.addItem(actionItem("退出", #selector(quit)))
