@@ -5137,18 +5137,19 @@ namespace ExpressPackingMonitoring.Services
 
                 // 流式转码：缩到 480p + 极速设置，确保转码速度 > 实时播放速度
                 string scaleFilter = "-vf scale=-2:480";
-                string hwArgs = $"-loglevel warning -hwaccel auto -i \"{filePath}\" {scaleFilter} -c:v h264_nvenc -preset p1 -cq 30 -c:a aac -b:a 96k -movflags frag_keyframe+empty_moov+default_base_moof -f mp4 pipe:1";
-                string swArgs = $"-loglevel warning -i \"{filePath}\" {scaleFilter} -c:v libx264 -preset ultrafast -tune zerolatency -crf 28 -c:a aac -b:a 96k -movflags frag_keyframe+empty_moov+default_base_moof -f mp4 pipe:1";
+                // 编码器按平台与可用性选择，硬编码 h264_nvenc 会让没 NVIDIA 的机器白失败一次
+                string hwArgs = WebTranscodeEncoderPolicy.BuildHardwareArguments(ffmpegPath, filePath, scaleFilter);
+                string swArgs = WebTranscodeEncoderPolicy.BuildCpuArguments(filePath, scaleFilter);
 
                 // iOS AVPlayer 依赖 Range/206：边转码边推流的 chunked 响应会被判定为
                 // serverIncorrectlyConfigured(-12939)。Apple 客户端先完整转码进缓存，
                 // 再按标准 Range 传输；浏览器继续保留边转码边推流的低延迟行为。
                 if (IsApplePlaybackClientRequest(ctx))
                 {
-                    bool transcoded = TranscodeToFile(ffmpegPath, hwArgs, tmpPath);
+                    bool transcoded = hwArgs.Length > 0 && TranscodeToFile(ffmpegPath, hwArgs, tmpPath);
                     if (!transcoded)
                     {
-                        Log("ServeTranscodedStream: NVENC 预转码失败，回退 CPU");
+                        if (hwArgs.Length > 0) Log("ServeTranscodedStream: 硬件预转码失败，回退 CPU");
                         transcoded = TranscodeToFile(ffmpegPath, swArgs, tmpPath);
                     }
                     if (!transcoded)
@@ -5163,14 +5164,13 @@ namespace ExpressPackingMonitoring.Services
                     return;
                 }
 
-                if (!StreamTranscodeToClient(ctx, ffmpegPath, hwArgs, tmpPath))
+                bool streamed = hwArgs.Length > 0 && StreamTranscodeToClient(ctx, ffmpegPath, hwArgs, tmpPath);
+                if (!streamed && hwArgs.Length > 0)
+                    Log("ServeTranscodedStream: 硬件流式转码失败，回退 CPU");
+                if (!streamed && !StreamTranscodeToClient(ctx, ffmpegPath, swArgs, tmpPath))
                 {
-                    Log("ServeTranscodedStream: NVENC 流式转码失败，回退 CPU");
-                    if (!StreamTranscodeToClient(ctx, ffmpegPath, swArgs, tmpPath))
-                    {
-                        try { File.Delete(tmpPath); } catch { }
-                        return; // 响应已在内部处理
-                    }
+                    try { File.Delete(tmpPath); } catch { }
+                    return; // 响应已在内部处理
                 }
 
                 // 转码成功，将临时文件提升为正式缓存
