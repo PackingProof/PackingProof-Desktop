@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Text.Json;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
 
 namespace ExpressPackingMonitoring.Host;
@@ -151,6 +152,7 @@ internal static class MenuCommands
         AppConfig config = WorkstationConfigStore.Load();
         if (!string.Equals(config.DeploymentPreset, mapped, StringComparison.Ordinal))
         {
+            RuntimeLog.Info("MenuCommands", $"SetPurpose {config.DeploymentPreset} -> {mapped}");
             config.DeploymentPreset = mapped;
             AppConfig.NormalizeAfterLoad(config);
             AppConfig.MarkDeploymentSetupCompleted(config);
@@ -193,6 +195,7 @@ internal static class MenuCommands
         List<StorageLocation> locations = OrderedLocations(config);
         if (!locations.Any(location => string.Equals(location.Path, full, StringComparison.Ordinal)))
         {
+            RuntimeLog.Info("MenuCommands", $"AddStorage path={full}");
             int nextPriority = locations.Count == 0 ? 1 : locations.Max(location => location.Priority) + 1;
             locations.Add(new StorageLocation
             {
@@ -215,6 +218,7 @@ internal static class MenuCommands
     private static void ApplyAutostart(string value)
     {
         bool enable = value.Trim().ToLowerInvariant() is "on" or "true" or "1";
+        RuntimeLog.Info("MenuCommands", $"SetAutostart enable={enable}");
         bool ok = enable
             ? LaunchAgentInstaller.TryInstall(out string error)
             : LaunchAgentInstaller.TryUninstall(out error);
@@ -259,6 +263,9 @@ internal static class MenuCommands
             return;
         }
 
+        RuntimeLog.Info(
+            "MenuCommands",
+            $"SetStorageLimit byCapacity={byCapacity}, value={gigabytes}, path={location.Path}");
         if (!WorkstationConfigStore.TrySave(config, out string saveError))
         {
             WriteJson(new { ok = false, error = saveError });
@@ -322,6 +329,10 @@ internal static class MenuCommands
             normalizedNodeId,
             StringComparison.OrdinalIgnoreCase);
 
+        RuntimeLog.Info(
+            "MenuCommands",
+            $"SelectHost address={normalizedAddress}, nodeChanged={nodeChanged}");
+
         config.LastKnownHostAddress = normalizedAddress;
         config.LastKnownHostNodeId = normalizedNodeId;
         config.LastKnownHostNodeName = (nodeName ?? "").Trim();
@@ -346,6 +357,7 @@ internal static class MenuCommands
     private static void ForgetHost()
     {
         AppConfig config = WorkstationConfigStore.Load();
+        RuntimeLog.Info("MenuCommands", "ForgetHost 清除已记住的主机");
         config.LastKnownHostNodeId = "";
         config.LastKnownHostNodeName = "";
         config.LastKnownHostAddress = "";
