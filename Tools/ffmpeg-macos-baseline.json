@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "version": "9.0.2",
+  "runtime": "osx-arm64",
+  "provider": "Martin Riedl FFmpeg Build Server（GPL v3 静态构建，含 libx264/libx265）",
+  "package": {
+    "file": "ffmpeg.zip",
+    "size": 28395699,
+    "sha256": "c8ed4c4e6978a03c485edbfe4e0a5dc2380f8a30bba5150531b31b094492d924",
+    "entry": "ffmpeg",
+    "executable_size": 66332880,
+    "executable_sha256": "2e11c6f90993cdb79fff84d3f90044d28316b310e75b3e030cfc9a54f2c9d384",
+    "urls": [
+      "https://ffmpeg.martin-riedl.de/download/macos/arm64/1789931890_9.0.2/ffmpeg.zip"
+    ]
+  }
+}
