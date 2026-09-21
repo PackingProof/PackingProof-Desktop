@@ -275,6 +275,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 改完设置问一次：是否立即重启，让新用途/新位置马上生效
     private func confirmRestart(after message: String) {
+        statusItem?.menu?.cancelTracking()
         let alert = NSAlert()
         alert.messageText = message
         alert.informativeText = "是否立即重启主机让设置生效？"
@@ -293,7 +294,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
             kickstart.executableURL = URL(fileURLWithPath: "/bin/launchctl")
             kickstart.arguments = ["kickstart", "-k", "gui/\(uid)/com.packingproof.host"]
             try? kickstart.run()
-            kickstart.waitUntilExit()
         } else {
             stopHost()
         }
@@ -342,6 +342,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func notify(_ text: String) {
+        // 弹窗前收起菜单，否则菜单会卡在展开状态，看起来像点不动
+        statusItem?.menu?.cancelTracking()
         let alert = NSAlert()
         alert.messageText = "PackingProof 保存主机"
         alert.informativeText = text
@@ -387,19 +389,27 @@ final class HostShell: NSObject, NSApplicationDelegate {
             return
         }
 
-        let status = probeStatus(URL(string: hostAddress + "/")!)
-        switch status {
-        case 200, 302:
-            viewerConnected = true
-            viewerHint = "已连接 \(hostName)"
-        case 401:
-            // 主机开了网页保护：拿到密钥才算连上
-            viewerConnected = !hostKey.isEmpty
-            viewerHint = viewerConnected ? "已连接 \(hostName)" : "等待主机确认接入"
-        default:
-            viewerConnected = false
-            viewerHint = "未连接主机"
-        }
+        // 异步探测：主线程等待网络会让菜单点不动（曾经就是这样）
+        var request = URLRequest(url: URL(string: hostAddress + "/")!)
+        request.timeoutInterval = 4
+        URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch status {
+                case 200, 302:
+                    self.viewerConnected = true
+                    self.viewerHint = "已连接 \(self.hostName)"
+                case 401:
+                    self.viewerConnected = !self.hostKey.isEmpty
+                    self.viewerHint = self.viewerConnected ? "已连接 \(self.hostName)" : "等待主机确认接入"
+                default:
+                    self.viewerConnected = false
+                    self.viewerHint = "未连接主机"
+                }
+                self.rebuildMenu()
+            }
+        }.resume()
     }
 
     private var hostName: String {
