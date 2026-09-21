@@ -60,7 +60,7 @@ internal static class LocalSettingsEndpoints
             return true;
         }
 
-        if (!TryApply(config, request.Purpose, request.StoragePath, out string error, out bool changed))
+        if (!TryApply(config, request.Purpose, request.StoragePath, request.AddStoragePath, out string error, out bool changed))
         {
             WriteJson(ctx, 400, new { errorCode = "invalid_request", error });
             return true;
@@ -103,6 +103,11 @@ internal static class LocalSettingsEndpoints
         purpose = DeploymentPresets.Normalize(config.DeploymentPreset),
         purposeName = DeploymentPresets.GetDisplayName(config.DeploymentPreset),
         storagePath = config.StorageLocations?.FirstOrDefault()?.Path ?? "",
+        storagePaths = (config.StorageLocations ?? [])
+            .Where(location => !string.IsNullOrWhiteSpace(location.Path))
+            .OrderBy(location => location.Priority)
+            .Select(location => location.Path)
+            .ToList(),
         storageAvailable = IsStorageUsable(config.StorageLocations?.FirstOrDefault()?.Path),
         autostartInstalled = AutostartPlistExists(),
         hostUrl = "",
@@ -117,6 +122,7 @@ internal static class LocalSettingsEndpoints
         AppConfig config,
         string? purpose,
         string? storagePath,
+        string? addStoragePath,
         out string error,
         out bool changed)
     {
@@ -148,6 +154,35 @@ internal static class LocalSettingsEndpoints
         }
 
         string path = (storagePath ?? "").Trim();
+        string addPath = (addStoragePath ?? "").Trim();
+        if (addPath.Length > 0)
+        {
+            if (!Path.IsPathRooted(addPath))
+            {
+                error = "存储位置必须是绝对路径";
+                return false;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(addPath);
+            }
+            catch (Exception ex)
+            {
+                error = $"无法使用该目录：{ex.Message}";
+                return false;
+            }
+
+            var locations = config.StorageLocations ?? [];
+            if (!locations.Any(location => string.Equals(location.Path, addPath, StringComparison.Ordinal)))
+            {
+                int nextPriority = locations.Count == 0 ? 1 : locations.Max(location => location.Priority) + 1;
+                locations.Add(new StorageLocation { Path = addPath, Priority = nextPriority, IsBackupTarget = false });
+                config.StorageLocations = locations;
+                changed = true;
+            }
+        }
+
         if (path.Length > 0)
         {
             if (!Path.IsPathRooted(path))
@@ -227,5 +262,8 @@ internal static class LocalSettingsEndpoints
         public string? Purpose { get; set; }
         public string? StoragePath { get; set; }
         public bool? Autostart { get; set; }
+
+        /// <summary>追加一个存储位置（按优先级排在最后），与桌面端"添加磁盘"一致。</summary>
+        public string? AddStoragePath { get; set; }
     }
 }
