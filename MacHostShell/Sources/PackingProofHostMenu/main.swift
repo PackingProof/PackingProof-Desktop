@@ -27,7 +27,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "PP"
+        applyIcon(to: item)
         statusItem = item
 
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -69,8 +69,6 @@ final class HostShell: NSObject, NSApplicationDelegate {
         purposeName = isViewer ? "查看端" : "保存主机"
         // 第一行只说用途，不带电脑名与括号
         status = reachable ? purposeName : "未启动"
-        // 不加指示灯，标题保持固定
-        statusItem?.button?.title = "PP"
         rebuildMenu()
         if !reachable { ensureHostRunning() }
     }
@@ -116,6 +114,19 @@ final class HostShell: NSObject, NSApplicationDelegate {
         lines.append("· 打开日志目录")
         lines.append("· 退出")
         return lines.joined(separator: "\n")
+    }
+
+    /// 菜单栏图标用应用自己的图标（打包时由 app.ico 转出），没有时退回文字
+    private func applyIcon(to item: NSStatusItem) {
+        guard let path = Bundle.main.resourceURL?.appendingPathComponent("MenuIcon.png"),
+              let image = NSImage(contentsOf: path) else {
+            item.button?.title = "PP"
+            return
+        }
+
+        image.size = NSSize(width: 18, height: 18)
+        item.button?.image = image
+        item.button?.imagePosition = .imageOnly
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
