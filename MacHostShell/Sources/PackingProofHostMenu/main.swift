@@ -18,6 +18,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostAddress = ""
     private var hostKey = ""
     private var storagePaths: [String] = []
+    private var hostProblem = ""
+    private var viewerConnected = false
+    private var viewerHint = "未连接主机"
     private var hostServing = false
     private var viewerRunning = false
 
@@ -26,6 +29,20 @@ final class HostShell: NSObject, NSApplicationDelegate {
     // MARK: - 生命周期
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--status") {
+            refreshSettings()
+            refreshAutostart()
+            let serving = probeStatus(URL(string: "http://127.0.0.1:\(port)/api/node-info")!) == 200
+            hostServing = serving
+            if purpose == "MobileBackupHost" && !serving { hostProblem = readHostFailure() ?? "" }
+            refreshViewerConnection()
+            print("第一行: \(statusText)")
+            print("本机主机服务: \(serving ? "运行中" : "未运行")")
+            print("查看端连接: \(viewerConnected ? "已连接" : viewerHint)")
+            print("回放项: \(purpose == "MobileBackupHost" ? (serving ? "可用" : "禁用") : (viewerConnected ? "可用" : "禁用"))")
+            exit(0)
+        }
+
         if CommandLine.arguments.contains("--dump-menu") {
             refreshSettings()
             refreshAutostart()
@@ -60,17 +77,24 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.hostServing = serving
                 self.viewerRunning = self.launchedHosts.contains { $0.isRunning } && !serving
+                if self.purpose == "MobileBackupHost" && !serving {
+                    self.hostProblem = self.readHostFailure() ?? self.hostProblem
+                    // 只有保存主机才需要在后台常驻；查看端由用户显式点开回放
+                    self.ensureHostRunning()
+                } else if serving {
+                    self.hostProblem = ""
+                }
+                self.refreshViewerConnection()
                 self.rebuildMenu()
-                // 只有保存主机才需要在后台常驻；查看端由用户显式点开回放
-                if self.purpose == "MobileBackupHost" && !serving { self.ensureHostRunning() }
             }
         }.resume()
     }
 
     private var statusText: String {
-        if purpose == "ViewerClient" { return viewerRunning ? "查看端（正在搜索主机）" : "查看端" }
+        if purpose == "ViewerClient" { return "查看端（\(viewerHint)）" }
         if purpose.isEmpty { return "未启动" }
-        return "保存主机"
+        // 起不来时直接把原因摆在菜单第一行，用户不必去翻日志
+        return hostProblem.isEmpty ? "保存主机" : "保存主机未启动：\(hostProblem)"
     }
 
     /// 主机没在跑就把它拉起来；失败重试间隔 30 秒，避免配置有问题时反复拉起
@@ -121,7 +145,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         let playbackItem = actionItem("打开网页回放", #selector(openPlayback))
-        playbackItem.isEnabled = purpose == "MobileBackupHost" ? hostServing : !hostAddress.isEmpty
+        playbackItem.isEnabled = purpose == "MobileBackupHost" ? hostServing : viewerConnected
         menu.addItem(playbackItem)
         menu.addItem(actionItem("打开日志目录", #selector(openLogs)))
         menu.addItem(.separator())
@@ -262,14 +286,30 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func restartHost() {
-        stopHost()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        if autostartInstalled {
+            // 装机自启时进程由 launchd 托管，必须让 launchd 重启它，否则会顶掉托管关系
+            let uid = String(getuid())
+            let kickstart = Process()
+            kickstart.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            kickstart.arguments = ["kickstart", "-k", "gui/\(uid)/com.packingproof.host"]
+            try? kickstart.run()
+            kickstart.waitUntilExit()
+        } else {
+            stopHost()
+        }
+
+        lastLaunchAttempt = Date()
+        hostProblem = ""
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self else { return }
-            self.lastLaunchAttempt = Date()
-            self.runHost(arguments: self.purpose == "ViewerClient"
-                ? ["--no-browser", "--service"]
-                : ["--no-browser", "--service"])
-            self.refresh()
+            if !self.autostartInstalled { self.runHost(arguments: ["--no-browser", "--service"]) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+                guard let self else { return }
+                self.refresh()
+                if self.purpose == "MobileBackupHost" && !self.hostServing, let reason = self.readHostFailure() {
+                    self.notify("主机没有起来：\(reason)")
+                }
+            }
         }
     }
 
@@ -337,6 +377,56 @@ final class HostShell: NSObject, NSApplicationDelegate {
             .sorted { (($0["Priority"] as? Int) ?? 99) < (($1["Priority"] as? Int) ?? 99) }
         storagePaths = ordered.compactMap { $0["Path"] as? String }
         storagePath = storagePaths.first ?? ""
+    }
+
+    /// 查看端：只有主机真的能连上（或已有密钥）才算"已连接"，否则禁用回放项
+    private func refreshViewerConnection() {
+        guard purpose == "ViewerClient", !hostAddress.isEmpty else {
+            viewerConnected = false
+            viewerHint = hostAddress.isEmpty ? "未连接主机" : viewerHint
+            return
+        }
+
+        let status = probeStatus(URL(string: hostAddress + "/")!)
+        switch status {
+        case 200, 302:
+            viewerConnected = true
+            viewerHint = "已连接 \(hostName)"
+        case 401:
+            // 主机开了网页保护：拿到密钥才算连上
+            viewerConnected = !hostKey.isEmpty
+            viewerHint = viewerConnected ? "已连接 \(hostName)" : "等待主机确认接入"
+        default:
+            viewerConnected = false
+            viewerHint = "未连接主机"
+        }
+    }
+
+    private var hostName: String {
+        hostAddress.isEmpty ? "主机" : hostAddress
+    }
+
+    /// 主机启动失败时，日志最后一行就是原因
+    private func readHostFailure() -> String? {
+        let logURL = Self.logDirectory.appendingPathComponent("host.log")
+        guard let text = try? String(contentsOf: logURL, encoding: .utf8) else { return nil }
+        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard let last = lines.last else { return nil }
+        guard last.contains("失败") else { return nil }
+        return last.replacingOccurrences(of: "保存主机启动失败：", with: "")
+    }
+
+    private func probeStatus(_ url: URL, timeout: TimeInterval = 4) -> Int {
+        var status = 0
+        let semaphore = DispatchSemaphore(value: 0)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            semaphore.signal()
+        }.resume()
+        _ = semaphore.wait(timeout: .now() + timeout + 1)
+        return status
     }
 
     private func refreshAutostart() {

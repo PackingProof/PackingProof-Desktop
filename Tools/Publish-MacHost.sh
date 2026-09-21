@@ -50,11 +50,15 @@ sips -s format png -Z 36 "${app_icon_source}" \
 
 icon_work="$(mktemp -d)"
 mkdir -p "${icon_work}/AppIcon.iconset"
-for size in 16 32 128 256; do
-  sips -s format png -Z "${size}" "${app_icon_source}" \
-    --out "${icon_work}/AppIcon.iconset/icon_${size}x${size}.png" >/dev/null
-  sips -s format png -Z "$((size * 2))" "${app_icon_source}" \
-    --out "${icon_work}/AppIcon.iconset/icon_${size}x${size}@2x.png" >/dev/null
+# Finder/Dock 需要完整的尺寸集合：缺 512 会退回系统默认图标
+for spec in "16 16" "32 16" "32 32" "64 32" "128 128" "256 128" "256 256" "512 256" "512 512" "1024 512"; do
+  set -- ${spec}
+  pixel_size="$1"
+  point_size="$2"
+  suffix=""
+  if [ "${pixel_size}" != "${point_size}" ]; then suffix="@2x"; fi
+  sips -s format png -Z "${pixel_size}" "${app_icon_source}" \
+    --out "${icon_work}/AppIcon.iconset/icon_${point_size}x${point_size}${suffix}.png" >/dev/null
 done
 iconutil -c icns "${icon_work}/AppIcon.iconset" -o "${app_bundle}/Contents/Resources/AppIcon.icns"
 rm -rf "${icon_work}"
@@ -92,6 +96,9 @@ PLIST
 echo "==> 签名（未设置 SIGN_IDENTITY 时用临时签名）"
 codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}/Contents/MacOS/Host/${host_binary_name}"
 codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}"
+
+# 改一下 bundle 时间戳，促使 Finder 刷新图标缓存
+touch "${app_bundle}"
 
 echo "==> 校验产物"
 if [[ -e "${app_bundle}/Contents/MacOS/Host/config.json" || -e "${app_bundle}/Contents/MacOS/Host/videos.db" || -e "${app_bundle}/Contents/MacOS/Host/log" ]]; then
