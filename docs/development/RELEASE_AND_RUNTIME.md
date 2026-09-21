@@ -31,6 +31,8 @@
 
 - macOS 包（`Tools/Publish-MacHost.sh`）产出 `.app` 与 `PackingProof-macOS-<版本>.dmg`；设置 `SIGN_IDENTITY` 时走 Developer ID + 加固运行时并在 DMG 与 .app 上装订公证票据。macOS 不做增量补丁：逐文件替换会破坏签名与公证，升级一律整包替换（下载 DMG、拖进应用程序）。Mac 端只通过 `UpdateCheckService` 检查并提示新版本，不在应用内替换自身。
 
+- macOS 包只能在 Mac 上构建（swift + codesign），Windows 侧发布脚本够不到，所以用 `Tools/Publish-MacRelease.sh [版本号] [github|gitee|both]`：校验工作区干净且标签指向当前提交 → 构建并签名/公证 DMG → 挂到**同一个 `vX.Y.Z` Release**（不另开 mac 标签）→ 在 `update_v<版本>.json` 里补 `platforms.macos`（只作下载入口与人工核对）。版本号两个平台共用；**更新检查判断"这个版本有没有 Mac 包"看的是该 Release 里有没有 DMG 资产**，因此只修 Windows 的版本不需要任何额外操作，Mac 端会自动跳过它。
+
 - 发布版本维护在 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>`，并与 `vX.Y.Z` 标签一致。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 代码改动一律走远程 PR，不再直接向 `main` 推送提交。提到哪个平台按问题来源决定：我们自己发现的 **bug** 先在 GitHub 开 issue，再提 PR 并在说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某个平台提的 issue，PR 就提到那个平台（Gitee 的 issue 提 Gitee PR，GitHub 的 issue 提 GitHub PR）。PR 默认提到 GitHub；目标可以用仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `github`）或命令行 `-Target` 覆盖。用 `pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-Merge]` 推送分支、创建 PR，并在需要时用 rebase 合并、把主干同步到另一个远端。
 - 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（rebase 合并，保留每个提交，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
@@ -66,8 +68,8 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 | 目标 | 上传资产 |
 | --- | --- |
-| GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch |
-| Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup |
+| GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；macOS 包 `PackingProof-macOS-<版本>.dmg`（在 Mac 上用 `Tools/Publish-MacRelease.sh` 上传） |
+| Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch，不上传 Setup；macOS 包 `PackingProof-macOS-<版本>.dmg` 同上 |
 | Gitee 专属（可选） | `PackingProof_Setup_no-runtime_vX.Y.Z.exe`：不含 .NET 运行时的安装向导（约 60MB），给 Gitee 用户一个"双击安装"的全量入口 —— Gitee 单附件上限 100MB，自包含 Setup 约 110MB 传不上去。用 `pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 用 `--self-contained false` 重新发布。运行时没变时 AppPatch 不含运行时文件，所以这类安装同样能正常自动更新。默认不上传 ZIP 免安装包（`PackingProof_no-runtime_vX.Y.Z.zip`），确有需要时加 `-IncludeZip` |
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release，默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`。对外分发只有 Setup、AppPatch 与 update JSON（普通用户通过启动器自动更新，无需手动下载清单）。

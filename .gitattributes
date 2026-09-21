@@ -2,6 +2,7 @@
 
 # macOS 打包脚本必须保持 LF：CRLF 会让 shebang 变成 bash\r 而无法执行。
 Tools/Publish-MacHost.sh text eol=lf
+Tools/Publish-MacRelease.sh text eol=lf
 
 # 市场目录签名覆盖原始字节，测试夹具禁止检出时转换行尾。
 ExpressPackingMonitoring.Tests/Fixtures/ExtensionMarket/catalog.v1.json -text
