@@ -254,11 +254,18 @@ struct MainWindowView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 8) {
+                    VStack(spacing: 0) {
                         ForEach(model.devices) { device in
-                            DeviceCard(device: device)
+                            DeviceRow(device: device)
+                            if device.id != model.devices.last?.id { Divider() }
                         }
                     }
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color(nsColor: .controlBackgroundColor)))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                 }
@@ -513,50 +520,37 @@ private struct HostCard: View {
     }
 }
 
-/// 接入的录像设备：绿点表示在线，与电脑端"订单联动设备"列表一致
-private struct DeviceCard: View {
+/// 接入的录像设备：排法与电脑端"手机/电脑备份"卡片一致 ——
+/// 一行一台设备，状态点 + "名字 · 今日备份 N 个"，类型放右侧，
+/// 地址只在鼠标悬停时提示，不再把四行字摞在一起
+private struct DeviceRow: View {
     let device: DeviceItem
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(spacing: 8) {
             Circle()
                 .fill(device.online ? AppTheme.successGreen : Color.secondary.opacity(0.45))
-                .frame(width: 8, height: 8)
-                .padding(.top, 5)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(device.name)
-                        .font(.headline)
-                    Spacer(minLength: 0)
-                    Text(device.online ? "在线" : "离线")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(device.typeText)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                // 与电脑端"手机/电脑备份"卡片同一条信息：今日备份了多少个
-                Text(device.backupSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if !device.address.isEmpty {
-                    Text(device.address)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
+                .frame(width: 7, height: 7)
+            Text(device.name)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+            Text("·")
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+            Text(device.backupSummary)
+                .font(.system(size: 12))
+                .foregroundStyle(device.todayBackupCount > 0 ? .secondary : .tertiary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Text(device.typeText)
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
         }
         .opacity(device.online ? 1 : 0.55)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor)))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        .padding(.vertical, 8)
+        .help(device.address.isEmpty ? device.name : device.address)
     }
 }
 
