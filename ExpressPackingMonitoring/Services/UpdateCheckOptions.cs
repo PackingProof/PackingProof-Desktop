@@ -47,6 +47,33 @@ namespace ExpressPackingMonitoring.Services
             return "";
         }
 
+        /// <summary>
+        /// 把"最新版本"检查地址换成"release 列表"地址：按平台挑版本时要看整份列表，
+        /// 而不是只看最新那一个（有的版本只修了另一个平台）。
+        /// </summary>
+        public static IReadOnlyList<string> ToReleaseListUrls(IReadOnlyList<string> checkUrls)
+        {
+            var list = new List<string>();
+            foreach (string raw in checkUrls)
+            {
+                string url = raw.Trim();
+                if (url.Length == 0) continue;
+
+                string trimmed = url.TrimEnd('/');
+                const string latestSuffix = "/latest";
+                if (trimmed.EndsWith(latestSuffix, StringComparison.OrdinalIgnoreCase))
+                    trimmed = trimmed[..^latestSuffix.Length];
+                if (!trimmed.EndsWith("/releases", StringComparison.OrdinalIgnoreCase))
+                    trimmed += "/releases";
+
+                string withPage = trimmed + "?per_page=30";
+                if (!list.Contains(withPage, StringComparer.OrdinalIgnoreCase))
+                    list.Add(withPage);
+            }
+
+            return list;
+        }
+
         public static IReadOnlyList<string> GetUpdateCheckUrls()
         {
             string? primary = Environment.GetEnvironmentVariable(UrlKey);

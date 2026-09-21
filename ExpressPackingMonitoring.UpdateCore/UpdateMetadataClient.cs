@@ -94,6 +94,51 @@ public sealed class UpdateMetadataClient
             cancellationToken);
     }
 
+    /// <summary>
+    /// 取"最新且带本平台安装包"的 release：在 release 列表里按新到旧找第一个带
+    /// 指定平台包的版本。版本号两个平台共用，只看最新 tag 会把"只修了另一个平台"
+    /// 的版本推给本平台，用户白下载一次。
+    /// </summary>
+    public async Task<ResolvedUpdateRelease> FetchLatestReleaseWithAssetAsync(
+        IReadOnlyList<string> releaseListUrls,
+        Func<string, bool> assetPredicate,
+        CancellationToken cancellationToken)
+    {
+        return await ExecuteWithFallbackAsync(
+            releaseListUrls,
+            async (sourceUrl, token) =>
+            {
+                JsonDocument list = await GetJsonAsync(sourceUrl, token);
+                try
+                {
+                    int index = UpdateReleaseSelection.FindLatestWithAsset(
+                        list.RootElement,
+                        assetPredicate);
+                    if (index < 0)
+                        throw new InvalidDataException("没有找到带本平台安装包的版本");
+
+                    // 下游按"单个 release 对象"解析，这里把它单独复制出来
+                    JsonDocument single = JsonDocument.Parse(
+                        list.RootElement[index].GetRawText());
+                    try
+                    {
+                        RequireLatestVersion(single.RootElement);
+                        return new ResolvedUpdateRelease(single, sourceUrl);
+                    }
+                    catch
+                    {
+                        single.Dispose();
+                        throw;
+                    }
+                }
+                finally
+                {
+                    list.Dispose();
+                }
+            },
+            cancellationToken);
+    }
+
     public async Task<ResolvedUpdateManifest> FetchLatestManifestAsync(
         IReadOnlyList<string> sourceUrls,
         CancellationToken cancellationToken)
