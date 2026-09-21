@@ -15,6 +15,7 @@
 - 正式基线固定为 FFmpeg 4.4.1 Essentials，以兼容 Win7 老显卡的 NVENC API 11.1。AV1 不作为产品能力，选择 AV1 时回退 H.265；暂不实施 8.0.1 + 4.4.1 双基线。
 - 高级用户可在 Win8+ 自行替换 `app\tools\ffmpeg.exe`，官方不保证该自定义环境。
 - 禁止假设 CLI 参数跨版本通用：FFmpeg 8.x 已移除 RTSP `-stimeout`；4.4.x 的 RTSP `-timeout` 会挂起，因此网络摄像头不传 socket 超时参数，由应用层 15 秒连接超时和断流看门狗兜底。`-fps_mode` 仅 5.1+ 可用，旧版回退 `-vsync passthrough`。参数策略集中在 `NetworkCameraSource.BuildArguments`。
+- 网页转码的编码器不能写死：`h264_nvenc` 只在 NVIDIA 机器上存在，AMD/Intel 显卡和 macOS 每次播放都要先失败一次再回退 CPU，Mac 上更是永远拿不到硬件编码。平台候选与参数集中在 `WebTranscodeEncoderPolicy`，用 `ffmpeg -encoders` 探测一次并缓存，探不到就直接走 `libx264`；硬件参数按编码器分别给（NVENC `-preset p1 -cq 30`、QSV `-global_quality`、AMF `-rc cqp`、VideoToolbox `-q:v 45 -realtime true`），不能跨编码器照搬。
 - 修改任何 FFmpeg 调用前，必须使用 `Tools/ffmpeg-baseline.json` 锁定的 4.4.1 和至少一个其他受支持主版本（如 8.0.1）验证受影响流程；同步更新 `NetworkCameraSourceTests` 参数断言和随包 FFmpeg 参数识别测试。
 - macOS 不自带 FFmpeg（`avconvert`、`qlmanage`、`sips` 都不是 ffmpeg CLI 的替代品），因此 Mac 主机必须随包携带二进制：基线锁在 `Tools/ffmpeg-macos-baseline.json`，用 `Tools/Prepare-PinnedFFmpegMac.sh` 下载校验到 `package/dependency-cache/ffmpeg-macos/<版本>/`，`Tools/Publish-MacHost.sh` 再拷进 `Contents/MacOS/Host/tools/ffmpeg`。缺这个文件时缩略图、预览和网页转码会全部失败，网页会显示"编码未知"并回退直接播放原片。
 - macOS 基线固定为 Martin Riedl Build Server 的 arm64 9.0.2 静态 GPL 构建：原生 arm64、只依赖系统框架、上游已用 Developer ID 与加固运行时签名，且未启用 `--enable-nonfree`（可随包分发）。版本 ≥5.1，因此 Mac 主机始终走 `-fps_mode passthrough` 分支。
