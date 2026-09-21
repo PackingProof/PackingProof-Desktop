@@ -78,7 +78,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private func ensureHostRunning() {
         guard Date().timeIntervalSince(lastLaunchAttempt) > 30 else { return }
         lastLaunchAttempt = Date()
-        runHost(arguments: ["--no-browser"])
+        runHost(arguments: ["--no-browser", "--service"])
     }
 
     // MARK: - 菜单
