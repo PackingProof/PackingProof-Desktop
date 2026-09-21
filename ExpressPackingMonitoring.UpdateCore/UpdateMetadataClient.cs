@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Net.Http.Headers;
 
 namespace ExpressPackingMonitoring.UpdateCore;
 
@@ -49,6 +50,7 @@ public sealed class UpdateMetadataClient
 {
     private readonly HttpClient _httpClient;
     private readonly string _userAgent;
+    private readonly Func<string, string> _apiTokenProvider;
     private readonly int _attemptsPerSource;
     private readonly TimeSpan _retryDelay;
     private readonly Action<string>? _log;
@@ -58,10 +60,12 @@ public sealed class UpdateMetadataClient
         string userAgent = "ExpressPackingMonitoring",
         int attemptsPerSource = 1,
         TimeSpan? retryDelay = null,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        Func<string, string>? apiTokenProvider = null)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _userAgent = string.IsNullOrWhiteSpace(userAgent) ? "ExpressPackingMonitoring" : userAgent.Trim();
+        _apiTokenProvider = apiTokenProvider ?? (_ => "");
         _attemptsPerSource = Math.Max(1, attemptsPerSource);
         _retryDelay = retryDelay ?? TimeSpan.FromMilliseconds(500);
         _log = log;
@@ -294,6 +298,18 @@ public sealed class UpdateMetadataClient
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.Clear();
         request.Headers.UserAgent.ParseAdd(_userAgent);
+        // 可选令牌：未认证的 GitHub API 每 IP 每小时只有 60 次，
+        // 同一出口 IP 下多台机器（主机、手机版本策略）会互相挤掉配额，配上令牌就宽裕得多
+        string token = _apiTokenProvider(url);
+        if (token.Length > 0)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+                    && uri.Host.EndsWith("gitee.com", StringComparison.OrdinalIgnoreCase)
+                        ? "token"
+                        : "Bearer",
+                token);
+        }
         using HttpResponseMessage response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
