@@ -20,6 +20,7 @@ ExpressPackingMonitoring.Host/bin/
 ExpressPackingMonitoring.Host/obj/
 ExpressPackingMonitoring.Core/bin/
 ExpressPackingMonitoring.Core/obj/
+MacHostShell/.build/
 ExpressPackingMonitoring.WinTts/bin/
 ExpressPackingMonitoring.WinTts/obj/
 Tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
