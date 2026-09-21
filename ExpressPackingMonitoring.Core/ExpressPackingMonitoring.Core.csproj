@@ -62,6 +62,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Config\DeploymentPreset.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\EarlyStartupConfig.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\PreRecordBufferPolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\StorageCapacityPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\StorageLocationMetadata.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\StorageSpacePolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\StorageVolumeInfo.cs" />

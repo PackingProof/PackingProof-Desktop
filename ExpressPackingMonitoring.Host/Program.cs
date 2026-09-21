@@ -14,8 +14,16 @@ if (args.Any(argument => argument is "-h" or "--help"))
 {
     Console.WriteLine("用法: ExpressPackingMonitoring.Host [--purpose host|viewer] [--storage <目录>] [--switch-purpose]"
         + " [--install-autostart] [--uninstall-autostart] [--no-browser] [--no-dialog]");
+    Console.WriteLine("菜单栏壳用: --storage-summary | --set-storage-capacity <GB> [--storage-path <目录>]"
+        + " | --set-storage-reserve <GB> [--storage-path <目录>]"
+        + " | --list-hosts | --select-host <地址> [--host-node-id <id>] [--host-node-name <名字>]"
+        + " | --forget-host | --viewer-status [--state searching]");
     return 0;
 }
+
+// 菜单栏壳的命令：只读/改本机配置，不走 HTTP，查看端也能用
+if (await MenuCommands.TryRunAsync(args, CancellationToken.None))
+    return 0;
 
 HostOptions.Apply(args);
 AppConfig config = WorkstationConfigStore.Load();
