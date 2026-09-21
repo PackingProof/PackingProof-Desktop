@@ -5,7 +5,9 @@
 # 用法:
 #   Tools/Publish-MacHost.sh [输出目录] [RID] [版本号]
 # 环境变量:
-#   SIGN_IDENTITY  签名身份；不设置时用临时签名（本机自测）
+#   SIGN_IDENTITY  Developer ID Application 证书全名；不设置时用临时签名（本机自测）
+#   NOTARY_PROFILE 公证凭据在钥匙串里的名字（默认 PackingProofNotary）
+#   NOTARIZE=1     签名后提交 Apple 公证并装订（需要 SIGN_IDENTITY 与公证凭据）
 #
 # 产物里不包含 config.json、数据库、缓存与日志；运行时数据仍写在用户的
 # Application Support 目录下。
@@ -15,6 +17,8 @@ repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 output_root="${1:-${repository_root}/package/mac-host}"
 runtime_id="${2:-osx-arm64}"
 version="${3:-0.0.1}"
+notary_profile="${NOTARY_PROFILE:-PackingProofNotary}"
+notarize="${NOTARIZE:-0}"
 
 if [[ "${output_root}" == "/" || -z "${output_root}" ]]; then
   echo "输出目录不合法: ${output_root}" >&2
@@ -69,9 +73,9 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>PackingProof 保存主机</string>
+  <string>PackingProof</string>
   <key>CFBundleDisplayName</key>
-  <string>PackingProof 保存主机</string>
+  <string>PackingProof</string>
   <key>CFBundleIdentifier</key>
   <string>com.packingproof.host</string>
   <key>CFBundleExecutable</key>
@@ -86,16 +90,54 @@ cat > "${app_bundle}/Contents/Info.plist" <<PLIST
   <string>${version}</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
-  <!-- 常驻后台服务，不占用 Dock -->
-  <key>LSUIElement</key>
+  <key>NSHighResolutionCapable</key>
   <true/>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+  <!-- 常规窗口应用：有 Dock 图标与主窗口，菜单栏图标仍保留做快捷操作 -->
 </dict>
 </plist>
 PLIST
 
-echo "==> 签名（未设置 SIGN_IDENTITY 时用临时签名）"
-codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}/Contents/MacOS/Host/${host_binary_name}"
-codesign --force --deep --sign "${SIGN_IDENTITY:--}" "${app_bundle}"
+sign_identity="${SIGN_IDENTITY:--}"
+entitlements_file="${repository_root}/Tools/MacHost.entitlements"
+host_dir="${app_bundle}/Contents/MacOS/Host"
+if [ "${sign_identity}" = "-" ]; then
+  # 本机自测：临时签名，用 --deep 一次签完，省时间
+  echo "==> 签名（临时签名，仅本机自测；对外分发请设置 SIGN_IDENTITY）"
+  codesign --force --deep --sign - "${host_dir}/${host_binary_name}"
+  codesign --force --deep --sign - "${app_bundle}"
+else
+  # 对外分发：Developer ID + 加固运行时。
+  # codesign 按"位置"判定嵌套代码——Contents/MacOS 下的每个文件都算，包括 .dll、
+  # 网页资源这些非 Mach-O 文件；漏签任何一个，整包签名都会报 not signed at all。
+  # --deep 虽能一把签完，但会给嵌套代码写默认 entitlements，所以发布路径逐个签。
+  echo "==> 签名（Developer ID + 加固运行时）"
+  while IFS= read -r -d '' nested; do
+    codesign --force --options runtime --timestamp \
+      --sign "${sign_identity}" "${nested}"
+  done < <(find "${host_dir}" -type f ! -name "${host_binary_name}" -print0)
+  # 自包含 .NET 主机：JIT 与库校验相关 entitlements 只有它需要
+  codesign --force --options runtime --timestamp \
+    --entitlements "${entitlements_file}" \
+    --sign "${sign_identity}" "${host_dir}/${host_binary_name}"
+  codesign --force --options runtime --timestamp \
+    --sign "${sign_identity}" "${app_bundle}/Contents/MacOS/${shell_binary_name}"
+  codesign --force --options runtime --timestamp \
+    --sign "${sign_identity}" "${app_bundle}"
+fi
+
+if [ "${notarize}" = "1" ] && [ "${sign_identity}" != "-" ]; then
+  echo "==> 公证（keychain-profile: ${notary_profile}）"
+  zip_path="${output_root}/PackingProof-macOS-${version}.zip"
+  rm -f "${zip_path}"
+  ditto -c -k --keepParent "${app_bundle}" "${zip_path}"
+  xcrun notarytool submit "${zip_path}" --keychain-profile "${notary_profile}" --wait
+  xcrun stapler staple "${app_bundle}"
+  rm -f "${zip_path}"
+  ditto -c -k --keepParent "${app_bundle}" "${zip_path}"
+  echo "已公证并装订，可分发压缩包: ${zip_path}"
+fi
 
 # 改一下 bundle 时间戳，促使 Finder 刷新图标缓存
 touch "${app_bundle}"
