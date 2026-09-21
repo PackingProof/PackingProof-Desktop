@@ -96,6 +96,13 @@ final class AppStateModel: ObservableObject {
     @Published var banner: String?
     @Published var bannerIsError = false
 
+    /// 检查更新的结果：只提示，不下载、不替换自身
+    @Published var updateAvailable = false
+    @Published var updateVersion = ""
+    @Published var updateTitle = ""
+    @Published var updateDownloadUrl = ""
+    @Published var updateDismissed = false
+
     var actions: Actions?
 
     struct Actions {
@@ -112,6 +119,8 @@ final class AppStateModel: ObservableObject {
         var addDisk: (String) -> Void
         var toggleAutostart: () -> Void
         var openLogs: () -> Void
+        var checkUpdate: () async -> Void
+        var openUpdatePage: () -> Void
     }
 
     var selectedHost: DiscoveredHost? {
@@ -184,5 +193,17 @@ final class AppStateModel: ObservableObject {
 
     func dismissBanner() {
         banner = nil
+    }
+
+    func checkUpdate() async {
+        await actions?.checkUpdate()
+    }
+
+    func openUpdatePage() {
+        actions?.openUpdatePage()
+    }
+
+    func dismissUpdate() {
+        updateDismissed = true
     }
 }
