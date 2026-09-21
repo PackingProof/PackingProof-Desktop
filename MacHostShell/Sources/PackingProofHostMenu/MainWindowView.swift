@@ -17,6 +17,10 @@ struct MainWindowView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let banner = model.banner {
+                Divider()
+                bannerRow(banner)
+            }
             Divider()
             if model.isViewer {
                 hostList
@@ -90,6 +94,31 @@ struct MainWindowView: View {
         }
         if model.hostRunning { return AppTheme.successGreen }
         return model.hostLaunching ? AppTheme.accentBlue : AppTheme.errorRed
+    }
+
+    /// 提示就写在窗口里，不再弹系统对话框
+    private func bannerRow(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: model.bannerIsError
+                  ? "exclamationmark.triangle.fill"
+                  : "checkmark.circle.fill")
+                .foregroundStyle(model.bannerIsError ? AppTheme.errorRed : AppTheme.successGreen)
+            Text(text)
+                .font(.subheadline)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+            Button {
+                model.dismissBanner()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            (model.bannerIsError ? AppTheme.errorRed : AppTheme.successGreen).opacity(0.12))
     }
 
     private static var appIcon: NSImage {
@@ -524,6 +553,10 @@ private struct DeviceCard: View {
 private struct StorageCard: View {
     let store: StorageItem
     let model: AppStateModel
+    @State private var capacityText = ""
+    @State private var reserveText = ""
+    @FocusState private var capacityFocused: Bool
+    @FocusState private var reserveFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -552,25 +585,32 @@ private struct StorageCard: View {
                     .foregroundStyle(AppTheme.errorRed)
                     .lineLimit(1)
             }
-            HStack(spacing: 8) {
+            // 就地编辑：容量上限与预留都写同一个预留值，改完立刻生效，不再弹输入框
+            HStack(spacing: 6) {
+                Text("容量上限")
+                TextField("", text: $capacityText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                    .focused($capacityFocused)
+                    .onSubmit { applyLimit() }
+                    .disabled(!store.capacityKnown)
+                Text("GB")
+                Text("预留")
+                TextField("", text: $reserveText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                    .focused($reserveFocused)
+                    .onSubmit { applyLimit() }
+                    .disabled(!store.capacityKnown)
+                Text("GB")
+                Button("应用") { applyLimit() }
+                    .disabled(!store.capacityKnown)
+                Spacer(minLength: 8)
                 Button {
                     model.actions?.openStorageLocation(store.path)
                 } label: {
                     Label("在 Finder 中打开", systemImage: AppTheme.Symbol.reveal)
                 }
-                Button {
-                    model.actions?.promptCapacity(store.path)
-                } label: {
-                    Label("容量上限", systemImage: AppTheme.Symbol.capacity)
-                }
-                .disabled(!store.capacityKnown)
-                Button {
-                    model.actions?.promptReserve(store.path)
-                } label: {
-                    Label("预留空间", systemImage: AppTheme.Symbol.storage)
-                }
-                .disabled(!store.capacityKnown)
-                Spacer()
             }
             .controlSize(.small)
             .padding(.top, 4)
@@ -579,6 +619,34 @@ private struct StorageCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .onAppear { syncFromStore() }
+        .onChange(of: store) { _ in syncFromStore() }
+    }
+
+    private func syncFromStore() {
+        capacityText = numberText(store.capacityGB)
+        reserveText = numberText(store.reserveGB)
+    }
+
+    private func applyLimit() {
+        // 先收起焦点：否则输入框会一直显示旧值，看不到"已经生效"
+        capacityFocused = false
+        reserveFocused = false
+
+        let trimmedCapacity = capacityText.trimmingCharacters(in: .whitespaces)
+        if let capacity = Double(trimmedCapacity), abs(capacity - store.capacityGB) > 0.01 {
+            model.setCapacity(path: store.path, gigabytes: capacity)
+            return
+        }
+
+        let trimmedReserve = reserveText.trimmingCharacters(in: .whitespaces)
+        if let reserve = Double(trimmedReserve), abs(reserve - store.reserveGB) > 0.01 {
+            model.setReserve(path: store.path, gigabytes: reserve)
+        }
+    }
+
+    private func numberText(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 }
 
