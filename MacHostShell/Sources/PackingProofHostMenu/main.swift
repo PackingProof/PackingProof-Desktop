@@ -1044,13 +1044,33 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     /// 主机启动失败时，日志最后一行就是原因
+    /// 自启托管时输出写在 launchd 的两个日志里，壳自己拉起时写在 host.log，三处都要看
     private func readHostFailure() -> String? {
-        let logURL = Self.logDirectory.appendingPathComponent("host.log")
-        guard let text = try? String(contentsOf: logURL, encoding: .utf8) else { return nil }
-        let lines = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        guard let last = lines.last else { return nil }
-        guard last.contains("失败") else { return nil }
-        return last.replacingOccurrences(of: "保存主机启动失败：", with: "")
+        let logNames = ["host.log", "host-launchd.err.log", "host-launchd.out.log"]
+        let logs = logNames
+            .map { Self.logDirectory.appendingPathComponent($0) }
+            .compactMap { url -> (url: URL, modified: Date)? in
+                guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                      let modified = attributes[.modificationDate] as? Date
+                else { return nil }
+                return (url, modified)
+            }
+            // 最近写过的那个日志才代表这一次启动的结果
+            .sorted { $0.modified > $1.modified }
+
+        for log in logs {
+            guard let text = try? String(contentsOf: log.url, encoding: .utf8) else { continue }
+            let lines = text.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            guard let last = lines.last else { continue }
+            // 只有"最后写进去的就是失败"才算原因：成功启动过就不再报旧错
+            if last.contains("失败") {
+                return last.replacingOccurrences(of: "保存主机启动失败：", with: "")
+            }
+            return nil
+        }
+        return nil
     }
 
     private func probeStatus(_ url: URL, timeout: TimeInterval = 4) -> Int {
