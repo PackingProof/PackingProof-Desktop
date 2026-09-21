@@ -21,6 +21,11 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="HostOptions.cs" />
+    <Compile Include="MacDeploymentSetup.cs" />
+    <Compile Include="HostSession.cs" />
+    <Compile Include="ViewerSession.cs" />
+    <Compile Include="Platform/MacDialog.cs" />
   </ItemGroup>
 
   <ItemGroup>
