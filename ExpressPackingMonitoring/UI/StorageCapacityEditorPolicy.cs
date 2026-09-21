@@ -70,71 +70,26 @@ internal static class StorageCapacityEditorPolicy
     internal static double CalculateCapacityGB(
         long totalCapacityGB,
         double minimumReserveGB,
-        double configuredReserveGB)
-    {
-        double normalizedMinimum = NormalizeReserve(minimumReserveGB);
-        double normalizedConfigured = double.IsFinite(configuredReserveGB)
-            && configuredReserveGB > 0
-                ? Math.Ceiling(configuredReserveGB)
-                : normalizedMinimum;
-        double effectiveReserve = Math.Max(
-            normalizedMinimum,
-            normalizedConfigured);
-        double maximumCapacity = Math.Max(0, totalCapacityGB - normalizedMinimum);
-        return Math.Clamp(
-            totalCapacityGB - effectiveReserve,
-            0,
-            maximumCapacity);
-    }
+        double configuredReserveGB) =>
+        StorageCapacityPolicy.CalculateCapacityGB(
+            totalCapacityGB,
+            minimumReserveGB,
+            configuredReserveGB);
 
     internal static double CalculateReserveGB(
         long totalCapacityGB,
         double minimumReserveGB,
-        double requestedCapacityGB)
-    {
-        double normalizedMinimum = NormalizeReserve(minimumReserveGB);
-        double maximumCapacity = Math.Max(0, totalCapacityGB - normalizedMinimum);
-        if (maximumCapacity < 1)
-            return normalizedMinimum;
-
-        double normalizedCapacity = double.IsFinite(requestedCapacityGB)
-            ? Math.Round(requestedCapacityGB, MidpointRounding.AwayFromZero)
-            : maximumCapacity;
-        normalizedCapacity = Math.Clamp(normalizedCapacity, 1, maximumCapacity);
-        return Math.Max(normalizedMinimum, totalCapacityGB - normalizedCapacity);
-    }
+        double requestedCapacityGB) =>
+        StorageCapacityPolicy.CalculateReserveGB(
+            totalCapacityGB,
+            minimumReserveGB,
+            requestedCapacityGB);
 
     private static bool TryGetVolumeLimits(
         StorageLocation location,
         out long totalCapacityGB,
-        out double minimumReserveGB)
-    {
-        totalCapacityGB = 0;
-        minimumReserveGB = 0;
-        try
-        {
-            if (string.IsNullOrWhiteSpace(location.Path)
-                || !StorageVolumeInfo.TryGet(location.Path, out StorageVolumeInfo volume))
-            {
-                return false;
-            }
-
-            totalCapacityGB = volume.TotalSize / StorageSpacePolicy.BytesPerGiB;
-            minimumReserveGB = Math.Ceiling(
-                StorageSpacePolicy.CalculateMinimumReserveBytes(volume)
-                / (double)StorageSpacePolicy.BytesPerGiB);
-            return totalCapacityGB > minimumReserveGB;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static double NormalizeReserve(double reserveGB) =>
-        double.IsFinite(reserveGB) && reserveGB > 0
-            ? Math.Ceiling(reserveGB)
-            : 0;
+        out double minimumReserveGB) =>
+        StorageCapacityPolicy.TryGetVolumeLimits(location, out totalCapacityGB, out minimumReserveGB);
 }
 
 public sealed class StorageCapacityEditorConverter : IValueConverter

@@ -25,6 +25,7 @@
     <Compile Include="MacDeploymentSetup.cs" />
     <Compile Include="HostSession.cs" />
     <Compile Include="ViewerSession.cs" />
+    <Compile Include="MenuCommands.cs" />
     <Compile Include="Platform/MacDialog.cs" />
   </ItemGroup>
 
