@@ -404,3 +404,6 @@ else {
 Write-Host ""
 Write-Host "GitHub 与 Gitee Release 均已就绪：$tag"
 Write-Host "Setup 只在 GitHub 提供，Gitee 侧按资产表不上传"
+Write-Host ""
+Write-Host "还差一步（Gitee 专属，每次发布都要做，漏了 Gitee 就没有双击安装入口）："
+Write-Host "  pwsh -NoProfile -File Tools\Publish-NoRuntimePackage.ps1 -Tag $tag -UploadGitee"
