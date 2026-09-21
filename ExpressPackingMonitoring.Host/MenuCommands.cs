@@ -409,7 +409,8 @@ internal static class MenuCommands
                 WriteJson(new
                 {
                     state = "approval",
-                    text = ViewerConnectionStatusText.RequestingHostApproval,
+                    // 稳态说明"需要主机允许连接"，不是"正在请求"：请求动作要用户点了才有
+                    text = ViewerConnectionStatusText.NeedsHostApproval,
                     texts = ViewerConnectionStatusText.AllWords
                 });
                 break;
