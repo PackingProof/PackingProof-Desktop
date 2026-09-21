@@ -3,7 +3,8 @@
 //
 // 查看端部分的视图代码照搬 MacViewer（header / hostList / footer / HostCard /
 // ManualConnectionView 原样保留），只把数据来源换成 AppStateModel。
-// 保存主机那一侧没有现成界面可搬，按同一套版式与配色补上。
+// 保存主机那一侧没有现成界面可搬：列表按电脑端口径显示接入的录像设备，
+// 保存位置、开机自启、日志这些配置收进"设置"。
 
 import AppKit
 import SwiftUI
@@ -11,6 +12,7 @@ import SwiftUI
 struct MainWindowView: View {
     @ObservedObject var model: AppStateModel
     @State private var showManualConnection = false
+    @State private var showSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +21,7 @@ struct MainWindowView: View {
             if model.isViewer {
                 hostList
             } else {
-                storageList
+                deviceList
             }
             Divider()
             if model.isViewer {
@@ -29,12 +31,18 @@ struct MainWindowView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .frame(minWidth: 520, minHeight: 420)
+        .frame(minWidth: 520, minHeight: 300)
         .task { await model.startupRefresh() }
         .sheet(isPresented: $showManualConnection) {
             ManualConnectionView { input in
                 await model.connectManually(input)
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(model: model)
+        }
+        .onChange(of: model.settingsRequestToken) { _ in
+            showSettings = true
         }
     }
 
@@ -80,7 +88,8 @@ struct MainWindowView: View {
         if model.isViewer {
             return model.onlineNodeIds.isEmpty ? Color.secondary.opacity(0.45) : AppTheme.successGreen
         }
-        return model.hostRunning ? AppTheme.successGreen : AppTheme.errorRed
+        if model.hostRunning { return AppTheme.successGreen }
+        return model.hostLaunching ? AppTheme.accentBlue : AppTheme.errorRed
     }
 
     private static var appIcon: NSImage {
@@ -163,6 +172,12 @@ struct MainWindowView: View {
                     Label("更换主机", systemImage: AppTheme.Symbol.changeHost)
                 }
 
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("设置", systemImage: "gearshape")
+                }
+
                 Spacer()
 
                 Button {
@@ -179,26 +194,34 @@ struct MainWindowView: View {
         .padding(.vertical, 10)
     }
 
-    // MARK: - 保存主机（按同一套版式补）
+    // MARK: - 保存主机：列表显示接入的录像设备（与电脑端同一口径）
 
-    private var storageList: some View {
+    private var deviceList: some View {
         Group {
-            if model.storages.isEmpty {
+            if model.devices.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: AppTheme.Symbol.storage)
-                        .font(.title3)
-                        .foregroundStyle(.tertiary)
-                    Text(model.storePaths.isEmpty ? "还没有保存位置" : model.storePaths.joined(separator: "、"))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    if model.hostLaunching {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("启动中")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "wifi.router")
+                            .font(.title3)
+                            .foregroundStyle(.tertiary)
+                        Text(model.hostRunning ? "还没有录像设备接入" : model.hostStatusText)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(model.storages) { store in
-                            StorageCard(store: store, model: model)
+                        ForEach(model.devices) { device in
+                            DeviceCard(device: device)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -212,7 +235,7 @@ struct MainWindowView: View {
     private var hostFooter: some View {
         VStack(spacing: 8) {
             HStack(spacing: 6) {
-                if model.isSwitchingPurpose {
+                if model.hostLaunching {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -220,40 +243,24 @@ struct MainWindowView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let summary = storageSummary {
+                    Text("·")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                    Text(summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 Spacer()
             }
 
             HStack(spacing: 8) {
-                // 保存位置按磁盘算：同一张盘上再选目录没有任何意义，所以只能选磁盘
-                Menu {
-                    if model.disks.isEmpty {
-                        Text("没有可添加的磁盘")
-                    } else {
-                        ForEach(model.disks) { disk in
-                            Button(disk.isUsed ? "\(disk.name)（已在使用）" : disk.name) {
-                                model.addDisk(disk.path)
-                            }
-                            .disabled(disk.isUsed)
-                        }
-                    }
-                } label: {
-                    Label("添加磁盘", systemImage: AppTheme.Symbol.addStorage)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-
                 Button {
-                    model.toggleAutostart()
+                    showSettings = true
                 } label: {
-                    Label(
-                        model.autostartInstalled ? "取消开机自启" : "开机自启",
-                        systemImage: AppTheme.Symbol.autostart)
-                }
-
-                Button {
-                    model.openLogs()
-                } label: {
-                    Label("日志目录", systemImage: AppTheme.Symbol.logs)
+                    Label("设置", systemImage: "gearshape")
                 }
 
                 Spacer()
@@ -272,6 +279,153 @@ struct MainWindowView: View {
         .padding(.vertical, 10)
     }
 
+    private var storageSummary: String? {
+        guard let first = model.storages.first else { return nil }
+        if model.storages.count == 1 { return first.summary }
+        return "\(first.name) 等 \(model.storages.count) 块磁盘"
+    }
+}
+
+/// 设置页：保存位置与容量、开机自启、日志这些"配置"都收在这里
+private struct SettingsView: View {
+    @ObservedObject var model: AppStateModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("设置")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button("完成") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    storageSection
+                    generalSection
+                    aboutSection
+                }
+                .padding(16)
+            }
+        }
+        .frame(width: 580, height: 460)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var storageSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("保存位置")
+                    .font(.headline)
+                Spacer()
+                // 保存位置按磁盘算：同一张盘上再选目录没有意义，所以只能选磁盘
+                Menu {
+                    if model.disks.isEmpty {
+                        Text("没有可添加的磁盘")
+                    } else {
+                        ForEach(model.disks) { disk in
+                            Button(disk.isUsed ? "\(disk.name)（已在使用）" : disk.name) {
+                                model.addDisk(disk.path)
+                            }
+                            .disabled(disk.isUsed)
+                        }
+                    }
+                } label: {
+                    Label("添加磁盘", systemImage: AppTheme.Symbol.addStorage)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+
+            if model.storages.isEmpty {
+                Text(model.storePaths.isEmpty ? "还没有保存位置" : model.storePaths.joined(separator: "、"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(model.storages) { store in
+                        StorageCard(store: store, model: model)
+                        if store.id != model.storages.last?.id { Divider() }
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(nsColor: .controlBackgroundColor)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+            }
+        }
+    }
+
+    private var generalSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("常规").font(.headline)
+            VStack(spacing: 0) {
+                HStack {
+                    Text("开机自启")
+                    Spacer()
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { model.autostartInstalled },
+                            set: { _ in model.toggleAutostart() }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                Divider()
+                HStack {
+                    Text("日志")
+                    Spacer()
+                    Button {
+                        model.openLogs()
+                    } label: {
+                        Label("打开日志目录", systemImage: AppTheme.Symbol.logs)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        }
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("关于").font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.isViewer ? "PackingProof 查看端" : "PackingProof 保存主机")
+                    .font(.subheadline.weight(.semibold))
+                Text(model.appVersion.isEmpty ? "版本未知" : "版本 \(model.appVersion)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(model.isViewer
+                     ? "只连接主机查看：录像、保存与网页回放都在主机那一侧"
+                     : "接收手机与其他电脑上传的录像，并对外提供网页回放")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+        }
+    }
 }
 
 private struct HostCard: View {
@@ -321,6 +475,49 @@ private struct HostCard: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .onTapGesture(perform: action)
+    }
+}
+
+/// 接入的录像设备：绿点表示在线，与电脑端"订单联动设备"列表一致
+private struct DeviceCard: View {
+    let device: DeviceItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(device.online ? AppTheme.successGreen : Color.secondary.opacity(0.45))
+                .frame(width: 8, height: 8)
+                .padding(.top, 5)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(device.name)
+                        .font(.headline)
+                    Spacer(minLength: 0)
+                    Text(device.online ? "在线" : "离线")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Text(device.typeText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                if !device.address.isEmpty {
+                    Text(device.address)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .opacity(device.online ? 1 : 0.55)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
     }
 }
 
@@ -382,14 +579,6 @@ private struct StorageCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-        )
     }
 }
 

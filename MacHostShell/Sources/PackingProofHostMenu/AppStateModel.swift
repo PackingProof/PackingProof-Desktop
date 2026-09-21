@@ -45,6 +45,18 @@ struct DiskItem: Identifiable, Equatable {
     var id: String { path }
 }
 
+/// 连接到本机的录像设备（从机）。字段与电脑端"订单联动设备"列表同一口径：
+/// 名称、类型（手机录像设备 / 电脑录像设备）、地址、在线状态。
+struct DeviceItem: Identifiable, Equatable {
+    let nodeId: String
+    let name: String
+    let typeText: String
+    let address: String
+    let online: Bool
+
+    var id: String { nodeId.isEmpty ? address : nodeId }
+}
+
 /// 窗口的界面状态。
 ///
 /// 属性与动作刻意对齐 MacViewer 的 ViewerModel：视图代码照搬，只有数据来源换成
@@ -65,8 +77,13 @@ final class AppStateModel: ObservableObject {
     @Published var isSwitchingPurpose = false
     @Published var storages: [StorageItem] = []
     @Published var disks: [DiskItem] = []
+    @Published var devices: [DeviceItem] = []
     @Published var storePaths: [String] = []
     @Published var autostartInstalled = false
+    @Published var hostLaunching = false
+    @Published var appVersion = ""
+    /// 壳里按 ⌘, 时用它通知窗口打开设置页
+    @Published var settingsRequestToken = 0
 
     var actions: Actions?
 
@@ -129,5 +146,9 @@ final class AppStateModel: ObservableObject {
 
     func openLogs() {
         actions?.openLogs()
+    }
+
+    func requestSettings() {
+        settingsRequestToken += 1
     }
 }

@@ -24,6 +24,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostNodeName = ""
     private var storagePaths: [String] = []
     private var hostProblem = ""
+    /// 刚发起过启动、还没开始监听：界面上说"启动中"而不是"未运行"
+    private var hostLaunching = false
     private var hostServing = false
     private var viewerRunning = false
 
@@ -36,6 +38,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 存储位置容量现状与已发现主机：都由主机命令行返回，壳只负责显示
     private var storageLocations: [[String: Any]] = []
+    private var hostDevices: [[String: Any]] = []
+    private var lastHostDeviceRefresh = Date.distantPast
     private var lastStorageSummary = Date.distantPast
     private var discoveredHosts: [[String: Any]] = []
     private var hostSearchInFlight = false
@@ -127,7 +131,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: hosting)
             window.title = "PackingProof"
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 620, height: 500))
+            // 高度按 MacViewer 的窗口比例来：列表自己滚动，不要把窗口撑满屏
+            window.setContentSize(NSSize(width: 560, height: 360))
             window.isReleasedWhenClosed = false
             window.center()
             mainWindow = window
@@ -138,6 +143,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openMainWindowAction() { openMainWindow() }
+
+    /// ⌘, 打开主界面上的设置页
+    @objc private func openSettingsAction() {
+        openMainWindow()
+        model.requestSettings()
+    }
 
     /// 常规窗口应用需要的应用菜单：没有它菜单栏上会是一片空白
     private func setUpApplicationMenu() {
@@ -157,6 +168,12 @@ final class HostShell: NSObject, NSApplicationDelegate {
             keyEquivalent: "0")
         openItem.target = self
         appMenu.addItem(openItem)
+        let settingsItem = NSMenuItem(
+            title: "设置…",
+            action: #selector(openSettingsAction),
+            keyEquivalent: ",")
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
         appMenu.addItem(.separator())
         appMenu.addItem(
             withTitle: "隐藏 \(appName)",
@@ -317,9 +334,21 @@ final class HostShell: NSObject, NSApplicationDelegate {
         model.hostRunning = hostServing
         model.hostStatusText = hostServing
             ? "运行中"
-            : (hostProblem.isEmpty ? "未运行" : hostProblem)
+            : (hostProblem.isEmpty ? (isHostLaunching ? "启动中" : "未运行") : hostProblem)
+        model.hostLaunching = isHostLaunching
+        model.appVersion = appVersion
         model.storePaths = storagePaths
         model.autostartInstalled = autostartInstalled
+        model.devices = hostDevices.map { device in
+            DeviceItem(
+                nodeId: (device["nodeId"] as? String) ?? "",
+                name: (device["nodeName"] as? String) ?? "",
+                typeText: (device["deviceType"] as? String)?.lowercased() == "mobile"
+                    ? "手机录像设备"
+                    : "电脑录像设备",
+                address: (device["address"] as? String) ?? "",
+                online: (device["online"] as? Bool) ?? false)
+        }
         model.disks = mountedVolumes().map { volume in
             let root = volume.path
             let prefix = root.hasSuffix("/") ? root : root + "/"
@@ -355,6 +384,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.hostServing = serving
+                if serving { self.hostLaunching = false }
                 self.viewerRunning = self.launchedHosts.contains { $0.isRunning } && !serving
                 if self.purpose == "MobileBackupHost" && !serving {
                     self.hostProblem = self.readHostFailure() ?? self.hostProblem
@@ -363,6 +393,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 } else if serving {
                     self.hostProblem = ""
                 }
+                self.refreshHostDevices()
                 self.rebuildMenu()
             }
         }.resume()
@@ -370,9 +401,18 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 用途项自己就是状态位：菜单不再单占一行显示"当前用途"
     private var hostPurposeTitle: String {
-        // 只在当前就是保存主机时把起不来的原因摆出来，用户不必去翻日志
-        guard purpose == "MobileBackupHost", !hostProblem.isEmpty else { return "保存主机" }
-        return "保存主机未启动：\(hostProblem)"
+        // 只在当前就是保存主机时才带状态，用户不必去翻日志
+        guard purpose == "MobileBackupHost" else { return "保存主机" }
+        if !hostProblem.isEmpty { return "保存主机未启动：\(hostProblem)" }
+        // 刚点过启动、还没开始监听：说"启动中"，不要说"未运行"
+        return isHostLaunching ? "保存主机（启动中）" : "保存主机"
+    }
+
+    /// 主机是否正在启动：刚发起过启动、还没监听、也还没报错
+    private var isHostLaunching: Bool {
+        guard purpose == "MobileBackupHost", !hostServing, hostProblem.isEmpty else { return false }
+        // 超过两分钟还没起来也不再显示"启动中"，避免一直骗用户
+        return hostLaunching && Date().timeIntervalSince(lastLaunchAttempt) < 120
     }
 
     private var viewerPurposeTitle: String {
@@ -397,6 +437,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     /// 启动保存主机：装了开机自启就交给 launchd（壳再拉一个会两个主机抢同一个端口，
     /// 抢不到的那个被 launchd 反复重启），托管不可用时退回壳直接拉起
     private func startHostProcess() {
+        hostLaunching = true
         if autostartInstalled, restartLaunchAgent() { return }
         runHost(arguments: ["--no-browser", "--service"])
     }
@@ -472,6 +513,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
         menu.addItem(actionItem("退出", #selector(quit)))
 
         pushStateToModel()
+        updateWindowTitle()
         statusItem?.menu = menu
     }
 
@@ -844,6 +886,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func restartHost() {
+        hostLaunching = true
         // 装了开机自启就交给 launchd 重新加载（见 startHostProcess），不要自己停，
         // 否则托管关系被顶掉、launchd 又会拉起第二个主机
         if !autostartInstalled {
@@ -1306,6 +1349,51 @@ final class HostShell: NSObject, NSApplicationDelegate {
         let name = (host["nodeName"] as? String) ?? ""
         let address = (host["address"] as? String) ?? ""
         return name.isEmpty ? address : "\(name)（\(address)）"
+    }
+
+    /// 版本号取自 .app 的 Info.plist：与电脑端一样把版本显示在窗口标题上
+    private var appVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+    }
+
+    private func updateWindowTitle() {
+        let role = isViewer ? "查看端" : "保存主机"
+        mainWindow?.title = appVersion.isEmpty
+            ? "PackingProof \(role)"
+            : "PackingProof \(role) \(appVersion)"
+    }
+
+    /// 保存主机角色下列出连进来的录像设备（与电脑端"订单联动设备"同一份数据）
+    private func refreshHostDevices() {
+        guard !isViewer, hostServing else {
+            if !hostDevices.isEmpty {
+                hostDevices = []
+                pushStateToModel()
+            }
+            return
+        }
+        guard Date().timeIntervalSince(lastHostDeviceRefresh) > 3 else { return }
+        lastHostDeviceRefresh = Date()
+
+        guard var components = URLComponents(
+            string: "http://127.0.0.1:\(port)/api/recording-devices") else { return }
+        if let key = readAccessKey() {
+            components.queryItems = [URLQueryItem(name: "key", value: key)]
+        }
+        guard let url = components.url else { return }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            let devices = data
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { $0["devices"] as? [[String: Any]] } ?? []
+            DispatchQueue.main.async {
+                guard let self, !self.isViewer, self.hostServing else { return }
+                self.hostDevices = devices
+                self.pushStateToModel()
+            }
+        }.resume()
     }
 
     /// 主机启动失败时，日志最后一行就是原因
