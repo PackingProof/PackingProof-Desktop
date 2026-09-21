@@ -633,7 +633,8 @@ public sealed class DeploymentStartupTests
         Assert.Contains("SwitchWorkstationAsync(System.Windows.Window owner)", recordingSource, StringComparison.Ordinal);
         Assert.Contains("Owner = owner", recordingSource, StringComparison.Ordinal);
         Assert.Contains("new WorkstationSelectionWindow(DeploymentPresets.ViewerClient)", source, StringComparison.Ordinal);
-        Assert.Contains("WorkstationNetwork.RestartAfterPurposeChange(this)", source, StringComparison.Ordinal);
+        // 重启程序的方法已从 WorkstationNetwork 拆到 ApplicationRestart（跨程序集不能拆 partial 类）
+        Assert.Contains("ApplicationRestart.RestartAfterPurposeChange(this)", source, StringComparison.Ordinal);
 
         string launcher = ReadRepositoryFile(
             "ExpressPackingMonitoring",

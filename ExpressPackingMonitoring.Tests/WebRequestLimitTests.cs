@@ -232,7 +232,10 @@ public sealed class WebRequestLimitTests
         Assert.Contains("orderLine.append(order)", html);
         Assert.Contains("tagLine.append(badge,status)", html);
         Assert.Contains("missingBadge.className='missing-badge'", html);
-        Assert.Contains("missingBadge.textContent=v.status==='deleted'?'已清理':'文件丢失'", html);
+        // 存储位置访问不了时插一档提示，其余仍是"已清理/文件丢失"
+        Assert.Contains(
+            "missingBadge.textContent=v.status==='deleted'?'已清理':storageOffline?'存储位置不可用':'文件丢失'",
+            html);
         Assert.Contains("statusReason", html);
         Assert.Contains(".status-badge{background:var(--status-bg);color:var(--ok)", html);
         Assert.Contains(".status-badge.external{background:var(--external-status-bg);color:var(--external-status-text)}", html);
