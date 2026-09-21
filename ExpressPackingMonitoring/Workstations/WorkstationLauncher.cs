@@ -9,6 +9,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Security.Cryptography;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Localization;
@@ -52,7 +53,10 @@ public static class WorkstationConfigStore
 
             try
             {
-                var config = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path, Encoding.UTF8)) ?? new AppConfig();
+                string rawText = File.ReadAllText(path, Encoding.UTF8);
+                var config = JsonSerializer.Deserialize<AppConfig>(rawText) ?? new AppConfig();
+                // 记下加载时的原文，保存时用它做三方合并的基线
+                config.LoadedJson = rawText;
                 bool changed = AppConfig.NormalizeAfterLoad(config);
                 changed = EnsureAppRootDirectory(config, AppContext.BaseDirectory) || changed;
                 if (changed)
@@ -89,10 +93,67 @@ public static class WorkstationConfigStore
 
         ExecuteWithSaveLock(() =>
         {
-            if (TryReadConfig(AppPaths.ConfigPath, out AppConfig latest))
-                config.PrintStationMonitorAddress = latest.PrintStationMonitorAddress;
-            SaveCore(config);
+            string oursJson = JsonSerializer.Serialize(config, Options);
+            string latestJson = TryReadConfigText(AppPaths.ConfigPath) ?? "";
+            string mergedJson = MergeWithLatestJson(config.LoadedJson, latestJson, oursJson);
+            AppConfig merged = JsonSerializer.Deserialize<AppConfig>(mergedJson, Options) ?? config;
+            merged.LoadedJson = mergedJson;
+            SaveCore(merged);
         });
+    }
+
+    /// <summary>
+    /// 保存前与磁盘上的最新配置做一次按字段的三方合并：
+    /// 调用方相对自己加载时的基线**改过**的字段用调用方的，**没改过**的保留磁盘上的最新值。
+    ///
+    /// 起因：长时间持有 AppConfig 的进程（主窗口、查看端窗口、主机）会把整份旧配置写回去，
+    /// 把别人期间改的容量、保存位置甚至已记住的主机一起抹掉。以前只对
+    /// PrintStationMonitorAddress 做了这层保护，现在改成通用规则。
+    /// 没有基线（新建配置）时原样写出，行为与以前一致。
+    /// </summary>
+    internal static string MergeWithLatestJson(string? baseJson, string latestJson, string oursJson)
+    {
+        if (string.IsNullOrWhiteSpace(baseJson) || string.IsNullOrWhiteSpace(latestJson))
+            return oursJson;
+
+        try
+        {
+            if (JsonNode.Parse(baseJson) is not JsonObject baseObject
+                || JsonNode.Parse(latestJson) is not JsonObject latestObject
+                || JsonNode.Parse(oursJson) is not JsonObject oursObject)
+            {
+                return oursJson;
+            }
+
+            foreach (KeyValuePair<string, JsonNode?> property in latestObject)
+            {
+                bool changedByCaller = !JsonNode.DeepEquals(
+                    oursObject[property.Key],
+                    baseObject[property.Key]);
+                if (!changedByCaller)
+                    oursObject[property.Key] = property.Value?.DeepClone();
+            }
+
+            return oursObject.ToJsonString(Options);
+        }
+        catch (Exception ex)
+        {
+            // 合并失败时退回调用方的整份配置：宁可写旧值，也不能让保存直接失败
+            RuntimeLog.Warn("Config", $"Config merge failed, saving caller copy: {ex.Message}");
+            return oursJson;
+        }
+    }
+
+    private static string? TryReadConfigText(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.ReadAllText(path, Encoding.UTF8) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static bool TrySave(AppConfig config, out string error)
@@ -155,8 +216,10 @@ public static class WorkstationConfigStore
         if (!File.Exists(path)) return false;
         try
         {
-            var loaded = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path, Encoding.UTF8));
+            string rawText = File.ReadAllText(path, Encoding.UTF8);
+            var loaded = JsonSerializer.Deserialize<AppConfig>(rawText);
             if (loaded == null) return false;
+            loaded.LoadedJson = rawText;
             config = loaded;
             return true;
         }

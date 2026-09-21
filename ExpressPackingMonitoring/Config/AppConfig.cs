@@ -119,6 +119,14 @@ namespace ExpressPackingMonitoring.Config
     public class AppConfig
     {
         public const int HighestQualityVideoCqp = 18;
+
+        /// <summary>
+        /// 本实例加载时的原始 JSON。保存时按字段做三方合并需要它作为基线，
+        /// 否则长时间持有配置的进程会把别人期间的改动整份覆盖（不是配置项，不序列化）。
+        /// </summary>
+        [JsonIgnore]
+        internal string LoadedJson { get; set; } = "";
+
         public const int LowestQualityVideoCqp = 36;
         public const int DefaultVideoCqp = 30;
 
