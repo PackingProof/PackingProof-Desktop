@@ -319,17 +319,24 @@ public sealed class StoragePlanTests : IDisposable
     }
 
     [Fact]
-    public void StorageSettings_PresentCapacityLimitsInsteadOfReserveValues()
+    public void StorageSettings_HideSpaceLimitAndKeepReserveOnlyInContextMenu()
     {
         string settings = File.ReadAllText(FindRepositoryFile(
             "ExpressPackingMonitoring", "UI", "SettingsWindow.xaml"));
+        string dialog = File.ReadAllText(FindRepositoryFile(
+            "ExpressPackingMonitoring", "UI", "StorageReserveDialog.xaml"));
 
-        Assert.Contains("Header=\"录像空间上限\"", settings, StringComparison.Ordinal);
-        Assert.Contains("Header=\"备份空间上限\"", settings, StringComparison.Ordinal);
-        Assert.Contains("Text=\"暂不可计算\"", settings, StringComparison.Ordinal);
-        Assert.Contains("容量上限不会提前占用空间", settings, StringComparison.Ordinal);
-        Assert.DoesNotContain("Header=\"预留空间\"", settings, StringComparison.Ordinal);
+        // "空间上限"会被理解成"本软件最多占用多少"，据此反推的预留会把整块盘算成不可用：
+        // 保存位置/备份位置不再露出这个参数，默认预留直接用
+        Assert.DoesNotContain("StorageCapacityCellTemplate", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Header=\"备份空间上限\"", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("容量上限不会提前占用空间", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("Binding EffectiveReserveGB", settings, StringComparison.Ordinal);
+        // 预留只从磁盘右键改，并且说明这是整块磁盘的预留
+        Assert.Contains("StorageLocationRowStyle", settings, StringComparison.Ordinal);
+        Assert.Contains("Header=\"设置预留空间…\"", settings, StringComparison.Ordinal);
+        Assert.Contains("预留空间是留给整块磁盘的安全空间", dialog, StringComparison.Ordinal);
+        Assert.Contains("不是本软件最多占用多少", dialog, StringComparison.Ordinal);
     }
 
     [Fact]

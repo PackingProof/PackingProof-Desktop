@@ -1,0 +1,76 @@
+<Window x:Class="ExpressPackingMonitoring.UI.StorageReserveDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="设置预留空间"
+        SizeToContent="Height"
+        Width="580"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource TransparentBrush}"
+        Foreground="{DynamicResource TextPrimary}">
+    <Border Background="{DynamicResource PanelBackground}"
+            BorderBrush="{DynamicResource BorderDefault}"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="24">
+        <StackPanel>
+            <TextBlock Text="设置预留空间"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimary}"/>
+            <TextBlock x:Name="DialogHintText"
+                       Text="预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondary}"
+                       Margin="0,8,0,16"/>
+            <TextBlock x:Name="TargetPathText"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondary}"
+                       Margin="0,-8,0,16"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="ReserveTextBox"
+                         Style="{StaticResource InputTextBoxStyle}"
+                         MinHeight="36"
+                         VerticalContentAlignment="Center"
+                         ToolTip="为整块磁盘保留的安全空间，单位 GB"/>
+                <TextBlock Grid.Column="1"
+                           Text="GB"
+                           Margin="10,0,0,0"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondary}"/>
+            </Grid>
+            <TextBlock x:Name="ErrorText"
+                       Text="请输入大于 0 的数字（单位 GB）"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource AccentOrange}"
+                       Margin="0,8,0,0"
+                       Visibility="Collapsed"/>
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,22,0,0">
+                <Button x:Name="OkButton"
+                        Content="确定"
+                        MinWidth="88"
+                        Margin="0,0,10,0"
+                        IsDefault="True"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="OkButton_Click"/>
+                <Button x:Name="CancelButton"
+                        Content="取消"
+                        MinWidth="88"
+                        IsCancel="True"
+                        Style="{StaticResource SecondaryButtonStyle}"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

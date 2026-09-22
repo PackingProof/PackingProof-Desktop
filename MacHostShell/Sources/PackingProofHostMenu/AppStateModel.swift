@@ -18,17 +18,17 @@ struct StorageItem: Identifiable, Equatable {
     let path: String
     let name: String
     let available: Bool
-    let capacityKnown: Bool
-    let capacityGB: Double
+    let freeGB: Double
+    let totalGB: Double
+    /// 当前生效的整盘预留：不显示在列表里，只在右键"设置预留空间…"里作为初始值
     let reserveGB: Double
-    let recommendedReserveGB: Double
 
     var id: String { path }
 
     var summary: String {
         guard available else { return "磁盘未接入" }
-        guard capacityKnown else { return "磁盘太小，放不下最低预留" }
-        return "容量上限 \(Self.numberText(capacityGB)) GB，预留 \(Self.numberText(reserveGB)) GB"
+        guard totalGB > 0 else { return "空间信息暂不可用" }
+        return "可用 \(Self.numberText(freeGB)) GB / 共 \(Self.numberText(totalGB)) GB"
     }
 
     private static func numberText(_ value: Double) -> String {
@@ -95,6 +95,8 @@ final class AppStateModel: ObservableObject {
     /// 界面内提示：成功/失败都走这里，不再弹系统对话框
     @Published var banner: String?
     @Published var bannerIsError = false
+    /// 右键"设置预留空间…"：非空时弹输入框，输入的是整块磁盘的预留
+    @Published var reserveEditor: ReserveEditorRequest?
 
     /// 检查更新的结果：只提示，不下载、不替换自身
     @Published var updateAvailable = false
@@ -105,6 +107,15 @@ final class AppStateModel: ObservableObject {
 
     var actions: Actions?
 
+    /// 一次预留调整请求：带上磁盘名与当前生效值，界面只负责收数字
+    struct ReserveEditorRequest: Identifiable, Equatable {
+        let path: String
+        let name: String
+        let currentReserveGB: Double
+
+        var id: String { path }
+    }
+
     struct Actions {
         var startupRefresh: () async -> Void
         var search: () async -> Void
@@ -114,7 +125,6 @@ final class AppStateModel: ObservableObject {
         var switchPurpose: (Bool) async -> Void
         var confirmPurpose: (Bool) -> Void
         var openStorageLocation: (String) -> Void
-        var setCapacity: (String, Double) -> Void
         var setReserve: (String, Double) -> Void
         var addDisk: (String) -> Void
         var toggleAutostart: () -> Void
@@ -182,9 +192,12 @@ final class AppStateModel: ObservableObject {
         actions?.confirmPurpose(viewer)
     }
 
-    /// 容量上限与预留都写同一个预留值，这里直接调，不再弹输入框
-    func setCapacity(path: String, gigabytes: Double) {
-        actions?.setCapacity(path, gigabytes)
+    /// 预留空间按整块磁盘算，只在右键里改，不在列表里常驻显示
+    func requestReserveEdit(store: StorageItem) {
+        reserveEditor = ReserveEditorRequest(
+            path: store.path,
+            name: store.name,
+            currentReserveGB: store.reserveGB)
     }
 
     func setReserve(path: String, gigabytes: Double) {

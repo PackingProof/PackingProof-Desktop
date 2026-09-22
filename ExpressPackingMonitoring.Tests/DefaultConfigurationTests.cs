@@ -314,6 +314,59 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
+    public void NormalizeAfterLoad_ClearsLegacySpaceLimitReserve()
+    {
+        var config = new AppConfig
+        {
+            StorageLocations =
+            [
+                new StorageLocation { Path = @"D:\快递打包视频", ReserveGB = 129, Priority = 0 },
+                new StorageLocation
+                {
+                    Path = @"\\192.168.1.249\打包视频",
+                    ReserveGB = 37,
+                    Priority = 1,
+                    IsBackupTarget = true
+                }
+            ]
+        };
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(
+            AppConfig.CurrentStorageReserveSchemaVersion,
+            config.StorageReserveSchemaVersion);
+        Assert.All(config.StorageLocations, location => Assert.Equal(0, location.ReserveGB));
+    }
+
+    [Fact]
+    public void NormalizeAfterLoad_KeepsReserveSetAfterMigration()
+    {
+        // 迁移只清历史值一次；迁移之后用户（或支持）在右键里设过的预留要保留
+        string directory = Path.Combine(Path.GetTempPath(), "epm-reserve-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var config = new AppConfig
+            {
+                StorageReserveSchemaVersion = AppConfig.CurrentStorageReserveSchemaVersion,
+                StorageLocations =
+                [
+                    new StorageLocation { Path = directory, ReserveGB = 12, Priority = 0 }
+                ]
+            };
+
+            AppConfig.NormalizeAfterLoad(config);
+
+            Assert.Equal(12, config.StorageLocations[0].ReserveGB);
+        }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); } catch { }
+        }
+    }
+
+    [Fact]
     public void ResolveStartupExecutable_PrefersRootLauncherForCleanPackage()
     {
         string processPath = @"D:\Package\app\ExpressPackingMonitoring.exe";
