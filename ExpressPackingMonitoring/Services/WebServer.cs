@@ -4715,7 +4715,7 @@ namespace ExpressPackingMonitoring.Services
             {
                 var dir = new DirectoryInfo(folderPath);
                 if (!dir.Exists) return 0;
-                return dir.EnumerateFiles("*.*", SearchOption.AllDirectories)
+                return dir.EnumerateFiles("*.*", RecordingTreeEnumeration.RecursiveSkipLinks)
                     .Where(x => string.Equals(x.Extension, ".mp4", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(x.Extension, ".mkv", StringComparison.OrdinalIgnoreCase))
                     .Sum(x => x.Length);

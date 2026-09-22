@@ -93,7 +93,7 @@ internal static class StorageUsageCalculator
         try
         {
             return new DirectoryInfo(path)
-                .EnumerateFiles("*.*", SearchOption.AllDirectories)
+                .EnumerateFiles("*.*", RecordingTreeEnumeration.RecursiveSkipLinks)
                 .Where(file => VideoExtensions.Contains(
                     file.Extension,
                     StringComparer.OrdinalIgnoreCase))

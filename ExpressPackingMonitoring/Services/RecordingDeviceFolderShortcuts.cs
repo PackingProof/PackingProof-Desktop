@@ -12,17 +12,21 @@ namespace ExpressPackingMonitoring.Services;
 /// 双击进去就是那台设备的录像目录。它取代了早先的"设备对照表.txt"。
 ///
 /// 几条约束：
-/// - 快捷方式放在分类目录里（手机备份\安卓1.lnk -> 手机备份\&lt;设备号&gt;），和设备目录并排，
+/// - 快捷方式放在分类目录里（手机备份\安卓1 -> 手机备份\&lt;设备号&gt;），和设备目录并排，
 ///   不放录像根目录：同一台设备在"手机备份"和"电脑上传"下可能各有一个目录
 /// - 只为磁盘上真实存在的设备目录建，不给没有录像的设备造空链接
-/// - 只删自己建的：删之前必须确认那个 .lnk 指向本分类目录下的设备目录，
+/// - Windows 用 .lnk（WindowsShellShortcut），macOS / Linux 用指向目录的符号链接
+///   （UnixSymbolicLinkShortcut，Finder 里就是带箭头的替身）：目录名是设备号，昵称走链接，
+///   两个平台对用户是同一套东西
+/// - 只删自己建的：删之前必须确认那个链接指向本分类目录下的设备目录，
 ///   绝不碰用户自己放进来的快捷方式或任何其它文件
 /// - 昵称经过文件名净化后可能撞名，撞名时带上设备号后缀区分
-/// - 建不出来（COM 不可用、目标是只读的 NAS）只记一次日志，绝不影响录像与备份
+/// - 建不出来（外壳组件不可用、目标是只读的 NAS、权限不足）只记一次日志，绝不影响录像与备份
 /// </summary>
 internal sealed class RecordingDeviceFolderShortcuts
 {
-    private const string ShortcutExtension = ".lnk";
+    /// <summary>Windows 外壳快捷方式的扩展名；macOS / Linux 的符号链接不带扩展名。</summary>
+    private const string WindowsShortcutExtension = ".lnk";
 
     /// <summary>早先的设备对照表：改用快捷方式后顺手清掉，免得留一份过期信息误导用户。</summary>
     internal const string LegacyIndexFileName = "设备对照表.txt";
@@ -31,19 +35,23 @@ internal sealed class RecordingDeviceFolderShortcuts
 
     private readonly ShortcutWriter _shortcutWriter;
     private readonly Func<string, string?> _shortcutTargetReader;
+    private readonly string _shortcutExtension;
     private bool _loggedWriteFailure;
 
     /// <summary>建快捷方式：成功返回 true，失败时带出原因（原因必须能进日志）。</summary>
     internal delegate bool ShortcutWriter(string linkPath, string targetPath, out string error);
 
-    /// <param name="shortcutWriter">建快捷方式（链接路径、目标目录）。默认走 Windows 外壳。</param>
+    /// <param name="shortcutWriter">建快捷方式（链接路径、目标目录）。默认按平台走外壳或符号链接。</param>
     /// <param name="shortcutTargetReader">读快捷方式的目标，用于判断某个 .lnk 是否由我们维护。</param>
     internal RecordingDeviceFolderShortcuts(
         ShortcutWriter? shortcutWriter = null,
         Func<string, string?>? shortcutTargetReader = null)
     {
-        _shortcutWriter = shortcutWriter ?? WindowsShellShortcut.TryCreate;
-        _shortcutTargetReader = shortcutTargetReader ?? WindowsShellShortcut.TryReadTarget;
+        bool windows = OperatingSystem.IsWindows();
+        _shortcutWriter = shortcutWriter ?? (windows ? WindowsShellShortcut.TryCreate : UnixSymbolicLinkShortcut.TryCreate);
+        _shortcutTargetReader = shortcutTargetReader
+            ?? (windows ? WindowsShellShortcut.TryReadTarget : UnixSymbolicLinkShortcut.TryReadTarget);
+        _shortcutExtension = windows ? WindowsShortcutExtension : "";
     }
 
     /// <summary>
@@ -58,10 +66,6 @@ internal sealed class RecordingDeviceFolderShortcuts
         IEnumerable<MobileOrderReceiverInfo>? devices,
         IEnumerable<RecordingComputerNicknameInfo>? computers = null)
     {
-        // “昵称 → 设备目录”的对照目前只有 Windows 外壳快捷方式实现；
-        // 非 Windows 宿主（macOS 保存主机）先跳过，录像与目录本身不受影响。
-        if (!OperatingSystem.IsWindows()) return 0;
-
         string root = recordingRoot?.Trim() ?? "";
         if (root.Length == 0)
             return 0;
@@ -132,7 +136,7 @@ internal sealed class RecordingDeviceFolderShortcuts
             if (!Directory.Exists(deviceDirectory))
                 continue;
 
-            string linkName = BuildShortcutFileName(device, expected);
+            string linkName = BuildShortcutFileName(device, expected, _shortcutExtension);
             expected[linkName] = deviceDirectory;
         }
 
@@ -156,13 +160,16 @@ internal sealed class RecordingDeviceFolderShortcuts
 
     /// <summary>
     /// 清掉不再需要的快捷方式（设备改名、目录被删）。
-    /// 只删指向本分类目录下设备目录的 .lnk —— 用户自己放的快捷方式一律不碰。
+    /// 只删指向本分类目录下设备目录的链接 —— 用户自己放的快捷方式一律不碰。
+    ///
+    /// macOS 上指向目录的符号链接会被当成普通子目录，默认枚举既不认成文件也可能跟着递归，
+    /// 所以非 Windows 走显式枚举符号链接。
     /// </summary>
     private void RemoveStaleShortcuts(
         string categoryPath,
         IReadOnlyDictionary<string, string> expected)
     {
-        foreach (string linkPath in Directory.GetFiles(categoryPath, "*" + ShortcutExtension))
+        foreach (string linkPath in EnumerateShortcutEntries(categoryPath))
         {
             string linkName = Path.GetFileName(linkPath);
             if (expected.ContainsKey(linkName))
@@ -182,6 +189,12 @@ internal sealed class RecordingDeviceFolderShortcuts
             }
         }
     }
+
+    /// <summary>分类目录里现有的"我们这种"链接条目。</summary>
+    private IEnumerable<string> EnumerateShortcutEntries(string categoryPath) =>
+        OperatingSystem.IsWindows()
+            ? Directory.GetFiles(categoryPath, "*" + _shortcutExtension)
+            : UnixSymbolicLinkShortcut.Enumerate(categoryPath);
 
     /// <summary>
     /// 目标是否就是本分类目录下的一个设备目录。
@@ -213,7 +226,11 @@ internal sealed class RecordingDeviceFolderShortcuts
     /// <summary>链接是否已经指向这个设备目录（同样按目录名比，理由见上）。</summary>
     private bool PointsTo(string linkPath, string deviceDirectory)
     {
-        if (!File.Exists(linkPath))
+        // 指向目录的符号链接在 File.Exists 下是 false，存在性判断要按平台来
+        bool exists = OperatingSystem.IsWindows()
+            ? File.Exists(linkPath)
+            : UnixSymbolicLinkShortcut.Exists(linkPath);
+        if (!exists)
             return false;
 
         string? target = TryReadTarget(linkPath);
@@ -246,18 +263,19 @@ internal sealed class RecordingDeviceFolderShortcuts
     /// </summary>
     internal static string BuildShortcutFileName(
         ShortcutTarget device,
-        IReadOnlyDictionary<string, string> taken)
+        IReadOnlyDictionary<string, string> taken,
+        string extension = WindowsShortcutExtension)
     {
         string name = SanitizeFileName(device.DisplayName);
         if (name.Length == 0)
             name = "未命名设备";
 
-        string candidate = name + ShortcutExtension;
+        string candidate = name + extension;
         if (!taken.ContainsKey(candidate))
             return candidate;
 
         string suffix = RecordingDeviceFolderMigrator.BuildLegacyShortId(device.DeviceId);
-        return $"{name}-{suffix}{ShortcutExtension}";
+        return $"{name}-{suffix}{extension}";
     }
 
     /// <summary>
