@@ -4,6 +4,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Linq;
 
 namespace ExpressPackingMonitoring.Themes
@@ -29,15 +30,20 @@ namespace ExpressPackingMonitoring.Themes
         public static void ApplyTheme(AppTheme theme)
         {
             _currentTheme = theme;
-            
-            if (!System.Windows.Application.Current.Dispatcher.CheckAccess())
-            {
-                System.Windows.Application.Current.Dispatcher.Invoke(() => ApplyThemeInternal());
-            }
-            else
+
+            // 界面线程已经不在了（宿主结束、测试宿主）时不能再同步 Invoke：那个 Dispatcher
+            // 已经没人泵消息，Invoke 会一直阻塞。直接在当前线程应用即可
+            Dispatcher dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null
+                || dispatcher.CheckAccess()
+                || dispatcher.HasShutdownStarted
+                || !dispatcher.Thread.IsAlive)
             {
                 ApplyThemeInternal();
+                return;
             }
+
+            dispatcher.Invoke(() => ApplyThemeInternal());
         }
 
         private static void ApplyThemeInternal()
@@ -80,9 +86,7 @@ namespace ExpressPackingMonitoring.Themes
                 useDarkTheme = _currentTheme == AppTheme.Dark;
             }
 
-            string themeUri = useDarkTheme 
-                ? "pack://application:,,,/Themes/DarkTheme.xaml" 
-                : "pack://application:,,,/Themes/LightTheme.xaml";
+            string themeUri = BuildThemeUri(useDarkTheme);
 
             var newDictionary = new ResourceDictionary { Source = new Uri(themeUri) };
 
@@ -103,6 +107,17 @@ namespace ExpressPackingMonitoring.Themes
             }
             
             Application.Current.Resources.MergedDictionaries.Insert(0, newDictionary);
+        }
+
+        /// <summary>
+        /// 主题资源按本程序集拼 pack URI。不带程序集名的相对 URI 会去"入口程序集"里找，
+        /// 自动化宿主、测试宿主加载本程序集时那里没有主题资源，主题与主窗口都会加载失败。
+        /// </summary>
+        internal static string BuildThemeUri(bool useDarkTheme)
+        {
+            string assemblyName = typeof(ThemeManager).Assembly.GetName().Name;
+            string themeFile = useDarkTheme ? "DarkTheme.xaml" : "LightTheme.xaml";
+            return $"pack://application:,,,/{assemblyName};component/Themes/{themeFile}";
         }
 
         private static bool IsWindowsInDarkMode()
