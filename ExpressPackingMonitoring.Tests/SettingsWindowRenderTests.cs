@@ -122,5 +122,10 @@ public sealed class SettingsWindowRenderTests
         var menu = Assert.IsType<ContextMenu>(setter!.Value);
         var item = Assert.IsType<MenuItem>(Assert.Single(menu.Items));
         Assert.Equal("设置预留空间…", item.Header);
+        // 右键菜单必须走应用统一的菜单外观，否则会退回系统默认样式
+        Assert.NotNull(menu.Style);
+        Assert.Same(Application.Current?.TryFindResource("AppContextMenuStyle"), menu.Style);
+        Assert.NotNull(item.Style);
+        Assert.Same(Application.Current?.TryFindResource("AppMenuItemStyle"), item.Style);
     }
 }

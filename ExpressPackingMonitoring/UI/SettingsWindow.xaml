@@ -469,8 +469,10 @@
 
         <!-- 保存位置/备份位置的预留只能从右键改：露在列表里的"空间上限"会被理解成
              "本软件最多占用多少"，进而把整块盘算成不可用 -->
-        <ContextMenu x:Key="StorageLocationContextMenu">
+        <ContextMenu x:Key="StorageLocationContextMenu"
+                     Style="{StaticResource AppContextMenuStyle}">
             <MenuItem Header="设置预留空间…"
+                      Style="{StaticResource AppMenuItemStyle}"
                       Click="StorageReserveMenuItem_Click"/>
         </ContextMenu>
         <Style x:Key="StorageLocationRowStyle"
