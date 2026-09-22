@@ -20,9 +20,9 @@
   ],
   "package": {
     "file": "PackingProof_LauncherPatch_v0.0.73.zip",
-    "size": 3096786,
-    "sha256": "ccdbdfc0282e53856c4f71d8c20abbcff345e1407f49750661c9ccc225828d51",
+    "size": 3096755,
+    "sha256": "b7dcc949dae1fa1b3844dedfe4293cbb83fec4e53f8b00e7b5a2e06a0f207ff3",
     "executable_size": 6341120,
-    "executable_sha256": "78c0f4238f66f85863b2cd336857aaf3219f5a0c7b921e832691bbdcab0e7911"
+    "executable_sha256": "049a0b4d4971ae6745c2f16eb1dad9d3a7f7ec5e47000c46f8a6a80fdd80a1d3"
   }
 }
