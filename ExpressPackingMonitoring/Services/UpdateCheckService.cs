@@ -91,16 +91,13 @@ namespace ExpressPackingMonitoring.Services
                 _httpClient,
                 log: message => RuntimeLog.Info("Update", message),
                 apiTokenProvider: UpdateCheckOptions.GetApiToken);
-            // macOS 只认带 macOS 安装包的版本：版本号两个平台共用，
-            // 有的版本只修 Windows，直接拿最新 tag 会让人白下载一次
-            using ResolvedUpdateRelease resolved = OperatingSystem.IsMacOS()
-                ? await metadataClient.FetchLatestReleaseWithAssetAsync(
-                    UpdateCheckOptions.ToReleaseListUrls(UpdateCheckOptions.GetUpdateCheckUrls()),
-                    UpdateReleaseSelection.IsMacOsPackage,
-                    cancellationToken)
-                : await metadataClient.FetchLatestReleaseAsync(
-                    UpdateCheckOptions.GetUpdateCheckUrls(),
-                    cancellationToken);
+            // 只认带本平台发布资产的版本：版本号两个平台共用，有的版本只发了另一头
+            // （只修 Windows 的没有 DMG，只发 macOS 的没有 update_v*.json），
+            // 直接拿最新 tag 会让用户提示有新版本却下到另一个平台的包
+            using ResolvedUpdateRelease resolved = await metadataClient.FetchLatestReleaseWithAssetAsync(
+                UpdateCheckOptions.ToReleaseListUrls(UpdateCheckOptions.GetUpdateCheckUrls()),
+                UpdateReleaseSelection.PlatformAssetPredicate(OperatingSystem.IsMacOS()),
+                cancellationToken);
             JsonElement root = resolved.Release.RootElement;
 
             string tagName = ReadString(root, "tag_name");

@@ -6,7 +6,8 @@ namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
 /// 按平台挑最新版本：版本号两个平台共用，只修 Windows 的版本不能被当成
-/// Mac 的新版本推给用户，所以 macOS 只认带 macOS 安装包（DMG）的 release。
+/// Mac 的新版本推给用户，只发 macOS 的版本也不能推给 Windows，
+/// 所以 macOS 只认带 DMG 的 release、Windows 只认带 update_v*.json 的 release。
 /// 这里的命名规则必须与打包脚本产出的文件名一致，否则更新提示会永远不出现。
 /// </summary>
 public class UpdateReleaseSelectionTests
@@ -20,6 +21,41 @@ public class UpdateReleaseSelectionTests
     public void MacOsPackageRecognition(string assetName, bool expected)
     {
         Assert.Equal(expected, UpdateReleaseSelection.IsMacOsPackage(assetName));
+    }
+
+    [Theory]
+    [InlineData("update_v0.0.71.json", true)]
+    [InlineData("UPDATE_V0.0.71.JSON", true)]
+    [InlineData("update.json", false)]
+    [InlineData("update_v0.0.71.zip", false)]
+    [InlineData("PackingProof_Setup_v0.0.71.exe", false)]
+    [InlineData("PackingProof-macOS-0.0.71.dmg", false)]
+    [InlineData("", false)]
+    public void UpdateManifestRecognition(string assetName, bool expected)
+    {
+        Assert.Equal(expected, UpdateReleaseSelection.IsUpdateManifest(assetName));
+    }
+
+    [Fact]
+    public void SkipsMacOnlyNewestReleaseForWindows()
+    {
+        // 最新版只发了 macOS（只有 DMG），Windows 要挑到带更新清单的那一个
+        const string releasesJson = """
+        [
+          {"tag_name":"v0.0.73","assets":[{"name":"PackingProof-macOS-0.0.73.dmg"}]},
+          {"tag_name":"v0.0.72","assets":[{"name":"update_v0.0.72.json"}]}
+        ]
+        """;
+
+        using var document = JsonDocument.Parse(releasesJson);
+        int index = UpdateReleaseSelection.FindLatestWithAsset(
+            document.RootElement,
+            UpdateReleaseSelection.PlatformAssetPredicate(isMacOs: false));
+
+        Assert.Equal(1, index);
+        Assert.Equal(
+            "v0.0.72",
+            document.RootElement[index].GetProperty("tag_name").GetString());
     }
 
     [Fact]
