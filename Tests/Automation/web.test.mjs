@@ -62,8 +62,29 @@ test('isolated Web server supports search, playback and clip editor entry', { sk
     const appDownloadButton = page.getByRole('button', { name: '下载 苹果/安卓版' });
     await appDownloadButton.click();
     await assert.doesNotReject(() => page.locator('#desktopAppDownloadPopover.open').waitFor());
-    await assert.doesNotReject(() => page.locator('#desktopAndroidDownloadQr[src^="data:image/png;base64,"]').waitFor());
-    await assert.doesNotReject(() => page.locator('#desktopIosDownloadQr[src^="data:image/png;base64,"]').waitFor());
+    // 二维码的格式随宿主不同：WPF 宿主输出 PNG，无头自动化宿主与 macOS 保存主机输出内置 SVG。
+    // 这里只要求"真的渲染出一张二维码图片"，不锁死格式；同时确认图片已经解码成功。
+    const qrDataUri = /^data:image\/(?:png|svg\+xml);base64,/;
+    await assert.doesNotReject(() => page.waitForFunction(
+      pattern => {
+        const image = document.querySelector('#desktopAndroidDownloadQr');
+        return !!image
+          && new RegExp(pattern).test(image.getAttribute('src') || '')
+          && image.complete
+          && image.naturalWidth > 0;
+      },
+      qrDataUri.source
+    ));
+    await assert.doesNotReject(() => page.waitForFunction(
+      pattern => {
+        const image = document.querySelector('#desktopIosDownloadQr');
+        return !!image
+          && new RegExp(pattern).test(image.getAttribute('src') || '')
+          && image.complete
+          && image.naturalWidth > 0;
+      },
+      qrDataUri.source
+    ));
     assert.match(
       await page.locator('#desktopAndroidDownloadOpen').getAttribute('href'),
       /gitee\.com\/PackingProof\/PackingProof-Mobile\/releases\/latest/
