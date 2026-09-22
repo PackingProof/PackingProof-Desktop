@@ -12,20 +12,27 @@ internal static class HostSession
 {
     internal static async Task<int> RunAsync(AppConfig config, CancellationToken token)
     {
-        string storageDirectory = config.StorageLocations?.FirstOrDefault()?.Path?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(storageDirectory))
+        if ((config.StorageLocations ?? []).All(location => string.IsNullOrWhiteSpace(location.Path)))
         {
-            ReportStorageProblem("尚未设置录像保存位置。请用 --switch-purpose 重新选择用途与目录");
+            ReportStorageProblem("尚未设置录像保存位置");
             return 1;
         }
 
+        string storageDirectory;
         try
         {
-            Directory.CreateDirectory(storageDirectory);
+            // 与桌面端同一套存储策略：按优先级取第一个当前真正可用的本地位置。
+            // 只认配置里的第一条会让过期的默认值或还没接入的外接盘把主机永远卡在起不来，
+            // 后面添加的磁盘也白加；全部不可用时报错退出，不落回别的目录写录像。
+            // 启动只看位置在不在、写不写得进去：盘快满时照常起服务，由接收侧按存储不可用拒收
+            storageDirectory = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false,
+                requireFreeSpaceAboveReserve: false).WorkingRootPath;
         }
         catch (Exception ex)
         {
-            ReportStorageProblem($"录像保存位置不可用：{storageDirectory}（{ex.Message}）");
+            ReportStorageProblem($"录像保存位置不可用：{ex.Message}");
             return 1;
         }
 
@@ -51,7 +58,10 @@ internal static class HostSession
             mobileBackupComputerId: config.MobileBackupComputerId,
             mobileBackupComputerName: config.NodeName,
             mobileBackupStateDirectory: AppPaths.MobileBackupStateDir,
-            mobileBackupRecordingRootResolver: () => storageDirectory,
+            // 按请求现算：磁盘中途拔出、挂载点消失时按存储不可用拒收，
+            // 不会在系统盘上原地建出同名目录继续写
+            mobileBackupRecordingRootResolver: () =>
+                StorageLocationResolver.Resolve(config, allowDefaultFallback: false),
             nodeId: config.NodeId,
             nodeName: config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
@@ -103,8 +113,13 @@ internal static class HostSession
         return 0;
     }
 
+    /// <summary>
+    /// 启动失败统一以"保存主机启动失败："开头：菜单栏壳按这一行判断主机为什么没起来，
+    /// 只说"不可用"的写法会被壳当成还在启动，菜单就一直显示"启动中"。
+    /// 提示只说界面里怎么改：Mac 用户在菜单栏壳的设置里换保存位置，不需要敲命令行
+    /// </summary>
     private static void ReportStorageProblem(string message) =>
-        ReportProblem($"{message}。可用 --switch-purpose 重新设置");
+        ReportProblem($"保存主机启动失败：{message}。请在设置里重新选择保存位置");
 
     private static void ReportProblem(string message) => HostOptions.ReportProblem(message);
 }

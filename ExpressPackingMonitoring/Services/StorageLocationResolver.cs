@@ -55,7 +55,8 @@ internal static class StorageLocationResolver
     /// </summary>
     public static RecordingStoragePlan ResolveRecordingPlan(
         AppConfig config,
-        bool allowDefaultFallback)
+        bool allowDefaultFallback,
+        bool requireFreeSpaceAboveReserve = true)
     {
         ArgumentNullException.ThrowIfNull(config);
 
@@ -93,7 +94,7 @@ internal static class StorageLocationResolver
             }
             if (kind == StorageVolumeInfo.StorageLocationKind.Unknown)
             {
-                failures.Add($"{configuredPath}：无法确认存储位置类型");
+                failures.Add($"{configuredPath}：磁盘未接入或无法确认存储位置类型");
                 RuntimeLog.Warn(
                     "Storage",
                     $"Skip unknown storage path={configuredPath}");
@@ -103,7 +104,7 @@ internal static class StorageLocationResolver
             if (localChoice.HasValue)
                 continue;
 
-            StorageLocationEvaluation result = Evaluate(location);
+            StorageLocationEvaluation result = Evaluate(location, requireFreeSpaceAboveReserve);
             if (result.CanUse)
             {
                 localChoice = result;
@@ -213,7 +214,13 @@ internal static class StorageLocationResolver
         }
     }
 
-    private static StorageLocationEvaluation Evaluate(StorageLocation location)
+    /// <summary>
+    /// 判定单个本地位置是否可用。requireFreeSpaceAboveReserve=false 时只要求位置存在且可写
+    /// （保存主机启动用这一档：盘快满不该让主机起不来，接收侧会按 storage_unavailable 拒收并说明原因）。
+    /// </summary>
+    private static StorageLocationEvaluation Evaluate(
+        StorageLocation location,
+        bool requireFreeSpaceAboveReserve = true)
     {
         string path = NormalizePath(location.Path);
         try
@@ -223,6 +230,9 @@ internal static class StorageLocationResolver
 
             if (!TryGetVolume(path, out StorageVolumeInfo volume))
                 return StorageLocationEvaluation.Skip(path, "无法读取存储位置的可用空间");
+
+            if (!requireFreeSpaceAboveReserve)
+                return StorageLocationEvaluation.Use(path, volume.AvailableFreeSpace, 0);
 
             long reserveBytes = StorageSpacePolicy.GetEffectiveReserveBytes(location, volume);
             long availableBytes = volume.AvailableFreeSpace;
