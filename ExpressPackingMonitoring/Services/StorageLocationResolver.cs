@@ -60,7 +60,9 @@ internal static class StorageLocationResolver
     {
         ArgumentNullException.ThrowIfNull(config);
 
-        string defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Videos");
+        // 兜底位置与"添加磁盘"默认值同一套规则：哪块盘就放哪块盘的快递打包视频，
+        // 绝不落到程序安装目录（装在哪就随安装目录走会让录像散进程序文件夹，升级、卸载都可能被清掉）
+        string defaultPath = AppConfig.DefaultStoragePath;
         List<StorageLocation> locations = config.StorageLocations?
             .Where(location => !string.IsNullOrWhiteSpace(location.Path))
             .OrderBy(location => location.Priority)
