@@ -184,6 +184,55 @@ public sealed class RecordingDeviceFolderShortcutsTests : IDisposable
         Assert.Equal(0, second);
     }
 
+    /// <summary>
+    /// macOS / Linux 用符号链接当快捷方式，文件名不带扩展名（Finder 里显示成带箭头的替身）。
+    /// 命名规则与 Windows 共用，只是扩展名不同，所以这里按平台传扩展名验证。
+    /// </summary>
+    [Fact]
+    public void UnixShortcutNamesHaveNoExtension()
+    {
+        var device = new RecordingDeviceFolderShortcuts.ShortcutTarget(DeviceA, "安卓1");
+
+        Assert.Equal(
+            "安卓1",
+            RecordingDeviceFolderShortcuts.BuildShortcutFileName(device, new Dictionary<string, string>(), ""));
+
+        var taken = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["安卓1"] = ""
+        };
+        Assert.NotEqual(
+            "安卓1",
+            RecordingDeviceFolderShortcuts.BuildShortcutFileName(device, taken, ""));
+    }
+
+    /// <summary>
+    /// 真正走一遍符号链接：建出来、读回来、改名后清掉旧链接。
+    /// 只在 macOS / Linux 上跑（Windows 上 .lnk 那条由 WindowsShellCreatesAndReadsRealShortcut 覆盖）。
+    /// </summary>
+    [Fact]
+    public void SymbolicLinkCreatesReadsAndCleansUpRealShortcut()
+    {
+        if (OperatingSystem.IsWindows())
+            return;
+
+        string deviceDirectory = CreateDeviceDirectory("手机备份", DeviceA);
+        var shortcuts = new RecordingDeviceFolderShortcuts();
+
+        Assert.Equal(1, shortcuts.Refresh(_root, [Device(DeviceA, "安卓1")]));
+        string linkPath = Path.Combine(_root, "手机备份", "安卓1");
+        Assert.True(UnixSymbolicLinkShortcut.Exists(linkPath), "符号链接没有建出来");
+        Assert.Equal(
+            deviceDirectory.TrimEnd(Path.DirectorySeparatorChar),
+            UnixSymbolicLinkShortcut.TryReadTarget(linkPath)?.TrimEnd(Path.DirectorySeparatorChar));
+
+        // 改个名字：旧链接清掉、新链接建出来，设备目录本身不动
+        shortcuts.Refresh(_root, [Device(DeviceA, "打包台A")]);
+        Assert.False(UnixSymbolicLinkShortcut.Exists(linkPath), "改名后旧链接必须清掉");
+        Assert.True(UnixSymbolicLinkShortcut.Exists(Path.Combine(_root, "手机备份", "打包台A")));
+        Assert.True(Directory.Exists(deviceDirectory));
+    }
+
     /// <summary>昵称里的非法字符要净化，净化后撞名的带设备号后缀区分。</summary>
     [Fact]
     public void SanitizesNicknamesAndKeepsCollidingNamesApart()

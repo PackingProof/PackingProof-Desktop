@@ -81,6 +81,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.RecordingIdentity.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.Schema.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Helpers\WindowsShellShortcut.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Helpers\UnixSymbolicLinkShortcut.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.VideoQuery.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoDatabase.VideoSources.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Data\VideoSourceFilterOptions.cs" />
@@ -154,6 +155,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderMigrator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderNaming.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderShortcuts.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTreeEnumeration.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingSourceNameLookup.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingWorkstationCachePolicy.cs" />
