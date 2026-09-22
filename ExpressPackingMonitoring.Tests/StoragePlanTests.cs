@@ -169,9 +169,26 @@ public sealed class StoragePlanTests : IDisposable
             allowDefaultFallback: true);
 
         Assert.False(fallback.RequiresNetworkArchive);
+        // 兜底位置按"哪块盘就放哪块盘的快递打包视频"算，不再落到程序安装目录下
+        Assert.Equal(AppConfig.DefaultStoragePath, fallback.WorkingRootPath);
         Assert.Throws<IOException>(() => StorageLocationResolver.ResolveRecordingPlan(
             config,
             allowDefaultFallback: false));
+    }
+
+    [Fact]
+    public void DefaultStoragePath_IsDriveRootFolderNotProgramDirectory()
+    {
+        // 兜底保存位置必须与"添加磁盘"同一套风格（<盘根>\快递打包视频），
+        // 绝不允许落到程序安装目录下，否则升级、卸载都可能把录像清掉
+        string path = AppConfig.DefaultStoragePath;
+
+        Assert.Equal(Path.Combine(AppConfig.DefaultStorageRoot, "快递打包视频"), path);
+        Assert.True(Path.IsPathRooted(path));
+        Assert.DoesNotContain("Videos", path, StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            path.StartsWith(AppDomain.CurrentDomain.BaseDirectory, StringComparison.OrdinalIgnoreCase),
+            path);
     }
 
     [Fact]

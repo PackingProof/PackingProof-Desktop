@@ -1088,7 +1088,7 @@ namespace ExpressPackingMonitoring.Config
             return roots
                 .Select((root, index) =>
                 {
-                    string path = Path.Combine(root, "快递打包视频");
+                    string path = Path.Combine(root, DefaultStorageFolderName);
                     return new StorageLocation
                     {
                         Path = path,
@@ -1100,12 +1100,22 @@ namespace ExpressPackingMonitoring.Config
         }
 
         /// <summary>没有可用本地盘时的默认根：Windows 用系统盘，其它平台用个人影片目录</summary>
-        private static string DefaultStorageRoot =>
+        internal static string DefaultStorageRoot =>
             OperatingSystem.IsWindows()
-                ? @"C:\"
+                ? Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\"
                 : Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                     "Movies") + Path.DirectorySeparatorChar;
+
+        /// <summary>保存位置统一用的文件夹名：每块盘都是"&lt;盘根&gt;\快递打包视频"，不分系统盘还是数据盘。</summary>
+        internal const string DefaultStorageFolderName = "快递打包视频";
+
+        /// <summary>
+        /// 没有任何可用本地位置时的默认保存位置。与"添加磁盘"默认值同一套规则，
+        /// 也就是"哪块盘就放哪块盘的快递打包视频"；绝不落到程序安装目录下。
+        /// </summary>
+        internal static string DefaultStoragePath =>
+            Path.Combine(DefaultStorageRoot, DefaultStorageFolderName);
 
         private static bool IsSamePath(string left, string? right)
         {
