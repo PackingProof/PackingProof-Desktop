@@ -130,7 +130,13 @@ namespace ExpressPackingMonitoring.ViewModels
                     mainWindow?.ResumeCapsLockAfterModalWindow();
                 }
             }
-            catch (Exception ex) { ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error); }
+            catch (Exception ex)
+            {
+                // 提示只放得下一句话，完整异常（含内层）必须留痕，否则现场只能拿到
+                // "设置 connectionId 时引发了异常" 这种没有信息量的包装消息
+                RuntimeLog.Warn("Settings", $"打开设置窗口失败: {ex}");
+                ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error);
+            }
         }
 
         internal enum CameraRestartAction
@@ -265,6 +271,7 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
+                RuntimeLog.Warn("Settings", $"应用设置失败: {ex}");
                 ShowToast($"设置错误: {ex.Message}", ToastSeverity.Error);
                 return false;
             }
