@@ -675,6 +675,9 @@ namespace ExpressPackingMonitoring.Config
                 changed = true;
             }
 
+            if (RemoveUnusableStorageLocations(config.StorageLocations, ReadOnlySystemRoot))
+                changed = true;
+
             if (config.StorageLocations.Count == 0)
             {
                 config.StorageLocations.AddRange(CreateDefaultStorageLocations());
@@ -973,34 +976,99 @@ namespace ExpressPackingMonitoring.Config
                     && !string.Equals(currentTransport, nextTransport, StringComparison.Ordinal));
         }
 
+        /// <summary>
+        /// 只读系统卷根：macOS 的 "/" 既不允许建目录，也不是存录像的地方。
+        /// Windows 没有这种卷，返回 null 表示不做此限制。
+        /// </summary>
+        private static string? ReadOnlySystemRoot => OperatingSystem.IsMacOS() ? "/" : null;
+
+        /// <summary>
+        /// 清掉落在只读系统卷根下的保存位置。旧版把 Windows 默认值（D:\快递打包视频 一类）
+        /// 在 macOS 上归一化成 /快递打包视频，而 "/" 是只读系统卷，这个目录永远建不出来，
+        /// 留着它会让保存主机每次启动都失败、菜单栏一直显示"启动中"。
+        /// 只是移除无效项，改由默认位置规则重建；其它平台的配置一律不动。
+        /// </summary>
+        internal static bool RemoveUnusableStorageLocations(
+            List<StorageLocation> locations,
+            string? readOnlySystemRoot)
+        {
+            if (string.IsNullOrWhiteSpace(readOnlySystemRoot)) return false;
+
+            return locations.RemoveAll(location =>
+                IsDirectChildOfRoot(location.Path, readOnlySystemRoot)) > 0;
+        }
+
+        /// <summary>
+        /// 是否直接挂在给定根下："/快递打包视频"挂在"/"下，
+        /// 外接盘上的"/Volumes/盘/快递打包视频"不算，避免误删真实保存位置。
+        /// </summary>
+        private static bool IsDirectChildOfRoot(string? path, string root)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+
+            try
+            {
+                string parent = Path.GetDirectoryName(Path.GetFullPath(path.Trim())) ?? "";
+                return string.Equals(
+                    TrimTrailingSeparators(parent),
+                    TrimTrailingSeparators(Path.GetFullPath(root)),
+                    StringComparison.Ordinal);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>去掉结尾分隔符后再比较："/" 与 "/" 相等，"/Volumes/盘/" 与 "/Volumes/盘" 相等</summary>
+        private static string TrimTrailingSeparators(string path) =>
+            path.Length <= 1
+                ? path
+                : path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
         private static List<StorageLocation> CreateDefaultStorageLocations()
         {
             try
             {
                 return CreateDefaultStorageLocations(
                     DriveInfo.GetDrives().Select(drive =>
-                        new StorageDriveCandidate(drive.Name, drive.IsReady, drive.DriveType)));
+                        new StorageDriveCandidate(drive.Name, drive.IsReady, drive.DriveType)),
+                    ReadOnlySystemRoot);
             }
             catch
             {
-                return CreateDefaultStorageLocations(Array.Empty<StorageDriveCandidate>());
+                return CreateDefaultStorageLocations(
+                    Array.Empty<StorageDriveCandidate>(),
+                    ReadOnlySystemRoot);
             }
         }
 
         internal static List<StorageLocation> CreateDefaultStorageLocations(
-            IEnumerable<StorageDriveCandidate> drives)
+            IEnumerable<StorageDriveCandidate> drives) =>
+            CreateDefaultStorageLocations(drives, ReadOnlySystemRoot);
+
+        /// <summary>
+        /// 每个可用本地盘一个"快递打包视频"目录。readOnlySystemRoot 非空时该根不参与默认位置
+        /// （macOS 传 "/"：默认值会变成一条永远建不出来的配置）；fallbackRoot 是测试注入用的
+        /// 兜底根，正常调用按平台取。
+        /// </summary>
+        internal static List<StorageLocation> CreateDefaultStorageLocations(
+            IEnumerable<StorageDriveCandidate> drives,
+            string? readOnlySystemRoot,
+            string? fallbackRoot = null)
         {
             var roots = drives
                 .Where(drive => drive.IsReady && drive.DriveType == DriveType.Fixed)
                 .Select(drive => Path.GetPathRoot(drive.RootPath) ?? drive.RootPath)
                 .Where(root => !string.IsNullOrWhiteSpace(root))
+                .Where(root => !IsSamePath(root, readOnlySystemRoot))
                 .Select(root => root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderByDescending(root => root, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (roots.Count == 0)
-                roots.Add(@"C:\");
+                roots.Add(fallbackRoot ?? DefaultStorageRoot);
 
             return roots
                 .Select((root, index) =>
@@ -1014,6 +1082,31 @@ namespace ExpressPackingMonitoring.Config
                     };
                 })
                 .ToList();
+        }
+
+        /// <summary>没有可用本地盘时的默认根：Windows 用系统盘，其它平台用个人影片目录</summary>
+        private static string DefaultStorageRoot =>
+            OperatingSystem.IsWindows()
+                ? @"C:\"
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Movies") + Path.DirectorySeparatorChar;
+
+        private static bool IsSamePath(string left, string? right)
+        {
+            if (string.IsNullOrWhiteSpace(right)) return false;
+
+            try
+            {
+                return string.Equals(
+                    TrimTrailingSeparators(Path.GetFullPath(left)),
+                    TrimTrailingSeparators(Path.GetFullPath(right)),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         internal bool IsCameraIdleNoSleepTime(DateTime now)
