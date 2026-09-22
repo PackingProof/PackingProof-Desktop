@@ -210,6 +210,10 @@ namespace ExpressPackingMonitoring.Config
                 string? root = Path.GetPathRoot(fullPath);
                 if (string.IsNullOrWhiteSpace(root))
                     return StorageLocationKind.Unknown;
+                // macOS/Linux 没有盘符、UNC 与 WNet，Windows 那套最终路径判定在
+                // Unix 上一律解析不出结果（会被判成 Unknown，让所有本地位置都不可用）
+                if (!OperatingSystem.IsWindows())
+                    return ClassifyUnixStorageLocation(fullPath);
                 if (root.StartsWith(@"\\", StringComparison.Ordinal))
                     return StorageLocationKind.Network;
 
@@ -256,6 +260,126 @@ namespace ExpressPackingMonitoring.Config
         /// <summary>是否明确是本地存储位置（主存储 fail-closed 的唯一放行条件）。</summary>
         public static bool IsConfirmedLocal(string path) =>
             ClassifyStorageLocation(path) == StorageLocationKind.Local;
+
+        /// <summary>macOS 上外接盘固定挂在 /Volumes 下（"/" 是只读系统卷，盘没接入时这里不会有同名目录）。</summary>
+        internal const string MacExternalVolumeRoot = "/Volumes";
+
+        /// <summary>
+        /// Unix（macOS/Linux）的存储位置：没有盘符、UNC 与 WNet，只看挂载点。
+        /// 现在真的挂着的卷按本地位置处理（Mac 保存主机不做网络归档，网络挂载没有单独一类）；
+        /// 路径落在已断开的外接盘挂载目录下（例如 /Volumes/盘 还没接入）时按 Unknown
+        /// fail-closed，绝不在系统盘上建出同名目录继续写。
+        /// </summary>
+        private static StorageLocationKind ClassifyUnixStorageLocation(string path) =>
+            ClassifyUnixStorageLocation(
+                path,
+                Directory.Exists,
+                IsUnixMountPoint,
+                current => TryGetUnixVolume(current, out _),
+                OperatingSystem.IsMacOS() ? MacExternalVolumeRoot : "");
+
+        /// <summary>
+        /// 供测试注入的判定：externalVolumeRoot 为空表示不做"外接盘没接入"检查，
+        /// canReadVolume 是"这一层能不能读到真实卷"（生产用 TryGetUnixVolume）。
+        /// </summary>
+        internal static StorageLocationKind ClassifyUnixStorageLocation(
+            string path,
+            Func<string, bool> entryExists,
+            Func<string, bool> isMountPoint,
+            Func<string, bool> canReadVolume,
+            string externalVolumeRoot)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return StorageLocationKind.Unknown;
+
+            try
+            {
+                string trimmedPath = path.Trim().Trim('"');
+                // 用配置里的原始绝对路径判断外接盘根：Windows 上不能把 /Volumes/盘 归一化成盘符路径，
+                // 否则这条 fail-closed 规则在非 macOS 的用例里根本走不到
+                if (externalVolumeRoot.Length > 0
+                    && TryGetExternalVolumeRoot(trimmedPath, externalVolumeRoot, out string volumeRoot)
+                    && !isMountPoint(volumeRoot))
+                {
+                    return StorageLocationKind.Unknown;
+                }
+
+                string fullPath = Path.GetFullPath(trimmedPath);
+                // 目录可能还没建出来：看最近存在的父目录能不能读到真实卷
+                string? current = fullPath;
+                while (!string.IsNullOrWhiteSpace(current))
+                {
+                    if (entryExists(current))
+                    {
+                        return canReadVolume(current)
+                            ? StorageLocationKind.Local
+                            : StorageLocationKind.Unknown;
+                    }
+
+                    string? parent = Path.GetDirectoryName(current);
+                    if (string.IsNullOrWhiteSpace(parent)
+                        || string.Equals(parent, current, StringComparison.Ordinal))
+                    {
+                        break;
+                    }
+
+                    current = parent;
+                }
+
+                return StorageLocationKind.Unknown;
+            }
+            catch
+            {
+                return StorageLocationKind.Unknown;
+            }
+        }
+
+        /// <summary>
+        /// 取外接盘挂载目录下的第一层（/Volumes/盘）；不在该目录下时返回 false。
+        /// </summary>
+        private static bool TryGetExternalVolumeRoot(
+            string fullPath,
+            string externalVolumeRoot,
+            out string volumeRoot)
+        {
+            volumeRoot = "";
+            string prefix = NormalizeUnixMountPoint(externalVolumeRoot) + "/";
+            if (!fullPath.StartsWith(prefix, StringComparison.Ordinal))
+                return false;
+
+            string remainder = fullPath[prefix.Length..];
+            int separator = remainder.IndexOf('/');
+            string name = separator < 0 ? remainder : remainder[..separator];
+            if (name.Length == 0)
+                return false;
+
+            volumeRoot = prefix + name;
+            return true;
+        }
+
+        /// <summary>该路径是否是当前挂载点（如 /Volumes/盘、/）。</summary>
+        private static bool IsUnixMountPoint(string path)
+        {
+            try
+            {
+                string normalized = NormalizeUnixMountPoint(path);
+                foreach (DriveInfo drive in DriveInfo.GetDrives())
+                {
+                    if (string.Equals(
+                            NormalizeUnixMountPoint(drive.Name),
+                            normalized,
+                            StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // 读不到挂载表时保持 false：宁可判不可用，也不要在系统盘上建目录
+            }
+
+            return false;
+        }
 
         /// <summary>是否可作为备份目标：网络共享或网盘挂载成的虚拟磁盘。</summary>
         public static bool IsBackupTargetPath(string path) =>

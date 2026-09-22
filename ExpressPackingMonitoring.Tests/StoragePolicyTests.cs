@@ -186,6 +186,50 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
+    public void ClassifyUnixStorageLocation_MountedExternalDiskIsLocal()
+    {
+        // macOS 外接盘挂在 /Volumes/<盘>：这一层就是挂载点，位置可用
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyUnixStorageLocation(
+                "/Volumes/外接盘/快递打包视频",
+                entryExists: current => current.EndsWith("外接盘", StringComparison.Ordinal),
+                isMountPoint: path => string.Equals(path, "/Volumes/外接盘", StringComparison.Ordinal),
+                canReadVolume: _ => true,
+                externalVolumeRoot: "/Volumes"));
+    }
+
+    [Fact]
+    public void ClassifyUnixStorageLocation_UnmountedExternalDiskIsUnknown()
+    {
+        // 盘没接入时 /Volumes/<盘> 不是挂载点：必须 fail-closed，
+        // 否则会回退到系统盘上的同名目录继续写录像
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Unknown,
+            StorageVolumeInfo.ClassifyUnixStorageLocation(
+                "/Volumes/外接盘/快递打包视频",
+                entryExists: _ => false,
+                isMountPoint: _ => false,
+                canReadVolume: _ => true,
+                externalVolumeRoot: "/Volumes"));
+    }
+
+    [Fact]
+    public void ClassifyUnixStorageLocation_DirectoryOnSystemVolumeIsLocal()
+    {
+        // 普通目录（还没建出来时看最近存在的父目录）能读到真实卷就是本地位置
+        string directory = Path.Combine(Path.GetTempPath(), "epm-unix-classify");
+        Assert.Equal(
+            StorageVolumeInfo.StorageLocationKind.Local,
+            StorageVolumeInfo.ClassifyUnixStorageLocation(
+                directory,
+                entryExists: Directory.Exists,
+                isMountPoint: _ => false,
+                canReadVolume: _ => true,
+                externalVolumeRoot: "/Volumes"));
+    }
+
+    [Fact]
     public void ClassifyStorageLocation_DoesNotCacheResult()
     {
         string localInput = Path.Combine(Path.GetTempPath(), "epm-classify-nocache");

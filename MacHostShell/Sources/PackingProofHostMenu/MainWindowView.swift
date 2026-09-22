@@ -435,6 +435,12 @@ private struct SettingsView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 1))
+                // 保存主机要有一个能写的保存位置才起得来：这里直接把该做什么说出来
+                if model.storages.allSatisfy({ !$0.available }) {
+                    Text("现有保存位置都没有接入：接回磁盘，或在上面的“添加磁盘”里换成别的磁盘")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.errorRed)
+                }
             }
         }
     }

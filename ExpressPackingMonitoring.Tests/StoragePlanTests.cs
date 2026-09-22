@@ -264,6 +264,45 @@ public sealed class StoragePlanTests : IDisposable
     }
 
     [Fact]
+    public void ResolveRecordingPlan_StartupCanIgnoreReserveWhileReceivePathStillRejectsLowSpace()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            // 只有 500MB 可用的假卷：低于预留值
+            StorageLocationResolver.VolumeProbe = _ => new StorageVolumeInfo(
+                directory,
+                1024L * 1024 * 1024 * 1024,
+                512L * 1024 * 1024,
+                "test-volume");
+            var config = new AppConfig
+            {
+                StorageLocations =
+                [
+                    new StorageLocation { Path = directory, Priority = 0 }
+                ]
+            };
+
+            // 接收侧（默认）：剩余空间低于预留值 → 位置不可用，上传按存储不可用拒收
+            Assert.Throws<IOException>(() => StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false));
+
+            // 保存主机启动：位置在、写得了就照常起服务，空间不足由接收侧说明原因
+            RecordingStoragePlan plan = StorageLocationResolver.ResolveRecordingPlan(
+                config,
+                allowDefaultFallback: false,
+                requireFreeSpaceAboveReserve: false);
+
+            Assert.Equal(Path.GetFullPath(directory), plan.WorkingRootPath);
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void LocalStorageGates_AreFailClosed()
     {
         string driveDialog = File.ReadAllText(FindRepositoryFile(

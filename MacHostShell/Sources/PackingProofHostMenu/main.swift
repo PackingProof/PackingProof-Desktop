@@ -24,6 +24,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
     private var hostNodeName = ""
     private var storagePaths: [String] = []
     private var hostProblem = ""
+    /// 已经自动把"保存位置没接上"的设置页摆出来过的原因，同一个原因不再重复弹
+    private var storageRecoveryShownFor = ""
     /// 刚发起过启动、还没开始监听：界面上说"启动中"而不是"未运行"
     private var hostLaunching = false
     /// 界面内提示的代次：新的提示会顶掉旧的自动消失
@@ -467,10 +469,13 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 self.viewerRunning = self.launchedHosts.contains { $0.isRunning } && !serving
                 if self.purpose == "MobileBackupHost" && !serving {
                     self.hostProblem = self.readHostFailure() ?? self.hostProblem
+                    // 保存位置出问题时把恢复入口直接摆到用户面前，不用他去敲命令行
+                    self.presentStorageRecoveryIfNeeded()
                     // 只有保存主机才需要在后台常驻；查看端由用户显式点开回放
                     self.ensureHostRunning()
                 } else if serving {
                     self.hostProblem = ""
+                    self.storageRecoveryShownFor = ""
                 }
                 self.refreshHostDevices()
                 self.rebuildMenu()
@@ -478,13 +483,34 @@ final class HostShell: NSObject, NSApplicationDelegate {
         }.resume()
     }
 
+    /// 保存主机因为保存位置起不来时，直接把主界面与设置摆出来：Mac 上换保存位置就是
+    /// 设置里的"添加磁盘"，全程不需要用户敲命令。同一个原因只自动弹一次，不反复抢焦点
+    private func presentStorageRecoveryIfNeeded() {
+        guard purpose == "MobileBackupHost", hostProblem.contains("保存位置") else { return }
+        guard storageRecoveryShownFor != hostProblem else { return }
+
+        storageRecoveryShownFor = hostProblem
+        openMainWindow()
+        model.requestSettings()
+    }
+
     /// 用途项自己就是状态位：菜单不再单占一行显示"当前用途"
     private var hostPurposeTitle: String {
         // 只在当前就是保存主机时才带状态，用户不必去翻日志
         guard purpose == "MobileBackupHost" else { return "保存主机" }
-        if !hostProblem.isEmpty { return "保存主机未启动：\(hostProblem)" }
+        if !hostProblem.isEmpty { return "保存主机未启动：\(hostProblemHeadline)" }
         // 刚点过启动、还没开始监听：说"启动中"，不要说"未运行"
         return isHostLaunching ? "保存主机（启动中）" : "保存主机"
+    }
+
+    /// 菜单只放得下一行：原因取到第一个冒号或句号为止。
+    /// 每个保存位置各自为什么不可用留在设置页与日志里，菜单不摊开整段
+    private var hostProblemHeadline: String {
+        guard let end = hostProblem.firstIndex(where: { $0 == "：" || $0 == "。" }) else {
+            return hostProblem
+        }
+
+        return String(hostProblem[hostProblem.startIndex..<end])
     }
 
     /// 主机是否正在启动：刚发起过启动、还没监听、也还没报错
@@ -1369,10 +1395,10 @@ final class HostShell: NSObject, NSApplicationDelegate {
         process.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.refreshSettings()
-                self.refreshViewerStatus()
-                self.refreshAutostart()
-                self.rebuildMenu()
+                // 进程已经退出，这次启动尝试就结束了：先收掉"启动中"再刷新，
+                // 否则主机反复起不来时菜单会一直显示"启动中"，真正的原因反而不显示
+                self.hostLaunching = false
+                self.refresh()
             }
         }
         // 主机输出写进日志，出问题时能查；不再丢掉
