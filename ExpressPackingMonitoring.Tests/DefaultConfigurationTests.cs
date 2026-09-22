@@ -253,6 +253,67 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
+    public void CreateDefaultStorageLocations_SkipsReadOnlySystemRoot()
+    {
+        // macOS 的 "/" 是只读系统卷，在它下面拼出来的默认位置永远建不出来：
+        // 该根必须被跳过，改用其它本地盘
+        var drives = new[]
+        {
+            new StorageDriveCandidate(@"C:\", true, DriveType.Fixed),
+            new StorageDriveCandidate(@"D:\", true, DriveType.Fixed)
+        };
+
+        StorageLocation location = Assert.Single(
+            AppConfig.CreateDefaultStorageLocations(drives, readOnlySystemRoot: @"C:\"));
+
+        Assert.Equal(@"D:\快递打包视频", location.Path);
+        Assert.Equal(0, location.Priority);
+    }
+
+    [Fact]
+    public void CreateDefaultStorageLocations_WithoutCandidatesUsesPlatformFallback()
+    {
+        // 可用本地盘都被排除时用兜底根，而不是那条永远建不出来的 /快递打包视频
+        string fallbackRoot = Path.Combine(Path.GetTempPath(), "mac-default") + Path.DirectorySeparatorChar;
+        StorageLocation location = Assert.Single(
+            AppConfig.CreateDefaultStorageLocations(
+                Array.Empty<StorageDriveCandidate>(),
+                readOnlySystemRoot: "/",
+                fallbackRoot: fallbackRoot));
+
+        Assert.Equal(Path.Combine(fallbackRoot, "快递打包视频"), location.Path);
+        Assert.Equal(0, location.Priority);
+    }
+
+    [Fact]
+    public void RemoveUnusableStorageLocations_DropsOnlyDirectChildrenOfReadOnlyRoot()
+    {
+        var locations = new List<StorageLocation>
+        {
+            new() { Path = "/快递打包视频", Priority = 0 },
+            new() { Path = "/Volumes/外接盘/快递打包视频", Priority = 1 }
+        };
+
+        Assert.True(AppConfig.RemoveUnusableStorageLocations(locations, readOnlySystemRoot: "/"));
+
+        StorageLocation remaining = Assert.Single(locations);
+        Assert.Equal("/Volumes/外接盘/快递打包视频", remaining.Path);
+        Assert.Equal(1, remaining.Priority);
+    }
+
+    [Fact]
+    public void RemoveUnusableStorageLocations_DoesNothingOnWindowsConfigs()
+    {
+        var locations = new List<StorageLocation>
+        {
+            new() { Path = @"D:\快递打包视频", Priority = 0 }
+        };
+
+        Assert.False(AppConfig.RemoveUnusableStorageLocations(locations, readOnlySystemRoot: null));
+        Assert.Single(locations);
+    }
+
+    [Fact]
     public void ResolveStartupExecutable_PrefersRootLauncherForCleanPackage()
     {
         string processPath = @"D:\Package\app\ExpressPackingMonitoring.exe";
