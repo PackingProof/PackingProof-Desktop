@@ -20,7 +20,7 @@
       版本号以 ExpressPackingMonitoring.csproj 为准；发布脚本会用 -p:Version 全局覆盖。
       Core 保留同值，本地构建与测试才能读到真实版本而不是 0.0.0。
     -->
-    <Version>0.0.72</Version>
+    <Version>0.0.73</Version>
   </PropertyGroup>
 
   <ItemGroup>
