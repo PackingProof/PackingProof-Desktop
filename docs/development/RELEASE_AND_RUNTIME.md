@@ -27,6 +27,7 @@
 - AppPatch 是固定基线累计补丁，当前默认基线为 `0.0.18`；启动器基线与 AppPatch 基线相互独立。
 - AppPatch 只新增或覆盖清单中的文件，不删除已从新发布目录移除的路径。功能迁移不得把安装目录残留文件视为用户仍在使用该功能；确需删除发布文件时，应另行设计带安全白名单和回滚能力的删除清单。
 - 启动器基线由 `Tools/launcher-baseline.json` 锁定。普通应用发布复用锁定字节，不重建或重复上传 LauncherPatch。启动器逻辑输入变化时运行 `Tools/Publish-LauncherBaseline.ps1`、提交新锁并创建普通 `launcher-vX.Y.Z` 标签，不为该组件标签创建 Release。
+- 启动器的 AOT 构建产物不可复现（同一份源码、同一台机器多次构建的哈希都不相同），所以 `Tools/launcher-baseline.json` 里的哈希必须与那一次构建产出的 `PackingProof_LauncherPatch_v*.zip` 成对保留：基线脚本产出的补丁包要就地留着，打包时用 `-LauncherBaselinePackagePath` 指给它，不要重新构建一份来对齐锁。重建基线会改变锁与补丁包哈希，需要重新提交锁并移动组件标签。
 - AppPatch 与 LauncherPatch 是两个独立 ZIP，各自带手动安装器和说明；AppPatch 绝不能包含启动器。
 - 更新地址通过环境变量或 `.env` 配置；默认检查 GitHub latest release API。
 
