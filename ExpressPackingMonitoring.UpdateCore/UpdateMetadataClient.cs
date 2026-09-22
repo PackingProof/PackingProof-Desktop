@@ -143,14 +143,30 @@ public sealed class UpdateMetadataClient
         IReadOnlyList<string> sourceUrls,
         CancellationToken cancellationToken)
     {
+        // 只发另一个平台的版本（例如只发 macOS 的 DMG）没有 update_v*.json：直接拿 /releases/latest
+        // 会报"Release 缺少 update_v*.json"，启动器的自动更新就一直在失败。改成在列表里按新到旧
+        // 找第一个带更新清单的版本，与 macOS 端"只认带本平台安装包的版本"是同一条规则。
+        IReadOnlyList<string> releaseListUrls = UpdateEndpointPolicy.ToReleaseListUrls(sourceUrls);
+        if (releaseListUrls.Count == 0)
+            releaseListUrls = sourceUrls;
+
         return await ExecuteWithFallbackAsync(
-            sourceUrls,
+            releaseListUrls,
             async (sourceUrl, token) =>
             {
-                JsonDocument release = await GetJsonAsync(sourceUrl, token);
+                JsonDocument list = await GetJsonAsync(sourceUrl, token);
+                JsonDocument? release = null;
                 JsonDocument? manifest = null;
                 try
                 {
+                    int index = UpdateReleaseSelection.FindLatestWithAsset(
+                        list.RootElement,
+                        UpdateReleaseSelection.IsUpdateManifest);
+                    if (index < 0)
+                        throw new InvalidDataException("没有找到带更新清单的版本");
+
+                    // 下游按"单个 release 对象"解析，这里把它单独复制出来
+                    release = JsonDocument.Parse(list.RootElement[index].GetRawText());
                     string latestVersion = RequireLatestVersion(release.RootElement);
                     string manifestUrl = FindUpdateManifestUrl(release.RootElement, latestVersion);
                     if (manifestUrl.Length == 0)
@@ -166,8 +182,12 @@ public sealed class UpdateMetadataClient
                 catch
                 {
                     manifest?.Dispose();
-                    release.Dispose();
+                    release?.Dispose();
                     throw;
+                }
+                finally
+                {
+                    list.Dispose();
                 }
             },
             cancellationToken);
