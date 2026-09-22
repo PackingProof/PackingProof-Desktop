@@ -66,6 +66,11 @@
   <data name="结束时间" xml:space="preserve"><value>End time</value></data>
   <data name="剪辑后时长" xml:space="preserve"><value>Clip duration</value></data>
   <data name="存储路径" xml:space="preserve"><value>Storage path</value></data>
+  <data name="设置预留空间" xml:space="preserve"><value>Reserve space</value></data>
+  <data name="设置预留空间…" xml:space="preserve"><value>Reserve space…</value></data>
+  <data name="为整块磁盘保留的安全空间，单位 GB" xml:space="preserve"><value>Safety space reserved for the whole disk, in GB</value></data>
+  <data name="预留空间是留给整块磁盘的安全空间，整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满，调整后立即生效" xml:space="preserve"><value>Reserved space is a safety margin kept for the whole disk: the disk shares it, other software counts against it, and it is not a cap on how much this app may occupy. Keeping it too small makes the disk fill up easily, and changes take effect immediately</value></data>
+  <data name="请输入大于 0 的数字（单位 GB）" xml:space="preserve"><value>Enter a number greater than 0 (GB)</value></data>
   <data name="录像空间上限" xml:space="preserve"><value>Recording storage limit</value></data>
   <data name="备份空间上限" xml:space="preserve"><value>Backup storage limit</value></data>
   <data name="选择磁盘分区" xml:space="preserve"><value>Select drive</value></data>
@@ -217,7 +222,7 @@
   <data name="开始检测" xml:space="preserve"><value>Start test</value></data>
   <data name="正在检测，请稍候" xml:space="preserve"><value>Testing, please wait</value></data>
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
-  <data name="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>Recordings are saved in list order. When the recording storage limit is reached or safe disk space is insufficient, the next disk is used automatically. The limit does not preallocate space, and actual available capacity may decrease when other software uses the disk.</value></data>
+  <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>Recordings are saved in list order, and the next disk is used automatically when the current one runs low on space. The system keeps a safety margin for the whole disk, so available capacity can drop when other software uses it. Right-click a disk to adjust it</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
   <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>Detect the label position, pan to its close-up, then restore the full view.</value></data>
   <data name="录制声音" xml:space="preserve"><value>Record sound</value></data>
@@ -982,7 +987,7 @@
   <data name="添加网络位置" xml:space="preserve"><value>Add network location</value></data>
   <data name="录像会按列表顺序备份到当前可用的位置；NAS 满时自动切换到下一个，NAS 中已备份的文件不会被程序删除" xml:space="preserve"><value>Recordings are backed up to the first currently available location in list order; when a NAS is full the program automatically switches to the next one, and files already backed up to the NAS are never deleted</value></data>
   <data name="本地磁盘直接保存录像，空间不足时按保护期自动循环清理" xml:space="preserve"><value>Local disks store recordings directly; old recordings are recycled after a protection period when space is low</value></data>
-  <data name="达到备份空间上限或磁盘安全空间不足时，会自动切换到下一个可用位置；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>When the backup storage limit is reached or safe disk space is insufficient, the next available location is used automatically. The limit does not preallocate space, and actual available capacity may decrease when other software uses the disk. Old local copies are cleaned only after verification, and files on the NAS are not deleted.</value></data>
+  <data name="备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>Backups move to the next available location when the current one runs low on space. The system keeps a safety margin for the whole location; right-click a location to adjust it. Old local copies are cleaned only after verification, and files on the NAS are not deleted</value></data>
   <data name="录像清理" xml:space="preserve"><value>Recording cleanup</value></data>
   <data name="清理只影响电脑本地录像，NAS 中已备份的文件不会受到影响" xml:space="preserve"><value>Cleanup only affects local recordings on this computer; files already backed up to the NAS are not affected</value></data>
   <data name="按时间清理…" xml:space="preserve"><value>Clean up by time…</value></data>

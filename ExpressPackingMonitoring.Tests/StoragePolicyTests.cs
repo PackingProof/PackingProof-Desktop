@@ -292,9 +292,9 @@ public sealed class StoragePolicyTests
     }
 
     [Fact]
-    public void StorageCapacityEditor_ConvertsReserveToCapacityLimit()
+    public void StorageCapacity_ConvertsReserveToCapacityLimit()
     {
-        double capacityGB = StorageCapacityEditorPolicy.CalculateCapacityGB(
+        double capacityGB = StorageCapacityPolicy.CalculateCapacityGB(
             totalCapacityGB: 1000,
             minimumReserveGB: 30,
             configuredReserveGB: 30);
@@ -302,7 +302,7 @@ public sealed class StoragePolicyTests
         Assert.Equal(970, capacityGB);
         Assert.Equal(
             500,
-            StorageCapacityEditorPolicy.CalculateReserveGB(
+            StorageCapacityPolicy.CalculateReserveGB(
                 totalCapacityGB: 1000,
                 minimumReserveGB: 30,
                 requestedCapacityGB: 500));
@@ -313,20 +313,20 @@ public sealed class StoragePolicyTests
     [InlineData(0, 999)]
     [InlineData(-10, 999)]
     [InlineData(500.5, 499)]
-    public void StorageCapacityEditor_ClampsAndRoundsCapacityLimit(
+    public void StorageCapacity_ClampsAndRoundsCapacityLimit(
         double requestedCapacityGB,
         double expectedReserveGB)
     {
         Assert.Equal(
             expectedReserveGB,
-            StorageCapacityEditorPolicy.CalculateReserveGB(
+            StorageCapacityPolicy.CalculateReserveGB(
                 totalCapacityGB: 1000,
                 minimumReserveGB: 30,
                 requestedCapacityGB));
     }
 
     [Fact]
-    public void StorageCapacityEditor_UnavailableLocationDoesNotChangeReserve()
+    public void StorageReserve_UnavailableLocationDoesNotChangeReserve()
     {
         var location = new StorageLocation
         {
@@ -334,12 +334,7 @@ public sealed class StoragePolicyTests
             ReserveGB = 25
         };
 
-        StorageCapacityEditorState state =
-            StorageCapacityEditorPolicy.CreateState(location);
-
-        Assert.False(state.IsAvailable);
-        Assert.Null(state.CapacityGB);
-        Assert.False(StorageCapacityEditorPolicy.TryApplyCapacity(location, 100));
+        Assert.False(StorageCapacityPolicy.TryApplyReserveGB(location, 100));
         Assert.Equal(25, location.ReserveGB);
     }
 

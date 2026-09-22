@@ -1511,12 +1511,13 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
-        private void StorageCapacityEditor_LostFocus(object sender, RoutedEventArgs e)
+        /// <summary>预留只从右键改：设置页露出"空间上限"会被理解成本软件最多占用多少</summary>
+        private void StorageReserveMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Xceed.Wpf.Toolkit.DoubleUpDown
-                { DataContext: StorageCapacityEditorState { IsAvailable: true } state, Value: double capacityGB })
-                StorageCapacityEditorPolicy.TryApplyCapacity(state.Location, capacityGB);
-            RefreshStorageViews();
+            if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: DataGridRow row } }
+                && row.DataContext is StorageLocation location
+                && StorageReserveDialog.TryEdit(this, location))
+                RefreshStorageViews();
         }
 
         private void BtnMoveStorageUp_Click(object sender, RoutedEventArgs e)

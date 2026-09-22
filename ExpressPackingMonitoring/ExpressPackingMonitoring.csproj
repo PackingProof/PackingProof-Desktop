@@ -215,6 +215,7 @@
     <Compile Include="UI\StorageCapacityEditorPolicy.cs" />
     <Compile Include="UI\StorageReserveWarningPolicy.cs" />
     <Compile Include="UI\StatisticsWindow.xaml.cs" />
+    <Compile Include="UI\StorageReserveDialog.xaml.cs" />
     <Compile Include="UI\StoragePathSelectionDialog.xaml.cs" />
     <Compile Include="UI\Controls\StatusCard.xaml.cs" />
     <Compile Include="UI\Controls\SmoothProgressBar.cs" />

@@ -367,6 +367,7 @@ struct MainWindowView: View {
 private struct SettingsView: View {
     @ObservedObject var model: AppStateModel
     @Environment(\.dismiss) private var dismiss
+    @State private var reserveText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -391,6 +392,33 @@ private struct SettingsView: View {
         }
         .frame(width: 580, height: 460)
         .background(Color(nsColor: .windowBackgroundColor))
+        // 预留只在右键里改：输入框里说清这是整块磁盘的预留，不是本软件最多占用多少
+        .alert(
+            "设置预留空间",
+            isPresented: Binding(
+                get: { model.reserveEditor != nil },
+                set: { if !$0 { model.reserveEditor = nil } }),
+            presenting: model.reserveEditor
+        ) { request in
+            TextField("预留（GB）", text: $reserveText)
+            Button("取消", role: .cancel) { model.reserveEditor = nil }
+            Button("确定") {
+                if let gigabytes = Double(reserveText.trimmingCharacters(in: .whitespaces)),
+                   gigabytes > 0 {
+                    model.setReserve(path: request.path, gigabytes: gigabytes)
+                }
+                model.reserveEditor = nil
+            }
+        } message: { request in
+            Text("预留空间是留给整块磁盘的安全空间：整个磁盘共享，其他软件占用也算在内，不是本软件最多占用多少；留得太小磁盘容易写满。调整后立即生效：\(request.path)")
+        }
+        .onChange(of: model.reserveEditor) { request in
+            reserveText = request.map { numberText($0.currentReserveGB) } ?? ""
+        }
+    }
+
+    private func numberText(_ value: Double) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     private var storageSection: some View {
@@ -614,10 +642,6 @@ private struct DeviceRow: View {
 private struct StorageCard: View {
     let store: StorageItem
     let model: AppStateModel
-    @State private var capacityText = ""
-    @State private var reserveText = ""
-    @FocusState private var capacityFocused: Bool
-    @FocusState private var reserveFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -640,32 +664,7 @@ private struct StorageCard: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
-            if store.available, store.capacityKnown, store.reserveGB < store.recommendedReserveGB {
-                Text("预留偏低，建议至少 \(Int(store.recommendedReserveGB)) GB")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.errorRed)
-                    .lineLimit(1)
-            }
-            // 就地编辑：容量上限与预留都写同一个预留值，改完立刻生效，不再弹输入框
             HStack(spacing: 6) {
-                Text("容量上限")
-                TextField("", text: $capacityText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .focused($capacityFocused)
-                    .onSubmit { applyLimit() }
-                    .disabled(!store.capacityKnown)
-                Text("GB")
-                Text("预留")
-                TextField("", text: $reserveText)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .focused($reserveFocused)
-                    .onSubmit { applyLimit() }
-                    .disabled(!store.capacityKnown)
-                Text("GB")
-                Button("应用") { applyLimit() }
-                    .disabled(!store.capacityKnown)
                 Spacer(minLength: 8)
                 Button {
                     model.actions?.openStorageLocation(store.path)
@@ -680,34 +679,13 @@ private struct StorageCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .onAppear { syncFromStore() }
-        .onChange(of: store) { _ in syncFromStore() }
-    }
-
-    private func syncFromStore() {
-        capacityText = numberText(store.capacityGB)
-        reserveText = numberText(store.reserveGB)
-    }
-
-    private func applyLimit() {
-        // 先收起焦点：否则输入框会一直显示旧值，看不到"已经生效"
-        capacityFocused = false
-        reserveFocused = false
-
-        let trimmedCapacity = capacityText.trimmingCharacters(in: .whitespaces)
-        if let capacity = Double(trimmedCapacity), abs(capacity - store.capacityGB) > 0.01 {
-            model.setCapacity(path: store.path, gigabytes: capacity)
-            return
+        // 预留空间只在右键里改：列表里露出来会被当成"本软件最多占用多少"，
+        // 反推出来的预留会把整块盘算成不可用
+        .contextMenu {
+            Button("设置预留空间…") {
+                model.requestReserveEdit(store: store)
+            }
         }
-
-        let trimmedReserve = reserveText.trimmingCharacters(in: .whitespaces)
-        if let reserve = Double(trimmedReserve), abs(reserve - store.reserveGB) > 0.01 {
-            model.setReserve(path: store.path, gigabytes: reserve)
-        }
-    }
-
-    private func numberText(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 }
 

@@ -138,6 +138,7 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentBackupConnectionSchemaVersion = 1;
         public const int CurrentWebProtectionSetupVersion = 1;
         public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
+        public const int CurrentStorageReserveSchemaVersion = 1;
 
         /// <summary>智能特写停留时间的当前默认值（秒）</summary>
         public const double DefaultZoomDurationSeconds = 2.5;
@@ -178,6 +179,8 @@ namespace ExpressPackingMonitoring.Config
         public int RecordingSetupVersion { get; set; } = 0;
         public int WebProtectionSetupVersion { get; set; }
         public int DeletedVideoVisibilitySetupVersion { get; set; }
+        /// <summary>磁盘预留口径版本：1 起不再沿用历史"容量上限"反推出来的预留值</summary>
+        public int StorageReserveSchemaVersion { get; set; }
 
         // 录像方式："CameraMonitor"=使用电脑摄像头录像，"PrintStation"=不使用电脑摄像头（兼容旧配置），空值表示首次启动需要选择。
         public string WorkstationRole { get; set; } = "";
@@ -681,6 +684,18 @@ namespace ExpressPackingMonitoring.Config
             if (config.StorageLocations.Count == 0)
             {
                 config.StorageLocations.AddRange(CreateDefaultStorageLocations());
+                changed = true;
+            }
+
+            if (config.StorageReserveSchemaVersion < CurrentStorageReserveSchemaVersion)
+            {
+                // 历史设置页按"容量上限"呈现，用户把它理解成"本软件最多占用多少"，
+                // 反推出来的预留值会让整块盘在其它软件占用空间后就被判成不可用；
+                // 这些值一律清掉，改回默认预留（只有用户显式设置过才再带上预留）
+                foreach (StorageLocation location in config.StorageLocations)
+                    location.ReserveGB = 0;
+
+                config.StorageReserveSchemaVersion = CurrentStorageReserveSchemaVersion;
                 changed = true;
             }
 

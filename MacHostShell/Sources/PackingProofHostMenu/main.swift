@@ -245,11 +245,8 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 viewer ? self?.useViewerPurpose() : self?.useHostPurpose()
             },
             openStorageLocation: { [weak self] path in self?.openStorageLocation(path: path) },
-            setCapacity: { [weak self] path, gigabytes in
-                self?.applyStorageLimit(path: path, byCapacity: true, gigabytes: gigabytes)
-            },
             setReserve: { [weak self] path, gigabytes in
-                self?.applyStorageLimit(path: path, byCapacity: false, gigabytes: gigabytes)
+                self?.applyStorageReserve(path: path, gigabytes: gigabytes)
             },
             addDisk: { [weak self] path in self?.addStorageDisk(root: path) },
             toggleAutostart: { [weak self] in self?.toggleAutostart() },
@@ -441,10 +438,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
                 path: path,
                 name: (location["displayName"] as? String) ?? path,
                 available: (location["available"] as? Bool) ?? false,
-                capacityKnown: (location["capacityKnown"] as? Bool) ?? false,
-                capacityGB: number(location["capacityGB"]),
-                reserveGB: number(location["reserveGB"]),
-                recommendedReserveGB: number(location["recommendedReserveGB"]))
+                freeGB: number(location["freeGB"]),
+                totalGB: number(location["totalGB"]),
+                reserveGB: number(location["reserveGB"]))
         }
     }
 
@@ -655,15 +651,15 @@ final class HostShell: NSObject, NSApplicationDelegate {
     }
 
     private func storageSummaryLines() -> [String] {
-        guard !storageLocations.isEmpty else { return ["· 存储空间上限：暂不可用"] }
+        guard !storageLocations.isEmpty else { return ["· 存储位置：暂不可用"] }
         return storageLocations.map { location in
             let name = (location["displayName"] as? String) ?? ""
             guard (location["available"] as? Bool) ?? false else {
-                return "· 存储空间上限 \(name)：磁盘未接入"
+                return "· 存储位置 \(name)：磁盘未接入"
             }
-            let capacity = formatNumber(number(location["capacityGB"]))
-            let reserve = formatNumber(number(location["reserveGB"]))
-            return "· 存储空间上限 \(name)：\(capacity) GB，预留 \(reserve) GB"
+            let free = formatNumber(number(location["freeGB"]))
+            let total = formatNumber(number(location["totalGB"]))
+            return "· 存储位置 \(name)：可用 \(free) GB / 共 \(total) GB"
         }
     }
 
@@ -944,9 +940,9 @@ final class HostShell: NSObject, NSApplicationDelegate {
 
     /// 容量上限与预留都在设置页里就地编辑（不再弹输入框），这里只负责落盘。
     /// 两者写的是配置里同一个预留值，换算规则由核心负责；改完不需要重启主机
-    private func applyStorageLimit(path: String, byCapacity: Bool, gigabytes: Double) {
-        let option = byCapacity ? "--set-storage-capacity" : "--set-storage-reserve"
-        runHostCommand([option, formatNumber(gigabytes), "--storage-path", path]) { [weak self] json in
+    /// 只改整块磁盘的预留：这是操作者显式做的调整，默认值由主机自己按磁盘类型算
+    private func applyStorageReserve(path: String, gigabytes: Double) {
+        runHostCommand(["--set-storage-reserve", formatNumber(gigabytes), "--storage-path", path]) { [weak self] json in
             guard let self else { return }
             guard let json, (json["ok"] as? Bool) == true else {
                 self.showBanner((json?["error"] as? String) ?? "设置未生效", isError: true)
@@ -954,9 +950,7 @@ final class HostShell: NSObject, NSApplicationDelegate {
             }
 
             self.refreshStorageSummary(force: true)
-            let capacity = self.formatNumber(self.number(json["capacityGB"]))
-            let reserve = self.formatNumber(self.number(json["reserveGB"]))
-            self.showBanner("已更新：容量上限 \(capacity) GB，预留 \(reserve) GB")
+            self.showBanner("已为整块磁盘保留 \(self.formatNumber(self.number(json["reserveGB"]))) GB")
         }
     }
 
