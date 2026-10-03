@@ -152,4 +152,69 @@ public sealed class CameraOverlayComposerTests
         // 主帧仍保持原样
         Assert.Equal(0, Cv2.Mean(main).Val0, precision: 3);
     }
+
+    /// <summary>
+    /// 同一份叠加帧连续合成（预录回灌就是这样）会走贴片缓存，结果必须和逐帧重算一字不差：
+    /// 缓存的是"已经缩放、圆角、描边好的贴片"，不是跳过绘制。
+    /// </summary>
+    [Fact]
+    public void RepeatedComposeWithSameOverlay_ReusesPatchWithoutChangingPixels()
+    {
+        using var reference = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        using var composed = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        using var overlay = new Mat(480, 640, MatType.CV_8UC3, new Scalar(255, 255, 255));
+        CameraOverlayRect rect = CameraOverlayLayout
+            .Resolve(1920, 1080, 640, 480, WidthRatio, Margin)!.Value;
+
+        // 参考结果：每次换一份叠加帧副本，逼它每次重新算贴片
+        for (int i = 0; i < 2; i++)
+        {
+            using var fresh = overlay.Clone();
+            Assert.True(CameraOverlayComposer.TryCompose(reference, fresh, rect));
+        }
+
+        // 连续合成十帧：同一份叠加帧，第二次之后都命中缓存
+        for (int i = 0; i < 10; i++)
+            Assert.True(CameraOverlayComposer.TryCompose(composed, overlay, rect));
+
+        using Mat difference = new();
+        Cv2.Absdiff(reference, composed, difference);
+        Assert.Equal(0.0, Cv2.Mean(difference).Val0);
+        Assert.Equal(0.0, Cv2.Mean(difference).Val1);
+        Assert.Equal(0.0, Cv2.Mean(difference).Val2);
+    }
+
+    /// <summary>缓存按落位区分：换了落位必须重新做贴片，不能拿上一份尺寸去贴。</summary>
+    [Fact]
+    public void DifferentRects_DoNotShareCachedPatches()
+    {
+        using var overlay = new Mat(480, 640, MatType.CV_8UC3, new Scalar(255, 255, 255));
+        using var bottomRightFrame = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        using var topLeftFrame = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+
+        CameraOverlayRect bottomRight = CameraOverlayLayout
+            .Resolve(1920, 1080, 640, 480, WidthRatio, Margin, anchor: CameraOverlayAnchor.BottomRight)!.Value;
+        CameraOverlayRect topLeft = CameraOverlayLayout
+            .Resolve(1920, 1080, 640, 480, WidthRatio, Margin, anchor: CameraOverlayAnchor.TopLeft)!.Value;
+
+        Assert.True(CameraOverlayComposer.TryCompose(bottomRightFrame, overlay, bottomRight));
+        Assert.True(CameraOverlayComposer.TryCompose(topLeftFrame, overlay, topLeft));
+
+        // 每张主帧上只有自己那个落位被画到
+        using var bottomRightArea = new Mat(
+            bottomRightFrame,
+            new Rect(bottomRight.X + 12, bottomRight.Y + 12, 24, 24));
+        using var topLeftAreaOfBottomRightFrame = new Mat(
+            bottomRightFrame,
+            new Rect(topLeft.X + 12, topLeft.Y + 12, 24, 24));
+        using var topLeftArea = new Mat(topLeftFrame, new Rect(topLeft.X + 12, topLeft.Y + 12, 24, 24));
+        using var bottomRightAreaOfTopLeftFrame = new Mat(
+            topLeftFrame,
+            new Rect(bottomRight.X + 12, bottomRight.Y + 12, 24, 24));
+
+        Assert.True(Cv2.Mean(bottomRightArea).Val0 > 200, "右下角那份没贴上");
+        Assert.True(Cv2.Mean(topLeftAreaOfBottomRightFrame).Val0 < 40, "右上角被别的贴片污染");
+        Assert.True(Cv2.Mean(topLeftArea).Val0 > 200, "左上角那份没贴上");
+        Assert.True(Cv2.Mean(bottomRightAreaOfTopLeftFrame).Val0 < 40, "右下角被别的贴片污染");
+    }
 }

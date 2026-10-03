@@ -15,6 +15,36 @@ namespace ExpressPackingMonitoring.ViewModels
         private const int BorderThickness = 2;
 
         /// <summary>
+        /// 贴片缓存：同一份叠加帧 + 同一个落位 + 同一种主帧通道数时，缩放、通道对齐与描边只算一次。
+        ///
+        /// 预录回灌会把**同一份**叠加帧连续合成上百帧（预录帧用的是回灌那一刻的叠加画面），
+        /// 不缓存就是每帧白算一遍缩放和蒙版 —— 实测每帧 0.5 ms 左右，
+        /// 150 帧两路就是 150 ms 上下，而这段时间帧顺序锁一直被占着，点开始录制时画面就会顿一下。
+        /// 圆角蒙版单独按尺寸缓存：它只跟落位大小有关，实时合成每帧都要用。
+        /// </summary>
+        private static readonly object PatchCacheLock = new();
+        private static readonly List<PreparedPatch> PatchCache = new();
+        private static readonly Dictionary<(int Width, int Height), Mat> MaskCache = new();
+        private const int MaxCachedPatches = 4;
+        private const int MaxCachedMasks = 8;
+
+        /// <summary>一份已经准备好的贴片：缩放、通道对齐、圆角描边都做完了，合成时只剩一次带蒙版拷贝。</summary>
+        private sealed class PreparedPatch
+        {
+            internal Mat? Source;
+            internal CameraOverlayRect Rect;
+            internal int FrameChannels;
+            internal Mat? Patch;
+
+            internal void Dispose()
+            {
+                Patch?.Dispose();
+                Patch = null;
+                Source = null;
+            }
+        }
+
+        /// <summary>
         /// 按给定的落位把副画面贴进主帧，成功返回 true。
         ///
         /// 落位由调用方用 <see cref="CameraOverlayLayout.Resolve"/> 算好再传进来：
@@ -39,6 +69,66 @@ namespace ExpressPackingMonitoring.ViewModels
                 || rect.Y + rect.Height > frame.Height)
                 return false;
 
+            // 取贴片与拷贝都在锁里：贴片可能被新尺寸挤出去释放掉，拷贝必须在它还有效时做完。
+            // 拷贝本身只有 0.01 ms 量级，这点串行完全可以接受。
+            lock (PatchCacheLock)
+            {
+                if (RentPatchLocked(secondaryFrame, rect, frame.Channels())?.Patch is not { } patch)
+                    return false;
+
+                using var region = new Mat(frame, new Rect(rect.X, rect.Y, rect.Width, rect.Height));
+                // 圆角裁剪：四个角保留主画面自己的内容，不能把小窗的方角贴上去。
+                patch.CopyTo(region, RentMaskLocked(rect.Width, rect.Height));
+                return true;
+            }
+        }
+
+        /// <summary>按（叠加帧、落位、主帧通道数）取贴片；没命中就现做一份，并把最久没用的挤出去。</summary>
+        private static PreparedPatch? RentPatchLocked(Mat secondaryFrame, CameraOverlayRect rect, int frameChannels)
+        {
+            for (int i = 0; i < PatchCache.Count; i++)
+            {
+                PreparedPatch cached = PatchCache[i];
+                if (!ReferenceEquals(cached.Source, secondaryFrame)
+                    || cached.Rect != rect
+                    || cached.FrameChannels != frameChannels)
+                {
+                    continue;
+                }
+
+                // 命中就挪到最前：连续回灌时热点一直留在缓存里
+                PatchCache.RemoveAt(i);
+                PatchCache.Insert(0, cached);
+                return cached;
+            }
+
+            Mat? patch = BuildPatch(secondaryFrame, rect, frameChannels);
+            if (patch is null)
+                return null;
+
+            var prepared = new PreparedPatch
+            {
+                Source = secondaryFrame,
+                Rect = rect,
+                FrameChannels = frameChannels,
+                Patch = patch
+            };
+            PatchCache.Insert(0, prepared);
+            while (PatchCache.Count > MaxCachedPatches)
+            {
+                PatchCache[^1].Dispose();
+                PatchCache.RemoveAt(PatchCache.Count - 1);
+            }
+
+            return prepared;
+        }
+
+        /// <summary>
+        /// 做一份贴片：缩放 + 通道对齐 + 圆角描边。
+        /// 边框画在贴片内侧，和以前直接画在主帧上占的像素完全一样。
+        /// </summary>
+        private static Mat? BuildPatch(Mat secondaryFrame, CameraOverlayRect rect, int frameChannels)
+        {
             using var scaled = new Mat();
             Cv2.Resize(
                 secondaryFrame,
@@ -46,26 +136,38 @@ namespace ExpressPackingMonitoring.ViewModels
                 new Size(rect.Width, rect.Height),
                 interpolation: InterpolationFlags.Area);
 
-            using Mat bgr = EnsureSameChannels(scaled, frame.Channels());
-            if (bgr.Empty() || bgr.Width != rect.Width || bgr.Height != rect.Height)
-                return false;
+            Mat converted = EnsureSameChannels(scaled, frameChannels);
+            if (converted.Empty() || converted.Width != rect.Width || converted.Height != rect.Height)
+            {
+                converted.Dispose();
+                return null;
+            }
 
-            var targetRect = new Rect(rect.X, rect.Y, rect.Width, rect.Height);
-            using var region = new Mat(frame, targetRect);
-            // 圆角裁剪：四个角保留主画面自己的内容，不能把小窗的方角贴上去。
-            int cornerRadius = ResolveCornerRadius(rect.Width, rect.Height);
-            using Mat roundedMask = BuildRoundedMask(rect.Width, rect.Height, cornerRadius);
-            bgr.CopyTo(region, roundedMask);
-
-            // 边框画在画面内侧，不会越出主帧边界；圆角与识别框对应，不要生硬的方角。
-            var borderRect = new Rect(rect.X + 1, rect.Y + 1, rect.Width - 2, rect.Height - 2);
             DrawRoundedBorder(
-                frame,
-                borderRect,
+                converted,
+                new Rect(1, 1, rect.Width - 2, rect.Height - 2),
                 new Scalar(255, 255, 255),
                 BorderThickness,
-                cornerRadius);
-            return true;
+                ResolveCornerRadius(rect.Width, rect.Height));
+            return converted;
+        }
+
+        /// <summary>圆角蒙版只跟落位尺寸有关，按尺寸缓存一份就够。</summary>
+        private static Mat RentMaskLocked(int width, int height)
+        {
+            if (MaskCache.TryGetValue((width, height), out Mat? cached) && !cached.IsDisposed)
+                return cached;
+
+            Mat mask = BuildRoundedMask(width, height, ResolveCornerRadius(width, height));
+            MaskCache[(width, height)] = mask;
+            while (MaskCache.Count > MaxCachedMasks)
+            {
+                (int Width, int Height) oldest = MaskCache.Keys.First();
+                MaskCache[oldest].Dispose();
+                MaskCache.Remove(oldest);
+            }
+
+            return mask;
         }
 
         /// <summary>
