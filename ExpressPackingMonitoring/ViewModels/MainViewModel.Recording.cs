@@ -820,57 +820,9 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 try
                 {
-                    if (preRecordFrames != null)
-                    {
-                        int preRecordDropped = 0;
-                        string? preRecordDropReason = null;
-                        for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
-                        {
-                            Mat preFrame = preRecordFrames[preFrameIndex];
-                            try
-                            {
-                                // 预录帧在采集层就已经按配置角度旋转过，与实时帧是同一份画面，
-                                // 这里不再补旋转 —— 再转一次会把画面转回去。
-                                // 与实时帧同一顺序：先贴副画面、再画水印，水印永远在最上层。
-                                ComposeOverlayChannelsIfNeeded(preFrame, previewPublishDue: true);
-                                if (Config.EnableWatermark)
-                                {
-                                    _recordingFramePipelineDiagnostics.Enter(
-                                        RecordingFramePipelineStage.PreRecordWatermark,
-                                        preFrameIndex);
-                                    // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
-                                    DateTime watermarkTime = DateTime.Now;
-                                    // 时间戳与帧一一对应，由快照阶段保存到并行列表。
-                                    if (preRecordTimestamps != null && preFrameIndex < preRecordTimestamps.Count)
-                                        watermarkTime = preRecordTimestamps[preFrameIndex];
-                                    ApplyWatermarkToFrame(preFrame, watermarkTime, _recordingOrderId, Array.Empty<string>());
-                                }
-                                _recordingFramePipelineDiagnostics.Enter(
-                                    RecordingFramePipelineStage.PreRecordEnqueue,
-                                    preFrameIndex);
-                                if (!TryEnqueueFrameForRecording(preFrame))
-                                {
-                                    preRecordDropped++;
-                                    preRecordDropReason ??= "队列已满";
-                                    preFrame.Dispose();
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                // 静默丢弃会让"预录开头几秒消失"变成无据可查，这里至少要留一条线索。
-                                preRecordDropped++;
-                                preRecordDropReason ??= ex.Message;
-                                preFrame.Dispose();
-                            }
-                        }
-                        if (preRecordDropped > 0)
-                        {
-                            RuntimeLog.Warn(
-                                "Recording",
-                                $"Pre-record frames dropped count={preRecordDropped}/{preRecordFrames.Count}, reason={preRecordDropReason}");
-                        }
-                        RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
-                    }
+                    // 回灌要等编码器把这一批预录帧写出去（实测 5 秒预录 ≈ 1 秒），
+                    // 必须离开 UI 线程：留在 UI 线程上就是"点了开始录制，界面僵一秒、预览也不刷新"。
+                    await Task.Run(() => FlushPreRecordFrames(preRecordFrames, preRecordTimestamps));
                 }
                 finally
                 {
@@ -1250,6 +1202,69 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Warn("Recording", $"Pre-record frame capture skipped: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 把预录帧逐帧贴副画面、画水印、送进录像队列。
+        ///
+        /// 调用方用 Task.Run 把它放到线程池上跑：这一步要等编码器把整批预录帧写出去
+        /// （5 秒预录实测 1 秒上下），占着 UI 线程就是"点了开始录制之后界面僵一秒、预览也不刷新"。
+        /// 帧顺序由调用方挂的"正在回灌"牌子保证：这段时间实时帧不会插到预录帧前面。
+        /// </summary>
+        private void FlushPreRecordFrames(List<Mat>? preRecordFrames, List<DateTime>? preRecordTimestamps)
+        {
+            if (preRecordFrames is null || preRecordFrames.Count == 0)
+                return;
+
+            int preRecordDropped = 0;
+            string? preRecordDropReason = null;
+            for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
+            {
+                Mat preFrame = preRecordFrames[preFrameIndex];
+                try
+                {
+                    // 预录帧在采集层就已经按配置角度旋转过，与实时帧是同一份画面，
+                    // 这里不再补旋转 —— 再转一次会把画面转回去。
+                    // 与实时帧同一顺序：先贴副画面、再画水印，水印永远在最上层。
+                    ComposeOverlayChannelsIfNeeded(preFrame, previewPublishDue: true);
+                    if (Config.EnableWatermark)
+                    {
+                        _recordingFramePipelineDiagnostics.Enter(
+                            RecordingFramePipelineStage.PreRecordWatermark,
+                            preFrameIndex);
+                        // 预录帧按采集时刻绘制水印，不能使用注入时刻，否则整段预录画面的时间/动态水印会静止。
+                        DateTime watermarkTime = DateTime.Now;
+                        // 时间戳与帧一一对应，由快照阶段保存到并行列表。
+                        if (preRecordTimestamps != null && preFrameIndex < preRecordTimestamps.Count)
+                            watermarkTime = preRecordTimestamps[preFrameIndex];
+                        ApplyWatermarkToFrame(preFrame, watermarkTime, _recordingOrderId, Array.Empty<string>());
+                    }
+                    _recordingFramePipelineDiagnostics.Enter(
+                        RecordingFramePipelineStage.PreRecordEnqueue,
+                        preFrameIndex);
+                    if (!TryEnqueueFrameForRecording(preFrame))
+                    {
+                        preRecordDropped++;
+                        preRecordDropReason ??= "队列已满";
+                        preFrame.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 静默丢弃会让"预录开头几秒消失"变成无据可查，这里至少要留一条线索。
+                    preRecordDropped++;
+                    preRecordDropReason ??= ex.Message;
+                    preFrame.Dispose();
+                }
+            }
+
+            if (preRecordDropped > 0)
+            {
+                RuntimeLog.Warn(
+                    "Recording",
+                    $"Pre-record frames dropped count={preRecordDropped}/{preRecordFrames.Count}, reason={preRecordDropReason}");
+            }
+            RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
         }
 
         private List<Mat> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp, out List<DateTime> timestamps)

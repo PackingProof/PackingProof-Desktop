@@ -15,21 +15,33 @@ namespace ExpressPackingMonitoring.Tests;
 public sealed class PreRecordFlushIsolationTests
 {
     [Fact]
-    public void FlushLoop_RunsOutsideTheFrameOrderLock()
+    public void FlushLoop_LeavesTheUiThreadAndTheFrameOrderLock()
     {
         string source = ReadProjectFile("ViewModels", "MainViewModel.Recording.cs");
 
         int guard = source.IndexOf("IsRecording = true;", StringComparison.Ordinal);
         Assert.True(guard > 0, "找不到录制开始的锁内代码");
-
         string startBlock = EnclosingBlock(source, guard);
         Assert.Contains("_preRecordFlushInProgress, 1", startBlock, StringComparison.Ordinal);
         Assert.DoesNotContain("for (int preFrameIndex", startBlock, StringComparison.Ordinal);
 
-        int loop = source.IndexOf("for (int preFrameIndex", StringComparison.Ordinal);
-        Assert.True(loop > guard, "回灌循环应在挂牌之后");
-        Assert.Contains("_preRecordFlushInProgress, 0", source[loop..], StringComparison.Ordinal);
-        Assert.Contains("TryEnqueueFrameForRecording(preFrame)", source[loop..], StringComparison.Ordinal);
+        // 回灌交给线程池：留在 UI 线程上就是"点了开始录制界面僵一秒、预览不刷新"
+        const string dispatch = "await Task.Run(() => FlushPreRecordFrames(preRecordFrames, preRecordTimestamps))";
+        int dispatchIndex = source.IndexOf(dispatch, StringComparison.Ordinal);
+        Assert.True(dispatchIndex > guard, "回灌必须交给线程池执行");
+
+        // 牌子在 finally 里清掉：回灌出错也不能把实时帧一直挡在外面
+        int clearIndex = source.IndexOf("_preRecordFlushInProgress, 0", dispatchIndex, StringComparison.Ordinal);
+        Assert.True(clearIndex > dispatchIndex, "牌子必须在回灌之后清掉");
+        Assert.Contains("finally", source[dispatchIndex..clearIndex], StringComparison.Ordinal);
+
+        // 循环本体仍然按"先贴副画面、再画水印、最后入队"的顺序做
+        int flush = source.IndexOf("private void FlushPreRecordFrames", StringComparison.Ordinal);
+        Assert.True(flush > 0, "找不到回灌方法");
+        string flushBody = EnclosingBlock(source, source.IndexOf("int preRecordDropped = 0;", flush, StringComparison.Ordinal));
+        Assert.Contains("ComposeOverlayChannelsIfNeeded(preFrame, previewPublishDue: true)", flushBody, StringComparison.Ordinal);
+        Assert.Contains("ApplyWatermarkToFrame(preFrame", flushBody, StringComparison.Ordinal);
+        Assert.Contains("TryEnqueueFrameForRecording(preFrame)", flushBody, StringComparison.Ordinal);
     }
 
     [Fact]
