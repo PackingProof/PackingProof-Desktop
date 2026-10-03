@@ -426,10 +426,10 @@
 
         <Thickness x:Key="SectionCardMargin">0,0,0,16</Thickness>
         <Thickness x:Key="SettingRowMargin">0,0,0,14</Thickness>
-        <Thickness x:Key="SettingRowLastMargin">0,0,0,0</Thickness>
         <Thickness x:Key="SettingChildRowMargin">24,8,0,0</Thickness>
         <Thickness x:Key="SettingInlineTopMargin">0,12,0,0</Thickness>
-        <Thickness x:Key="SectionDividerMargin">0,14,0,14</Thickness>
+        <!-- 分隔线上方的间距由上一行的下边距提供，这里只留线下面的 -->
+        <Thickness x:Key="SectionDividerMargin">0,0,0,14</Thickness>
 
         <DataTemplate x:Key="StoragePathCellTemplate">
             <TextBlock Text="{Binding Path}"
@@ -507,6 +507,8 @@
             <Setter Property="Background" Value="{DynamicResource PanelBackground}"/>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="20"/>
+            <!-- 最后一行是随显隐变化的：卡片自己收掉它多留的那截下边距，底部留白才和顶部一致 -->
+            <Setter Property="local:SectionCardSpacing.TrimTrailingGap" Value="True"/>
             <Setter Property="Margin" Value="{StaticResource SectionCardMargin}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -665,18 +667,6 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="SettingRowLastStyle"
-               TargetType="Grid"
-               BasedOn="{StaticResource SettingRowStyle}">
-            <Setter Property="Margin" Value="{StaticResource SettingRowLastMargin}"/>
-        </Style>
-
-        <Style x:Key="SettingRowBeforeDividerStyle"
-               TargetType="Grid"
-               BasedOn="{StaticResource SettingRowStyle}">
-            <Setter Property="Margin" Value="{StaticResource SettingRowLastMargin}"/>
-        </Style>
-
         <Style x:Key="SettingChildRowStyle"
                TargetType="Grid"
                BasedOn="{StaticResource SettingRowStyle}">
@@ -688,18 +678,6 @@
                BasedOn="{StaticResource SettingRowStyle}">
             <Setter Property="Visibility"
                     Value="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
-        </Style>
-
-        <Style x:Key="AdvancedSettingRowLastStyle"
-               TargetType="Grid"
-               BasedOn="{StaticResource AdvancedSettingRowStyle}">
-            <Setter Property="Margin" Value="{StaticResource SettingRowLastMargin}"/>
-        </Style>
-
-        <Style x:Key="AdvancedSettingRowBeforeDividerStyle"
-               TargetType="Grid"
-               BasedOn="{StaticResource AdvancedSettingRowStyle}">
-            <Setter Property="Margin" Value="{StaticResource SettingRowLastMargin}"/>
         </Style>
 
         <Style x:Key="AdvancedSettingChildRowStyle"
@@ -1381,7 +1359,7 @@
                                             <Slider x:Name="PreRecordBufferSlider" Style="{StaticResource SettingsSliderStyle}" Minimum="0" Maximum="1024" TickFrequency="64" IsSnapToTickEnabled="True" ValueChanged="PreRecordBufferSlider_ValueChanged" Value="{Binding Config.PreRecordBufferMB, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
-                                    <Grid x:Name="SameCodePostRecordRow" Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                    <Grid x:Name="SameCodePostRecordRow" Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0"><TextBlock Text="同码停录收尾" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="同码停录后继续保留的画面时长" Style="{StaticResource FieldHintStyle}"/></StackPanel>
                                         <StackPanel Grid.Column="2">
@@ -1720,7 +1698,7 @@
                                             </StackPanel>
                                         </Grid>
 
-                                        <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                        <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                               ToolTip="多数连续字符间隔低于该值时，也可认为是扫码枪输入">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -1771,7 +1749,7 @@
                                          <TextBox Grid.Column="2" HorizontalAlignment="Stretch" Text="{Binding Config.OrderIdRegex}"/>
                                      </Grid>
 
-                                     <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                            ToolTip="扫码枪可能连续发送多次内容，这里用于避免重复触发录制切换">
                                          <Grid.ColumnDefinitions>
                                              <ColumnDefinition Width="*"/>
@@ -1889,7 +1867,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowBeforeDividerStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1939,7 +1917,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=ZoomAnimationCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2010,7 +1988,7 @@
                             </Border>
 
                             <Border Style="{StaticResource SectionCardStyle}">
-                                <Grid Style="{StaticResource SettingRowLastStyle}">
+                                <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="24"/>
@@ -2318,7 +2296,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2409,7 +2387,7 @@
                                                   Cursor="Hand"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           ToolTip="底层仍保存为 CQP。CQP 数值越小越清晰、文件越大；这里用更直观的方向显示">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2490,7 +2468,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowBeforeDividerStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2518,7 +2496,8 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Border Style="{StaticResource SectionDividerStyle}"/>
+                                    <Border Style="{StaticResource SectionDividerStyle}"
+                                            Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -2539,7 +2518,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowBeforeDividerStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=MaxDurationCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2568,9 +2547,10 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Border Style="{StaticResource SectionDividerStyle}"/>
+                                    <Border Style="{StaticResource SectionDividerStyle}"
+                                            Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowBeforeDividerStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2649,7 +2629,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=CameraIdleCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2765,7 +2745,7 @@
                                                   AutomationProperties.Name="音频直接写入 MKV"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}"
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
                                           ToolTip="负数表示让音频提前，正数表示让音频延后；通常保持 0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -3046,7 +3026,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
@@ -3307,7 +3287,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowLastStyle}">
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3625,7 +3605,7 @@
                                                 Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3649,7 +3629,7 @@
                             <Border Style="{StaticResource SectionCardStyle}"
                                     Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowLastStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3723,7 +3703,7 @@
                                                  IsIndeterminate="True"
                                                  Foreground="{DynamicResource AccentBlue}"/>
 
-                                    <Grid Style="{StaticResource SettingRowLastStyle}"
+                                    <Grid Style="{StaticResource SettingRowStyle}"
                                         ToolTip="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

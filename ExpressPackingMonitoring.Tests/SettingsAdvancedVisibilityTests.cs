@@ -359,16 +359,14 @@ public sealed class SettingsAdvancedVisibilityTests
     }
 
     [Fact]
-    public void ConfirmationCountRow_UsesRegularAdvancedSpacing()
+    public void ConfirmationCountRow_UsesTheSharedRowSpacing()
     {
         XDocument document = LoadSettingsXaml();
         XElement label = FindLabel(document, "识别确认次数");
         XElement row = Assert.Single(label.Ancestors(Presentation + "Grid").Take(1));
 
+        // 行间距只有一套：中间行和"最后一行"用同一种样式，谁最后露出来由卡片自己收尾
         Assert.Contains("AdvancedSettingRowStyle", row.ToString(SaveOptions.DisableFormatting));
-        Assert.DoesNotContain(
-            "AdvancedSettingRowLastStyle",
-            row.ToString(SaveOptions.DisableFormatting));
     }
 
     [Fact]

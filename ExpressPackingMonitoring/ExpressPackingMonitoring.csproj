@@ -196,6 +196,7 @@
     <Compile Include="UI\PlaybackTooltipBuilder.cs" />
     <Compile Include="UI\RecordingFilterState.cs" />
     <Compile Include="UI\RoundedClip.cs" />
+    <Compile Include="UI\SectionCardSpacing.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />
     <Compile Include="UI\ExtensionMarketWindow.xaml.cs" />
