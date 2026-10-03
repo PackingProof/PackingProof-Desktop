@@ -499,6 +499,22 @@ public sealed class CameraChannelConfigurationTests
         Assert.Contains("TryEnqueueFrameForRecording(preFrame", flushBody, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 副画面重新启动（改设置、休眠唤醒）时，启动之前采到的预录帧里是没有副画面的。
+    /// 留着就会在录像开头留下"副摄像头画面直接没了"的接缝，所以启动那一刻要重攒预录缓冲。
+    /// </summary>
+    [Fact]
+    public void OverlayRestart_DropsPreRecordFramesWithoutOverlay()
+    {
+        string channels = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
+
+        int start = channels.IndexOf("internal void StartOverlayChannels()", StringComparison.Ordinal);
+        Assert.True(start > 0, "找不到副画面启动入口");
+        string startBody = channels[start..(start + 1200)];
+        Assert.Contains("ClearPreRecordBuffer()", startBody, StringComparison.Ordinal);
+        Assert.Contains("IsRunning", startBody, StringComparison.Ordinal);
+    }
+
     /// <summary>画中画是"独立几路采集"，不能再出现旧的"同一路内嵌小窗"叠加层。</summary>
     [Fact]
     public void LegacyInlineOverlayIsGone()

@@ -214,6 +214,14 @@ namespace ExpressPackingMonitoring.ViewModels
         internal void StartOverlayChannels()
         {
             SyncOverlayChannelRuntimes();
+
+            // 副画面刚起来之前采到的那几秒预录帧里是**没有**副画面的。
+            // 留着就会在录像开头留一段"副画面忽有忽无"的接缝 —— 现场看到的就是
+            // "副摄像头画面直接没了"。这里把预录缓冲重新攒：宁可从更短的一段开始，
+            // 也不要留下半截画面。（设置里换设备、休眠唤醒都属于这种重新启动。）
+            if (HasConfiguredOverlayChannels && !_overlayChannels.Any(channel => channel.IsRunning))
+                ClearPreRecordBuffer();
+
             foreach (OverlayChannel channel in _overlayChannels.ToList())
                 StartOverlayChannel(channel);
         }
