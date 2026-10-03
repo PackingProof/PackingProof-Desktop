@@ -59,8 +59,14 @@ internal sealed class PreRecordFrameRing : IDisposable
 
     /// <summary>
     /// 追加一帧。缓冲已经装不下这一帧时复用最旧槽位（覆盖写），未满或换分辨率后按需新建。
+    /// <paramref name="prepareStoredFrame"/> 在写入槽位之后调用，用来给缓存里那一份做加工
+    /// （例如把副画面贴进去）—— 加工的是缓存副本，调用方手里那帧不受影响。
     /// </summary>
-    public PreRecordAddResult Add(Mat frame, DateTime timestamp, long maxBytes)
+    public PreRecordAddResult Add(
+        Mat frame,
+        DateTime timestamp,
+        long maxBytes,
+        Action<Mat>? prepareStoredFrame = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
@@ -96,6 +102,7 @@ internal sealed class PreRecordFrameRing : IDisposable
                 _slots.AddLast(oldest);
                 _bytes += oldest.Bytes;
                 reused = true;
+                prepareStoredFrame?.Invoke(oldest.Frame);
             }
             else
             {
@@ -105,9 +112,11 @@ internal sealed class PreRecordFrameRing : IDisposable
 
         if (!reused)
         {
+            Mat storedFrame = frame.Clone();
+            prepareStoredFrame?.Invoke(storedFrame);
             _slots.AddLast(new Slot
             {
-                Frame = frame.Clone(),
+                Frame = storedFrame,
                 Bytes = bytes,
                 Timestamp = timestamp,
                 Sequence = ++_sequence

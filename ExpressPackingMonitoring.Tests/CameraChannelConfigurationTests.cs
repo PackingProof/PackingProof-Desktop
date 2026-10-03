@@ -468,31 +468,35 @@ public sealed class CameraChannelConfigurationTests
         Assert.True(watermarkIndex > composeIndex, "水印必须在画中画之后绘制");
 
         string recording = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Recording.cs"));
-        int preComposeIndex = recording.IndexOf(
-            "ComposeOverlayChannelsIfNeeded(preFrame",
-            StringComparison.Ordinal);
         int preWatermarkIndex = recording.IndexOf(
             "ApplyWatermarkToFrame(preFrame",
             StringComparison.Ordinal);
-        Assert.True(preComposeIndex >= 0 && preWatermarkIndex >= 0, "预录帧缺少合成或水印");
-        Assert.True(preWatermarkIndex > preComposeIndex, "预录帧的水印必须在画中画之后绘制");
+        // 预录帧的副画面在进环形缓存时就贴好了（见 PreRecordFramesAlsoGetTheOverlay），
+        // 回灌那一段只补水印 —— 顺序仍然是"先副画面、后水印"。
+        Assert.True(preWatermarkIndex >= 0, "预录帧没有画水印");
     }
 
-    /// <summary>预录帧也必须贴画中画，否则录像开头几秒只有主画面、与后面接不上。</summary>
+    /// <summary>
+    /// 预录帧也要贴画中画，而且要贴"这一帧采集那一刻"的那一份：
+    /// 等到回灌时再贴，只能拿到回灌那一刻的叠加帧 —— 5 秒预录里副画面就剩几帧，看起来一卡一卡。
+    /// </summary>
     [Fact]
     public void PreRecordFramesAlsoGetTheOverlay()
     {
         string recording = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Recording.cs"));
 
-        int composeIndex = recording.IndexOf(
-            "ComposeOverlayChannelsIfNeeded(preFrame",
+        int ringAddIndex = recording.IndexOf("_preRecordRing.Add(", StringComparison.Ordinal);
+        Assert.True(ringAddIndex > 0, "找不到预录帧进环形缓存的地方");
+        Assert.Contains(
+            "storedFrame => ComposeOverlayChannels(storedFrame)",
+            recording[ringAddIndex..(ringAddIndex + 400)],
             StringComparison.Ordinal);
-        Assert.True(composeIndex >= 0, "预录帧没有贴画中画");
 
-        int enqueueIndex = recording.IndexOf(
-            "TryEnqueueFrameForRecording(preFrame",
-            StringComparison.Ordinal);
-        Assert.True(enqueueIndex > composeIndex, "画中画合成必须在预录入队之前");
+        int flushIndex = recording.IndexOf("private void FlushPreRecordFrames", StringComparison.Ordinal);
+        Assert.True(flushIndex > 0, "找不到回灌方法");
+        string flushBody = recording[flushIndex..];
+        Assert.DoesNotContain("ComposeOverlayChannels", flushBody, StringComparison.Ordinal);
+        Assert.Contains("TryEnqueueFrameForRecording(preFrame", flushBody, StringComparison.Ordinal);
     }
 
     /// <summary>画中画是"独立几路采集"，不能再出现旧的"同一路内嵌小窗"叠加层。</summary>

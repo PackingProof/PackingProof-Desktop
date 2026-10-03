@@ -759,7 +759,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         recordingHeight,
                         recordingFps);
                     if (_pendingPreRecordFrames is { Count: > 0 })
-                        queueCapacity = Math.Max(queueCapacity, _pendingPreRecordFrames.Count + 6);
+                    {
+                        // 队列要能整批接住预录帧，还要留出正常缓冲给回灌期间的实时帧：
+                        // 容量卡死在"刚刚好一 batch"时，回灌会一直等编码器把帧写出去，
+                        // 实时帧这段时间只能被丢掉，预录段与实时段衔接处就会顿一下。
+                        queueCapacity += _pendingPreRecordFrames.Count;
+                    }
                     _videoWriteQueue = new BlockingCollection<RecordingVideoFrame>(queueCapacity);
                     _writeCts = new CancellationTokenSource();
                     _lastRecordingQueueWarnAt = DateTime.MinValue;
@@ -1179,7 +1184,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 PreRecordAddResult added;
                 lock (_eventBufferLock)
                 {
-                    added = _preRecordRing.Add(frame, DateTime.Now, maxBytes);
+                    // 预录帧进缓存前先把副画面贴进去：副画面跟着这一帧的采集时刻走，
+                    // 回灌时再贴只能拿到"回灌那一刻"的叠加帧，预录段里副画面就会一卡一卡。
+                    added = _preRecordRing.Add(
+                        frame,
+                        DateTime.Now,
+                        maxBytes,
+                        storedFrame => ComposeOverlayChannels(storedFrame));
                     if (added.ResetAfterSizeChange)
                     {
                         _preRecordRollingTransitionPending = false;
@@ -1223,10 +1234,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 Mat preFrame = preRecordFrames[preFrameIndex];
                 try
                 {
-                    // 预录帧在采集层就已经按配置角度旋转过，与实时帧是同一份画面，
-                    // 这里不再补旋转 —— 再转一次会把画面转回去。
-                    // 与实时帧同一顺序：先贴副画面、再画水印，水印永远在最上层。
-                    ComposeOverlayChannelsIfNeeded(preFrame, previewPublishDue: true);
+                    // 预录帧在采集层就已经按配置角度旋转过，进缓存时也贴好了那一刻的副画面，
+                    // 这里只补水印 —— 水印永远在最上层，且用的是这一帧的采集时刻。
                     if (Config.EnableWatermark)
                     {
                         _recordingFramePipelineDiagnostics.Enter(

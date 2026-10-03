@@ -35,13 +35,13 @@ public sealed class PreRecordFlushIsolationTests
         Assert.True(clearIndex > dispatchIndex, "牌子必须在回灌之后清掉");
         Assert.Contains("finally", source[dispatchIndex..clearIndex], StringComparison.Ordinal);
 
-        // 循环本体仍然按"先贴副画面、再画水印、最后入队"的顺序做
+        // 循环本体只补水印与入队：副画面在进环形缓存时就贴好了（见 CameraChannelConfigurationTests）
         int flush = source.IndexOf("private void FlushPreRecordFrames", StringComparison.Ordinal);
         Assert.True(flush > 0, "找不到回灌方法");
         string flushBody = EnclosingBlock(source, source.IndexOf("int preRecordDropped = 0;", flush, StringComparison.Ordinal));
-        Assert.Contains("ComposeOverlayChannelsIfNeeded(preFrame, previewPublishDue: true)", flushBody, StringComparison.Ordinal);
         Assert.Contains("ApplyWatermarkToFrame(preFrame", flushBody, StringComparison.Ordinal);
         Assert.Contains("TryEnqueueFrameForRecording(preFrame)", flushBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComposeOverlayChannels", flushBody, StringComparison.Ordinal);
     }
 
     [Fact]

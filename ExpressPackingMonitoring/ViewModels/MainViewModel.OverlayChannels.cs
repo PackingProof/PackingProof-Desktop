@@ -758,6 +758,23 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!IsRecording && !previewPublishDue)
                 return;
 
+            ComposeOverlayChannels(frame);
+        }
+
+        /// <summary>
+        /// 不看录像/预览状态，直接把每一路叠加画面叠进这一帧。
+        /// 预录帧进环形缓存时用它：副画面要跟着这一帧的采集时刻走，
+        /// 不能等到回灌时再贴 —— 那时候只能拿到"回灌那一刻"的叠加帧，
+        /// 5 秒预录里副画面就只剩几帧，看起来一卡一卡的。
+        /// </summary>
+        internal void ComposeOverlayChannels(Mat frame)
+        {
+            if (_overlayChannels.Count == 0)
+                SyncOverlayChannelRuntimes();
+
+            if (!HasConfiguredOverlayChannels)
+                return;
+
             foreach (OverlayChannel channel in _overlayChannels.ToList())
                 ComposeOverlayChannel(channel, frame);
         }
