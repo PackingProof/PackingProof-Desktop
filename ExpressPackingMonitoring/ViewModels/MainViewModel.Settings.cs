@@ -196,12 +196,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (workstationChanged)
                         return await RunPurposeSwitchAsync(nextConfig);
 
+                    // 副画面要不要重开，得在 Config 换掉之前比对。
+                    bool overlayChannelsNeedRestart = AppConfig.OverlayChannelsRequireRestart(Config, nextConfig);
                     if (!SaveConfig(nextConfig, notifyUser: true))
                         return false;
                     // 必须先切换到 nextConfig，录制结束后的 RestartCamera 才会读取新的网络摄像头地址/协议。
                     Config = nextConfig;
-                    // 副画面独立于主路：换了副摄像头设备/开关就立刻按新配置重启这一路。
-                    RestartOverlayChannels();
+                    // 副画面独立于主路：只有这一路真的改了设备/来源/档位/旋转才重开，
+                    // 保存别的设置时不要顺手把它掐断一秒（预录里会留下"副画面没了"的接缝）。
+                    if (overlayChannelsNeedRestart)
+                        RestartOverlayChannels();
                     RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);

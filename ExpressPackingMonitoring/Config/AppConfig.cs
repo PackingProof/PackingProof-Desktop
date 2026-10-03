@@ -1497,16 +1497,6 @@ namespace ExpressPackingMonitoring.Config
             string currentTransport = NormalizeNetworkTransport(current.NetworkCameraRtspTransport);
             string nextTransport = NormalizeNetworkTransport(next.NetworkCameraRtspTransport);
 
-            if (current.OverlayChannelCount != next.OverlayChannelCount
-                || current.CameraChannels.Count != next.CameraChannels.Count)
-                return true;
-
-            for (int i = 0; i < current.CameraChannels.Count; i++)
-            {
-                if (OverlayChannelRequiresRestart(current.CameraChannels[i], next.CameraChannels[i]))
-                    return true;
-            }
-
             return current.CameraIndex != next.CameraIndex
                 || !string.Equals(current.CameraMonikerString, next.CameraMonikerString, StringComparison.Ordinal)
                 || current.FrameWidth != next.FrameWidth
@@ -1519,6 +1509,33 @@ namespace ExpressPackingMonitoring.Config
                 || (currentKind == "network"
                     && nextKind == "network"
                     && !string.Equals(currentTransport, nextTransport, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// 副画面那几路是否需要按新配置重开采集。
+        ///
+        /// 单独拆出来是因为"重启主摄"和"重启副画面"是两件事：主摄的流跟副画面无关，
+        /// 每次保存设置（哪怕只改了预录容量）都把主摄和副画面一起掐断一秒，
+        /// 预录里就会留下一段没有副画面的接缝。
+        /// </summary>
+        internal static bool OverlayChannelsRequireRestart(AppConfig current, AppConfig next)
+        {
+            ArgumentNullException.ThrowIfNull(current);
+            ArgumentNullException.ThrowIfNull(next);
+
+            if (current.OverlayChannelCount != next.OverlayChannelCount
+                || current.CameraChannels.Count != next.CameraChannels.Count)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < current.CameraChannels.Count; i++)
+            {
+                if (OverlayChannelRequiresRestart(current.CameraChannels[i], next.CameraChannels[i]))
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>

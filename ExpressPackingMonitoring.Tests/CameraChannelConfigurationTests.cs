@@ -296,56 +296,71 @@ public sealed class CameraChannelConfigurationTests
         Assert.Equal(0.4, config.CameraChannels[1].OverlayWidthRatio);
     }
 
-    /// <summary>换叠加画面规格必须重建采集会话，否则设置改了不生效。</summary>
+    /// <summary>
+    /// 换叠加画面规格要重开**这一路**，否则设置改了不生效；主摄的流跟副画面无关，不该跟着重启。
+    /// </summary>
     [Fact]
-    public void RequiresCameraRestart_ReactsToOverlayCaptureFormat()
+    public void OverlayChannelsRequireRestart_ReactsToCaptureFormat()
     {
         var current = new AppConfig();
         var next = new AppConfig();
         next.CameraChannels[0].ResolutionPreset = "1080p";
-        Assert.True(AppConfig.RequiresCameraRestart(current, next));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, next));
+        Assert.False(AppConfig.RequiresCameraRestart(current, next));
 
         next = new AppConfig();
         next.CameraChannels[0].FrameFps = 15;
-        Assert.True(AppConfig.RequiresCameraRestart(current, next));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, next));
+        Assert.False(AppConfig.RequiresCameraRestart(current, next));
     }
 
-    /// <summary>改了叠加画面就必须重启采集，否则设置里换设备不会生效。</summary>
+    /// <summary>
+    /// 改了副画面那一路的来源/设备/地址/旋转/路数就必须重开这一路（不然设置里换设备不生效），
+    /// 但这些都属于副画面自己的事，不该把主摄也重启一遍。
+    /// </summary>
     [Fact]
-    public void RequiresCameraRestart_ReactsToOverlayChannelChanges()
+    public void OverlayChannelsRequireRestart_ReactsToChannelChanges()
     {
         var current = new AppConfig();
 
         var usb = new AppConfig();
         usb.CameraChannels[0].SourceKind = "usb";
-        Assert.True(AppConfig.RequiresCameraRestart(current, usb));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, usb));
 
         var otherDevice = new AppConfig();
         otherDevice.CameraChannels[0].MonikerString = "别的一台";
-        Assert.True(AppConfig.RequiresCameraRestart(current, otherDevice));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, otherDevice));
 
         var network = new AppConfig();
         network.CameraChannels[0].SourceKind = "network";
         network.CameraChannels[0].NetworkCameraUrl = "rtsp://x/y";
-        Assert.True(AppConfig.RequiresCameraRestart(current, network));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, network));
 
         // 旋转变了也要重开（默认已是 90°，显式改成 180 才算变）
         var rotated = new AppConfig();
         rotated.CameraChannels[0].RotationDegrees = 180;
-        Assert.True(AppConfig.RequiresCameraRestart(current, rotated));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, rotated));
 
         // 加了一路也是采集变化
         var addedChannel = new AppConfig();
         addedChannel.CameraChannels.Add(new CameraChannelConfig { SourceKind = "usb", MonikerString = "第二台" });
-        Assert.True(AppConfig.RequiresCameraRestart(current, addedChannel));
+        Assert.True(AppConfig.OverlayChannelsRequireRestart(current, addedChannel));
+        Assert.False(AppConfig.RequiresCameraRestart(current, addedChannel));
 
         // 与采集无关的字段不能引起重启。
         var wider = new AppConfig();
         wider.CameraChannels[0].OverlayWidthRatio = 0.4;
+        Assert.False(AppConfig.OverlayChannelsRequireRestart(current, wider));
         Assert.False(AppConfig.RequiresCameraRestart(current, wider));
 
         var barcodeChannel = new AppConfig { CameraBarcodeRecognitionChannel = 1 };
+        Assert.False(AppConfig.OverlayChannelsRequireRestart(current, barcodeChannel));
         Assert.False(AppConfig.RequiresCameraRestart(current, barcodeChannel));
+
+        // 只有主摄自己的设置变了才重启主摄
+        var mainCameraChanged = new AppConfig { Fps = 30 };
+        Assert.True(AppConfig.RequiresCameraRestart(current, mainCameraChanged));
+        Assert.False(AppConfig.OverlayChannelsRequireRestart(current, mainCameraChanged));
     }
 
     /// <summary>
