@@ -812,6 +812,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     // 与实时帧入队使用同一把锁，确保实时帧不能抢在预录帧之前。
                     IsRecording = true;
+                    // 回灌期间只挂"正在灌预录"这块牌子，不把锁一直攥在手里：
+                    // 队列装不下这批预录帧时要等编码器慢慢写出去（5 秒预录 = 302 帧 1080p，
+                    // 实测要 1 秒上下），一直占着锁会让处理循环连预览一起停住，就是开录那下卡住的原因。
+                    Volatile.Write(ref _preRecordFlushInProgress, 1);
+                }
+
+                try
+                {
                     if (preRecordFrames != null)
                     {
                         int preRecordDropped = 0;
@@ -863,9 +871,16 @@ namespace ExpressPackingMonitoring.ViewModels
                         }
                         RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
                     }
-                    _recordingFramePipelineDiagnostics.Enter(
-                        RecordingFramePipelineStage.PreRecordEnqueue,
-                        Volatile.Read(ref _latestFrameSequence));
+                }
+                finally
+                {
+                    lock (_recordingFrameOrderLock)
+                    {
+                        Volatile.Write(ref _preRecordFlushInProgress, 0);
+                        _recordingFramePipelineDiagnostics.Enter(
+                            RecordingFramePipelineStage.PreRecordEnqueue,
+                            Volatile.Read(ref _latestFrameSequence));
+                    }
                 }
                 StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
                 PublishPreRecordBufferStatus(force: true);

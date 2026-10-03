@@ -1238,7 +1238,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.RecorderEnqueue, currentFrameSequence);
                         lock (_recordingFrameOrderLock)
                         {
-                            handedToRecorder = IsRecording && TryEnqueueFrameForRecording(processedFrame, currentFrameCapturedTicks);
+                            // 预录回灌期间实时帧先不进队：队列要优先装下那一批预录帧，
+                            // 但这里只做判断不等待，处理循环继续跑，预览和识别都不会停。
+                            handedToRecorder = IsRecording
+                                && Volatile.Read(ref _preRecordFlushInProgress) == 0
+                                && TryEnqueueFrameForRecording(processedFrame, currentFrameCapturedTicks);
                         }
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameCleanup, currentFrameSequence);
                         if (processedFrame != currentFrame)
