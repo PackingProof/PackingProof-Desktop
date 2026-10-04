@@ -5,6 +5,7 @@ using ExpressPackingMonitoring.UI;
 using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Text;
+using System.Xml.Linq;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -264,6 +265,31 @@ public sealed class RecordingWorkstationCacheTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.Equal(expectedPolicy, config.RecordingCachePolicy);
+    }
+
+    [Fact]
+    public void StorageTab_KeepsUsageAndCleanupInOneCard()
+    {
+        XDocument document = XDocument.Parse(ReadRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "SettingsWindow.xaml"));
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        // 最上面只留一张卡：用量现状（进度条 + 说明）与清理入口必须在同一张卡里
+        XElement card = Assert.Single(
+            document.Descendants(presentation + "Border"),
+            element => (string?)element.Attribute("Style") == "{StaticResource SectionCardStyle}"
+                && element.Descendants(presentation + "TextBlock")
+                    .Any(label => (string?)label.Attribute("Text") == "空间清理"));
+
+        Assert.Contains(
+            card.Descendants(presentation + "ProgressBar"),
+            element => (string?)element.Attribute(xaml + "Name") == "RecordingCacheUsageProgress");
+        Assert.Contains(
+            card.Descendants(presentation + "Button"),
+            element => (string?)element.Attribute(xaml + "Name") == "BtnManualCleanupByTime");
     }
 
     [Fact]
