@@ -1,0 +1,46 @@
+<UserControl x:Class="ExpressPackingMonitoring.UI.Controls.InputClearButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:self="clr-namespace:ExpressPackingMonitoring.UI.Controls"
+             x:Name="Root"
+             Focusable="False"
+             IsTabStop="False"
+             Cursor="Hand"
+             Width="{Binding ButtonSize, ElementName=Root}"
+             Height="{Binding ButtonSize, ElementName=Root}"
+             AutomationProperties.Name="清除输入">
+    <!--
+        输入框右侧的清除叉号：主界面扫码框、设置页搜索框和回放的单号精准搜索共用这一套外观与行为，
+        不用各处再各写一份按钮模板。
+        只清空目标输入框的文本，过滤、高亮、占位提示等仍由各页面自己的 TextChanged 逻辑收尾。
+    -->
+    <Button x:Name="ClickHost"
+            Click="ClearButton_Click"
+            Focusable="False"
+            IsTabStop="False"
+            Cursor="Hand"
+            Background="{StaticResource TransparentBrush}"
+            BorderThickness="0">
+        <Button.Template>
+            <ControlTemplate TargetType="Button">
+                <Border x:Name="Chrome"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="{Binding ButtonCornerRadius, RelativeSource={RelativeSource AncestorType={x:Type self:InputClearButton}}}">
+                    <Path Data="{StaticResource FluentDismissIcon}"
+                          Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType={x:Type self:InputClearButton}}}"
+                          Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType={x:Type self:InputClearButton}}}"
+                          Stretch="Uniform"
+                          Fill="{DynamicResource TextMuted}"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlBackgroundHover}"/>
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter TargetName="Chrome" Property="Opacity" Value="0.7"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Button.Template>
+    </Button>
+</UserControl>

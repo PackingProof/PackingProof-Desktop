@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using ExpressPackingMonitoring.UI.Controls;
 using ExpressPackingMonitoring.UI.SettingsSearch;
 
 namespace ExpressPackingMonitoring.UI
@@ -37,6 +38,10 @@ namespace ExpressPackingMonitoring.UI
             Border? emptyState = tabs.Template?.FindName("SettingsSearchEmptyState", tabs) as Border;
             _settingsSearch = new SettingsSearchController(this, tabs, countText, emptyState);
             _settingsSearchBox = box;
+            // 叉号与搜索框都在 TabControl 模板里，Target 在这里接上；
+            // 清除动作本身走输入框的 TextChanged，过滤与去抖逻辑不用改。
+            if (tabs.Template?.FindName("SettingsSearchClearButton", tabs) is InputClearButton clearButton)
+                clearButton.Target = box;
             _settingsSearchDebounce.Stop();
             _settingsSearchDebounce.Tick -= SettingsSearchDebounce_Tick;
             _settingsSearchDebounce.Tick += SettingsSearchDebounce_Tick;

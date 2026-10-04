@@ -776,11 +776,6 @@ namespace ExpressPackingMonitoring.UI
             RequestVideoLoad(1);
         }
 
-        private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
-        {
-            SearchBox.Text = "";
-        }
-
         private void RequestVideoLoad(int? requestedPage = null)
         {
             if (!IsLoaded || _isClosing)
