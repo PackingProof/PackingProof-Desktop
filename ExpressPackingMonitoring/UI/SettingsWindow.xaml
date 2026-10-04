@@ -3710,26 +3710,6 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="关闭窗口时" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="可以每次询问、最小化到托盘或直接退出"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <ComboBox Grid.Column="2"
-                                                  SelectedValue="{Binding Config.WindowCloseBehavior}"
-                                                  SelectedValuePath="Tag">
-                                            <ComboBoxItem Tag="Ask" Content="每次询问"/>
-                                            <ComboBoxItem Tag="MinimizeToTray" Content="最小化到托盘"/>
-                                            <ComboBoxItem Tag="Exit" Content="直接退出"/>
-                                        </ComboBox>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="自动检查更新" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="根目录启动器后台下载增量包，下次启动时自动安装"
                                                     Style="{StaticResource FieldHintStyle}"/>
@@ -3759,31 +3739,13 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="兼容渲染模式" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效"
-                                                    Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                IsChecked="{Binding Config.ForceSoftwareRendering}"
-                                                VerticalAlignment="Center"
-                                                HorizontalAlignment="Left"
-                                                Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
                                 </StackPanel>
                             </Border>
 
                             <!-- 多路画面：这里的路数决定"设备与外观"里放几张副摄像头卡片 -->
-                            <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                            <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3805,14 +3767,33 @@
                                             <ComboBoxItem Tag="4" Content="4 路"/>
                                         </ComboBox>
                                     </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="关闭窗口时" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="可以每次询问、最小化到托盘或直接退出"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="2"
+                                                  SelectedValue="{Binding Config.WindowCloseBehavior}"
+                                                  SelectedValuePath="Tag">
+                                            <ComboBoxItem Tag="Ask" Content="每次询问"/>
+                                            <ComboBoxItem Tag="MinimizeToTray" Content="最小化到托盘"/>
+                                            <ComboBoxItem Tag="Exit" Content="直接退出"/>
+                                        </ComboBox>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
                             <!-- 维护工具 -->
-                            <Border Style="{StaticResource SectionCardStyle}"
-                                    Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
+                            <Border Style="{StaticResource SectionCardStyle}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3830,7 +3811,7 @@
                                                 HorizontalAlignment="Left"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -3859,7 +3840,7 @@
                                                                 Background="{DynamicResource BorderStrong}"
                                                                 Foreground="{DynamicResource AccentBlue}"/>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}"
                                         ToolTip="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -3877,6 +3858,24 @@
                                                 Click="DetectRecordingProfile_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="兼容渲染模式" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.ForceSoftwareRendering}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
