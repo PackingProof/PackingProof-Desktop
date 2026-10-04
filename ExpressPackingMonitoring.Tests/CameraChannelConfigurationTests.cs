@@ -765,7 +765,7 @@ public sealed class CameraChannelConfigurationTests
         string channels = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
         Assert.Contains("IsCameraBarcodeGuideLockVisible", channels, StringComparison.Ordinal);
         Assert.Contains(
-            "!IsEditingOverlayPreview && !ShouldUseOverlayChannelForBarcode",
+            "!IsPreviewGuideEditing && !ShouldUseOverlayChannelForBarcode",
             channels,
             StringComparison.Ordinal);
 

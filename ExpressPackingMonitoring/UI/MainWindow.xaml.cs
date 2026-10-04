@@ -238,14 +238,12 @@ namespace ExpressPackingMonitoring.UI
             {
                 (DataContext as MainViewModel)?.NotifyUserActivity();
 
-                // 副摄取景编辑时必须有一条可靠的退出路径：Esc 与"完成"等效。
+                // 预览编辑态（副摄取景 / 放大取景框）必须有一条可靠的退出路径：Esc 与"完成"等效。
                 if (e.Key == Key.Escape
                     && DataContext is MainViewModel vm
-                    && vm.IsEditingOverlayPreview)
+                    && (vm.IsEditingOverlayPreview || vm.IsEditingZoomGuide))
                 {
-                    vm.ExitOverlayPreviewEdit();
-                    UpdateOverlayBoxes(vm);
-                    UpdateCameraBarcodeGuide(vm);
+                    ExitPreviewGuideEditing(vm);
                     e.Handled = true;
                 }
             };
@@ -369,13 +367,25 @@ namespace ExpressPackingMonitoring.UI
             UpdateCameraBarcodeGuide(vm);
         }
 
-        /// <summary>退出副摄取景编辑，回到正常预览。</summary>
+        /// <summary>退出预览编辑（副摄取景或放大取景框），回到正常预览。</summary>
         private void BtnOverlayPreviewDone_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainViewModel vm)
                 return;
 
-            vm.ExitOverlayPreviewEdit();
+            ExitPreviewGuideEditing(vm);
+        }
+
+        /// <summary>
+        /// 退出当前预览编辑态并重摆两层框。两种编辑态共用同一个"完成"按钮与 Esc，
+        /// 这里按当前态分派，避免调用方各自记状态。
+        /// </summary>
+        private void ExitPreviewGuideEditing(MainViewModel vm)
+        {
+            if (vm.IsEditingZoomGuide)
+                vm.ExitZoomGuideEdit();
+            else
+                vm.ExitOverlayPreviewEdit();
             UpdateOverlayBoxes(vm);
             UpdateCameraBarcodeGuide(vm);
         }
@@ -383,8 +393,53 @@ namespace ExpressPackingMonitoring.UI
 
 
 
+        /// <summary>
+        /// 只读放大取景框：平时标出"录制触发时哪一块会被放大铺满"。
+        /// 与识别框同一套换算（画面按 Uniform 居中摆放，两个坐标系原点并不重合），
+        /// 进编辑态时这一层让位给可拖动的取景框，避免两个框叠在一起。
+        /// </summary>
+        private void UpdateZoomGuideBox(MainViewModel vm)
+        {
+            ZoomGuideBoxHost.Visibility = Visibility.Collapsed;
+            ZoomGuideBoxHost.RenderTransform = null;
+
+            bool visible = vm.Config is not { ShowZoomGuideBox: false } && !vm.IsEditingZoomGuide;
+            double sourceW = vm.CameraFrameSize.Width;
+            double sourceH = vm.CameraFrameSize.Height;
+            double actualW = VideoImage.ActualWidth;
+            double actualH = VideoImage.ActualHeight;
+            if (!visible || sourceW <= 0 || sourceH <= 0 || actualW <= 0 || actualH <= 0)
+            {
+                ZoomGuideBoxHost.Width = 0;
+                ZoomGuideBoxHost.Height = 0;
+                return;
+            }
+
+            Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
+            Rect boxRect = CameraBarcodeGuideLayout.ToDisplayRect(vm.ZoomGuideGeometry, videoRect);
+            if (boxRect.IsEmpty || boxRect.Width <= 0 || boxRect.Height <= 0)
+            {
+                ZoomGuideBoxHost.Width = 0;
+                ZoomGuideBoxHost.Height = 0;
+                return;
+            }
+
+            ZoomGuideBoxHost.Width = boxRect.Width;
+            ZoomGuideBoxHost.Height = boxRect.Height;
+            ZoomGuideBoxHost.Visibility = Visibility.Visible;
+            if (ZoomGuideBoxHost.Parent is not FrameworkElement zoomGuideHost)
+                return;
+
+            Point videoOriginInHost = VideoImage.TranslatePoint(new Point(0, 0), zoomGuideHost);
+            ZoomGuideBoxHost.RenderTransform = new TranslateTransform(
+                videoOriginInHost.X + boxRect.X - ((zoomGuideHost.ActualWidth - boxRect.Width) / 2.0),
+                videoOriginInHost.Y + boxRect.Y - ((zoomGuideHost.ActualHeight - boxRect.Height) / 2.0));
+        }
+
         private void UpdateCameraBarcodeGuide(MainViewModel vm)
         {
+            UpdateZoomGuideBox(vm);
+
             double sourceW = vm.CameraFrameSize.Width;
             double sourceH = vm.CameraFrameSize.Height;
             double actualW = VideoImage.ActualWidth;

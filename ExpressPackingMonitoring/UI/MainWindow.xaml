@@ -321,6 +321,26 @@
                     <Grid ui:RoundedClip.Radius="10">
                         <Image x:Name="VideoImage" Source="{Binding PreviewImageSource}" Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <!--
+                            放大取景框：录制触发时被放大铺满的那块区域。
+                            平时只读显示（设置里可关），进"调整放大位置"编辑态时改用上面那个
+                            可拖动的取景框显示，避免两个框叠在一起。
+                        -->
+                        <Grid x:Name="ZoomGuideBoxHost"
+                              Width="0"
+                              Height="0"
+                              Panel.ZIndex="9"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False">
+                            <Rectangle x:Name="ZoomGuideBox"
+                                       RadiusX="6"
+                                       RadiusY="6"
+                                       StrokeThickness="2"
+                                       StrokeDashArray="4 3"
+                                       Stroke="{StaticResource ZoomGuideStroke}"
+                                       Fill="{StaticResource ZoomGuideFill}"/>
+                        </Grid>
                         <Grid x:Name="CameraBarcodeGuide"
                               Width="0"
                               Height="0"
@@ -348,6 +368,10 @@
                                         <DataTrigger Binding="{Binding IsOverlayPreviewEditing}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
+                                        <!-- 调放大位置时这一屏只认放大取景框：识别框让位，避免两个框叠着分不清 -->
+                                        <DataTrigger Binding="{Binding IsEditingZoomGuide}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
@@ -365,6 +389,11 @@
                                             <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
                                                 <Setter Property="Stroke" Value="{StaticResource CameraConfirmedStroke}"/>
                                                 <Setter Property="Fill" Value="{StaticResource CameraConfirmedFill}"/>
+                                            </DataTrigger>
+                                            <!-- 调放大位置时这个框代表放大区域，换成紫色，别和识别状态混淆 -->
+                                            <DataTrigger Binding="{Binding IsEditingZoomGuide}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource ZoomGuideStroke}"/>
+                                                <Setter Property="Fill" Value="{StaticResource ZoomGuideFill}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -601,6 +630,10 @@
                                         <DataTrigger Binding="{Binding IsOverlayPreviewEditing}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
+                                        <!-- 调放大位置：提示条要换成"拖动框调整放大位置…"，识别开关关着也要显示 -->
+                                        <DataTrigger Binding="{Binding IsEditingZoomGuide}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Canvas.Style>
@@ -733,7 +766,7 @@
                                 <Style TargetType="Button" BasedOn="{StaticResource VideoOverlayButtonStyle}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsOverlayPreviewEditing}" Value="True">
+                                        <DataTrigger Binding="{Binding IsPreviewGuideEditing}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>

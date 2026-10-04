@@ -148,12 +148,13 @@ namespace ExpressPackingMonitoring.ViewModels
         public bool IsBarcodeGuideVisible => true;
 
         /// <summary>
-        /// 框上的小锁只在"这个框要在主界面上拖动"的时候出现：识别来源是主摄、且没进副摄取景编辑屏。
+        /// 框上的小锁只在"这个框要在主界面上拖动"的时候出现：识别来源是主摄、且没进任何预览编辑屏。
         /// 识别来源是叠加画面时，框只是画中画上的状态反馈（取景在"点画中画"的编辑屏里改）；
-        /// 编辑屏里拖动本来就不受小锁限制（见 <see cref="IsCameraBarcodeGuideEditable"/>），那一屏不再显示小锁。
+        /// 副摄取景屏与放大取景框屏里拖动本来就不受小锁限制（见 <see cref="IsCameraBarcodeGuideEditable"/>），
+        /// 那两屏都不再显示小锁。
         /// </summary>
         public bool IsCameraBarcodeGuideLockVisible =>
-            !IsEditingOverlayPreview && !ShouldUseOverlayChannelForBarcode;
+            !IsPreviewGuideEditing && !ShouldUseOverlayChannelForBarcode;
 
         /// <summary>
         /// 叠加画面实际落位的版本号。任一路的落位一变就自增并通知界面重摆拖动框 ——
@@ -919,6 +920,11 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!HasConfiguredOverlayChannels)
                 return;
 
+            // 摆放大取景框时先把副画面让开：小窗会盖住主画面，用户没法无遮挡地框选放大区域。
+            // 退出编辑后自动恢复；这段窗口里的预览与同期录像同样不带副画面（刻意取舍）。
+            if (IsEditingZoomGuide)
+                return;
+
             foreach (OverlayChannel channel in _overlayChannels)
                 ComposeOverlayChannel(channel, frame);
         }
@@ -1124,6 +1130,7 @@ namespace ExpressPackingMonitoring.ViewModels
             OnPropertyChanged(nameof(OverlayPreviewFrame));
             OnPropertyChanged(nameof(IsEditingOverlayPreview));
             OnPropertyChanged(nameof(IsOverlayPreviewEditing));
+            OnPropertyChanged(nameof(IsPreviewGuideEditing));
             OnPropertyChanged(nameof(PreviewImageSource));
             OnPropertyChanged(nameof(CameraBarcodeStatusText));
             OnPropertyChanged(nameof(CameraFrameSize));
@@ -1151,6 +1158,7 @@ namespace ExpressPackingMonitoring.ViewModels
             OnPropertyChanged(nameof(OverlayPreviewFrame));
             OnPropertyChanged(nameof(IsEditingOverlayPreview));
             OnPropertyChanged(nameof(IsOverlayPreviewEditing));
+            OnPropertyChanged(nameof(IsPreviewGuideEditing));
             OnPropertyChanged(nameof(PreviewImageSource));
             OnPropertyChanged(nameof(CameraBarcodeStatusText));
             OnPropertyChanged(nameof(CameraFrameSize));

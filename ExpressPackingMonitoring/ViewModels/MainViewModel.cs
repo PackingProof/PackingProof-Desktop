@@ -300,9 +300,11 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         public string CameraBarcodeStatusText
         {
-            get => IsEditingOverlayPreview
-                ? "拖动框调整副摄取景，点完成或按 Esc 退出"
-                : _cameraBarcodeStatusText;
+            get => IsEditingZoomGuide
+                ? "拖动框调整放大位置，点完成或按 Esc 退出"
+                : IsEditingOverlayPreview
+                    ? "拖动框调整副摄取景，点完成或按 Esc 退出"
+                    : _cameraBarcodeStatusText;
             private set => SetProperty(ref _cameraBarcodeStatusText, value);
         }
         public bool IsCameraBarcodeCandidate { get => _isCameraBarcodeCandidate; private set => SetProperty(ref _isCameraBarcodeCandidate, value); }

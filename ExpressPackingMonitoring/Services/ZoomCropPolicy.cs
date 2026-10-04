@@ -16,8 +16,8 @@ internal static class ZoomCropPolicy
     /// 是否执行扫码放大。解锁识别框是在调整取景范围、进放大框编辑是在摆放大位置，
     /// 这两种状态下预览必须保持整帧，放大让位。
     /// </summary>
-    internal static bool ShouldApplyZoom(bool zoomEnabled, bool guideLocked) =>
-        zoomEnabled && guideLocked;
+    internal static bool ShouldApplyZoom(bool zoomEnabled, bool guideLocked, bool editingZoomGuide) =>
+        zoomEnabled && guideLocked && !editingZoomGuide;
 
     /// <summary>
     /// 本次放大的实际倍率：框越小越大，不超过 requestedMaxScale，也不小于 1。

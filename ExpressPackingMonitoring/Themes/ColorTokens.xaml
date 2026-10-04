@@ -54,6 +54,10 @@
     <Color x:Key="CameraCandidateFillColor">#18F59E0B</Color>
     <Color x:Key="CameraConfirmedStrokeColor">#FF10B981</Color>
     <Color x:Key="CameraConfirmedFillColor">#1810B981</Color>
+    <!-- 放大取景框：与识别框（蓝）、识别中（黄）、已识别（绿）都区分开的紫色，
+         编辑态与平时只读显示共用同一套颜色，用户一眼能看出哪个框在管放大位置 -->
+    <Color x:Key="ZoomGuideStrokeColor">#FF8B5CF6</Color>
+    <Color x:Key="ZoomGuideFillColor">#1A8B5CF6</Color>
     <Color x:Key="WarningOverlayColor">#E6D97706</Color>
     <Color x:Key="DangerOverlayColor">#E6DC2626</Color>
     <Color x:Key="WarningOverlayBorderColor">#FFFCD34D</Color>
@@ -82,6 +86,8 @@
     <SolidColorBrush x:Key="CameraCandidateFill" Color="{StaticResource CameraCandidateFillColor}"/>
     <SolidColorBrush x:Key="CameraConfirmedStroke" Color="{StaticResource CameraConfirmedStrokeColor}"/>
     <SolidColorBrush x:Key="CameraConfirmedFill" Color="{StaticResource CameraConfirmedFillColor}"/>
+    <SolidColorBrush x:Key="ZoomGuideStroke" Color="{StaticResource ZoomGuideStrokeColor}"/>
+    <SolidColorBrush x:Key="ZoomGuideFill" Color="{StaticResource ZoomGuideFillColor}"/>
     <SolidColorBrush x:Key="WarningOverlay" Color="{StaticResource WarningOverlayColor}"/>
     <SolidColorBrush x:Key="DangerOverlay" Color="{StaticResource DangerOverlayColor}"/>
     <SolidColorBrush x:Key="WarningOverlayBorder" Color="{StaticResource WarningOverlayBorderColor}"/>

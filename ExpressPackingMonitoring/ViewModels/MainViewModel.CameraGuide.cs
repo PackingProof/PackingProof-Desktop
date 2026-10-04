@@ -40,7 +40,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool CanApplyZoom =>
             ZoomCropPolicy.ShouldApplyZoom(
                 Config?.EnableSmartZoom == true,
-                IsCameraBarcodeGuideLocked);
+                IsCameraBarcodeGuideLocked,
+                IsEditingZoomGuide);
 
         /// <summary>
         /// 放大取景框几何：主画面坐标，与识别来源无关。识别结果不再参与放大位置判定。
@@ -53,6 +54,62 @@ namespace ExpressPackingMonitoring.ViewModels
                 Config?.ZoomGuideOffsetY ?? 0);
 
         /// <summary>
+        /// 是否正在主画面上调整放大取景框（从设置页"调整放大位置"进入）。
+        /// 这一屏里拖动框写的是放大取景框，与识别框、识别来源都无关。
+        /// </summary>
+        public bool IsEditingZoomGuide { get; private set; }
+
+        /// <summary>
+        /// 副摄取景编辑或放大取景框编辑：两种都是"整屏拖一个框"的预览编辑态，
+        /// 界面据此显示取景框、"完成"按钮与对应提示。
+        /// </summary>
+        public bool IsPreviewGuideEditing => IsEditingOverlayPreview || IsEditingZoomGuide;
+
+        /// <summary>进入放大取景框编辑；已在编辑态时不重复进入。</summary>
+        internal void EnterZoomGuideEdit()
+        {
+            if (IsEditingZoomGuide || IsEditingOverlayPreview)
+                return;
+
+            IsEditingZoomGuide = true;
+            RuntimeLog.Info("ZoomGuide", "进入放大取景框编辑");
+            NotifyZoomGuideEditStateChanged();
+            // 进入编辑就把正在跑的放大停掉：预览被裁切时框摆不准，也没法无遮挡框选。
+            StopZoomForGuideEditing();
+        }
+
+        /// <summary>退出放大取景框编辑；没在编辑时不做事。</summary>
+        internal void ExitZoomGuideEdit()
+        {
+            if (!IsEditingZoomGuide)
+                return;
+
+            IsEditingZoomGuide = false;
+            RuntimeLog.Info("ZoomGuide", "退出放大取景框编辑");
+            NotifyZoomGuideEditStateChanged();
+        }
+
+        private void NotifyZoomGuideEditStateChanged()
+        {
+            OnPropertyChanged(nameof(IsEditingZoomGuide));
+            OnPropertyChanged(nameof(IsPreviewGuideEditing));
+            OnPropertyChanged(nameof(CurrentCameraBarcodeGuideGeometry));
+            OnPropertyChanged(nameof(CameraBarcodeStatusText));
+            OnPropertyChanged(nameof(IsCameraBarcodeGuideLockVisible));
+            OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
+        }
+
+        /// <summary>把放大阶段复位成"没在放大"，预览立刻回到整帧。</summary>
+        private void StopZoomForGuideEditing()
+        {
+            _isScanning = false;
+            _delayBeforeZooming = false;
+            _zoomPhase = ZoomPhase.None;
+            LastZoomRect = System.Windows.Rect.Empty;
+            IsZoomingActive = false;
+        }
+
+        /// <summary>
         /// 识别框当前能否拖动。摄像头休眠时识别框本来就不显示，扫码放大期间
         /// 预览画面已被裁切、和取景用的整帧比例对不上，这两种状态下不接受拖动。
         ///
@@ -62,7 +119,8 @@ namespace ExpressPackingMonitoring.ViewModels
         public bool IsCameraBarcodeGuideEditable =>
             !IsCameraSleeping
             && !IsZoomingActive
-            && (IsEditingOverlayPreview
+            && (IsEditingZoomGuide
+                || IsEditingOverlayPreview
                 // 主界面：识别开着、没锁、而且识别输入不是叠加画面（否则那一路的取景在编辑屏里改）
                 || (Config?.EnableCameraBarcodeRecognition == true
                     && !IsCameraBarcodeGuideLocked
@@ -74,9 +132,11 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 走的就是主摄那套已经验证过的摆放与拖动逻辑，只是数据换成了那一路的。
         /// </remarks>
         public CameraBarcodeGuideGeometry CurrentCameraBarcodeGuideGeometry =>
-            IsEditingOverlayPreview
-                ? CurrentOverlayGuideGeometry
-                : new CameraBarcodeGuideGeometry(
+            IsEditingZoomGuide
+                ? ZoomGuideGeometry
+                : IsEditingOverlayPreview
+                    ? CurrentOverlayGuideGeometry
+                    : new CameraBarcodeGuideGeometry(
                     Config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
                     Config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
                     Config?.CameraBarcodeGuideOffsetX ?? CameraBarcodeGuideGeometry.Default.OffsetX,
@@ -88,6 +148,13 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         public void ApplyCameraBarcodeGuideGeometry(CameraBarcodeGuideGeometry geometry, bool persist)
         {
+            // 放大取景框编辑屏：写回放大取景框那一组，与识别框完全分开。
+            if (IsEditingZoomGuide)
+            {
+                ApplyZoomGuideGeometry(geometry, persist);
+                return;
+            }
+
             // 编辑叠加画面时写回那一路的一组，其余情况写回主摄的。
             if (IsEditingOverlayPreview && _editingOverlayChannelNumber > 0)
             {
@@ -116,6 +183,35 @@ namespace ExpressPackingMonitoring.ViewModels
             RuntimeLog.Info(
                 "CameraBarcode",
                 $"Guide adjusted width={Config.CameraBarcodeGuideWidthRatio:F3} height={Config.CameraBarcodeGuideHeightRatio:F3} offsetX={Config.CameraBarcodeGuideOffsetX:F3} offsetY={Config.CameraBarcodeGuideOffsetY:F3}");
+        }
+
+        /// <summary>
+        /// 放大取景框编辑屏拖动后写回配置：与识别框同一套换算与夹紧范围
+        /// （比例 30%~100%，偏移 ±1），拖动过程只改内存，松手才落盘。
+        /// </summary>
+        private void ApplyZoomGuideGeometry(CameraBarcodeGuideGeometry geometry, bool persist)
+        {
+            if (Config == null)
+                return;
+
+            Config.ZoomGuideWidthRatio = Math.Clamp(
+                geometry.WidthRatio,
+                CameraBarcodeGuideLayout.MinRatio,
+                CameraBarcodeGuideLayout.MaxRatio);
+            Config.ZoomGuideHeightRatio = Math.Clamp(
+                geometry.HeightRatio,
+                CameraBarcodeGuideLayout.MinRatio,
+                CameraBarcodeGuideLayout.MaxRatio);
+            Config.ZoomGuideOffsetX = Math.Clamp(geometry.OffsetX, -1.0, 1.0);
+            Config.ZoomGuideOffsetY = Math.Clamp(geometry.OffsetY, -1.0, 1.0);
+
+            if (!persist)
+                return;
+
+            SaveConfig(notifyUser: true);
+            RuntimeLog.Info(
+                "ZoomGuide",
+                $"Zoom guide adjusted width={Config.ZoomGuideWidthRatio:F3} height={Config.ZoomGuideHeightRatio:F3} offsetX={Config.ZoomGuideOffsetX:F3} offsetY={Config.ZoomGuideOffsetY:F3}");
         }
 
         /// <summary>识别框锁定开关：解锁后才能在主界面拖动调整</summary>

@@ -107,8 +107,9 @@ namespace ExpressPackingMonitoring.UI
         {
             controls.Resize.Visibility = controls.Hovered ? Visibility.Visible : Visibility.Collapsed;
 
-            // 取景编辑态下预览显示的是那一路的整幅画面，画中画的位置/大小框这时候没有意义。
-            if (vm.IsEditingOverlayPreview)
+            // 编辑态下画中画的位置/大小框没有意义：副摄取景屏显示的是那一路的整幅画面，
+            // 放大取景屏则要无遮挡地看清主画面（副画面在这期间也不合成）。
+            if (vm.IsPreviewGuideEditing)
             {
                 controls.Drag.Visibility = Visibility.Collapsed;
                 return;
