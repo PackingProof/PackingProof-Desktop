@@ -21,6 +21,11 @@ namespace ExpressPackingMonitoring.Themes
         private static AppTheme _currentTheme = AppTheme.Auto;
         private static bool _isListening = false;
 
+        /// <summary>上一次真正插进应用资源的主题字典，以及它对应的是不是深色：
+        /// 用来判断"这次要不要真的换"，避免没改主题时白刷一遍全局资源。</summary>
+        private static ResourceDictionary _appliedThemeDictionary;
+        private static bool _appliedDarkTheme;
+
         public static void ApplyConfiguredTheme(string theme) =>
             ApplyTheme(ResolveConfiguredTheme(theme));
 
@@ -86,6 +91,16 @@ namespace ExpressPackingMonitoring.Themes
                 useDarkTheme = _currentTheme == AppTheme.Dark;
             }
 
+            // 主题没变就别再换一次资源字典：换字典会让整个应用（主窗口那棵大树和几路视频都在内）
+            // 把所有 DynamicResource 重新解析一遍。设置页一打开，"外观主题"下拉的绑定就会调到这里，
+            // 明明没改主题也要付这份代价，打开设置自然就慢。
+            if (_appliedThemeDictionary is { } applied
+                && _appliedDarkTheme == useDarkTheme
+                && Application.Current?.Resources.MergedDictionaries.Contains(applied) == true)
+            {
+                return;
+            }
+
             string themeUri = BuildThemeUri(useDarkTheme);
 
             var newDictionary = new ResourceDictionary { Source = new Uri(themeUri) };
@@ -107,6 +122,8 @@ namespace ExpressPackingMonitoring.Themes
             }
             
             Application.Current.Resources.MergedDictionaries.Insert(0, newDictionary);
+            _appliedThemeDictionary = newDictionary;
+            _appliedDarkTheme = useDarkTheme;
         }
 
         /// <summary>
