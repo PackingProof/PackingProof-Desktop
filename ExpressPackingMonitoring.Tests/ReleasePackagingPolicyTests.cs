@@ -513,7 +513,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void ChangePrSubmitter_DefaultsToGithubAndStaysConfigurable()
+    public void ChangePrSubmitter_DefaultsToBothPlatformsAndStaysConfigurable()
     {
         string repositoryRoot = FindRepositoryRoot();
         string submitter = File.ReadAllText(
@@ -528,13 +528,20 @@ public sealed class ReleasePackagingPolicyTests
 
         // 改动一律走 PR：我们自己发现的 bug 先在 GitHub 开 issue，再提 PR 并在说明里关联；
         // 性能、功能、工具、文档这类不是 bug 的改动直接提 PR，不必为了留痕再补 issue。
-        // PR 默认提到 GitHub；别人在某个平台提的 issue 就提到那个平台。
+        // PR 默认 Gitee 和 GitHub 两边都提，合并用快进（提交原样保留）；提交前必须人工确认。
         // 脚本默认值和规范必须同步，避免流程说一套、脚本做另一套。
-        Assert.Contains("$defaultTarget = \"github\"", submitter, StringComparison.Ordinal);
+        Assert.Contains("$defaultTarget = \"both\"", submitter, StringComparison.Ordinal);
+        Assert.Contains("-Confirmed", submitter, StringComparison.Ordinal);
+        Assert.Contains("提交 PR 前需要人工确认", submitter, StringComparison.Ordinal);
+        Assert.Contains("快进", submitter, StringComparison.Ordinal);
         Assert.Contains("PR_TARGET_HOST", submitter, StringComparison.Ordinal);
         Assert.Contains("Submit-ChangePr.ps1", submitter, StringComparison.Ordinal);
         Assert.Contains("PR_TARGET_HOST", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("Submit-ChangePr.ps1", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("不加 `-Confirmed` 只打印计划并拒绝执行", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("提交 PR 必须人工确认", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("PR 默认 Gitee 和 GitHub 两边都提", agentGuide, StringComparison.Ordinal);
+        Assert.Contains("PR 合并使用快进", agentGuide, StringComparison.Ordinal);
         Assert.Contains("不再直接向 `main` 推送提交", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("先在 GitHub 开 issue", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("先在 GitHub 开 issue", agentGuide, StringComparison.Ordinal);
