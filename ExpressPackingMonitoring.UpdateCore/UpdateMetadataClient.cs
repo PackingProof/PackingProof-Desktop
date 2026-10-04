@@ -55,14 +55,21 @@ public sealed class UpdateMetadataClient
     private readonly int _attemptsPerSource;
     private readonly TimeSpan _retryDelay;
     private readonly Action<string>? _log;
+    private readonly bool _allowPrerelease;
 
+    /// <param name="allowPrerelease">
+    /// 本客户端是否接收预览版（prerelease）。默认 false = 只认正式版；
+    /// 测试机通过 <see cref="UpdateChannelPolicy.AllowPrereleaseFromEnvironment"/> 打开。
+    /// 草稿任何情况下都不接收。
+    /// </param>
     public UpdateMetadataClient(
         HttpClient httpClient,
         string userAgent = "ExpressPackingMonitoring",
         int attemptsPerSource = 1,
         TimeSpan? retryDelay = null,
         Action<string>? log = null,
-        Func<string, string>? apiTokenProvider = null)
+        Func<string, string>? apiTokenProvider = null,
+        bool allowPrerelease = false)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _userAgent = string.IsNullOrWhiteSpace(userAgent) ? "ExpressPackingMonitoring" : userAgent.Trim();
@@ -70,6 +77,7 @@ public sealed class UpdateMetadataClient
         _attemptsPerSource = Math.Max(1, attemptsPerSource);
         _retryDelay = retryDelay ?? TimeSpan.FromMilliseconds(500);
         _log = log;
+        _allowPrerelease = allowPrerelease;
     }
 
     public async Task<ResolvedUpdateRelease> FetchLatestReleaseAsync(
@@ -84,6 +92,10 @@ public sealed class UpdateMetadataClient
                 try
                 {
                     RequireLatestVersion(release.RootElement);
+                    // 这条是"直接取单个 release"的老路径（/releases/latest），
+                    // 同样不能把草稿或预览版当成可更新版本。
+                    if (!UpdateReleaseSelection.IsDeliverable(release.RootElement, _allowPrerelease))
+                        throw new InvalidDataException("该 Release 是草稿或预览版，当前更新渠道不接收");
                     return new ResolvedUpdateRelease(release, sourceUrl);
                 }
                 catch
@@ -146,7 +158,10 @@ public sealed class UpdateMetadataClient
                     pagesScanned = page;
                     pageCount = list.RootElement.GetArrayLength();
 
-                    int index = UpdateReleaseSelection.FindLatestWithAsset(list.RootElement, assetPredicate);
+                    int index = UpdateReleaseSelection.FindLatestWithAsset(
+                        list.RootElement,
+                        assetPredicate,
+                        _allowPrerelease);
                     if (index >= 0)
                     {
                         JsonElement candidate = list.RootElement[index];

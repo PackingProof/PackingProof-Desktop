@@ -199,4 +199,88 @@ public class UpdateReleaseSelectionTests
 
         Assert.Equal("v0.0.73", document.RootElement[index].GetProperty("tag_name").GetString());
     }
+
+    /// <summary>
+    /// 渠道规则：预览版（prerelease）默认不参与挑选，测试机显式放开时才收。
+    /// 以前标了预览版也会被推给所有店铺，这条守的就是那个坑。
+    /// </summary>
+    [Fact]
+    public void SkipsPrereleaseUnlessExplicitlyAllowed()
+    {
+        const string releasesJson = """
+        [
+          {"tag_name":"v0.0.76","prerelease":true,"assets":[{"name":"update_v0.0.76.json"}]},
+          {"tag_name":"v0.0.75","prerelease":false,"assets":[{"name":"update_v0.0.75.json"}]}
+        ]
+        """;
+
+        using var document = JsonDocument.Parse(releasesJson);
+        int defaultIndex = UpdateReleaseSelection.FindLatestWithAsset(
+            document.RootElement,
+            UpdateReleaseSelection.IsUpdateManifest);
+        int testMachineIndex = UpdateReleaseSelection.FindLatestWithAsset(
+            document.RootElement,
+            UpdateReleaseSelection.IsUpdateManifest,
+            allowPrerelease: true);
+
+        Assert.Equal("v0.0.75", document.RootElement[defaultIndex].GetProperty("tag_name").GetString());
+        Assert.Equal("v0.0.76", document.RootElement[testMachineIndex].GetProperty("tag_name").GetString());
+    }
+
+    /// <summary>列表里只有预览版时，正式渠道必须认为"没有可更新版本"，不能退回随便挑一个。</summary>
+    [Fact]
+    public void ReturnsNothingWhenOnlyPrereleasesExist()
+    {
+        const string releasesJson = """
+        [
+          {"tag_name":"v0.0.76","prerelease":true,"assets":[{"name":"update_v0.0.76.json"}]}
+        ]
+        """;
+
+        using var document = JsonDocument.Parse(releasesJson);
+
+        Assert.Equal(
+            -1,
+            UpdateReleaseSelection.FindLatestWithAsset(
+                document.RootElement,
+                UpdateReleaseSelection.IsUpdateManifest));
+    }
+
+    /// <summary>草稿任何情况下都不推，即使测试机放开了预览版也一样。</summary>
+    [Fact]
+    public void NeverPicksDraftEvenWhenPrereleaseIsAllowed()
+    {
+        const string releasesJson = """
+        [
+          {"tag_name":"v0.0.77","draft":true,"assets":[{"name":"update_v0.0.77.json"}]},
+          {"tag_name":"v0.0.75","assets":[{"name":"update_v0.0.75.json"}]}
+        ]
+        """;
+
+        using var document = JsonDocument.Parse(releasesJson);
+        int index = UpdateReleaseSelection.FindLatestWithAsset(
+            document.RootElement,
+            UpdateReleaseSelection.IsUpdateManifest,
+            allowPrerelease: true);
+
+        Assert.Equal("v0.0.75", document.RootElement[index].GetProperty("tag_name").GetString());
+    }
+
+    /// <summary>服务端不返回 prerelease 字段时按正式版处理，不能因为字段缺失把版本藏起来。</summary>
+    [Fact]
+    public void MissingPrereleaseFlagCountsAsStable()
+    {
+        const string releasesJson = """
+        [
+          {"tag_name":"v0.0.75","assets":[{"name":"update_v0.0.75.json"}]}
+        ]
+        """;
+
+        using var document = JsonDocument.Parse(releasesJson);
+        int index = UpdateReleaseSelection.FindLatestWithAsset(
+            document.RootElement,
+            UpdateReleaseSelection.IsUpdateManifest);
+
+        Assert.Equal("v0.0.75", document.RootElement[index].GetProperty("tag_name").GetString());
+    }
 }

@@ -10,6 +10,9 @@ namespace ExpressPackingMonitoring.UpdateCore;
 /// 一个跟自己无关的版本：Mac 会下载 DMG 之外的包，Windows 会提示有新版本却下到 DMG、
 /// 启动器自动更新还会因为"Release 缺少 update_v*.json"一直失败。
 /// 所以两端都只认"版本最高、且确实带本平台发布资产"的那一个。
+///
+/// 另一条同样重要的规则是渠道：草稿永远不参与挑选，预览版（prerelease）只有在调用方
+/// 明确允许时才算 —— 见 <see cref="UpdateChannelPolicy"/>。
 /// </summary>
 public static class UpdateReleaseSelection
 {
@@ -49,16 +52,25 @@ public static class UpdateReleaseSelection
     /// 应用内的手动检查却一直说"已是最新"。所以这里一律按 tag_name 的版本号比大小，
     /// 不看服务端返回顺序。
     /// </summary>
-    public static int FindLatestWithAsset(JsonElement releases, Func<string, bool> assetPredicate)
+    /// <param name="allowPrerelease">
+    /// true 时才把预览版算进候选；默认 false = 只认正式版。
+    /// </param>
+    public static int FindLatestWithAsset(
+        JsonElement releases,
+        Func<string, bool> assetPredicate,
+        bool allowPrerelease = false)
     {
         ArgumentNullException.ThrowIfNull(assetPredicate);
         if (releases.ValueKind != JsonValueKind.Array) return -1;
 
         int bestIndex = -1;
         string bestVersion = "";
-        int index = 0;
+        int index = -1;
         foreach (JsonElement release in releases.EnumerateArray())
         {
+            index++;
+            if (!IsDeliverable(release, allowPrerelease)) continue;
+
             if (HasMatchingAsset(release, assetPredicate)
                 && release.TryGetProperty("tag_name", out JsonElement tag)
                 && tag.ValueKind == JsonValueKind.String)
@@ -70,12 +82,21 @@ public static class UpdateReleaseSelection
                     bestVersion = version;
                 }
             }
-
-            index++;
         }
 
         return bestIndex;
     }
+
+    /// <summary>
+    /// 这个 release 能不能推给客户端：草稿永远不能（客户端连看都不该看到），
+    /// 预览版只有调用方允许时才能。缺字段一律当正式版，避免误伤服务端不返回该字段的情况。
+    /// </summary>
+    internal static bool IsDeliverable(JsonElement release, bool allowPrerelease) =>
+        !ReadBool(release, "draft") && (allowPrerelease || !ReadBool(release, "prerelease"));
+
+    private static bool ReadBool(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out JsonElement value)
+        && value.ValueKind == JsonValueKind.True;
 
     /// <summary>
     /// 比较两个 release 版本号（可带 v 前缀与 -/+ 后缀，与更新检查的口径一致）。

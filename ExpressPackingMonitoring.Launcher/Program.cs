@@ -388,7 +388,8 @@ internal static class Program
                 HttpClient,
                 attemptsPerSource: MetadataRequestAttempts,
                 retryDelay: TimeSpan.FromMilliseconds(500),
-                log: message => WriteLog("更新元数据：" + message));
+                log: message => WriteLog("更新元数据：" + message),
+                allowPrerelease: UpdateChannelPolicy.AllowPrereleaseFromEnvironment());
             using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
                 checkUrls,
                 cancellationToken);
