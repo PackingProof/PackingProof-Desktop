@@ -103,7 +103,8 @@ public sealed class ZoomGuideEditingTests
 
         string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
         Assert.Contains("UpdateZoomGuideBox", code, StringComparison.Ordinal);
-        Assert.Contains("!vm.IsEditingZoomGuide", code, StringComparison.Ordinal);
+        // 副摄取景编辑与调放大位置这两屏都不画放大取景框
+        Assert.Contains("!vm.IsPreviewGuideEditing", code, StringComparison.Ordinal);
         Assert.Contains("ExitPreviewGuideEditing", code, StringComparison.Ordinal);
         // Esc 与"完成"等效，两种编辑态都要能退出
         Assert.Contains("vm.IsEditingOverlayPreview || vm.IsEditingZoomGuide", code, StringComparison.Ordinal);

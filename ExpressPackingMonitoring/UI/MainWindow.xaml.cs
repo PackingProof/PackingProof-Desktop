@@ -423,8 +423,10 @@ namespace ExpressPackingMonitoring.UI
 
             // 放大进行中先藏起来：预览已经被裁切并拉回整屏，框却还按未放大的画面坐标画，
             // 会停在错误的位置；而且放大后框本身就等于整屏，画出来也没有信息量。
+            // 进任何整屏编辑态（副摄取景编辑、调放大位置）也藏起来：那两屏都在干别的事，
+            // 多一个框只会让人分不清当前在拖哪一个。
             bool visible = vm.Config is not { ShowZoomGuideBox: false }
-                && !vm.IsEditingZoomGuide
+                && !vm.IsPreviewGuideEditing
                 && !vm.IsZoomingActive;
             double sourceW = vm.CameraFrameSize.Width;
             double sourceH = vm.CameraFrameSize.Height;
