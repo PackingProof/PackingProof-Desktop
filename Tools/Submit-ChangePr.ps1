@@ -287,7 +287,13 @@ function Merge-ChangePullRequest {
     }
 
     if (-not $DryRun) {
-        $state = (& gh pr view $Number --repo $Repository --json state --jq ".state") -join ""
+        # GitHub 检测到"提交已经进主干"要几秒，刚推完就查会误报成 OPEN，轮询几次再报。
+        $state = ""
+        for ($attempt = 0; $attempt -lt 10; $attempt++) {
+            $state = (& gh pr view $Number --repo $Repository --json state --jq ".state") -join ""
+            if ($state -eq "MERGED") { break }
+            Start-Sleep -Milliseconds 1500
+        }
         Write-Host "    GitHub PR 状态：$state"
     }
 }
