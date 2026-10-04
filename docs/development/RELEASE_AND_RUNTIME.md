@@ -81,3 +81,38 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - Gitee 发布令牌固定取仓库根目录 `.env` 的 `GITEE_TOKEN`，由脚本注入 `GITEE_TOKEN` 环境变量后交给 CLI；CLI 自己保存的登录态只作回退，而且它按身份字符串各存一份、`gitee auth status` 在令牌失效时仍返回 0，不能用来判断可用性。发布时对 `PackingProof/PackingProof-Desktop` 执行 `gitee release create --repo PackingProof/PackingProof-Desktop --target main` 和 `gitee release upload`；不再向旧个人仓库发布。
 - 两个平台的 Release 可由 `pwsh -NoProfile -File Tools/Publish-Releases.ps1 -Title "<一句话内容>" -ConfirmCommitCoverage [-Prerelease]` 一次创建，发布笔记默认取产物目录里的 `RELEASE_NOTES_v<X.Y.Z>.md`（要指别处才传 `-NotesFile`）。脚本要求工作区干净、当前提交有精确 tag，并确认发布笔记已覆盖 `release_commits_v<X.Y.Z>.txt` 的全部提交后才按上面的资产表挑文件上传，GitHub 创建失败会自动重试；已发布版本补写正文用 `-UpdateNotes`，只校验不发布用 `-ValidateOnly`。GitHub 登录态由 gh CLI 维护，Gitee 令牌由脚本从 `.env` 读取后注入环境变量，不打印、不落盘、不提交。
+
+## 重发同一版本（热修已发布版本）
+
+正常发布只跑两条命令：`Publish-CleanPackage.ps1`（出包）→ `Publish-Releases.ps1`（建 Release 传资产）→
+`Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（Gitee 专属 no-runtime 包）。
+**给已经发出去的版本补修复**是另一件事，必须按下面顺序，否则会把用户引到旧的包上：
+
+1. 修复先合入主干（该走 PR 的走 PR），并确认本次发布标签指向的提交里已包含修复
+2. **清掉产物目录再全量重打**：`package\PackingProof+v<X.Y.Z>` 删除后重跑 `Publish-CleanPackage.ps1`。
+   脚本结尾有"产物新鲜度守卫"：`app\ExpressPackingMonitoring.dll` 早于应用侧最新源码时直接报错，
+   所以复用旧产物这条路已经被堵住（见下方"内容守卫"）
+3. 打包结束后核对三处：产物目录里有没有 `PackingProof_LauncherPatch_v<X.Y.Z>.zip`（若本版建立新基线）、
+   `RELEASE_NOTES_v<X.Y.Z>.md` 是不是自己写的那份（不是骨架）、`update_v<X.Y.Z>.json` 的 `title`/`notes`/
+   `launcher_package` 是不是本次的值
+4. 两边替换资产：GitHub 用 `gh release upload v<X.Y.Z> <文件...> --clobber`；Gitee 先列 `attach_files`
+   删掉同名旧附件、再 `gitee release upload v<X.Y.Z> <文件...>`（Gitee 不会覆盖同名附件）
+5. 重做 Gitee 的 no-runtime 安装包：`Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`
+6. macOS 侧：在 Mac 上 `SIGN_IDENTITY="Developer ID Application: ..." NOTARIZE=1 Tools/Publish-MacRelease.sh <版本> both`。
+   **签名必须在 Mac 桌面会话的终端里跑**：SSH 会话拿不到登录钥匙串里的签名私钥，会报 `errSecInternalComponent`
+
+## 发布内容守卫（防止"看着是新的、内容是旧的"）
+
+历史事故：源码已改，产物目录里的 app 负载仍是上一次的旧文件，脚本只报"成功"，于是发出去的包
+内容仍是旧的。现在发布链路上有三道内容校验，任何一道不过都直接失败：
+
+1. **产物新鲜度**（`Publish-CleanPackage.ps1`）：`app\ExpressPackingMonitoring.dll` 不得早于应用侧工程
+   里最新的 `.cs`/`.xaml`，比源码旧就要求清理产物目录后重新打包
+2. **产物一致性**（`Publish-Releases.ps1`）：解开 AppPatch，与产物目录里的
+   `ExpressPackingMonitoring.dll` / `ExpressPackingMonitoring.UpdateCore.dll` 做 SHA256 比对，不一致停止发布
+3. **启动器补丁存在性**（`Publish-Releases.ps1`）：更新清单声明本版提供 LauncherPatch
+   （`launcher_package.version` == 本版版本）时，产物目录里必须有对应 zip，否则停止发布
+
+排查现场"更新不到新版本"时，先用字符串标记确认包内容而不是看时间戳：例如本次修复会在
+`ExpressPackingMonitoring.UpdateCore.dll` 里留下 `release list scanned`，而 `per_page=30` 是旧逻辑特征
+（Windows 的 AppPatch、macOS 的 DMG 都可以这样验）。
