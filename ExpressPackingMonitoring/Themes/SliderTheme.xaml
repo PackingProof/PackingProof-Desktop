@@ -18,7 +18,8 @@
                             <!-- 确定进度：按值填充（宽度由 ProgressBar 自己算） -->
                             <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
                             <!-- 不确定进度：流光扫过整条 -->
-                            <Rectangle x:Name="IndeterminateShimmer" Opacity="0" IsHitTestVisible="False">
+                            <!-- 圆角要画在这条矩形本身上：Border 的 ClipToBounds 只按矩形裁，不裁圆角 -->
+                            <Rectangle x:Name="IndeterminateShimmer" RadiusX="3.5" RadiusY="3.5" Opacity="0" IsHitTestVisible="False">
                                 <Rectangle.Fill>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                         <LinearGradientBrush.RelativeTransform>

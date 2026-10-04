@@ -140,6 +140,11 @@ public sealed class MainWindowStatsBarTests
         // 不确定进度（含预录滚动）= 流光扫过，不再用默认方角跑马灯
         Assert.Contains("x:Name=\"IndeterminateShimmer\"", theme, StringComparison.Ordinal);
         Assert.Contains("Trigger Property=\"IsIndeterminate\" Value=\"True\"", theme, StringComparison.Ordinal);
+        // 流光本身也要画圆角：Border 的 ClipToBounds 只按矩形裁，不裁圆角（漏了这步两端就是方角）
+        Assert.Contains(
+            "x:Name=\"IndeterminateShimmer\" RadiusX=\"3.5\" RadiusY=\"3.5\"",
+            theme,
+            StringComparison.Ordinal);
     }
 
     private static string FindRepositoryPath(params string[] parts)
