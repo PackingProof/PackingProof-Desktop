@@ -295,6 +295,12 @@ namespace ExpressPackingMonitoring.UI
                             // 否则可拖的取景框会停在主摄识别框的旧位置上。
                             Dispatcher.BeginInvoke(new Action(() => UpdateCameraOverlays(vm)));
                         }
+                        else if (args.PropertyName == nameof(MainViewModel.IsZoomingActive))
+                        {
+                            // 放大开始/结束时放大取景框要跟着隐藏/恢复：它按未放大的画面坐标画，
+                            // 放大期间留在画面上会指向错误的位置。
+                            Dispatcher.BeginInvoke(new Action(() => UpdateZoomGuideBox(vm)));
+                        }
                     };
                     // 窗口/视频区域大小变化时重新计算边框位置。
                     //
@@ -415,7 +421,11 @@ namespace ExpressPackingMonitoring.UI
             ZoomGuideBoxHost.Visibility = Visibility.Collapsed;
             ZoomGuideBoxHost.RenderTransform = null;
 
-            bool visible = vm.Config is not { ShowZoomGuideBox: false } && !vm.IsEditingZoomGuide;
+            // 放大进行中先藏起来：预览已经被裁切并拉回整屏，框却还按未放大的画面坐标画，
+            // 会停在错误的位置；而且放大后框本身就等于整屏，画出来也没有信息量。
+            bool visible = vm.Config is not { ShowZoomGuideBox: false }
+                && !vm.IsEditingZoomGuide
+                && !vm.IsZoomingActive;
             double sourceW = vm.CameraFrameSize.Width;
             double sourceH = vm.CameraFrameSize.Height;
             double actualW = VideoImage.ActualWidth;

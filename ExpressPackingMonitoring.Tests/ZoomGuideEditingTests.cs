@@ -94,6 +94,25 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("vm.IsEditingOverlayPreview || vm.IsEditingZoomGuide", code, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 放大进行中不画放大取景框：预览已被裁切拉回整屏，框却按未放大的坐标画，位置是错的。
+    /// </summary>
+    [Fact]
+    public void ZoomGuideBox_IsHiddenWhileTheZoomEffectIsRunning()
+    {
+        string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
+
+        int method = code.IndexOf("private void UpdateZoomGuideBox", StringComparison.Ordinal);
+        Assert.True(method > 0, "没找到放大取景框的绘制方法");
+        string body = code[method..Math.Min(code.Length, method + 1200)];
+        Assert.Contains("!vm.IsZoomingActive", body, StringComparison.Ordinal);
+        // 放大开始/结束时也要立刻重画，不能等下一帧预览
+        Assert.Contains(
+            "nameof(MainViewModel.IsZoomingActive)",
+            code,
+            StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ZoomGuideEditingScreen_DrawsTheMainFrameBoxInsteadOfTheRecognitionBox()
     {
