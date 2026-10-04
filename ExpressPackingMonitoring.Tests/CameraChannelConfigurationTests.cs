@@ -750,8 +750,8 @@ public sealed class CameraChannelConfigurationTests
     }
 
     /// <summary>
-    /// 识别来源是叠加画面时，框只是画中画上的状态反馈，不该出现小锁；
-    /// 只有主摄取景、或那一屏取景编辑（框能编辑）时才显示锁。
+    /// 小锁只在"主界面上的主摄取景框"上出现：识别来源是叠加画面时框只是状态反馈，
+    /// 进副摄取景编辑屏时拖动本来就不受小锁限制，两种情况下都不显示锁。
     /// </summary>
     [Fact]
     public void OverlayGuideHasNoLockWhenRecognitionComesFromOverlay()
@@ -759,7 +759,7 @@ public sealed class CameraChannelConfigurationTests
         string channels = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
         Assert.Contains("IsCameraBarcodeGuideLockVisible", channels, StringComparison.Ordinal);
         Assert.Contains(
-            "!ShouldUseOverlayChannelForBarcode || IsEditingOverlayPreview",
+            "!IsEditingOverlayPreview && !ShouldUseOverlayChannelForBarcode",
             channels,
             StringComparison.Ordinal);
 
@@ -809,8 +809,8 @@ public sealed class CameraChannelConfigurationTests
     }
 
     /// <summary>
-    /// 识别来源选的是副画面时，主界面上那个框只是状态反馈、不显示小锁；
-    /// 进这一屏取景编辑时必须重新通知一次显隐，否则小锁的绑定不会刷新，点进去就看不到锁。
+    /// 小锁的显隐同时取决于"在不在取景编辑屏"和"识别来源是不是副画面"，
+    /// 进出取景编辑屏必须重新通知一次显隐，否则绑定会停在主界面那一套状态上。
     /// </summary>
     [Fact]
     public void EnteringOverlayPreviewEdit_RefreshesGuideLockVisibility()

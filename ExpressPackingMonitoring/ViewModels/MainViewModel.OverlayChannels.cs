@@ -148,11 +148,12 @@ namespace ExpressPackingMonitoring.ViewModels
         public bool IsBarcodeGuideVisible => true;
 
         /// <summary>
-        /// 框上的小锁只在"这个框能编辑"的时候出现：主摄取景、或叠加画面的取景编辑屏。
-        /// 识别来源是叠加画面时，框只是画中画上的状态反馈（取景在"点画中画"的编辑屏里改），不显示锁。
+        /// 框上的小锁只在"这个框要在主界面上拖动"的时候出现：识别来源是主摄、且没进副摄取景编辑屏。
+        /// 识别来源是叠加画面时，框只是画中画上的状态反馈（取景在"点画中画"的编辑屏里改）；
+        /// 编辑屏里拖动本来就不受小锁限制（见 <see cref="IsCameraBarcodeGuideEditable"/>），那一屏不再显示小锁。
         /// </summary>
         public bool IsCameraBarcodeGuideLockVisible =>
-            !ShouldUseOverlayChannelForBarcode || IsEditingOverlayPreview;
+            !IsEditingOverlayPreview && !ShouldUseOverlayChannelForBarcode;
 
         /// <summary>
         /// 叠加画面实际落位的版本号。任一路的落位一变就自增并通知界面重摆拖动框 ——
@@ -1126,8 +1127,8 @@ namespace ExpressPackingMonitoring.ViewModels
             OnPropertyChanged(nameof(PreviewImageSource));
             OnPropertyChanged(nameof(CameraBarcodeStatusText));
             OnPropertyChanged(nameof(CameraFrameSize));
-            // 小锁/框的可编辑性都跟"在不在取景编辑屏"有关：识别来源是副画面时，
-            // 主界面上不显示小锁，但进了这一屏就要显示，所以这里必须重新通知一次。
+            // 小锁/框的可编辑性都跟"在不在取景编辑屏"有关：编辑屏里不显示小锁、但框一定可拖，
+            // 所以这里必须重新通知一次，否则绑定会停在主界面那一套状态上。
             OnPropertyChanged(nameof(IsBarcodeGuideVisible));
             OnPropertyChanged(nameof(IsCameraBarcodeGuideLockVisible));
             OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
