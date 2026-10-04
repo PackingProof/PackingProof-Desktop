@@ -115,3 +115,63 @@ function Remove-GiteeReleaseAttachmentByName {
     }
     return $removed
 }
+
+# Release 是否存在。Gitee 没有单独的存在性接口，这里用不抛错的请求按状态码判断；
+# 404 只是"还没建 Release"，其余状态码是真实故障，必须抛出来。
+function Test-GiteeReleaseExists {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Repository,
+        [Parameter(Mandatory = $true)] [string]$Tag
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+        throw "缺少 GITEE_TOKEN，无法读取 Gitee Release 状态"
+    }
+
+    $headers = @{ Authorization = "Bearer $($env:GITEE_TOKEN)" }
+    $statusCode = 0
+    $response = Invoke-RestMethod `
+        -Uri "https://gitee.com/api/v5/repos/$Repository/releases/tags/$Tag" `
+        -Headers $headers `
+        -Method Get `
+        -TimeoutSec 30 `
+        -SkipHttpErrorCheck `
+        -StatusCodeVariable statusCode
+
+    if ($statusCode -eq 404) {
+        return $false
+    }
+    if ($null -eq $response -and $statusCode -eq 0) {
+        throw "读取 Gitee Release $Tag 失败：没有拿到响应"
+    }
+    if ($statusCode -lt 200 -or $statusCode -ge 300) {
+        throw "读取 Gitee Release $Tag 失败：HTTP $statusCode"
+    }
+    return $true
+}
+
+# 重发同一版本时，Gitee 会保留旧附件、再放一份同名文件（它不支持覆盖上传）。
+# 上传前统一走这里：Release 还没建（首次发布）时不算错误，直接跳过。
+function Remove-GiteeReleaseAttachmentsForTag {
+    param(
+        [Parameter(Mandatory = $true)] [string]$Repository,
+        [Parameter(Mandatory = $true)] [string]$Tag,
+        [Parameter(Mandatory = $true)] [string[]]$FileNames
+    )
+
+    if (-not (Test-GiteeReleaseExists -Repository $Repository -Tag $Tag)) {
+        Write-Host "Gitee Release $Tag 还不存在，跳过旧附件清理"
+        return
+    }
+    $releaseId = Get-GiteeReleaseId -Repository $Repository -Tag $Tag
+
+    foreach ($fileName in $FileNames) {
+        $removed = Remove-GiteeReleaseAttachmentByName `
+            -Repository $Repository `
+            -ReleaseId $releaseId `
+            -FileName $fileName
+        if ($removed -gt 0) {
+            Write-Host "Gitee 旧附件已删除 $removed 个：$fileName"
+        }
+    }
+}

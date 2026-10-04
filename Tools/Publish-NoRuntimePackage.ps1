@@ -157,6 +157,11 @@ if ($UploadGitee) {
     if ($uploadFiles.Count -eq 0) {
         throw "没有可上传的产物"
     }
+    # 重发同一版本时 Gitee 会留两份同名附件（它不支持覆盖上传）：先删旧的再传新的。
+    Remove-GiteeReleaseAttachmentsForTag `
+        -Repository $GiteeRepository `
+        -Tag $releaseTag `
+        -FileNames @($uploadFiles | ForEach-Object { Split-Path -Leaf $_ })
     & gitee release upload --repo $GiteeRepository $releaseTag @uploadFiles
     if ($LASTEXITCODE -ne 0) {
         throw "Gitee 附件上传失败，退出码 $LASTEXITCODE"
