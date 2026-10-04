@@ -95,6 +95,19 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
+    public void ZoomGuideEditingScreen_DrawsTheMainFrameBoxInsteadOfTheRecognitionBox()
+    {
+        string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
+
+        // "框贴到画中画上"那条分支必须排除所有整屏编辑态：
+        // 调放大位置时画的只能是主画面上的放大取景框，否则会画成识别框的样子。
+        int branch = code.IndexOf("识别输入来自副摄", StringComparison.Ordinal);
+        Assert.True(branch > 0, "没找到识别框贴画中画的分支");
+        string branchBlock = code[branch..Math.Min(code.Length, branch + 700)];
+        Assert.Contains("if (!vm.IsPreviewGuideEditing", branchBlock, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OverlayDragBoxes_AreHiddenWhileEditingAnyPreviewGuide()
     {
         string boxes = ReadProjectFile(Path.Combine("UI", "MainWindow.OverlayBoxes.cs"));

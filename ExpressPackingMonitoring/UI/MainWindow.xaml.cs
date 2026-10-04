@@ -469,10 +469,12 @@ namespace ExpressPackingMonitoring.UI
             CameraBarcodeGuideGeometry geometry = vm.CurrentCameraBarcodeGuideGeometry;
             Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
 
-            // 识别输入来自副摄（且不在取景编辑屏）：框贴到画中画上。
+            // 识别输入来自副摄（且不在任何整屏编辑态）：框贴到画中画上。
             // 画中画显示的就是"框内那块裁剪"，所以框等于画中画本身；
             // 绿/黄识别状态和提示文字都落在这块上，识别反馈不会丢。
-            if (!vm.IsEditingOverlayPreview
+            // 调放大位置那一屏画的一定是主画面的放大取景框：跟着画中画走就会画成识别框的样子，
+            // 用户既看不到放大框在哪，也会误以为放大作用在副画面上。
+            if (!vm.IsPreviewGuideEditing
                 && vm.ShouldUseOverlayChannelForBarcode
                 && vm.VideoFrame is { PixelWidth: > 0, PixelHeight: > 0 } overlayFrame
                 && vm.BarcodeOverlayChannelNumber > 0
