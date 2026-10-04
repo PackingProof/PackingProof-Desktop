@@ -197,6 +197,10 @@
     <Compile Include="UI\RecordingFilterState.cs" />
     <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\SectionCardSpacing.cs" />
+    <Compile Include="UI\SettingsWindow.Search.cs" />
+    <Compile Include="UI\SettingsSearch\SettingsSearchController.cs" />
+    <Compile Include="UI\SettingsSearch\SettingsSearchIndex.cs" />
+    <Compile Include="UI\SettingsSearch\SettingsSearchMatcher.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalPrompt.cs" />
     <Compile Include="UI\ExtensionEnrollmentApprovalWindow.xaml.cs" />
     <Compile Include="UI\ExtensionMarketWindow.xaml.cs" />

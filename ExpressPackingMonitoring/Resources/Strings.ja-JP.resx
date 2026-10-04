@@ -1474,6 +1474,9 @@
   <data name="按住拖动可调整副画面大小" xml:space="preserve"><value>ドラッグでサブ画面の大きさを変更できます</value></data>
   <data name="按住拖动可调整副画面位置" xml:space="preserve"><value>ドラッグしてサブ画面の位置を調整できます</value></data>
   <data name="副画面数量" xml:space="preserve"><value>サブ画面の数</value></data>
+  <data name="搜索设置" xml:space="preserve"><value>設定を検索</value></data>
+  <data name="没有找到设置项" xml:space="preserve"><value>一致する設定がありません</value></data>
+  <data name="共 {0} 项" xml:space="preserve"><value>{0} 件</value></data>
   <data name="主画面之外还能叠几路副摄像头，改了以后按新路数重启这些画面" xml:space="preserve"><value>メイン画面のほかに重ねられるサブカメラの数です。変更すると新しい数でサブ画面を再起動します</value></data>
   <data name="1 路" xml:space="preserve"><value>1 系統</value></data>
   <data name="2 路" xml:space="preserve"><value>2 系統</value></data>
