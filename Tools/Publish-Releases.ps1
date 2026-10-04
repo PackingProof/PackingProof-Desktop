@@ -138,9 +138,18 @@ if (-not [string]::IsNullOrWhiteSpace($Tag)) {
     }
 }
 else {
-    $tag = (git describe --tags --exact-match 2>$null)
+    # 发行标签与启动器标签（launcher-vX.Y.Z）可能同时落在 HEAD 上 —— 重建启动器基线时就是这样。
+    # 不能再用 git describe --tags --exact-match：它会挑到 launcher-vX.Y.Z，于是版本与产物名全算错。
+    # 与 Publish-CleanPackage.ps1 同一口径：只在 HEAD 上的标签里认 v<数字> 形式的发行标签。
+    $tag = @(& git tag --points-at HEAD 2>$null) |
+        Where-Object { $_ -match '^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$' } |
+        Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($tag)) {
-        throw "当前提交没有精确 tag：请先建 v<X.Y.Z> 标签，或为已发布版本补正文时显式传 -Tag <tag>"
+        # 兜底：没有 v 形式标签在 HEAD 上时，再看有没有精确匹配的版本标签
+        $tag = (git describe --tags --match "v[0-9]*" --exact-match 2>$null)
+    }
+    if ([string]::IsNullOrWhiteSpace($tag)) {
+        throw "当前提交没有 v<X.Y.Z> 标签：请先建发行标签，或为已发布版本补正文时显式传 -Tag <tag>"
     }
     $tag = $tag.Trim()
 }

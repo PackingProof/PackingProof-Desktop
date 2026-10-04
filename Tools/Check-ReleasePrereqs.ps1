@@ -56,19 +56,24 @@ if ([string]::IsNullOrWhiteSpace($projectVersion)) {
     Write-Fail "读不到 csproj 里的 <Version>"
 }
 else {
-    $tag = (git describe --tags --exact-match 2>$null)
-    if ([string]::IsNullOrWhiteSpace($tag)) {
-        Write-Warn "当前提交没有精确 tag（csproj 是 $projectVersion，发布前需建 v$projectVersion）"
+    # 发行标签与启动器标签（launcher-vX.Y.Z）可能同时落在 HEAD 上 —— 重建启动器基线时就是这样。
+    # 不能再用 git describe --tags --exact-match：它会挑到 launcher-vX.Y.Z，于是"标签与版本不一致"误报。
+    # 与 Publish-CleanPackage.ps1 同一口径：只在 HEAD 上的标签里认 v<数字> 形式的发行标签。
+    $releaseTagAtHead = @(& git tag --points-at HEAD 2>$null) |
+        Where-Object { $_ -match '^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$' } |
+        Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($releaseTagAtHead)) {
+        Write-Warn "当前提交没有 v 形式的发行 tag（csproj 是 $projectVersion，发布前需建 v$projectVersion）"
     }
-    elseif ($tag.Trim() -eq "v$projectVersion") {
-        Write-Ok "当前提交的 tag $($tag.Trim()) 与 csproj 一致"
-        $previousTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $tag.Trim()
+    elseif ($releaseTagAtHead.Trim() -eq "v$projectVersion") {
+        Write-Ok "当前提交的 tag $($releaseTagAtHead.Trim()) 与 csproj 一致"
+        $previousTag = Get-PreviousFormalReleaseTag -RepoRoot $repoRoot -ReleaseTag $releaseTagAtHead.Trim()
         $subjects = Get-ReleaseCommitSubjects -RepoRoot $repoRoot -FromTag $previousTag
         $rangeFrom = if ([string]::IsNullOrWhiteSpace($previousTag)) { "仓库起点" } else { $previousTag }
-        Write-Ok "发布笔记范围：$rangeFrom .. $($tag.Trim()) 共 $($subjects.Count) 个提交，必须逐条覆盖"
+        Write-Ok "发布笔记范围：$rangeFrom .. $($releaseTagAtHead.Trim()) 共 $($subjects.Count) 个提交，必须逐条覆盖"
     }
     else {
-        Write-Fail "tag $($tag.Trim()) 与 csproj 的 $projectVersion 不一致"
+        Write-Fail "tag $($releaseTagAtHead.Trim()) 与 csproj 的 $projectVersion 不一致"
     }
 }
 
