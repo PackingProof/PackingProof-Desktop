@@ -78,6 +78,17 @@
         </Style.Triggers>
     </Style>
 
+    <!--
+        盖在视频画面上的按钮：底色必须不透明。
+        透明底时浅色主题的深色文字落在深色画面上会几乎看不见，
+        所以这类按钮统一用固定深色底 + 白字，与画中画小窗的悬浮按钮一致。
+    -->
+    <Style x:Key="VideoOverlayButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource CameraPreviewOverlayButtonBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CameraPreviewOverlayButtonBorder}"/>
+        <Setter Property="Foreground" Value="{DynamicResource CameraPreviewOverlayButtonText}"/>
+    </Style>
+
     <Style x:Key="DeleteButtonStyle" TargetType="Button" BasedOn="{StaticResource BaseButtonStyle}">
         <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>

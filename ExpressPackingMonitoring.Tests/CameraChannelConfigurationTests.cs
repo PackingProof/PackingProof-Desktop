@@ -747,6 +747,12 @@ public sealed class CameraChannelConfigurationTests
 
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
         Assert.Contains("ClickMode=\"Press\"", xaml, StringComparison.Ordinal);
+        // 这个按钮盖在画面上，不能用透明底：浅色主题的深色文字落在深色画面上会看不见
+        int done = xaml.IndexOf("x:Name=\"BtnOverlayPreviewDone\"", StringComparison.Ordinal);
+        Assert.True(done > 0, "没找到取景编辑屏的完成按钮");
+        string doneBlock = xaml[done..Math.Min(xaml.Length, done + 1200)];
+        Assert.Contains("VideoOverlayButtonStyle", doneBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("SecondaryButtonStyle", doneBlock, StringComparison.Ordinal);
     }
 
     /// <summary>

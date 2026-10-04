@@ -729,7 +729,8 @@
                                 ClickMode="Press"
                                 Click="BtnOverlayPreviewDone_Click">
                             <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <!-- 这一屏盖在画面上：必须自带不透明底色，透明底在浅色主题下会看不见 -->
+                                <Style TargetType="Button" BasedOn="{StaticResource VideoOverlayButtonStyle}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsOverlayPreviewEditing}" Value="True">
