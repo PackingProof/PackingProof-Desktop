@@ -1090,6 +1090,8 @@
   <data name="适配器" xml:space="preserve"><value>アダプター</value></data>
   <data name="作者：" xml:space="preserve"><value>作者: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>拡大枠</value></data>
+  <data name="放大时隐藏画中画" xml:space="preserve"><value>拡大中はピクチャーインピクチャーを隠す</value></data>
+  <data name="放大特写时周围的小窗淡出，恢复全景时淡入" xml:space="preserve"><value>拡大特写の間は小さなウィンドウをフェードアウトし、全体表示に戻るときにフェードインします</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>メイン画面に戻り、拡大する範囲をドラッグで指定してください。完了または Esc で終了します</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>拡大枠を表示</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>通常時もメイン画面に拡大範囲を表示して、いつでも確認できるようにします</value></data>

@@ -449,9 +449,17 @@ public sealed class CameraChannelConfigurationTests
         string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
 
         int composeIndex = camera.IndexOf(
-            "ComposeOverlayChannelsIfNeeded(processedFrame, previewPublishDue)",
+            "ComposeOverlayChannelsIfNeeded(",
             StringComparison.Ordinal);
         Assert.True(composeIndex >= 0, "处理循环里没有调用画中画合成");
+        Assert.Contains(
+            "processedFrame",
+            camera[composeIndex..(composeIndex + 200)],
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "previewPublishDue",
+            camera[composeIndex..(composeIndex + 200)],
+            StringComparison.Ordinal);
 
         int previewIndex = camera.IndexOf(
             "PublishPreviewFrameIfDue(processedFrame, previewResizer, currentFrameCapturedTicks)",
@@ -473,7 +481,7 @@ public sealed class CameraChannelConfigurationTests
     {
         string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
         int composeIndex = camera.IndexOf(
-            "ComposeOverlayChannelsIfNeeded(processedFrame, previewPublishDue)",
+            "ComposeOverlayChannelsIfNeeded(",
             StringComparison.Ordinal);
         int watermarkIndex = camera.IndexOf(
             "ApplyWatermarkToFrame(processedFrame",
@@ -503,7 +511,7 @@ public sealed class CameraChannelConfigurationTests
         int ringAddIndex = recording.IndexOf("_preRecordRing.Add(", StringComparison.Ordinal);
         Assert.True(ringAddIndex > 0, "找不到预录帧进环形缓存的地方");
         Assert.Contains(
-            "storedFrame => ComposeOverlayChannels(storedFrame)",
+            "storedFrame => ComposeOverlayChannels(storedFrame, _overlayZoomFadePercent)",
             recording[ringAddIndex..(ringAddIndex + 400)],
             StringComparison.Ordinal);
 
@@ -632,7 +640,14 @@ public sealed class CameraChannelConfigurationTests
     {
         string source = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
 
-        Assert.Contains("TryCompose(frame, overlay, cropRect, targetRect)", source, StringComparison.Ordinal);
+        // 调用改成多行（多带一个画中画淡出系数），这里盯住"整幅叠加帧 + 裁剪矩形"这两个关键实参
+        int composeIndex = source.IndexOf("CameraOverlayComposer.TryCompose(", StringComparison.Ordinal);
+        Assert.True(composeIndex > 0, "找不到画中画合成调用");
+        string composeCall = source[composeIndex..(composeIndex + 300)];
+        Assert.Contains("frame,", composeCall, StringComparison.Ordinal);
+        Assert.Contains("overlay,", composeCall, StringComparison.Ordinal);
+        Assert.Contains("cropRect,", composeCall, StringComparison.Ordinal);
+        Assert.Contains("targetRect,", composeCall, StringComparison.Ordinal);
         Assert.DoesNotContain("new Mat(overlay, cropRect)", source, StringComparison.Ordinal);
     }
 

@@ -19,16 +19,19 @@ public sealed class ZoomGuideEditingTests
     public void ZoomBranch_NoLongerUsesRecognizedBarcodeGeometry()
     {
         string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
+        string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
 
-        Assert.Contains("ZoomCropPolicy.ResolveScale", camera, StringComparison.Ordinal);
-        Assert.Contains("ZoomGuideGeometry", camera, StringComparison.Ordinal);
-        Assert.Contains("ZoomCropPolicy.CreateCropRect", camera, StringComparison.Ordinal);
+        Assert.Contains("ZoomCropPolicy.ResolveScale", zoom, StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideGeometry", zoom, StringComparison.Ordinal);
+        Assert.Contains("ZoomCropPolicy.CreateCropRect", zoom, StringComparison.Ordinal);
         // 倍率只有取景框这一个来源：不能再有第二个倍率参数
-        Assert.DoesNotContain("MaxZoomScale", camera, StringComparison.Ordinal);
-        Assert.DoesNotContain("PreviewZoomScale", camera, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaxZoomScale", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreviewZoomScale", zoom, StringComparison.Ordinal);
         // 智能放大那套坐标已经删干净：放大分支不得再引用识别到的条码几何
-        Assert.DoesNotContain("_lastBarcodeGeometry", camera, StringComparison.Ordinal);
-        Assert.DoesNotContain("SmartZoomPolicy", camera, StringComparison.Ordinal);
+        Assert.DoesNotContain("_lastBarcodeGeometry", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain("SmartZoomPolicy", zoom, StringComparison.Ordinal);
+        // 主循环只问"这一帧该用哪份画面"，放大细节都在独立分部里
+        Assert.Contains("ApplyZoomToFrame(currentFrame, currentFrameSequence)", camera, StringComparison.Ordinal);
     }
 
     /// <summary>设置页里不该再有"最大放大倍数"这类第二个倍率参数。</summary>
@@ -67,16 +70,55 @@ public sealed class ZoomGuideEditingTests
     [Fact]
     public void ZoomAnimation_PansWithTheSameEasedProgressAsTheScale()
     {
-        string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
+        string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
 
         // 平移进度必须是缓动后的值，且与倍率共用同一个变量
-        Assert.Contains("double eased = SmoothStep(t);", camera, StringComparison.Ordinal);
-        Assert.Contains("panProgress = eased;", camera, StringComparison.Ordinal);
-        Assert.Contains("panProgress = 1.0 - eased;", camera, StringComparison.Ordinal);
+        Assert.Contains("double eased = SmoothStep(t);", zoom, StringComparison.Ordinal);
+        Assert.Contains("panProgress = eased;", zoom, StringComparison.Ordinal);
+        Assert.Contains("panProgress = 1.0 - eased;", zoom, StringComparison.Ordinal);
         // 动画帧的裁剪窗口要用插值出来的中心，不能再粘在框中心
-        Assert.Contains("ZoomCropPolicy.ResolvePanCenter", camera, StringComparison.Ordinal);
-        Assert.Contains("panCenter.X", camera, StringComparison.Ordinal);
-        Assert.Contains("panCenter.Y", camera, StringComparison.Ordinal);
+        Assert.Contains("ZoomCropPolicy.ResolvePanCenter", zoom, StringComparison.Ordinal);
+        Assert.Contains("panCenter.X", zoom, StringComparison.Ordinal);
+        Assert.Contains("panCenter.Y", zoom, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZoomFade_FadesOverlayInSyncWithTheZoomAnimation()
+    {
+        string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
+        string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
+
+        // 淡出系数与缩放共用同一条缓动：放大时 100 → 0，停留 0，还原 0 → 100
+        Assert.Contains("if (Config.HideOverlayDuringZoom)", zoom, StringComparison.Ordinal);
+        Assert.Contains("overlayFadePercent = 100.0 * (1.0 - eased);", zoom, StringComparison.Ordinal);
+        Assert.Contains("overlayFadePercent = 0.0;", zoom, StringComparison.Ordinal);
+        Assert.Contains("overlayFadePercent = 100.0 * eased;", zoom, StringComparison.Ordinal);
+        // 合成要吃到这个系数，预录回灌那条路也要用同一个值
+        Assert.Contains("_overlayZoomFadePercent", zoom, StringComparison.Ordinal);
+        Assert.Contains("ComposeOverlayChannelsIfNeeded(", camera, StringComparison.Ordinal);
+
+        string recording = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Recording.cs"));
+        Assert.Contains("ComposeOverlayChannels(storedFrame, _overlayZoomFadePercent)", recording, StringComparison.Ordinal);
+
+        string composer = ReadProjectFile(Path.Combine("ViewModels", "CameraOverlayComposer.cs"));
+        Assert.Contains("overlayOpacityPercent", composer, StringComparison.Ordinal);
+        // 带蒙版拷贝对 8 位蒙版是"非零即拷贝"的硬拷贝：透明度必须用加权算，蒙版只负责圆角形状
+        Assert.Contains("Cv2.AddWeighted(region", composer, StringComparison.Ordinal);
+        Assert.Contains("blended.CopyTo(region, mask)", composer, StringComparison.Ordinal);
+
+        string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
+        Assert.Contains("{Binding Config.HideOverlayDuringZoom}", xaml, StringComparison.Ordinal);
+
+        // 淡出时长复用"过渡时长"（animDuration），不许再冒出一个自己的时长参数：
+        // 关掉平滑过渡时淡出也跟着瞬切，两边的节奏始终一致。
+        int durationIndex = zoom.IndexOf(
+            "double animDuration = Config.EnableZoomAnimation ? Config.ZoomAnimationDurationMs : 0;",
+            StringComparison.Ordinal);
+        Assert.True(durationIndex > 0, "没找到放大过渡时长的计算");
+        int fadeCommitIndex = zoom.IndexOf("_overlayZoomFadePercent =", durationIndex, StringComparison.Ordinal);
+        Assert.True(fadeCommitIndex > durationIndex);
+        Assert.DoesNotContain("FadeDuration", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain("FadeSeconds", zoom, StringComparison.Ordinal);
     }
 
     [Fact]

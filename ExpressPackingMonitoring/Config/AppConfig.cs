@@ -330,6 +330,8 @@ namespace ExpressPackingMonitoring.Config
         public double ZoomGuideOffsetY { get; set; } = 0;
         /// <summary>平时是否在主画面上画出放大取景框，默认显示方便确认放大位置</summary>
         public bool ShowZoomGuideBox { get; set; } = true;
+        /// <summary>放大特写时是否让周围的画中画淡出，默认淡出（特写画面更干净）</summary>
+        public bool HideOverlayDuringZoom { get; set; } = true;
         public bool EnableAutoStop { get; set; } = true;
         public double AutoStopMinutes { get; set; } = 1.0;
         public bool EnableMaxDuration { get; set; } = false;

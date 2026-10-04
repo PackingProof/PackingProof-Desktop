@@ -1091,6 +1091,8 @@
   <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
   <data name="作者：" xml:space="preserve"><value>Author: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>Zoom guide box</value></data>
+  <data name="放大时隐藏画中画" xml:space="preserve"><value>Hide picture-in-picture while zooming</value></data>
+  <data name="放大特写时周围的小窗淡出，恢复全景时淡入" xml:space="preserve"><value>Fade the small windows out during the close-up and back in when the full view returns.</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>Go back to the main view and drag the box over the area to zoom; click Done or press Esc to exit.</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>Show zoom guide box</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>Keep the zoom area outlined on the main view so you can check it at any time.</value></data>

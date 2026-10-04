@@ -170,6 +170,7 @@
     <Compile Include="ViewModels\MainViewModel.CameraFrames.cs" />
     <Compile Include="ViewModels\MainViewModel.CameraRotation.cs" />
     <Compile Include="ViewModels\MainViewModel.CameraGuide.cs" />
+    <Compile Include="ViewModels\MainViewModel.Zoom.cs" />
     <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
     <Compile Include="ViewModels\MainViewModel.OverlayChannels.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />

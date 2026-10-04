@@ -277,6 +277,41 @@ public sealed class CameraOverlayComposerTests
         Assert.True(Cv2.Mean(inside).Val0 < 40, "裁剪矩形没有作用到画中画内容上");
     }
 
+    /// <summary>
+    /// 放大特写时小窗要能淡出：半透明那一下必须是"小窗颜色和主画面按比例混合"，
+    /// 而不是整块消失或原样贴上去。
+    /// </summary>
+    [Fact]
+    public void FadesOverlayByOpacityPercent()
+    {
+        CameraOverlayRect rect = CameraOverlayLayout
+            .Resolve(1920, 1080, 640, 480, WidthRatio, Margin)!.Value;
+        var sample = new Rect(rect.X + 12, rect.Y + 12, 24, 24);
+
+        double SampleMean(int opacityPercent)
+        {
+            // 主画面纯黑、小窗纯白：混合结果的平均亮度就等于淡出后的不透明度
+            using var main = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+            using var secondary = new Mat(480, 640, MatType.CV_8UC3, new Scalar(255, 255, 255));
+            Assert.True(CameraOverlayComposer.TryCompose(
+                main,
+                secondary,
+                new Rect(0, 0, secondary.Width, secondary.Height),
+                rect,
+                opacityPercent));
+            using var inside = new Mat(main, sample);
+            return Cv2.Mean(inside).Val0;
+        }
+
+        Assert.True(SampleMean(100) > 200, "不淡出时小窗必须是实心的");
+        Assert.InRange(SampleMean(50), 100, 155);
+        Assert.True(SampleMean(0) < 40, "淡出到 0 时小窗必须完全看不见");
+
+        // 全程淡出过程里每一帧都得能合成成功（蒙版缓存按档位走，不能把自己挤掉）
+        for (int percent = 100; percent >= 0; percent -= 5)
+            Assert.InRange(SampleMean(percent), 0, 255);
+    }
+
     private static bool ComposeWhole(Mat frame, Mat overlay, CameraOverlayRect rect) =>
         CameraOverlayComposer.TryCompose(frame, overlay, new Rect(0, 0, overlay.Width, overlay.Height), rect);
 }

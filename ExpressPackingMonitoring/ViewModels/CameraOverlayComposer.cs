@@ -63,13 +63,16 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 落位由调用方用 <see cref="CameraOverlayLayout.Resolve"/> 算好再传进来：
         /// 界面上的拖动框、识别框反馈和真正画进帧里的位置必须是**同一个矩形**，
         /// 所以这里不再自己算一份，免得两边的贴角规则（右下/左下/右上/左上）走岔。
+        /// <paramref name="overlayOpacityPercent"/> 是淡出系数（0~100）：放大特写时按它把小窗淡出，
+        /// 0 表示这一帧完全看不见（直接不贴，最省）。
         /// 任何一路帧缺失、矩形非法或越出主帧都返回 false 且不改动主帧。
         /// </summary>
         internal static bool TryCompose(
             Mat frame,
             Mat overlaySource,
             Rect cropRect,
-            CameraOverlayRect rect)
+            CameraOverlayRect rect,
+            int overlayOpacityPercent = 100)
         {
             if (frame == null || frame.IsDisposed || frame.Empty())
                 return false;
@@ -90,6 +93,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 || rect.Y + rect.Height > frame.Height)
                 return false;
 
+            int opacity = Math.Clamp(overlayOpacityPercent, 0, 100);
+            if (opacity <= 0)
+                return true;
+
             // 取贴片与拷贝都在锁里：贴片可能被新尺寸挤出去释放掉，拷贝必须在它还有效时做完。
             // 拷贝本身只有 0.01 ms 量级，这点串行完全可以接受。
             lock (PatchCacheLock)
@@ -98,8 +105,21 @@ namespace ExpressPackingMonitoring.ViewModels
                     return false;
 
                 using var region = new Mat(frame, new Rect(rect.X, rect.Y, rect.Width, rect.Height));
-                // 圆角裁剪：四个角保留主画面自己的内容，不能把小窗的方角贴上去。
-                patch.CopyTo(region, RentMaskLocked(rect.Width, rect.Height));
+                Mat mask = RentMaskLocked(rect.Width, rect.Height);
+                if (opacity >= 100)
+                {
+                    // 圆角裁剪：四个角保留主画面自己的内容，不能把小窗的方角贴上去。
+                    patch.CopyTo(region, mask);
+                    return true;
+                }
+
+                // 淡出：先把小窗和主画面按系数加权，再按圆角蒙版贴进去。
+                // 带蒙版拷贝对 8 位蒙版是"非零即拷贝"的硬拷贝，不按蒙版值混合，
+                // 所以透明度必须在这里用加权算出来。
+                // 只有过渡期间（0 < 系数 < 100）才多这一次小区域加权，稳态开销不变。
+                using var blended = new Mat();
+                Cv2.AddWeighted(region, 1.0 - (opacity / 100.0), patch, opacity / 100.0, 0, blended);
+                blended.CopyTo(region, mask);
                 return true;
             }
         }

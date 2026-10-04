@@ -880,7 +880,10 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 处理循环里调用：把每一路叠加画面叠进这一帧。
         /// 只有"要录像"或"这一帧真的要发布预览"时才动手，空闲降档时不白做缩放与拷贝。
         /// </summary>
-        internal void ComposeOverlayChannelsIfNeeded(Mat frame, bool previewPublishDue)
+        internal void ComposeOverlayChannelsIfNeeded(
+            Mat frame,
+            bool previewPublishDue,
+            int overlayOpacityPercent = 100)
         {
             if (_overlayChannels.Length == 0)
                 SyncOverlayChannelRuntimes();
@@ -903,7 +906,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!IsRecording && !previewPublishDue)
                 return;
 
-            ComposeOverlayChannels(frame);
+            ComposeOverlayChannels(frame, overlayOpacityPercent);
         }
 
         /// <summary>
@@ -912,7 +915,7 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 不能等到回灌时再贴 —— 那时候只能拿到"回灌那一刻"的叠加帧，
         /// 5 秒预录里副画面就只剩几帧，看起来一卡一卡的。
         /// </summary>
-        internal void ComposeOverlayChannels(Mat frame)
+        internal void ComposeOverlayChannels(Mat frame, int overlayOpacityPercent = 100)
         {
             if (_overlayChannels.Length == 0)
                 SyncOverlayChannelRuntimes();
@@ -926,10 +929,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             foreach (OverlayChannel channel in _overlayChannels)
-                ComposeOverlayChannel(channel, frame);
+                ComposeOverlayChannel(channel, frame, overlayOpacityPercent);
         }
 
-        private void ComposeOverlayChannel(OverlayChannel channel, Mat frame)
+        private void ComposeOverlayChannel(OverlayChannel channel, Mat frame, int overlayOpacityPercent)
         {
             if (!channel.Config.IsConfigured)
                 return;
@@ -974,7 +977,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         anchor: OverlayAnchorFor(channel));
 
                     if (composedRect is { } targetRect
-                        && CameraOverlayComposer.TryCompose(frame, overlay, cropRect, targetRect))
+                        && CameraOverlayComposer.TryCompose(
+                            frame,
+                            overlay,
+                            cropRect,
+                            targetRect,
+                            overlayOpacityPercent))
                     {
                         OverlayGeometrySnapshot geometry = channel.Geometry;
                         bool placementChanged = geometry.ComposedRect != composedRect

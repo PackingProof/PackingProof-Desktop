@@ -1192,7 +1192,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         frame,
                         DateTime.Now,
                         maxBytes,
-                        storedFrame => ComposeOverlayChannels(storedFrame));
+                        // 预录帧与实时帧同源：放大特写淡出画中画时，进缓存的这一帧也要同一个淡出系数，
+                        // 否则回灌进录像的预录段会突然冒出一块亮着的小窗。
+                        storedFrame => ComposeOverlayChannels(storedFrame, _overlayZoomFadePercent));
                     if (added.ResetAfterSizeChange)
                     {
                         _preRecordRollingTransitionPending = false;

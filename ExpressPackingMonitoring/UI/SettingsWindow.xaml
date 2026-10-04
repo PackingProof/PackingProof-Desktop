@@ -1897,6 +1897,26 @@
                             <Border Style="{StaticResource SectionCardStyle}"
                                     IsEnabled="{Binding IsChecked, ElementName=ZoomEnableCheckBox, TargetNullValue=False}">
                                 <StackPanel>
+                                    <!-- 常显：放大时要不要让小窗让开，属于一眼能懂的开关，不藏进高级模式 -->
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="放大时隐藏画中画" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="放大特写时周围的小窗淡出，恢复全景时淡入"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="HideOverlayDuringZoomCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.HideOverlayDuringZoom}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

@@ -58,6 +58,9 @@ public sealed class DefaultConfigurationTests
         Assert.Equal(AppConfig.DefaultZoomGuideRatio, deserialized.ZoomGuideWidthRatio, 3);
         Assert.Equal(AppConfig.DefaultZoomGuideRatio, deserialized.ZoomGuideHeightRatio, 3);
         Assert.True(deserialized.ShowZoomGuideBox);
+        // 放大特写时默认让小窗淡出（特写画面更干净），关掉就恢复原来"小窗一直盖在上面"
+        Assert.True(config.HideOverlayDuringZoom);
+        Assert.True(deserialized.HideOverlayDuringZoom);
     }
 
     /// <summary>放大取景框写坏时按识别框同一套规则夹紧，避免算出 0 或负倍率。</summary>

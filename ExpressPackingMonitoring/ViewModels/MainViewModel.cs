@@ -336,6 +336,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private ZoomPhase _zoomPhase = ZoomPhase.None;
         private DateTime _zoomPhaseStartTime;
         private bool _delayBeforeZooming = false;
+        /// <summary>
+        /// 当前放大特写时画中画的淡出系数（0~100）。处理循环按缩放阶段逐帧更新，
+        /// 预录回灌那条线程也要读，所以用 volatile int 保证读到的是完整的一份。
+        /// </summary>
+        private volatile int _overlayZoomFadePercent = 100;
 
         private ScanRecord _currentScanRecord;
         private long _currentRecordId; 

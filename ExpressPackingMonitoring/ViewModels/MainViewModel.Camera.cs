@@ -1073,149 +1073,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         TrySubmitCameraPairingQrFrame(currentFrame);
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.BarcodeRecognition, currentFrameSequence);
                         TrySubmitCameraBarcodeFrame(currentFrame, 0);
-                        Mat processedFrame = currentFrame;
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
-
-                        if (CanApplyZoom)
-                        {
-                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Zoom, currentFrameSequence);
-                            // 放大位置只认主画面上的放大取景框：识别结果不参与，
-                            // 所以识别来源选副画面时也不会把副摄坐标系里的数值套到主画面上。
-                            System.Windows.Rect zoomBox = CameraBarcodeGuideLayout.ToDisplayRect(
-                                ZoomGuideGeometry,
-                                new System.Windows.Rect(0, 0, currentFrame.Width, currentFrame.Height));
-                            // 倍率也只有这一个来源：框住多大就放大铺满多大，没有第二个倍率参数。
-                            double zoomScale = ZoomCropPolicy.ResolveScale(
-                                currentFrame.Width,
-                                currentFrame.Height,
-                                zoomBox);
-                            if (_zoomPhase == ZoomPhase.ZoomingIn)
-                            {
-                                RuntimeLog.Info(
-                                    "Zoom",
-                                    $"Applying zoom-box centered zoom scale={zoomScale:F2}, box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
-                            }
-                            var currentZoomRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
-                                    currentFrame.Width,
-                                    currentFrame.Height,
-                                    zoomScale,
-                                    zoomBox))
-                                .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
-
-                            if (currentZoomRect.Width > 0 && currentZoomRect.Height > 0 && _zoomPhase == ZoomPhase.None)
-                            {
-                                LastZoomRect = new System.Windows.Rect(currentZoomRect.X, currentZoomRect.Y, currentZoomRect.Width, currentZoomRect.Height);
-                            }
-
-                            if (_isScanning)
-                            {
-                                if (_delayBeforeZooming && (DateTime.Now - _lastScanTime).TotalMilliseconds >= Config.ZoomDelaySeconds * 1000.0)
-                                {
-                                    _delayBeforeZooming = false;
-                                    _zoomPhase = ZoomPhase.ZoomingIn;
-                                    _zoomPhaseStartTime = DateTime.Now;
-                                    LastZoomRect = System.Windows.Rect.Empty;
-                                    IsZoomingActive = true;
-                                    Debug.WriteLine($"[Zoom] 缩放触发: Delay={Config.ZoomDelaySeconds}s, Scale={zoomScale:F2}");
-                                }
-
-                                // 根据缩放阶段计算动画倍率
-                                double animDuration = Config.EnableZoomAnimation ? Config.ZoomAnimationDurationMs : 0;
-                                double animatedScale = 1.0;
-                                // 平移进度（0 = 整帧中心，1 = 已滑到放大取景框中心）。
-                                // 与倍率共用同一条缓动曲线，缩放和平移同时起步、同时停稳，
-                                // 不会再出现"倍率在缓动、画面却一步跳到位"的割裂感。
-                                double panProgress = 0.0;
-                                bool applyZoom = false;
-
-                                if (_zoomPhase == ZoomPhase.ZoomingIn)
-                                {
-                                    double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
-                                    double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    double eased = SmoothStep(t);
-                                    animatedScale = 1.0 + (zoomScale - 1.0) * eased;
-                                    panProgress = eased;
-                                    applyZoom = true;
-                                    if (t >= 1.0)
-                                    {
-                                        _zoomPhase = ZoomPhase.Holding;
-                                        _zoomPhaseStartTime = DateTime.Now;
-                                    }
-                                }
-                                else if (_zoomPhase == ZoomPhase.Holding)
-                                {
-                                    animatedScale = zoomScale;
-                                    panProgress = 1.0;
-                                    applyZoom = true;
-                                    if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds >= Config.ZoomDurationSeconds * 1000.0)
-                                    {
-                                        _zoomPhase = ZoomPhase.ZoomingOut;
-                                        _zoomPhaseStartTime = DateTime.Now;
-                                    }
-                                }
-                                else if (_zoomPhase == ZoomPhase.ZoomingOut)
-                                {
-                                    double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
-                                    double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    double eased = SmoothStep(t);
-                                    animatedScale = zoomScale - (zoomScale - 1.0) * eased;
-                                    // 还原时反着走：从框中心滑回整帧中心
-                                    panProgress = 1.0 - eased;
-                                    applyZoom = true;
-                                    if (t >= 1.0)
-                                    {
-                                        _zoomPhase = ZoomPhase.None;
-                                        _isScanning = false;
-                                        IsZoomingActive = false;
-                                        Debug.WriteLine("[Zoom] 缩放动画结束，恢复原样");
-                                    }
-                                }
-
-                                if (applyZoom && animatedScale > 1.001)
-                                {
-                                    int animW = (int)(currentFrame.Width / animatedScale);
-                                    int animH = (int)(currentFrame.Height / animatedScale);
-                                    if (animW > 0 && animH > 0 && animW <= currentFrame.Width && animH <= currentFrame.Height)
-                                    {
-                                        System.Windows.Point panCenter = ZoomCropPolicy.ResolvePanCenter(
-                                            currentFrame.Width,
-                                            currentFrame.Height,
-                                            zoomBox,
-                                            panProgress);
-                                        var animRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
-                                                currentFrame.Width,
-                                                currentFrame.Height,
-                                                animatedScale,
-                                                panCenter.X,
-                                                panCenter.Y))
-                                            .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
-                                        if (animRect.Width > 0 && animRect.Height > 0)
-                                        {
-                                            var zoomed = currentFrame.Clone(animRect);
-                                            processedFrame = new Mat();
-                                            Cv2.Resize(zoomed, processedFrame, new OpenCvSharp.Size(Config.FrameWidth, Config.FrameHeight));
-                                            zoomed.Dispose();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (LastZoomRect != System.Windows.Rect.Empty) LastZoomRect = System.Windows.Rect.Empty;
-                            if (_zoomPhase != ZoomPhase.None)
-                            {
-                                // 解锁识别框调整取景范围时中途停掉放大，预览回到整帧后拖动才准
-                                _zoomPhase = ZoomPhase.None;
-                                IsZoomingActive = false;
-                            }
-                            if (_isScanning)
-                            {
-                                _isScanning = false;
-                                Debug.WriteLine($"[Zoom] 扫码已触发但未执行缩放: ZoomEnabled={Config.EnableSmartZoom}, GuideLocked={IsCameraBarcodeGuideLocked}");
-                            }
-                        }
+                        // 面单放大（含平移/缩放缓动与画中画淡出）抽在 MainViewModel.Zoom.cs：
+                        // 主循环只关心"这一帧该用哪份画面"。
+                        Mat processedFrame = ApplyZoomToFrame(currentFrame, currentFrameSequence);
 
                         // 运动检测只读原始画面：水印就地绘制之前先算，免得上一次的水印时间被当成画面变化。
                         if (IsRecording && frameTickCounter % 30 == 0)
@@ -1228,7 +1090,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
                         // 先合成副画面、后画水印：水印承载时间戳与单号，是取证核心，必须永远压在
                         // 最上层。顺序反过来时，用户把副画面拖到右上角就会把水印盖掉。
-                        ComposeOverlayChannelsIfNeeded(processedFrame, previewPublishDue);
+                        ComposeOverlayChannelsIfNeeded(
+                            processedFrame,
+                            previewPublishDue,
+                            _overlayZoomFadePercent);
 
                         // 水印直接画在处理循环独占的这一帧上；非录制状态只为真正要发布的预览帧绘制，
                         // 空闲降档时不会按摄像头满帧率反复画水印。
