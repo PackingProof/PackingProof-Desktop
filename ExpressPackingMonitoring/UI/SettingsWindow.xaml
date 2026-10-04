@@ -1029,7 +1029,7 @@
                                         </ComboBox>
                                     </Grid>
                                     <Grid Style="{StaticResource SettingRowStyle}"
-                                          Visibility="{Binding Capabilities.CanRecordPcVideo, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
+                                          Visibility="{Binding Capabilities.SupportsNodeName, Mode=OneWay, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1098,7 +1098,7 @@
                             </Border>
 
                             <!-- 主摄像头 -->
-                            <Border Style="{StaticResource SectionCardStyle}">
+                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
@@ -1162,7 +1162,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1179,7 +1179,7 @@
                                                   Cursor="Hand"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1221,7 +1221,7 @@
                             </Border>
 
                             <!-- 副画面：一路一张卡；加第三、第四路只是这个列表里多一项 -->
-                            <ItemsControl ItemsSource="{Binding OverlayCameraCards}">
+                            <ItemsControl ItemsSource="{Binding OverlayCameraCards}" Visibility="{Binding Capabilities.CanUseCamera, Converter={StaticResource BoolToVisibility}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Border Style="{StaticResource SectionCardStyle}">
@@ -1325,7 +1325,7 @@
                             </ItemsControl>
 
 
-                            <Border Style="{StaticResource SectionCardStyle}">
+                            <Border Style="{StaticResource SectionCardStyle}" Visibility="{Binding Capabilities.CanRecordAudio, Converter={StaticResource BoolToVisibility}}">
                                 <StackPanel>
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, TargetNullValue=False}"
@@ -1347,7 +1347,7 @@
                                                   SelectedValue="{Binding Config.AudioDeviceName}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}" Visibility="{Binding Capabilities.IsRecordingDevice, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>

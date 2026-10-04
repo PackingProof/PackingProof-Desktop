@@ -42,6 +42,13 @@ public sealed class SettingsCapabilities
     public bool CanGenerateUserscript { get; }
     public bool CanConfigureRecordingCache =>
         IsRecordingDevice && CanConnectHost && !IsHost;
+
+    /// <summary>
+    /// 能不能改"电脑昵称"：录像是自己录的（录像主机/从机），或者自己是主机（备份主机也在这张网里，
+    /// 名字要能对上），只有纯查看端不需要。
+    /// </summary>
+    public bool SupportsNodeName => IsHost || CanRecordPcVideo;
+
     public bool CanViewStorageSettings =>
         CanConfigureStorage || CanConfigureRecordingCache;
 
