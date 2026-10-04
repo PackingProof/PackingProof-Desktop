@@ -120,13 +120,16 @@ public sealed class SettingsAdvancedVisibilityTests
             "视频编码格式", "硬件加速", "画质与文件大小",
             // 放大前等待/放大停留时间也已移到常用项：面单放大是现场高频功能
             "平滑过渡", "过渡时长",
-            "静止超时", "提前提醒时间", "最大时长", "太短的视频自动丢弃", "空闲超时", "高峰时段不休眠",
+            // 自动停录/限长/摄像头休眠的时长都跟着各自的常用开关一起放出来了，
+            // 只留下真正需要权衡的：太短丢弃阈值、高峰时段例外
+            "太短的视频自动丢弃", "高峰时段不休眠",
             "最小文件大小", "显示已清理记录",
-            "语音引擎", "语速", "普通播报声线", "警告播报声线", "在线普通声音", "在线警告声音", "语音预览", "断句关键词",
+            // 语音引擎与它带的声线/在线声音仍属高级（切换引擎有联网/本地模型依赖），只把语速放出来
+            "语音引擎", "普通播报声线", "警告播报声线", "在线普通声音", "在线警告声音", "语音预览", "断句关键词",
             "网页访问端口", "网页临时缓存上限", "调试日志",
             // 识别框的宽高与偏移已在主界面直接拖动调整，设置页不再保留这四个滑块
             "识别频率",
-            "同码消失时间", "识别确认时间", "识别确认次数", "单号判断规则", "扫码间隔保护",
+            "同码消失时间", "单号判断规则", "扫码间隔保护",
             "扫码最小长度", "自动提交停顿", "平均输入间隔", "单字符间隔上限",
             "音频直接写入 MKV", "声音同步微调"
         ];
@@ -367,8 +370,13 @@ public sealed class SettingsAdvancedVisibilityTests
         XElement label = FindLabel(document, "识别确认次数");
         XElement row = Assert.Single(label.Ancestors(Presentation + "Grid").Take(1));
 
-        // 行间距只有一套：中间行和"最后一行"用同一种样式，谁最后露出来由卡片自己收尾
-        Assert.Contains("AdvancedSettingRowStyle", row.ToString(SaveOptions.DisableFormatting));
+        // 行间距只有一套：不管这一行是常用项还是高级项，都用共享的行样式，
+        // 不能自己写死 Margin/间距（谁最后露出来由卡片自己收尾）。
+        string rowText = row.ToString(SaveOptions.DisableFormatting);
+        Assert.True(
+            rowText.Contains("AdvancedSettingRowStyle", StringComparison.Ordinal)
+            || rowText.Contains("{StaticResource SettingRowStyle}", StringComparison.Ordinal),
+            "识别确认次数必须使用共享的行样式");
     }
 
     [Fact]
@@ -405,6 +413,14 @@ public sealed class SettingsAdvancedVisibilityTests
     [InlineData("显示放大取景框")]
     [InlineData("放大前等待")]
     [InlineData("放大停留时间")]
+    // 跟着各自的常用开关一起放出来的时长/灵敏度设置
+    [InlineData("静止超时")]
+    [InlineData("提前提醒时间")]
+    [InlineData("最大时长")]
+    [InlineData("空闲超时")]
+    [InlineData("识别确认时间")]
+    [InlineData("识别确认次数")]
+    [InlineData("语速")]
     [InlineData("录像网页访问密钥")]
     public void CommonSettings_RemainVisibleWhenAdvancedSettingsAreHidden(string label)
     {

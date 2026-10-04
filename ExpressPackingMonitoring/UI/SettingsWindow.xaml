@@ -1499,7 +1499,7 @@
                                         </ComboBox>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1527,7 +1527,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2520,7 +2520,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                    <Grid Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=AutoStopCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2549,7 +2549,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -2599,7 +2599,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                    <Grid Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=MaxDurationCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2681,7 +2681,7 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                    <Grid Style="{StaticResource SettingRowStyle}"
                                           IsEnabled="{Binding IsChecked, ElementName=CameraIdleCheckBox, TargetNullValue=False}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2943,7 +2943,7 @@
                                          </ComboBox>
                                      </Grid>
 
-                                      <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                      <Grid Style="{StaticResource SettingRowStyle}"
                                             IsEnabled="{Binding IsChecked, ElementName=SoundPromptCheckBox, TargetNullValue=False}">
                                          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
                                          <StackPanel Margin="0,0,16,0"><TextBlock Text="语速" Style="{StaticResource FieldLabelStyle}"/><TextBlock Text="调整播报快慢" Style="{StaticResource FieldHintStyle}"/></StackPanel>
