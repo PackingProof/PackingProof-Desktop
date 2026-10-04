@@ -5,7 +5,7 @@
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         xmlns:local="clr-namespace:ExpressPackingMonitoring.UI"
         Title="设置" Height="760" Width="920"
-        MinHeight="680" MinWidth="860"
+        MinHeight="700" MinWidth="860"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         Icon="/app.ico"
         Background="{DynamicResource WindowBackground}" FontFamily="Microsoft YaHei UI, Segoe UI">
@@ -815,24 +815,31 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
+                        <!--
+                            左栏按"搜索 / 页签 / 底部按钮"分成三块，块与块之间用 1px 分隔线断开。
+                            各块自己带内边距，所以外层 Border 不再留 Padding，宽度预算和以前一致。
+                        -->
                         <Border Grid.Column="0"
                                 Background="{DynamicResource ControlBackground}"
                                 BorderBrush="{DynamicResource BorderLight}"
                                 BorderThickness="1"
-                                CornerRadius="12"
-                                Padding="8">
+                                CornerRadius="12">
                             <Grid>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                <!-- 第一块：搜索 -->
+                                <StackPanel Grid.Row="0" Margin="8,10,8,8">
                                     <Grid>
                                         <TextBox x:Name="SettingsSearchBox"
                                                  Height="32"
                                                  Padding="10,0,32,0"
+                                                 FontSize="13"
+                                                 FontWeight="SemiBold"
                                                  VerticalContentAlignment="Center"
                                                  TextChanged="SettingsSearchBox_TextChanged"
                                                  PreviewKeyDown="SettingsSearchBox_PreviewKeyDown"
@@ -844,7 +851,8 @@
                                                    VerticalAlignment="Center"
                                                    IsHitTestVisible="False"
                                                    Foreground="{DynamicResource TextSecondary}"
-                                                   FontSize="12"/>
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
                                         <controls:InputClearButton x:Name="SettingsSearchClearButton"
                                                                    ButtonSize="22"
                                                                    IconSize="12"
@@ -860,27 +868,35 @@
                                                Visibility="Collapsed"
                                                Foreground="{DynamicResource TextSecondary}"/>
                                 </StackPanel>
-                                <TabPanel Grid.Row="1"
+                                <Border Grid.Row="1"
+                                        Height="1"
+                                        Background="{DynamicResource BorderDefault}"/>
+                                <!-- 第二块：页签列表 -->
+                                <TabPanel Grid.Row="2"
                                           IsItemsHost="True"
-                                          KeyboardNavigation.TabIndex="1"/>
-                                <ToggleButton x:Name="AdvancedModeButton"
-                                              Grid.Row="2"
-                                              Margin="0,8,0,0"
-                                              Style="{StaticResource AdvancedModeButtonStyle}"
-                                              IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              Unchecked="AdvancedModeButton_Unchecked">
-                                    <TextBlock Text="{Binding IsChecked, ElementName=AdvancedModeButton, Mode=OneWay, Converter={StaticResource AdvancedModeTextConverter}}"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"/>
-                                </ToggleButton>
-                                <Button x:Name="SidebarExtensionMarketButton"
-                                        Grid.Row="3"
-                                        Margin="0,8,0,0"
-                                        Content="扩展市场"
-                                        Click="OpenExtensionMarket_Click"
-                                        Style="{StaticResource SidebarActionButtonStyle}"
-                                        AutomationProperties.Name="扩展市场"/>
+                                          KeyboardNavigation.TabIndex="1"
+                                          Margin="8,8,8,8"/>
+                                <Border Grid.Row="3"
+                                        Height="1"
+                                        Background="{DynamicResource BorderDefault}"/>
+                                <!-- 第三块：底部两个按钮 -->
+                                <StackPanel Grid.Row="4" Margin="8,8,8,8">
+                                    <ToggleButton x:Name="AdvancedModeButton"
+                                                  Margin="0,0,0,8"
+                                                  Style="{StaticResource AdvancedModeButtonStyle}"
+                                                  IsChecked="{Binding DataContext.Config.ShowAdvancedSettings, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Unchecked="AdvancedModeButton_Unchecked">
+                                        <TextBlock Text="{Binding IsChecked, ElementName=AdvancedModeButton, Mode=OneWay, Converter={StaticResource AdvancedModeTextConverter}}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"/>
+                                    </ToggleButton>
+                                    <Button x:Name="SidebarExtensionMarketButton"
+                                            Content="扩展市场"
+                                            Click="OpenExtensionMarket_Click"
+                                            Style="{StaticResource SidebarActionButtonStyle}"
+                                            AutomationProperties.Name="扩展市场"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
 

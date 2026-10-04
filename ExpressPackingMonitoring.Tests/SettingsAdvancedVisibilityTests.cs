@@ -301,14 +301,18 @@ public sealed class SettingsAdvancedVisibilityTests
         XElement sidebarButton = Assert.Single(
             marketButtons,
             element => (string?)element.Attribute(Xaml + "Name") == "SidebarExtensionMarketButton");
-        // 左栏顶部是搜索框，页签列表在第 1 行，高级模式第 2 行，扩展市场第 3 行
-        Assert.Equal("3", (string?)sidebarButton.Attribute("Grid.Row"));
-        Assert.Equal("OpenExtensionMarket_Click", (string?)sidebarButton.Attribute("Click"));
+        // 左栏分成"搜索 / 页签 / 底部按钮"三块，底部这一块里先高级模式、再扩展市场
+        XElement sidebarActions = Assert.Single(
+            sidebarButton.Ancestors(Presentation + "StackPanel"),
+            element => (string?)element.Attribute("Grid.Row") == "4");
         Assert.DoesNotContain(sidebarButton.Ancestors(), element => element.Name == Presentation + "TabItem");
+        Assert.Equal("OpenExtensionMarket_Click", (string?)sidebarButton.Attribute("Click"));
         XElement advancedButton = Assert.Single(
             document.Descendants(Presentation + "ToggleButton"),
             element => (string?)element.Attribute(Xaml + "Name") == "AdvancedModeButton");
-        Assert.Equal("2", (string?)advancedButton.Attribute("Grid.Row"));
+        Assert.Same(sidebarActions, advancedButton.Parent);
+        Assert.Empty(advancedButton.ElementsBeforeSelf());
+        Assert.Empty(sidebarButton.ElementsAfterSelf());
         Assert.Null((string?)marketButton.Attribute("IsEnabled"));
         XElement marketRow = marketButton.Ancestors(Presentation + "Grid")
             .First(element => (string?)element.Attribute("Style") == "{StaticResource SettingRowStyle}");
