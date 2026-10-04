@@ -217,7 +217,7 @@
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>录像编码异常时，用它重新检测电脑能力</value></data>
   <data name="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>录像网页访问密钥</value></data>
-  <data name="录制开始后把放大取景框里的画面放大铺满主画面，停留一会儿后恢复全景" xml:space="preserve"><value>录制开始后把放大取景框里的画面放大铺满主画面，停留一会儿后恢复全景</value></data>
+  <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>放大取景框内的画面，停留一会儿后恢复全景</value></data>
   <data name="录制声音" xml:space="preserve"><value>录制声音</value></data>
   <data name="面单大" xml:space="preserve"><value>面单大</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间</value></data>
@@ -1066,7 +1066,7 @@
   <data name="作者：" xml:space="preserve"><value>作者：</value></data>
   <data name="放大取景框" xml:space="preserve"><value>放大取景框</value></data>
   <data name="放大时隐藏画中画" xml:space="preserve"><value>放大时隐藏画中画</value></data>
-  <data name="放大特写时周围的小窗淡出，恢复全景时淡入" xml:space="preserve"><value>放大特写时周围的小窗淡出，恢复全景时淡入</value></data>
+  <data name="开启平滑过渡时有淡入淡出动画" xml:space="preserve"><value>开启平滑过渡时有淡入淡出动画</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>回到主画面框选要放大的区域，点完成或按 Esc 退出</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>显示放大取景框</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>平时也在主画面上画出放大区域，方便随时确认</value></data>

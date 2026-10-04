@@ -1841,12 +1841,31 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="面单放大" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="录制开始后把放大取景框里的画面放大铺满主画面，停留一会儿后恢复全景"
+                                            <TextBlock Text="放大取景框内的画面，停留一会儿后恢复全景"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <CheckBox x:Name="ZoomEnableCheckBox"
                                                   Grid.Column="2"
                                                   IsChecked="{Binding Config.EnableSmartZoom}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="显示放大取景框" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="平时也在主画面上画出放大区域，方便随时确认"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ShowZoomGuideBoxCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.ShowZoomGuideBox}"
                                                   VerticalAlignment="Center"
                                                   HorizontalAlignment="Left"
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
@@ -1872,51 +1891,12 @@
                                                 Click="BtnAdjustZoomGuide_Click"
                                                 Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
-
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="显示放大取景框" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="平时也在主画面上画出放大区域，方便随时确认"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="ShowZoomGuideBoxCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.ShowZoomGuideBox}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
                                 </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource SectionCardStyle}"
                                     IsEnabled="{Binding IsChecked, ElementName=ZoomEnableCheckBox, TargetNullValue=False}">
                                 <StackPanel>
-                                    <!-- 常显：放大时要不要让小窗让开，属于一眼能懂的开关，不藏进高级模式 -->
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="放大时隐藏画中画" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="放大特写时周围的小窗淡出，恢复全景时淡入"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="HideOverlayDuringZoomCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.HideOverlayDuringZoom}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1975,6 +1955,26 @@
 
                                     <Border Style="{StaticResource SectionDividerStyle}"
                                             Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+
+                                    <!-- 常显：放大时要不要让小窗让开，属于一眼能懂的开关，不藏进高级模式 -->
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="放大时隐藏画中画" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="开启平滑过渡时有淡入淡出动画"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="HideOverlayDuringZoomCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.HideOverlayDuringZoom}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>

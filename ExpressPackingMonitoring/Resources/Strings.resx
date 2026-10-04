@@ -225,7 +225,7 @@
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>When the video encoding is abnormal, use it to re-test the computer's capabilities.</value></data>
   <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>Recordings are saved in list order, and the next disk is used automatically when the current one runs low on space. The system keeps a safety margin for the whole disk, so available capacity can drop when other software uses it. Right-click a disk to adjust it</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
-  <data name="录制开始后把放大取景框里的画面放大铺满主画面，停留一会儿后恢复全景" xml:space="preserve"><value>Zoom the area inside the zoom guide box to fill the main view when recording starts, then restore the full view.</value></data>
+  <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>Zoom the area inside the guide box, then restore the full view.</value></data>
   <data name="录制声音" xml:space="preserve"><value>Record sound</value></data>
   <data name="面单大" xml:space="preserve"><value>Larger shipping label</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>Configure the recording storage location and the space on each disk to be reserved for the system and other software</value></data>
@@ -1092,7 +1092,7 @@
   <data name="作者：" xml:space="preserve"><value>Author: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>Zoom guide box</value></data>
   <data name="放大时隐藏画中画" xml:space="preserve"><value>Hide picture-in-picture while zooming</value></data>
-  <data name="放大特写时周围的小窗淡出，恢复全景时淡入" xml:space="preserve"><value>Fade the small windows out during the close-up and back in when the full view returns.</value></data>
+  <data name="开启平滑过渡时有淡入淡出动画" xml:space="preserve"><value>Fades in and out when smooth transition is enabled.</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>Go back to the main view and drag the box over the area to zoom; click Done or press Esc to exit.</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>Show zoom guide box</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>Keep the zoom area outlined on the main view so you can check it at any time.</value></data>
