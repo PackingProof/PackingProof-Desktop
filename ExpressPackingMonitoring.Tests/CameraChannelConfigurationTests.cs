@@ -584,6 +584,42 @@ public sealed class CameraChannelConfigurationTests
     }
 
     /// <summary>
+    /// 合成写给界面的状态必须整体替换：换落位不能把帧尺寸丢掉，换尺寸也不能把落位丢掉。
+    ///
+    /// 原来这三样是三个字段各自更新，界面正好落在两次写之间时会拿"新尺寸配旧落位"算出一个
+    /// 错误的换算比例，画中画拖动框跳一下。
+    /// </summary>
+    [Fact]
+    public void OverlayGeometrySnapshotKeepsBothHalvesTogether()
+    {
+        var composed = new CameraOverlayRect(30, 40, 480, 480);
+
+        MainViewModel.OverlayGeometrySnapshot empty = MainViewModel.OverlayGeometrySnapshot.Empty;
+        Assert.Null(empty.ComposedRect);
+        Assert.Equal(0, empty.SourceWidth);
+
+        MainViewModel.OverlayGeometrySnapshot withSource = empty.WithSourceSize(1080, 1920);
+        Assert.Null(withSource.ComposedRect);
+        Assert.Equal(1080, withSource.SourceWidth);
+        Assert.Equal(1920, withSource.SourceHeight);
+
+        MainViewModel.OverlayGeometrySnapshot withComposition = withSource.WithComposition(composed, 1920, 1080);
+        Assert.Equal(composed, withComposition.ComposedRect!.Value);
+        Assert.Equal(1920, withComposition.ComposedFrameWidth);
+        Assert.Equal(1080, withComposition.ComposedFrameHeight);
+        // 换落位没把帧尺寸丢掉
+        Assert.Equal(1080, withComposition.SourceWidth);
+        Assert.Equal(1920, withComposition.SourceHeight);
+
+        MainViewModel.OverlayGeometrySnapshot resized = withComposition.WithSourceSize(720, 1280);
+        // 换尺寸没把落位丢掉
+        Assert.Equal(composed, resized.ComposedRect!.Value);
+        Assert.Equal(1920, resized.ComposedFrameWidth);
+        Assert.Equal(720, resized.SourceWidth);
+        Assert.Equal(1280, resized.SourceHeight);
+    }
+
+    /// <summary>
     /// 合成要把"这一路的整幅叠加帧 + 裁剪矩形"交给合成器，裁剪在合成器里做。
     ///
     /// 贴片缓存的 key 是（叠加帧对象 + 裁剪矩形 + 落位 + 主帧通道数）。调用方每帧先

@@ -64,15 +64,11 @@ namespace ExpressPackingMonitoring.ViewModels
             /// <summary>合成用的这一路帧（谁持有谁释放）。</summary>
             internal Mat? OverlayFrame;
 
-            /// <summary>最新帧的原始尺寸，供主界面摆放拖动框（合成与拖动框必须同一套尺寸）。</summary>
-            internal (int Width, int Height) OverlaySourceSize;
-
             /// <summary>
-            /// 上一帧**实际合成**用的落位（主帧坐标系）与那一帧的尺寸。
-            /// 界面拖动框按它等比换算，框和画面才会必然重合。
+            /// 最新帧尺寸 + 上一帧**实际合成**的落位（主帧坐标系）。合成线程整体换一份，
+            /// 界面线程直接读一份快照：拖动框按同一套尺寸与落位换算，框和画面才会必然重合。
             /// </summary>
-            internal CameraOverlayRect? LastComposedRect;
-            internal (int Width, int Height) LastComposedFrameSize;
+            internal OverlayGeometrySnapshot Geometry = OverlayGeometrySnapshot.Empty;
 
             /// <summary>最近这次合成失败是否已经落过日志：连续失败是每帧都进 catch 的，不能每帧写一条。</summary>
             internal bool ComposeFailureLogged;
@@ -96,6 +92,34 @@ namespace ExpressPackingMonitoring.ViewModels
 
             /// <summary>这一路当前是否已启动。</summary>
             internal bool IsRunning => UsbSource != null || MfSource != null || NetworkSource != null;
+        }
+
+        /// <summary>
+        /// 合成线程写入、界面线程读取的一组状态，整体替换。
+        ///
+        /// 原来拆成"最新帧尺寸 / 上次落位 / 上次落位那一帧的尺寸"三个字段各自更新：
+        /// 界面正好落在两次写之间时，会拿新尺寸配旧落位算出一个错误的换算比例，拖动框跳一下。
+        /// 收成一份快照之后，读的一侧要么看到换之前的一份、要么看到换之后的一份。
+        /// </summary>
+        internal readonly record struct OverlayGeometrySnapshot(
+            CameraOverlayRect? ComposedRect,
+            int ComposedFrameWidth,
+            int ComposedFrameHeight,
+            int SourceWidth,
+            int SourceHeight)
+        {
+            internal static readonly OverlayGeometrySnapshot Empty = new(null, 0, 0, 0, 0);
+
+            /// <summary>换了最新帧尺寸：落位那一半原样带过来，不能丢。</summary>
+            internal OverlayGeometrySnapshot WithSourceSize(int width, int height) =>
+                new(ComposedRect, ComposedFrameWidth, ComposedFrameHeight, width, height);
+
+            /// <summary>换了这一帧的落位：帧尺寸那一半原样带过来，不能丢。</summary>
+            internal OverlayGeometrySnapshot WithComposition(
+                CameraOverlayRect rect,
+                int frameWidth,
+                int frameHeight) =>
+                new(rect, frameWidth, frameHeight, SourceWidth, SourceHeight);
         }
 
         /// <summary>
@@ -139,7 +163,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void NotifyOverlayPlacementChanged()
         {
-            _overlayPlacementVersion++;
+            // 处理循环和副摄采集线程都会调这里，普通的 ++ 会丢更新，界面就漏掉一次重摆。
+            Interlocked.Increment(ref _overlayPlacementVersion);
             OnPropertyChanged(nameof(OverlayPlacementVersion));
         }
 
@@ -414,7 +439,7 @@ namespace ExpressPackingMonitoring.ViewModels
             lock (channel.OverlayLock)
             {
                 DisposeOverlayFrame(channel);
-                channel.OverlaySourceSize = default;
+                channel.Geometry = OverlayGeometrySnapshot.Empty;
             }
 
             // 这一路停了，主界面的拖动框要跟着消失，等重新出帧再出现。
@@ -944,10 +969,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (composedRect is { } targetRect
                         && CameraOverlayComposer.TryCompose(frame, overlay, cropRect, targetRect))
                     {
-                        bool placementChanged = channel.LastComposedRect != composedRect
-                            || channel.LastComposedFrameSize != (frame.Width, frame.Height);
-                        channel.LastComposedRect = composedRect;
-                        channel.LastComposedFrameSize = (frame.Width, frame.Height);
+                        OverlayGeometrySnapshot geometry = channel.Geometry;
+                        bool placementChanged = geometry.ComposedRect != composedRect
+                            || geometry.ComposedFrameWidth != frame.Width
+                            || geometry.ComposedFrameHeight != frame.Height;
+                        channel.Geometry = geometry.WithComposition(targetRect, frame.Width, frame.Height);
                         // 落位变了要立刻叫界面重摆拖动框。叠加画面是画进帧里的，界面那个框
                         // 平时不跟着每帧走，只在这里通知才不会停在上一帧的位置、和画面错开。
                         if (placementChanged)
@@ -986,9 +1012,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             }
 
+            // 停止通道时先 Clear() 再等采集回调收尾，这中间还会来一两帧。收下就麻烦：
+            // 这一路已经不在跑了，这帧会被当成"当前画面"一直贴在录像里，不再有人来换掉它。
+            if (!channel.IsRunning)
+            {
+                latest.Dispose();
+                return;
+            }
+
             Mat? previous = channel.OverlayFrame;
             channel.OverlayFrame = latest;
-            channel.OverlaySourceSize = (latest.Width, latest.Height);
+            channel.Geometry = channel.Geometry.WithSourceSize(latest.Width, latest.Height);
             previous?.Dispose();
 
             if (!channel.HasFrame)
@@ -1000,8 +1034,8 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 它只决定识别哪一块，不裁剪画面内容。
         /// </summary>
         private CameraBarcodeGuideGeometry ResolveOverlayGuideGeometry(OverlayChannel channel) =>
-            channel.OverlaySourceSize is { Width: > 0, Height: > 0 } size
-                ? ResolveOverlayGuideGeometry(channel.Config, size.Width, size.Height)
+            channel.Geometry is { SourceWidth: > 0, SourceHeight: > 0 } geometry
+                ? ResolveOverlayGuideGeometry(channel.Config, geometry.SourceWidth, geometry.SourceHeight)
                 : new CameraBarcodeGuideGeometry(
                     channel.Config.BarcodeGuideWidthRatio,
                     channel.Config.BarcodeGuideHeightRatio,
@@ -1155,6 +1189,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 pixels,
                 width * 3);
             bitmap.Freeze();
+
+            // 做这张位图期间界面可能已经退出取景编辑：这一帧就不要再挂上去，
+            // 否则退出后还留着上一屏的画面，下次进来会先闪一帧旧的。
+            if (!IsEditingOverlayPreview || _editingOverlayChannelNumber != channel.Number)
+                return;
+
             channel.PreviewFrame = bitmap;
             OnPropertyChanged(nameof(OverlayPreviewFrame));
             OnPropertyChanged(nameof(PreviewImageSource));
@@ -1289,16 +1329,19 @@ namespace ExpressPackingMonitoring.ViewModels
             if (FindOverlayChannel(channelNumber) is not { } channel)
                 return false;
 
+            // 一次读一份快照：尺寸和落位必须来自同一次合成，不能各读一半、拼出"新尺寸配旧落位"。
+            OverlayGeometrySnapshot geometry = channel.Geometry;
+
             // 优先用"上一帧实际合成时画在哪"等比换算：预览帧可能被降采样过，
             // 自己另算一份会因为取整/尺寸来源不同而与画面错开几个像素甚至几十像素。
-            if (channel.LastComposedRect is { } composed
-                && channel.LastComposedFrameSize.Width > 0
-                && channel.LastComposedFrameSize.Height > 0
+            if (geometry.ComposedRect is { } composed
+                && geometry.ComposedFrameWidth > 0
+                && geometry.ComposedFrameHeight > 0
                 && frameWidth > 0
                 && frameHeight > 0)
             {
-                double scaleX = (double)frameWidth / channel.LastComposedFrameSize.Width;
-                double scaleY = (double)frameHeight / channel.LastComposedFrameSize.Height;
+                double scaleX = (double)frameWidth / geometry.ComposedFrameWidth;
+                double scaleY = (double)frameHeight / geometry.ComposedFrameHeight;
                 rect = new CameraOverlayRect(
                     (int)Math.Round(composed.X * scaleX),
                     (int)Math.Round(composed.Y * scaleY),
@@ -1307,7 +1350,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 return true;
             }
 
-            (int sourceWidth, int sourceHeight) = channel.OverlaySourceSize;
+            int sourceWidth = geometry.SourceWidth;
+            int sourceHeight = geometry.SourceHeight;
             if (sourceWidth <= 0 || sourceHeight <= 0)
                 return false;
 
