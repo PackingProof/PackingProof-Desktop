@@ -1584,6 +1584,21 @@ elseif (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
     Write-Host "Release notes skeleton created: $releaseNotesPath"
 }
 
+# 产物新鲜度守卫：曾经出现过"重新打包，但 app 负载还是上一次的旧文件"（源码改了、DLL 没重新编出来），
+# 于是发出去的包看着是新的、内容却是旧的。这里要求 app 里的主程序集不早于应用侧最新的源码文件。
+$payloadAssemblyPath = Join-Path $appPublishDir "ExpressPackingMonitoring.dll"
+$appSourceRoot = Join-Path $repoRoot "ExpressPackingMonitoring"
+if ((Test-Path -LiteralPath $payloadAssemblyPath) -and (Test-Path -LiteralPath $appSourceRoot)) {
+    $newestAppSource = Get-ChildItem -LiteralPath $appSourceRoot -Recurse -File -Include *.cs, *.xaml |
+        Where-Object { $_.FullName -notmatch '\\obj\\' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($null -ne $newestAppSource -and
+        (Get-Item -LiteralPath $payloadAssemblyPath).LastWriteTime -lt $newestAppSource.LastWriteTime) {
+        throw "产物比源码旧，请清理产物目录后重新打包：$payloadAssemblyPath 早于 $($newestAppSource.FullName)"
+    }
+}
+
 Write-Host "Clean package created: $outputFullPath"
 Write-Host "Installer created: $setupPath"
 if ($IncludeSevenZip) {
