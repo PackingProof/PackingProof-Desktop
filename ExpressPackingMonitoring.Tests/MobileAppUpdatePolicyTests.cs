@@ -24,18 +24,31 @@ public sealed class MobileAppUpdatePolicyTests
         Assert.Equal(
             MobileAppUpdatePolicyProvider.ReleasesUrl,
             cached.DownloadUrl);
-        Assert.StartsWith("data:image/png;base64,", cached.QrCode, StringComparison.Ordinal);
+        AssertQrDataUri(cached.QrCode);
         Assert.Equal(
             MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
             cached.IosDownloadUrl);
-        Assert.StartsWith("data:image/png;base64,", cached.IosQrCode, StringComparison.Ordinal);
+        AssertQrDataUri(cached.IosQrCode);
         Assert.Equal("", fallback.Version);
         Assert.Equal(MobileAppUpdatePolicyProvider.ReleasesUrl, fallback.DownloadUrl);
-        Assert.StartsWith("data:image/png;base64,", fallback.QrCode, StringComparison.Ordinal);
+        AssertQrDataUri(fallback.QrCode);
         Assert.Equal(
             MobileAppUpdatePolicyProvider.TestFlightJoinUrl,
             fallback.IosDownloadUrl);
-        Assert.StartsWith("data:image/png;base64,", fallback.IosQrCode, StringComparison.Ordinal);
+        AssertQrDataUri(fallback.IosQrCode);
+    }
+
+    /// <summary>
+    /// 二维码的图片格式不属于契约：桌面端注册了平台渲染器时是 PNG，没注册（例如单独跑这条用例）时
+    /// QrCodeRenderer 输出内置的 SVG。断言必须与格式无关，否则这条用例会依赖"别的用例先注册过渲染器"
+    /// 这个执行顺序，单独跑就红、整套跑才绿。
+    /// </summary>
+    private static void AssertQrDataUri(string value)
+    {
+        Assert.True(
+            value.StartsWith("data:image/png;base64,", StringComparison.Ordinal)
+                || value.StartsWith("data:image/svg+xml;base64,", StringComparison.Ordinal),
+            $"二维码不是支持的图片数据 URI：{value[..Math.Min(40, value.Length)]}");
     }
 
     [Fact]

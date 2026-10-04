@@ -105,6 +105,11 @@ namespace ExpressPackingMonitoring.Services
                 throw new InvalidOperationException("最新版本号为空");
 
             int compare = CompareVersions(tagName, AppVersion.Current);
+            // 现场排查用：把"挑中的是哪一版、跟当前版本比出来什么结果"落一条日志。
+            // 以前只记"succeeded"，出了"检查不到新版本"根本看不出是挑错版本还是压根没看到。
+            RuntimeLog.Info(
+                "Update",
+                $"更新检查结果：latest={tagName} current={AppVersion.Current} 有更新={compare > 0} source={resolved.SourceUrl}");
             if (compare <= 0)
             {
                 return new UpdateCheckResult

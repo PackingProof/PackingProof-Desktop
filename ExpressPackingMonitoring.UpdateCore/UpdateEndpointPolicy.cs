@@ -39,7 +39,10 @@ public static class UpdateEndpointPolicy
     /// <summary>
     /// 把"最新版本"检查地址换成"release 列表"地址：按平台挑版本时要看整份列表，
     /// 而不是只看最新那一个（有的版本只发了另一个平台）。
-    /// 认不出的地址原样拼成 /releases?per_page=30，做不到时调用方退回原来的单版本检查。
+    /// 认不出的地址原样拼成 /releases?per_page=100，做不到时调用方退回原来的单版本检查。
+    ///
+    /// 页大小取 100（GitHub 与 Gitee 的上限）：Gitee 的 releases 是**旧 → 新**返回，
+    /// 取 30 会把最新版本挤到第二页，客户端永远看不到它（现场表现为"手动检查更新一直说已是最新"）。
     /// </summary>
     public static IReadOnlyList<string> ToReleaseListUrls(IReadOnlyList<string> checkUrls)
     {
@@ -56,7 +59,7 @@ public static class UpdateEndpointPolicy
             if (!trimmed.EndsWith("/releases", StringComparison.OrdinalIgnoreCase))
                 trimmed += "/releases";
 
-            string withPage = trimmed + "?per_page=30";
+            string withPage = trimmed + "?per_page=100";
             if (!list.Contains(withPage, StringComparer.OrdinalIgnoreCase))
                 list.Add(withPage);
         }

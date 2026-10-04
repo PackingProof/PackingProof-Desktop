@@ -26,7 +26,7 @@ public sealed class UpdateEndToEndTests
 
         // 应用内检查在 Windows 上走的就是这条：按"带更新清单"挑版本
         using ResolvedUpdateRelease release = await metadata.FetchLatestReleaseWithAssetAsync(
-            [$"{source.BaseUrl}/releases?per_page=30"],
+            [$"{source.BaseUrl}/releases?per_page=100"],
             UpdateReleaseSelection.IsUpdateManifest,
             TestContext.Current.CancellationToken);
         Assert.Equal(
@@ -43,7 +43,9 @@ public sealed class UpdateEndToEndTests
             manifest.ManifestUrl);
 
         // 真的按"release 列表"接口取，并且没有碰只发 macOS 的那个版本
-        Assert.Contains("/releases?per_page=30", source.RequestedPaths);
+        Assert.Contains(
+            source.RequestedPaths,
+            path => path.Contains("/releases?per_page=100", StringComparison.Ordinal));
         Assert.DoesNotContain(
             source.RequestedPaths,
             path => path.Contains("999.0.99", StringComparison.Ordinal));
@@ -55,6 +57,109 @@ public sealed class UpdateEndToEndTests
         Assert.Equal(
             "v999.0.99",
             legacy.Release.RootElement.GetProperty("tag_name").GetString());
+    }
+
+    /// <summary>
+    /// 现场回归（店里 0.0.73 手动检查更新一直说"已是最新"）：
+    /// Gitee 的 releases 是**旧 → 新**返回，刚发布的版本在**最后一页**。
+    /// 旧实现是"per_page=30 只读第一页 + 取第一个匹配项"，两处都会漏掉新版；
+    /// 这条用例按页返回、最新版本放在最后一页，必须能挑到它。
+    /// </summary>
+    [Fact]
+    public async Task FindsNewestVersionWhenListIsOldestFirstAndPaged()
+    {
+        using var source = new PagedAscendingReleaseSource();
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var metadata = new UpdateMetadataClient(client);
+
+        using ResolvedUpdateRelease release = await metadata.FetchLatestReleaseWithAssetAsync(
+            [$"{source.BaseUrl}/releases?per_page=2"],
+            UpdateReleaseSelection.IsUpdateManifest,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            "v999.0.74",
+            release.Release.RootElement.GetProperty("tag_name").GetString());
+        // 必须真的翻到第二页，不能只看第一页就收工
+        Assert.Contains("/releases?per_page=2&page=2", source.RequestedPaths);
+    }
+
+    /// <summary>旧 → 新、每页 2 条：第一页是最旧的两版，最新版在第二页。</summary>
+    private sealed class PagedAscendingReleaseSource : IDisposable
+    {
+        private const string Page1 = """
+            [
+              {"tag_name":"v999.0.41","assets":[{"name":"update_v999.0.41.json"}]},
+              {"tag_name":"v999.0.42","assets":[{"name":"update_v999.0.42.json"}]}
+            ]
+            """;
+        private const string Page2 = """
+            [
+              {"tag_name":"v999.0.73","assets":[{"name":"update_v999.0.73.json"}]},
+              {"tag_name":"v999.0.74","assets":[{"name":"update_v999.0.74.json"}]}
+            ]
+            """;
+
+        private readonly TcpListener _listener;
+        private readonly Thread _thread;
+        private volatile bool _stopped;
+
+        internal PagedAscendingReleaseSource()
+        {
+            _listener = new TcpListener(IPAddress.Loopback, 0);
+            _listener.Start();
+            int port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            BaseUrl = $"http://127.0.0.1:{port}";
+            _thread = new Thread(Serve) { IsBackground = true };
+            _thread.Start();
+        }
+
+        internal string BaseUrl { get; }
+
+        internal List<string> RequestedPaths { get; } = [];
+
+        public void Dispose()
+        {
+            _stopped = true;
+            try { _listener.Stop(); } catch { }
+            _thread.Join(TimeSpan.FromSeconds(5));
+        }
+
+        private void Serve()
+        {
+            while (!_stopped)
+            {
+                TcpClient client;
+                try { client = _listener.AcceptTcpClient(); }
+                catch { return; }
+
+                using (client)
+                using (NetworkStream stream = client.GetStream())
+                using (var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true))
+                {
+                    string requestLine = reader.ReadLine() ?? "";
+                    string path = requestLine.Split(' ') is { Length: >= 2 } parts
+                        ? parts[1]
+                        : "";
+                    RequestedPaths.Add(path);
+
+                    string body = path.Contains("page=1", StringComparison.Ordinal)
+                        ? Page1
+                        : path.Contains("page=2", StringComparison.Ordinal)
+                            ? Page2
+                            : "[]";
+                    byte[] payload = Encoding.UTF8.GetBytes(body);
+                    byte[] header = Encoding.ASCII.GetBytes(
+                        "HTTP/1.1 200 OK\r\n"
+                        + "Content-Type: application/json\r\n"
+                        + $"Content-Length: {payload.Length}\r\n"
+                        + "Connection: close\r\n\r\n");
+                    stream.Write(header);
+                    stream.Write(payload);
+                    stream.Flush();
+                }
+            }
+        }
     }
 
     /// <summary>

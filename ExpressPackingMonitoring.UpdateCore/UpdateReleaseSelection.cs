@@ -41,22 +41,68 @@ public static class UpdateReleaseSelection
         isMacOs ? IsMacOsPackage : IsUpdateManifest;
 
     /// <summary>
-    /// 在 releases 列表（GitHub/Gitee 的数组响应，已按新到旧排列）里找出第一个
-    /// 带指定平台包的 release 下标；找不到返回 -1。响应不是数组时同样返回 -1。
+    /// 在 releases 列表里找出「**版本最高**、且带指定平台包」的那一个下标；找不到返回 -1。
+    /// 响应不是数组时同样返回 -1。
+    ///
+    /// 不能按"数组里第一个匹配项"当最新：GitHub 的 releases 是新 → 旧，而 Gitee 是旧 → 新，
+    /// 按位置挑在 Gitee 上会挑到列表里最旧的那一版 —— 现场就是这样：正式发到 v0.0.74，
+    /// 应用内的手动检查却一直说"已是最新"。所以这里一律按 tag_name 的版本号比大小，
+    /// 不看服务端返回顺序。
     /// </summary>
     public static int FindLatestWithAsset(JsonElement releases, Func<string, bool> assetPredicate)
     {
         ArgumentNullException.ThrowIfNull(assetPredicate);
         if (releases.ValueKind != JsonValueKind.Array) return -1;
 
+        int bestIndex = -1;
+        string bestVersion = "";
         int index = 0;
         foreach (JsonElement release in releases.EnumerateArray())
         {
-            if (HasMatchingAsset(release, assetPredicate)) return index;
+            if (HasMatchingAsset(release, assetPredicate)
+                && release.TryGetProperty("tag_name", out JsonElement tag)
+                && tag.ValueKind == JsonValueKind.String)
+            {
+                string version = tag.GetString() ?? "";
+                if (bestIndex < 0 || CompareVersions(version, bestVersion) > 0)
+                {
+                    bestIndex = index;
+                    bestVersion = version;
+                }
+            }
+
             index++;
         }
 
-        return -1;
+        return bestIndex;
+    }
+
+    /// <summary>
+    /// 比较两个 release 版本号（可带 v 前缀与 -/+ 后缀，与更新检查的口径一致）。
+    /// 解析不出来时退回字符串比较，保证永远给得出一个确定的顺序。
+    /// </summary>
+    public static int CompareVersions(string? left, string? right)
+    {
+        string leftNormalized = NormalizeVersion(left);
+        string rightNormalized = NormalizeVersion(right);
+
+        if (Version.TryParse(leftNormalized, out Version? leftVersion)
+            && Version.TryParse(rightNormalized, out Version? rightVersion))
+        {
+            return leftVersion.CompareTo(rightVersion);
+        }
+
+        return string.CompareOrdinal(leftNormalized, rightNormalized);
+    }
+
+    private static string NormalizeVersion(string? value)
+    {
+        string normalized = value?.Trim() ?? "";
+        if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[1..];
+
+        int suffixIndex = normalized.IndexOfAny(['+', '-']);
+        return suffixIndex >= 0 ? normalized[..suffixIndex] : normalized;
     }
 
     private static bool HasMatchingAsset(JsonElement release, Func<string, bool> assetPredicate)

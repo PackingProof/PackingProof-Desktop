@@ -39,7 +39,8 @@ public sealed class UpdateSourcePolicyTests
 
         Assert.True(result.HasUpdate);
         Assert.Equal("v999.0.0", result.LatestVersion);
-        Assert.Equal(ReleaseListUrls(), handler.Requests);
+        // 列表按页取：每个源的第一条请求都是列表的 page=1
+        Assert.Equal(ReleaseListUrls().Select(url => $"{url}&page=1"), handler.Requests);
     }
 
     /// <summary>
@@ -72,13 +73,14 @@ public sealed class UpdateSourcePolicyTests
             [UpdateCheckOptions.DefaultGiteeCheckUrl, UpdateCheckOptions.DefaultGithubCheckUrl],
             TestContext.Current.CancellationToken);
 
+        // SourceUrl 仍是策略生成的列表地址（翻页是在这一层内部做的），请求序列才是带 page=1 的
         Assert.Equal(ReleaseListUrls()[1], resolved.SourceUrl);
         Assert.Equal(githubManifest, resolved.ManifestUrl);
         Assert.Equal(
             [
-                ReleaseListUrls()[0],
+                PagedReleaseListUrls()[0],
                 giteeManifest,
-                ReleaseListUrls()[1],
+                PagedReleaseListUrls()[1],
                 githubManifest
             ],
             handler.Requests);
@@ -104,6 +106,10 @@ public sealed class UpdateSourcePolicyTests
 
     private static string[] ReleaseListUrls() =>
         UpdateCheckOptions.ToReleaseListUrls(UpdateCheckOptions.ResolveUpdateCheckUrls(null, null)).ToArray();
+
+    /// <summary>列表请求的第一个 URL：策略生成的列表地址 + 第一页。</summary>
+    private static string[] PagedReleaseListUrls() =>
+        ReleaseListUrls().Select(url => $"{url}&page=1").ToArray();
 
     [Fact]
     public void PackageDownloads_PreferGithubThenSwitchToGiteeAtFailureThreshold()
@@ -139,7 +145,8 @@ public sealed class UpdateSourcePolicyTests
         {
             string url = request.RequestUri?.AbsoluteUri ?? "";
             Requests.Add(url);
-            if (string.Equals(url, ReleaseListUrls()[0], StringComparison.OrdinalIgnoreCase))
+            // 列表按页取，Gitee 那条请求会带上 &page=1，所以按前缀判断
+            if (url.StartsWith(ReleaseListUrls()[0], StringComparison.OrdinalIgnoreCase))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.TooManyRequests)
                 {
@@ -280,7 +287,8 @@ public sealed class UpdateSourcePolicyTests
                 });
             }
 
-            string manifestUrl = url == ReleaseListUrls()[0]
+            // 列表按页取，Gitee 那条请求会带上 &page=1，所以按前缀判断
+            string manifestUrl = url.StartsWith(ReleaseListUrls()[0], StringComparison.OrdinalIgnoreCase)
                 ? giteeManifest
                 : githubManifest;
             string release = $$"""

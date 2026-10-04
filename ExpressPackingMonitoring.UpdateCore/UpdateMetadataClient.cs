@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 
 namespace ExpressPackingMonitoring.UpdateCore;
 
@@ -106,37 +107,102 @@ public sealed class UpdateMetadataClient
     {
         return await ExecuteWithFallbackAsync(
             releaseListUrls,
-            async (sourceUrl, token) =>
+            (sourceUrl, token) => FetchLatestReleaseWithAssetPagedAsync(sourceUrl, assetPredicate, token),
+            cancellationToken);
+    }
+
+    /// <summary>release 列表最多翻多少页（一页 100 条）：服务端异常返回时不能无限翻。</summary>
+    private const int MaxReleaseListPages = 10;
+
+    /// <summary>
+    /// 翻完整个 release 列表，挑出「版本最高、且带本平台资产」的那一个。
+    ///
+    /// 必须翻页翻完，不能只读第一页：Gitee 的 releases 是**旧 → 新**返回，刚发布的版本在最后一页。
+    /// 旧实现是"per_page=30 只读第一页 + 取第一个匹配项"，于是 Gitee 上永远看不到新版本 ——
+    /// 现场（店里 0.0.73）手动检查更新一直说"已是最新"就是这个原因。
+    /// 停止条件用"这一页没填满"，不依赖各平台是否提供总数/分页头。
+    /// </summary>
+    private async Task<ResolvedUpdateRelease> FetchLatestReleaseWithAssetPagedAsync(
+        string sourceUrl,
+        Func<string, bool> assetPredicate,
+        CancellationToken cancellationToken)
+    {
+        int perPage = ReadPageSize(sourceUrl);
+        JsonDocument? best = null;
+        string bestVersion = "";
+        int pagesScanned = 0;
+
+        try
+        {
+            for (int page = 1; page <= MaxReleaseListPages; page++)
             {
-                JsonDocument list = await GetJsonAsync(sourceUrl, token);
+                JsonDocument list = await GetJsonAsync(BuildPageUrl(sourceUrl, page), cancellationToken);
+                int pageCount;
                 try
                 {
-                    int index = UpdateReleaseSelection.FindLatestWithAsset(
-                        list.RootElement,
-                        assetPredicate);
-                    if (index < 0)
-                        throw new InvalidDataException("没有找到带本平台安装包的版本");
+                    if (list.RootElement.ValueKind != JsonValueKind.Array)
+                        throw new InvalidDataException("release 列表不是数组");
 
-                    // 下游按"单个 release 对象"解析，这里把它单独复制出来
-                    JsonDocument single = JsonDocument.Parse(
-                        list.RootElement[index].GetRawText());
-                    try
+                    pagesScanned = page;
+                    pageCount = list.RootElement.GetArrayLength();
+
+                    int index = UpdateReleaseSelection.FindLatestWithAsset(list.RootElement, assetPredicate);
+                    if (index >= 0)
                     {
-                        RequireLatestVersion(single.RootElement);
-                        return new ResolvedUpdateRelease(single, sourceUrl);
-                    }
-                    catch
-                    {
-                        single.Dispose();
-                        throw;
+                        JsonElement candidate = list.RootElement[index];
+                        string tag = ReadString(candidate, "tag_name");
+                        if (best == null || UpdateReleaseSelection.CompareVersions(tag, bestVersion) > 0)
+                        {
+                            // 下游按"单个 release 对象"解析，这里把它单独复制出来，列表可以马上释放
+                            JsonDocument copy = JsonDocument.Parse(candidate.GetRawText());
+                            best?.Dispose();
+                            best = copy;
+                            bestVersion = tag;
+                        }
                     }
                 }
                 finally
                 {
                     list.Dispose();
                 }
-            },
-            cancellationToken);
+
+                if (pageCount <= 0 || pageCount < perPage)
+                    break;
+            }
+        }
+        catch
+        {
+            best?.Dispose();
+            throw;
+        }
+
+        if (best == null)
+            throw new InvalidDataException("没有找到带本平台安装包的版本");
+
+        RequireLatestVersion(best.RootElement);
+        // 现场排查用：把"翻了几页、最后挑中哪一版"落进日志，
+        // 下次再有人说"检查不到新版本"，一眼就能看出是挑错了版本还是压根没看到。
+        _log?.Invoke($"release list scanned source={sourceUrl} pages={pagesScanned} chosen={bestVersion}");
+        return new ResolvedUpdateRelease(best, sourceUrl);
+    }
+
+    /// <summary>列表地址里的分页大小；解析不出来按 100（README/策略里的默认值）处理。</summary>
+    private static int ReadPageSize(string url)
+    {
+        Match match = Regex.Match(url, "[?&]per_page=(?<size>\\d+)", RegexOptions.IgnoreCase);
+        return match.Success
+            && int.TryParse(match.Groups["size"].Value, out int size)
+            && size > 0
+                ? size
+                : 100;
+    }
+
+    /// <summary>在列表地址上换页：清掉已有的 page 参数，再拼当前页。</summary>
+    private static string BuildPageUrl(string url, int page)
+    {
+        string cleaned = Regex.Replace(url, "[?&]page=\\d+", "", RegexOptions.IgnoreCase);
+        string separator = cleaned.Contains('?') ? "&" : "?";
+        return $"{cleaned}{separator}page={page}";
     }
 
     public async Task<ResolvedUpdateManifest> FetchLatestManifestAsync(
@@ -144,8 +210,8 @@ public sealed class UpdateMetadataClient
         CancellationToken cancellationToken)
     {
         // 只发另一个平台的版本（例如只发 macOS 的 DMG）没有 update_v*.json：直接拿 /releases/latest
-        // 会报"Release 缺少 update_v*.json"，启动器的自动更新就一直在失败。改成在列表里按新到旧
-        // 找第一个带更新清单的版本，与 macOS 端"只认带本平台安装包的版本"是同一条规则。
+        // 会报"Release 缺少 update_v*.json"，启动器的自动更新就一直在失败。改成翻完整个列表、
+        // 挑"版本最高且带更新清单"的那一个，与 macOS 端"只认带本平台安装包的版本"是同一条规则。
         IReadOnlyList<string> releaseListUrls = UpdateEndpointPolicy.ToReleaseListUrls(sourceUrls);
         if (releaseListUrls.Count == 0)
             releaseListUrls = sourceUrls;
@@ -154,19 +220,16 @@ public sealed class UpdateMetadataClient
             releaseListUrls,
             async (sourceUrl, token) =>
             {
-                JsonDocument list = await GetJsonAsync(sourceUrl, token);
-                JsonDocument? release = null;
+                // 与"应用内检查更新"共用同一条挑选路径：翻完整个列表、按版本号挑最高的一版。
+                ResolvedUpdateRelease resolved = await FetchLatestReleaseWithAssetPagedAsync(
+                    sourceUrl,
+                    UpdateReleaseSelection.IsUpdateManifest,
+                    token);
+
+                JsonDocument release = resolved.Release;
                 JsonDocument? manifest = null;
                 try
                 {
-                    int index = UpdateReleaseSelection.FindLatestWithAsset(
-                        list.RootElement,
-                        UpdateReleaseSelection.IsUpdateManifest);
-                    if (index < 0)
-                        throw new InvalidDataException("没有找到带更新清单的版本");
-
-                    // 下游按"单个 release 对象"解析，这里把它单独复制出来
-                    release = JsonDocument.Parse(list.RootElement[index].GetRawText());
                     string latestVersion = RequireLatestVersion(release.RootElement);
                     string manifestUrl = FindUpdateManifestUrl(release.RootElement, latestVersion);
                     if (manifestUrl.Length == 0)
@@ -182,12 +245,8 @@ public sealed class UpdateMetadataClient
                 catch
                 {
                     manifest?.Dispose();
-                    release?.Dispose();
+                    resolved.Dispose();
                     throw;
-                }
-                finally
-                {
-                    list.Dispose();
                 }
             },
             cancellationToken);
