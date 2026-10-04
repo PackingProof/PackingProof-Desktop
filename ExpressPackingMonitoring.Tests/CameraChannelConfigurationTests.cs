@@ -552,7 +552,7 @@ public sealed class CameraChannelConfigurationTests
     {
         string source = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
 
-        Assert.Contains("private readonly List<OverlayChannel> _overlayChannels", source, StringComparison.Ordinal);
+        Assert.Contains("private OverlayChannel[] _overlayChannels = Array.Empty<OverlayChannel>();", source, StringComparison.Ordinal);
         Assert.Contains("internal readonly LatestFrameHandoffSlot<Mat> LatestFrame", source, StringComparison.Ordinal);
         Assert.Contains("OnUsbChannelFrame", source, StringComparison.Ordinal);
         Assert.Contains("OnNetworkChannelFrame", source, StringComparison.Ordinal);
@@ -561,6 +561,26 @@ public sealed class CameraChannelConfigurationTests
         // 每一路不得写主路的帧槽，也不得复用主路的会话闸门。
         Assert.DoesNotContain("_latestCameraFrame", source, StringComparison.Ordinal);
         Assert.DoesNotContain("_previewSessionGate", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 通道列表必须整体替换，不能就地增删。
+    ///
+    /// 它在 UI 线程（保存设置、休眠唤醒）重建，而处理循环线程和副摄采集线程每帧都要遍历它；
+    /// 就地 Clear()/Add() 会被读成半成品，两边同时重建还会留下重复通道 —— 同一台设备被开两次，
+    /// 表现就是"画中画没有画面"，得像重启那样重新应用一次设置才好。所以：
+    /// 重建要拿 <c>_overlayChannelSyncLock</c>、先在局部拼好再整体赋值，列表上不许再有 Add/Clear。
+    /// </summary>
+    [Fact]
+    public void OverlayChannelListIsSwappedWholeInsteadOfMutatedInPlace()
+    {
+        string source = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
+
+        Assert.Contains("lock (_overlayChannelSyncLock)", source, StringComparison.Ordinal);
+        Assert.Contains("_overlayChannels = rebuilt;", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("_overlayChannels.Add(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("_overlayChannels.Clear()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("_overlayChannels.ToList()", source, StringComparison.Ordinal);
     }
 
     /// <summary>

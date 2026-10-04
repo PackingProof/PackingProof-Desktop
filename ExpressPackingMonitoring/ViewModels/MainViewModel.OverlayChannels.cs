@@ -98,7 +98,22 @@ namespace ExpressPackingMonitoring.ViewModels
             internal bool IsRunning => UsbSource != null || MfSource != null || NetworkSource != null;
         }
 
-        private readonly List<OverlayChannel> _overlayChannels = new();
+        /// <summary>
+        /// 当前各路的运行时列表。重建时**整体换一份新的**，不再就地增删。
+        ///
+        /// 这条列表在设置变更时于 UI 线程重建，而处理循环线程与副摄采集线程每帧都要遍历它：
+        /// 原来的 List.Clear()/Add() 会被读成半成品，且处理循环看到空列表时也会去重建，
+        /// 两边同时重建就可能留下重复通道（同一台设备被开两次，画中画直接没有画面）。
+        /// 数组引用赋值本身是原子的，读的一侧因此不需要取锁，看到的永远是完整的一份。
+        /// </summary>
+        private OverlayChannel[] _overlayChannels = Array.Empty<OverlayChannel>();
+
+        /// <summary>
+        /// 只保护"比对 + 整体替换列表"这一下。重建里的停旧流是慢动作（Media Foundation 一次约 1.8 秒），
+        /// 必须放在锁外，否则处理循环会卡在等锁上，预览跟着停。
+        /// </summary>
+        private readonly object _overlayChannelSyncLock = new();
+
         private int _overlayPlacementVersion;
 
         /// <summary>
@@ -187,36 +202,56 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private void SyncOverlayChannelRuntimes()
         {
-            if (Config is not { } config)
+            OverlayChannel[] stale;
+            lock (_overlayChannelSyncLock)
             {
-                foreach (OverlayChannel stale in _overlayChannels)
-                    StopOverlayChannel(stale);
-                _overlayChannels.Clear();
-                return;
-            }
-
-            bool sameChannels = _overlayChannels.Count == config.CameraChannels.Count;
-            if (sameChannels)
-            {
-                for (int i = 0; i < _overlayChannels.Count; i++)
+                if (Config is not { } config)
                 {
-                    if (!ReferenceEquals(_overlayChannels[i].Config, config.CameraChannels[i]))
-                    {
-                        sameChannels = false;
-                        break;
-                    }
+                    if (_overlayChannels.Length == 0)
+                        return;
+
+                    stale = _overlayChannels;
+                    _overlayChannels = Array.Empty<OverlayChannel>();
+                }
+                else
+                {
+                    if (OverlayChannelsMatchConfigLocked(config))
+                        return;
+
+                    // 先在局部拼好新的一份，再整体替换：读的一侧不会看到"清空了一半"的列表。
+                    var rebuilt = new OverlayChannel[config.CameraChannels.Count];
+                    for (int i = 0; i < rebuilt.Length; i++)
+                        rebuilt[i] = new OverlayChannel(i + 1, config.CameraChannels[i]);
+
+                    stale = _overlayChannels;
+                    _overlayChannels = rebuilt;
                 }
             }
 
-            if (sameChannels)
-                return;
-
-            foreach (OverlayChannel stale in _overlayChannels)
-                StopOverlayChannel(stale);
-            _overlayChannels.Clear();
-            for (int i = 0; i < config.CameraChannels.Count; i++)
-                _overlayChannels.Add(new OverlayChannel(i + 1, config.CameraChannels[i]));
+            // 停旧通道放在锁外：换列表这一下已经做完，处理循环可以直接按新的一份跑。
+            foreach (OverlayChannel channel in stale)
+                StopOverlayChannel(channel);
         }
+
+        /// <summary>调用方必须持有 <see cref="_overlayChannelSyncLock"/>。</summary>
+        private bool OverlayChannelsMatchConfigLocked(AppConfig config)
+        {
+            OverlayChannel[] current = _overlayChannels;
+            if (current.Length != config.CameraChannels.Count)
+                return false;
+
+            for (int i = 0; i < current.Length; i++)
+            {
+                if (!ReferenceEquals(current[i].Config, config.CameraChannels[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>这一路是否还在当前列表里：启动是慢动作，启动期间被换掉的话不能再把设备攥在手里。</summary>
+        private bool IsCurrentOverlayChannel(OverlayChannel channel) =>
+            Array.IndexOf(_overlayChannels, channel) >= 0;
 
         /// <summary>
         /// 启动所有接了设备的叠加画面。任何一路失败都只记日志/提示，绝不影响主路与其它路——
@@ -233,14 +268,20 @@ namespace ExpressPackingMonitoring.ViewModels
             if (HasConfiguredOverlayChannels && !_overlayChannels.Any(channel => channel.IsRunning))
                 ClearPreRecordBuffer();
 
-            foreach (OverlayChannel channel in _overlayChannels.ToList())
+            // 按这一份快照启动；启动一路要开设备（秒级），期间列表可能被换成新的一份，
+            // 换掉的这一路不能再留着设备不放，否则那台相机就被一个已经不在列表里的通道占着。
+            foreach (OverlayChannel channel in _overlayChannels)
+            {
                 StartOverlayChannel(channel);
+                if (!IsCurrentOverlayChannel(channel))
+                    StopOverlayChannel(channel);
+            }
         }
 
         /// <summary>停止所有叠加画面并释放各自缓存的帧。可重复调用。</summary>
         internal void StopOverlayChannels()
         {
-            foreach (OverlayChannel channel in _overlayChannels.ToList())
+            foreach (OverlayChannel channel in _overlayChannels)
                 StopOverlayChannel(channel);
         }
 
@@ -814,12 +855,15 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         internal void ComposeOverlayChannelsIfNeeded(Mat frame, bool previewPublishDue)
         {
-            if (_overlayChannels.Count == 0)
+            if (_overlayChannels.Length == 0)
                 SyncOverlayChannelRuntimes();
+
+            // 重建可能刚好插在这一次调用中间，取一份快照按它跑完：这一帧要么全用旧的一份、要么全用新的一份。
+            OverlayChannel[] channels = _overlayChannels;
 
             if (!HasConfiguredOverlayChannels)
             {
-                foreach (OverlayChannel channel in _overlayChannels)
+                foreach (OverlayChannel channel in channels)
                 {
                     lock (channel.OverlayLock)
                     {
@@ -843,13 +887,13 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         internal void ComposeOverlayChannels(Mat frame)
         {
-            if (_overlayChannels.Count == 0)
+            if (_overlayChannels.Length == 0)
                 SyncOverlayChannelRuntimes();
 
             if (!HasConfiguredOverlayChannels)
                 return;
 
-            foreach (OverlayChannel channel in _overlayChannels.ToList())
+            foreach (OverlayChannel channel in _overlayChannels)
                 ComposeOverlayChannel(channel, frame);
         }
 
