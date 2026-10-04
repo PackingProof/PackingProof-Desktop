@@ -239,6 +239,32 @@ if (Test-Path -LiteralPath $launcherPatchPath) {
     $giteeAssets += $launcherPatchPath
 }
 
+# 产物一致性守卫：AppPatch 里必须装着本次构建出来的主程序集（哈希比对）。
+# 只看"补丁包存在"不够 —— 它可能是别处、别的提交构建出来的旧文件；这次现场之所以要返工，
+# 就是包看着是新的、里面却是旧的。这里把 AppPatch 解开，跟产物目录里的同一份程序集逐个比对。
+if (Test-Path -LiteralPath $appPatchPath) {
+    $payloadAppDir = Join-Path $packageRoot ("PackingProof+v" + $version + "\app")
+    $guardTmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("epm-patch-guard-" + [System.Guid]::NewGuid().ToString("N"))
+    Expand-Archive -LiteralPath $appPatchPath -DestinationPath $guardTmpDir -Force
+    try {
+        foreach ($assemblyName in @("ExpressPackingMonitoring.dll", "ExpressPackingMonitoring.UpdateCore.dll")) {
+            $fromPayload = Join-Path $payloadAppDir $assemblyName
+            $fromPatch = Join-Path (Join-Path $guardTmpDir "files") $assemblyName
+            if (-not (Test-Path -LiteralPath $fromPayload) -or -not (Test-Path -LiteralPath $fromPatch)) {
+                continue
+            }
+            $payloadHash = (Get-FileHash -LiteralPath $fromPayload -Algorithm SHA256).Hash
+            $patchHash = (Get-FileHash -LiteralPath $fromPatch -Algorithm SHA256).Hash
+            if (-not [string]::Equals($payloadHash, $patchHash, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "$assemblyName 在 AppPatch 与产物目录里不一致（AppPatch 可能是旧文件或别处构建的），停止发布"
+            }
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $guardTmpDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # 标题按文档固定成 v<X.Y.Z> <一句话内容>，用归一化后的版本号而不是原 tag，
 # 这样 tag 少写 v 或带后缀时，标题仍然与产物名一致。
 if ([string]::IsNullOrWhiteSpace($Title)) {
