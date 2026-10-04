@@ -3748,6 +3748,24 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="接收预览版更新" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="没经过测试的功能也会推送"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.AllowPrereleaseUpdates}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="兼容渲染模式" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="画面显示全白或全黑时再开启；关闭显卡加速，重启程序后生效"
                                                     Style="{StaticResource FieldHintStyle}"/>

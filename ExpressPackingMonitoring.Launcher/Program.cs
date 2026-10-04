@@ -389,7 +389,7 @@ internal static class Program
                 attemptsPerSource: MetadataRequestAttempts,
                 retryDelay: TimeSpan.FromMilliseconds(500),
                 log: message => WriteLog("更新元数据：" + message),
-                allowPrerelease: UpdateChannelPolicy.AllowPrereleaseFromEnvironment());
+                allowPrerelease: UpdateChannelPolicy.AllowPrerelease());
             using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
                 checkUrls,
                 cancellationToken);
@@ -1130,28 +1130,13 @@ internal static class Program
         return message;
     }
 
-    private static bool ReadAutoCheckEnabled()
-    {
-        string path = Path.Combine(GetUserDataDir(), "config.json");
-        if (!File.Exists(path))
-            return true;
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
-            if (document.RootElement.TryGetProperty("EnableAutoCheckUpdate", out JsonElement value) &&
-                (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False))
-            {
-                return value.GetBoolean();
-            }
-        }
-        catch (Exception ex)
-        {
-            WriteLog("读取自动更新配置失败：" + ex.Message);
-        }
-
-        return true;
-    }
+    /// <summary>自动检查更新默认开；解析口径与"接收预览版更新"共用 UpdateChannelPolicy。</summary>
+    private static bool ReadAutoCheckEnabled() =>
+        UpdateChannelPolicy.ReadAppConfigToggle(
+            Path.Combine(GetUserDataDir(), "config.json"),
+            "EnableAutoCheckUpdate",
+            fallback: true,
+            log: message => WriteLog("读取自动更新配置失败：" + message));
 
     private static string ReadInstalledAppVersion(string baseDir)
     {

@@ -38,6 +38,14 @@ public sealed class DefaultConfigurationTests
         Assert.True(JsonSerializer.Deserialize<AppConfig>("{}")!.EnablePreviewIdleThrottle);
     }
 
+    /// <summary>接收预览版更新默认关闭：正式机器不能被预览版拉走。</summary>
+    [Fact]
+    public void NewConfigurationDoesNotReceivePreviewUpdatesByDefault()
+    {
+        Assert.False(new AppConfig().AllowPrereleaseUpdates);
+        Assert.False(JsonSerializer.Deserialize<AppConfig>("{}")!.AllowPrereleaseUpdates);
+    }
+
     [Fact]
     public void NewConfigurationUsesTwoPointFiveSecondZoomDwellByDefault()
     {

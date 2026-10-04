@@ -464,7 +464,7 @@ internal sealed class LauncherUpdateService
         var metadataClient = new UpdateMetadataClient(
             HttpClient,
             log: message => RuntimeLog.Info("LauncherUpdate", message),
-            allowPrerelease: UpdateChannelPolicy.AllowPrereleaseFromEnvironment());
+            allowPrerelease: UpdateChannelPolicy.AllowPrerelease());
         using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
             UpdateCheckOptions.GetUpdateCheckUrls(),
             cancellationToken);

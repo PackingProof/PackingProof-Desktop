@@ -335,6 +335,8 @@
   <data name="重新运行" xml:space="preserve"><value>再実行</value></data>
   <data name="重置编码器检测" xml:space="preserve"><value>エンコーダー測定をリセット</value></data>
   <data name="自动检查更新" xml:space="preserve"><value>更新を自動確認</value></data>
+  <data name="接收预览版更新" xml:space="preserve"><value>プレビュー版の更新を受け取る</value></data>
+  <data name="没经过测试的功能也会推送" xml:space="preserve"><value>テストされていない機能も配信されます</value></data>
   <data name="自动提交停顿" xml:space="preserve"><value>自動送信の区切り時間</value></data>
   <data name="最大时长" xml:space="preserve"><value>最大時間</value></data>
   <data name="最小文件大小" xml:space="preserve"><value>最小ファイルサイズ</value></data>

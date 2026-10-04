@@ -380,6 +380,8 @@ namespace ExpressPackingMonitoring.Config
         public bool ShowDeletedVideos { get; set; } = false;
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
+        // 接收预览版更新：测试机用，打开后连 prerelease 版本一起收；正式机器保持关闭
+        public bool AllowPrereleaseUpdates { get; set; } = false;
         // 仅用于显卡或虚拟显示驱动导致窗口全白/全黑的机器；进程级设置，改动后需重启程序。
         public bool ForceSoftwareRendering { get; set; } = false;
         public bool EnableAudioRecording { get; set; } = true;

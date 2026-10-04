@@ -546,6 +546,42 @@ public sealed class SettingsAdvancedVisibilityTests
             .Replace("{StaticResource ", "", StringComparison.Ordinal)
             .Replace("}", "", StringComparison.Ordinal);
 
+
+    /// <summary>
+    /// 「接收预览版更新」开关就在「自动检查更新」下面同一张卡里，绑 Config.AllowPrereleaseUpdates：
+    /// 测试机不用再去设环境变量，在界面上就能打开。
+    /// </summary>
+    [Fact]
+    public void PrereleaseUpdateSwitch_SitsUnderAutoUpdateCheckAndBindsToConfig()
+    {
+        XDocument document = LoadSettingsXaml();
+        List<XElement> labels = document.Descendants(Presentation + "TextBlock")
+            .Where(element => (string?)element.Attribute("Text") is not null)
+            .ToList();
+        int autoIndex = labels.FindIndex(element => (string?)element.Attribute("Text") == "自动检查更新");
+        int prereleaseIndex = labels.FindIndex(element => (string?)element.Attribute("Text") == "接收预览版更新");
+
+        Assert.True(autoIndex >= 0, "找不到自动检查更新那一行");
+        Assert.True(prereleaseIndex > autoIndex, "接收预览版更新应该排在自动检查更新下面");
+
+        XElement autoLabel = labels[autoIndex];
+        XElement prereleaseLabel = labels[prereleaseIndex];
+        XElement checkBox = Assert.Single(
+            document.Descendants(Presentation + "CheckBox"),
+            element => (string?)element.Attribute("IsChecked") == "{Binding Config.AllowPrereleaseUpdates}");
+
+        Assert.Equal("SettingRowStyle", StyleKey(prereleaseLabel.Ancestors(Presentation + "Grid").First()));
+        Assert.Equal(
+            StyleKey(autoLabel.Ancestors(Presentation + "Grid").First()),
+            StyleKey(prereleaseLabel.Ancestors(Presentation + "Grid").First()));
+        Assert.Same(
+            autoLabel.Ancestors(Presentation + "Border")
+                .First(element => StyleKey(element) == "SectionCardStyle"),
+            prereleaseLabel.Ancestors(Presentation + "Border")
+                .First(element => StyleKey(element) == "SectionCardStyle"));
+        Assert.Same(prereleaseLabel.Ancestors(Presentation + "Grid").First(), checkBox.Parent);
+    }
+
     private static string LoadSettingsCode()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

@@ -30,6 +30,77 @@ public sealed class UpdateChannelPolicyTests
     }
 
     /// <summary>
+    /// 环境变量优先于应用设置：认得出就用它（"0" 是明确的关），认不出才回退到设置里的开关。
+    /// </summary>
+    [Theory]
+    [InlineData("1", false, true)]
+    [InlineData("true", false, true)]
+    [InlineData("0", true, false)]
+    [InlineData("false", true, false)]
+    [InlineData("off", true, false)]
+    [InlineData("", true, true)]
+    [InlineData(null, true, true)]
+    [InlineData("maybe", true, true)]
+    [InlineData(null, false, false)]
+    public void EnvironmentVariableTakesPrecedenceOverAppSetting(
+        string? environmentValue,
+        bool appConfigValue,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            UpdateChannelPolicy.ResolveAllowPrerelease(environmentValue, appConfigValue));
+    }
+
+    /// <summary>应用配置里的"接收预览版更新"：读不到、坏了、字段不是布尔都当关闭。</summary>
+    [Theory]
+    [InlineData("{\"AllowPrereleaseUpdates\":true}", true)]
+    [InlineData("{\"AllowPrereleaseUpdates\":false}", false)]
+    [InlineData("{\"EnableAutoCheckUpdate\":true}", false)]
+    [InlineData("{\"AllowPrereleaseUpdates\":\"true\"}", false)]
+    [InlineData("not-json", false)]
+    public void AppConfigToggle_ReadsOnlyBooleanTrue(string json, bool expected)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"eppm-config-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, json, Encoding.UTF8);
+        try
+        {
+            Assert.Equal(expected, UpdateChannelPolicy.AllowPrereleaseFromAppConfig(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AppConfigToggle_MissingFileFallsBackToOff()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"eppm-missing-{Guid.NewGuid():N}.json");
+
+        Assert.False(UpdateChannelPolicy.AllowPrereleaseFromAppConfig(path));
+    }
+
+    /// <summary>启动器读 EnableAutoCheckUpdate 走的是同一个实现：默认开，配置里关掉才关。</summary>
+    [Fact]
+    public void AppConfigToggle_SupportsLauncherAutoCheckSwitch()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"eppm-auto-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, "{\"EnableAutoCheckUpdate\":false}", Encoding.UTF8);
+        try
+        {
+            Assert.False(UpdateChannelPolicy.ReadAppConfigToggle(
+                path, "EnableAutoCheckUpdate", fallback: true));
+            Assert.True(UpdateChannelPolicy.ReadAppConfigToggle(
+                path, "NotThere", fallback: true));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    /// <summary>
     /// 默认客户端只挑正式版；把预览版放开的客户端才挑得到列表里更高的预览版。
     /// </summary>
     [Fact]
