@@ -24,7 +24,7 @@ public sealed class SettingsCardSpacingTests
     /// <summary>
     /// 左侧页签之间的间距必须写在模板里面，不能写成 TabItem 的 Margin：
     /// TabStripPlacement=Left 时 TabPanel 给的布局槽只有内容那么高，控件自己的下边距
-    /// 会被 layout 系统再减一次，页签最底下 6px 连方框底边一起被 layout clip 裁掉
+    /// 会被 layout 系统再减一次，页签最底下那段间隔连方框底边一起被 layout clip 裁掉
     /// （现场就是"选中方框下面少了一截"）。
     /// </summary>
     [Fact]
@@ -45,7 +45,26 @@ public sealed class SettingsCardSpacingTests
             .Elements()
             .First();
         Assert.Equal("Grid", templateRoot.Name.LocalName);
-        Assert.Equal("0,0,0,6", (string?)templateRoot.Attribute("Margin"));
+        Assert.Equal("0,0,0,4", (string?)templateRoot.Attribute("Margin"));
+    }
+
+    /// <summary>
+    /// 左侧 10 个页签要挤进侧栏，纵向内边距和页签间隔都得压住：
+    /// 窗口最小高度 680 时侧栏只剩约 574px，页签一胖就会被裁掉最后几项。
+    /// 页签之间的那点间隔由 SidebarTab_GapLivesInTemplateInsteadOfItemMargin 盯着，这里只管高度预算。
+    /// </summary>
+    [Fact]
+    public void SidebarTabs_StayCompact()
+    {
+        XDocument document = XDocument.Load(FindSettingsXaml());
+        XElement tabItemStyle = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute("TargetType") == "TabItem");
+
+        XElement padding = Assert.Single(
+            tabItemStyle.Elements(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Padding");
+        Assert.Equal("14,8", (string?)padding.Attribute("Value"));
     }
 
     /// <summary>卡片样式必须挂上"收掉尾部留白"，不用每张卡单独声明。</summary>

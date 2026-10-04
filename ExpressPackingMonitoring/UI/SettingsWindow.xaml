@@ -908,7 +908,7 @@
                 <Style TargetType="TabItem">
                     <Setter Property="FontSize" Value="14"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
-                    <Setter Property="Padding" Value="14,11"/>
+                    <Setter Property="Padding" Value="14,8"/>
                     <Setter Property="MinWidth" Value="156"/>
                     <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
                     <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
@@ -921,10 +921,10 @@
                                 <!--
                                     页签之间的间距必须留在模板里面，不能写成 TabItem 的 Margin：
                                     TabStripPlacement=Left 时 TabPanel 给的布局槽只有内容那么高，
-                                    控件自己的下边距会被 layout 系统再减一次，最底下 6px 连带方框底边
+                                    控件自己的下边距会被 layout 系统再减一次，最底下那段间隔连带方框底边
                                     一起被裁掉（layout clip）。
                                 -->
-                                <Grid Margin="0,0,0,6">
+                                <Grid Margin="0,0,0,4">
                                     <Border Background="{TemplateBinding Background}"
                                             BorderThickness="{TemplateBinding BorderThickness}"
                                             BorderBrush="{TemplateBinding BorderBrush}"
