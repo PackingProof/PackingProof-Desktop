@@ -213,7 +213,6 @@ namespace ExpressPackingMonitoring.UI
                 // GPU编码器使用缓存，可立即加载
                 LoadGpuEncoders();
                 LoadVideoCodecs();
-                if (Config.MaxZoomScale < 1.2 || Config.MaxZoomScale > 3.0) Config.MaxZoomScale = 1.5;
             }
 
             if (Capabilities.CanConfigureStorage)
@@ -1869,7 +1868,6 @@ namespace ExpressPackingMonitoring.UI
                 return false;
 
             AutoStartService.Apply(Config.AutoStartOnBoot);
-            Context.SetPreviewZoomScale?.Invoke(null);
             var appliedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
             bool applied = await Context.ApplyAsync(appliedConfig);
             if (applied)
@@ -2212,15 +2210,6 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private void ZoomScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (ShouldPreviewZoomScale(IsLoaded, Context))
-                Context.SetPreviewZoomScale?.Invoke(e.NewValue);
-        }
-
-        internal static bool ShouldPreviewZoomScale(bool isLoaded, SettingsContext context) =>
-            isLoaded && context?.Capabilities.CanRecordPcVideo == true;
-
         private void SyncVoiceEngineComboBoxFromConfig()
         {
             if (VoiceEngineComboBox == null) return;
@@ -2475,7 +2464,6 @@ namespace ExpressPackingMonitoring.UI
             _integrationStatusTimer.Tick -= IntegrationStatusTimer_Tick;
             var migrationCts = Interlocked.Exchange(ref _migrationCts, null);
             try { migrationCts?.Cancel(); } catch (ObjectDisposedException) { }
-            Context.SetPreviewZoomScale?.Invoke(null);
             _previewSpeechService?.Stop();
             _previewSpeechService?.Dispose();
             _previewSpeechService = null;

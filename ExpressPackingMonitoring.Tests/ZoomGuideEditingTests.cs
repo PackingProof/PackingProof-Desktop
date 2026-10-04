@@ -23,9 +23,27 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("ZoomCropPolicy.ResolveScale", camera, StringComparison.Ordinal);
         Assert.Contains("ZoomGuideGeometry", camera, StringComparison.Ordinal);
         Assert.Contains("ZoomCropPolicy.CreateCropRect", camera, StringComparison.Ordinal);
+        // 倍率只有取景框这一个来源：不能再有第二个倍率参数
+        Assert.DoesNotContain("MaxZoomScale", camera, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreviewZoomScale", camera, StringComparison.Ordinal);
         // 智能放大那套坐标已经删干净：放大分支不得再引用识别到的条码几何
         Assert.DoesNotContain("_lastBarcodeGeometry", camera, StringComparison.Ordinal);
         Assert.DoesNotContain("SmartZoomPolicy", camera, StringComparison.Ordinal);
+    }
+
+    /// <summary>设置页里不该再有"最大放大倍数"这类第二个倍率参数。</summary>
+    [Fact]
+    public void SettingsPage_NoLongerExposesASecondZoomScaleParameter()
+    {
+        string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
+        Assert.DoesNotContain("最大放大倍数", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ZoomScaleSlider", xaml, StringComparison.Ordinal);
+
+        string config = ReadProjectFile(Path.Combine("Config", "AppConfig.cs"));
+        Assert.DoesNotContain("MaxZoomScale", config, StringComparison.Ordinal);
+
+        string context = ReadProjectFile(Path.Combine("UI", "SettingsContext.cs"));
+        Assert.DoesNotContain("SetPreviewZoomScale", context, StringComparison.Ordinal);
     }
 
     [Fact]

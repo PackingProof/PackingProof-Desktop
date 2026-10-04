@@ -1091,13 +1091,9 @@
   <data name="作者：" xml:space="preserve"><value>作者: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>拡大枠</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>メイン画面に戻り、拡大する範囲をドラッグで指定してください。完了または Esc で終了します</value></data>
-  <data name="最大放大倍数" xml:space="preserve"><value>最大ズーム倍率</value></data>
-  <data name="框选得越小放大越近，实际倍率不超过这个上限" xml:space="preserve"><value>枠を小さくするほど拡大されますが、実際の倍率はこの上限を超えません</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>拡大枠を表示</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>通常時もメイン画面に拡大範囲を表示して、いつでも確認できるようにします</value></data>
   <data name="调整放大位置…" xml:space="preserve"><value>拡大位置を調整…</value></data>
-  <data name="范围更大" xml:space="preserve"><value>より広い範囲</value></data>
-  <data name="特写更大" xml:space="preserve"><value>より大きいズーム</value></data>
   <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>はい、保存ホストとして使う（NAS 対応）</value></data>
   <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>ホストは録画を長期保存するパソコンです。NAS／ネットワーク共有へのバックアップを設定でき、スマートフォンや他のパソコンの録画も受信できます</value></data>
   <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>このパソコンは録画と長期保存の両方を担う保存ホストで、NAS／ネットワーク共有へのバックアップに対応します</value></data>

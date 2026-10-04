@@ -542,9 +542,6 @@ namespace ExpressPackingMonitoring.ViewModels
             private set => SetProperty(ref _cameraFrameSize, value);
         }
 
-        private double? _previewZoomScale;
-        public double? PreviewZoomScale { get => _previewZoomScale; set => SetProperty(ref _previewZoomScale, value); }
-
         private bool _isZoomingActive;
         public bool IsZoomingActive
         {

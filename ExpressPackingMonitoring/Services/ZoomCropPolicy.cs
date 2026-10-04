@@ -7,7 +7,7 @@ namespace ExpressPackingMonitoring.Services;
 /// 与识别结果、识别来源都无关 —— 所以识别来源选副画面时也不会再把副摄坐标系里的数值
 /// 直接套到主画面上（那正是"放大位置跑到别处"的根因）。
 ///
-/// 倍率取「框大小换算值」与设置上限中较小的一个：框选得越小放大越近，但不会超过设置的最大倍数；
+/// 倍率完全由框决定：框住多大就放大铺满多大（画面尺寸 / 框尺寸），再没有第二个倍率参数；
 /// 裁剪以框中心为中心，并夹进画面边界。
 /// </summary>
 internal static class ZoomCropPolicy
@@ -20,24 +20,19 @@ internal static class ZoomCropPolicy
         zoomEnabled && guideLocked && !editingZoomGuide;
 
     /// <summary>
-    /// 本次放大的实际倍率：框越小越大，不超过 requestedMaxScale，也不小于 1。
-    /// 框无效（没算出来）时退回请求的倍率，与旧的居中裁剪行为一致。
+    /// 本次放大的实际倍率：完全由放大取景框决定，框越小放大越近，最小 1 倍（不缩小）。
+    /// 框无效（没算出来）时按 1 倍处理：预览保持整帧，绝不放大成一块看不清的糊图。
     /// </summary>
-    internal static double ResolveScale(
-        int frameWidth,
-        int frameHeight,
-        Rect zoomBox,
-        double requestedMaxScale)
+    internal static double ResolveScale(int frameWidth, int frameHeight, Rect zoomBox)
     {
-        double maxScale = Math.Max(1.0, requestedMaxScale);
         if (frameWidth <= 0 || frameHeight <= 0
             || zoomBox.IsEmpty || zoomBox.Width <= 0 || zoomBox.Height <= 0)
         {
-            return maxScale;
+            return 1.0;
         }
 
         double boxScale = Math.Min(frameWidth / zoomBox.Width, frameHeight / zoomBox.Height);
-        return Math.Clamp(Math.Min(maxScale, boxScale), 1.0, maxScale);
+        return Math.Max(1.0, boxScale);
     }
 
     /// <summary>

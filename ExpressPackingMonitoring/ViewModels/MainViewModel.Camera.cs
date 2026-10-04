@@ -1077,30 +1077,29 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
 
-                        if (CanApplyZoom || PreviewZoomScale.HasValue)
+                        if (CanApplyZoom)
                         {
                             MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Zoom, currentFrameSequence);
-                            double effectiveScale = PreviewZoomScale ?? Config.MaxZoomScale;
                             // 放大位置只认主画面上的放大取景框：识别结果不参与，
                             // 所以识别来源选副画面时也不会把副摄坐标系里的数值套到主画面上。
                             System.Windows.Rect zoomBox = CameraBarcodeGuideLayout.ToDisplayRect(
                                 ZoomGuideGeometry,
                                 new System.Windows.Rect(0, 0, currentFrame.Width, currentFrame.Height));
-                            double boundedScale = ZoomCropPolicy.ResolveScale(
+                            // 倍率也只有这一个来源：框住多大就放大铺满多大，没有第二个倍率参数。
+                            double zoomScale = ZoomCropPolicy.ResolveScale(
                                 currentFrame.Width,
                                 currentFrame.Height,
-                                zoomBox,
-                                effectiveScale);
+                                zoomBox);
                             if (_zoomPhase == ZoomPhase.ZoomingIn)
                             {
                                 RuntimeLog.Info(
                                     "Zoom",
-                                    $"Applying zoom-box centered zoom scale={boundedScale:F2}, requested={effectiveScale:F2}, box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
+                                    $"Applying zoom-box centered zoom scale={zoomScale:F2}, box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
                             }
                             var currentZoomRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
                                     currentFrame.Width,
                                     currentFrame.Height,
-                                    effectiveScale,
+                                    zoomScale,
                                     zoomBox))
                                 .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
 
@@ -1118,7 +1117,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                     _zoomPhaseStartTime = DateTime.Now;
                                     LastZoomRect = System.Windows.Rect.Empty;
                                     IsZoomingActive = true;
-                                    Debug.WriteLine($"[Zoom] 缩放触发: Delay={Config.ZoomDelaySeconds}s, MaxScale={Config.MaxZoomScale}");
+                                    Debug.WriteLine($"[Zoom] 缩放触发: Delay={Config.ZoomDelaySeconds}s, Scale={zoomScale:F2}");
                                 }
 
                                 // 根据缩放阶段计算动画倍率
@@ -1130,7 +1129,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = 1.0 + (boundedScale - 1.0) * SmoothStep(t);
+                                    animatedScale = 1.0 + (zoomScale - 1.0) * SmoothStep(t);
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {
@@ -1140,7 +1139,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 }
                                 else if (_zoomPhase == ZoomPhase.Holding)
                                 {
-                                    animatedScale = boundedScale;
+                                    animatedScale = zoomScale;
                                     applyZoom = true;
                                     if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds >= Config.ZoomDurationSeconds * 1000.0)
                                     {
@@ -1152,7 +1151,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = boundedScale - (boundedScale - 1.0) * SmoothStep(t);
+                                    animatedScale = zoomScale - (zoomScale - 1.0) * SmoothStep(t);
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {

@@ -1066,13 +1066,9 @@
   <data name="作者：" xml:space="preserve"><value>作者：</value></data>
   <data name="放大取景框" xml:space="preserve"><value>放大取景框</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>回到主画面框选要放大的区域，点完成或按 Esc 退出</value></data>
-  <data name="最大放大倍数" xml:space="preserve"><value>最大放大倍数</value></data>
-  <data name="框选得越小放大越近，实际倍率不超过这个上限" xml:space="preserve"><value>框选得越小放大越近，实际倍率不超过这个上限</value></data>
   <data name="显示放大取景框" xml:space="preserve"><value>显示放大取景框</value></data>
   <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>平时也在主画面上画出放大区域，方便随时确认</value></data>
   <data name="调整放大位置…" xml:space="preserve"><value>调整放大位置…</value></data>
-  <data name="范围更大" xml:space="preserve"><value>范围更大</value></data>
-  <data name="特写更大" xml:space="preserve"><value>特写更大</value></data>
   <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>要，作为保存主机（支持 NAS）</value></data>
   <data name="主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像" xml:space="preserve"><value>主机就是负责长期保存录像的电脑，可配置 NAS／网络共享备份，也可接收手机和其他电脑的录像</value></data>
   <data name="这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份" xml:space="preserve"><value>这台电脑既录像也负责长期保存，是保存主机，支持 NAS／网络共享备份</value></data>

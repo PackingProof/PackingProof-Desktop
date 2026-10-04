@@ -82,20 +82,24 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.True(crop.Y >= 0 && crop.Y + crop.Height <= frameHeight);
     }
 
-    /// <summary>倍率取"框大小换算值"与设置上限中较小的一个。</summary>
+    /// <summary>倍率完全由放大取景框决定：框占画面多少，就放大到铺满多少。</summary>
     [Fact]
-    public void ZoomCropPolicyPrefersSmallerOfBoxScaleAndMaximum()
+    public void ZoomCropPolicyTakesScaleFromZoomGuideBoxOnly()
     {
-        // 框占画面一半 → 换算 2 倍，上限 3 倍时按框的 2 倍
+        // 框占画面一半 → 2 倍
         var halfBox = new System.Windows.Rect(250, 150, 500, 300);
-        Assert.Equal(2.0, ZoomCropPolicy.ResolveScale(1000, 600, halfBox, 3.0), 3);
+        Assert.Equal(2.0, ZoomCropPolicy.ResolveScale(1000, 600, halfBox), 3);
 
-        // 框只占画面十分之一 → 换算 10 倍，被上限 3 倍封顶
-        var tightBox = new System.Windows.Rect(450, 270, 100, 60);
-        Assert.Equal(3.0, ZoomCropPolicy.ResolveScale(1000, 600, tightBox, 3.0), 3);
+        // 框占画面 1/3（能拖到的最小比例）→ 3 倍，再没有第二个参数来压它
+        var tightBox = new System.Windows.Rect(333.33, 200, 333.33, 200);
+        Assert.Equal(3.0, ZoomCropPolicy.ResolveScale(1000, 600, tightBox), 2);
 
-        // 上限本身小于 1 时按 1 处理，绝不放大成缩小
-        Assert.Equal(1.0, ZoomCropPolicy.ResolveScale(1000, 600, halfBox, 0.5), 3);
+        // 框满画面 → 1 倍（不放大也不缩小）
+        var fullBox = new System.Windows.Rect(0, 0, 1000, 600);
+        Assert.Equal(1.0, ZoomCropPolicy.ResolveScale(1000, 600, fullBox), 3);
+
+        // 框算不出来时按 1 倍处理，绝不放大成一块看不清的糊图
+        Assert.Equal(1.0, ZoomCropPolicy.ResolveScale(1000, 600, System.Windows.Rect.Empty), 3);
     }
 
     [Fact]

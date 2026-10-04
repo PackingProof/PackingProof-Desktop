@@ -316,7 +316,6 @@ namespace ExpressPackingMonitoring.Config
         /// </summary>
         public string CameraBackend { get; set; } = "auto";
         public bool EnableSmartZoom { get; set; } = false;
-        public double MaxZoomScale { get; set; } = 1.5;
         public double ZoomDelaySeconds { get; set; } = 0.0;
         public double ZoomDurationSeconds { get; set; } = DefaultZoomDurationSeconds;
         public bool EnableZoomAnimation { get; set; } = true;
@@ -982,12 +981,6 @@ namespace ExpressPackingMonitoring.Config
                 config.CameraBarcodeGuideWidthRatio,
                 0.3,
                 1.0);
-            double normalizedMaxZoomScale = System.Math.Clamp(config.MaxZoomScale, 1.2, 3.0);
-            if (System.Math.Abs(config.MaxZoomScale - normalizedMaxZoomScale) > 0.001)
-            {
-                config.MaxZoomScale = normalizedMaxZoomScale;
-                changed = true;
-            }
             double normalizedZoomDurationSeconds = System.Math.Clamp(config.ZoomDurationSeconds, 0.0, 5.0);
             // 旧默认值（3 秒 / 1 秒）会被写进用户配置，统一迁到现在的 2 秒；用户自己调过的其他值保持不动。
             foreach (double legacyDuration in LegacyZoomDurationSeconds)

@@ -352,33 +352,6 @@ public sealed class NoCameraWorkstationTests : IDisposable
     }
 
     [Fact]
-    public void SettingsPreviewDoesNotRunBeforeContextAndWindowAreReady()
-    {
-        Assert.False(SettingsWindow.ShouldPreviewZoomScale(isLoaded: false, context: null!));
-        Assert.False(SettingsWindow.ShouldPreviewZoomScale(
-            isLoaded: false,
-            new SettingsContext
-            {
-                Capabilities = SettingsCapabilities.ForRole(WorkstationRoles.CameraMonitor),
-                ApplyAsync = _ => Task.FromResult(true)
-            }));
-        Assert.False(SettingsWindow.ShouldPreviewZoomScale(
-            isLoaded: true,
-            new SettingsContext
-            {
-                Capabilities = SettingsCapabilities.ForRole(WorkstationRoles.PrintStation),
-                ApplyAsync = _ => Task.FromResult(true)
-            }));
-        Assert.True(SettingsWindow.ShouldPreviewZoomScale(
-            isLoaded: true,
-            new SettingsContext
-            {
-                Capabilities = SettingsCapabilities.ForRole(WorkstationRoles.CameraMonitor),
-                ApplyAsync = _ => Task.FromResult(true)
-            }));
-    }
-
-    [Fact]
     public void StorageResolverUsesConfiguredPriorityAndDoesNotFallBackInStrictMode()
     {
         string directory = CreateTempDirectory();

@@ -125,7 +125,7 @@ public sealed class CameraBarcodeGuideLayoutTests
 
         Assert.Contains("ZoomCropPolicy.ShouldApplyZoom", source, StringComparison.Ordinal);
         Assert.Contains(
-            "CanApplyZoom || PreviewZoomScale.HasValue",
+            "if (CanApplyZoom)",
             source,
             StringComparison.Ordinal);
         // 解锁时要能中途停掉已经在跑的放大，否则取景框会一直没法拖动

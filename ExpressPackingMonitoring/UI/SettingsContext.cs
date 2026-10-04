@@ -73,7 +73,6 @@ public sealed class SettingsContext
     public Func<IReadOnlyList<ExtensionAuthorizationDisplayItem>>? GetExtensionAuthorizations { get; init; }
     public Func<IReadOnlyList<OrderIntegrationDeviceDisplayItem>>? GetOrderIntegrationDevices { get; init; }
     public Func<string, bool>? RevokeExtensionAuthorization { get; init; }
-    public Action<double?>? SetPreviewZoomScale { get; init; }
     /// <summary>
     /// 请求退回主画面调整放大取景框。没有主画面的宿主（例如打印工位）留空，
     /// 设置页据此隐藏"调整放大位置"入口。
@@ -110,7 +109,6 @@ public sealed class SettingsContext
             GetExtensionAuthorizations = mainViewModel.GetExtensionAuthorizations,
             GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,
-            SetPreviewZoomScale = value => mainViewModel.PreviewZoomScale = value,
             RequestZoomGuideEdit = mainViewModel.RequestZoomGuideEdit,
             SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
             ResumeCameraAfterSetupWizard = mainViewModel.ResumeCameraAfterSetupWizard,
