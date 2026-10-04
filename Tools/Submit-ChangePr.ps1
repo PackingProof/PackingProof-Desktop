@@ -1,15 +1,17 @@
-# 把当前分支作为 PR 提交到远程。默认提到 GitHub，合并后再把主干同步到 Gitee。
+# 把当前分支作为 PR 提交到远程。默认 Gitee 和 GitHub 两边都提，合并后再把主干对齐到同一个提交。
 #
 #   pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-BodyFile <markdown>] `
 #       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-NoSync] [-Force] [-DryRun]
 #
 # 约定（与 AGENTS.md、docs/development/RELEASE_AND_RUNTIME.md 一致）：
-# - 不直接向 main 推送提交，一律走 PR；合并用 rebase，保留每个提交，不 squash
-# - 默认目标是 GitHub（我们自己发现的问题先在 GitHub 开 issue 并在 PR 里关联）；
-#   可按仓库覆盖：仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github|both，
+# - 不直接向 main 推送提交，一律走 PR；合并用快进（fast-forward）：提交原样保留，
+#   不改写 SHA、不做 merge 提交、不 squash
+# - 默认目标是 both：Gitee 和 GitHub 各提一个 PR，两边都合并，最后把主干对齐到同一个提交；
+#   想只提一边时，仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github，
 #   也可以用环境变量 PR_TARGET_HOST 或命令行 -Target 临时指定（-Target 优先级最高）
 # - PR 说明不传 -BodyFile 时，用"相对目标分支的提交列表"自动生成
-# - -Merge 用 rebase 合并 PR；合并后默认把合并结果同步到另一个远端（-NoSync 可关闭）
+# - -Merge 用快进合并（Gitee 走它自己的快进合并；GitHub 直接快进推送，因为它家的 rebase 合并会重写 SHA）；
+#   合并后默认把主干对齐到同一个提交（-NoSync 可关闭）
 # - Gitee 仓库要求"审查 / 测试"通过才能合并时，加 -Approve 先自动完成审查与测试标记
 # - 改写了自己推上去的 PR 分支（amend / rebase）时要加 -Force，脚本用 --force-with-lease 覆盖
 # - Gitee 令牌固定取 .env 的 GITEE_TOKEN，不打印、不落盘
@@ -37,7 +39,7 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 
-$defaultTarget = "github"
+$defaultTarget = "both"
 
 function Write-Step {
     param([string]$Message)
@@ -58,7 +60,7 @@ function Read-DotEnvValue {
     return ""
 }
 
-# 目标优先级：命令行 -Target > 环境变量 > .env 的 PR_TARGET_HOST > 脚本默认（GitHub）
+# 目标优先级：命令行 -Target > 环境变量 > .env 的 PR_TARGET_HOST > 脚本默认（两边都提）
 function Resolve-PrTargets {
     param([string]$Requested)
 
@@ -244,23 +246,49 @@ function Merge-ChangePullRequest {
     param(
         [Parameter(Mandatory = $true)][string]$Platform,
         [Parameter(Mandatory = $true)][string]$Repository,
-        [Parameter(Mandatory = $true)][int]$Number
+        [Parameter(Mandatory = $true)][int]$Number,
+        [Parameter(Mandatory = $true)][string]$RemoteName,
+        [Parameter(Mandatory = $true)][string]$BaseBranch
     )
 
-    Write-Step "以 rebase 方式合并 $Platform PR #$Number（保留每个提交）"
-    if ($Approve -and $Platform -eq "gitee") {
-        # Gitee 默认要求审查与测试都通过才允许合并；单人多仓场景下由本账号补上标记。
-        $null = Invoke-External -FilePath "gitee" -Arguments @(
-            "pr", "approve", "--force", "--repo", $Repository, "$Number")
-        $null = Invoke-External -FilePath "gitee" -Arguments @(
-            "pr", "test", "--force", "--repo", $Repository, "$Number")
+    if ($Platform -eq "gitee") {
+        # Gitee 的 rebase 合并就是快进：提交原样进主干（作者、SHA 都不变），PR 也会标成已合并。
+        Write-Step "快进合并 gitee PR #$Number（提交原样保留）"
+        if ($Approve) {
+            # Gitee 默认要求审查与测试都通过才允许合并；单人多仓场景下由本账号补上标记。
+            $null = Invoke-External -FilePath "gitee" -Arguments @(
+                "pr", "approve", "--force", "--repo", $Repository, "$Number")
+            $null = Invoke-External -FilePath "gitee" -Arguments @(
+                "pr", "test", "--force", "--repo", $Repository, "$Number")
+        }
+
+        $exit = Invoke-External -FilePath "gitee" -Arguments @(
+            "pr", "merge", "--repo", $Repository, "--rebase", "$Number")
+        if ($exit -ne 0) {
+            throw "合并 gitee PR #$Number 失败（可能要求先审查或测试通过）"
+        }
+        return
     }
 
-    $cli = if ($Platform -eq "gitee") { "gitee" } else { "gh" }
-    $exit = Invoke-External -FilePath $cli -Arguments @(
-        "pr", "merge", "--repo", $Repository, "--rebase", "$Number")
-    if ($exit -ne 0) {
-        throw "合并 $Platform PR #$Number 失败（可能要求先审查或测试通过）"
+    # GitHub 的 rebase 合并会把 committer 重写一遍（SHA 变了，两边主干就对不上），
+    # 所以这里不用它的合并按钮，直接把主干快进到当前分支：提交原样保留，
+    # GitHub 看到这些提交已经进了主干，会把 PR 标成已合并。
+    Write-Step "快进合并 github PR #$Number（把 $BaseBranch 快进到当前分支）"
+    $isAncestor = Invoke-External -FilePath "git" -Arguments @(
+        "merge-base", "--is-ancestor", "refs/remotes/$RemoteName/$BaseBranch", "HEAD")
+    if ($isAncestor -ne 0) {
+        throw "$RemoteName/$BaseBranch 不是当前分支的祖先，不能快进（先 rebase 到最新主干再提 PR）"
+    }
+
+    $pushExit = Invoke-External -FilePath "git" -Arguments @(
+        "push", $RemoteName, "HEAD:refs/heads/$BaseBranch")
+    if ($pushExit -ne 0) {
+        throw "把 $RemoteName/$BaseBranch 快进到当前分支失败"
+    }
+
+    if (-not $DryRun) {
+        $state = (& gh pr view $Number --repo $Repository --json state --jq ".state") -join ""
+        Write-Host "    GitHub PR 状态：$state"
     }
 }
 
@@ -340,10 +368,13 @@ if ($Merge) {
             throw "$($item.Platform) PR 没有取到编号，无法自动合并；请手工合并"
         }
         $slug = if ($item.Platform -eq "gitee") { $GiteeRepository } else { $GithubRepository }
+        $remoteName = if ($item.Platform -eq "gitee") { $GiteeRemote } else { $GithubRemote }
         Merge-ChangePullRequest `
             -Platform $item.Platform `
             -Repository $slug `
-            -Number $item.Pull.Number
+            -Number $item.Pull.Number `
+            -RemoteName $remoteName `
+            -BaseBranch $Base
     }
 
     if (-not $NoSync) {
@@ -362,5 +393,5 @@ foreach ($item in $created) {
     Write-Host "$($item.Platform)： $url"
 }
 if (-not $Merge) {
-    Write-Host "PR 已提交，合并时用 rebase（保留每个提交），合并后同步另一个远端；也可以加 -Merge 一次做完"
+    Write-Host "PR 已提交，合并时用快进（提交原样保留），合并后把主干对齐到同一个提交；也可以加 -Merge 一次做完"
 }
