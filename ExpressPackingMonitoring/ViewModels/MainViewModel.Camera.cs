@@ -1123,13 +1123,19 @@ namespace ExpressPackingMonitoring.ViewModels
                                 // 根据缩放阶段计算动画倍率
                                 double animDuration = Config.EnableZoomAnimation ? Config.ZoomAnimationDurationMs : 0;
                                 double animatedScale = 1.0;
+                                // 平移进度（0 = 整帧中心，1 = 已滑到放大取景框中心）。
+                                // 与倍率共用同一条缓动曲线，缩放和平移同时起步、同时停稳，
+                                // 不会再出现"倍率在缓动、画面却一步跳到位"的割裂感。
+                                double panProgress = 0.0;
                                 bool applyZoom = false;
 
                                 if (_zoomPhase == ZoomPhase.ZoomingIn)
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = 1.0 + (zoomScale - 1.0) * SmoothStep(t);
+                                    double eased = SmoothStep(t);
+                                    animatedScale = 1.0 + (zoomScale - 1.0) * eased;
+                                    panProgress = eased;
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {
@@ -1140,6 +1146,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 else if (_zoomPhase == ZoomPhase.Holding)
                                 {
                                     animatedScale = zoomScale;
+                                    panProgress = 1.0;
                                     applyZoom = true;
                                     if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds >= Config.ZoomDurationSeconds * 1000.0)
                                     {
@@ -1151,7 +1158,10 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                                     double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
-                                    animatedScale = zoomScale - (zoomScale - 1.0) * SmoothStep(t);
+                                    double eased = SmoothStep(t);
+                                    animatedScale = zoomScale - (zoomScale - 1.0) * eased;
+                                    // 还原时反着走：从框中心滑回整帧中心
+                                    panProgress = 1.0 - eased;
                                     applyZoom = true;
                                     if (t >= 1.0)
                                     {
@@ -1168,11 +1178,17 @@ namespace ExpressPackingMonitoring.ViewModels
                                     int animH = (int)(currentFrame.Height / animatedScale);
                                     if (animW > 0 && animH > 0 && animW <= currentFrame.Width && animH <= currentFrame.Height)
                                     {
+                                        System.Windows.Point panCenter = ZoomCropPolicy.ResolvePanCenter(
+                                            currentFrame.Width,
+                                            currentFrame.Height,
+                                            zoomBox,
+                                            panProgress);
                                         var animRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
                                                 currentFrame.Width,
                                                 currentFrame.Height,
                                                 animatedScale,
-                                                zoomBox))
+                                                panCenter.X,
+                                                panCenter.Y))
                                             .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
                                         if (animRect.Width > 0 && animRect.Height > 0)
                                         {

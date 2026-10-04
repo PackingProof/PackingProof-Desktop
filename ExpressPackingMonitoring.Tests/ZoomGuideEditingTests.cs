@@ -65,6 +65,21 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
+    public void ZoomAnimation_PansWithTheSameEasedProgressAsTheScale()
+    {
+        string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
+
+        // 平移进度必须是缓动后的值，且与倍率共用同一个变量
+        Assert.Contains("double eased = SmoothStep(t);", camera, StringComparison.Ordinal);
+        Assert.Contains("panProgress = eased;", camera, StringComparison.Ordinal);
+        Assert.Contains("panProgress = 1.0 - eased;", camera, StringComparison.Ordinal);
+        // 动画帧的裁剪窗口要用插值出来的中心，不能再粘在框中心
+        Assert.Contains("ZoomCropPolicy.ResolvePanCenter", camera, StringComparison.Ordinal);
+        Assert.Contains("panCenter.X", camera, StringComparison.Ordinal);
+        Assert.Contains("panCenter.Y", camera, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ZoomGuideEditing_SuppressesOverlayComposition()
     {
         string channels = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));

@@ -36,6 +36,30 @@ internal static class ZoomCropPolicy
     }
 
     /// <summary>
+    /// 放大过程中裁剪窗口的中心：从整帧中心平滑滑到放大取景框中心。
+    /// <paramref name="progress"/> 传已缓动过的进度（0 = 还没开始平移，1 = 已到位），
+    /// 与倍率共用同一条曲线，缩放和平移才会同时起步、同时停稳。
+    /// </summary>
+    internal static Point ResolvePanCenter(
+        int frameWidth,
+        int frameHeight,
+        Rect zoomBox,
+        double progress)
+    {
+        double startX = frameWidth / 2.0;
+        double startY = frameHeight / 2.0;
+        if (zoomBox.IsEmpty || zoomBox.Width <= 0 || zoomBox.Height <= 0)
+            return new Point(startX, startY);
+
+        double eased = Math.Clamp(progress, 0.0, 1.0);
+        double targetX = zoomBox.X + (zoomBox.Width / 2.0);
+        double targetY = zoomBox.Y + (zoomBox.Height / 2.0);
+        return new Point(
+            startX + ((targetX - startX) * eased),
+            startY + ((targetY - startY) * eased));
+    }
+
+    /// <summary>
     /// 以放大取景框中心为中心的裁剪矩形（画面像素坐标），越界时夹回画面内。
     /// 框为空时按画面中心裁，保证任何情况下都不会算出越界或负尺寸的 ROI。
     /// </summary>
@@ -45,14 +69,28 @@ internal static class ZoomCropPolicy
         double scale,
         Rect zoomBox)
     {
+        double centerX = zoomBox.IsEmpty ? frameWidth / 2.0 : zoomBox.X + (zoomBox.Width / 2.0);
+        double centerY = zoomBox.IsEmpty ? frameHeight / 2.0 : zoomBox.Y + (zoomBox.Height / 2.0);
+        return CreateCropRect(frameWidth, frameHeight, scale, centerX, centerY);
+    }
+
+    /// <summary>
+    /// 以指定中心裁剪（画面像素坐标）：放大动画里中心是逐帧插值出来的，
+    /// 所以这里必须能显式给中心，而不是每次都回到取景框中心。
+    /// </summary>
+    internal static Rect CreateCropRect(
+        int frameWidth,
+        int frameHeight,
+        double scale,
+        double centerX,
+        double centerY)
+    {
         if (frameWidth <= 0 || frameHeight <= 0)
             return Rect.Empty;
 
         double safeScale = Math.Max(1.0, scale);
         double width = Math.Clamp(frameWidth / safeScale, 1, frameWidth);
         double height = Math.Clamp(frameHeight / safeScale, 1, frameHeight);
-        double centerX = zoomBox.IsEmpty ? frameWidth / 2.0 : zoomBox.X + (zoomBox.Width / 2.0);
-        double centerY = zoomBox.IsEmpty ? frameHeight / 2.0 : zoomBox.Y + (zoomBox.Height / 2.0);
         double left = Math.Clamp(centerX - (width / 2.0), 0, frameWidth - width);
         double top = Math.Clamp(centerY - (height / 2.0), 0, frameHeight - height);
         return new Rect(left, top, width, height);

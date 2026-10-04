@@ -103,6 +103,56 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void ZoomCropPolicyPansFromFrameCenterToZoomGuideBoxCenter()
+    {
+        // 取景框在右下角：整帧中心 (500,300) → 框中心 (800,450)
+        var box = new System.Windows.Rect(600, 300, 400, 300);
+
+        System.Windows.Point start = ZoomCropPolicy.ResolvePanCenter(1000, 600, box, 0);
+        Assert.Equal(500, start.X, 3);
+        Assert.Equal(300, start.Y, 3);
+
+        System.Windows.Point middle = ZoomCropPolicy.ResolvePanCenter(1000, 600, box, 0.5);
+        Assert.Equal(650, middle.X, 3);
+        Assert.Equal(375, middle.Y, 3);
+
+        System.Windows.Point end = ZoomCropPolicy.ResolvePanCenter(1000, 600, box, 1);
+        Assert.Equal(800, end.X, 3);
+        Assert.Equal(450, end.Y, 3);
+
+        // 进度越界按 0/1 夹紧，框无效时回到整帧中心
+        Assert.Equal(500, ZoomCropPolicy.ResolvePanCenter(1000, 600, box, -1).X, 3);
+        Assert.Equal(800, ZoomCropPolicy.ResolvePanCenter(1000, 600, box, 2).X, 3);
+        Assert.Equal(500, ZoomCropPolicy.ResolvePanCenter(1000, 600, System.Windows.Rect.Empty, 1).X, 3);
+    }
+
+    /// <summary>平移途中每一帧的裁剪窗口都必须完整落在画面内。</summary>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(0.25)]
+    [InlineData(0.5)]
+    [InlineData(0.75)]
+    [InlineData(1.0)]
+    public void ZoomCropPolicyKeepsAnimatedCropInsideFrame(double progress)
+    {
+        const int frameWidth = 1000;
+        const int frameHeight = 600;
+        // 取景框贴右下角：平移途中最容易被挤出画面
+        var box = new System.Windows.Rect(800, 400, 200, 200);
+        double scale = ZoomCropPolicy.ResolveScale(frameWidth, frameHeight, box);
+        System.Windows.Point center = ZoomCropPolicy.ResolvePanCenter(
+            frameWidth, frameHeight, box, progress);
+
+        System.Windows.Rect crop = ZoomCropPolicy.CreateCropRect(
+            frameWidth, frameHeight, scale, center.X, center.Y);
+
+        Assert.Equal(frameWidth / scale, crop.Width, 3);
+        Assert.Equal(frameHeight / scale, crop.Height, 3);
+        Assert.True(crop.X >= 0 && crop.X + crop.Width <= frameWidth);
+        Assert.True(crop.Y >= 0 && crop.Y + crop.Height <= frameHeight);
+    }
+
+    [Fact]
     public void ZoomCropPolicyFallsBackToCenteredCropWithoutBox()
     {
         System.Windows.Rect crop = ZoomCropPolicy.CreateCropRect(800, 600, 2, System.Windows.Rect.Empty);
