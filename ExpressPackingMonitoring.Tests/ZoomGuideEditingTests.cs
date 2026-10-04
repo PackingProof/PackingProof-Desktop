@@ -218,19 +218,32 @@ public sealed class ZoomGuideEditingTests
         Assert.True(tabStart > 0 && tabEnd > tabStart, "没找到面单放大栏");
         string tab = xaml[tabStart..tabEnd];
 
-        // 行序：面单放大 → 显示放大取景框 → 放大取景框 → … → 放大时隐藏画中画 → 平滑过渡
+        // 行序：面单放大 → 显示放大取景框 → 放大取景框 → 放大时隐藏画中画 → 放大前等待 → … → 平滑过渡
         int zoomToggle = tab.IndexOf("x:Name=\"ZoomEnableCheckBox\"", StringComparison.Ordinal);
         int showBox = tab.IndexOf("x:Name=\"ShowZoomGuideBoxCheckBox\"", StringComparison.Ordinal);
         int adjustBox = tab.IndexOf("x:Name=\"BtnAdjustZoomGuide\"", StringComparison.Ordinal);
         int hideOverlay = tab.IndexOf("x:Name=\"HideOverlayDuringZoomCheckBox\"", StringComparison.Ordinal);
+        int delay = tab.IndexOf("x:Name=\"ZoomDelaySlider\"", StringComparison.Ordinal);
         int smooth = tab.IndexOf("x:Name=\"ZoomAnimationCheckBox\"", StringComparison.Ordinal);
         Assert.True(zoomToggle > 0 && showBox > zoomToggle, "显示放大取景框应紧跟面单放大开关");
         Assert.True(adjustBox > showBox, "放大取景框（调整放大位置）应排在显示放大取景框之后");
-        Assert.True(hideOverlay > adjustBox && smooth > hideOverlay, "放大时隐藏画中画应紧挨平滑过渡上方");
+        Assert.True(hideOverlay > adjustBox, "放大时隐藏画中画应是这一栏的第 4 项");
+        Assert.True(delay > hideOverlay && smooth > hideOverlay, "放大时隐藏画中画要排在放大前等待之前");
 
         // 副标题要短；隐藏画中画的说明指向平滑过渡
         Assert.Contains("放大取景框内的画面，停留一会儿后恢复全景", tab, StringComparison.Ordinal);
         Assert.Contains("开启平滑过渡时有淡入淡出动画", tab, StringComparison.Ordinal);
+
+        // 放大前等待/放大停留时间属于常用项：不打开高级设置也要显示
+        foreach (string sliderName in new[] { "ZoomDelaySlider", "ZoomDurationSlider" })
+        {
+            int slider = tab.IndexOf($"x:Name=\"{sliderName}\"", StringComparison.Ordinal);
+            Assert.True(slider > 0, $"没找到 {sliderName}");
+            int rowStart = tab.LastIndexOf("<Grid Style=", slider, StringComparison.Ordinal);
+            string row = tab[rowStart..slider];
+            Assert.Contains("SettingRowStyle", row, StringComparison.Ordinal);
+            Assert.DoesNotContain("AdvancedSettingRowStyle", row, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

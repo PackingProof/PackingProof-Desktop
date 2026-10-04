@@ -118,7 +118,8 @@ public sealed class SettingsAdvancedVisibilityTests
         [
             // 分辨率与帧率已随"主摄像头"卡片一起移到常用项，不再属于高级设置
             "视频编码格式", "硬件加速", "画质与文件大小",
-            "放大前等待", "放大停留时间", "平滑过渡", "过渡时长",
+            // 放大前等待/放大停留时间也已移到常用项：面单放大是现场高频功能
+            "平滑过渡", "过渡时长",
             "静止超时", "提前提醒时间", "最大时长", "太短的视频自动丢弃", "空闲超时", "高峰时段不休眠",
             "最小文件大小", "显示已清理记录",
             "语音引擎", "语速", "普通播报声线", "警告播报声线", "在线普通声音", "在线警告声音", "语音预览", "断句关键词",
@@ -402,6 +403,8 @@ public sealed class SettingsAdvancedVisibilityTests
     [Theory]
     [InlineData("分辨率")]
     [InlineData("显示放大取景框")]
+    [InlineData("放大前等待")]
+    [InlineData("放大停留时间")]
     [InlineData("录像网页访问密钥")]
     public void CommonSettings_RemainVisibleWhenAdvancedSettingsAreHidden(string label)
     {

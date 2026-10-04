@@ -1897,7 +1897,30 @@
                             <Border Style="{StaticResource SectionCardStyle}"
                                     IsEnabled="{Binding IsChecked, ElementName=ZoomEnableCheckBox, TargetNullValue=False}">
                                 <StackPanel>
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <!-- 常显：放大时要不要让小窗让开，属于一眼能懂的开关，不藏进高级模式 -->
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="放大时隐藏画中画" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="开启平滑过渡时有淡入淡出动画"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="HideOverlayDuringZoomCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.HideOverlayDuringZoom}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <!-- 它下面都是高级模式才显示的项，这里用一条分隔线把两类设置分开 -->
+                                    <Border Style="{StaticResource SectionDividerStyle}"/>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1925,7 +1948,7 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                    <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="24"/>
@@ -1955,26 +1978,6 @@
 
                                     <Border Style="{StaticResource SectionDividerStyle}"
                                             Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
-
-                                    <!-- 常显：放大时要不要让小窗让开，属于一眼能懂的开关，不藏进高级模式 -->
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="放大时隐藏画中画" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="开启平滑过渡时有淡入淡出动画"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="HideOverlayDuringZoomCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.HideOverlayDuringZoom}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
 
                                     <Grid Style="{StaticResource AdvancedSettingRowStyle}">
                                         <Grid.ColumnDefinitions>
