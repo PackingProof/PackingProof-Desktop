@@ -225,7 +225,7 @@
   <data name="录像编码异常时，用它重新检测电脑能力" xml:space="preserve"><value>録画のエンコードがおかしいときに、パソコンの性能を再測定します</value></data>
   <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>録画は一覧の順に保存し、現在のディスクの空きが不足すると自動で次に切り替えます。各ディスクには安全領域が確保され、ディスク全体で計算されるため、他ソフトの使用により実際の空き容量は減ることがあります。調整するにはディスクを右クリックします</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>録画ページのアクセスキー</value></data>
-  <data name="录制开始时先放大中心画面，停留一会儿后再恢复" xml:space="preserve"><value>録画開始時に中央を拡大し、しばらく保持してから元に戻します</value></data>
+  <data name="录制开始后把放大取景框里的画面放大铺满主画面，停留一会儿后恢复全景" xml:space="preserve"><value>録画開始時に拡大枠の中をメイン画面いっぱいに拡大し、しばらく保持してから全体表示に戻します</value></data>
   <data name="录制声音" xml:space="preserve"><value>音声を録音</value></data>
   <data name="面单大" xml:space="preserve"><value>送り状を大きく</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>録画の保存先と、各ディスクでシステムや他ソフト用に確保する領域を設定します</value></data>
@@ -1089,10 +1089,13 @@
   <data name="脚本" xml:space="preserve"><value>スクリプト</value></data>
   <data name="适配器" xml:space="preserve"><value>アダプター</value></data>
   <data name="作者：" xml:space="preserve"><value>作者: </value></data>
-  <data name="面单智能特写" xml:space="preserve"><value>送り状スマートズーム</value></data>
-  <data name="识别面单位置后自动平移特写，停留一会儿后恢复全景" xml:space="preserve"><value>送り状の位置を認識して自動でズームし、しばらく保持してから全体表示に戻します</value></data>
+  <data name="放大取景框" xml:space="preserve"><value>拡大枠</value></data>
+  <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>メイン画面に戻り、拡大する範囲をドラッグで指定してください。完了または Esc で終了します</value></data>
   <data name="最大放大倍数" xml:space="preserve"><value>最大ズーム倍率</value></data>
-  <data name="实际倍率会根据面单位置和边界自动调整" xml:space="preserve"><value>実際の倍率は送り状の位置と枠に合わせて自動調整されます</value></data>
+  <data name="框选得越小放大越近，实际倍率不超过这个上限" xml:space="preserve"><value>枠を小さくするほど拡大されますが、実際の倍率はこの上限を超えません</value></data>
+  <data name="显示放大取景框" xml:space="preserve"><value>拡大枠を表示</value></data>
+  <data name="平时也在主画面上画出放大区域，方便随时确认" xml:space="preserve"><value>通常時もメイン画面に拡大範囲を表示して、いつでも確認できるようにします</value></data>
+  <data name="调整放大位置…" xml:space="preserve"><value>拡大位置を調整…</value></data>
   <data name="范围更大" xml:space="preserve"><value>より広い範囲</value></data>
   <data name="特写更大" xml:space="preserve"><value>より大きいズーム</value></data>
   <data name="要，作为保存主机（支持 NAS）" xml:space="preserve"><value>はい、保存ホストとして使う（NAS 対応）</value></data>

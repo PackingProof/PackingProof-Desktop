@@ -227,6 +227,7 @@
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
+    <Compile Include="UI\SettingsWindow.ZoomGuide.cs" />
     <Compile Include="UI\SettingsContext.cs" />
     <Compile Include="UI\StorageCapacityEditorPolicy.cs" />
     <Compile Include="UI\StorageReserveWarningPolicy.cs" />

@@ -1,7 +1,9 @@
+using System.Windows.Controls;
 using System.Text;
 using System.Windows;
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.ViewModels;
+using ExpressPackingMonitoring.Config;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -91,6 +93,46 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("x:Key=\"ZoomGuideFill\"", tokens, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// 设置页的入口与交接：有主画面才显示"调整放大位置"，点它先应用再关窗口，
+    /// 框选完成自动回到"面单放大"那一栏。
+    /// </summary>
+    [Fact]
+    public void SettingsPage_ProvidesZoomGuideEntryForMainPreviewHostsOnly()
+    {
+        string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
+        Assert.Contains("x:Name=\"ZoomTabItem\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("调整放大位置…", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ShowZoomGuideBoxCheckBox\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("{Binding Config.ShowZoomGuideBox}", xaml, StringComparison.Ordinal);
+        Assert.Contains("{Binding CanAdjustZoomGuide", xaml, StringComparison.Ordinal);
+        // 智能那套文案不得残留
+        Assert.DoesNotContain("面单智能特写", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("识别面单位置后自动平移特写", xaml, StringComparison.Ordinal);
+
+        string wiring = ReadProjectFile(Path.Combine("UI", "SettingsWindow.ZoomGuide.cs"));
+        Assert.Contains("CanAdjustZoomGuide", wiring, StringComparison.Ordinal);
+        Assert.Contains("await SaveAndApplyAsync()", wiring, StringComparison.Ordinal);
+        Assert.Contains("RequestZoomGuideEdit", wiring, StringComparison.Ordinal);
+        Assert.Contains("public void SelectZoomTab()", wiring, StringComparison.Ordinal);
+
+        string context = ReadProjectFile(Path.Combine("UI", "SettingsContext.cs"));
+        Assert.Contains("RequestZoomGuideEdit = mainViewModel.RequestZoomGuideEdit", context, StringComparison.Ordinal);
+
+        string viewModel = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Settings.cs"));
+        Assert.Contains("_zoomGuideEditRequested", viewModel, StringComparison.Ordinal);
+        Assert.Contains("EnterZoomGuideEdit();", viewModel, StringComparison.Ordinal);
+        Assert.Contains("settingsWin.SelectZoomTab();", viewModel, StringComparison.Ordinal);
+
+        // 打印工位没有主画面：不给这个 action，入口自然隐藏
+        string printWorkstation = ReadProjectFile(Path.Combine("Workstations", "PrintWorkstationWindow.xaml.cs"));
+        Assert.DoesNotContain("RequestZoomGuideEdit", printWorkstation, StringComparison.Ordinal);
+
+        // 退出放大框编辑后自动回设置页
+        string window = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
+        Assert.Contains("vm.OpenZoomGuideSettings()", window, StringComparison.Ordinal);
+    }
+
     private static string ReadProjectFile(string relativePath) =>
         File.ReadAllText(
             Path.Combine(FindRepositoryRoot(), "ExpressPackingMonitoring", relativePath),
@@ -153,6 +195,61 @@ public sealed class ZoomGuideEditingRenderTests
             Assert.True(vm.IsCameraBarcodeGuideLockVisible);
             window.Close();
         });
+    }
+
+    /// <summary>
+    /// "调整放大位置"这一行只在有主画面的宿主里出现：打印工位的上下文没有这个 action，
+    /// 入口必须收起来，点了也没有主画面可去。
+    /// </summary>
+    [Fact]
+    public void SettingsPage_ShowsZoomGuideRowOnlyWithMainPreviewHost()
+    {
+        RunOnStaThread(() =>
+        {
+            LoadAppResources();
+
+            var withMainPreview = new SettingsWindow(
+                new MainViewModel(),
+                new AppConfig { DeploymentPreset = DeploymentPresets.RecordingWorkstation },
+                12d,
+                "12%");
+            withMainPreview.SelectZoomTab();
+            Layout(withMainPreview);
+            var withMainRow = FindZoomGuideRow(withMainPreview);
+            Assert.Equal(Visibility.Visible, withMainRow.Visibility);
+            Assert.True(withMainPreview.CanAdjustZoomGuide);
+            withMainPreview.Close();
+
+            // 打印/查看端那类宿主只给一份最小上下文：没有 RequestZoomGuideEdit
+            var noMainPreviewContext = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(DeploymentPresets.ViewerClient),
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+            var withoutMainPreview = new SettingsWindow(
+                noMainPreviewContext,
+                new AppConfig { DeploymentPreset = DeploymentPresets.ViewerClient },
+                12d,
+                "12%");
+            Layout(withoutMainPreview);
+            var withoutMainRow = FindZoomGuideRow(withoutMainPreview);
+            // 这栏本身对查看端是隐藏的（CanRecordPcVideo=false），所以这里断言驱动显隐的属性
+            Assert.False(withoutMainPreview.CanAdjustZoomGuide);
+            withoutMainPreview.Close();
+        });
+    }
+
+    private static Grid FindZoomGuideRow(SettingsWindow window)
+    {
+        var button = Assert.IsType<Button>(window.FindName("BtnAdjustZoomGuide"));
+        return Assert.IsType<Grid>(button.Parent);
+    }
+
+    private static void Layout(Window window)
+    {
+        window.Measure(new Size(1200, 900));
+        window.Arrange(new Rect(0, 0, 1200, 900));
+        window.UpdateLayout();
     }
 
     /// <summary>与 App.xaml 一致的合并顺序，模板里的 StaticResource 才解析得到。</summary>

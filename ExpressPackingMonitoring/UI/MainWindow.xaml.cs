@@ -289,6 +289,12 @@ namespace ExpressPackingMonitoring.UI
                                 UpdateOverlayBoxes(vm);
                             }));
                         }
+                        else if (args.PropertyName == nameof(MainViewModel.IsEditingZoomGuide))
+                        {
+                            // 放大取景框编辑态是设置页那边切进来的：进出都要重摆两层框，
+                            // 否则可拖的取景框会停在主摄识别框的旧位置上。
+                            Dispatcher.BeginInvoke(new Action(() => UpdateCameraOverlays(vm)));
+                        }
                     };
                     // 窗口/视频区域大小变化时重新计算边框位置。
                     //
@@ -382,12 +388,18 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void ExitPreviewGuideEditing(MainViewModel vm)
         {
-            if (vm.IsEditingZoomGuide)
+            bool wasEditingZoomGuide = vm.IsEditingZoomGuide;
+            if (wasEditingZoomGuide)
                 vm.ExitZoomGuideEdit();
             else
                 vm.ExitOverlayPreviewEdit();
             UpdateOverlayBoxes(vm);
             UpdateCameraBarcodeGuide(vm);
+
+            // 放大位置是从设置页进来的：框选完自动回到"面单放大"那一栏，
+            // 用户接着调倍率、停留时间就行，不用自己再找回去。
+            if (wasEditingZoomGuide)
+                vm.OpenZoomGuideSettings();
         }
 
 

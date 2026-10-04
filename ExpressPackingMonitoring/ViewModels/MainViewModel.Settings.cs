@@ -103,9 +103,18 @@ namespace ExpressPackingMonitoring.ViewModels
             return false;
         }
 
-        public void OpenSettings() => OpenSettings(selectRecordingCache: false);
+        /// <summary>设置页点了"调整放大位置"：先记下请求，等设置窗口关掉再进编辑态。</summary>
+        internal void RequestZoomGuideEdit() => _zoomGuideEditRequested = true;
 
-        private void OpenSettings(bool selectRecordingCache)
+        private bool _zoomGuideEditRequested;
+
+        public void OpenSettings() => OpenSettings(selectRecordingCache: false, selectZoomGuide: false);
+
+        /// <summary>框选完放大位置后自动回到设置页，并停在"面单放大"那一栏。</summary>
+        internal void OpenZoomGuideSettings() =>
+            OpenSettings(selectRecordingCache: false, selectZoomGuide: true);
+
+        private void OpenSettings(bool selectRecordingCache, bool selectZoomGuide = false)
         {
             if (_isEncoderDetectRunning)
             {
@@ -118,6 +127,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 var settingsWin = new SettingsWindow(this, clonedConfig, DiskUsagePercent, DiskUsageText, IsRecording);
                 if (selectRecordingCache)
                     settingsWin.SelectRecordingCacheTab();
+                if (selectZoomGuide)
+                    settingsWin.SelectZoomTab();
                 var mainWindow = Application.Current?.MainWindow as MainWindow;
                 if (mainWindow != null) settingsWin.Owner = mainWindow;
                 mainWindow?.SuspendCapsLockForModalWindow();
@@ -128,6 +139,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 finally
                 {
                     mainWindow?.ResumeCapsLockAfterModalWindow();
+                }
+
+                // 设置页请求了"调整放大位置"：退回主画面进入放大取景框编辑。
+                // 放在 ShowDialog 之后：设置窗口是模态的，藏着它主窗口仍然是禁用的。
+                if (_zoomGuideEditRequested)
+                {
+                    _zoomGuideEditRequested = false;
+                    EnterZoomGuideEdit();
                 }
             }
             catch (Exception ex)
