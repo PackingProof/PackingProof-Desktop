@@ -86,20 +86,33 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 正常发布只跑两条命令：`Publish-CleanPackage.ps1`（出包）→ `Publish-Releases.ps1`（建 Release 传资产）→
 `Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（Gitee 专属 no-runtime 包）。
-**给已经发出去的版本补修复**是另一件事，必须按下面顺序，否则会把用户引到旧的包上：
+**给已经发出去的版本补修复**是另一件事，已经收敛成一条命令（重建 → 替换两边资产 → 重做 no-runtime）：
 
-1. 修复先合入主干（该走 PR 的走 PR），并确认本次发布标签指向的提交里已包含修复
-2. **清掉产物目录再全量重打**：`package\PackingProof+v<X.Y.Z>` 删除后重跑 `Publish-CleanPackage.ps1`。
+```powershell
+pwsh -NoProfile -File Tools\Republish-SameVersion.ps1 -Version <X.Y.Z> -Title "<一句话内容>" -ConfirmCommitCoverage -Confirmed
+```
+
+重发会覆盖两个平台上已发布的资产，属"对外动作"：不加 `-Confirmed` 只打印计划并停下，`-DryRun` 只看计划不报错。
+脚本内部按下面的顺序执行，出问题就在对应那步停下：
+
+1. 发布标签必须指向已合并到主干的提交，且修复在里面；HEAD 可以比标签多提交，但只允许工具与文档差异 ——
+   应用侧代码（`ExpressPackingMonitoring*`、`Installer`）与标签不一致时脚本直接拒绝，避免发出去的包不是标签内容
+2. **清掉产物目录再全量重打**：`Publish-CleanPackage.ps1` 自己会重建产物目录，并保留人工写好的发布笔记。
    脚本结尾有"产物新鲜度守卫"：`app\ExpressPackingMonitoring.dll` 早于应用侧最新源码时直接报错，
    所以复用旧产物这条路已经被堵住（见下方"内容守卫"）
 3. 打包结束后核对三处：产物目录里有没有 `PackingProof_LauncherPatch_v<X.Y.Z>.zip`（若本版建立新基线）、
    `RELEASE_NOTES_v<X.Y.Z>.md` 是不是自己写的那份（不是骨架）、`update_v<X.Y.Z>.json` 的 `title`/`notes`/
    `launcher_package` 是不是本次的值
-4. 两边替换资产：GitHub 用 `gh release upload v<X.Y.Z> <文件...> --clobber`；Gitee 先列 `attach_files`
-   删掉同名旧附件、再 `gitee release upload v<X.Y.Z> <文件...>`（Gitee 不会覆盖同名附件）
-5. 重做 Gitee 的 no-runtime 安装包：`Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`
+4. 两边替换资产：`Publish-Releases.ps1 -UpdateNotes -ReplaceAssets` —— GitHub 用 `gh release upload --clobber`；
+   Gitee 先删同名旧附件再上传（Gitee 不会覆盖同名附件）
+5. 重做 Gitee 的 no-runtime 安装包：`Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（上传前同样先删同名旧附件）
 6. macOS 侧：在 Mac 上 `SIGN_IDENTITY="Developer ID Application: ..." NOTARIZE=1 Tools/Publish-MacRelease.sh <版本> both`。
    **签名必须在 Mac 桌面会话的终端里跑**：SSH 会话拿不到登录钥匙串里的签名私钥，会报 `errSecInternalComponent`
+
+产物目录名带提交后缀（`-2-g<sha>`、`-dirty`），标签外多提交一次、甚至工作区变脏就会换目录名。
+所以发布笔记不按目录写死：打包时会在本次产物目录、`package\.release-notes\` 和同版本历史产物目录里
+找最新一份人工正文（模板骨架不算），保留时再同步一份到 `package\.release-notes\` —— 换目录名重打也不会
+把写好的笔记换成模板
 
 ## 发布内容守卫（防止"看着是新的、内容是旧的"）
 
