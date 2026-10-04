@@ -115,4 +115,10 @@ pwsh -NoProfile -File Tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 排查现场"更新不到新版本"时，先用字符串标记确认包内容而不是看时间戳：例如本次修复会在
 `ExpressPackingMonitoring.UpdateCore.dll` 里留下 `release list scanned`，而 `per_page=30` 是旧逻辑特征
-（Windows 的 AppPatch、macOS 的 DMG 都可以这样验）。
+（Windows 的 AppPatch、macOS 的 DMG 都可以这样验）。这一步已沉淀成可复用工具：
+
+```powershell
+pwsh -NoProfile -File Tools\Test-PackageContent.ps1 -PackagePath package\PackingProof+v<X.Y.Z>\PackingProof_AppPatch_v<X.Y.Z>.zip -Require "release list scanned" -Forbid "per_page=30"
+```
+
+zip 会自动解开、目录会递归扫 `dll`/`exe`；退出码 0 通过、1 不通过，可直接接进发布门禁或人工核对。
