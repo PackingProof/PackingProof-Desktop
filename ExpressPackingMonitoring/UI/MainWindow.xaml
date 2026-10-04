@@ -372,6 +372,13 @@
                                         <DataTrigger Binding="{Binding IsEditingZoomGuide}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
+                                        <!--
+                                            放大进行中收起来：预览已被裁切并拉回整屏，框却还按未放大的
+                                            画面坐标画，会停在错误的位置、看着像"框飘走了"。
+                                        -->
+                                        <DataTrigger Binding="{Binding IsZoomingActive, Mode=OneWay}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
@@ -633,6 +640,10 @@
                                         <!-- 调放大位置：提示条要换成"拖动框调整放大位置…"，识别开关关着也要显示 -->
                                         <DataTrigger Binding="{Binding IsEditingZoomGuide}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <!-- 放大进行中：小锁与识别提示同样按未放大的坐标摆，一起收起来 -->
+                                        <DataTrigger Binding="{Binding IsZoomingActive, Mode=OneWay}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>

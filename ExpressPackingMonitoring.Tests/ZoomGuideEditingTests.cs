@@ -156,6 +156,23 @@ public sealed class ZoomGuideEditingTests
     /// 放大进行中不画放大取景框：预览已被裁切拉回整屏，框却按未放大的坐标画，位置是错的。
     /// </summary>
     [Fact]
+    public void ZoomEffect_HidesTheRecognitionGuideAndItsHints()
+    {
+        string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
+
+        // 识别框与它的提示层都按"未放大的画面坐标"摆放，放大期间留着会明显错位，必须一起收起
+        int guideIndex = xaml.IndexOf("x:Name=\"CameraBarcodeGuide\"", StringComparison.Ordinal);
+        int hintIndex = xaml.IndexOf("x:Name=\"CameraBarcodeGuideHintLayer\"", StringComparison.Ordinal);
+        Assert.True(guideIndex > 0, "没找到识别框");
+        Assert.True(hintIndex > guideIndex, "没找到识别框的提示层");
+
+        string guideBlock = xaml[guideIndex..hintIndex];
+        string hintBlock = xaml[hintIndex..Math.Min(xaml.Length, hintIndex + 3000)];
+        Assert.Contains("{Binding IsZoomingActive, Mode=OneWay}", guideBlock, StringComparison.Ordinal);
+        Assert.Contains("{Binding IsZoomingActive, Mode=OneWay}", hintBlock, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ZoomGuideBox_IsHiddenWhileTheZoomEffectIsRunning()
     {
         string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
