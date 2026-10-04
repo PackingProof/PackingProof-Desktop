@@ -564,6 +564,23 @@ public sealed class CameraChannelConfigurationTests
     }
 
     /// <summary>
+    /// 合成要把"这一路的整幅叠加帧 + 裁剪矩形"交给合成器，裁剪在合成器里做。
+    ///
+    /// 贴片缓存的 key 是（叠加帧对象 + 裁剪矩形 + 落位 + 主帧通道数）。调用方每帧先
+    /// <c>new Mat(overlay, cropRect)</c> 再传下去的话，key 每帧都是新对象，缓存永远不命中，
+    /// 等于每帧重做一遍缩放与描边 —— 副摄帧率一低，同一份叠加帧本来会被连着合成好几帧，
+    /// 那笔开销就白花在采集/处理线程上。
+    /// </summary>
+    [Fact]
+    public void OverlayComposePassesTheWholeFrameSoThePatchCacheCanHit()
+    {
+        string source = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
+
+        Assert.Contains("TryCompose(frame, overlay, cropRect, targetRect)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Mat(overlay, cropRect)", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 设置页用一套模板渲染所有叠加画面：加第三、第四路只是列表多一项，
     /// 不再复制一段卡片 XAML，也不让被冻结的 SettingsWindow.xaml.cs 继续增长。
     /// </summary>

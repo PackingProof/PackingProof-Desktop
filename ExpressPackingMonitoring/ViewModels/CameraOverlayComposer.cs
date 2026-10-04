@@ -15,23 +15,33 @@ namespace ExpressPackingMonitoring.ViewModels
         private const int BorderThickness = 2;
 
         /// <summary>
-        /// 贴片缓存：同一份叠加帧 + 同一个落位 + 同一种主帧通道数时，缩放、通道对齐与描边只算一次。
+        /// 贴片缓存：同一份叠加帧 + 同一个裁剪矩形 + 同一个落位 + 同一种主帧通道数时，
+        /// 缩放、通道对齐与描边只算一次。
         ///
-        /// 预录回灌会把**同一份**叠加帧连续合成上百帧（预录帧用的是回灌那一刻的叠加画面），
-        /// 不缓存就是每帧白算一遍缩放和蒙版 —— 实测每帧 0.5 ms 左右，
-        /// 150 帧两路就是 150 ms 上下，而这段时间帧顺序锁一直被占着，点开始录制时画面就会顿一下。
+        /// key 必须落在**采集层给的这一份叠加帧对象**上，而不是每帧重新裁出来的那份小 Mat：
+        /// 副摄大约 16 fps、主路 46 fps，同一份叠加帧本来就会被连着合成好几帧，
+        /// 拿每帧新裁的 Mat 当 key 等于永远不命中，每帧白算一遍缩放与描边（实测 0.5 ms 左右）。
+        ///
+        /// 代价是"同一份 Mat 的内容之后不再变"这个前提：三条采集路径（DirectShow / Media Foundation /
+        /// 网络）都是每帧给一份新的 Mat，所以对象身份不会重复。以后若出现原地复用同一份 Mat
+        /// 改像素的采集后端，这里必须把帧序号一并放进 key。
+        ///
         /// 圆角蒙版单独按尺寸缓存：它只跟落位大小有关，实时合成每帧都要用。
         /// </summary>
         private static readonly object PatchCacheLock = new();
         private static readonly List<PreparedPatch> PatchCache = new();
         private static readonly Dictionary<(int Width, int Height), Mat> MaskCache = new();
-        private const int MaxCachedPatches = 4;
+
+        // 上限比"最大通道数"再宽一倍：拖动改大小或换分辨率会产生新的落位尺寸，
+        // 旧的那一份还会被访问一小会儿，卡得太紧就会每帧重做贴片。
+        private const int MaxCachedPatches = 8;
         private const int MaxCachedMasks = 8;
 
         /// <summary>一份已经准备好的贴片：缩放、通道对齐、圆角描边都做完了，合成时只剩一次带蒙版拷贝。</summary>
         private sealed class PreparedPatch
         {
             internal Mat? Source;
+            internal Rect CropRect;
             internal CameraOverlayRect Rect;
             internal int FrameChannels;
             internal Mat? Patch;
@@ -47,6 +57,9 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>
         /// 按给定的落位把副画面贴进主帧，成功返回 true。
         ///
+        /// <paramref name="overlaySource"/> 是这一路的整幅叠加帧，<paramref name="cropRect"/> 是识别框
+        /// 框住的那一块（画中画显示的就是它）。裁剪放在这里做，缓存才能按"叠加帧对象 + 裁剪矩形"
+        /// 命中——调用方每帧新裁一份 Mat 传进来的话，缓存永远不会命中。
         /// 落位由调用方用 <see cref="CameraOverlayLayout.Resolve"/> 算好再传进来：
         /// 界面上的拖动框、识别框反馈和真正画进帧里的位置必须是**同一个矩形**，
         /// 所以这里不再自己算一份，免得两边的贴角规则（右下/左下/右上/左上）走岔。
@@ -54,12 +67,20 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         internal static bool TryCompose(
             Mat frame,
-            Mat secondaryFrame,
+            Mat overlaySource,
+            Rect cropRect,
             CameraOverlayRect rect)
         {
             if (frame == null || frame.IsDisposed || frame.Empty())
                 return false;
-            if (secondaryFrame == null || secondaryFrame.IsDisposed || secondaryFrame.Empty())
+            if (overlaySource == null || overlaySource.IsDisposed || overlaySource.Empty())
+                return false;
+            if (cropRect.Width <= 0
+                || cropRect.Height <= 0
+                || cropRect.X < 0
+                || cropRect.Y < 0
+                || cropRect.X + cropRect.Width > overlaySource.Width
+                || cropRect.Y + cropRect.Height > overlaySource.Height)
                 return false;
             if (rect.Width <= 0
                 || rect.Height <= 0
@@ -73,7 +94,7 @@ namespace ExpressPackingMonitoring.ViewModels
             // 拷贝本身只有 0.01 ms 量级，这点串行完全可以接受。
             lock (PatchCacheLock)
             {
-                if (RentPatchLocked(secondaryFrame, rect, frame.Channels())?.Patch is not { } patch)
+                if (RentPatchLocked(overlaySource, cropRect, rect, frame.Channels())?.Patch is not { } patch)
                     return false;
 
                 using var region = new Mat(frame, new Rect(rect.X, rect.Y, rect.Width, rect.Height));
@@ -83,32 +104,40 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        /// <summary>按（叠加帧、落位、主帧通道数）取贴片；没命中就现做一份，并把最久没用的挤出去。</summary>
-        private static PreparedPatch? RentPatchLocked(Mat secondaryFrame, CameraOverlayRect rect, int frameChannels)
+        /// <summary>
+        /// 按（叠加帧、裁剪矩形、落位、主帧通道数）取贴片；没命中就现做一份，并把最久没用的挤出去。
+        /// </summary>
+        private static PreparedPatch? RentPatchLocked(
+            Mat overlaySource,
+            Rect cropRect,
+            CameraOverlayRect rect,
+            int frameChannels)
         {
             for (int i = 0; i < PatchCache.Count; i++)
             {
                 PreparedPatch cached = PatchCache[i];
-                if (!ReferenceEquals(cached.Source, secondaryFrame)
+                if (!ReferenceEquals(cached.Source, overlaySource)
+                    || cached.CropRect != cropRect
                     || cached.Rect != rect
                     || cached.FrameChannels != frameChannels)
                 {
                     continue;
                 }
 
-                // 命中就挪到最前：连续回灌时热点一直留在缓存里
+                // 命中就挪到最前：同一份叠加帧会被连着合成好几帧，热点要一直留在缓存里
                 PatchCache.RemoveAt(i);
                 PatchCache.Insert(0, cached);
                 return cached;
             }
 
-            Mat? patch = BuildPatch(secondaryFrame, rect, frameChannels);
+            Mat? patch = BuildPatch(overlaySource, cropRect, rect, frameChannels);
             if (patch is null)
                 return null;
 
             var prepared = new PreparedPatch
             {
-                Source = secondaryFrame,
+                Source = overlaySource,
+                CropRect = cropRect,
                 Rect = rect,
                 FrameChannels = frameChannels,
                 Patch = patch
@@ -124,14 +153,19 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 做一份贴片：缩放 + 通道对齐 + 圆角描边。
+        /// 做一份贴片：裁剪 + 缩放 + 通道对齐 + 圆角描边。
         /// 边框画在贴片内侧，和以前直接画在主帧上占的像素完全一样。
         /// </summary>
-        private static Mat? BuildPatch(Mat secondaryFrame, CameraOverlayRect rect, int frameChannels)
+        private static Mat? BuildPatch(
+            Mat overlaySource,
+            Rect cropRect,
+            CameraOverlayRect rect,
+            int frameChannels)
         {
+            using var cropped = new Mat(overlaySource, cropRect);
             using var scaled = new Mat();
             Cv2.Resize(
-                secondaryFrame,
+                cropped,
                 scaled,
                 new Size(rect.Width, rect.Height),
                 interpolation: InterpolationFlags.Area);
@@ -152,21 +186,30 @@ namespace ExpressPackingMonitoring.ViewModels
             return converted;
         }
 
-        /// <summary>圆角蒙版只跟落位尺寸有关，按尺寸缓存一份就够。</summary>
+        /// <summary>
+        /// 圆角蒙版只跟落位尺寸有关，按尺寸缓存一份就够。
+        ///
+        /// 挤旧的必须在放入新的**之前**做完。Dictionary 会复用刚被删掉的槽位，而
+        /// <c>Keys.First()</c> 枚举到的正是槽位最靠前的那一项：先放后挤时，新蒙版可能
+        /// 刚好落进回收出来的槽位、又刚好被枚举到，于是"自己把自己挤掉"——返回给合成的是
+        /// 一份刚释放的蒙版，贴上去就抛 ObjectDisposedException，而且每帧都这样。
+        /// </summary>
         private static Mat RentMaskLocked(int width, int height)
         {
             if (MaskCache.TryGetValue((width, height), out Mat? cached) && !cached.IsDisposed)
                 return cached;
 
-            Mat mask = BuildRoundedMask(width, height, ResolveCornerRadius(width, height));
-            MaskCache[(width, height)] = mask;
-            while (MaskCache.Count > MaxCachedMasks)
+            int keepBeforeInsert = Math.Max(0, MaxCachedMasks - 1);
+            while (MaskCache.Count > keepBeforeInsert)
             {
                 (int Width, int Height) oldest = MaskCache.Keys.First();
-                MaskCache[oldest].Dispose();
+                Mat oldestMask = MaskCache[oldest];
                 MaskCache.Remove(oldest);
+                oldestMask.Dispose();
             }
 
+            Mat mask = BuildRoundedMask(width, height, ResolveCornerRadius(width, height));
+            MaskCache[(width, height)] = mask;
             return mask;
         }
 

@@ -74,6 +74,9 @@ namespace ExpressPackingMonitoring.ViewModels
             internal CameraOverlayRect? LastComposedRect;
             internal (int Width, int Height) LastComposedFrameSize;
 
+            /// <summary>最近这次合成失败是否已经落过日志：连续失败是每帧都进 catch 的，不能每帧写一条。</summary>
+            internal bool ComposeFailureLogged;
+
             /// <summary>
             /// 启动后"到底有没有画面"的观察令牌。每次启动/停止都换一个，
             /// 迟到的旧观察直接失效，不会对已经换过的设备报错。
@@ -879,16 +882,14 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (cropRect.Width <= 0 || cropRect.Height <= 0)
                         return;
 
-                    using var cropped = new Mat(overlay, cropRect);
-
                     // 先算好"这一帧把叠加画面画在哪"，再把这**同一个矩形**交给合成：
                     // 画进去的位置和界面拖动框据此换算的位置必须完全一致，
                     // 两边各算一份就会在贴角规则上走岔（新增的第三、第四路贴上面两角时最明显）。
                     CameraOverlayRect? composedRect = CameraOverlayLayout.Resolve(
                         frame.Width,
                         frame.Height,
-                        cropped.Width,
-                        cropped.Height,
+                        cropRect.Width,
+                        cropRect.Height,
                         channel.Config.OverlayWidthRatio,
                         channel.Config.OverlayMargin,
                         channel.Config.OverlayLeftRatio,
@@ -897,7 +898,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         anchor: OverlayAnchorFor(channel));
 
                     if (composedRect is { } targetRect
-                        && CameraOverlayComposer.TryCompose(frame, cropped, targetRect))
+                        && CameraOverlayComposer.TryCompose(frame, overlay, cropRect, targetRect))
                     {
                         bool placementChanged = channel.LastComposedRect != composedRect
                             || channel.LastComposedFrameSize != (frame.Width, frame.Height);
@@ -908,10 +909,19 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (placementChanged)
                             NotifyOverlayPlacementChanged();
                     }
+
+                    channel.ComposeFailureLogged = false;
                 }
                 catch (Exception ex)
                 {
-                    RuntimeLog.Warn("OverlayChannel", $"第 {channel.Number} 路叠加画面合成失败：{ex.Message}");
+                    // 合成失败是每帧都进这里的：只落第一条，而且带类型和堆栈 ——
+                    // 以前只记 ex.Message，"到底哪份资源被释放了"只能靠猜（画中画被蒙版缓存
+                    // 自己挤掉那次就是这么被拖了很久）。恢复成功后再失败会重新记一条。
+                    if (!channel.ComposeFailureLogged)
+                    {
+                        channel.ComposeFailureLogged = true;
+                        RuntimeLog.Error("OverlayChannel", $"第 {channel.Number} 路叠加画面合成失败", ex);
+                    }
                 }
             }
         }

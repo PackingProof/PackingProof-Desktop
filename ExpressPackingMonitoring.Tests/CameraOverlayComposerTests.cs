@@ -22,7 +22,7 @@ public sealed class CameraOverlayComposerTests
         CameraOverlayRect rect = CameraOverlayLayout
             .Resolve(1920, 1080, 640, 480, WidthRatio, Margin)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(main, secondary, rect));
+        Assert.True(ComposeWhole(main, secondary, rect));
 
         using var inside = new Mat(main, new Rect(rect.X + 12, rect.Y + 12, 24, 24));
         Assert.True(Cv2.Mean(inside).Val0 > 200, "副画面没有画到右下角");
@@ -45,7 +45,7 @@ public sealed class CameraOverlayComposerTests
         CameraOverlayRect rect = CameraOverlayLayout
             .Resolve(1920, 1080, 640, 480, WidthRatio, Margin)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(main, secondary, rect));
+        Assert.True(ComposeWhole(main, secondary, rect));
 
         Assert.Equal(4.0 / 3.0, (double)rect.Width / rect.Height, precision: 2);
     }
@@ -64,7 +64,7 @@ public sealed class CameraOverlayComposerTests
         CameraOverlayRect rect = CameraOverlayLayout
             .Resolve(1280, 800, 600, 400, widthRatio: 0.5, margin: 16)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(main, secondary, rect));
+        Assert.True(ComposeWhole(main, secondary, rect));
 
         // 顶边中段：小窗内容 + 内侧边框，必须是白的
         int middleX = rect.X + (rect.Width / 2);
@@ -99,7 +99,7 @@ public sealed class CameraOverlayComposerTests
         CameraOverlayRect rect = CameraOverlayLayout
             .Resolve(1280, 720, 640, 480, WidthRatio, Margin)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(main, gray, rect));
+        Assert.True(ComposeWhole(main, gray, rect));
     }
 
     [Fact]
@@ -109,8 +109,8 @@ public sealed class CameraOverlayComposerTests
         using var empty = new Mat();
         var rect = new CameraOverlayRect(100, 100, 320, 240);
 
-        Assert.False(CameraOverlayComposer.TryCompose(main, empty, rect));
-        Assert.False(CameraOverlayComposer.TryCompose(empty, main, rect));
+        Assert.False(ComposeWhole(main, empty, rect));
+        Assert.False(ComposeWhole(empty, main, rect));
 
         // 主帧仍保持原样（没有副画面没有任何副作用）
         Assert.Equal(10, Cv2.Mean(main).Val0, precision: 3);
@@ -130,7 +130,7 @@ public sealed class CameraOverlayComposerTests
             1920, 1080, 640, 480, WidthRatio, Margin,
             anchor: CameraOverlayAnchor.TopRight)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(main, secondary, rect));
+        Assert.True(ComposeWhole(main, secondary, rect));
 
         using var inside = new Mat(main, new Rect(rect.X + 12, rect.Y + 12, 24, 24));
         Assert.True(Cv2.Mean(inside).Val0 > 200, "副画面没有画到右上角");
@@ -146,8 +146,8 @@ public sealed class CameraOverlayComposerTests
         using var main = new Mat(80, 120, MatType.CV_8UC3, new Scalar(0, 0, 0));
         using var secondary = new Mat(480, 640, MatType.CV_8UC3, new Scalar(255, 255, 255));
 
-        Assert.False(CameraOverlayComposer.TryCompose(main, secondary, new CameraOverlayRect(0, 0, 0, 0)));
-        Assert.False(CameraOverlayComposer.TryCompose(main, secondary, new CameraOverlayRect(100, 60, 40, 40)));
+        Assert.False(ComposeWhole(main, secondary, new CameraOverlayRect(0, 0, 0, 0)));
+        Assert.False(ComposeWhole(main, secondary, new CameraOverlayRect(100, 60, 40, 40)));
 
         // 主帧仍保持原样
         Assert.Equal(0, Cv2.Mean(main).Val0, precision: 3);
@@ -170,12 +170,12 @@ public sealed class CameraOverlayComposerTests
         for (int i = 0; i < 2; i++)
         {
             using var fresh = overlay.Clone();
-            Assert.True(CameraOverlayComposer.TryCompose(reference, fresh, rect));
+            Assert.True(ComposeWhole(reference, fresh, rect));
         }
 
         // 连续合成十帧：同一份叠加帧，第二次之后都命中缓存
         for (int i = 0; i < 10; i++)
-            Assert.True(CameraOverlayComposer.TryCompose(composed, overlay, rect));
+            Assert.True(ComposeWhole(composed, overlay, rect));
 
         using Mat difference = new();
         Cv2.Absdiff(reference, composed, difference);
@@ -197,8 +197,8 @@ public sealed class CameraOverlayComposerTests
         CameraOverlayRect topLeft = CameraOverlayLayout
             .Resolve(1920, 1080, 640, 480, WidthRatio, Margin, anchor: CameraOverlayAnchor.TopLeft)!.Value;
 
-        Assert.True(CameraOverlayComposer.TryCompose(bottomRightFrame, overlay, bottomRight));
-        Assert.True(CameraOverlayComposer.TryCompose(topLeftFrame, overlay, topLeft));
+        Assert.True(ComposeWhole(bottomRightFrame, overlay, bottomRight));
+        Assert.True(ComposeWhole(topLeftFrame, overlay, topLeft));
 
         // 每张主帧上只有自己那个落位被画到
         using var bottomRightArea = new Mat(
@@ -217,4 +217,66 @@ public sealed class CameraOverlayComposerTests
         Assert.True(Cv2.Mean(topLeftArea).Val0 > 200, "左上角那份没贴上");
         Assert.True(Cv2.Mean(bottomRightAreaOfTopLeftFrame).Val0 < 40, "右下角被别的贴片污染");
     }
+
+    /// <summary>
+    /// 圆角蒙版缓存到达上限时要挤掉最旧的那一份，绝不能把刚建好、正要贴上去的这一份释放掉。
+    ///
+    /// 现场表现：在主预览上拖画中画右下角把手改尺寸，副画面连同录像里的画中画一起消失，
+    /// 日志每帧一条"叠加画面合成失败：Cannot access a disposed object. Object name: 'OpenCvSharp.Mat'."，
+    /// 而且再也恢复不了——因为被释放的正是每帧都要用的那份蒙版。
+    /// </summary>
+    [Fact]
+    public void MaskCacheEviction_NeverDisposesTheMaskInUse()
+    {
+        using var main = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        using var overlay = new Mat(960, 960, MatType.CV_8UC3, new Scalar(255, 255, 255));
+
+        // 拖右下角把手改大小就是这个节奏：每帧换个宽度比例，裁一块出来再合成，
+        // 落位尺寸每帧都不一样，很快把蒙版缓存撑过上限。
+        for (int i = 0; i < 16; i++)
+        {
+            double widthRatio = 0.10 + (i * 0.02);
+            var cropRect = new Rect(0, 0, overlay.Width, overlay.Height);
+            CameraOverlayRect rect = CameraOverlayLayout
+                .Resolve(1920, 1080, cropRect.Width, cropRect.Height, widthRatio, Margin, allowUpscale: false)!.Value;
+            Assert.True(
+                CameraOverlayComposer.TryCompose(main, overlay, cropRect, rect),
+                $"拖动第 {i} 帧（宽度比例 {widthRatio:F2}）合成失败：蒙版缓存把正在用的那一份挤掉了");
+        }
+
+        // 尺寸定下来之后必须每帧都成功，而且真的贴进了主帧
+        CameraOverlayRect steady = CameraOverlayLayout
+            .Resolve(1920, 1080, overlay.Width, overlay.Height, WidthRatio, Margin, allowUpscale: false)!.Value;
+        for (int i = 0; i < 8; i++)
+            Assert.True(ComposeWhole(main, overlay, steady), $"定尺寸后第 {i} 帧合成失败");
+
+        using var inside = new Mat(main, new Rect(steady.X + 12, steady.Y + 12, 24, 24));
+        Assert.True(Cv2.Mean(inside).Val0 > 200, "尺寸稳定之后副画面没有贴上去");
+    }
+
+    /// <summary>
+    /// 裁剪矩形必须真的作用到画中画内容上：画中画显示的是识别框框住的那一块，不是整幅叠加画面。
+    /// 裁剪交给合成做之后（贴片缓存要按"叠加帧 + 裁剪矩形"做 key），这条得盯住。
+    /// </summary>
+    [Fact]
+    public void CropRectSelectsTheOverlayContent()
+    {
+        using var main = new Mat(1080, 1920, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        using var overlay = new Mat(400, 400, MatType.CV_8UC3, new Scalar(0, 0, 0));
+        // 左半幅白、右半幅黑：只裁右半，画中画里就该是黑的
+        Cv2.Rectangle(overlay, new Rect(0, 0, 200, 400), new Scalar(255, 255, 255), thickness: -1);
+
+        var cropRect = new Rect(200, 0, 200, 400);
+        CameraOverlayRect rect = CameraOverlayLayout
+            .Resolve(1920, 1080, cropRect.Width, cropRect.Height, WidthRatio, Margin, allowUpscale: false)!.Value;
+
+        Assert.True(CameraOverlayComposer.TryCompose(main, overlay, cropRect, rect));
+
+        // 往里 12px 采样：避开白色描边
+        using var inside = new Mat(main, new Rect(rect.X + 12, rect.Y + 12, 24, 24));
+        Assert.True(Cv2.Mean(inside).Val0 < 40, "裁剪矩形没有作用到画中画内容上");
+    }
+
+    private static bool ComposeWhole(Mat frame, Mat overlay, CameraOverlayRect rect) =>
+        CameraOverlayComposer.TryCompose(frame, overlay, new Rect(0, 0, overlay.Width, overlay.Height), rect);
 }

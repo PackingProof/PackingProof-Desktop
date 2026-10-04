@@ -106,7 +106,11 @@ public sealed class IriunCameraProbeTests
             allowUpscale: false);
         Assert.NotNull(overlay);
 
-        bool composedOk = CameraOverlayComposer.TryCompose(composed, secondaryFrame, overlay!.Value);
+        bool composedOk = CameraOverlayComposer.TryCompose(
+            composed,
+            secondaryFrame,
+            new Rect(0, 0, secondaryFrame.Width, secondaryFrame.Height),
+            overlay!.Value);
         Assert.True(composedOk, "合成失败");
 
         // 小窗之外必须与主摄原帧逐像素一致：一个像素都不许被副画面碰到。
