@@ -185,3 +185,105 @@ function Assert-UpdateManifestReady {
         }
     }
 }
+
+# 人工写的发布笔记是"版本级"资产，但产物目录名是"提交级"的：标签之外多提交一次、
+# 甚至只是工作区变脏，目录名就会多出 -2-g<sha> / -dirty 后缀（见 Publish-CleanPackage.ps1
+# 的 Get-GitBuildSuffix）。只按"本次产物目录"找笔记，重打时一定找不到，于是把它当成
+# "还没写"换成模板骨架 —— v0.0.74 现场就是这么丢笔记的（5736 字节被换成 4358 字节模板）。
+#
+# 所以除了本次产物目录，还要在"版本稳定位置"和同版本的历史产物目录里找，取最新的
+# 一份非模板正文；找到后打包脚本会在稳定位置留一份，下次重打（换目录名）也不会再丢。
+function Get-ReleaseNotesDraftPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$NormalizedVersion
+    )
+
+    return Join-Path $RepoRoot ("package\.release-notes\" +
+        (Get-ReleaseNotesFileName -NormalizedVersion $NormalizedVersion))
+}
+
+# 还没填过的模板骨架不算"保留的笔记"，否则会把骨架当成人工内容抄来抄去。
+function Test-ReleaseNotesIsTemplate {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [string]$Text = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $true
+    }
+    if ($Text.Contains("发布笔记模板", [System.StringComparison]::Ordinal)) {
+        return $true
+    }
+
+    $templatePath = Join-Path $RepoRoot "RELEASE_NOTES_TEMPLATE.md"
+    if (Test-Path -LiteralPath $templatePath -PathType Leaf) {
+        $template = [System.IO.File]::ReadAllText($templatePath, [System.Text.Encoding]::UTF8)
+        if (-not [string]::IsNullOrWhiteSpace($template) -and
+            $Text.Trim() -eq $template.Trim()) {
+            return $true
+        }
+    }
+    return $false
+}
+
+# 找上一份人工写的发布笔记，返回 Text 与来源 Path；都没找到时 Text 为空。
+function Resolve-PreservedReleaseNotes {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$NormalizedVersion,
+        [string]$OutputDir = ""
+    )
+
+    $notesFileName = Get-ReleaseNotesFileName -NormalizedVersion $NormalizedVersion
+    $candidates = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $directPaths = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($OutputDir)) {
+        $directPaths.Add((Join-Path $OutputDir $notesFileName))
+    }
+    $directPaths.Add((Get-ReleaseNotesDraftPath -RepoRoot $RepoRoot -NormalizedVersion $NormalizedVersion))
+    foreach ($path in $directPaths) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $item = Get-Item -LiteralPath $path
+            if ($seen.Add($item.FullName)) {
+                $candidates.Add($item)
+            }
+        }
+    }
+
+    # 同版本的其它产物目录：目录名带提交后缀，重打一次就换一个名字。
+    $packagePath = Join-Path $RepoRoot "package"
+    if (Test-Path -LiteralPath $packagePath -PathType Container) {
+        $versionDirs = @(Get-ChildItem -LiteralPath $packagePath -Directory -Filter "PackingProof+v$NormalizedVersion*" -ErrorAction SilentlyContinue)
+        foreach ($dir in $versionDirs) {
+            $found = @(Get-ChildItem -LiteralPath $dir.FullName -Recurse -File -Filter $notesFileName -ErrorAction SilentlyContinue |
+                Select-Object -First 1)
+            if ($found.Count -gt 0 -and $seen.Add($found[0].FullName)) {
+                $candidates.Add($found[0])
+            }
+        }
+    }
+
+    $bestText = ""
+    $bestTime = [System.DateTime]::MinValue
+    $bestPath = ""
+    foreach ($candidate in $candidates) {
+        $text = [System.IO.File]::ReadAllText($candidate.FullName, [System.Text.Encoding]::UTF8)
+        if (Test-ReleaseNotesIsTemplate -RepoRoot $RepoRoot -Text $text) {
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($bestPath) -or $candidate.LastWriteTime -gt $bestTime) {
+            $bestText = $text
+            $bestTime = $candidate.LastWriteTime
+            $bestPath = $candidate.FullName
+        }
+    }
+
+    return @{
+        Text = $bestText
+        Path = $bestPath
+    }
+}

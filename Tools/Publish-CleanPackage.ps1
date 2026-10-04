@@ -393,13 +393,17 @@ if (-not $ConfirmManualCoreChecks) {
 }
 
 # 重新打包会重建产物目录，发布笔记是人工写的，先留着别丢。
+# 产物目录名带提交后缀（-2-g<sha> / -dirty），重打一次就换一个目录名，所以不能只认本次目录：
+# 会在本次目录、版本稳定位置、同版本历史产物目录里找最新的一份人工笔记（模板骨架不算）。
 $releaseNotesFileName = Get-ReleaseNotesFileName -NormalizedVersion $normalizedVersion
 $releaseNotesPath = Join-Path $outputFullPath $releaseNotesFileName
-$preservedReleaseNotes = if (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf) {
-    [System.IO.File]::ReadAllText($releaseNotesPath, [System.Text.Encoding]::UTF8)
-}
-else {
-    ""
+$preservedReleaseNotes = Resolve-PreservedReleaseNotes `
+    -RepoRoot $repoRoot `
+    -NormalizedVersion $normalizedVersion `
+    -OutputDir $outputFullPath
+$preservedReleaseNotesText = $preservedReleaseNotes.Text
+if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotesText)) {
+    Write-Host "Release notes kept from: $($preservedReleaseNotes.Path)"
 }
 
 if (Test-Path $outputFullPath) {
@@ -1572,10 +1576,20 @@ $commitChecklist = Write-ReleaseCommitChecklist `
     -PackageRoot $outputFullPath `
     -NormalizedVersion $normalizedVersion `
     -FromTag $previousReleaseTag
-if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotes)) {
+if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotesText)) {
     [System.IO.File]::WriteAllText(
         $releaseNotesPath,
-        $preservedReleaseNotes,
+        $preservedReleaseNotesText,
+        [System.Text.UTF8Encoding]::new($false))
+    # 版本稳定位置留一份：下次重打目录名带提交后缀时，还能从这里找回人工笔记。
+    $releaseNotesDraftPath = Get-ReleaseNotesDraftPath -RepoRoot $repoRoot -NormalizedVersion $normalizedVersion
+    $releaseNotesDraftDir = Split-Path -Parent $releaseNotesDraftPath
+    if (-not (Test-Path -LiteralPath $releaseNotesDraftDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $releaseNotesDraftDir | Out-Null
+    }
+    [System.IO.File]::WriteAllText(
+        $releaseNotesDraftPath,
+        $preservedReleaseNotesText,
         [System.Text.UTF8Encoding]::new($false))
     Write-Host "Release notes kept from previous run: $releaseNotesPath"
 }
