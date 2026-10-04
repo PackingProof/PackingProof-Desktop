@@ -710,6 +710,38 @@ public sealed class CameraChannelConfigurationTests
     }
 
     /// <summary>
+    /// 副摄档位枚举要打开摄像头设备，设备被本程序占用时可能要几百毫秒。
+    /// 它不能同步跑在 Loaded 里挡着设置页首帧：先用不打开设备的兜底档位填满下拉，
+    /// 真实档位放到低优先级队列里，等窗口画出来再补。
+    /// </summary>
+    [Fact]
+    public void OverlayChannelFormatsAreDeferredUntilAfterFirstRender()
+    {
+        string channels = ReadProjectFile(Path.Combine("UI", "SettingsWindow.CameraChannels.cs"));
+
+        int loadedStart = channels.IndexOf(
+            "internal void CameraChannelCards_Loaded",
+            StringComparison.Ordinal);
+        Assert.True(loadedStart >= 0, "找不到 CameraChannelCards_Loaded");
+        int deferredStart = channels.IndexOf(
+            "private void DeferOverlayChannelFormats",
+            loadedStart,
+            StringComparison.Ordinal);
+        Assert.True(deferredStart > loadedStart, "找不到 DeferOverlayChannelFormats");
+
+        string loadedBody = channels[loadedStart..deferredStart];
+        Assert.Contains("FallbackChannelFormats()", loadedBody, StringComparison.Ordinal);
+        Assert.Contains("DeferOverlayChannelFormats();", loadedBody, StringComparison.Ordinal);
+        // Loaded 里一个设备都不能开：真实枚举只能在延后的那段里
+        Assert.DoesNotContain("LoadOverlayChannelFormats(card);", loadedBody, StringComparison.Ordinal);
+
+        string deferredBody = channels[deferredStart..];
+        deferredBody = deferredBody[..deferredBody.IndexOf("/// <summary>", StringComparison.Ordinal)];
+        Assert.Contains("LoadOverlayChannelFormats(card);", deferredBody, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Background", deferredBody, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// 画中画是直接画进帧里的，界面那个拖动框必须跟着"实际合成落位"重摆：
     /// 少了这条通知，框会停在上一帧的位置，用户看到的就是"主画面上画中画的框偏了"。
     /// </summary>

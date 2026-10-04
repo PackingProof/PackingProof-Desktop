@@ -628,10 +628,37 @@ namespace ExpressPackingMonitoring.UI
             WatchCameraItemsSource();
             WatchMainCameraFormats();
             RebuildOverlayCards();
+            // 档位下拉先用兜底清单填满（不打开设备，毫秒级），真实档位等首帧渲染之后再用
+            // DeferOverlayChannelFormats 补上：打开摄像头设备枚举档位在设备被本程序占用时
+            // 可能要几百毫秒，同步跑在这里会把设置页的首帧一起拖慢。
             foreach (OverlayChannelCard card in OverlayCameraCards)
-                LoadOverlayChannelFormats(card);
+            {
+                if (card.Config is { } config)
+                    card.ApplyFormats(config, FallbackChannelFormats());
+            }
+            DeferOverlayChannelFormats();
             SyncCameraChoices();
         }
+
+        /// <summary>
+        /// 不打开设备的兜底档位：先把下拉填满，用户不会看到空档；
+        /// 用户存过的那一档由 <c>ApplyFormats</c> 补进列表，选中值一路上都不会变。
+        /// </summary>
+        private static CameraFormatOptions FallbackChannelFormats() =>
+            CameraFormatCatalog.FromCapabilities([]);
+
+        /// <summary>
+        /// 真实档位枚举放到低优先级队列：窗口先画出来，再补每一路的实际档位。
+        /// 枚举本身仍走 UI 线程（与主摄、卡片交互同一条已验证的路径），只是不再挡在首帧前面。
+        /// </summary>
+        private void DeferOverlayChannelFormats() =>
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    foreach (OverlayChannelCard card in OverlayCameraCards)
+                        LoadOverlayChannelFormats(card);
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
 
         /// <summary>
         /// 主摄清单是异步填进下拉的，填好那一刻选中项可能压根没变 ——
@@ -754,7 +781,7 @@ namespace ExpressPackingMonitoring.UI
 
             string moniker = ChannelMoniker(config);
             CameraFormatOptions formats = string.IsNullOrEmpty(moniker)
-                ? CameraFormatCatalog.FromCapabilities([])
+                ? FallbackChannelFormats()
                 : CameraFormatCatalog.Enumerate(moniker);
             card.ApplyFormats(config, formats);
         }
