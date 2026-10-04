@@ -209,6 +209,25 @@ foreach ($required in @($setupPath, $updateJsonPath)) {
     }
 }
 
+# 更新清单声明本版随包提供 LauncherPatch（launcher_package.version == 本版版本）时，
+# 产物目录里必须真的有一份 LauncherPatch：以前这里是 Test-Path 静默跳过，于是出现过
+# "重建了启动器基线、update JSON 也指向它，但补丁包没上传"——用户端启动器更新会 404。
+# 声明了就必须找到，找不到直接失败，不允许静默降级。
+$manifestLauncherVersion = ""
+try {
+    $manifestLauncherVersion = [string](
+        (Get-Content -Raw -Encoding UTF8 $updateJsonPath | ConvertFrom-Json).launcher_package.version)
+}
+catch {
+    throw "更新清单不是合法 JSON：$updateJsonPath"
+}
+$launcherPatchDeclared = -not [string]::IsNullOrWhiteSpace($manifestLauncherVersion) `
+    -and $manifestLauncherVersion -eq $version
+if ($launcherPatchDeclared -and -not (Test-Path -LiteralPath $launcherPatchPath)) {
+    throw "更新清单声明本版提供 LauncherPatch v$manifestLauncherVersion，但产物目录里没有 $(Split-Path -Leaf $launcherPatchPath)："
+        + "先把启动器补丁包放进产物目录（见 docs/development/RELEASE_AND_RUNTIME.md 的启动器基线一节）再发布"
+}
+
 $githubAssets = @($setupPath, $updateJsonPath)
 $giteeAssets = @($updateJsonPath)
 if (Test-Path -LiteralPath $appPatchPath) {
