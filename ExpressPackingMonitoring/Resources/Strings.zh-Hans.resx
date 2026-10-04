@@ -202,6 +202,8 @@
   <data name="空闲超过这个时间后关闭摄像头" xml:space="preserve"><value>空闲超过这个时间后关闭摄像头</value></data>
   <data name="空闲超时" xml:space="preserve"><value>空闲超时</value></data>
   <data name="空闲时省资源，有操作时再恢复" xml:space="preserve"><value>空闲时省资源，有操作时再恢复</value></data>
+  <data name="空闲时降低预览帧率" xml:space="preserve"><value>空闲时降低预览帧率</value></data>
+  <data name="没操作时预览降到 10 帧，录像不受影响" xml:space="preserve"><value>没操作时预览降到 10 帧，录像不受影响</value></data>
   <data name="快递打包监控" xml:space="preserve"><value>快递打包监控</value></data>
   <data name="快要自动停止录像前，提前多久提醒" xml:space="preserve"><value>快要自动停止录像前，提前多久提醒</value></data>
   <data name="离线语音" xml:space="preserve"><value>离线语音</value></data>
@@ -398,9 +400,8 @@
   <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>摄像头识别下一张面单条码后，自动结束上一单并开始下一单</value></data>
   <data name="稍后再说" xml:space="preserve"><value>稍后再说</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>摄像头已休眠</value></data>
-  <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
-  <data name="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”</value></data>
-  <data name="关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”</value></data>
+  <data name="摄像头已休眠（空闲 {0} 分钟），可在录像设置里关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>摄像头已休眠（空闲 {0} 分钟），可在录像设置里关闭“长时间不用时关闭摄像头”</value></data>
+  <data name="关闭路径：录像设置 → 关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>关闭路径：录像设置 → 关闭“长时间不用时关闭摄像头”</value></data>
   <data name="手机 App 更新" xml:space="preserve"><value>手机 App 更新</value></data>
   <data name="发现新版手机 App" xml:space="preserve"><value>发现新版手机 App</value></data>
   <data name="稍后" xml:space="preserve"><value>稍后</value></data>

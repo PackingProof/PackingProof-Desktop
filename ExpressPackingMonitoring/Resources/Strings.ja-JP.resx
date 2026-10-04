@@ -208,6 +208,8 @@
   <data name="空闲超过这个时间后关闭摄像头" xml:space="preserve"><value>この時間を超えてアイドル状態が続くとカメラを停止します</value></data>
   <data name="空闲超时" xml:space="preserve"><value>アイドルタイムアウト</value></data>
   <data name="空闲时省资源，有操作时再恢复" xml:space="preserve"><value>アイドル時はリソースを節約し、操作時に復帰します</value></data>
+  <data name="空闲时降低预览帧率" xml:space="preserve"><value>無操作時はプレビューのフレームレートを下げる</value></data>
+  <data name="没操作时预览降到 10 帧，录像不受影响" xml:space="preserve"><value>無操作時はプレビューが 10 fps になり、録画には影響しません</value></data>
   <data name="关闭实时预览" xml:space="preserve"><value>ライブプレビューを停止</value></data>
   <data name="只停预览画面，录像与扫码识别照常，可省 GPU" xml:space="preserve"><value>プレビュー画面だけを停止します。録画とバーコード認識は動作を続け、GPU を節約できます</value></data>
   <data name="快递打包监控" xml:space="preserve"><value>梱包モニター</value></data>
@@ -404,9 +406,8 @@
   <data name="摄像头识别下一张面单条码后，自动结束上一单并开始下一单" xml:space="preserve"><value>カメラが次の送り状のバーコードを認識すると、前の注文を終了して次の注文を開始します</value></data>
   <data name="稍后再说" xml:space="preserve"><value>あとで</value></data>
   <data name="摄像头已休眠" xml:space="preserve"><value>カメラはスリープ中です</value></data>
-  <data name="摄像头已休眠（空闲 {0} 分钟），可在设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>カメラは {0} 分間のアイドル後にスリープしました。無効にするには、設定の左側で「詳細モード」をオンにし、録画操作の「長時間使用しないときはカメラを停止する」をオフにします</value></data>
-  <data name="关闭路径：设置左侧开启“高级模式”，再到录制控制关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>無効にするには、設定の左側で「詳細モード」をオンにし、録画操作の「長時間使用しないときはカメラを停止する」をオフにします</value></data>
-  <data name="关闭路径：设置左侧开启“高级模式”，再到录像设置关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>無効にするには、設定の左側で「詳細モード」をオンにし、録画設定の「長時間使用しないときはカメラを停止する」をオフにします</value></data>
+  <data name="摄像头已休眠（空闲 {0} 分钟），可在录像设置里关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>カメラは {0} 分間のアイドル後にスリープしました。オフにするには、録画設定で「長時間使用しないときはカメラを停止します」をオフにします</value></data>
+  <data name="关闭路径：录像设置 → 关闭“长时间不用时关闭摄像头”" xml:space="preserve"><value>オフにするには：録画設定 → 「長時間使用しないときはカメラを停止します」</value></data>
   <data name="手机 App 更新" xml:space="preserve"><value>スマートフォンアプリの更新</value></data>
   <data name="发现新版手机 App" xml:space="preserve"><value>スマートフォンアプリの新バージョンがあります</value></data>
   <data name="稍后" xml:space="preserve"><value>あとで</value></data>

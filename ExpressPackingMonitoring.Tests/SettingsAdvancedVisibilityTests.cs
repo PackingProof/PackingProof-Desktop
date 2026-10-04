@@ -498,6 +498,54 @@ public sealed class SettingsAdvancedVisibilityTests
         throw new FileNotFoundException("找不到 SettingsWindow.xaml");
     }
 
+    /// <summary>
+    /// 空闲相关的设置在"录像设置"里单独一张卡：预览降帧开关跟摄像头休眠挨着放，
+    /// 而且都不藏在高级模式后面——不踏实想关掉降帧的用户得一眼能找到。
+    /// </summary>
+    [Fact]
+    public void IdleSettings_SitTogetherInOneCardWithoutAdvancedMode()
+    {
+        XDocument document = LoadSettingsXaml();
+        XElement throttleLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "空闲时降低预览帧率");
+        XElement throttleCheckBox = Assert.Single(
+            document.Descendants(Presentation + "CheckBox"),
+            element => (string?)element.Attribute(Xaml + "Name") == "PreviewIdleThrottleCheckBox");
+        XElement cameraIdleLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "长时间不用时关闭摄像头");
+        XElement noSleepLabel = Assert.Single(
+            document.Descendants(Presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "高峰时段不休眠");
+
+        Assert.Equal(
+            "{Binding Config.EnablePreviewIdleThrottle}",
+            (string?)throttleCheckBox.Attribute("IsChecked"));
+
+        // 预览降帧与摄像头休眠同一张卡，而且都是普通行（AdvancedSettingRowStyle 才受高级模式控制）
+        XElement? throttleRow = throttleLabel.Ancestors(Presentation + "Grid").FirstOrDefault();
+        XElement? cameraIdleRow = cameraIdleLabel.Ancestors(Presentation + "Grid").FirstOrDefault();
+        Assert.NotNull(throttleRow);
+        Assert.NotNull(cameraIdleRow);
+        Assert.Equal("SettingRowStyle", StyleKey(throttleRow!));
+        Assert.Equal("SettingRowStyle", StyleKey(cameraIdleRow!));
+        Assert.Same(
+            throttleRow!.Ancestors(Presentation + "Border")
+                .First(element => StyleKey(element) == "SectionCardStyle"),
+            cameraIdleRow!.Ancestors(Presentation + "Border")
+                .First(element => StyleKey(element) == "SectionCardStyle"));
+
+        // 高峰时段是给管理员用的细节，仍然留在高级模式里
+        XElement noSleepRow = noSleepLabel.Ancestors(Presentation + "Grid").First();
+        Assert.Equal("AdvancedSettingRowStyle", StyleKey(noSleepRow));
+    }
+
+    private static string StyleKey(XElement element) =>
+        ((string?)element.Attribute("Style") ?? "")
+            .Replace("{StaticResource ", "", StringComparison.Ordinal)
+            .Replace("}", "", StringComparison.Ordinal);
+
     private static string LoadSettingsCode()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

@@ -2686,8 +2686,127 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <Border Style="{StaticResource SectionDividerStyle}"
-                                            Visibility="{Binding Config.ShowAdvancedSettings, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="启用录像水印" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="方便事后确认这段录像对应哪个订单"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                IsChecked="{Binding Config.EnableWatermark}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="接收第三方水印" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="允许称重等第三方程序把数据显示到录像水印中"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableThirdPartyWatermark}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="接收第三方水印"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                          IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, Mode=OneWay, TargetNullValue=False}"
+                                          ToolTip="兼容性提示：部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="音频直接写入 MKV" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="将声音直接编码到临时录像文件，减少临时文件和后处理"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="DirectAacRecordingCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableDirectAacRecording, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Checked="DirectAacRecordingCheckBox_Checked"
+                                                  PreviewMouseLeftButtonDown="DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown"
+                                                  PreviewKeyDown="DirectAacRecordingCheckBox_PreviewKeyDown"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"
+                                                  AutomationProperties.Name="音频直接写入 MKV"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
+                                          ToolTip="负数表示让音频提前，正数表示让音频延后；通常保持 0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="声音同步微调" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="只有声音和画面不同步时再调整"
+                                                    Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <Grid>
+                                                <TextBlock Text="更提前" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
+                                                <TextBlock Text="{Binding Config.AudioSyncOffsetMs, Mode=OneWay, StringFormat={}{0} ms}"
+                                                           Style="{StaticResource SliderValueTextStyle}"
+                                                           HorizontalAlignment="Center"/>
+                                                <TextBlock Text="更延后" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <Slider Style="{StaticResource SettingsSliderStyle}"
+                                                    Minimum="-2000"
+                                                    Maximum="2000"
+                                                    TickFrequency="50"
+                                                    IsSnapToTickEnabled="True"
+                                                    Value="{Binding Config.AudioSyncOffsetMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SectionCardStyle}">
+                                <StackPanel>
+                                    <!--
+                                        空闲相关的行为集中在一张卡里：预览降帧、摄像头休眠、免休眠时段都是
+                                        "没人操作时这台机器怎么表现"，散在别处用户根本找不到，也不知道它们是同一类事。
+                                    -->
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="空闲时降低预览帧率" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="没操作时预览降到 10 帧，录像不受影响"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="PreviewIdleThrottleCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnablePreviewIdleThrottle}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
@@ -2784,101 +2903,6 @@
                                                          Text="{Binding Config.CameraIdleNoSleepEnd2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                          MaxLength="5" TextAlignment="Center" ToolTip="时间格式为 HH:mm"/>
                                             </Grid>
-                                        </StackPanel>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-
-                            <Border Style="{StaticResource SectionCardStyle}">
-                                <StackPanel>
-                                    <Grid Style="{StaticResource SettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="启用录像水印" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="方便事后确认这段录像对应哪个订单"
-                                                    Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                IsChecked="{Binding Config.EnableWatermark}"
-                                                VerticalAlignment="Center"
-                                                HorizontalAlignment="Left"
-                                                Style="{StaticResource ToggleSwitchStyle}"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="接收第三方水印" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="允许称重等第三方程序把数据显示到录像水印中"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableThirdPartyWatermark}"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  AutomationProperties.Name="接收第三方水印"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          IsEnabled="{Binding IsChecked, ElementName=AudioRecordCheckBox, Mode=OneWay, TargetNullValue=False}"
-                                          ToolTip="兼容性提示：部分麦克风、驱动或 FFmpeg 环境可能出现录制启动失败、声音缺失或不同步">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="音频直接写入 MKV" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="将声音直接编码到临时录像文件，减少临时文件和后处理"
-                                                       Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <CheckBox x:Name="DirectAacRecordingCheckBox"
-                                                  Grid.Column="2"
-                                                  IsChecked="{Binding Config.EnableDirectAacRecording, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                  Checked="DirectAacRecordingCheckBox_Checked"
-                                                  PreviewMouseLeftButtonDown="DirectAacRecordingCheckBox_PreviewMouseLeftButtonDown"
-                                                  PreviewKeyDown="DirectAacRecordingCheckBox_PreviewKeyDown"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Left"
-                                                  Style="{StaticResource ToggleSwitchStyle}"
-                                                  AutomationProperties.Name="音频直接写入 MKV"/>
-                                    </Grid>
-
-                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}"
-                                          ToolTip="负数表示让音频提前，正数表示让音频延后；通常保持 0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="24"/>
-                                            <ColumnDefinition Width="260"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="声音同步微调" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="只有声音和画面不同步时再调整"
-                                                    Style="{StaticResource FieldHintStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <Grid>
-                                                <TextBlock Text="更提前" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Left"/>
-                                                <TextBlock Text="{Binding Config.AudioSyncOffsetMs, Mode=OneWay, StringFormat={}{0} ms}"
-                                                           Style="{StaticResource SliderValueTextStyle}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Text="更延后" Style="{StaticResource SliderEndLabelStyle}" HorizontalAlignment="Right"/>
-                                            </Grid>
-                                            <Slider Style="{StaticResource SettingsSliderStyle}"
-                                                    Minimum="-2000"
-                                                    Maximum="2000"
-                                                    TickFrequency="50"
-                                                    IsSnapToTickEnabled="True"
-                                                    Value="{Binding Config.AudioSyncOffsetMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
