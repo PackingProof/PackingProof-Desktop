@@ -446,10 +446,15 @@ namespace ExpressPackingMonitoring.Config
         public const int DefaultKokoroSpeakerId = 51;
         public const int DefaultKokoroWarningSpeakerId = 50;
 
-        /// <summary>把界面上选中的在线音色与离线声线写回当前界面语言对应的存档字段。</summary>
-        public void StoreSelectedSpeechVoices()
+        /// <summary>
+        /// 把界面上选中的语音引擎、在线音色与离线声线写回存档字段。
+        /// <paramref name="language"/> 是"界面上这些选择所属的界面语言"：刚改过界面语言时，
+        /// 必须传改动前那个语言，否则会把上一语言的声线写进新语言的槽位，两边就串成一份了。
+        /// 不传则按当前配置语言。
+        /// </summary>
+        public void StoreSelectedSpeechVoices(string? language = null)
         {
-            switch (AppLanguage.Resolve(Language))
+            switch (AppLanguage.Resolve(language ?? Language))
             {
                 case AppLanguage.Japanese:
                     AiTtsEngineJaJp = AiTtsEngine;
@@ -473,6 +478,65 @@ namespace ExpressPackingMonitoring.Config
                     AiTtsWarningSpeakerIdEnUs = AiTtsWarningSpeakerId;
                     break;
             }
+        }
+
+        /// <summary>
+        /// 把指定界面语言的语音存档装到界面绑定用的三个字段上（引擎 / 在线音色 / 离线声线）。
+        /// 加载配置与设置页切换界面语言都走这一条，保证"切过去看到的就是那一语言存下来的"。
+        /// 传入 null 用当前语言；返回是否改动过字段。
+        /// </summary>
+        public bool ApplySpeechVoicesForLanguage(string? language = null)
+        {
+            string target = AppLanguage.Resolve(language ?? Language);
+            bool changed = false;
+
+            string engine = NormalizeAiTtsEngine(target switch
+            {
+                AppLanguage.Chinese => AiTtsEngineZhHans,
+                AppLanguage.Japanese => AiTtsEngineJaJp,
+                _ => AiTtsEngineEnUs
+            });
+            if (!string.Equals(AiTtsEngine, engine, StringComparison.Ordinal))
+            {
+                AiTtsEngine = engine;
+                changed = true;
+            }
+
+            (string voice, string warningVoice) = target switch
+            {
+                AppLanguage.Chinese => (EdgeTtsVoiceZhHans, EdgeTtsWarningVoiceZhHans),
+                AppLanguage.Japanese => (EdgeTtsVoiceJaJp, EdgeTtsWarningVoiceJaJp),
+                _ => (EdgeTtsVoiceEnUs, EdgeTtsWarningVoiceEnUs)
+            };
+            if (!string.Equals(EdgeTtsVoice, voice, StringComparison.Ordinal))
+            {
+                EdgeTtsVoice = voice;
+                changed = true;
+            }
+            if (!string.Equals(EdgeTtsWarningVoice, warningVoice, StringComparison.Ordinal))
+            {
+                EdgeTtsWarningVoice = warningVoice;
+                changed = true;
+            }
+
+            (int speakerId, int warningSpeakerId) = target switch
+            {
+                AppLanguage.Chinese => (AiTtsSpeakerIdZhHans, AiTtsWarningSpeakerIdZhHans),
+                AppLanguage.Japanese => (AiTtsSpeakerIdJaJp, AiTtsWarningSpeakerIdJaJp),
+                _ => (AiTtsSpeakerIdEnUs, AiTtsWarningSpeakerIdEnUs)
+            };
+            if (AiTtsSpeakerId != speakerId)
+            {
+                AiTtsSpeakerId = speakerId;
+                changed = true;
+            }
+            if (AiTtsWarningSpeakerId != warningSpeakerId)
+            {
+                AiTtsWarningSpeakerId = warningSpeakerId;
+                changed = true;
+            }
+
+            return changed;
         }
 
         // 订单备注播报（快递助手插件）
@@ -856,22 +920,6 @@ namespace ExpressPackingMonitoring.Config
             if (config.AiTtsEngineEnUs != normalizedEnEngine) { config.AiTtsEngineEnUs = normalizedEnEngine; changed = true; }
             string normalizedJaEngine = NormalizeAiTtsEngine(config.AiTtsEngineJaJp);
             if (config.AiTtsEngineJaJp != normalizedJaEngine) { config.AiTtsEngineJaJp = normalizedJaEngine; changed = true; }
-            string effectiveEngine = effectiveLanguage switch
-            {
-                AppLanguage.Chinese => config.AiTtsEngineZhHans,
-                AppLanguage.Japanese => config.AiTtsEngineJaJp,
-                _ => config.AiTtsEngineEnUs
-            };
-            if (config.AiTtsEngine != effectiveEngine) { config.AiTtsEngine = effectiveEngine; changed = true; }
-
-            (string effectiveVoice, string effectiveWarningVoice) = effectiveLanguage switch
-            {
-                AppLanguage.Chinese => (config.EdgeTtsVoiceZhHans, config.EdgeTtsWarningVoiceZhHans),
-                AppLanguage.Japanese => (config.EdgeTtsVoiceJaJp, config.EdgeTtsWarningVoiceJaJp),
-                _ => (config.EdgeTtsVoiceEnUs, config.EdgeTtsWarningVoiceEnUs)
-            };
-            if (config.EdgeTtsVoice != effectiveVoice) { config.EdgeTtsVoice = effectiveVoice; changed = true; }
-            if (config.EdgeTtsWarningVoice != effectiveWarningVoice) { config.EdgeTtsWarningVoice = effectiveWarningVoice; changed = true; }
 
             // Kokoro 声线：先把历史单一值迁到中文槽位，再为每种语言补上各自的默认值。
             int legacySpeakerId = config.AiTtsSpeakerId > 0 ? config.AiTtsSpeakerId : DefaultKokoroSpeakerId;
@@ -885,14 +933,8 @@ namespace ExpressPackingMonitoring.Config
             if (config.AiTtsSpeakerIdJaJp <= 0) { config.AiTtsSpeakerIdJaJp = DefaultKokoroSpeakerId; changed = true; }
             if (config.AiTtsWarningSpeakerIdJaJp <= 0) { config.AiTtsWarningSpeakerIdJaJp = DefaultKokoroWarningSpeakerId; changed = true; }
 
-            (int effectiveSpeakerId, int effectiveWarningSpeakerId) = effectiveLanguage switch
-            {
-                AppLanguage.Chinese => (config.AiTtsSpeakerIdZhHans, config.AiTtsWarningSpeakerIdZhHans),
-                AppLanguage.Japanese => (config.AiTtsSpeakerIdJaJp, config.AiTtsWarningSpeakerIdJaJp),
-                _ => (config.AiTtsSpeakerIdEnUs, config.AiTtsWarningSpeakerIdEnUs)
-            };
-            if (config.AiTtsSpeakerId != effectiveSpeakerId) { config.AiTtsSpeakerId = effectiveSpeakerId; changed = true; }
-            if (config.AiTtsWarningSpeakerId != effectiveWarningSpeakerId) { config.AiTtsWarningSpeakerId = effectiveWarningSpeakerId; changed = true; }
+            // 把当前界面语言的存档装到界面绑定用的字段上（与设置页切语言走同一条）
+            if (config.ApplySpeechVoicesForLanguage(effectiveLanguage)) changed = true;
 
             if (config.VoiceSettingsVersion < CurrentVoiceSettingsVersion)
             {

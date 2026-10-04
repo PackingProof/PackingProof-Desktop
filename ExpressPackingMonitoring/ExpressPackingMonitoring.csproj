@@ -199,6 +199,7 @@
     <Compile Include="UI\RoundedClip.cs" />
     <Compile Include="UI\SectionCardSpacing.cs" />
     <Compile Include="UI\SettingsWindow.Search.cs" />
+    <Compile Include="UI\SettingsWindow.Speech.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchController.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchIndex.cs" />
     <Compile Include="UI\SettingsSearch\SettingsSearchMatcher.cs" />

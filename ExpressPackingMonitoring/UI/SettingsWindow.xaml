@@ -1037,9 +1037,11 @@
                                             <TextBlock Text="默认跟随 Windows 显示语言，修改后重启生效"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="2"
+                                        <ComboBox x:Name="LanguageComboBox"
+                                                  Grid.Column="2"
                                                   SelectedValue="{Binding Config.Language}"
                                                   SelectedValuePath="Tag"
+                                                  SelectionChanged="LanguageComboBox_SelectionChanged"
                                                   Cursor="Hand">
                                             <ComboBoxItem Content="跟随系统" Tag="Auto"/>
                                             <ComboBoxItem Content="简体中文" Tag="zh-Hans"/>
@@ -2971,7 +2973,8 @@
                                             <TextBlock Text="用于正常订单提示"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="2"
+                                        <xctk:IntegerUpDown x:Name="KokoroNormalSpeakerUpDown"
+                                                            Grid.Column="2"
                                                             Height="36"
                                                             Value="{Binding Config.AiTtsSpeakerId}"
                                                             Minimum="0"
@@ -3000,7 +3003,8 @@
                                             <TextBlock Text="用于重复单号、非法单号等提醒"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <xctk:IntegerUpDown Grid.Column="2"
+                                        <xctk:IntegerUpDown x:Name="KokoroWarningSpeakerUpDown"
+                                                            Grid.Column="2"
                                                             Height="36"
                                                             Value="{Binding Config.AiTtsWarningSpeakerId}"
                                                             Minimum="0"
@@ -3029,7 +3033,8 @@
                                             <TextBlock Text="使用在线语音时的普通提示声音"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="2"
+                                        <ComboBox x:Name="EdgeNormalVoiceComboBox"
+                                                  Grid.Column="2"
                                                   Width="260"
                                                   HorizontalAlignment="Left"
                                                   IsTextSearchEnabled="True"
@@ -3061,7 +3066,8 @@
                                             <TextBlock Text="使用在线语音时的警告提示声音"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
-                                        <ComboBox Grid.Column="2"
+                                        <ComboBox x:Name="EdgeWarningVoiceComboBox"
+                                                  Grid.Column="2"
                                                   Width="260"
                                                   HorizontalAlignment="Left"
                                                   IsTextSearchEnabled="True"
