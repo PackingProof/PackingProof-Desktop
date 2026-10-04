@@ -1,7 +1,7 @@
 # 把当前分支作为 PR 提交到远程。默认 Gitee 和 GitHub 两边都提，合并后再把主干对齐到同一个提交。
 #
 #   pwsh -NoProfile -File Tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-BodyFile <markdown>] `
-#       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-NoSync] [-Force] [-DryRun]
+#       [-Target gitee|github|both] [-Base main] [-Merge] [-Approve] [-Confirmed] [-NoSync] [-Force] [-DryRun]
 #
 # 约定（与 AGENTS.md、docs/development/RELEASE_AND_RUNTIME.md 一致）：
 # - 不直接向 main 推送提交，一律走 PR；合并用快进（fast-forward）：提交原样保留，
@@ -10,6 +10,7 @@
 #   想只提一边时，仓库根目录 .env 里写 PR_TARGET_HOST=gitee|github，
 #   也可以用环境变量 PR_TARGET_HOST 或命令行 -Target 临时指定（-Target 优先级最高）
 # - PR 说明不传 -BodyFile 时，用"相对目标分支的提交列表"自动生成
+# - 提交 PR 前必须人工确认：不加 -Confirmed 只打印计划并停下，不推送、不创建 PR、不合并
 # - -Merge 用快进合并（Gitee 走它自己的快进合并；GitHub 直接快进推送，因为它家的 rebase 合并会重写 SHA）；
 #   合并后默认把主干对齐到同一个提交（-NoSync 可关闭）
 # - Gitee 仓库要求"审查 / 测试"通过才能合并时，加 -Approve 先自动完成审查与测试标记
@@ -27,6 +28,7 @@ param(
     [string]$GithubRemote = "Github",
     [switch]$Merge,
     [switch]$Approve,
+    [switch]$Confirmed,
     [switch]$NoSync,
     [switch]$Force,
     [switch]$DryRun
@@ -345,6 +347,21 @@ if (-not [string]::IsNullOrWhiteSpace($BodyFile)) {
 
 $targets = Resolve-PrTargets -Requested $Target
 Write-Host "PR 目标：$($targets -join ' → ')（分支 $branch → $Base）"
+
+# 提交 PR 是"对外动作"，必须先经用户确认：不显式加 -Confirmed 就只打印计划并停下，
+# 绝不推送分支、不创建 PR、不合并。（-DryRun 本来就是只看不动，不受这条限制。）
+if (-not $Confirmed -and -not $DryRun) {
+    Write-Host ""
+    Write-Host "准备提交 PR，请人工确认："
+    Write-Host "  分支：$branch → $Base"
+    Write-Host "  平台：$($targets -join ' / ')"
+    Write-Host "  标题：$Title"
+    if ($Merge) {
+        Write-Host "  合并：快进合并（会把 $Base 快进到当前分支）"
+    }
+    Write-Host ""
+    throw "提交 PR 前需要人工确认：确认无误后加 -Confirmed 再来一次（只看计划可以用 -DryRun）"
+}
 
 $created = @()
 foreach ($platform in $targets) {
