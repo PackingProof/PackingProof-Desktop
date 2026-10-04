@@ -1077,27 +1077,31 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);
 
-                        if (CanApplySmartZoom || PreviewZoomScale.HasValue)
+                        if (CanApplyZoom || PreviewZoomScale.HasValue)
                         {
-                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.SmartZoom, currentFrameSequence);
+                            MarkRecordingFramePipelineStage(RecordingFramePipelineStage.Zoom, currentFrameSequence);
                             double effectiveScale = PreviewZoomScale ?? Config.MaxZoomScale;
-                            CameraBarcodeGeometry barcodeGeometry = _lastBarcodeGeometry;
-                            double boundedScale = SmartZoomPolicy.GetBoundedScale(
+                            // 放大位置只认主画面上的放大取景框：识别结果不参与，
+                            // 所以识别来源选副画面时也不会把副摄坐标系里的数值套到主画面上。
+                            System.Windows.Rect zoomBox = CameraBarcodeGuideLayout.ToDisplayRect(
+                                ZoomGuideGeometry,
+                                new System.Windows.Rect(0, 0, currentFrame.Width, currentFrame.Height));
+                            double boundedScale = ZoomCropPolicy.ResolveScale(
                                 currentFrame.Width,
                                 currentFrame.Height,
-                                effectiveScale,
-                                barcodeGeometry);
-                            if (_zoomPhase == ZoomPhase.ZoomingIn && barcodeGeometry != null)
+                                zoomBox,
+                                effectiveScale);
+                            if (_zoomPhase == ZoomPhase.ZoomingIn)
                             {
                                 RuntimeLog.Info(
-                                    "SmartZoom",
-                                    $"Applying barcode-centered zoom scale={boundedScale:F2}, requested={effectiveScale:F2}, center=({barcodeGeometry.CenterX:F1},{barcodeGeometry.CenterY:F1})");
+                                    "Zoom",
+                                    $"Applying zoom-box centered zoom scale={boundedScale:F2}, requested={effectiveScale:F2}, box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
                             }
-                            var currentZoomRect = SmartZoomPolicy.CreateCropRect(
+                            var currentZoomRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
                                     currentFrame.Width,
                                     currentFrame.Height,
                                     effectiveScale,
-                                    barcodeGeometry)
+                                    zoomBox))
                                 .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
 
                             if (currentZoomRect.Width > 0 && currentZoomRect.Height > 0 && _zoomPhase == ZoomPhase.None)
@@ -1165,11 +1169,11 @@ namespace ExpressPackingMonitoring.ViewModels
                                     int animH = (int)(currentFrame.Height / animatedScale);
                                     if (animW > 0 && animH > 0 && animW <= currentFrame.Width && animH <= currentFrame.Height)
                                     {
-                                        var animRect = SmartZoomPolicy.CreateCropRect(
+                                        var animRect = ToCvRect(ZoomCropPolicy.CreateCropRect(
                                                 currentFrame.Width,
                                                 currentFrame.Height,
                                                 animatedScale,
-                                                barcodeGeometry)
+                                                zoomBox))
                                             .Intersect(new OpenCvSharp.Rect(0, 0, currentFrame.Width, currentFrame.Height));
                                         if (animRect.Width > 0 && animRect.Height > 0)
                                         {
@@ -1194,7 +1198,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             if (_isScanning)
                             {
                                 _isScanning = false;
-                                Debug.WriteLine($"[Zoom] 扫码已触发但未执行缩放: EnableSmartZoom={Config.EnableSmartZoom}, GuideLocked={IsCameraBarcodeGuideLocked}");
+                                Debug.WriteLine($"[Zoom] 扫码已触发但未执行缩放: ZoomEnabled={Config.EnableSmartZoom}, GuideLocked={IsCameraBarcodeGuideLocked}");
                             }
                         }
 
@@ -1923,6 +1927,19 @@ namespace ExpressPackingMonitoring.ViewModels
             double changeRatio = (double)Cv2.CountNonZero(_motionThreshold) / (_motionThreshold.Width * _motionThreshold.Height);
             if (changeRatio > 0.01) { _lastMotionTime = DateTime.Now; }
             currentFrame.CopyTo(_previousCheckFrame);
+        }
+
+        /// <summary>放大裁剪矩形是 WPF 口径的浮点矩形，转成 OpenCV 的整数 ROI（宽高至少 1）</summary>
+        private static OpenCvSharp.Rect ToCvRect(System.Windows.Rect rect)
+        {
+            if (rect.IsEmpty || rect.Width <= 0 || rect.Height <= 0)
+                return new OpenCvSharp.Rect(0, 0, 1, 1);
+
+            return new OpenCvSharp.Rect(
+                (int)Math.Round(rect.X),
+                (int)Math.Round(rect.Y),
+                Math.Max(1, (int)Math.Round(rect.Width)),
+                Math.Max(1, (int)Math.Round(rect.Height)));
         }
 
         private bool TryEnqueueFrameForRecording(Mat frame, long capturedTicks = 0)

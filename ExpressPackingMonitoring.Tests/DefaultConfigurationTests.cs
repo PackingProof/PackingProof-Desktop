@@ -47,6 +47,46 @@ public sealed class DefaultConfigurationTests
     }
 
     /// <summary>
+    /// 放大取景框默认居中、占画面 2/3，等价于老的"居中放大 1.5 倍"；
+    /// 平时默认画出放大框，方便确认放大位置。
+    /// </summary>
+    [Fact]
+    public void NewConfigurationUsesCenteredTwoThirdsZoomGuideByDefault()
+    {
+        var config = new AppConfig();
+        var deserialized = JsonSerializer.Deserialize<AppConfig>("{}")!;
+
+        Assert.Equal(AppConfig.DefaultZoomGuideRatio, config.ZoomGuideWidthRatio, 3);
+        Assert.Equal(AppConfig.DefaultZoomGuideRatio, config.ZoomGuideHeightRatio, 3);
+        Assert.Equal(0, config.ZoomGuideOffsetX);
+        Assert.Equal(0, config.ZoomGuideOffsetY);
+        Assert.True(config.ShowZoomGuideBox);
+
+        Assert.Equal(AppConfig.DefaultZoomGuideRatio, deserialized.ZoomGuideWidthRatio, 3);
+        Assert.Equal(AppConfig.DefaultZoomGuideRatio, deserialized.ZoomGuideHeightRatio, 3);
+        Assert.True(deserialized.ShowZoomGuideBox);
+    }
+
+    /// <summary>放大取景框写坏时按识别框同一套规则夹紧，避免算出 0 或负倍率。</summary>
+    [Theory]
+    [InlineData(0.05, 0.3)]
+    [InlineData(-1.0, 0.3)]
+    [InlineData(2.0, 1.0)]
+    [InlineData(0.5, 0.5)]
+    public void ZoomGuideRatiosAreClampedOnLoad(double stored, double expected)
+    {
+        var config = JsonSerializer.Deserialize<AppConfig>(
+            $$"""{"ZoomGuideWidthRatio": {{stored}}, "ZoomGuideHeightRatio": {{stored}}, "ZoomGuideOffsetX": {{stored}}, "ZoomGuideOffsetY": {{stored}}}""")!;
+
+        AppConfig.NormalizeAfterLoad(config);
+
+        Assert.Equal(expected, config.ZoomGuideWidthRatio, 3);
+        Assert.Equal(expected, config.ZoomGuideHeightRatio, 3);
+        Assert.Equal(Math.Clamp(stored, -1.0, 1.0), config.ZoomGuideOffsetX, 3);
+        Assert.Equal(Math.Clamp(stored, -1.0, 1.0), config.ZoomGuideOffsetY, 3);
+    }
+
+    /// <summary>
     /// 老版本把智能特写停留时间的默认值写成 3 秒、中间版本写成 1 秒，并会被保存进用户配置；
     /// 加载时要迁到现在的默认 2.5 秒，用户自己调过的其他值保持不动。
     /// </summary>

@@ -41,7 +41,7 @@ internal enum RecordingFramePipelineStage
     PairingQr,
     BarcodeRecognition,
     FrameMetadata,
-    SmartZoom,
+    Zoom,
     Watermark,
     MotionDetection,
     PreviewPublish,

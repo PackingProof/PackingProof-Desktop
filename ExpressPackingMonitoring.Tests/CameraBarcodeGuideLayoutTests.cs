@@ -119,13 +119,13 @@ public sealed class CameraBarcodeGuideLayoutTests
     }
 
     [Fact]
-    public void UnlockedGuideSuspendsSmartZoomUntilItIsLockedAgain()
+    public void UnlockedGuideSuspendsZoomUntilItIsLockedAgain()
     {
         string source = RepositorySource.ReadMainViewModel();
 
-        Assert.Contains("SmartZoomPolicy.ShouldApplyZoom", source, StringComparison.Ordinal);
+        Assert.Contains("ZoomCropPolicy.ShouldApplyZoom", source, StringComparison.Ordinal);
         Assert.Contains(
-            "CanApplySmartZoom || PreviewZoomScale.HasValue",
+            "CanApplyZoom || PreviewZoomScale.HasValue",
             source,
             StringComparison.Ordinal);
         // 解锁时要能中途停掉已经在跑的放大，否则取景框会一直没法拖动

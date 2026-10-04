@@ -491,7 +491,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void OnCameraBarcodeConfirmedWithGeometry(CameraBarcodeConfirmedEvent confirmed)
         {
-            _lastBarcodeGeometry = confirmed.Geometry;
+            // 放大改成按主画面上的放大取景框裁剪后，这里只保留诊断日志：
+            // 条码几何仍然有用（排查识别是否给到位置），但不再参与放大位置判定。
             RuntimeLog.Info(
                 "CameraBarcode",
                 confirmed.Geometry == null
@@ -538,8 +539,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (status.State == CameraBarcodeRecognitionState.Confirmed)
             {
-                if (status.Geometry != null)
-                    _lastBarcodeGeometry = status.Geometry;
                 _cameraBarcodeFeedbackCts?.Cancel();
                 var cts = _cameraBarcodeFeedbackCts = new CancellationTokenSource();
                 IsCameraBarcodeCandidate = false;
@@ -830,7 +829,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     _lastScanTime = DateTime.Now;
                     _isScanning = true;
                     _delayBeforeZooming = Config.ZoomDelaySeconds > 0;
-                    if (!_delayBeforeZooming && CanApplySmartZoom)
+                    if (!_delayBeforeZooming && CanApplyZoom)
                     {
                         _zoomPhase = ZoomPhase.ZoomingIn;
                         _zoomPhaseStartTime = DateTime.Now;
@@ -1054,8 +1053,6 @@ namespace ExpressPackingMonitoring.ViewModels
             StartInputCooldown();
 
             CurrentOrderId = upperResult;
-            if (!fromCamera)
-                _lastBarcodeGeometry = null;
             _sameCodePostRollCts?.Cancel();
             if (IsRecording) _stopReason = "扫码切换";
             if (!await _recorderLock.WaitAsync(0))
@@ -1129,7 +1126,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _lastScanTime = DateTime.Now;
                 _isScanning = true;
                 _delayBeforeZooming = Config.ZoomDelaySeconds > 0;
-                if (!_delayBeforeZooming && CanApplySmartZoom)
+                if (!_delayBeforeZooming && CanApplyZoom)
                 {
                     _zoomPhase = ZoomPhase.ZoomingIn;
                     _zoomPhaseStartTime = DateTime.Now;

@@ -142,8 +142,14 @@ namespace ExpressPackingMonitoring.Config
         public const int CurrentDeletedVideoVisibilitySetupVersion = 1;
         public const int CurrentStorageReserveSchemaVersion = 1;
 
-        /// <summary>智能特写停留时间的当前默认值（秒）</summary>
+        /// <summary>放大停留时间的当前默认值（秒）</summary>
         public const double DefaultZoomDurationSeconds = 2.5;
+
+        /// <summary>
+        /// 放大取景框默认尺寸：居中、占画面宽高的 2/3，等价于默认 1.5 倍。
+        /// 与识别框同一套口径：比例按画面宽高、偏移按四周留白。
+        /// </summary>
+        public const double DefaultZoomGuideRatio = 2.0 / 3.0;
 
         /// <summary>叠加画面（画中画）默认采集规格。面单特写是静物，720p 足够看清字样。</summary>
         public const string DefaultOverlayResolutionPreset = "720p";
@@ -315,6 +321,16 @@ namespace ExpressPackingMonitoring.Config
         public double ZoomDurationSeconds { get; set; } = DefaultZoomDurationSeconds;
         public bool EnableZoomAnimation { get; set; } = true;
         public double ZoomAnimationDurationMs { get; set; } = 200.0;
+        /// <summary>
+        /// 放大取景框：录制开始时放大主画面的哪一块。与识别框各自独立，
+        /// 识别结果不再参与放大位置的判定。
+        /// </summary>
+        public double ZoomGuideWidthRatio { get; set; } = DefaultZoomGuideRatio;
+        public double ZoomGuideHeightRatio { get; set; } = DefaultZoomGuideRatio;
+        public double ZoomGuideOffsetX { get; set; } = 0;
+        public double ZoomGuideOffsetY { get; set; } = 0;
+        /// <summary>平时是否在主画面上画出放大取景框，默认显示方便确认放大位置</summary>
+        public bool ShowZoomGuideBox { get; set; } = true;
         public bool EnableAutoStop { get; set; } = true;
         public double AutoStopMinutes { get; set; } = 1.0;
         public bool EnableMaxDuration { get; set; } = false;
@@ -1028,6 +1044,48 @@ namespace ExpressPackingMonitoring.Config
             if (System.Math.Abs(config.CameraBarcodeGuideOffsetY - normalizedGuideOffsetY) > 0.001)
             {
                 config.CameraBarcodeGuideOffsetY = normalizedGuideOffsetY;
+                changed = true;
+            }
+
+            // 放大取景框与识别框同一套夹紧规则：比例 0.3~1.0、偏移 ±1。
+            // 比例越界会让放大倍率变成 0 或负数，必须在这里挡掉。
+            double normalizedZoomGuideWidth = System.Math.Clamp(
+                config.ZoomGuideWidthRatio,
+                0.3,
+                1.0);
+            if (System.Math.Abs(config.ZoomGuideWidthRatio - normalizedZoomGuideWidth) > 0.001)
+            {
+                config.ZoomGuideWidthRatio = normalizedZoomGuideWidth;
+                changed = true;
+            }
+
+            double normalizedZoomGuideHeight = System.Math.Clamp(
+                config.ZoomGuideHeightRatio,
+                0.3,
+                1.0);
+            if (System.Math.Abs(config.ZoomGuideHeightRatio - normalizedZoomGuideHeight) > 0.001)
+            {
+                config.ZoomGuideHeightRatio = normalizedZoomGuideHeight;
+                changed = true;
+            }
+
+            double normalizedZoomGuideOffsetX = System.Math.Clamp(
+                config.ZoomGuideOffsetX,
+                -1.0,
+                1.0);
+            if (System.Math.Abs(config.ZoomGuideOffsetX - normalizedZoomGuideOffsetX) > 0.001)
+            {
+                config.ZoomGuideOffsetX = normalizedZoomGuideOffsetX;
+                changed = true;
+            }
+
+            double normalizedZoomGuideOffsetY = System.Math.Clamp(
+                config.ZoomGuideOffsetY,
+                -1.0,
+                1.0);
+            if (System.Math.Abs(config.ZoomGuideOffsetY - normalizedZoomGuideOffsetY) > 0.001)
+            {
+                config.ZoomGuideOffsetY = normalizedZoomGuideOffsetY;
                 changed = true;
             }
 

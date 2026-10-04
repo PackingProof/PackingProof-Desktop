@@ -50,39 +50,58 @@ public sealed class CameraBarcodeRecognitionTests
             new CameraBarcodeGuideGeometry(1, 1, 0, 0)));
     }
 
+    /// <summary>
+    /// 固定版面单放大：裁剪窗口以放大取景框中心为中心，贴边时夹回画面内；
+    /// 与识别到的条码位置无关（识别来源选副画面也不会串坐标）。
+    /// </summary>
     [Theory]
-    [InlineData(20, 50, 400, 300, 50, 30, 1.5, 0, 0)]
-    [InlineData(330, 50, 400, 300, 50, 30, 1.5, 133, 0)]
-    [InlineData(170, 10, 400, 300, 60, 30, 1.5, 66, 0)]
-    [InlineData(170, 260, 400, 300, 60, 30, 1.5, 66, 100)]
-    public void SmartZoomPolicyPansTowardBarcodeAndStaysInFrame(
-        int barcodeX, int barcodeY, int frameWidth, int frameHeight,
-        int barcodeWidth, int barcodeHeight, double scale, int expectedLeft, int expectedTop)
+    // 框在正中间：倍率 2 的裁剪窗口正好居中
+    [InlineData(200, 150, 100, 75)]
+    // 框贴左上角：裁剪窗口夹到左上
+    [InlineData(20, 20, 0, 0)]
+    // 框贴右下角：裁剪窗口夹到右下
+    [InlineData(390, 290, 200, 150)]
+    public void ZoomCropPolicyCentersCropOnZoomGuideBox(
+        double boxCenterX,
+        double boxCenterY,
+        double expectedLeft,
+        double expectedTop)
     {
-        var barcode = new CameraBarcodeGeometry(barcodeX, barcodeY, barcodeWidth, barcodeHeight);
-        OpenCvSharp.Rect crop = SmartZoomPolicy.CreateCropRect(frameWidth, frameHeight, scale, barcode);
+        const int frameWidth = 400;
+        const int frameHeight = 300;
+        var box = new System.Windows.Rect(boxCenterX - 20, boxCenterY - 15, 40, 30);
+
+        System.Windows.Rect crop = ZoomCropPolicy.CreateCropRect(
+            frameWidth, frameHeight, 2.0, box);
 
         Assert.Equal(expectedLeft, crop.X);
         Assert.Equal(expectedTop, crop.Y);
-        Assert.InRange(crop.Y, 0, frameHeight - crop.Height);
-        Assert.InRange(crop.X, 0, frameWidth - crop.Width);
-        Assert.InRange(barcode.CenterX, crop.X, crop.X + crop.Width);
-        Assert.InRange(barcode.CenterY, crop.Y, crop.Y + crop.Height);
+        Assert.Equal(frameWidth / 2.0, crop.Width);
+        Assert.Equal(frameHeight / 2.0, crop.Height);
+        Assert.True(crop.X >= 0 && crop.X + crop.Width <= frameWidth);
+        Assert.True(crop.Y >= 0 && crop.Y + crop.Height <= frameHeight);
+    }
+
+    /// <summary>倍率取"框大小换算值"与设置上限中较小的一个。</summary>
+    [Fact]
+    public void ZoomCropPolicyPrefersSmallerOfBoxScaleAndMaximum()
+    {
+        // 框占画面一半 → 换算 2 倍，上限 3 倍时按框的 2 倍
+        var halfBox = new System.Windows.Rect(250, 150, 500, 300);
+        Assert.Equal(2.0, ZoomCropPolicy.ResolveScale(1000, 600, halfBox, 3.0), 3);
+
+        // 框只占画面十分之一 → 换算 10 倍，被上限 3 倍封顶
+        var tightBox = new System.Windows.Rect(450, 270, 100, 60);
+        Assert.Equal(3.0, ZoomCropPolicy.ResolveScale(1000, 600, tightBox, 3.0), 3);
+
+        // 上限本身小于 1 时按 1 处理，绝不放大成缩小
+        Assert.Equal(1.0, ZoomCropPolicy.ResolveScale(1000, 600, halfBox, 0.5), 3);
     }
 
     [Fact]
-    public void SmartZoomPolicyLimitsScaleForLargeBarcode()
+    public void ZoomCropPolicyFallsBackToCenteredCropWithoutBox()
     {
-        var barcode = new CameraBarcodeGeometry(100, 100, 700, 400);
-        double scale = SmartZoomPolicy.GetBoundedScale(800, 600, 4, barcode);
-
-        Assert.Equal(1.0, scale);
-    }
-
-    [Fact]
-    public void SmartZoomPolicyFallsBackToCenteredCropWithoutGeometry()
-    {
-        OpenCvSharp.Rect crop = SmartZoomPolicy.CreateCropRect(800, 600, 2, null);
+        System.Windows.Rect crop = ZoomCropPolicy.CreateCropRect(800, 600, 2, System.Windows.Rect.Empty);
 
         Assert.Equal(200, crop.X);
         Assert.Equal(150, crop.Y);
@@ -93,12 +112,12 @@ public sealed class CameraBarcodeRecognitionTests
     [InlineData(true, false, false)]
     [InlineData(false, true, false)]
     [InlineData(false, false, false)]
-    public void SmartZoomPolicyOnlyZoomsWhileGuideIsLocked(
-        bool smartZoomEnabled,
+    public void ZoomCropPolicyOnlyZoomsWhileGuideIsLocked(
+        bool zoomEnabled,
         bool guideLocked,
         bool expected)
     {
-        Assert.Equal(expected, SmartZoomPolicy.ShouldApplyZoom(smartZoomEnabled, guideLocked));
+        Assert.Equal(expected, ZoomCropPolicy.ShouldApplyZoom(zoomEnabled, guideLocked));
     }
 
     [Fact]
