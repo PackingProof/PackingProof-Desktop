@@ -21,6 +21,33 @@ public sealed class SettingsCardSpacingTests
 
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
+    /// <summary>
+    /// 左侧页签之间的间距必须写在模板里面，不能写成 TabItem 的 Margin：
+    /// TabStripPlacement=Left 时 TabPanel 给的布局槽只有内容那么高，控件自己的下边距
+    /// 会被 layout 系统再减一次，页签最底下 6px 连方框底边一起被 layout clip 裁掉
+    /// （现场就是"选中方框下面少了一截"）。
+    /// </summary>
+    [Fact]
+    public void SidebarTab_GapLivesInTemplateInsteadOfItemMargin()
+    {
+        XDocument document = XDocument.Load(FindSettingsXaml());
+        XElement tabItemStyle = Assert.Single(
+            document.Descendants(Presentation + "Style"),
+            element => (string?)element.Attribute("TargetType") == "TabItem");
+
+        Assert.DoesNotContain(
+            tabItemStyle.Elements(Presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "Margin");
+
+        XElement templateRoot = tabItemStyle
+            .Descendants(Presentation + "ControlTemplate")
+            .Single()
+            .Elements()
+            .First();
+        Assert.Equal("Grid", templateRoot.Name.LocalName);
+        Assert.Equal("0,0,0,6", (string?)templateRoot.Attribute("Margin"));
+    }
+
     /// <summary>卡片样式必须挂上"收掉尾部留白"，不用每张卡单独声明。</summary>
     [Fact]
     public void SectionCardStyle_EnablesTrailingGapTrim()
