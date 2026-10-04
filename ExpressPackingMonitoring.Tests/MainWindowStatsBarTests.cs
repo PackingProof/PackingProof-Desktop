@@ -121,10 +121,25 @@ public sealed class MainWindowStatsBarTests
                 "UI",
                 "MainWindow.xaml"));
 
-        Assert.Contains("x:Name=\"PART_Track\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"PART_Indicator\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CornerRadius=\"3.5\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Rectangle RadiusX=\"3.5\" RadiusY=\"3.5\">", xaml, StringComparison.Ordinal);
+        // 圆角轨道/填充以及"滚动中"的流光都收进了共享样式，主界面只引用它
+        Assert.Contains("BasedOn=\"{StaticResource RoundedSmoothProgressBar}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "IsIndeterminate=\"{Binding IsPreRecordBufferRolling, Mode=OneWay}\"",
+            xaml,
+            StringComparison.Ordinal);
+
+        string theme = System.IO.File.ReadAllText(
+            System.IO.Path.Combine(
+                FindRepositoryPath("ExpressPackingMonitoring"),
+                "Themes",
+                "SliderTheme.xaml"));
+        Assert.Contains("x:Key=\"RoundedSmoothProgressBar\"", theme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PART_Track\"", theme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PART_Indicator\"", theme, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius=\"3.5\"", theme, StringComparison.Ordinal);
+        // 不确定进度（含预录滚动）= 流光扫过，不再用默认方角跑马灯
+        Assert.Contains("x:Name=\"IndeterminateShimmer\"", theme, StringComparison.Ordinal);
+        Assert.Contains("Trigger Property=\"IsIndeterminate\" Value=\"True\"", theme, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryPath(params string[] parts)

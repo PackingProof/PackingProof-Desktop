@@ -5,14 +5,56 @@
     <!--
         圆角进度条：主界面（指令条码冷却、预录缓冲）与设置页（存储用量）共用同一套外观，
         两端是圆角、填充跟着 Foreground。原来只写在 MainWindow 里，抽出来避免两处各画一套。
+
+        不确定进度（还不知道总大小/总数）时不再用 WPF 默认模板的方角跑马灯，
+        改为复用主界面预录缓冲"滚动中"那条流光：整条蓝底 + 一道白色高光扫过（画刷相对平移）。
     -->
     <Style x:Key="RoundedSmoothProgressBar" TargetType="controls:SmoothProgressBar">
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="controls:SmoothProgressBar">
                     <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3.5" ClipToBounds="True">
-                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
+                        <Grid>
+                            <!-- 确定进度：按值填充（宽度由 ProgressBar 自己算） -->
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
+                            <!-- 不确定进度：流光扫过整条 -->
+                            <Rectangle x:Name="IndeterminateShimmer" Opacity="0" IsHitTestVisible="False">
+                                <Rectangle.Fill>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <TranslateTransform X="-1.4"/>
+                                        </LinearGradientBrush.RelativeTransform>
+                                        <GradientStop Color="{StaticResource Blue500Color}" Offset="0"/>
+                                        <GradientStop Color="{StaticResource Blue500Color}" Offset="0.25"/>
+                                        <GradientStop Color="{StaticResource WhiteColor}" Offset="0.5"/>
+                                        <GradientStop Color="{StaticResource Blue500Color}" Offset="0.75"/>
+                                        <GradientStop Color="{StaticResource Blue500Color}" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                        </Grid>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsIndeterminate" Value="True">
+                            <Setter TargetName="PART_Indicator" Property="Opacity" Value="0"/>
+                            <Setter TargetName="IndeterminateShimmer" Property="Opacity" Value="1"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="IndeterminateShimmerStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="IndeterminateShimmer"
+                                                         Storyboard.TargetProperty="(Shape.Fill).(Brush.RelativeTransform).(TranslateTransform.X)"
+                                                         From="-1.4"
+                                                         To="1.4"
+                                                         Duration="0:0:2.4"
+                                                         RepeatBehavior="Forever"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="IndeterminateShimmerStoryboard"/>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

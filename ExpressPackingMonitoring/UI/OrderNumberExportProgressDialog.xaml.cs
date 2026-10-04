@@ -146,7 +146,7 @@ public partial class OrderNumberExportProgressDialog : Window
         ExportProgressBar.IsIndeterminate = value.IsIndeterminate || value.Total <= 0;
         if (!ExportProgressBar.IsIndeterminate)
         {
-            ExportProgressBar.Value = Math.Clamp(
+            ExportProgressBar.TargetValue = Math.Clamp(
                 value.Processed * 100d / value.Total,
                 0,
                 100);

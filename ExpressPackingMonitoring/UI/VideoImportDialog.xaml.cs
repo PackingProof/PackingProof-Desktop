@@ -72,7 +72,7 @@ public partial class VideoImportDialog : Window
         ShowProgress(mode);
         var progress = new Progress<VideoImportProgress>(value =>
         {
-            ImportProgressBar.Value = value.Total == 0
+            ImportProgressBar.TargetValue = value.Total == 0
                 ? 0
                 : value.Processed * 100d / value.Total;
             ImportProgressSummary.Text =
@@ -110,7 +110,7 @@ public partial class VideoImportDialog : Window
         ImportShippingButton.Visibility = Visibility.Collapsed;
         ImportReturnButton.Visibility = Visibility.Collapsed;
         CancelButton.Content = "取消导入";
-        ImportProgressBar.Value = 0;
+        ImportProgressBar.TargetValue = 0;
         ImportProgressSummary.Text = "正在查找 MP4 视频...";
         ImportCurrentFile.Text = "正在准备...";
     }

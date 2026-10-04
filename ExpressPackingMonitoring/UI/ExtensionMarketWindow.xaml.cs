@@ -273,7 +273,7 @@ public partial class ExtensionMarketWindow : Window
                 if (value.Total > 0)
                 {
                     DownloadProgress.Maximum = value.Total;
-                    DownloadProgress.Value = Math.Min(value.Received, value.Total);
+                    DownloadProgress.TargetValue = Math.Min(value.Received, value.Total);
                 }
             });
             packagePath = await _marketClient.DownloadPackageAsync(

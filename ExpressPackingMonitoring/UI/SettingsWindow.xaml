@@ -3787,12 +3787,14 @@
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 Click="BtnMigrateMkv_Click"/>
                                     </Grid>
-                                    <ProgressBar x:Name="MigrationProgress"
-                                                 Height="4"
-                                                 Margin="0,-4,0,14"
-                                                 Visibility="Collapsed"
-                                                 IsIndeterminate="True"
-                                                 Foreground="{DynamicResource AccentBlue}"/>
+                                    <controls:SmoothProgressBar x:Name="MigrationProgress"
+                                                                Style="{StaticResource RoundedSmoothProgressBar}"
+                                                                Height="4"
+                                                                Margin="0,-4,0,14"
+                                                                Visibility="Collapsed"
+                                                                IsIndeterminate="True"
+                                                                Background="{DynamicResource BorderStrong}"
+                                                                Foreground="{DynamicResource AccentBlue}"/>
 
                                     <Grid Style="{StaticResource SettingRowStyle}"
                                         ToolTip="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率">

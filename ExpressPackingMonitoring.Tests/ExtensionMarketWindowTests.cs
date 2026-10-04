@@ -120,11 +120,13 @@ public sealed class ExtensionMarketWindowTests
         XElement panel = Assert.Single(
             document.Descendants(Presentation + "Grid"),
             element => (string?)element.Attribute(Xaml + "Name") == "DownloadProgressPanel");
+        // 进度条统一走共享的圆角组件（controls:SmoothProgressBar），按名字找、不锁具体类型
         XElement progress = Assert.Single(
-            panel.Descendants(Presentation + "ProgressBar"),
+            panel.Descendants(),
             element => (string?)element.Attribute(Xaml + "Name") == "DownloadProgress");
 
         Assert.Equal("Collapsed", (string?)panel.Attribute("Visibility"));
+        Assert.Equal("{StaticResource RoundedSmoothProgressBar}", (string?)progress.Attribute("Style"));
         Assert.Equal("{DynamicResource ControlBackground}", (string?)progress.Attribute("Background"));
         Assert.Equal("{DynamicResource AccentBlue}", (string?)progress.Attribute("Foreground"));
         Assert.Contains(

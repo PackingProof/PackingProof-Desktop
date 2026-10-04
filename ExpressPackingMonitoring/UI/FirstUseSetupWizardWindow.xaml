@@ -1,6 +1,7 @@
 <Window x:Class="ExpressPackingMonitoring.UI.FirstUseSetupWizardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         Title="电脑录像配置向导"
         Height="690"
         Width="920"
@@ -480,11 +481,13 @@
                                                FontWeight="SemiBold"
                                                TextWrapping="Wrap"
                                                Foreground="{DynamicResource AccentBlue}"/>
-                                    <ProgressBar x:Name="RecordingProfileProgress"
-                                                 Height="6"
-                                                 Margin="0,18,0,0"
-                                                 IsIndeterminate="True"
-                                                 Foreground="{DynamicResource AccentBlue}"/>
+                                    <controls:SmoothProgressBar x:Name="RecordingProfileProgress"
+                                                                Style="{StaticResource RoundedSmoothProgressBar}"
+                                                                Height="6"
+                                                                Margin="0,18,0,0"
+                                                                IsIndeterminate="True"
+                                                                Background="{DynamicResource BorderStrong}"
+                                                                Foreground="{DynamicResource AccentBlue}"/>
 
                                     <Border x:Name="RecordingProfileResultPanel"
                                             Margin="0,20,0,0"
@@ -551,12 +554,14 @@
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextPrimary}"
                                                Margin="0,0,0,12"/>
-                                    <ProgressBar x:Name="MicLevelBar"
-                                                 Height="18"
-                                                 Minimum="0"
-                                                 Maximum="100"
-                                                 Foreground="{DynamicResource AccentBlue}"
-                                                 Background="{DynamicResource BorderStrong}"/>
+                                    <!-- 电平表每帧都在更新，不用平滑动画（直接给 Value），只共用圆角外观 -->
+                                    <controls:SmoothProgressBar x:Name="MicLevelBar"
+                                                                Style="{StaticResource RoundedSmoothProgressBar}"
+                                                                Height="18"
+                                                                Minimum="0"
+                                                                Maximum="100"
+                                                                Foreground="{DynamicResource AccentBlue}"
+                                                                Background="{DynamicResource BorderStrong}"/>
                                     <TextBlock x:Name="MicStatusText"
                                                Text="正在准备麦克风..."
                                                Margin="0,12,0,0"
