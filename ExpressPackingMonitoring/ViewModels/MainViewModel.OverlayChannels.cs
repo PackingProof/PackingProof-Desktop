@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -82,6 +83,13 @@ namespace ExpressPackingMonitoring.ViewModels
             internal bool HasFrame;
             internal System.Windows.Media.Imaging.BitmapSource? PreviewFrame;
             internal DateTime LastPreviewPublishedAt = DateTime.MinValue;
+
+            /// <summary>出帧统计：副画面看着卡时，先分清是相机没给够帧，还是我们画丢了。</summary>
+            internal int StatsFrames;
+            internal long StatsWindowStartTicks = Stopwatch.GetTimestamp();
+            internal long StatsLastFrameTicks;
+            internal double StatsMaxGapMs;
+            internal int StatsQuietWindows;
 
             /// <summary>这一路当前是否已启动。</summary>
             internal bool IsRunning => UsbSource != null || MfSource != null || NetworkSource != null;
@@ -696,10 +704,65 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>整帧所有权交给槽：被顶掉的旧帧由槽自己释放。</summary>
         private void PublishOverlayFrame(OverlayChannel channel, Mat frame)
         {
+            TrackOverlayFrameRate(channel);
             // 编辑态下顺便出一张预览位图；三种采集回调都经过这里，不必各自处理。
             PublishOverlayPreviewFrameIfDue(channel, frame);
             channel.LatestFrame.Publish(frame);
         }
+
+        /// <summary>
+        /// 每 10 秒给这一路落一条出帧统计：多少帧、平均 fps、最大间隔。
+        /// 副画面在录像里"卡"的时候，这条日志能直接分清是相机没给够帧，还是我们合成时把它丢了。
+        /// </summary>
+        private void TrackOverlayFrameRate(OverlayChannel channel)
+        {
+            long now = Stopwatch.GetTimestamp();
+            if (channel.StatsLastFrameTicks > 0)
+            {
+                double gapMs = (now - channel.StatsLastFrameTicks) * 1000.0 / Stopwatch.Frequency;
+                if (gapMs > channel.StatsMaxGapMs)
+                    channel.StatsMaxGapMs = gapMs;
+            }
+
+            channel.StatsLastFrameTicks = now;
+            channel.StatsFrames++;
+
+            double windowSeconds = (now - channel.StatsWindowStartTicks) / (double)Stopwatch.Frequency;
+            if (windowSeconds < 10)
+                return;
+
+            double averageFps = channel.StatsFrames / windowSeconds;
+            int expectedFps = channel.Config.FrameFps;
+            bool abnormal = (expectedFps > 0 && averageFps < expectedFps * 0.8) || channel.StatsMaxGapMs > 150;
+
+            // 正常时每 60 秒汇总一条（不刷屏），掉帧或长时间没出帧立刻落一条。
+            if (!abnormal && ++channel.StatsQuietWindows < 6)
+            {
+                channel.StatsWindowStartTicks = now;
+                channel.StatsFrames = 0;
+                channel.StatsMaxGapMs = 0;
+                return;
+            }
+
+            RuntimeLog.Info(
+                "OverlayChannel",
+                $"第 {channel.Number} 路出帧{(abnormal ? "偏慢" : "")}：{channel.StatsFrames} 帧 / {windowSeconds:F1} 秒"
+                + $"（平均 {averageFps:F1} fps，期望 {expectedFps} fps，最大间隔 {channel.StatsMaxGapMs:F0} ms）");
+
+            channel.StatsWindowStartTicks = now;
+            channel.StatsFrames = 0;
+            channel.StatsMaxGapMs = 0;
+            channel.StatsQuietWindows = 0;
+        }
+
+        /// <summary>
+        /// 接了的每一路副画面当前都有一帧可用（合成时贴得上）。
+        /// 只给诊断用：不加锁读一次，够判断"这一帧到底有没有副画面"。
+        /// </summary>
+        private bool AllConfiguredOverlayChannelsHaveFrame =>
+            _overlayChannels
+                .Where(channel => channel.Config.IsConfigured)
+                .All(channel => channel.OverlayFrame is { IsDisposed: false } frame && !frame.Empty());
 
         /// <summary>
         /// 启动后观察一段时间：打开设备成功不等于有画面。叠加画面最常见的失败形态是

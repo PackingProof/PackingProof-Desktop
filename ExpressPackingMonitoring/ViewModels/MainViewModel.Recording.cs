@@ -1182,6 +1182,8 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 PreRecordAddResult added;
+                // 这一帧到底贴没贴上副画面：接了的每一路都得有一帧可用才贴得上。
+                bool overlayMissing = HasConfiguredOverlayChannels && !AllConfiguredOverlayChannelsHaveFrame;
                 lock (_eventBufferLock)
                 {
                     // 预录帧进缓存前先把副画面贴进去：副画面跟着这一帧的采集时刻走，
@@ -1208,11 +1210,66 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 PublishPreRecordBufferStatus();
+                TrackPreRecordCaptureStats(overlayMissing);
             }
             catch (Exception ex)
             {
                 RuntimeLog.Warn("Recording", $"Pre-record frame capture skipped: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 预录采集诊断：每 10 秒落一条"收了多少帧、平均 fps、最大间隔、其中多少帧没贴上副画面"。
+        /// 预录段看着卡的时候，这条能直接分清是采集端没给够帧，还是合成端没贴上。
+        /// </summary>
+        private void TrackPreRecordCaptureStats(bool overlayMissing)
+        {
+            long now = Stopwatch.GetTimestamp();
+            if (_preRecordStatsLastFrameTicks > 0)
+            {
+                double gapMs = (now - _preRecordStatsLastFrameTicks) * 1000.0 / Stopwatch.Frequency;
+                if (gapMs > _preRecordStatsMaxGapMs)
+                    _preRecordStatsMaxGapMs = gapMs;
+            }
+
+            _preRecordStatsLastFrameTicks = now;
+            if (_preRecordStatsWindowStartTicks == 0)
+                _preRecordStatsWindowStartTicks = now;
+            _preRecordStatsFrames++;
+            if (overlayMissing)
+                _preRecordStatsMissingOverlayFrames++;
+
+            double windowSeconds = (now - _preRecordStatsWindowStartTicks) / (double)Stopwatch.Frequency;
+            if (windowSeconds < 10)
+                return;
+
+            double averageFps = _preRecordStatsFrames / windowSeconds;
+            int expectedFps = GetEffectiveRecordingFps();
+            bool abnormal = (expectedFps > 0 && averageFps < expectedFps * 0.8)
+                || _preRecordStatsMaxGapMs > 150
+                || _preRecordStatsMissingOverlayFrames > 0;
+
+            // 正常时每 60 秒汇总一条（不刷屏），采集掉帧/有空档/没贴上副画面立刻落一条。
+            if (!abnormal && ++_preRecordStatsQuietWindows < 6)
+            {
+                _preRecordStatsWindowStartTicks = now;
+                _preRecordStatsFrames = 0;
+                _preRecordStatsMissingOverlayFrames = 0;
+                _preRecordStatsMaxGapMs = 0;
+                return;
+            }
+
+            RuntimeLog.Info(
+                "Recording",
+                $"预录采集{(abnormal ? "异常" : "")}：{_preRecordStatsFrames} 帧 / {windowSeconds:F1} 秒"
+                + $"（平均 {averageFps:F1} fps，期望 {expectedFps} fps，最大间隔 {_preRecordStatsMaxGapMs:F0} ms，"
+                + $"其中没有副画面 {_preRecordStatsMissingOverlayFrames} 帧）");
+
+            _preRecordStatsWindowStartTicks = now;
+            _preRecordStatsFrames = 0;
+            _preRecordStatsMissingOverlayFrames = 0;
+            _preRecordStatsMaxGapMs = 0;
+            _preRecordStatsQuietWindows = 0;
         }
 
         /// <summary>
@@ -1227,6 +1284,8 @@ namespace ExpressPackingMonitoring.ViewModels
             if (preRecordFrames is null || preRecordFrames.Count == 0)
                 return;
 
+            long flushStartTicks = Stopwatch.GetTimestamp();
+            int missingOverlayFrames = _preRecordStatsMissingOverlayFrames;
             int preRecordDropped = 0;
             string? preRecordDropReason = null;
             for (int preFrameIndex = 0; preFrameIndex < preRecordFrames.Count; preFrameIndex++)
@@ -1273,7 +1332,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     "Recording",
                     $"Pre-record frames dropped count={preRecordDropped}/{preRecordFrames.Count}, reason={preRecordDropReason}");
             }
-            RuntimeLog.Info("Recording", $"Pre-record frames queued count={preRecordFrames.Count}");
+            double flushMs = (Stopwatch.GetTimestamp() - flushStartTicks) * 1000.0 / Stopwatch.Frequency;
+            RuntimeLog.Info(
+                "Recording",
+                $"Pre-record frames queued count={preRecordFrames.Count}, elapsed={flushMs:F0}ms,"
+                + $" withoutOverlay={missingOverlayFrames}");
+            _preRecordStatsMissingOverlayFrames = 0;
         }
 
         private List<Mat> SnapshotPreRecordFrames(DateTime eventTime, out DateTime? firstTimestamp, out List<DateTime> timestamps)
@@ -1310,6 +1374,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 _preRecordRing.Clear();
                 _preRecordRollingTransitionPending = false;
                 _preRecordProgressStartTicks = 0;
+                // 缓冲重新攒，诊断计数也跟着归零，后面的日志才对得上这段缓冲。
+                _preRecordStatsFrames = 0;
+                _preRecordStatsMissingOverlayFrames = 0;
+                _preRecordStatsQuietWindows = 0;
+                _preRecordStatsWindowStartTicks = 0;
+                _preRecordStatsMaxGapMs = 0;
             }
             Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
             {

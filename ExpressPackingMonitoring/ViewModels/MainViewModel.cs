@@ -320,6 +320,13 @@ namespace ExpressPackingMonitoring.ViewModels
         private long _recordingLiveStartTicks;
         // 本次录制注入的预录帧数：属于时间轴最前面一段，不参与实时段的补齐判断。
         private int _recordingPreRecordFrameCount;
+        // 预录采集诊断：每 10 秒一条，用来分清"预录段卡"是采集没给够帧，还是合成没贴上副画面。
+        private int _preRecordStatsFrames;
+        private int _preRecordStatsMissingOverlayFrames;
+        private int _preRecordStatsQuietWindows;
+        private long _preRecordStatsWindowStartTicks;
+        private long _preRecordStatsLastFrameTicks;
+        private double _preRecordStatsMaxGapMs;
         // 预录帧回灌中：这段时间实时帧先不入队（队列要留给预录帧），但处理循环照常跑，预览不会冻住。
         private int _preRecordFlushInProgress;
         private DateTime _recordingGracePeriodStartTime;
