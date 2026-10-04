@@ -188,7 +188,7 @@ public sealed class PreviewDownscalePolicyTests
     }
 
     /// <summary>
-    /// 界面可见时的空闲降档：刚操作过 → 满帧；1 分钟没人动 → 15fps；5 分钟没人动 → 4fps。
+    /// 界面可见时的空闲降档：刚操作过 → 满帧；1 分钟没人动 → 15fps；10 分钟没人动 → 10fps。
     /// 降档只在低于摄像头帧率时生效，摄像头本来只有 10fps 时不会被"提高"到 15fps。
     /// （没人看时不走这里，直接不发布，见 PreviewPublishPolicy。）
     /// </summary>
@@ -196,8 +196,8 @@ public sealed class PreviewDownscalePolicyTests
     [InlineData(60, 0, 60)]
     [InlineData(60, 59, 60)]
     [InlineData(60, 60, PreviewFrameRatePolicy.ReducedFps)]
-    [InlineData(60, 299, PreviewFrameRatePolicy.ReducedFps)]
-    [InlineData(60, 300, PreviewFrameRatePolicy.LowFps)]
+    [InlineData(60, 599, PreviewFrameRatePolicy.ReducedFps)]
+    [InlineData(60, 600, PreviewFrameRatePolicy.LowFps)]
     [InlineData(60, 3600, PreviewFrameRatePolicy.LowFps)]
     [InlineData(0, 0, PreviewFrameRatePolicy.FallbackCameraFps)]
     [InlineData(10, 0, 10)]

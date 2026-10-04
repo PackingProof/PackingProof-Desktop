@@ -341,6 +341,9 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableCameraIdle { get; set; } = false;
         // 关闭实时预览：只停预览发布，录像、条码识别与运动检测照常，用于省 GPU/CPU
         public bool DisableLivePreview { get; set; } = false;
+        // 空闲降帧：没人操作时预览降到 15/10 帧省资源，关掉则始终满帧。
+        // 只影响屏幕预览，录像、条码识别与运动检测照常。
+        public bool EnablePreviewIdleThrottle { get; set; } = true;
         public bool EnableCameraBarcodeRecognition { get; set; } = false;
         public bool EnableSameBarcodeStopRecording { get; set; } = false;
         public bool EnableEventRecordingBuffer { get; set; } = false;

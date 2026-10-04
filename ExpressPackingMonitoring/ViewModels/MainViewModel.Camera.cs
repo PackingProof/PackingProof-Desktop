@@ -1400,13 +1400,15 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 预览帧率：有人在看且有操作时跟采集帧率；空闲 1 分钟降到 15fps、5 分钟降到 4fps；
-        /// 没有可见预览消费方时降到 2fps 保活。见 PreviewFrameRatePolicy。
+        /// 预览帧率：有人在看且有操作时跟采集帧率；空闲 1 分钟降到 15fps、10 分钟降到 10fps；
+        /// 关掉"空闲时降低预览帧率"则始终满帧。没有可见预览消费方时干脆不发布，
+        /// 由 PreviewPublishPolicy 判定，不走这里。见 PreviewFrameRatePolicy。
         /// </summary>
         private int CurrentPreviewTargetFps() =>
             PreviewFrameRatePolicy.ResolveTargetFps(
                 _actualCameraFps,
-                DateTime.Now - _lastActivityTime);
+                DateTime.Now - _lastActivityTime,
+                Config.EnablePreviewIdleThrottle);
 
         private bool IsPreviewFrameDue() => PreviewPublishPolicy.ShouldPublish(
             SuppressVideoPreviewUpdates,
@@ -1420,7 +1422,7 @@ namespace ExpressPackingMonitoring.ViewModels
         ///
         /// 分档必须在这里真正限流：处理循环是"摄像头来一帧就处理一帧"，循环节奏只当等待超时用，
         /// 不限制发布频率；没有这道门限时空闲降档对预览完全不起作用（现场反馈"降帧没生效"）。
-        /// 满帧档放行每一帧（避免 60fps 抖动被误丢），降档后按 15/4fps 放行。
+        /// 满帧档放行每一帧（避免 60fps 抖动被误丢），降档后按 15/10fps 放行。
         /// 只影响预览发布，录像、条码识别、运动检测照常。
         /// </summary>
         private bool ShouldPublishPreviewFrameNow()
@@ -1682,9 +1684,11 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 跟着程序自己的窗口激活状态调整预览节奏：前台满帧，后台才逐级降帧。
-        /// Application.Activated/Deactivated 覆盖主界面、设置、回放等所有窗口，
-        /// 而且都在 UI 线程触发，这里只写一个 volatile 标记，供采集线程安全读取。
+        /// 记录本程序的窗口有没有在前台。Application.Activated/Deactivated 覆盖主界面、设置、
+        /// 回放等所有窗口，都在 UI 线程触发，这里只写一个 volatile 标记。
+        ///
+        /// 降档只看"最后一次操作到现在隔了多久"，失焦本身不再降帧（曾经按前台/后台分档，
+        /// d5da23ac 取消后没有恢复）。这个标记现在只进诊断日志，方便排查现场卡顿。
         /// </summary>
         private void HookApplicationFocusTracking()
         {
