@@ -945,7 +945,7 @@ namespace ExpressPackingMonitoring.UI
                     out RecordingCacheSpaceSnapshot snapshot,
                     out string error))
             {
-                RecordingCacheUsageProgress.Value = 100;
+                RecordingCacheUsageProgress.TargetValue = 100;
                 RecordingCacheUsageText.Text = "本地缓存位置不可用";
                 RecordingCacheSafeCapacityText.Text = error;
                 RecordingCacheDriveHintText.Text =
@@ -953,7 +953,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            RecordingCacheUsageProgress.Value = snapshot.UsagePercent;
+            RecordingCacheUsageProgress.TargetValue = snapshot.UsagePercent;
             RecordingCacheUsageText.Text = Context.FormatRecordingCacheUsage?.Invoke(snapshot)
                 ?? $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
             RecordingCacheSafeCapacityText.Text =

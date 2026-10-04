@@ -60,7 +60,7 @@ namespace ExpressPackingMonitoring.UI
                 if (value.TotalBytes > 0)
                 {
                     DownloadProgressBar.IsIndeterminate = false;
-                    DownloadProgressBar.Value = Math.Min(
+                    DownloadProgressBar.TargetValue = Math.Min(
                         100,
                         value.BytesReceived * 100d / value.TotalBytes);
                 }
@@ -74,7 +74,7 @@ namespace ExpressPackingMonitoring.UI
                 case AppPatchPreparationStatus.Ready:
                 case AppPatchPreparationStatus.AlreadyReady:
                     DownloadProgressBar.IsIndeterminate = false;
-                    DownloadProgressBar.Value = 100;
+                    DownloadProgressBar.TargetValue = 100;
                     DownloadStatusText.Text = preparation.Message;
                     bool isRecording = _isRecordingProvider();
                     string restartMessage = isRecording

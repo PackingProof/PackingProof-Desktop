@@ -29,17 +29,6 @@
             <Separator Style="{StaticResource AppSeparatorStyle}"/>
             <MenuItem Header="打开指令条码所在位置" Style="{StaticResource AppMenuItemStyle}" Click="OpenBarcodeImageFolder_Click"/>
         </ContextMenu>
-        <Style x:Key="RoundedSmoothProgressBar" TargetType="controls:SmoothProgressBar">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="controls:SmoothProgressBar">
-                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3.5" ClipToBounds="True">
-                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <!-- 画中画拖动框：平时完全透明，鼠标移上来才显示一圈描边 -->
         <Style x:Key="OverlayBoxDragThumbStyle" TargetType="Thumb">
             <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>

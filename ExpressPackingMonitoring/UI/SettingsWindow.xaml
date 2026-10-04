@@ -2049,15 +2049,17 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <ProgressBar x:Name="RecordingCacheUsageProgress"
-                                                     Height="8"
-                                                     Minimum="0"
-                                                     Maximum="100"
-                                                     Value="{Binding CurrentDiskUsagePercent}"
-                                                     Foreground="{DynamicResource AccentBlue}"
-                                                     Background="{DynamicResource BorderStrong}"
-                                                     BorderThickness="0"
-                                                     VerticalAlignment="Center"/>
+                                        <!-- 与主界面同一条圆角进度条组件（RoundedSmoothProgressBar），两端圆角、变化时平滑过渡 -->
+                                        <controls:SmoothProgressBar x:Name="RecordingCacheUsageProgress"
+                                                                    Style="{StaticResource RoundedSmoothProgressBar}"
+                                                                    Height="8"
+                                                                    Minimum="0"
+                                                                    Maximum="100"
+                                                                    TargetValue="{Binding CurrentDiskUsagePercent, Mode=OneWay}"
+                                                                    Foreground="{DynamicResource AccentBlue}"
+                                                                    Background="{DynamicResource BorderStrong}"
+                                                                    BorderThickness="0"
+                                                                    VerticalAlignment="Center"/>
                                         <TextBlock x:Name="RecordingCacheUsageText"
                                                    Grid.Column="1"
                                                    Text="{Binding CurrentDiskUsageText}"
@@ -2068,6 +2070,9 @@
                                                    VerticalAlignment="Center"
                                                    Margin="16,0,0,0"/>
                                     </Grid>
+
+                                    <!-- 用量现状与清理入口之间加一条分隔线，和别处的行分组观感一致 -->
+                                    <Border Style="{StaticResource SectionDividerStyle}"/>
 
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>

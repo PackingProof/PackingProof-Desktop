@@ -1,6 +1,7 @@
 <Window x:Class="ExpressPackingMonitoring.UI.UpdateAvailableDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         Title="发现新版本"
         SizeToContent="Height"
         Width="600"
@@ -54,13 +55,16 @@
                        Visibility="Collapsed"
                        Foreground="{DynamicResource TextSecondary}"
                        TextWrapping="Wrap"/>
-            <ProgressBar x:Name="DownloadProgressBar"
-                         Visibility="Collapsed"
-                         Height="6"
-                         Margin="0,8,0,0"
-                         Minimum="0"
-                         Maximum="100"
-                         IsIndeterminate="True"/>
+            <!-- 与主界面/设置页同一条圆角进度条组件，下载过程中平滑推进 -->
+            <controls:SmoothProgressBar x:Name="DownloadProgressBar"
+                                        Style="{StaticResource RoundedSmoothProgressBar}"
+                                        Visibility="Collapsed"
+                                        Height="6"
+                                        Margin="0,8,0,0"
+                                        Minimum="0"
+                                        Maximum="100"
+                                        AnimationDuration="200"
+                                        IsIndeterminate="True"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2"

@@ -284,8 +284,9 @@ public sealed class RecordingWorkstationCacheTests
                 && element.Descendants(presentation + "TextBlock")
                     .Any(label => (string?)label.Attribute("Text") == "空间清理"));
 
+        // 用量条用的是共享的圆角进度条组件（controls:SmoothProgressBar），这里按名字找、不锁具体类型
         Assert.Contains(
-            card.Descendants(presentation + "ProgressBar"),
+            card.Descendants(),
             element => (string?)element.Attribute(xaml + "Name") == "RecordingCacheUsageProgress");
         Assert.Contains(
             card.Descendants(presentation + "Button"),

@@ -1,5 +1,22 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls">
+
+    <!--
+        圆角进度条：主界面（指令条码冷却、预录缓冲）与设置页（存储用量）共用同一套外观，
+        两端是圆角、填充跟着 Foreground。原来只写在 MainWindow 里，抽出来避免两处各画一套。
+    -->
+    <Style x:Key="RoundedSmoothProgressBar" TargetType="controls:SmoothProgressBar">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:SmoothProgressBar">
+                    <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3.5" ClipToBounds="True">
+                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="3.5"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!--
         通用滑杆样式：轨道左边是强调色填充、右边是描边圆角槽，滑块是强调色描边的圆形。
