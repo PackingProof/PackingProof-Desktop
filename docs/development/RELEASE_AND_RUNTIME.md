@@ -44,7 +44,7 @@
 - 打包脚本会在产物目录生成 `release_commits_v<X.Y.Z>.txt`（上一个正式版以来的全部提交，仅本地核对、不上传），并按需生成或保留 `RELEASE_NOTES_v<X.Y.Z>.md`；重新打包不会再冲掉已经写好的发布笔记。
 - 发布脚本 `Tools/Publish-Releases.ps1` 属于门禁的一部分：它校验发布笔记的分段与占位符、校验 `update_v<X.Y.Z>.json` 的 `title` 与 `notes` 是否已填写，并在打印提交清单后要求显式传入 `-ConfirmCommitCoverage`。只想自检用 `-ValidateOnly`，已经发布过的版本要补正文用 `-UpdateNotes`（只更新正文与标题，不重复上传附件）。
 - 本地 CI 命令为 `pwsh -NoProfile -File Tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `Tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
-- 开始构建前先跑 `pwsh -NoProfile -File Tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。
+- 开始构建前先跑 `pwsh -NoProfile -File Tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、启动器基线与逻辑输入指纹、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。启动器逻辑输入变化时它会直接要求先重建基线，避免打包到一半才返工。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用：
 

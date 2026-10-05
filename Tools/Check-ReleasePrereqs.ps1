@@ -12,6 +12,7 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
 . (Join-Path $PSScriptRoot "ReleaseNotes.Common.ps1")
+. (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 
 $blockers = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
@@ -74,6 +75,67 @@ else {
     }
     else {
         Write-Fail "tag $($releaseTagAtHead.Trim()) 与 csproj 的 $projectVersion 不一致"
+    }
+}
+
+Write-Host ""
+Write-Host "== 启动器基线 =="
+# 启动器的逻辑输入（Launcher\Program.cs、UpdateCore 的更新客户端等）变了就必须先重建基线。
+# 这条校验原本只写在 Publish-CleanPackage.ps1 里，而且要等构建、全量测试、FFmpeg 往返全部跑完
+# 才拦下来 —— 白等十几分钟才发现要返工。这里用同一套指纹算法提前核对。
+$launcherRuntime = "win-x64"
+$launcherUpdateCheckUrl = $env:UPDATE_CHECK_URL
+if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl)) {
+    $launcherUpdateCheckUrl = Read-DotEnvValue -Key "UPDATE_CHECK_URL"
+}
+if ([string]::IsNullOrWhiteSpace($launcherUpdateCheckUrl)) {
+    $launcherUpdateCheckUrl = "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
+}
+
+$launcherBaseline = $null
+$launcherBaselineError = ""
+try {
+    $launcherBaseline = Read-LauncherBaselineManifest -ManifestPath (Join-Path $PSScriptRoot "launcher-baseline.json")
+}
+catch {
+    $launcherBaselineError = $_.Exception.Message
+}
+
+if ($null -eq $launcherBaseline) {
+    Write-Fail "启动器基线清单不可用：$launcherBaselineError"
+}
+else {
+    $launcherTag = [string]$launcherBaseline.tag
+    $launcherFingerprint = Get-LauncherLogicalFingerprint `
+        -RepositoryRoot $repoRoot `
+        -Runtime $launcherRuntime `
+        -UpdateCheckUrl $launcherUpdateCheckUrl
+
+    if (-not [string]::Equals(
+            $launcherFingerprint,
+            [string]$launcherBaseline.source_fingerprint,
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Fail "启动器逻辑输入已变化：先跑 pwsh -NoProfile -File Tools\Publish-LauncherBaseline.ps1 -Version $projectVersion，提交新的 launcher-baseline.json，再创建组件标签（当前基线 $launcherTag）"
+    }
+    elseif (-not [string]::Equals([string]$launcherBaseline.runtime, $launcherRuntime, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not [string]::Equals([string]$launcherBaseline.update_check_url, $launcherUpdateCheckUrl, [System.StringComparison]::Ordinal)) {
+        Write-Fail "启动器基线 $launcherTag 里的 runtime / 更新地址与当前发布配置不一致，需要重建基线"
+    }
+    else {
+        & git rev-parse --verify --quiet "$launcherTag^{commit}" *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Fail "启动器组件标签 $launcherTag 还不存在：提交新的 launcher-baseline.json 后创建该标签"
+        }
+        else {
+            $launcherFingerprintFiles = @(Get-LauncherFingerprintFiles)
+            & git diff --quiet "$launcherTag^{commit}" HEAD -- @launcherFingerprintFiles
+            if ($LASTEXITCODE -ne 0) {
+                Write-Fail "组件标签 $launcherTag 之后启动器指纹文件又改过，需要重建基线并重打该标签"
+            }
+            else {
+                Write-Ok "启动器基线 $launcherTag 与当前逻辑输入一致"
+            }
+        }
     }
 }
 

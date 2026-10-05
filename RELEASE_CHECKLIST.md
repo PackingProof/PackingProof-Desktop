@@ -16,6 +16,7 @@
 
 - 先运行 `pwsh -NoProfile -File Tools/Test-CI.ps1`，确认本地 CI 与 `.github/workflows/ci.yml` 同步通过
 - 运行 `pwsh -NoProfile -File Tools/Test-Release-Automated.ps1`
+- 运行 `pwsh -NoProfile -File Tools/Check-ReleasePrereqs.ps1`：工作区、标签与版本一致性、启动器基线指纹、发布渠道登录态与工具链一次看清；启动器逻辑输入变化必须先重建基线，不要等到打包才拦
 - 确认隔离 WPF 启停、userscript 并发/延时/多监控端和 Web 播放/剪辑界面自动验收全部通过
 - 确认必需的核心测试均存在，没有被删除或改名绕过
 - 确认 Release 全量测试全部通过
