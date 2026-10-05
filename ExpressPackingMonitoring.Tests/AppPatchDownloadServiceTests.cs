@@ -195,6 +195,41 @@ public sealed class AppPatchDownloadServiceTests
         Assert.Contains(fixture.GiteePatchUrl("1.2.3"), fixture.Requests);
     }
 
+    /// <summary>
+    /// 镜像也失败时不能反复重试、也不能吞掉错误：两个平台的清单附件各试一次，然后如实报失败。
+    /// </summary>
+    [Fact]
+    public async Task ManifestMirrorAlsoUnavailable_ReportsFailureAfterOneMirrorAttempt()
+    {
+        using var fixture = new AppPatchFixture();
+        fixture.AddRelease("1.2.3", "0.0.0", "unused-patch"u8.ToArray());
+        string brokenManifestUrl = fixture.AddUnreachableBothPlatformManifests("1.2.3");
+
+        AppPatchPreparationResult result =
+            await fixture.PrepareWithManifestUrlAsync("1.2.3", brokenManifestUrl);
+
+        Assert.Equal(AppPatchPreparationStatus.Failed, result.Status);
+        Assert.Equal(1, fixture.Requests.Count(url => url == brokenManifestUrl));
+        Assert.Equal(1, fixture.Requests.Count(url => url == fixture.GiteeManifestUrl("1.2.3")));
+        Assert.DoesNotContain(fixture.PackageUrlFor("1.2.3"), fixture.Requests);
+    }
+
+    /// <summary>用户取消（关程序）时不能把取消当成"下载失败"再换镜像，必须立刻抛出取消。</summary>
+    [Fact]
+    public async Task CanceledPreparation_DoesNotFallBackToMirror()
+    {
+        using var fixture = new AppPatchFixture();
+        fixture.AddRelease("1.2.3", "0.0.0", "unused-patch"u8.ToArray());
+        string brokenManifestUrl = fixture.AddUnreachableGithubManifest("1.2.3");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.PrepareWithManifestUrlAsync("1.2.3", brokenManifestUrl, cts.Token));
+
+        Assert.DoesNotContain(fixture.GiteeManifestUrl("1.2.3"), fixture.Requests);
+    }
+
     [Fact]
     public void UpdateManifestAssetPrefersVersionedNameAndRejectsHttp()
     {
@@ -300,6 +335,14 @@ public sealed class AppPatchDownloadServiceTests
             return GithubManifestUrl(version);
         }
 
+        /// <summary>GitHub 与 Gitee 两侧的清单附件都打不开（镜像也救不回来）。</summary>
+        internal string AddUnreachableBothPlatformManifests(string version)
+        {
+            _handler.AddStatus(GithubManifestUrl(version), HttpStatusCode.BadGateway);
+            _handler.AddStatus(GiteeManifestUrl(version), HttpStatusCode.BadGateway);
+            return GithubManifestUrl(version);
+        }
+
         /// <summary>清单只给一个 GitHub 附件地址（打不开），镜像换成 Gitee 后才能下载增量包。</summary>
         internal string AddGithubOnlyRelease(string version, byte[] package)
         {
@@ -375,12 +418,20 @@ public sealed class AppPatchDownloadServiceTests
 
         internal Task<AppPatchPreparationResult> PrepareAsync(string version)
         {
-            return PrepareWithManifestUrlAsync(version, ManifestUrlFor(version));
+            return PrepareWithManifestUrlAsync(version, ManifestUrlFor(version), CancellationToken.None);
         }
 
         internal Task<AppPatchPreparationResult> PrepareWithManifestUrlAsync(
             string version,
             string manifestUrl)
+        {
+            return PrepareWithManifestUrlAsync(version, manifestUrl, CancellationToken.None);
+        }
+
+        internal Task<AppPatchPreparationResult> PrepareWithManifestUrlAsync(
+            string version,
+            string manifestUrl,
+            CancellationToken cancellationToken)
         {
             return _service.PrepareAsync(new UpdateCheckResult
             {
@@ -389,7 +440,9 @@ public sealed class AppPatchDownloadServiceTests
                 DownloadUrl = "https://example.com/releases",
                 UpdateManifestUrl = manifestUrl,
                 SourceUrl = SourceUrl
-            });
+            },
+            progress: null,
+            cancellationToken);
         }
 
         private static string BuildManifest(
@@ -454,6 +507,9 @@ public sealed class AppPatchDownloadServiceTests
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            if (cancellationToken.IsCancellationRequested)
+                return Task.FromCanceled<HttpResponseMessage>(cancellationToken);
+
             string url = request.RequestUri?.AbsoluteUri ?? "";
             Requests.Add(url);
             if (_statuses.TryGetValue(url, out HttpStatusCode status))

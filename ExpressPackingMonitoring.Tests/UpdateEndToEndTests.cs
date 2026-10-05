@@ -84,6 +84,95 @@ public sealed class UpdateEndToEndTests
         Assert.Contains("/releases?per_page=2&page=2", source.RequestedPaths);
     }
 
+    /// <summary>
+    /// 服务端一直返回满页时不能无限翻：最多翻 10 页就停，并如实报"没有找到带本平台安装包的版本"。
+    /// </summary>
+    [Fact]
+    public async Task ReleaseListPaging_StopsAfterTenPagesInsteadOfLoopingForever()
+    {
+        using var source = new AlwaysFullPageReleaseSource();
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        var metadata = new UpdateMetadataClient(client);
+
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            metadata.FetchLatestReleaseWithAssetAsync(
+                [$"{source.BaseUrl}/releases?per_page=2"],
+                UpdateReleaseSelection.IsUpdateManifest,
+                TestContext.Current.CancellationToken));
+        Assert.IsType<System.IO.InvalidDataException>(error.InnerException);
+
+        Assert.InRange(source.RequestedPaths.Count, 1, 10);
+        Assert.Contains("/releases?per_page=2&page=10", source.RequestedPaths);
+        Assert.DoesNotContain("/releases?per_page=2&page=11", source.RequestedPaths);
+    }
+
+    /// <summary>每一页都是满页、且没有任何版本带更新清单：用来验证翻页上限。</summary>
+    private sealed class AlwaysFullPageReleaseSource : IDisposable
+    {
+        private const string Page = """
+            [
+              {"tag_name":"v999.0.41","assets":[{"name":"PackingProof-macOS-999.0.41.dmg"}]},
+              {"tag_name":"v999.0.42","assets":[{"name":"PackingProof-macOS-999.0.42.dmg"}]}
+            ]
+            """;
+
+        private readonly TcpListener _listener;
+        private readonly Thread _thread;
+        private volatile bool _stopped;
+
+        internal AlwaysFullPageReleaseSource()
+        {
+            _listener = new TcpListener(IPAddress.Loopback, 0);
+            _listener.Start();
+            int port = ((IPEndPoint)_listener.LocalEndpoint).Port;
+            BaseUrl = $"http://127.0.0.1:{port}";
+            _thread = new Thread(Serve) { IsBackground = true };
+            _thread.Start();
+        }
+
+        internal string BaseUrl { get; }
+
+        internal List<string> RequestedPaths { get; } = [];
+
+        public void Dispose()
+        {
+            _stopped = true;
+            try { _listener.Stop(); } catch { }
+            _thread.Join(TimeSpan.FromSeconds(5));
+        }
+
+        private void Serve()
+        {
+            while (!_stopped)
+            {
+                TcpClient client;
+                try { client = _listener.AcceptTcpClient(); }
+                catch { return; }
+
+                using (client)
+                using (NetworkStream stream = client.GetStream())
+                using (var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true))
+                {
+                    string requestLine = reader.ReadLine() ?? "";
+                    string path = requestLine.Split(' ') is { Length: >= 2 } parts
+                        ? parts[1]
+                        : "";
+                    RequestedPaths.Add(path);
+
+                    byte[] payload = Encoding.UTF8.GetBytes(Page);
+                    byte[] header = Encoding.ASCII.GetBytes(
+                        "HTTP/1.1 200 OK\r\n"
+                        + "Content-Type: application/json\r\n"
+                        + $"Content-Length: {payload.Length}\r\n"
+                        + "Connection: close\r\n\r\n");
+                    stream.Write(header);
+                    stream.Write(payload);
+                    stream.Flush();
+                }
+            }
+        }
+    }
+
     /// <summary>旧 → 新、每页 2 条：第一页是最旧的两版，最新版在第二页。</summary>
     private sealed class PagedAscendingReleaseSource : IDisposable
     {
