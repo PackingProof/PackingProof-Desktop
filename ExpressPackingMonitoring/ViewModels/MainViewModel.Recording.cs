@@ -972,6 +972,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 int initialDisplayedSeconds = Math.Max(0, (int)Math.Floor(_activePreRecordSeconds));
                 _currentScanRecord = new ScanRecord(_recordingOrderId, $"{initialDisplayedSeconds}s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
+
+                // 扫码识别、手动“开始录制”和指令条码都汇聚到这条启动路径：带着真实单号开始时
+                // 统一做扩展通知、退款核验、重复单号提醒和订单信息提示，手动入口不能绕过这些保护。
+                string startedOrderNumber = _recordingOrderId ?? "";
+                if (RecordingStartOrderPolicy.ShouldHandle(startedOrderNumber))
+                    HandleOrderNumberRecordingStarted(startedOrderNumber);
             }
             finally
             {

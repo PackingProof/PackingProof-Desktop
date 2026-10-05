@@ -1078,46 +1078,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 _pendingPreRecordTimestamps = pendingPreRecordTimestamps;
                 _pendingPreRecordStartTime = pendingPreRecordStartTime;
                 await InternalStartRecordingAsync();
-                PublishExtensionScanTaskIfRecordingStarted(upperResult);
-                QueuePrintedRefundCheck(upperResult, CurrentMode);
-
-                // 录制已启动、数据库记录已写入，此时检查重复单号（排除刚刚插入的当前记录）
-                bool isDuplicate = _db != null && _db.OrderIdExistsRecent(upperResult, excludeRecordId: _currentRecordId);
-                if (isDuplicate)
-                {
-                    PublishScannerAlert(
-                        $"duplicate-order-number:{upperResult}",
-                        "警告：重复单号，请确认",
-                        DefaultSpeechCatalog.DuplicateOrderNumber,
-                        repeatCount: 2);
-                }
-
-                // 查询快递助手推送的订单信息，在预览画面持续提示并按设置播报
-                if (Config.EnableOrderInfoLog)
-                    System.Diagnostics.Debug.WriteLine($"[OrderInfo] 扫码查询: {upperResult}, EnableAnnounce={Config.EnableOrderInfoAnnounce}, WebServer={(_webServer != null ? "已启动" : "未启动")}");
-                var orderInfo = _webServer?.GetOrderInfo(upperResult);
-                if (IsRecording && orderInfo != null)
-                    SetPreviewOrderNotice(orderInfo);
-                if (Config.EnableOrderInfoLog)
-                    System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
-                if (Config.EnableOrderInfoAnnounce && orderInfo != null)
-                {
-                    foreach (AlertSpeechFollowup announcement in BuildOrderInfoSpeechFollowups(
-                                 orderInfo,
-                                 Config.EnableOrderInfoAnnounce,
-                                 Config.AnnounceBuyerMessage,
-                                 Config.AnnounceSellerMemo,
-                                 Config.AnnounceProductInfo,
-                                 Config.AnnounceTotalItemCount))
-                    {
-                        PublishVoice(
-                            announcement.Text,
-                            announcement.VoiceStyle,
-                            announcement.Sound,
-                            repeatCount: 1,
-                            interruptCurrent: false);
-                    }
-                }
 
                 // 在录制停止/启动之后设置缩放状态（InternalStopRecordingAsync 会重置缩放状态）
                 _lastScanTime = DateTime.Now;
@@ -1145,6 +1105,55 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!IsRecording)
                     ResumeSpeechWhenCameraIdle();
                 _recorderLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// 单号开始录像后的统一处理：通知扩展、核验打印后退款、提醒重复单号、在预览画面提示并按设置播报订单信息。
+        /// 扫码识别和手动开始录制共用同一段逻辑（见 <see cref="InternalStartRecordingAsync"/>），
+        /// 手动入口不能绕过重复单号和商品信息提示。
+        /// </summary>
+        private void HandleOrderNumberRecordingStarted(string orderNumber)
+        {
+            PublishExtensionScanTaskIfRecordingStarted(orderNumber);
+            QueuePrintedRefundCheck(orderNumber, CurrentMode);
+
+            // 录制已启动、数据库记录已写入，此时检查重复单号（排除刚刚插入的当前记录）
+            bool isDuplicate = _db != null && _db.OrderIdExistsRecent(orderNumber, excludeRecordId: _currentRecordId);
+            if (isDuplicate)
+            {
+                PublishScannerAlert(
+                    $"duplicate-order-number:{orderNumber}",
+                    "警告：重复单号，请确认",
+                    DefaultSpeechCatalog.DuplicateOrderNumber,
+                    repeatCount: 2);
+            }
+
+            // 查询快递助手推送的订单信息，在预览画面持续提示并按设置播报
+            if (Config.EnableOrderInfoLog)
+                System.Diagnostics.Debug.WriteLine($"[OrderInfo] 扫码查询: {orderNumber}, EnableAnnounce={Config.EnableOrderInfoAnnounce}, WebServer={(_webServer != null ? "已启动" : "未启动")}");
+            var orderInfo = _webServer?.GetOrderInfo(orderNumber);
+            if (IsRecording && orderInfo != null)
+                SetPreviewOrderNotice(orderInfo);
+            if (Config.EnableOrderInfoLog)
+                System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
+            if (Config.EnableOrderInfoAnnounce && orderInfo != null)
+            {
+                foreach (AlertSpeechFollowup announcement in BuildOrderInfoSpeechFollowups(
+                             orderInfo,
+                             Config.EnableOrderInfoAnnounce,
+                             Config.AnnounceBuyerMessage,
+                             Config.AnnounceSellerMemo,
+                             Config.AnnounceProductInfo,
+                             Config.AnnounceTotalItemCount))
+                {
+                    PublishVoice(
+                        announcement.Text,
+                        announcement.VoiceStyle,
+                        announcement.Sound,
+                        repeatCount: 1,
+                        interruptCurrent: false);
+                }
             }
         }
 
