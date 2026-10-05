@@ -104,6 +104,59 @@ public sealed class UpdateSourcePolicyTests
         Assert.Equal("0.0.72", resolved.LatestVersion);
     }
 
+    /// <summary>
+    /// 发布附件在两个平台是同构路径，镜像只换主机；认不出的地址（API、安装页、其它站点）不给镜像。
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "https://github.com/PackingProof/PackingProof-Desktop/releases/download/v0.0.75/update_v0.0.75.json",
+        "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v0.0.75/update_v0.0.75.json")]
+    [InlineData(
+        "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v0.0.75/PackingProof_AppPatch_v0.0.75.zip",
+        "https://github.com/PackingProof/PackingProof-Desktop/releases/download/v0.0.75/PackingProof_AppPatch_v0.0.75.zip")]
+    public void ReleaseAssetUrl_MirrorsToTheOtherPlatform(string url, string expected)
+    {
+        Assert.Equal(expected, UpdateEndpointPolicy.DeriveMirrorDownloadUrl(url));
+    }
+
+    [Theory]
+    [InlineData("https://api.github.com/repos/PackingProof/PackingProof-Desktop/releases?per_page=100")]
+    [InlineData("https://github.com/PackingProof/PackingProof-Desktop/releases/tag/v0.0.75")]
+    [InlineData("https://example.com/releases/download/v0.0.75/update_v0.0.75.json")]
+    [InlineData("http://github.com/PackingProof/PackingProof-Desktop/releases/download/v0.0.75/update.json")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void NonReleaseAssetUrl_HasNoMirror(string? url)
+    {
+        Assert.Equal("", UpdateEndpointPolicy.DeriveMirrorDownloadUrl(url));
+    }
+
+    /// <summary>
+    /// 现场回归（0.0.74 的店里机器）：检查落在 GitHub 之后，清单地址就是 github.com 的附件，
+    /// 而附件域名在店里打不开 —— 必须自动改用 gitee.com 上同一 tag、同一文件名的清单，
+    /// 否则整条更新断在"读清单"这一步（用户看到"没有连接/没有回应"）。
+    /// </summary>
+    [Fact]
+    public async Task ManifestDownload_FallsBackToMirrorHostWhenGithubAssetsAreUnreachable()
+    {
+        using var handler = new UnreachableGithubAssetHandler();
+        using var client = new HttpClient(handler);
+        var metadata = new UpdateMetadataClient(client);
+
+        using ResolvedUpdateManifest resolved = await metadata.FetchLatestManifestAsync(
+            [UpdateCheckOptions.DefaultGithubCheckUrl],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(UnreachableGithubAssetHandler.GiteeManifestUrl, resolved.ManifestUrl);
+        Assert.Equal(
+            [
+                PagedReleaseListUrls()[1],
+                UnreachableGithubAssetHandler.GithubManifestUrl,
+                UnreachableGithubAssetHandler.GiteeManifestUrl
+            ],
+            handler.Requests);
+    }
+
     private static string[] ReleaseListUrls() =>
         UpdateCheckOptions.ToReleaseListUrls(UpdateCheckOptions.ResolveUpdateCheckUrls(null, null)).ToArray();
 
@@ -299,6 +352,64 @@ public sealed class UpdateSourcePolicyTests
                       {
                         "name": "update_v999.0.0.json",
                         "browser_download_url": "{{manifestUrl}}"
+                      }
+                    ]
+                  }
+                ]
+                """;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(release, Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    /// <summary>检查源可用、但更新清单挂在打不开的 github.com 附件域名上（现场就是这条）。</summary>
+    private sealed class UnreachableGithubAssetHandler : HttpMessageHandler
+    {
+        internal const string GithubManifestUrl =
+            "https://github.com/PackingProof/PackingProof-Desktop/releases/download/v999.0.0/update_v999.0.0.json";
+        internal const string GiteeManifestUrl =
+            "https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v999.0.0/update_v999.0.0.json";
+
+        internal List<string> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            string url = request.RequestUri?.AbsoluteUri ?? "";
+            Requests.Add(url);
+
+            if (url == GithubManifestUrl)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)
+                {
+                    RequestMessage = request
+                });
+            }
+
+            if (url == GiteeManifestUrl)
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new StringContent(
+                        "{\"latest_version\":\"999.0.0\"}",
+                        Encoding.UTF8,
+                        "application/json")
+                });
+            }
+
+            string release = $$"""
+                [
+                  {
+                    "tag_name": "v999.0.0",
+                    "assets": [
+                      {
+                        "name": "update_v999.0.0.json",
+                        "browser_download_url": "{{GithubManifestUrl}}"
                       }
                     ]
                   }

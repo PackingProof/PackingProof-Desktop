@@ -249,12 +249,14 @@ public sealed class UpdateMetadataClient
                     string manifestUrl = FindUpdateManifestUrl(release.RootElement, latestVersion);
                     if (manifestUrl.Length == 0)
                         throw new InvalidDataException($"Release 缺少 update_v{latestVersion}.json");
-                    manifest = await GetJsonAsync(manifestUrl, token);
+                    (JsonDocument manifestDocument, string resolvedManifestUrl) =
+                        await GetJsonWithMirrorAsync(manifestUrl, token);
+                    manifest = manifestDocument;
                     return new ResolvedUpdateManifest(
                         release,
                         manifest,
                         sourceUrl,
-                        manifestUrl,
+                        resolvedManifestUrl,
                         latestVersion);
                 }
                 catch
@@ -308,13 +310,15 @@ public sealed class UpdateMetadataClient
                         continue;
                     }
 
-                    manifest = await GetJsonAsync(manifestUrl, cancellationToken);
-                    _log?.Invoke($"target manifest resolved version={normalizedTarget} url={manifestUrl}");
+                    (JsonDocument manifestDocument, string resolvedManifestUrl) =
+                        await GetJsonWithMirrorAsync(manifestUrl, cancellationToken);
+                    manifest = manifestDocument;
+                    _log?.Invoke($"target manifest resolved version={normalizedTarget} url={resolvedManifestUrl}");
                     return new ResolvedUpdateManifest(
                         release,
                         manifest,
                         sourceUrl,
-                        manifestUrl,
+                        resolvedManifestUrl,
                         normalizedTarget);
                 }
                 catch
@@ -456,6 +460,37 @@ public sealed class UpdateMetadataClient
         response.EnsureSuccessStatusCode();
         await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// 取更新清单；主地址失败时改用另一个平台的镜像附件（GitHub ↔ Gitee 的同一 tag、同一文件名）。
+    /// 检查走的是 API 域名、清单走的是附件域名，两者可达性并不一致（现场正是 api.github.com 通、
+    /// github.com 打不开），所以清单这一层必须自己会换源，不能只依赖"换检查源"。
+    /// </summary>
+    private async Task<(JsonDocument Document, string UsedUrl)> GetJsonWithMirrorAsync(
+        string url,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await GetJsonAsync(url, cancellationToken), url);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            string mirrorUrl = UpdateEndpointPolicy.DeriveMirrorDownloadUrl(url);
+            if (mirrorUrl.Length == 0
+                || string.Equals(mirrorUrl, url, StringComparison.OrdinalIgnoreCase))
+            {
+                throw;
+            }
+
+            _log?.Invoke($"manifest download failed, trying mirror: {ex.Message}");
+            return (await GetJsonAsync(mirrorUrl, cancellationToken), mirrorUrl);
+        }
     }
 
     private static string RequireLatestVersion(JsonElement releaseRoot)

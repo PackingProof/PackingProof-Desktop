@@ -157,6 +157,44 @@ public sealed class AppPatchDownloadServiceTests
                 "PackingProof_AppPatch_v1.2.3.zip")));
     }
 
+    /// <summary>
+    /// 现场回归（0.0.74 的店里机器）：检查落在 GitHub 时清单地址在 github.com，店里打不开；
+    /// 以前"读清单"这一步没有回退，整条更新直接失败，增量包那次回退永远轮不到。
+    /// 现在必须自动改用 gitee.com 上的同一份清单，后面的增量包照常下载。
+    /// </summary>
+    [Fact]
+    public async Task UnreachableGithubManifest_FallsBackToGiteeMirrorAndStillPreparesPatch()
+    {
+        using var fixture = new AppPatchFixture();
+        byte[] package = "mirror-manifest-patch"u8.ToArray();
+        fixture.AddRelease("1.2.3", "0.0.0", package);
+        string brokenManifestUrl = fixture.AddUnreachableGithubManifest("1.2.3");
+
+        AppPatchPreparationResult result =
+            await fixture.PrepareWithManifestUrlAsync("1.2.3", brokenManifestUrl);
+
+        Assert.True(result.Status == AppPatchPreparationStatus.Ready, result.Message);
+        int mirrorIndex = fixture.Requests.IndexOf(fixture.GiteeManifestUrl("1.2.3"));
+        Assert.Contains(brokenManifestUrl, fixture.Requests);
+        Assert.True(mirrorIndex > fixture.Requests.IndexOf(brokenManifestUrl));
+        Assert.True(mirrorIndex < fixture.Requests.IndexOf(fixture.PackageUrlFor("1.2.3")));
+    }
+
+    /// <summary>清单只给了一个 GitHub 附件地址时，增量包也要能按镜像换主机下到 Gitee。</summary>
+    [Fact]
+    public async Task GithubOnlyPatchSource_FallsBackToGiteeMirrorHost()
+    {
+        using var fixture = new AppPatchFixture();
+        byte[] package = "mirror-patch"u8.ToArray();
+        string githubPatchUrl = fixture.AddGithubOnlyRelease("1.2.3", package);
+
+        AppPatchPreparationResult result = await fixture.PrepareAsync("1.2.3");
+
+        Assert.True(result.Status == AppPatchPreparationStatus.Ready, result.Message);
+        Assert.Contains(githubPatchUrl, fixture.Requests);
+        Assert.Contains(fixture.GiteePatchUrl("1.2.3"), fixture.Requests);
+    }
+
     [Fact]
     public void UpdateManifestAssetPrefersVersionedNameAndRejectsHttp()
     {
@@ -181,6 +219,7 @@ public sealed class AppPatchDownloadServiceTests
         private const string ManifestBase = "https://updates.example/";
         private const string ApiBase = "https://api.example/repos/packingproof/desktop";
         private readonly string _root;
+        private readonly Dictionary<string, byte[]> _packages = new(StringComparer.OrdinalIgnoreCase);
         private readonly RoutingHandler _handler = new();
         private readonly HttpClient _client;
         private readonly AppPatchDownloadService _service;
@@ -203,6 +242,22 @@ public sealed class AppPatchDownloadServiceTests
         internal List<string> Requests => _handler.Requests;
         internal string SourceUrl => ApiBase + "/releases/latest";
 
+        internal string ManifestUrlFor(string version) => ManifestBase + $"update-{version}.json";
+
+        internal string PackageUrlFor(string version) => ManifestBase + $"patch-{version}.zip";
+
+        internal string GithubManifestUrl(string version) =>
+            $"https://github.com/PackingProof/PackingProof-Desktop/releases/download/v{version}/update_v{version}.json";
+
+        internal string GiteeManifestUrl(string version) =>
+            $"https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v{version}/update_v{version}.json";
+
+        internal string GithubPatchUrl(string version) =>
+            $"https://github.com/PackingProof/PackingProof-Desktop/releases/download/v{version}/PackingProof_AppPatch_v{version}.zip";
+
+        internal string GiteePatchUrl(string version) =>
+            $"https://gitee.com/PackingProof/PackingProof-Desktop/releases/download/v{version}/PackingProof_AppPatch_v{version}.zip";
+
         internal string BaselineTagUrl(string version)
         {
             return $"{ApiBase}/releases/tags/v{version}";
@@ -214,28 +269,51 @@ public sealed class AppPatchDownloadServiceTests
             byte[] package,
             string? advertisedHash = null)
         {
-            string manifestUrl = ManifestBase + $"update-{version}.json";
-            string packageUrl = ManifestBase + $"patch-{version}.zip";
-            string hash = advertisedHash
-                ?? Convert.ToHexString(SHA256.HashData(package)).ToLowerInvariant();
-            string manifest =
-                $$"""
-                {
-                  "latest_version": "{{version}}",
-                  "patch_baseline_version": "{{baseline}}",
-                  "patch_supported": true,
-                  "full_download_page": "https://example.com/releases",
-                  "full_download_fallback_page": "https://backup.example/releases",
-                  "patch_package": {
-                    "type": "baseline_patch",
-                    "url": "{{packageUrl}}",
-                    "sha256": "{{hash}}",
-                    "size": {{package.Length}}
-                  }
-                }
-                """;
+            _packages[version] = package;
+            string manifestUrl = ManifestUrlFor(version);
+            string packageUrl = PackageUrlFor(version);
+            string manifest = BuildManifest(
+                version,
+                baseline,
+                packageUrl,
+                advertisedHash ?? Convert.ToHexString(SHA256.HashData(package)).ToLowerInvariant(),
+                package.Length);
             _handler.Add(manifestUrl, Encoding.UTF8.GetBytes(manifest), "application/json");
             _handler.Add(packageUrl, package, "application/zip");
+        }
+
+        /// <summary>
+        /// 现场形态：检查给出的是 GitHub 的清单附件地址，而 github.com 那条链路打不开；
+        /// gitee.com 上同一 tag、同一文件名的清单可以下载。返回 GitHub 那条地址。
+        /// </summary>
+        internal string AddUnreachableGithubManifest(string version)
+        {
+            byte[] package = _packages[version];
+            string manifest = BuildManifest(
+                version,
+                "0.0.0",
+                PackageUrlFor(version),
+                Convert.ToHexString(SHA256.HashData(package)).ToLowerInvariant(),
+                package.Length);
+            _handler.AddStatus(GithubManifestUrl(version), HttpStatusCode.BadGateway);
+            _handler.Add(GiteeManifestUrl(version), Encoding.UTF8.GetBytes(manifest), "application/json");
+            return GithubManifestUrl(version);
+        }
+
+        /// <summary>清单只给一个 GitHub 附件地址（打不开），镜像换成 Gitee 后才能下载增量包。</summary>
+        internal string AddGithubOnlyRelease(string version, byte[] package)
+        {
+            _packages[version] = package;
+            string manifest = BuildManifest(
+                version,
+                "0.0.0",
+                GithubPatchUrl(version),
+                Convert.ToHexString(SHA256.HashData(package)).ToLowerInvariant(),
+                package.Length);
+            _handler.Add(ManifestUrlFor(version), Encoding.UTF8.GetBytes(manifest), "application/json");
+            _handler.AddStatus(GithubPatchUrl(version), HttpStatusCode.BadGateway);
+            _handler.Add(GiteePatchUrl(version), package, "application/zip");
+            return GithubPatchUrl(version);
         }
 
         internal void AddBaselineRelease(
@@ -297,14 +375,46 @@ public sealed class AppPatchDownloadServiceTests
 
         internal Task<AppPatchPreparationResult> PrepareAsync(string version)
         {
+            return PrepareWithManifestUrlAsync(version, ManifestUrlFor(version));
+        }
+
+        internal Task<AppPatchPreparationResult> PrepareWithManifestUrlAsync(
+            string version,
+            string manifestUrl)
+        {
             return _service.PrepareAsync(new UpdateCheckResult
             {
                 HasUpdate = true,
                 LatestVersion = version,
                 DownloadUrl = "https://example.com/releases",
-                UpdateManifestUrl = ManifestBase + $"update-{version}.json",
+                UpdateManifestUrl = manifestUrl,
                 SourceUrl = SourceUrl
             });
+        }
+
+        private static string BuildManifest(
+            string version,
+            string baseline,
+            string packageUrl,
+            string sha256,
+            long size)
+        {
+            return
+                $$"""
+                {
+                  "latest_version": "{{version}}",
+                  "patch_baseline_version": "{{baseline}}",
+                  "patch_supported": true,
+                  "full_download_page": "https://example.com/releases",
+                  "full_download_fallback_page": "https://backup.example/releases",
+                  "patch_package": {
+                    "type": "baseline_patch",
+                    "url": "{{packageUrl}}",
+                    "sha256": "{{sha256}}",
+                    "size": {{size}}
+                  }
+                }
+                """;
         }
 
         public void Dispose()

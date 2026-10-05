@@ -66,4 +66,34 @@ public static class UpdateEndpointPolicy
 
         return list;
     }
+
+    /// <summary>
+    /// 把发布附件地址换成同一文件在另一个平台的镜像地址（GitHub ↔ Gitee）。
+    /// 两个平台的 Release 附件路径是同构的（/{owner}/{repo}/releases/download/{tag}/{file}），
+    /// 所以只换主机、不碰路径；认不出的地址（API、安装页、其它站点）返回空串，调用方保持原行为。
+    ///
+    /// 现场（0.0.74 的店里机器）：检查落到 GitHub 之后，更新清单就只能从 github.com 取，
+    /// 而附件域名在店里网络打不开，整条更新断在第一步 —— 有这条镜像回退才能改用 gitee.com 上的同一份清单。
+    /// </summary>
+    public static string DeriveMirrorDownloadUrl(string? url)
+    {
+        string value = url?.Trim() ?? "";
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri))
+            return "";
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            return "";
+        if (!uri.AbsolutePath.Contains("/releases/download/", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        string mirrorHost = uri.Host.ToLowerInvariant() switch
+        {
+            "github.com" => "gitee.com",
+            "gitee.com" => "github.com",
+            _ => ""
+        };
+        if (mirrorHost.Length == 0)
+            return "";
+
+        return new UriBuilder(uri) { Host = mirrorHost }.Uri.AbsoluteUri;
+    }
 }

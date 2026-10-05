@@ -76,8 +76,9 @@ internal sealed class AppPatchDownloadService
         try
         {
             progress?.Report(new AppPatchDownloadProgress("正在读取增量更新信息"));
-            string manifestJson = await DownloadTextAsync(
+            string manifestJson = await DownloadTextWithMirrorAsync(
                 update.UpdateManifestUrl,
+                progress,
                 cancellationToken);
             AppPatchDescriptor descriptor = ParseDescriptor(manifestJson, update.LatestVersion);
             string fallbackUrl = descriptor.FullDownloadUrl.Length > 0
@@ -260,17 +261,22 @@ internal sealed class AppPatchDownloadService
                     progress,
                     cancellationToken);
             }
-            catch (Exception ex) when (
-                !cancellationToken.IsCancellationRequested
-                && !route.PreferGitee
-                && !string.Equals(route.GithubUrl, route.GiteeUrl, StringComparison.OrdinalIgnoreCase)
-                && ex is HttpRequestException or IOException or TaskCanceledException)
+            catch (Exception ex) when (IsTransientDownloadFailure(ex, cancellationToken))
             {
-                RuntimeLog.Warn("Update", $"GitHub AppPatch download failed, trying Gitee: {ex.Message}");
+                string alternateUrl = ResolveAlternatePatchUrl(route);
+                if (alternateUrl.Length == 0)
+                    throw;
+
+                string failedSource = route.PreferGitee ? "Gitee" : "GitHub";
+                string alternateSource = DescribeDownloadSource(route, alternateUrl);
+                RuntimeLog.Warn(
+                    "Update",
+                    $"{failedSource} AppPatch download failed, trying {alternateSource}: {ex.Message}");
                 TryDeleteOwnedFile(downloadPath);
-                progress?.Report(new AppPatchDownloadProgress("GitHub 下载失败，正在改用 Gitee"));
+                progress?.Report(new AppPatchDownloadProgress(
+                    $"{failedSource} 下载失败，正在改用 {alternateSource}"));
                 await DownloadFileAsync(
-                    route.GiteeUrl,
+                    alternateUrl,
                     downloadPath,
                     descriptor.PatchPackage.Size,
                     progress,
@@ -394,6 +400,66 @@ internal sealed class AppPatchDownloadService
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// 下载更新清单，主地址失败时改用另一个平台的镜像附件（GitHub ↔ Gitee 的同一 tag、同一文件名）。
+    /// 现场（0.0.74 的店里机器）：检查命中 GitHub 后清单地址就在 github.com，而那条链路在店里打不开；
+    /// 旧实现只给增量包做了回退，清单这一步挂了就整条中断，增量包的回退永远轮不到。
+    /// </summary>
+    private async Task<string> DownloadTextWithMirrorAsync(
+        string url,
+        IProgress<AppPatchDownloadProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await DownloadTextAsync(url, cancellationToken);
+        }
+        catch (Exception ex) when (IsTransientDownloadFailure(ex, cancellationToken))
+        {
+            string mirrorUrl = UpdateEndpointPolicy.DeriveMirrorDownloadUrl(url);
+            if (mirrorUrl.Length == 0
+                || string.Equals(mirrorUrl, url, StringComparison.OrdinalIgnoreCase))
+            {
+                throw;
+            }
+
+            RuntimeLog.Warn("Update", $"Manifest download failed, trying mirror: {ex.Message}");
+            progress?.Report(new AppPatchDownloadProgress("更新清单下载失败，正在改用镜像源"));
+            return await DownloadTextAsync(mirrorUrl, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// 第一个地址失败后要试的地址：清单里给了两个平台就用另一个平台（原有行为），
+    /// 只给了一个地址时按镜像策略换主机（GitHub ↔ Gitee）。
+    /// </summary>
+    private static string ResolveAlternatePatchUrl(PackageDownloadRoute route)
+    {
+        if (!route.PreferGitee
+            && !string.Equals(route.GithubUrl, route.GiteeUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return route.GiteeUrl;
+        }
+
+        string mirrorUrl = UpdateEndpointPolicy.DeriveMirrorDownloadUrl(route.SelectedUrl);
+        return string.Equals(mirrorUrl, route.SelectedUrl, StringComparison.OrdinalIgnoreCase)
+            ? ""
+            : mirrorUrl;
+    }
+
+    private static string DescribeDownloadSource(PackageDownloadRoute route, string url)
+    {
+        if (string.Equals(url, route.GiteeUrl, StringComparison.OrdinalIgnoreCase))
+            return "Gitee";
+        if (string.Equals(url, route.GithubUrl, StringComparison.OrdinalIgnoreCase))
+            return "GitHub";
+        return "镜像源";
+    }
+
+    private static bool IsTransientDownloadFailure(Exception ex, CancellationToken cancellationToken)
+        => !cancellationToken.IsCancellationRequested
+            && ex is HttpRequestException or IOException or TaskCanceledException;
 
     private async Task DownloadFileAsync(
         string url,
