@@ -91,6 +91,6 @@ pwsh -NoProfile -File Tools\Test-Release-Automated.ps1
 - 合并后把主干对齐到同一个提交。PR 目标可通过仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `both`）配置，命令行 `-Target` 优先；统一用 `Tools\Submit-ChangePr.ps1` 提交。
 - PR 提到哪个平台按问题来源决定：自己发现的 bug 默认提 Gitee；别人在某个平台提的 issue，PR 就提到那个平台（在 Gitee 提的 issue 提 Gitee PR，在 GitHub 提的 issue 提 GitHub PR）。
 - PR 合并使用快进（fast-forward），提交原样保留，不改写 SHA、不做 merge 提交、不 squash；发布标签必须打在已合并到主干的提交上。
-- 提交格式为 `<type>: <简洁主题>`，通常使用中文，并用正文说明修改内容与原因。提交前检查 staged diff。
+- 提交格式为 `<type>: <简洁主题>`，通常使用中文；正文需要时用一两句说明修改内容与原因，保持简洁、不罗列实现细节。提交前检查 staged diff。
 - 提交信息不得包含个人身份、设备信息、绝对本机路径、账号、内部 URL、令牌、密钥、证书或签名材料。
 - Pull Request 应包含摘要、验证步骤、关联问题；UI、播放或打包变更附截图或录像。
