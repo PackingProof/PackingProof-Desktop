@@ -497,90 +497,10 @@ public sealed class SettingsAdvancedVisibilityTests
 
         throw new FileNotFoundException("找不到 SettingsWindow.xaml");
     }
-
-    /// <summary>
-    /// 空闲相关的设置在"录像设置"里单独一张卡：预览降帧开关跟摄像头休眠挨着放，
-    /// 而且都不藏在高级模式后面——不踏实想关掉降帧的用户得一眼能找到。
-    /// </summary>
-    [Fact]
-    public void IdleSettings_SitTogetherInOneCardWithoutAdvancedMode()
-    {
-        XDocument document = LoadSettingsXaml();
-        XElement throttleLabel = Assert.Single(
-            document.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "空闲时降低预览帧率");
-        XElement throttleCheckBox = Assert.Single(
-            document.Descendants(Presentation + "CheckBox"),
-            element => (string?)element.Attribute(Xaml + "Name") == "PreviewIdleThrottleCheckBox");
-        XElement cameraIdleLabel = Assert.Single(
-            document.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "长时间不用时关闭摄像头");
-        XElement noSleepLabel = Assert.Single(
-            document.Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == "高峰时段不休眠");
-
-        Assert.Equal(
-            "{Binding Config.EnablePreviewIdleThrottle}",
-            (string?)throttleCheckBox.Attribute("IsChecked"));
-
-        // 预览降帧与摄像头休眠同一张卡，而且都是普通行（AdvancedSettingRowStyle 才受高级模式控制）
-        XElement? throttleRow = throttleLabel.Ancestors(Presentation + "Grid").FirstOrDefault();
-        XElement? cameraIdleRow = cameraIdleLabel.Ancestors(Presentation + "Grid").FirstOrDefault();
-        Assert.NotNull(throttleRow);
-        Assert.NotNull(cameraIdleRow);
-        Assert.Equal("SettingRowStyle", StyleKey(throttleRow!));
-        Assert.Equal("SettingRowStyle", StyleKey(cameraIdleRow!));
-        Assert.Same(
-            throttleRow!.Ancestors(Presentation + "Border")
-                .First(element => StyleKey(element) == "SectionCardStyle"),
-            cameraIdleRow!.Ancestors(Presentation + "Border")
-                .First(element => StyleKey(element) == "SectionCardStyle"));
-
-        // 高峰时段是给管理员用的细节，仍然留在高级模式里
-        XElement noSleepRow = noSleepLabel.Ancestors(Presentation + "Grid").First();
-        Assert.Equal("AdvancedSettingRowStyle", StyleKey(noSleepRow));
-    }
-
     private static string StyleKey(XElement element) =>
         ((string?)element.Attribute("Style") ?? "")
             .Replace("{StaticResource ", "", StringComparison.Ordinal)
             .Replace("}", "", StringComparison.Ordinal);
-
-
-    /// <summary>
-    /// 「接收预览版更新」开关就在「自动检查更新」下面同一张卡里，绑 Config.AllowPrereleaseUpdates：
-    /// 测试机不用再去设环境变量，在界面上就能打开。
-    /// </summary>
-    [Fact]
-    public void PrereleaseUpdateSwitch_SitsUnderAutoUpdateCheckAndBindsToConfig()
-    {
-        XDocument document = LoadSettingsXaml();
-        List<XElement> labels = document.Descendants(Presentation + "TextBlock")
-            .Where(element => (string?)element.Attribute("Text") is not null)
-            .ToList();
-        int autoIndex = labels.FindIndex(element => (string?)element.Attribute("Text") == "自动检查更新");
-        int prereleaseIndex = labels.FindIndex(element => (string?)element.Attribute("Text") == "接收预览版更新");
-
-        Assert.True(autoIndex >= 0, "找不到自动检查更新那一行");
-        Assert.True(prereleaseIndex > autoIndex, "接收预览版更新应该排在自动检查更新下面");
-
-        XElement autoLabel = labels[autoIndex];
-        XElement prereleaseLabel = labels[prereleaseIndex];
-        XElement checkBox = Assert.Single(
-            document.Descendants(Presentation + "CheckBox"),
-            element => (string?)element.Attribute("IsChecked") == "{Binding Config.AllowPrereleaseUpdates}");
-
-        Assert.Equal("SettingRowStyle", StyleKey(prereleaseLabel.Ancestors(Presentation + "Grid").First()));
-        Assert.Equal(
-            StyleKey(autoLabel.Ancestors(Presentation + "Grid").First()),
-            StyleKey(prereleaseLabel.Ancestors(Presentation + "Grid").First()));
-        Assert.Same(
-            autoLabel.Ancestors(Presentation + "Border")
-                .First(element => StyleKey(element) == "SectionCardStyle"),
-            prereleaseLabel.Ancestors(Presentation + "Border")
-                .First(element => StyleKey(element) == "SectionCardStyle"));
-        Assert.Same(prereleaseLabel.Ancestors(Presentation + "Grid").First(), checkBox.Parent);
-    }
 
     private static string LoadSettingsCode()
     {

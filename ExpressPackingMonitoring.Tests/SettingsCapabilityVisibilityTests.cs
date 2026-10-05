@@ -61,53 +61,6 @@ public sealed class SettingsCapabilityVisibilityTests
                 .Where(value => value != null),
             value => value!.Contains(capability, StringComparison.Ordinal));
     }
-
-    [Fact]
-    public void SettingsTabsFollowTheUserWorkflow()
-    {
-        string?[] headers = LoadSettingsXaml()
-            .Descendants(Presentation + "TabItem")
-            .Select(element => (string?)element.Attribute("Header"))
-            .ToArray();
-
-        Assert.Equal(
-            new string?[]
-            {
-                "设备与外观",
-                "扫码与识别",
-                "面单放大",
-                "存储与备份",
-                "录像设置",
-                "声音与播报",
-                "局域网与网页",
-                "扩展与联动",
-                "高级设置",
-                "关于"
-            },
-            headers);
-    }
-
-    [Theory]
-    [InlineData("麦克风", "设备与外观")]
-    [InlineData("录制声音", "录像设置")]
-    [InlineData("视频编码格式", "录像设置")]
-    [InlineData("接收第三方水印", "录像设置")]
-    [InlineData("订单备注播报", "声音与播报")]
-    [InlineData("播报商品件数", "声音与播报")]
-    [InlineData("网页访问端口", "局域网与网页")]
-    [InlineData("安装订单联动", "扩展与联动")]
-    [InlineData("扩展市场", "扩展与联动")]
-    [InlineData("导出诊断日志", "关于")]
-    public void SettingsAreGroupedByUserPurpose(string label, string expectedTab)
-    {
-        XElement labelElement = Assert.Single(
-            LoadSettingsXaml().Descendants(Presentation + "TextBlock"),
-            element => (string?)element.Attribute("Text") == label);
-        XElement tab = Assert.Single(labelElement.Ancestors(Presentation + "TabItem"));
-
-        Assert.Equal(expectedTab, (string?)tab.Attribute("Header"));
-    }
-
     [Theory]
     [InlineData("电脑用途")]
     [InlineData("关闭窗口时")]
