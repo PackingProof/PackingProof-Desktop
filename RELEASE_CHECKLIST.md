@@ -37,7 +37,7 @@
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把 `ExpressPackingMonitoring/ExpressPackingMonitoring.csproj` 的 `<Version>` 更新为本次版本，并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
 - 发布流程顺序：改动经 PR 合并到主干并通过本地 CI → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验 → 推送标签到 GitHub 与 Gitee → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 生成并上传 Gitee 专属的 no-runtime 安装向导；禁止普通 `main` push 触发发布包工作流
-- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、下载与更新说明与实际上传资产一致（含 Gitee 的 no-runtime 安装向导与 macOS DMG）、且与 `update_vX.Y.Z.json` 的标题和说明同步
+- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、《问题修复》只写上一正式版就存在的缺陷（本版自己引入又修掉的不写）、下载与更新说明与实际上传资产一致（含 Gitee 的 no-runtime 安装向导与 macOS DMG，且不写已不存在的免安装整包）、且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容
 - 生成 AppPatch 前必须验证固定基线 FFmpeg 的大小和 SHA256 位于兼容白名单，并确认当前保留的每个 LibVLC 必需文件在基线中存在且哈希一致；基线多出的旧 VLC 插件可以保留
@@ -49,8 +49,8 @@
 - 本地基线文件缺失时允许从正式 App Release 下载，但必须验证 LauncherPatch 与包内 EXE 的大小、SHA256 和固定条目；任何不一致均阻止发布
 - 启动器包下载默认使用 GitHub，单次失败可立即使用更新清单中的 Gitee 地址兜底；连续失败达到阈值后优先 Gitee，成功或命中已验证缓存后必须清零失败计数
 - `update_vX.Y.Z.json` 的更新内容与最终发布说明一致，合并发布时包含尚未正式发布版本的有效改动
-- GitHub 上传 Setup、完整 7z、兼容 ZIP、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen。AppPatch 只生成并上传 `PackingProof_AppPatch_vX.Y.Z.zip`，不再生成旧别名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`
-- Gitee 仅向组织仓库 `PackingProof/PackingProof-Desktop` 发布：先确认 `gitee auth status` 已登录，显式指定 `--repo PackingProof/PackingProof-Desktop` 和 `--target main` 创建 Release，再上传更新 JSON、可用的 AppPatch（只上传 `PackingProof_AppPatch_vX.Y.Z.zip`），以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、完整 7z、完整 ZIP、启动器清单和发布信息文件，完整包默认使用外部完整下载页
+- GitHub 上传 Setup、更新 JSON、可用的 AppPatch，以及仅在本版本建立新基线时生成的 LauncherPatch；完整 7z / ZIP 不再生成也不上传；默认不上传启动器清单和发布信息文件，未签名时发布说明明确提示 SmartScreen。AppPatch 只生成并上传 `PackingProof_AppPatch_vX.Y.Z.zip`，不再生成旧别名 `ExpressPackingMonitoring_AppPatch_vX.Y.Z.zip`
+- Gitee 仅向组织仓库 `PackingProof/PackingProof-Desktop` 发布：先确认 `gitee auth status` 已登录，显式指定 `--repo PackingProof/PackingProof-Desktop` 和 `--target main` 创建 Release，再上传更新 JSON、可用的 AppPatch（只上传 `PackingProof_AppPatch_vX.Y.Z.zip`），以及仅在本版本建立新基线时生成的 LauncherPatch；不上传 Setup、启动器清单和发布信息文件，完整包默认使用外部完整下载页
 
 ## 现场检查（提醒，不阻断）
 
