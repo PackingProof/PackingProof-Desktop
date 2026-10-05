@@ -13,6 +13,7 @@ namespace ExpressPackingMonitoring.Tests;
 ///
 /// 没有摄像头的机器（构建机、CI）上这些用例自动跳过，不制造假失败。
 /// </summary>
+[Collection("Camera tests")]
 public sealed class MediaFoundationCaptureProbeTests
 {
     [Fact]

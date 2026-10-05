@@ -15,6 +15,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// （与网页 UI 用例要求浏览器可执行文件的约定一致），避免在别的机器上因为摄像头
 /// 被别的程序占用而产生假失败。
 /// </summary>
+[Collection("Camera tests")]
 public sealed class IriunCameraProbeTests
 {
     private const string EnableVariable = "EPM_CAMERA_SMOKE";

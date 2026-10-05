@@ -10,10 +10,16 @@ namespace ExpressPackingMonitoring.Tests;
 /// 这组用例必须真跑硬件 —— 采集循环的坑（异步回调链断掉、stride 算错把画面撕开、
 /// 掉线不通知）全都只在真实设备上出现，用假数据测不到。
 /// 没有摄像头的机器上自动跳过，不制造假失败。
+///
+/// 用独立集合串行：同一台摄像头不能被两条用例同时打开，否则表现为"启动成功但迟迟不来帧"。
 /// </summary>
+[Collection("Camera tests")]
 public sealed class MfCameraSourceTests
 {
     private const int FrameWaitMs = 4000;
+
+    /// <summary>机器忙或设备刚被别的用例放开时，Media Foundation 启动可能要好几秒。</summary>
+    private const int FirstFrameWaitMs = 15000;
 
     [Fact]
     public void StopTimeoutKeepsResourcesAliveUntilCallbackReturns()
@@ -162,12 +168,16 @@ public sealed class MfCameraSourceTests
 
         using var source = new MfCameraSource(device.SymbolicLink, 1280, 720, 30);
         int frameCount = 0;
+        using var warmedUp = new ManualResetEventSlim(false);
         using var enough = new ManualResetEventSlim(false);
 
         source.FrameReady += (_, args) =>
         {
             args.Frame.Dispose();
-            if (Interlocked.Increment(ref frameCount) >= 10)
+            int count = Interlocked.Increment(ref frameCount);
+            if (count == 1)
+                warmedUp.Set();
+            if (count >= 10)
                 enough.Set();
         };
 
@@ -176,9 +186,13 @@ public sealed class MfCameraSourceTests
 
         try
         {
+            // 先把"启动慢"和"不供帧"分开：第一帧单独给足时间，之后再要求持续供帧。
+            Assert.True(
+                warmedUp.Wait(FirstFrameWaitMs, TestContext.Current.CancellationToken),
+                $"{FirstFrameWaitMs}ms 内没有收到任何帧，采集回调链可能断了");
             Assert.True(
                 enough.Wait(FrameWaitMs, TestContext.Current.CancellationToken),
-                $"{FrameWaitMs}ms 内只收到 {frameCount} 帧，采集没有持续进行");
+                $"第一帧之后 {FrameWaitMs}ms 内只收到 {frameCount} 帧，采集没有持续进行");
         }
         finally
         {

@@ -7,6 +7,7 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+[Collection("Camera tests")]
 public sealed class GpuCpuCostProbeTests(ITestOutputHelper output)
 {
     [DllImport("kernel32.dll", SetLastError = true)]

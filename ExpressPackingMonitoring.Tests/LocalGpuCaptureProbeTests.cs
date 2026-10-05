@@ -11,6 +11,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 存在的意义是把"接入 GPU 之后 CPU 到底降了多少"落成可复现的过程，
 /// 而不是只留一句结论。之前正是因为拿微基准当实测，报出去的数字差了一个数量级。
 /// </summary>
+[Collection("Camera tests")]
 public sealed class LocalGpuCaptureProbeTests
 {
     private readonly ITestOutputHelper _output;
