@@ -4,6 +4,7 @@ using System.Windows;
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.ViewModels;
 using ExpressPackingMonitoring.Config;
+using ExpressPackingMonitoring.Services;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -355,6 +356,80 @@ public sealed class ZoomGuideEditingRenderTests
 
             Assert.False(vm.IsEditingZoomGuide);
             Assert.True(vm.IsCameraBarcodeGuideLockVisible);
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    /// 配置里存的是原生画面坐标：改了主摄旋转角度后，识别框与放大框都要按新角度换算到帧坐标，
+    /// 否则框会指到另一块区域（90° 时宽高比例还会整个颠倒）。
+    /// </summary>
+    [Fact]
+    public void MainCameraGuides_FollowTheConfiguredRotation()
+    {
+        RunOnStaThread(() =>
+        {
+            LoadAppResources();
+
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var vm = Assert.IsType<MainViewModel>(window.DataContext);
+            vm.Config.CameraRotationDegrees = 90;
+
+            // 原生坐标 (0.5, 0.4, +0.5, -1)：顺时针 90° 后宽高互换、偏移整体转过去。
+            var expected = new CameraBarcodeGuideGeometry(0.4, 0.5, 1, 0.5);
+
+            vm.Config.CameraBarcodeGuideWidthRatio = 0.5;
+            vm.Config.CameraBarcodeGuideHeightRatio = 0.4;
+            vm.Config.CameraBarcodeGuideOffsetX = 0.5;
+            vm.Config.CameraBarcodeGuideOffsetY = -1;
+            Assert.Equal(expected, vm.CurrentCameraBarcodeGuideGeometry);
+
+            // 放大框除了跟着转，还要收成相机画面的长宽比（宽高比例相等）。
+            vm.Config.ZoomGuideWidthRatio = 0.5;
+            vm.Config.ZoomGuideHeightRatio = 0.5;
+            vm.Config.ZoomGuideOffsetX = 0.5;
+            vm.Config.ZoomGuideOffsetY = -1;
+            Assert.Equal(new CameraBarcodeGuideGeometry(0.5, 0.5, 1, 0.5), vm.ZoomGuideGeometry);
+
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    /// 放大框必须和相机分辨率同长宽比：框不是画面比例时，放大裁的那块会比框多出一圈，
+    /// 于是"框住的地方填满画面"就变成了"框住的地方没放大到"。
+    /// </summary>
+    [Fact]
+    public void ZoomGuide_IsNormalizedToTheCameraFrameAspect()
+    {
+        RunOnStaThread(() =>
+        {
+            LoadAppResources();
+
+            var window = new MainWindow(enableCloseBehaviorPrompt: false);
+            var vm = Assert.IsType<MainViewModel>(window.DataContext);
+            vm.Config.CameraRotationDegrees = 0;
+            vm.Config.ZoomGuideWidthRatio = 0.5;
+            vm.Config.ZoomGuideHeightRatio = 0.3;
+            vm.Config.ZoomGuideOffsetX = 0.5;
+            vm.Config.ZoomGuideOffsetY = 0;
+
+            CameraBarcodeGuideGeometry guide = vm.ZoomGuideGeometry;
+
+            Assert.Equal(guide.WidthRatio, guide.HeightRatio, 6);
+            // 框住的这块要与"放大实际裁的那一块"重合，不多不少。
+            Rect frame = new(0, 0, 1280, 720);
+            Rect box = CameraBarcodeGuideLayout.ToDisplayRect(guide, frame);
+            Rect crop = ZoomCropPolicy.CreateCropRect(
+                1280,
+                720,
+                ZoomCropPolicy.ResolveScale(1280, 720, box),
+                box);
+            Assert.Equal(crop.X, box.X, 3);
+            Assert.Equal(crop.Y, box.Y, 3);
+            Assert.Equal(crop.Width, box.Width, 3);
+            Assert.Equal(crop.Height, box.Height, 3);
+
             window.Close();
         });
     }

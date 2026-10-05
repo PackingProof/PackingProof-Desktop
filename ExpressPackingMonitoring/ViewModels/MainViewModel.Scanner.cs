@@ -329,11 +329,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 原样套过去会错位；那一路的取景框与 PiP 显示的是同一块 ROI，所画即所识别。
                     ActiveBarcodeOverlayChannel is { } barcodeChannel
                         ? GetOverlayGuideGeometry(barcodeChannel.Number)
-                        : new CameraBarcodeGuideGeometry(
-                            Config.CameraBarcodeGuideWidthRatio,
-                            Config.CameraBarcodeGuideHeightRatio,
-                            Config.CameraBarcodeGuideOffsetX,
-                            Config.CameraBarcodeGuideOffsetY),
+                        // 主摄这条路与绘制同源：配置里存的是原生坐标，识别吃的是旋转后的帧坐标。
+                        : MainCameraBarcodeGuideGeometry,
                 confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits);
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmedWithGeometry += OnCameraBarcodeConfirmedWithGeometry;

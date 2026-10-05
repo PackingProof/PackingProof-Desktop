@@ -64,11 +64,15 @@ public partial class FirstUseSetupWizardWindow : Window
             guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
                 _config.CameraBarcodeRecognitionSpeed,
                 _config.Fps),
-            guideGeometryProvider: () => new CameraBarcodeGuideGeometry(
-                _config.CameraBarcodeGuideWidthRatio,
-                _config.CameraBarcodeGuideHeightRatio,
-                _config.CameraBarcodeGuideOffsetX,
-                _config.CameraBarcodeGuideOffsetY),
+            // 向导里识别的是旋转后的预览帧，几何存的是原生坐标：这里必须先转一次，
+            // 否则用户在向导里转过 90° 之后取景区会指到另一块画面上。
+            guideGeometryProvider: () => CameraBarcodeGuideLayout.Rotate(
+                new CameraBarcodeGuideGeometry(
+                    _config.CameraBarcodeGuideWidthRatio,
+                    _config.CameraBarcodeGuideHeightRatio,
+                    _config.CameraBarcodeGuideOffsetX,
+                    _config.CameraBarcodeGuideOffsetY),
+                _config.CameraRotationDegrees),
             confirmationHitsProvider: () => _config.CameraSameBarcodeConfirmationHits);
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
@@ -1127,11 +1131,14 @@ public partial class FirstUseSetupWizardWindow : Window
         if (source.PixelWidth <= 0 || source.PixelHeight <= 0 || actualW <= 0 || actualH <= 0)
             return;
 
-        var geometry = new CameraBarcodeGuideGeometry(
-            _config.CameraBarcodeGuideWidthRatio,
-            _config.CameraBarcodeGuideHeightRatio,
-            _config.CameraBarcodeGuideOffsetX,
-            _config.CameraBarcodeGuideOffsetY);
+        // 画框也要按当前旋转换算：图上这一帧已经是转过之后的。
+        var geometry = CameraBarcodeGuideLayout.Rotate(
+            new CameraBarcodeGuideGeometry(
+                _config.CameraBarcodeGuideWidthRatio,
+                _config.CameraBarcodeGuideHeightRatio,
+                _config.CameraBarcodeGuideOffsetX,
+                _config.CameraBarcodeGuideOffsetY),
+            _config.CameraRotationDegrees);
         double scale = Math.Min(actualW / source.PixelWidth, actualH / source.PixelHeight);
         CameraRecognitionGuide.Width = source.PixelWidth * geometry.WidthRatio * scale;
         CameraRecognitionGuide.Height = source.PixelHeight * geometry.HeightRatio * scale;

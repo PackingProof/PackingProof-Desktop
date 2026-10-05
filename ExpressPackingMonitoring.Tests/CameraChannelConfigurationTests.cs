@@ -853,12 +853,20 @@ public sealed class CameraChannelConfigurationTests
 
         var touched = new CameraChannelConfig
         {
+            RotationDegrees = 0,
             BarcodeGuideWidthRatio = 0.5,
             BarcodeGuideHeightRatio = 0.4
         };
         CameraBarcodeGuideGeometry stored = MainViewModel.ResolveOverlayGuideGeometry(touched, 1280, 720);
         Assert.Equal(0.5, stored.WidthRatio, 3);
         Assert.Equal(0.4, stored.HeightRatio, 3);
+
+        // 存的是原生画面坐标：这一路按默认的 90° 旋转时，宽高比例要跟着换过来，
+        // 否则旋转后框会指到另一块区域（这正是"改旋转后裁剪框变了"的根因）。
+        touched.RotationDegrees = 90;
+        CameraBarcodeGuideGeometry rotated = MainViewModel.ResolveOverlayGuideGeometry(touched, 1280, 720);
+        Assert.Equal(0.4, rotated.WidthRatio, 3);
+        Assert.Equal(0.5, rotated.HeightRatio, 3);
     }
 
     /// <summary>

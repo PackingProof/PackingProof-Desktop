@@ -646,12 +646,18 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
+            if (DataContext is not MainViewModel vm)
+                return;
+
+            // 调放大位置时框必须始终保持相机的长宽比：这样框住的那块就是放大后填满画面的那块。
+            bool keepFrameAspect = vm.IsEditingZoomGuide;
             AdjustCameraBarcodeGuide(geometry => CameraBarcodeGuideLayout.Resize(
                 geometry,
                 GetCameraGuideVideoRect(),
                 handle,
                 e.HorizontalChange,
-                e.VerticalChange));
+                e.VerticalChange,
+                keepFrameAspect));
         }
 
         private void CameraGuideDrag_Completed(object sender, DragCompletedEventArgs e)

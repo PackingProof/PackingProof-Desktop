@@ -656,6 +656,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     OnPropertyChanged(nameof(IsOverlayVisible));
                     OnPropertyChanged(nameof(IsBarcodeGuideVisible));
                     OnPropertyChanged(nameof(IsCameraBarcodeGuideLockVisible));
+                    // 换了配置就可能换了旋转角度，而框的几何要继续按新角度换算。
+                    // 0°↔180° 画面尺寸不变，只靠帧到达的通知会漏掉这次重摆，所以这里补一条：
+                    // 界面收到 CameraFrameSize 就会按当前几何重画识别框、放大框和画中画拖动框。
+                    OnPropertyChanged(nameof(CameraFrameSize));
                     PublishPreRecordBufferStatus(force: true);
                 }
             }

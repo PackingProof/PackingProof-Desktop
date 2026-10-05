@@ -45,13 +45,34 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>
         /// 放大取景框几何：主画面坐标，与识别来源无关。识别结果不再参与放大位置判定。
+        /// 返回的已是"按当前旋转换算过"的帧坐标，并且规范成和画面同长宽比的那一块：
+        /// 框住的地方就是放大后填满画面的地方，绘制与裁剪都直接吃这一份。
         /// </summary>
         public CameraBarcodeGuideGeometry ZoomGuideGeometry =>
-            new(
-                Config?.ZoomGuideWidthRatio ?? AppConfig.DefaultZoomGuideRatio,
-                Config?.ZoomGuideHeightRatio ?? AppConfig.DefaultZoomGuideRatio,
-                Config?.ZoomGuideOffsetX ?? 0,
-                Config?.ZoomGuideOffsetY ?? 0);
+            CameraBarcodeGuideLayout.NormalizeToFrameAspect(
+                CameraBarcodeGuideLayout.Rotate(
+                    new CameraBarcodeGuideGeometry(
+                        Config?.ZoomGuideWidthRatio ?? AppConfig.DefaultZoomGuideRatio,
+                        Config?.ZoomGuideHeightRatio ?? AppConfig.DefaultZoomGuideRatio,
+                        Config?.ZoomGuideOffsetX ?? 0,
+                        Config?.ZoomGuideOffsetY ?? 0),
+                    MainCameraRotationDegrees));
+
+        /// <summary>主摄当前旋转角度；配置还没加载或值是哨兵时按不旋转处理。</summary>
+        private int MainCameraRotationDegrees => Config?.CameraRotationDegrees ?? 0;
+
+        /// <summary>
+        /// 主摄识别框几何，已换算到"旋转后的帧坐标"：绘制与识别都吃这一份。
+        /// 配置里存的是原生坐标，改旋转后框仍盖住同一块画面区域。
+        /// </summary>
+        internal CameraBarcodeGuideGeometry MainCameraBarcodeGuideGeometry =>
+            CameraBarcodeGuideLayout.Rotate(
+                new CameraBarcodeGuideGeometry(
+                    Config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
+                    Config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
+                    Config?.CameraBarcodeGuideOffsetX ?? CameraBarcodeGuideGeometry.Default.OffsetX,
+                    Config?.CameraBarcodeGuideOffsetY ?? CameraBarcodeGuideGeometry.Default.OffsetY),
+                MainCameraRotationDegrees);
 
         /// <summary>
         /// 是否正在主画面上调整放大取景框（从设置页"调整放大位置"进入）。
@@ -136,11 +157,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 ? ZoomGuideGeometry
                 : IsEditingOverlayPreview
                     ? CurrentOverlayGuideGeometry
-                    : new CameraBarcodeGuideGeometry(
-                    Config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
-                    Config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
-                    Config?.CameraBarcodeGuideOffsetX ?? CameraBarcodeGuideGeometry.Default.OffsetX,
-                    Config?.CameraBarcodeGuideOffsetY ?? CameraBarcodeGuideGeometry.Default.OffsetY);
+                    : MainCameraBarcodeGuideGeometry;
 
         /// <summary>
         /// 主界面拖动识别框后写回配置。拖动过程即时生效但不落盘，松手时才保存，
@@ -148,23 +165,33 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         public void ApplyCameraBarcodeGuideGeometry(CameraBarcodeGuideGeometry geometry, bool persist)
         {
+            // 传进来的是"旋转后的帧坐标"（拖动换算出来的），落盘前一律还原成原生画面坐标，
+            // 否则改一次旋转就等于把框又转了一次。
+
             // 放大取景框编辑屏：写回放大取景框那一组，与识别框完全分开。
             if (IsEditingZoomGuide)
             {
-                ApplyZoomGuideGeometry(geometry, persist);
+                ApplyZoomGuideGeometry(
+                    CameraBarcodeGuideLayout.RotateInverse(geometry, MainCameraRotationDegrees),
+                    persist);
                 return;
             }
 
             // 编辑叠加画面时写回那一路的一组，其余情况写回主摄的。
             if (IsEditingOverlayPreview && _editingOverlayChannelNumber > 0)
             {
-                ApplyOverlayBarcodeGuideGeometry(_editingOverlayChannelNumber, geometry, persist);
+                int overlayRotation = FindOverlayChannel(_editingOverlayChannelNumber)?.Config.RotationDegrees ?? 0;
+                ApplyOverlayBarcodeGuideGeometry(
+                    _editingOverlayChannelNumber,
+                    CameraBarcodeGuideLayout.RotateInverse(geometry, overlayRotation),
+                    persist);
                 return;
             }
 
             if (Config == null)
                 return;
 
+            geometry = CameraBarcodeGuideLayout.RotateInverse(geometry, MainCameraRotationDegrees);
             Config.CameraBarcodeGuideWidthRatio = Math.Clamp(
                 geometry.WidthRatio,
                 CameraBarcodeGuideLayout.MinRatio,
@@ -204,6 +231,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 CameraBarcodeGuideLayout.MaxRatio);
             Config.ZoomGuideOffsetX = Math.Clamp(geometry.OffsetX, -1.0, 1.0);
             Config.ZoomGuideOffsetY = Math.Clamp(geometry.OffsetY, -1.0, 1.0);
+
+            // 落盘前收成和画面同长宽比的那一块：下次读出来、拖动把手和实际裁剪都是同一块区域。
+            CameraBarcodeGuideGeometry normalized =
+                CameraBarcodeGuideLayout.NormalizeToFrameAspect(new CameraBarcodeGuideGeometry(
+                    Config.ZoomGuideWidthRatio,
+                    Config.ZoomGuideHeightRatio,
+                    Config.ZoomGuideOffsetX,
+                    Config.ZoomGuideOffsetY));
+            Config.ZoomGuideWidthRatio = normalized.WidthRatio;
+            Config.ZoomGuideHeightRatio = normalized.HeightRatio;
+            Config.ZoomGuideOffsetX = normalized.OffsetX;
+            Config.ZoomGuideOffsetY = normalized.OffsetY;
 
             if (!persist)
                 return;

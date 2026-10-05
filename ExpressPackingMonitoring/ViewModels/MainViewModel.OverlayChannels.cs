@@ -1061,6 +1061,10 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 取景框几何：用户没调过（还是默认比例 + 居中）时按"短边居中方形"算 ——
         /// 也就是默认 1:1 裁剪，这块既是要显示的画面、也是识别范围；
         /// 调过以后按存下来的比例走，四个角可以自由改大小。
+        ///
+        /// 传进来的 <paramref name="frameWidth"/>/<paramref name="frameHeight"/> 是旋转后的帧尺寸；
+        /// 存下来的是原生画面坐标，所以调过的那一支要按这一路自己的旋转角度换算过去。
+        /// 没调过的默认方形是居中的，转不转都是同一块区域，直接按帧尺寸算即可。
         /// </summary>
         internal static CameraBarcodeGuideGeometry ResolveOverlayGuideGeometry(
             CameraChannelConfig channel,
@@ -1079,11 +1083,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 return new CameraBarcodeGuideGeometry(side / frameWidth, side / frameHeight, 0, 0);
             }
 
-            return new CameraBarcodeGuideGeometry(
-                channel.BarcodeGuideWidthRatio,
-                channel.BarcodeGuideHeightRatio,
-                channel.BarcodeGuideOffsetX,
-                channel.BarcodeGuideOffsetY);
+            return CameraBarcodeGuideLayout.Rotate(
+                new CameraBarcodeGuideGeometry(
+                    channel.BarcodeGuideWidthRatio,
+                    channel.BarcodeGuideHeightRatio,
+                    channel.BarcodeGuideOffsetX,
+                    channel.BarcodeGuideOffsetY),
+                channel.RotationDegrees);
         }
 
         /// <summary>按通道号取取景框几何；通道不存在时退回整幅。</summary>
