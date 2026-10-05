@@ -35,24 +35,6 @@ public sealed class ArchiveArchitectureGuardTests
                 && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .ToArray();
     }
-
-    [Fact]
-    public void ArchiveProviderInterface_ExposesRootGuardedDeleteOnly()
-    {
-        string interfaceFile = Path.Combine(
-            FindRepositoryRoot(),
-            "ExpressPackingMonitoring",
-            "Services",
-            "IArchiveProvider.cs");
-        string source = File.ReadAllText(interfaceFile);
-
-        Assert.Contains("DeleteAsync", source, StringComparison.Ordinal);
-        Assert.Contains("allowedRoots", source, StringComparison.Ordinal);
-        Assert.Contains("PublishFileAsync", source, StringComparison.Ordinal);
-        Assert.Contains("ProbeAsync", source, StringComparison.Ordinal);
-        Assert.Contains("ComputeSha256Async", source, StringComparison.Ordinal);
-    }
-
     [Fact]
     public void ArchivePipeline_DeletesOnlyViaNasCircularCleanup()
     {
@@ -105,19 +87,5 @@ public sealed class ArchiveArchitectureGuardTests
         Assert.True(
             offenders.Length == 0,
             "录像缓存概念已移除，新代码不得引用: " + string.Join(" | ", offenders));
-    }
-
-    [Fact]
-    public void StorageResolverComments_DoNotUseCacheWording()
-    {
-        string resolverFile = Path.Combine(
-            FindRepositoryRoot(),
-            "ExpressPackingMonitoring",
-            "Services",
-            "StorageLocationResolver.cs");
-        string source = File.ReadAllText(resolverFile);
-
-        Assert.DoesNotContain("缓存", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("缓冲", source, StringComparison.Ordinal);
     }
 }

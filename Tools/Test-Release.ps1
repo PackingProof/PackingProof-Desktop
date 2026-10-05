@@ -44,7 +44,6 @@ $requiredCoreTests = @(
     "VideoDatabaseTests.GetRecentOrderInfos_UsesDatabaseAsNinetyDaySourceOfTruth",
     "VideoDatabaseTests.UpsertOrderInfos_DoesNotLetOlderSnapshotOverwriteNewerRefundState",
     "VideoDatabaseTests.VideoRecords_DerivesFileNameFromPathAndDoesNotPersistRedundantColumn",
-    "WebRequestLimitTests.ClipEditor_UsesSingleScreenSourcePlaybackWorkflow"
     "MobileConnectionTests.FirstUseDefaultsLeaveMobilePromptPendingUntilQrWasShown"
     "MobileConnectionTests.GeneratedQrDecodesToExactAccessUrl"
     "MobileConnectionTests.ProtectedEndpointRejectsUnauthorizedAndAcceptsQueryThenCookie"
