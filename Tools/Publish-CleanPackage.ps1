@@ -396,11 +396,14 @@ if (-not $ConfirmManualCoreChecks) {
 # 产物目录名带提交后缀（-2-g<sha> / -dirty），重打一次就换一个目录名，所以不能只认本次目录：
 # 会在本次目录、版本稳定位置、同版本历史产物目录里找最新的一份人工笔记（模板骨架不算）。
 $releaseNotesFileName = Get-ReleaseNotesFileName -NormalizedVersion $normalizedVersion
-$releaseNotesPath = Join-Path $outputFullPath $releaseNotesFileName
+# 人工笔记写在版本产物目录（package\PackingProof+vX.Y.Z\）：发布脚本 Publish-Releases.ps1
+# 就是从这个位置读取的；写进内层"干净包"目录它找不到，会误报"发布笔记不存在"。
+$releaseNotesDir = Split-Path -Parent $outputFullPath
+$releaseNotesPath = Join-Path $releaseNotesDir $releaseNotesFileName
 $preservedReleaseNotes = Resolve-PreservedReleaseNotes `
     -RepoRoot $repoRoot `
     -NormalizedVersion $normalizedVersion `
-    -OutputDir $outputFullPath
+    -OutputDir $releaseNotesDir
 $preservedReleaseNotesText = $preservedReleaseNotes.Text
 if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotesText)) {
     Write-Host "Release notes kept from: $($preservedReleaseNotes.Path)"
