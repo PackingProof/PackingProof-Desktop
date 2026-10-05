@@ -213,10 +213,8 @@ public sealed class RecordingComputerNicknameTests
     [Fact]
     public async Task WorkstationHeartbeatAcceptsOldHostWithoutAssignedName()
     {
-        int port = GetFreeTcpPort();
-        using var listener = new HttpListener();
-        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-        listener.Start();
+        // 分配与绑定一次做完，避免"先分配、再 Start"中间被并行用例抢走同一个端口
+        using var listener = TestPortAllocator.StartHttpListener(out int port);
         Task serverTask = Task.Run(async () =>
         {
             HttpListenerContext context = await listener.GetContextAsync()

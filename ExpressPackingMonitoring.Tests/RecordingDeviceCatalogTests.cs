@@ -542,7 +542,6 @@ public sealed class RecordingDeviceCatalogTests
         string directory = Path.Combine(Path.GetTempPath(), $"epm-test-order-partial-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         int successPort = GetFreeTcpPort();
-        int failurePort = GetFreeTcpPort();
         try
         {
             using var database = new VideoDatabase(Path.Combine(directory, "videos.db"));
@@ -555,9 +554,8 @@ public sealed class RecordingDeviceCatalogTests
                 nodeName: "电脑",
                 deploymentPreset: DeploymentPresets.RecordingHost);
             server.Start();
-            using var failureServer = new HttpListener();
-            failureServer.Prefixes.Add($"http://127.0.0.1:{failurePort}/");
-            failureServer.Start();
+            // 分配与绑定一次做完，避免"先分配、再 Start"中间被并行用例抢走同一个端口
+            using var failureServer = TestPortAllocator.StartHttpListener(out int failurePort);
             Task failureResponse = Task.Run(async () =>
             {
                 HttpListenerContext context = await failureServer.GetContextAsync()
