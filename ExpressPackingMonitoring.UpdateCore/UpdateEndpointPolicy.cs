@@ -60,6 +60,15 @@ public static class UpdateEndpointPolicy
                 trimmed += "/releases";
 
             string withPage = trimmed + "?per_page=100";
+            // Gitee 默认按"旧 → 新"返回（最新版被挤到最后一页，现场就是踩这个：只看第一页永远看不到新版）。
+            // 显式要"新 → 旧"，第一页就是最新版；GitHub 本来就是新 → 旧，不用加。
+            // 挑选逻辑本身与顺序无关（按页读完、按版本号挑最高），这里只是少翻几页、让第一页有意义。
+            if (Uri.TryCreate(withPage, UriKind.Absolute, out Uri? listUri)
+                && listUri.Host.EndsWith("gitee.com", StringComparison.OrdinalIgnoreCase))
+            {
+                withPage += "&direction=desc";
+            }
+
             if (!list.Contains(withPage, StringComparer.OrdinalIgnoreCase))
                 list.Add(withPage);
         }

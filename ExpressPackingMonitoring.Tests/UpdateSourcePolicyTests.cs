@@ -160,6 +160,22 @@ public sealed class UpdateSourcePolicyTests
     private static string[] ReleaseListUrls() =>
         UpdateCheckOptions.ToReleaseListUrls(UpdateCheckOptions.ResolveUpdateCheckUrls(null, null)).ToArray();
 
+    /// <summary>
+    /// Gitee 默认是"旧 → 新"，最新版被挤到最后一页；请求里必须显式要"新 → 旧"，
+    /// 这样第一页就是最新版（GitHub 本来就是新 → 旧，不重复加参数）。
+    /// </summary>
+    [Fact]
+    public void GiteeReleaseListUrl_AsksNewestFirst_AndGithubUrlStaysUntouched()
+    {
+        IReadOnlyList<string> urls = UpdateCheckOptions.ToReleaseListUrls(
+            UpdateCheckOptions.GetUpdateCheckUrls());
+
+        string giteeList = UpdateCheckOptions.DefaultGiteeCheckUrl[..^"/latest".Length];
+        string githubList = UpdateCheckOptions.DefaultGithubCheckUrl[..^"/latest".Length];
+        Assert.Equal($"{giteeList}?per_page=100&direction=desc", urls[0]);
+        Assert.Equal($"{githubList}?per_page=100", urls[1]);
+    }
+
     /// <summary>列表请求的第一个 URL：策略生成的列表地址 + 第一页。</summary>
     private static string[] PagedReleaseListUrls() =>
         ReleaseListUrls().Select(url => $"{url}&page=1").ToArray();
