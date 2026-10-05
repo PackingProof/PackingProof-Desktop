@@ -76,6 +76,13 @@
                     Style="{StaticResource PrimaryButtonStyle}"
                     Margin="0,0,10,0"
                     Click="Download_Click"/>
+            <!-- 下载一路失败时的人工出口：直接打开完整更新页面/备用网盘，不让用户卡在"重试下载"上 -->
+            <Button x:Name="FallbackDownloadButton"
+                    Content="打开完整更新页面"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Margin="0,0,10,0"
+                    Visibility="Collapsed"
+                    Click="FallbackDownload_Click"/>
             <Button x:Name="LaterButton"
                     Content="稍后再说"
                     Style="{StaticResource SecondaryButtonStyle}"

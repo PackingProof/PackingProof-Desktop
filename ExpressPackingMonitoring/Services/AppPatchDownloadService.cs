@@ -73,6 +73,9 @@ internal sealed class AppPatchDownloadService
         if (string.IsNullOrWhiteSpace(update.UpdateManifestUrl))
             return FullPackage(update, "此版本没有可用的增量更新描述");
 
+        // 失败时也要能把"完整更新页面/备用网盘"交回给界面，别让用户卡在重试上
+        string failureDownloadPage = "";
+        string failureFallbackPage = "";
         try
         {
             progress?.Report(new AppPatchDownloadProgress("正在读取增量更新信息"));
@@ -84,6 +87,8 @@ internal sealed class AppPatchDownloadService
             string fallbackUrl = descriptor.FullDownloadUrl.Length > 0
                 ? descriptor.FullDownloadUrl
                 : update.DownloadUrl;
+            failureDownloadPage = fallbackUrl;
+            failureFallbackPage = descriptor.FullDownloadFallbackUrl;
 
             if (!descriptor.PatchSupported)
                 return FullPackage(update, "此版本未提供可用的增量包", fallbackUrl, descriptor.FullDownloadFallbackUrl);
@@ -130,7 +135,9 @@ internal sealed class AppPatchDownloadService
             RuntimeLog.Error("Update", "Manual AppPatch preparation failed", ex);
             return new AppPatchPreparationResult(
                 AppPatchPreparationStatus.Failed,
-                $"补丁下载或校验失败：{ex.Message}");
+                $"补丁下载或校验失败：{ex.Message}",
+                failureDownloadPage,
+                failureFallbackPage);
         }
     }
 

@@ -120,8 +120,56 @@ namespace ExpressPackingMonitoring.UI
                     DownloadButton.Content = "重试下载";
                     DownloadButton.IsEnabled = true;
                     LaterButton.IsEnabled = true;
+                    if (preparation.Status == AppPatchPreparationStatus.Failed)
+                        ShowFallbackDownloadEntry(preparation);
                     break;
             }
+        }
+
+        /// <summary>
+        /// 补丁彻底失败时给一条人工出路：把"打开完整更新页面/备用网盘"亮出来。
+        /// 现场就出现过"检查得到新版本、下载一路失败"，用户只能反复点重试的死胡同。
+        /// </summary>
+        private void ShowFallbackDownloadEntry(AppPatchPreparationResult preparation)
+        {
+            string fallbackUrl = ResolveFallbackDownloadUrl(_result, preparation);
+            if (fallbackUrl.Length == 0)
+                return;
+
+            DownloadUrl = fallbackUrl;
+            FallbackDownloadButton.Visibility = Visibility.Visible;
+            if (!DownloadStatusText.Text.Contains(fallbackUrl, StringComparison.Ordinal))
+                DownloadStatusText.Text += $"\n完整更新页面：{fallbackUrl}";
+        }
+
+        /// <summary>
+        /// 人工出口用哪个地址：检查结果里的下载地址优先（发布说明里写了百度网盘时给的就是网盘链接），
+        /// 其次是清单里的完整下载页与备用下载页。都没有就返回空串，不给按钮。
+        /// </summary>
+        internal static string ResolveFallbackDownloadUrl(
+            UpdateCheckResult result,
+            AppPatchPreparationResult preparation)
+        {
+            foreach (string candidate in new[]
+            {
+                result.DownloadUrl,
+                preparation.FullDownloadUrl,
+                preparation.FullDownloadFallbackUrl
+            })
+            {
+                string url = candidate?.Trim() ?? "";
+                if (url.Length > 0)
+                    return url;
+            }
+
+            return "";
+        }
+
+        private void FallbackDownload_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFullDownloadPageRequested = true;
+            DialogResult = true;
+            Close();
         }
 
         private void Later_Click(object sender, RoutedEventArgs e)
