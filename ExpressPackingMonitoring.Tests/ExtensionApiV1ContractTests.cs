@@ -99,6 +99,47 @@ public sealed class ExtensionApiV1ContractTests
         });
     }
 
+    /// <summary>
+    /// 扩展扫码任务查到的订单以前只走界面提示、不落库，录像记录里始终没有商品信息
+    /// （现场反馈"数据库并不是每一单都有订单号"）。现在要和推送一样写进订单缓存并回填录像记录。
+    /// </summary>
+    [Fact]
+    public async Task ResolvedOrderInfos_ArePersistedAndBackfillOlderRecords()
+    {
+        await WithServerAsync(async (_, server, database) =>
+        {
+            long recordId = database.InsertVideoRecord(
+                "EXT-RESOLVED-001",
+                "发货",
+                "h264",
+                "libx264",
+                Path.Combine(Path.GetTempPath(), "ext-resolved-001.mp4"),
+                DateTime.Now.AddDays(-5),
+                recordingSessionId: "session-ext-resolved-001");
+
+            server.StoreResolvedOrderInfos(new[]
+            {
+                new OrderInfo
+                {
+                    TrackingNumber = " ext-resolved-001 ",
+                    OrderId = "ORDER-EXT-RESOLVED-001",
+                    BuyerMessage = "请轻放",
+                    ProductInfo = "蓝色水杯 ×3",
+                    TotalItemCount = 3,
+                    PushTime = DateTime.Now
+                }
+            });
+
+            OrderInfo? cached = server.GetOrderInfo("EXT-RESOLVED-001");
+            Assert.NotNull(cached);
+            Assert.Equal("蓝色水杯 ×3", cached.ProductInfo);
+
+            VideoRecord record = database.GetVideoById(recordId);
+            Assert.Equal("蓝色水杯 ×3", record.ProductInfo);
+            Assert.Equal("请轻放", record.BuyerMessage);
+        });
+    }
+
     [Fact]
     public async Task RecordingDataFixture_FollowsActiveSessionLifecycleAndStableErrors()
     {

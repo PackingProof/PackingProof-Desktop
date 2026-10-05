@@ -490,6 +490,37 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    /// <summary>
+    /// 面单先打、货隔几天再打包时，订单推送会晚到好几天。回填窗口跟订单缓存一样是 90 天，
+    /// 不能停在 72 小时，否则这些录像永远补不上订单信息。
+    /// </summary>
+    [Fact]
+    public void UpdateRecentVideoOrderInfos_BackfillsRecordsOlderThanThreeDaysWithinTheRetentionWindow()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            long lateId = database.InsertVideoRecord(
+                "TRACK-LATE-5D", "发货", "", "", Path.Combine(tempDirectory, "late.mp4"), DateTime.Now.AddDays(-5));
+            long expiredId = database.InsertVideoRecord(
+                "TRACK-EXPIRED-91D", "发货", "", "", Path.Combine(tempDirectory, "expired.mp4"), DateTime.Now.AddDays(-91));
+
+            database.UpdateRecentVideoOrderInfos(new[]
+            {
+                new OrderInfo { TrackingNumber = "TRACK-LATE-5D", ProductInfo = "后来补全的商品", PushTime = DateTime.Now },
+                new OrderInfo { TrackingNumber = "TRACK-EXPIRED-91D", ProductInfo = "超出保留期不该回填", PushTime = DateTime.Now }
+            });
+
+            Assert.Equal("后来补全的商品", database.GetVideoById(lateId).ProductInfo);
+            Assert.True(string.IsNullOrEmpty(database.GetVideoById(expiredId).ProductInfo));
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     [Fact]
     public void VideoRecords_DerivesFileNameFromPathAndDoesNotPersistRedundantColumn()
     {

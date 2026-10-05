@@ -4213,6 +4213,19 @@ namespace ExpressPackingMonitoring.Services
             return (count, testCount);
         }
 
+        /// <summary>
+        /// 供"按需查询"结果落库：扩展扫码任务查到的订单和打印端回传的快照一样，
+        /// 要写进订单缓存、OrderInfoRecords 并回填录像记录，不能只用来做界面提示。
+        /// 不触发 <see cref="OrderInfoReceived"/>，调用方自己负责界面提示与播报。
+        /// </summary>
+        internal void StoreResolvedOrderInfos(IReadOnlyList<OrderInfo> orders)
+        {
+            if (orders == null || orders.Count == 0) return;
+            foreach (OrderInfo order in orders)
+                order.TrackingNumber = order.TrackingNumber?.Trim().ToUpperInvariant() ?? "";
+            StoreOrderInfos(orders.Where(order => !string.IsNullOrWhiteSpace(order.TrackingNumber)).ToList(), preserveConfirmedRefund: false);
+        }
+
         private int StoreOrderInfos(List<OrderInfo> items, bool preserveConfirmedRefund)
         {
             int count = 0;

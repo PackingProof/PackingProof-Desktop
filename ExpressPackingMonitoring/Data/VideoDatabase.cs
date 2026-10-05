@@ -983,6 +983,12 @@ namespace ExpressPackingMonitoring.Data
             }
         }
 
+        /// <summary>
+        /// 用刚收到的订单信息回填还没补全的录像记录。
+        /// 窗口跟订单缓存一样取 90 天：面单先打、货隔几天再打包时，推送会晚到好几天，
+        /// 卡死在 72 小时会让这些记录永远补不上（现场反馈"不是每一单都有订单号"）。
+        /// 命中条件仍是单号精确匹配，未删除且还缺字段的记录才会被改写。
+        /// </summary>
         public void UpdateRecentVideoOrderInfos(IEnumerable<OrderInfo> items)
         {
             if (items == null) return;
@@ -1012,7 +1018,7 @@ namespace ExpressPackingMonitoring.Data
                           );";
                     AddOrderInfoParameters(cmd, item);
                     cmd.Parameters.AddWithValue("@jdWaybill", Services.JdBarcodePolicy.IsBareWaybill(item.TrackingNumber.Trim().ToUpperInvariant()) ? 1 : 0);
-                    cmd.Parameters.AddWithValue("@since", DateTime.Now.AddHours(-72).ToString("yyyy-MM-dd HH:mm:ss"));
+                    cmd.Parameters.AddWithValue("@since", DateTime.Now.Subtract(OrderInfoRetention).ToString("yyyy-MM-dd HH:mm:ss"));
                     cmd.ExecuteNonQuery();
                 }
                 transaction.Commit();

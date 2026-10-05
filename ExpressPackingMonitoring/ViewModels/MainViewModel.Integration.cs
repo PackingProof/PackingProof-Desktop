@@ -126,7 +126,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             Config.NodeId,
                             _extensionAuthorizationStore,
                             OnRecordingExtensionDataChanged,
-                            order => OnOrderInfoReceived([order]));
+                            OnExtensionOrderResolved);
                         server.ConfigureExtensionTaskApi(
                             newExtensionRuntime.Broker,
                             newExtensionRuntime.Coordinator,
@@ -910,6 +910,25 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.AnnounceProductInfo && !string.IsNullOrWhiteSpace(info.ProductInfo))
                     _alertService.PreGenerate(DefaultSpeechCatalog.CreateProductAnnouncement(info.ProductInfo));
             }
+        }
+
+        /// <summary>
+        /// 扩展扫码任务查到的订单：先落库、回填录像记录，再走和推送一样的界面提示与播报。
+        /// 以前这里只调 <see cref="OnOrderInfoReceived"/>，插件明明查到了商品，
+        /// 录像库里却始终没有订单信息。
+        /// </summary>
+        private void OnExtensionOrderResolved(OrderInfo order)
+        {
+            if (order == null) return;
+            try
+            {
+                _webServer?.StoreResolvedOrderInfos([order]);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("ExtensionResult", "Persisting resolved order failed", ex);
+            }
+            OnOrderInfoReceived([order]);
         }
 
         public void OpenUserscriptGuide()

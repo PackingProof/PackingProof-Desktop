@@ -380,6 +380,8 @@ POST /api/extensions/v1/scan-results
 
 可用能力：`order.lookup`、`refund.lookup`、`measurement.capture`。结果状态包括 `in_progress`、`found`、`not_found`、`completed`、`unavailable`、`provider_auth_required`、`rate_limited`、`timeout` 和 `invalid_request`。
 
+`found` 的订单结果按普通订单推送处理：写入订单缓存、`OrderInfoRecords`，并回填最近 90 天内仍缺订单信息的录像记录。扩展查到什么，录像库里就能查到什么，不只是当场提示。
+
 `resultId + revision` 用于幂等和修订；重试相同内容不会重复应用，不得用同一修订号发送不同内容。晚于硬超时的任务返回 `410`，乱序或冲突修订返回 `409`。多台工位的任务必须按 `originNodeId` 和 `recordingSessionId` 保持隔离。
 
 ## 聊天机器人录像检索
