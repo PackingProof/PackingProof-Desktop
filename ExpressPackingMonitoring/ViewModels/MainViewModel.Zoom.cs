@@ -176,7 +176,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         var zoomed = currentFrame.Clone(animRect);
                         processedFrame = new Mat();
-                        Cv2.Resize(zoomed, processedFrame, new OpenCvSharp.Size(Config.FrameWidth, Config.FrameHeight));
+                        // 还原尺寸必须跟当前帧一致：摄像头实际协商到的分辨率未必等于配置里的分辨率，
+                        // 按配置尺寸还原会让放大这几秒的帧跟其它帧尺寸不同，录像按固定尺寸喂进去就错位。
+                        Cv2.Resize(zoomed, processedFrame, new OpenCvSharp.Size(currentFrame.Width, currentFrame.Height));
                         zoomed.Dispose();
                     }
                 }
