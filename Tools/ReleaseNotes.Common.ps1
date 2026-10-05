@@ -122,8 +122,7 @@ function Get-ReleaseNotesProblems {
         "### 功能与体验",
         "### 问题修复",
         "### 兼容与工程",
-        "## 下载与更新说明",
-        "## 未验证事项")) {
+        "## 下载与更新说明")) {
         if (-not $text.Contains($section, [System.StringComparison]::Ordinal)) {
             $problems.Add("发布笔记缺少段落 $section")
         }

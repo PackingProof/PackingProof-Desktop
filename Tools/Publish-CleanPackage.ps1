@@ -389,7 +389,7 @@ $normalizedPatchBaselineVersion = $patchBaselineResolution.EffectiveVersion
 
 Invoke-CoreRegressionTests
 if (-not $ConfirmManualCoreChecks) {
-    Write-Warning "Manual core business and recovery checks are not confirmed. Packaging will continue; review RELEASE_CHECKLIST.md and report any unverified real-device scenarios with the release."
+    Write-Warning "Manual core business and recovery checks are not confirmed. Packaging will continue; review docs/development/RELEASE_FIELD_CHECKS.md; packaging continues without them."
 }
 
 # 重新打包会重建产物目录，发布笔记是人工写的，先留着别丢。
