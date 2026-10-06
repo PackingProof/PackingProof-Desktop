@@ -446,7 +446,7 @@ public sealed class NoCameraWorkstationTests : IDisposable
     }
 
     [Fact]
-    public async Task HostEnablesExtensionApiWhenConfigured()
+    public async Task HostAlwaysExposesExtensionApi()
     {
         string directory = CreateTempDirectory();
         int port = GetFreeTcpPort();
@@ -454,7 +454,6 @@ public sealed class NoCameraWorkstationTests : IDisposable
         {
             WebServerPort = port,
             WebAccessKey = AccessKey,
-            EnableExtensionApi = true,
             NodeId = Guid.NewGuid().ToString("D"),
             NodeName = "备份主机",
             StorageLocations = [new StorageLocation { Path = Path.Combine(directory, "recordings"), Priority = 1 }]

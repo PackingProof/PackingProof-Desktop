@@ -200,7 +200,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         || Config.WebServerPort != nextConfig.WebServerPort
                         || Config.TranscodeCacheMaxMB != nextConfig.TranscodeCacheMaxMB
                         || Config.EnableOrderInfoLog != nextConfig.EnableOrderInfoLog
-                        || Config.EnableExtensionApi != nextConfig.EnableExtensionApi
                         || Config.RequireWebAccessKey != nextConfig.RequireWebAccessKey
                         || !string.Equals(Config.WebAccessKey, nextConfig.WebAccessKey, StringComparison.Ordinal)
                         || (string.Equals(

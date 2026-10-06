@@ -26,8 +26,6 @@ public sealed class DefaultConfigurationTests
     {
         Assert.True(new AppConfig().EnableThirdPartyWatermark);
         Assert.True(JsonSerializer.Deserialize<AppConfig>("{}")!.EnableThirdPartyWatermark);
-        Assert.False(new AppConfig().EnableExtensionApi);
-        Assert.False(JsonSerializer.Deserialize<AppConfig>("{}")!.EnableExtensionApi);
     }
 
     /// <summary>空闲降帧默认开着（省资源），用户可以在录像设置里关掉换成始终满帧。</summary>

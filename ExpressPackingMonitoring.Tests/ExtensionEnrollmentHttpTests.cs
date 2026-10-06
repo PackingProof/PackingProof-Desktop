@@ -35,12 +35,16 @@ public sealed class ExtensionEnrollmentHttpTests
         }
     }
 
+    /// <summary>
+    /// 扩展 API 始终开启：能力列表一律报告 enabled，主机没装审批入口时授权返回 503 结构化失败，
+    /// 而不是假装成功。
+    /// </summary>
     [Fact]
-    public async Task DisabledExtensionApi_RejectsEnrollmentWithoutCreatingState()
+    public async Task Enrollment_WithoutConfiguredApproverReturnsStructuredFailure()
     {
         string directory = Path.Combine(
             Path.GetTempPath(),
-            "epm-extension-enrollment-disabled-" + Guid.NewGuid().ToString("N"));
+            "epm-extension-enrollment-unavailable-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         int port = GetFreeTcpPort();
         try
@@ -60,19 +64,18 @@ public sealed class ExtensionEnrollmentHttpTests
             Assert.Equal(HttpStatusCode.OK, capabilities.StatusCode);
             using JsonDocument capabilityPayload = JsonDocument.Parse(
                 await capabilities.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-            Assert.False(capabilityPayload.RootElement.GetProperty("extensionApiEnabled").GetBoolean());
+            Assert.True(capabilityPayload.RootElement.GetProperty("extensionApiEnabled").GetBoolean());
 
             using HttpResponseMessage enrollment = await client.PostAsync(
                 "/api/extensions/v1/enroll",
                 JsonContent(RequestJson()),
                 TestContext.Current.CancellationToken);
-            Assert.Equal(HttpStatusCode.Forbidden, enrollment.StatusCode);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, enrollment.StatusCode);
             using JsonDocument enrollmentPayload = JsonDocument.Parse(
                 await enrollment.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
             Assert.Equal(
-                "extension_disabled",
+                "extension_enrollment_approval_unavailable",
                 enrollmentPayload.RootElement.GetProperty("errorCode").GetString());
-            Assert.False(Directory.Exists(Path.Combine(directory, "extensions")));
         }
         finally
         {
@@ -101,8 +104,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: directory,
                 nodeId: "host-node-fixture",
-                nodeName: "测试主机",
-                extensionApiEnabled: true);
+                nodeName: "测试主机");
             server.ConfigureExtensionEnrollment(
                 authorizations,
                 request => new ExtensionEnrollmentApprovalResult
@@ -159,8 +161,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 requireAccessKey: true,
                 accessKey: "web-key-is-not-an-extension-credential",
                 listenerHost: "127.0.0.1",
-                mobileBackupStateDirectory: directory,
-                extensionApiEnabled: true);
+                mobileBackupStateDirectory: directory);
             var authorizations = new ExtensionAuthorizationStore(directory);
             server.ConfigureExtensionEnrollment(
                 authorizations,
@@ -270,8 +271,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 accessKey: "web-key-must-not-authorize-signed-extension",
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: directory,
-                nodeId: "fixture-host",
-                extensionApiEnabled: true);
+                nodeId: "fixture-host");
             server.ConfigureExtensionEnrollment(
                 authorizations,
                 request => new ExtensionEnrollmentApprovalResult
@@ -374,8 +374,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 port,
                 listenerHost: "127.0.0.1",
                 mobileBackupStateDirectory: directory,
-                nodeId: "fixture-host",
-                extensionApiEnabled: true);
+                nodeId: "fixture-host");
             server.ConfigureExtensionEnrollment(
                 authorizations,
                 request => new ExtensionEnrollmentApprovalResult
@@ -501,8 +500,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 requireAccessKey: true,
                 accessKey: "web-key-must-not-authorize-bot",
                 listenerHost: "127.0.0.1",
-                mobileBackupStateDirectory: directory,
-                extensionApiEnabled: true);
+                mobileBackupStateDirectory: directory);
             server.ConfigureExtensionEnrollment(
                 authorizations,
                 request => new ExtensionEnrollmentApprovalResult
@@ -610,8 +608,7 @@ public sealed class ExtensionEnrollmentHttpTests
                 database,
                 port,
                 listenerHost: "127.0.0.1",
-                mobileBackupStateDirectory: directory,
-                extensionApiEnabled: true);
+                mobileBackupStateDirectory: directory);
             server.ConfigureExtensionEnrollment(
                 new ExtensionAuthorizationStore(directory),
                 _ => new ExtensionEnrollmentApprovalResult

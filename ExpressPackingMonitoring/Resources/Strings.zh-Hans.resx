@@ -1138,8 +1138,6 @@
   <data name="启动" xml:space="preserve"><value>启动</value></data>
   <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘</value></data>
   <data name="备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件" xml:space="preserve"><value>备份按顺序切换可用位置，当前位置空间不足时自动跳到下一个。系统会为每个备份位置保留安全空间，按整个位置计算；需要调整时右键该位置；校验通过后才会清理旧本地副本；程序不会删除 NAS 上的文件</value></data>
-  <data name="启用扩展 API" xml:space="preserve"><value>启用扩展 API</value></data>
-  <data name="允许经过授权的 ERP、称重设备和其他扩展连接" xml:space="preserve"><value>允许经过授权的 ERP、称重设备和其他扩展连接</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>扩展 API 授权</value></data>
   <data name="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理" xml:space="preserve"><value>管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理</value></data>
   <data name="扩展" xml:space="preserve"><value>扩展</value></data>

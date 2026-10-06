@@ -102,36 +102,33 @@ namespace ExpressPackingMonitoring.ViewModels
                         deploymentPreset: Config.DeploymentPreset,
                         orderReceiverOnly: orderReceiverOnly,
                         nodeNameCustomized: Config.NodeNameCustomized,
-                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment,
-                        extensionApiEnabled: Config.EnableExtensionApi)
+                        backupDeviceEnrollmentApprover: ApproveBackupDeviceEnrollment)
                     {
                         EnableOrderInfoLog = enableOrderInfoLog
                     };
-                    if (Config.EnableExtensionApi)
-                    {
-                        _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
-                            AppPaths.MobileBackupStateDir);
-                        string extensionNodeId = Config.NodeId;
-                        string extensionNodeName = Config.NodeName;
-                        server.ConfigureExtensionEnrollment(
-                            _extensionAuthorizationStore,
-                            request => ExtensionEnrollmentApprovalPrompt.Show(
-                                null,
-                                request,
-                                extensionNodeId,
-                                extensionNodeName));
-                        newExtensionRuntime = new ExtensionRuntime(
-                            _db,
-                            _dbFilePath,
-                            Config.NodeId,
-                            _extensionAuthorizationStore,
-                            OnRecordingExtensionDataChanged,
-                            OnExtensionOrderResolved);
-                        server.ConfigureExtensionTaskApi(
-                            newExtensionRuntime.Broker,
-                            newExtensionRuntime.Coordinator,
-                            newExtensionRuntime.ProcessAvailableResults);
-                    }
+                    // 扩展 API 始终开启：连不连得上由每个扩展的授权决定，主机侧不再留开关。
+                    _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(
+                        AppPaths.MobileBackupStateDir);
+                    string extensionNodeId = Config.NodeId;
+                    string extensionNodeName = Config.NodeName;
+                    server.ConfigureExtensionEnrollment(
+                        _extensionAuthorizationStore,
+                        request => ExtensionEnrollmentApprovalPrompt.Show(
+                            null,
+                            request,
+                            extensionNodeId,
+                            extensionNodeName));
+                    newExtensionRuntime = new ExtensionRuntime(
+                        _db,
+                        _dbFilePath,
+                        Config.NodeId,
+                        _extensionAuthorizationStore,
+                        OnRecordingExtensionDataChanged,
+                        OnExtensionOrderResolved);
+                    server.ConfigureExtensionTaskApi(
+                        newExtensionRuntime.Broker,
+                        newExtensionRuntime.Coordinator,
+                        newExtensionRuntime.ProcessAvailableResults);
                     try
                     {
                         server.OrderInfoReceived += OnOrderInfoReceived;
@@ -163,7 +160,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 QueueRecordingWorkstationHeartbeat(force: true);
                 RuntimeLog.Info(
                     "Web",
-                    $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}, orderReceiverOnly={orderReceiverOnly}, extensionApiEnabled={Config.EnableExtensionApi}");
+                    $"LAN service started port={port}, cacheMaxMB={cacheMaxMb}, orderReceiverOnly={orderReceiverOnly}");
                 return true;
             }
             catch (Exception ex)
@@ -1052,8 +1049,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void PublishExtensionScanTask(string trackingNumber)
         {
             ExtensionRuntime runtime = _extensionRuntime;
-            if (!Config.EnableExtensionApi
-                || runtime == null
+            if (runtime == null
                 || !IsRecording
                 || _currentRecordId <= 0
                 || string.IsNullOrWhiteSpace(_recordingSessionId))

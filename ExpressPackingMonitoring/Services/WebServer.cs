@@ -194,7 +194,6 @@ namespace ExpressPackingMonitoring.Services
         private readonly UserscriptConfigRevisionStore _userscriptConfigRevision;
         private readonly UserscriptCatalog _userscriptCatalog;
         private readonly string _extensionStateDirectory;
-        private readonly bool _extensionApiEnabled;
         private readonly object _extensionEnrollmentInitializationLock = new();
         private ExtensionAuthorizationStore _extensionAuthorizations;
         private ExtensionEnrollmentService _extensionEnrollment;
@@ -325,7 +324,6 @@ namespace ExpressPackingMonitoring.Services
             bool orderReceiverOnly = false,
             bool nodeNameCustomized = false,
             Func<BackupDeviceEnrollmentRequest, BackupDeviceEnrollmentApprovalDecision> backupDeviceEnrollmentApprover = null,
-            bool extensionApiEnabled = false,
             string userscriptDirectory = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -339,11 +337,7 @@ namespace ExpressPackingMonitoring.Services
             _mobileBackupComputerName = string.IsNullOrWhiteSpace(mobileBackupComputerName)
                 ? Environment.MachineName
                 : mobileBackupComputerName.Trim();
-            _nodeId = Guid.TryParse(nodeId, out Guid configuredNodeId) && configuredNodeId != Guid.Empty
-                ? configuredNodeId.ToString("D")
-                : Guid.TryParse(_mobileBackupComputerId, out Guid mobileComputerId) && mobileComputerId != Guid.Empty
-                    ? mobileComputerId.ToString("D")
-                    : Guid.NewGuid().ToString("D");
+            _nodeId = ResolveNodeId(nodeId, _mobileBackupComputerId);
             _nodeName = string.IsNullOrWhiteSpace(nodeName)
                 ? _mobileBackupComputerName
                 : nodeName.Trim();
@@ -351,7 +345,6 @@ namespace ExpressPackingMonitoring.Services
                 ? DeploymentPresets.Normalize(deploymentPreset)
                 : DeploymentPresets.RecordingHost;
             _orderReceiverOnly = orderReceiverOnly;
-            _extensionApiEnabled = extensionApiEnabled;
             _backupDeviceEnrollmentApprover = backupDeviceEnrollmentApprover;
             _clipService = new VideoClipService(
                 _db,
@@ -362,19 +355,16 @@ namespace ExpressPackingMonitoring.Services
                 _ffmpegWorkLimiter);
             Port = port;
             _transCacheMaxBytes = (long)transCacheMaxMB * 1024 * 1024;
-            if (_extensionApiEnabled)
-            {
-                _extensionRecordingQueries = new ExtensionRecordingQueryService(
-                    _db,
-                    AppPaths.CacheDir,
-                    _transCacheMaxBytes);
-                _extensionRecordingDeliveries = new ExtensionRecordingDeliveryService(
-                    _extensionRecordingQueries,
-                    AppPaths.TranscodeCacheDir,
-                    _transCacheMaxBytes,
-                    _ffmpegWorkLimiter,
-                    CleanWebCache);
-            }
+            _extensionRecordingQueries = new ExtensionRecordingQueryService(
+                _db,
+                AppPaths.CacheDir,
+                _transCacheMaxBytes);
+            _extensionRecordingDeliveries = new ExtensionRecordingDeliveryService(
+                _extensionRecordingQueries,
+                AppPaths.TranscodeCacheDir,
+                _transCacheMaxBytes,
+                _ffmpegWorkLimiter,
+                CleanWebCache);
             _listener = CreateListener(port, listenerHost);
             MigrateLegacyOrderInfoCache();
             LoadOrderInfoCacheFromDatabase();
@@ -422,12 +412,23 @@ namespace ExpressPackingMonitoring.Services
             };
         }
 
+        /// <summary>
+        /// 节点 ID 口径：配置优先，其次备份电脑 ID，都没有就现生成一个。
+        /// Web 服务和扩展运行时必须用同一个值，否则扩展结果会因为节点不一致被拒收。
+        /// </summary>
+        internal static string ResolveNodeId(string nodeId, string mobileBackupComputerId)
+        {
+            if (Guid.TryParse(nodeId, out Guid configuredNodeId) && configuredNodeId != Guid.Empty)
+                return configuredNodeId.ToString("D");
+            if (Guid.TryParse(mobileBackupComputerId, out Guid mobileComputerId) && mobileComputerId != Guid.Empty)
+                return mobileComputerId.ToString("D");
+            return Guid.NewGuid().ToString("D");
+        }
+
         internal void ConfigureExtensionEnrollment(
             ExtensionAuthorizationStore authorizations,
             Func<ExtensionEnrollmentRequest, ExtensionEnrollmentApprovalResult> approver)
         {
-            if (!_extensionApiEnabled)
-                throw new InvalidOperationException("扩展 API 未启用");
             if (_listener.IsListening)
                 throw new InvalidOperationException("扩展授权服务必须在 Web 服务启动前配置");
             _extensionAuthorizations = authorizations
@@ -443,8 +444,6 @@ namespace ExpressPackingMonitoring.Services
             ExtensionScanResultSubmissionCoordinator resultCoordinator,
             Action resultAvailable = null)
         {
-            if (!_extensionApiEnabled)
-                throw new InvalidOperationException("扩展 API 未启用");
             if (_listener.IsListening)
                 throw new InvalidOperationException("扩展任务服务必须在 Web 服务启动前配置");
             _extensionScanTaskBroker = broker ?? throw new ArgumentNullException(nameof(broker));
@@ -3223,15 +3222,15 @@ namespace ExpressPackingMonitoring.Services
         {
             RuntimeLog.Info(
                 "ExtensionApi",
-                $"Capabilities requested enabled={_extensionApiEnabled}, enrollmentConfigured={_extensionEnrollment != null}, preset={_deploymentPreset}");
+                $"Capabilities requested enrollmentConfigured={_extensionEnrollment != null}, preset={_deploymentPreset}");
             SendJson(ctx, 200, new
             {
                 apiVersion = "v1",
+                extensionApiEnabled = true,
                 product = "PackingProof",
                 nodeId = _nodeId,
                 nodeName = _nodeName,
                 accessKeyRequired = _requireAccessKey,
-                extensionApiEnabled = _extensionApiEnabled,
                 features = new
                 {
                     ordersWrite = true,
@@ -3287,7 +3286,7 @@ namespace ExpressPackingMonitoring.Services
         {
             statusCode = 401;
             errorCode = "extension_auth_required";
-            if (!_extensionApiEnabled || _extensionRequestAuthenticator == null)
+            if (_extensionRequestAuthenticator == null)
             {
                 statusCode = 403;
                 errorCode = "extension_disabled";
@@ -3366,7 +3365,7 @@ namespace ExpressPackingMonitoring.Services
 
         private static string GetExtensionAuthenticationError(string errorCode) => errorCode switch
         {
-            "extension_disabled" => "主机尚未启用扩展 API",
+            "extension_disabled" => "主机尚未完成扩展授权配置，请打开主界面后重试",
             "extension_request_too_large" => "扩展请求内容过大",
             "extension_auth_version_unsupported" => "扩展签名协议版本不受支持",
             "extension_auth_timestamp_stale" => "扩展请求时间已过期，请校准系统时间",
@@ -3847,15 +3846,6 @@ namespace ExpressPackingMonitoring.Services
         {
             ctx.Response.Headers["Cache-Control"] = "no-store";
             ctx.Response.Headers["Pragma"] = "no-cache";
-            if (!_extensionApiEnabled)
-            {
-                SendJson(ctx, 403, new
-                {
-                    errorCode = "extension_disabled",
-                    error = "主机尚未启用扩展 API"
-                });
-                return;
-            }
             IPAddress remoteAddress = ctx.Request.RemoteEndPoint?.Address;
             if (remoteAddress == null || !IsPrivateAddress(remoteAddress))
             {
@@ -3971,8 +3961,6 @@ namespace ExpressPackingMonitoring.Services
 
         private ExtensionEnrollmentService GetExtensionEnrollmentService()
         {
-            if (!_extensionApiEnabled)
-                throw new InvalidOperationException("扩展 API 未启用");
             if (_extensionEnrollment != null) return _extensionEnrollment;
             lock (_extensionEnrollmentInitializationLock)
             {

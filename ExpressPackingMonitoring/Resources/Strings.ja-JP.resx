@@ -1039,8 +1039,6 @@
   <data name="打开目录" xml:space="preserve"><value>フォルダーを開く</value></data>
   <data name="自定义扩展" xml:space="preserve"><value>カスタム拡張</value></data>
   <data name="从扩展市场或本地文件安装用户脚本和外部适配器" xml:space="preserve"><value>拡張マーケットまたはローカルファイルからユーザースクリプトと外部アダプターをインストールします</value></data>
-  <data name="启用扩展 API" xml:space="preserve"><value>拡張 API を有効にする</value></data>
-  <data name="允许经过授权的 ERP、称重设备和其他扩展连接" xml:space="preserve"><value>認可された ERP、計量機器、その他の拡張の接続を許可します</value></data>
   <data name="扩展 API 授权" xml:space="preserve"><value>拡張 API の認可</value></data>
   <data name="管理 ERP、称重设备等 API 客户端的访问权限；导入的订单脚本在上方单独管理" xml:space="preserve"><value>ERP、計量機器などの API クライアントのアクセス権限を管理します。インポートした注文スクリプトは上部で個別に管理します</value></data>
   <data name="扩展" xml:space="preserve"><value>拡張</value></data>

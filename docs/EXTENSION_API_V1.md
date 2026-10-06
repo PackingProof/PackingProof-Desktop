@@ -12,19 +12,19 @@
 
 想把扩展投稿到官方市场，请阅读 [完整投稿教程](https://gitee.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md)（[GitHub 备用链接](https://github.com/PackingProof/PackingProof-Extensions/blob/main/docs/PUBLISHING.md)）。本文不重复市场的打包、Release、`submit` 和 PR 流程
 
-三者没有强制捆绑：本地 `.user.js` 可以不进入市场；不调用 API 的程序也可以打包为 PPEXT；需要 API 的市场扩展则同时遵守投稿规则和本文。安装扩展不会自动开启扩展 API，安装 `external-adapter` 也不会自动启动程序。市场签名与 SHA-256 只证明下载内容和已审核登记一致，不代表 PackingProof 可以保证外部程序行为安全
+三者没有强制捆绑：本地 `.user.js` 可以不进入市场；不调用 API 的程序也可以打包为 PPEXT；需要 API 的市场扩展则同时遵守投稿规则和本文。扩展 API 始终开启，但安装扩展不会自动获得任何权限：每个扩展仍要单独发起授权并由用户确认，安装 `external-adapter` 也不会自动启动程序。市场签名与 SHA-256 只证明下载内容和已审核登记一致，不代表 PackingProof 可以保证外部程序行为安全
 
 v1 同时保留两类接口：
 
 - 生产扩展协议：用户明确授权后，扩展使用独立凭据签名，领取扫码任务并提交订单、退款或测量结果
 - 兼容数据接口：旧脚本继续使用录像网页访问密钥主动推送订单或当前录像水印字段
 
-扩展 API 总开关默认关闭。关闭时不创建扩展凭据，不初始化任务代理、结果处理器或扩展后台定时器；旧版订单广播接口仍可继续工作。
+扩展 API 始终开启，主机侧没有开关。没有扩展发起授权时不会创建任何扩展凭据；旧版订单广播接口照常工作。
 
 ## API 快速开始
 
-1. 在 PackingProof 的“设置 → 扩展与联动”中开启“启用扩展 API”
-2. 扩展读取 `/api/extensions/v1/capabilities`，确认 `extensionApiEnabled=true` 和所需 feature
+1. 扩展读取 `/api/extensions/v1/capabilities`，确认 `extensionApiEnabled=true` 和所需 feature
+2. 在安装向导或扩展市场里安装扩展；安装本身不会授予任何权限
 3. 扩展向 `/api/extensions/v1/enroll` 发起授权，用户在电脑端确认名称、来源、权限、能力和绑定工位
 4. 扩展仅保存本次返回的独立凭据，后续请求使用 v1 签名，不使用录像网页访问密钥
 5. 用户可在“已授权扩展”中查看在线状态或撤销授权；需要更换凭据时，撤销后由扩展重新发起授权

@@ -16,6 +16,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
     private WebServer? _server;
     private ExtensionAuthorizationStore? _extensionAuthorizationStore;
     private ExtensionRuntime? _extensionRuntime;
+    private string _extensionNodeId = "";
     private ArchiveService? _archiveService;
     private bool _disposed;
     private bool _archiveTargetUnavailable;
@@ -159,17 +160,17 @@ internal sealed class NoCameraWorkstationHost : IDisposable
         {
             StoragePath = StorageLocationResolver.Resolve(_config, allowDefaultFallback: false);
             _database ??= new VideoDatabase(_databasePath);
-            if (_config.EnableExtensionApi)
-            {
-                _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(_stateDirectory);
-                _extensionRuntime = new ExtensionRuntime(
-                    _database,
-                    _databasePath,
-                    _config.NodeId,
-                    _extensionAuthorizationStore,
-                    (_, _) => { },
-                    _ => { });
-            }
+            // 扩展运行时和 Web 服务必须共用同一个节点 ID：配置缺失时用同一个兜底值，结果才能对上号。
+            _extensionNodeId = WebServer.ResolveNodeId(_config.NodeId, _config.MobileBackupComputerId);
+            _extensionAuthorizationStore ??= new ExtensionAuthorizationStore(_stateDirectory);
+            try { _extensionRuntime?.Dispose(); } catch { }
+            _extensionRuntime = new ExtensionRuntime(
+                _database,
+                _databasePath,
+                _extensionNodeId,
+                _extensionAuthorizationStore,
+                (_, _) => { },
+                _ => { });
             DisposeArchiveService();
             _archiveTargetUnavailable = false;
             _archiveUnavailableRoot = "";
@@ -246,7 +247,7 @@ internal sealed class NoCameraWorkstationHost : IDisposable
 
             RuntimeLog.Info(
                 "NoCamera",
-                $"LAN service started port={_config.WebServerPort}, extensionApiEnabled={_config.EnableExtensionApi}, access={(IsLanAvailable ? "lan" : "loopback")}");
+                $"LAN service started port={_config.WebServerPort}, access={(IsLanAvailable ? "lan" : "loopback")}");
         }
         catch (Exception ex)
         {
@@ -313,19 +314,16 @@ internal sealed class NoCameraWorkstationHost : IDisposable
                 return plan.RequiresNetworkArchive ? plan.ArchiveTarget : null;
             },
             mobileBackupArchivePendingCallback: () => _archiveService?.Wake(),
-            nodeId: _config.NodeId,
+            nodeId: _extensionNodeId,
             nodeName: _config.NodeName,
             deploymentPreset: DeploymentPresets.MobileBackupHost,
             backupDeviceEnrollmentApprover: request =>
                 BackupDeviceEnrollmentRequested?.Invoke(request)
-                ?? BackupDeviceEnrollmentApprovalDecision.Unavailable,
-            extensionApiEnabled: _config.EnableExtensionApi)
+                ?? BackupDeviceEnrollmentApprovalDecision.Unavailable)
         {
             EnableOrderInfoLog = _config.EnableOrderInfoLog
         };
-        if (_config.EnableExtensionApi
-            && _extensionAuthorizationStore != null
-            && _extensionRuntime != null)
+        if (_extensionAuthorizationStore != null && _extensionRuntime != null)
         {
             server.ConfigureExtensionEnrollment(
                 _extensionAuthorizationStore,
