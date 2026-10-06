@@ -4226,6 +4226,19 @@ namespace ExpressPackingMonitoring.Services
             StoreOrderInfos(orders.Where(order => !string.IsNullOrWhiteSpace(order.TrackingNumber)).ToList(), preserveConfirmedRefund: false);
         }
 
+        /// <summary>
+        /// 同一个运单号可能因为退款被回收后重新分配给新订单。两边都有订单号且不一致时按新订单处理，
+        /// 不再沿用旧订单的退款状态；订单号缺失时无法区分，按"沿用"处理——宁可多报一次，也不漏报退款件。
+        /// </summary>
+        private static bool IsSameOrder(OrderInfo existing, OrderInfo incoming)
+        {
+            string existingOrderId = existing.OrderId?.Trim() ?? "";
+            string incomingOrderId = incoming.OrderId?.Trim() ?? "";
+            return existingOrderId.Length == 0
+                || incomingOrderId.Length == 0
+                || string.Equals(existingOrderId, incomingOrderId, StringComparison.OrdinalIgnoreCase);
+        }
+
         private int StoreOrderInfos(List<OrderInfo> items, bool preserveConfirmedRefund)
         {
             int count = 0;
@@ -4246,7 +4259,11 @@ namespace ExpressPackingMonitoring.Services
                 {
                     if (string.IsNullOrWhiteSpace(item.TrackingNumber)) continue;
                     string key = item.TrackingNumber.Trim().ToUpperInvariant();
-                    if (preserveConfirmedRefund && _orderInfoCache.TryGetValue(key, out var existing) && existing.IsPrintedRefund && !item.IsPrintedRefund)
+                    if (preserveConfirmedRefund
+                        && _orderInfoCache.TryGetValue(key, out var existing)
+                        && existing.IsPrintedRefund
+                        && !item.IsPrintedRefund
+                        && IsSameOrder(existing, item))
                     {
                         // 普通页面的旧 DOM 不覆盖已确认退款；扫码触发的实时查询可以覆盖。
                         item.HasRefund = true;

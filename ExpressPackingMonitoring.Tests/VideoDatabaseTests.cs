@@ -521,6 +521,66 @@ public sealed class VideoDatabaseTests
         }
     }
 
+    /// <summary>
+    /// 以最后一次为准：同一个订单拿到更新的快照时，已经写满的录像记录也要被刷新；
+    /// 但运单号被退款回收后分配给新订单时，不能把新订单的备注/商品写到老订单的录像上。
+    /// </summary>
+    [Fact]
+    public void UpdateRecentVideoOrderInfos_RefreshesSameOrderButNotReusedWaybill()
+    {
+        string tempDirectory = CreateTempDirectory();
+        try
+        {
+            using var database = new VideoDatabase(Path.Combine(tempDirectory, "videos.db"));
+            long recordId = database.InsertVideoRecord(
+                "TRACK-REUSE", "发货", "", "", Path.Combine(tempDirectory, "reuse.mp4"), DateTime.Now.AddHours(-1),
+                new OrderInfo
+                {
+                    TrackingNumber = "TRACK-REUSE",
+                    OrderId = "ORDER-OLD",
+                    ProductInfo = "旧商品",
+                    PushTime = DateTime.Now.AddMinutes(-10)
+                });
+
+            // 同一个订单的新快照：覆盖旧内容。
+            database.UpdateRecentVideoOrderInfos(new[]
+            {
+                new OrderInfo
+                {
+                    TrackingNumber = "TRACK-REUSE",
+                    OrderId = "ORDER-OLD",
+                    BuyerMessage = "改过的留言",
+                    ProductInfo = "改过的商品",
+                    PushTime = DateTime.Now
+                }
+            });
+            VideoRecord refreshed = database.GetVideoById(recordId);
+            Assert.Equal("改过的商品", refreshed.ProductInfo);
+            Assert.Equal("改过的留言", refreshed.BuyerMessage);
+
+            // 运单号被回收后分配给新订单：老录像不能被新订单的信息污染。
+            database.UpdateRecentVideoOrderInfos(new[]
+            {
+                new OrderInfo
+                {
+                    TrackingNumber = "TRACK-REUSE",
+                    OrderId = "ORDER-NEW",
+                    BuyerMessage = "新订单的留言",
+                    ProductInfo = "新订单的商品",
+                    PushTime = DateTime.Now.AddMinutes(1)
+                }
+            });
+            VideoRecord untouched = database.GetVideoById(recordId);
+            Assert.Equal("改过的商品", untouched.ProductInfo);
+            Assert.Equal("改过的留言", untouched.BuyerMessage);
+            Assert.Equal("ORDER-OLD", untouched.SourceOrderId);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDirectory);
+        }
+    }
+
     [Fact]
     public void VideoRecords_DerivesFileNameFromPathAndDoesNotPersistRedundantColumn()
     {

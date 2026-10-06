@@ -1012,9 +1012,15 @@ namespace ExpressPackingMonitoring.Data
                         WHERE IsDeleted = 0
                           AND (StartTime >= @since OR SourceType = 'external')
                           AND (OrderId = @trackingNumber OR TrackingNumber = @trackingNumber OR (@jdWaybill = 1 AND OrderId GLOB (@trackingNumber || '-[0-9]*-[0-9]*-')))
+                          -- 运单号可能被退款回收后分配给新订单：只有订单身份一致才写，
+                          -- 否则会把新订单的备注/商品写到老订单的录像上。
+                          AND (SourceOrderId = '' OR SourceOrderId = @sourceOrderId)
                           AND (
                               BuyerMessage = '' OR SellerMemo = '' OR ProductInfo = ''
                               OR SourceOrderId = '' OR OrderInfoJson = ''
+                              -- 以最后一次为准：同一个订单拿到更新的快照时覆盖旧内容。
+                              OR OrderInfoPushTime IS NULL OR OrderInfoPushTime = ''
+                              OR @pushTime > OrderInfoPushTime
                           );";
                     AddOrderInfoParameters(cmd, item);
                     cmd.Parameters.AddWithValue("@jdWaybill", Services.JdBarcodePolicy.IsBareWaybill(item.TrackingNumber.Trim().ToUpperInvariant()) ? 1 : 0);

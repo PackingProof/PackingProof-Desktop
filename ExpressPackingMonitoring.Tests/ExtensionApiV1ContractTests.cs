@@ -140,6 +140,78 @@ public sealed class ExtensionApiV1ContractTests
         });
     }
 
+    /// <summary>
+    /// 运单号被退款订单回收后可能分给新订单：新订单的推送不能再沿用旧订单的退款状态，
+    /// 否则扫到这张新面单会误报"打印后退款"。
+    /// </summary>
+    [Fact]
+    public async Task OrderPush_DoesNotCarryOldRefundOntoReusedWaybill()
+    {
+        await WithServerAsync(async (client, server, _) =>
+        {
+            using HttpResponseMessage refundedOldOrder = await PostJsonAsync(
+                client,
+                "/api/extensions/v1/orders",
+                """
+                {"apiVersion":"v1","providerId":"fixture.erp","orders":[
+                  {"trackingNumber":"REUSE-001","orderId":"ORDER-OLD","productInfo":"旧商品","hasRefund":true,"isPrintedRefund":true,"refundStatus":"SUCCESS"}]}
+                """);
+            Assert.Equal(HttpStatusCode.OK, refundedOldOrder.StatusCode);
+            OrderInfo? oldOrder = server.GetOrderInfo("REUSE-001");
+            Assert.NotNull(oldOrder);
+            Assert.True(oldOrder.IsPrintedRefund);
+
+            using HttpResponseMessage reusedByNewOrder = await PostJsonAsync(
+                client,
+                "/api/extensions/v1/orders",
+                """
+                {"apiVersion":"v1","providerId":"fixture.erp","orders":[
+                  {"trackingNumber":"REUSE-001","orderId":"ORDER-NEW","productInfo":"新商品","hasRefund":false,"isPrintedRefund":false,"refundStatus":"NO_REFUND"}]}
+                """);
+            Assert.Equal(HttpStatusCode.OK, reusedByNewOrder.StatusCode);
+
+            OrderInfo? reused = server.GetOrderInfo("REUSE-001");
+            Assert.NotNull(reused);
+            Assert.Equal("ORDER-NEW", reused.OrderId);
+            Assert.False(reused.IsPrintedRefund);
+            Assert.Equal("新商品", reused.ProductInfo);
+        });
+    }
+
+    /// <summary>
+    /// 推送里读不到订单号时无法区分"同一个订单"还是"运单号被复用"，
+    /// 按沿用已确认退款的保守口径处理：宁可多报一次，也不漏掉退款件。
+    /// </summary>
+    [Fact]
+    public async Task OrderPush_KeepsConfirmedRefundWhenOrderIdIsMissing()
+    {
+        await WithServerAsync(async (client, server, _) =>
+        {
+            using HttpResponseMessage refundedOrder = await PostJsonAsync(
+                client,
+                "/api/extensions/v1/orders",
+                """
+                {"apiVersion":"v1","providerId":"fixture.erp","orders":[
+                  {"trackingNumber":"REUSE-002","orderId":"ORDER-REFUNDED","hasRefund":true,"isPrintedRefund":true,"refundStatus":"SUCCESS"}]}
+                """);
+            Assert.Equal(HttpStatusCode.OK, refundedOrder.StatusCode);
+
+            using HttpResponseMessage withoutOrderId = await PostJsonAsync(
+                client,
+                "/api/extensions/v1/orders",
+                """
+                {"apiVersion":"v1","providerId":"fixture.erp","orders":[
+                  {"trackingNumber":"REUSE-002","sellerMemo":"页面没读到订单号","hasRefund":false,"isPrintedRefund":false,"refundStatus":""}]}
+                """);
+            Assert.Equal(HttpStatusCode.OK, withoutOrderId.StatusCode);
+
+            OrderInfo? kept = server.GetOrderInfo("REUSE-002");
+            Assert.NotNull(kept);
+            Assert.True(kept.IsPrintedRefund);
+            Assert.Equal("SUCCESS", kept.RefundStatus);
+        });
+    }
+
     [Fact]
     public async Task RecordingDataFixture_FollowsActiveSessionLifecycleAndStableErrors()
     {
