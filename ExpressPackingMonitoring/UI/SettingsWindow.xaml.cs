@@ -4,6 +4,7 @@ using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
+using ExpressPackingMonitoring.UpdateCore;
 using System;
 using System.Windows;
 using System.Collections.Generic;
@@ -2613,7 +2614,13 @@ namespace ExpressPackingMonitoring.UI
             try
             {
                 var service = new UpdateCheckService();
-                UpdateCheckResult result = await service.CheckManualAsync();
+                // 用窗口里当前这个开关的状态，而不是磁盘上上一次保存的值：
+                // 用户打开"接收预览版更新"后立刻点检查更新，不该还按旧值查一遍。
+                bool allowPrerelease = UpdateChannelPolicy.ResolveAllowPrerelease(
+                    Environment.GetEnvironmentVariable(UpdateChannelPolicy.AllowPrereleaseKey),
+                    Config.AllowPrereleaseUpdates);
+                UpdateCheckResult result = await service.CheckManualAsync(
+                    allowPrerelease: allowPrerelease);
                 if (result.HasUpdate)
                     ShowUpdateDialog(result);
 

@@ -27,7 +27,6 @@ namespace ExpressPackingMonitoring.Services
     public sealed class UpdateCheckService
     {
         private const int CacheSchemaVersion = 2;
-        private static readonly TimeSpan ManualDebounce = TimeSpan.FromSeconds(300);
         private static readonly TimeSpan FailureCacheMaxAge = TimeSpan.FromHours(12);
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -51,16 +50,22 @@ namespace ExpressPackingMonitoring.Services
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         }
 
-        public async Task<UpdateCheckResult> CheckManualAsync(CancellationToken cancellationToken = default)
+        /// <summary>
+        /// 应用内“检查更新”按钮：每次都真的去问一遍，不返回上一次的缓存结果。
+        ///
+        /// 以前这里套了 300 秒去抖并直接复用缓存：现场反馈“点了检查更新却说已是最新”，
+        /// 而且刚打开预览版开关再点检查也看不到预览版——用户以为手动检查也被限制住了。
+        /// 只有“所有更新源都失败”时才回退到最近一次成功结果，见 <see cref="CheckAndCacheAsync"/>。
+        /// </summary>
+        /// <param name="allowPrerelease">
+        /// 显式指定本次是否收预览版；不传时按环境变量 / 应用配置判定
+        /// （设置页传当前开关状态，用户不用先保存也能查到预览版）。
+        /// </param>
+        public async Task<UpdateCheckResult> CheckManualAsync(
+            CancellationToken cancellationToken = default,
+            bool? allowPrerelease = null)
         {
-            UpdateCheckCache? cache = LoadCache();
-            if (TryGetCachedResult(cache, ManualDebounce, out UpdateCheckResult cached))
-            {
-                RuntimeLog.Info("Update", "Manual update check debounced, using cached success result");
-                return cached;
-            }
-
-            return await CheckAndCacheAsync(cache, cancellationToken);
+            return await CheckAndCacheAsync(LoadCache(), cancellationToken, allowPrerelease);
         }
 
         public async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
@@ -68,11 +73,14 @@ namespace ExpressPackingMonitoring.Services
             return await CheckAndCacheAsync(LoadCache(), cancellationToken);
         }
 
-        private async Task<UpdateCheckResult> CheckAndCacheAsync(UpdateCheckCache? cache, CancellationToken cancellationToken)
+        private async Task<UpdateCheckResult> CheckAndCacheAsync(
+            UpdateCheckCache? cache,
+            CancellationToken cancellationToken,
+            bool? allowPrerelease = null)
         {
             try
             {
-                UpdateCheckResult result = await FetchLatestReleaseAsync(cancellationToken);
+                UpdateCheckResult result = await FetchLatestReleaseAsync(cancellationToken, allowPrerelease);
                 SaveCache(result);
                 return result;
             }
@@ -85,13 +93,16 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        internal async Task<UpdateCheckResult> FetchLatestReleaseAsync(CancellationToken cancellationToken)
+        internal async Task<UpdateCheckResult> FetchLatestReleaseAsync(
+            CancellationToken cancellationToken,
+            bool? allowPrerelease = null)
         {
+            bool allowPrereleaseEffective = allowPrerelease ?? UpdateChannelPolicy.AllowPrerelease();
             var metadataClient = new UpdateMetadataClient(
                 _httpClient,
                 log: message => RuntimeLog.Info("Update", message),
                 apiTokenProvider: UpdateCheckOptions.GetApiToken,
-                allowPrerelease: UpdateChannelPolicy.AllowPrerelease());
+                allowPrerelease: allowPrereleaseEffective);
             // 只认带本平台发布资产的版本：版本号两个平台共用，有的版本只发了另一头
             // （只修 Windows 的没有 DMG，只发 macOS 的没有 update_v*.json），
             // 直接拿最新 tag 会让用户提示有新版本却下到另一个平台的包
@@ -110,7 +121,8 @@ namespace ExpressPackingMonitoring.Services
             // 以前只记"succeeded"，出了"检查不到新版本"根本看不出是挑错版本还是压根没看到。
             RuntimeLog.Info(
                 "Update",
-                $"更新检查结果：latest={tagName} current={AppVersion.Current} 有更新={compare > 0} source={resolved.SourceUrl}");
+                $"更新检查结果：latest={tagName} current={AppVersion.Current} 有更新={compare > 0}"
+                + $" 接收预览版={allowPrereleaseEffective} source={resolved.SourceUrl}");
             if (compare <= 0)
             {
                 return new UpdateCheckResult
