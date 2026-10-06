@@ -850,6 +850,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     if (IsRecording && activeOrder != null)
                     {
                         SetPreviewOrderNotice(activeOrder);
+                        // 退款可能是在开始录制之后才发生的：订单信息一到就判一次，去重按"录像会话 + 运单号"。
+                        MaybeAlertPrintedRefundForActiveRecording(activeOrder);
                         if (Config.EnableOrderInfoAnnounce)
                         {
                             foreach (AlertSpeechFollowup announcement in BuildOrderInfoSpeechFollowups(
@@ -988,7 +990,11 @@ namespace ExpressPackingMonitoring.ViewModels
             window.ShowDialog();
         }
 
-        private void PublishExtensionScanTaskIfRecordingStarted(string trackingNumber)
+        /// <summary>
+        /// 把单号发给已授权的扩展做按需查询（订单、退款）。
+        /// 开始录制时发一次，同码停录时再发一次，兜住"打包过程中才退款"的情况。
+        /// </summary>
+        private void PublishExtensionScanTask(string trackingNumber)
         {
             ExtensionRuntime runtime = _extensionRuntime;
             if (!Config.EnableExtensionApi

@@ -997,6 +997,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 try
                 {
+                    // 打包期间才退款的情况：同码停录时再核验一次（同一会话同一运单号只报一次）。
+                    VerifyRefundOnSameCodeStop(upperResult);
                     if (JdBarcodePolicy.MatchesPackage(_recordingOrderId ?? "", upperResult)
                         && _db?.CompleteRecordingPackageIdentity(_currentRecordId, _recordingOrderId, upperResult) == true)
                     {
@@ -1115,8 +1117,8 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private void HandleOrderNumberRecordingStarted(string orderNumber)
         {
-            PublishExtensionScanTaskIfRecordingStarted(orderNumber);
-            QueuePrintedRefundCheck(orderNumber, CurrentMode);
+            PublishExtensionScanTask(orderNumber);
+            QueuePrintedRefundCheck(orderNumber, CurrentMode, _recordingSessionId);
 
             // 录制已启动、数据库记录已写入，此时检查重复单号（排除刚刚插入的当前记录）
             bool isDuplicate = _db != null && _db.OrderIdExistsRecent(orderNumber, excludeRecordId: _currentRecordId);
@@ -1327,35 +1329,76 @@ namespace ExpressPackingMonitoring.ViewModels
             private set => SetProperty(ref _switchWorkstationButtonText, value);
         }
 
-        private void QueuePrintedRefundCheck(string trackingNumber, string mode)
+        private void QueuePrintedRefundCheck(string trackingNumber, string mode, string sessionKey = "")
         {
             if (!Config.EnablePrintedRefundAlert || string.IsNullOrWhiteSpace(trackingNumber))
                 return;
-            _printedRefundLookupCoordinator.Queue(trackingNumber, mode);
+            // 裸号和包裹号归一成同一个运单号：同一张面单的两个码只核验一次，也只报一次警告。
+            _printedRefundLookupCoordinator.Queue(JdBarcodePolicy.Waybill(trackingNumber), mode, sessionKey);
         }
 
         private void CheckPrintedRefundAndAlert(PrintedRefundScanCheck check, OrderInfo orderInfo, string source)
         {
             if (!ShouldAlertPrintedRefund(check.Mode, Config.EnablePrintedRefundAlert, orderInfo) || !check.TryMarkAlerted())
                 return;
+            if (!_printedRefundAlertDedup.TryMark(check.SessionKey, check.TrackingNumber))
+                return;
 
+            PublishPrintedRefundAlert(check.TrackingNumber, orderInfo, check.SessionKey, source);
+        }
+
+        /// <summary>
+        /// 订单信息（推送或扩展按需查询）到达时也判一次打印后退款：扫码那一刻可能还没有退款状态，
+        /// 打包过程中或同码停录之后才拿到的同样要报出来。去重键是"录像会话 + 运单号"，
+        /// 所以扫码时已经报过的不会再报第二遍。
+        /// </summary>
+        private void MaybeAlertPrintedRefundForActiveRecording(OrderInfo orderInfo)
+        {
+            if (orderInfo == null) return;
+            if (!ShouldAlertPrintedRefund(_recordingMode ?? CurrentMode, Config.EnablePrintedRefundAlert, orderInfo))
+                return;
+            if (!_printedRefundAlertDedup.TryMark(_recordingSessionId, orderInfo.TrackingNumber))
+                return;
+
+            PublishPrintedRefundAlert(orderInfo.TrackingNumber, orderInfo, _recordingSessionId, "order-info");
+        }
+
+        /// <summary>
+        /// 同码停录也是"这一单打包完成"的检查点：面单可能在开始录制之后才退款，
+        /// 停录时按单号再核验一次（专属工作页负责查询，不碰用户正在用的页面）。
+        /// </summary>
+        private void VerifyRefundOnSameCodeStop(string scannedCode)
+        {
+            if (!Config.EnablePrintedRefundAlert) return;
+
+            string trackingNumber = JdBarcodePolicy.Waybill(scannedCode);
+            if (trackingNumber.Length == 0) return;
+
+            string sessionKey = _recordingSessionId ?? "";
+            PublishExtensionScanTask(trackingNumber);
+            QueuePrintedRefundCheck(trackingNumber, _recordingMode ?? CurrentMode, sessionKey);
+        }
+
+        /// <summary>播放打印后退款警告。去重由调用方按"录像会话 + 运单号"负责，这里只负责播报。</summary>
+        private void PublishPrintedRefundAlert(string trackingNumber, OrderInfo orderInfo, string sessionKey, string source)
+        {
             RuntimeLog.Warn(
                 "Scan",
-                $"Printed-refund order detected: tracking={check.TrackingNumber}, order={orderInfo.OrderId}, status={orderInfo.RefundStatus}, source={source}");
+                $"Printed-refund order detected: tracking={trackingNumber}, order={orderInfo.OrderId}, status={orderInfo.RefundStatus}, source={source}");
             string statusText = GetRefundStatusDisplayText(orderInfo);
             if (_isDisposed)
                 return;
 
             _alertService?.Publish(new AlertRequest
             {
-                Message = $"警告：快递单 {check.TrackingNumber}，{statusText}",
+                Message = $"警告：快递单 {trackingNumber}，{statusText}",
                 SpeechText = DefaultSpeechCatalog.CreatePrintedRefundAnnouncement(statusText),
                 Priority = AlertPriority.Critical,
                 Sound = AlertSound.IndustrialAlarm,
                 SoundRepeatCount = 1,
                 SpeechRepeatCount = 1,
                 DisplayDuration = TimeSpan.FromSeconds(12),
-                DeduplicationKey = $"printed-refund:{check.TrackingNumber}:{check.AlertId}",
+                DeduplicationKey = $"printed-refund:{trackingNumber}:{sessionKey}",
                 DeduplicationWindow = TimeSpan.FromMinutes(1),
                 FollowupSpeech = BuildOrderInfoSpeechFollowups(
                     orderInfo,

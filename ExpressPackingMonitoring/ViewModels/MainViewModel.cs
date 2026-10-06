@@ -236,6 +236,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
         private readonly PrintedRefundLookupCoordinator _printedRefundLookupCoordinator;
+        // 一段录像里同一张面单只报一次退款警告：扫码开始、打包过程中、同码停录后拿到的都归到一起。
+        private readonly PrintedRefundAlertDedup _printedRefundAlertDedup = new();
         private readonly SemaphoreSlim _mkvConvertLock = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim _mkvBatchLock = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim _shutdownLock = new SemaphoreSlim(1, 1);

@@ -25,7 +25,12 @@ internal sealed class PrintedRefundLookupCoordinator
         _shouldStop = shouldStop;
     }
 
-    public void Queue(string trackingNumber, string mode)
+    /// <summary>
+    /// 排一次退款核验。<paramref name="sessionKey"/> 是这次扫码对应的录像会话，
+    /// 用来保证"同一次扫码只报一次退款警告"——扫码开始、打包过程中和同码停录后拿到的
+    /// 退款状态都归到同一个键上。没有会话（例如手动开始）时传空串，调用方按"该报就报"处理。
+    /// </summary>
+    public void Queue(string trackingNumber, string mode, string sessionKey = "")
     {
         if (string.IsNullOrWhiteSpace(trackingNumber))
             return;
@@ -34,7 +39,8 @@ internal sealed class PrintedRefundLookupCoordinator
         {
             _pendingChecks.Add(new PrintedRefundScanCheck(
                 trackingNumber.Trim().ToUpperInvariant(),
-                mode));
+                mode,
+                sessionKey?.Trim() ?? ""));
             if (_lookupTask == null || _lookupTask.IsCompleted)
                 _lookupTask = Task.Run(RunLoopAsync);
         }
@@ -151,13 +157,13 @@ internal sealed class WebServerPrintedRefundOrderSource(WebServer server) : IPri
         server.RequestFreshOrderSnapshotAsync(timeout, trackingNumbers);
 }
 
-internal sealed class PrintedRefundScanCheck(string trackingNumber, string mode)
+internal sealed class PrintedRefundScanCheck(string trackingNumber, string mode, string sessionKey)
 {
     private int _alerted;
 
-    public Guid AlertId { get; } = Guid.NewGuid();
     public string TrackingNumber { get; } = trackingNumber;
     public string Mode { get; } = mode;
+    public string SessionKey { get; } = sessionKey;
 
     public bool TryMarkAlerted() => Interlocked.Exchange(ref _alerted, 1) == 0;
 }

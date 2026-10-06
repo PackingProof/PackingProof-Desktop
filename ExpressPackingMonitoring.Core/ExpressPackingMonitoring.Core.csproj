@@ -151,6 +151,7 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\OrderNumberExportService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\PackingProofNodeInfo.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\PlaybackFileResolver.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\PrintedRefundAlertDedup.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\PrintedRefundLookupCoordinator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\QrCodeRenderer.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingComputerNicknameRegistry.cs" />
