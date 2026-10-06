@@ -13,6 +13,9 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal static class CameraDeviceSelectionPolicy
 {
+    /// <summary>网络摄像头在下拉里的固定身份：它不占用本机设备，但不能和"无/未检测到"混成一个空串。</summary>
+    internal const string NetworkIdentity = "network:";
+
     /// <summary>
     /// 投影某一路的可选项。<paramref name="otherMonikers"/> 是其它路占用的设备标识；
     /// 自己当前那台（<paramref name="selfMoniker"/>）即使被算进占用也保留在列表首位。
@@ -97,5 +100,34 @@ internal static class CameraDeviceSelectionPolicy
         }
 
         return resolved;
+    }
+
+    /// <summary>下拉项的"身份"：USB 用设备标识，网络摄像头固定 <see cref="NetworkIdentity"/>，其余为空串。</summary>
+    internal static string IdentityOf(CameraDeviceChoice? choice) =>
+        choice == null
+            ? ""
+            : choice.Kind == "network"
+                ? NetworkIdentity
+                : choice.Moniker ?? "";
+
+    /// <summary>
+    /// 当前该选中哪一项：先按身份精确匹配，匹配不到才退回第一项（"无/未检测到摄像头"）。
+    ///
+    /// 不能只看设备标识是否为空——没有 USB 摄像头时"未检测到摄像头"和"网络摄像头"的标识都是空的，
+    /// 那样会把用户刚选好的网络摄像头又顶回"未检测到摄像头"，网络摄像头地址框跟着被收起来。
+    /// </summary>
+    internal static int SelectIdentityIndex(IReadOnlyList<CameraDeviceChoice>? choices, string? identity)
+    {
+        if (choices == null || choices.Count == 0)
+            return -1;
+
+        string target = identity ?? "";
+        for (int i = 0; i < choices.Count; i++)
+        {
+            if (string.Equals(IdentityOf(choices[i]), target, StringComparison.Ordinal))
+                return i;
+        }
+
+        return 0;
     }
 }

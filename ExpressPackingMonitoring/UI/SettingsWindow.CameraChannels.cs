@@ -375,11 +375,14 @@ namespace ExpressPackingMonitoring.UI
         private static CameraInfo ToCameraInfo(CameraDeviceChoice choice) =>
             new() { Name = choice.Name, Moniker = choice.Moniker, Index = choice.Index };
 
-        /// <summary>下拉项对应的设备标识；"无"和网络摄像头都不占用本机设备，返回空串。</summary>
+        /// <summary>
+        /// 下拉项对应的设备标识。"未检测到摄像头"这种没有设备身份的项返回空串；
+        /// 网络摄像头保留 <c>network:</c> —— 它不占用本机设备，但确实是下拉里的一个真实选项，
+        /// 抹成空串会和"未检测到摄像头"撞在一起，重算下拉时就分不清用户选的是哪一个。
+        /// </summary>
         private static string MonikerOf(CameraInfo? camera) =>
             camera == null
             || string.IsNullOrEmpty(camera.Moniker)
-            || string.Equals(camera.Moniker, "network:", StringComparison.Ordinal)
                 ? ""
                 : camera.Moniker;
 
@@ -408,12 +411,12 @@ namespace ExpressPackingMonitoring.UI
             if (Config is not { } config)
                 return "";
 
-            // 网络摄像头/未检测到设备在下拉里是 Index = -1 的伪项，不占用本机设备
-            if (config.CameraIndex < 0
-                || !string.Equals(config.CameraSourceKind, "usb", StringComparison.Ordinal))
-            {
+            // 网络摄像头在下拉里是 Index = -1 的伪项，不占用本机设备，但身份要保留，否则重算下拉时会被顶掉。
+            if (string.Equals(config.CameraSourceKind, "network", StringComparison.OrdinalIgnoreCase))
+                return CameraDeviceSelectionPolicy.NetworkIdentity;
+
+            if (config.CameraIndex < 0)
                 return "";
-            }
 
             return config.CameraMonikerString ?? "";
         }
@@ -527,10 +530,9 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void ApplyMainCameraChoices(IReadOnlyList<CameraDeviceChoice> all, string[] requested)
         {
-            List<CameraInfo> projected = CameraDeviceSelectionPolicy
-                .Project(all, requested[0], requested.Skip(1))
-                .Select(ToCameraInfo)
-                .ToList();
+            IReadOnlyList<CameraDeviceChoice> projectedChoices = CameraDeviceSelectionPolicy
+                .Project(all, requested[0], requested.Skip(1));
+            List<CameraInfo> projected = projectedChoices.Select(ToCameraInfo).ToList();
 
             if (_appliedMainChoices == null || !SameMainChoices(_appliedMainChoices, projected))
             {
@@ -540,10 +542,9 @@ namespace ExpressPackingMonitoring.UI
             }
 
             List<CameraInfo> current = CameraComboBox.ItemsSource as List<CameraInfo> ?? projected;
-            CameraInfo? target =
-                current.FirstOrDefault(camera => string.Equals(MonikerOf(camera), requested[0], StringComparison.Ordinal))
-                ?? current.FirstOrDefault();
-            if (!ReferenceEquals(CameraComboBox.SelectedItem, target))
+            int targetIndex = CameraDeviceSelectionPolicy.SelectIdentityIndex(projectedChoices, requested[0]);
+            CameraInfo? target = targetIndex >= 0 && targetIndex < current.Count ? current[targetIndex] : null;
+            if (target != null && !ReferenceEquals(CameraComboBox.SelectedItem, target))
                 CameraComboBox.SelectedItem = target;
         }
 

@@ -28,6 +28,40 @@ public sealed class CameraDeviceSelectionPolicyTests
         Assert.Contains(forSecondary, c => c.Kind == "none");
     }
 
+    /// <summary>
+    /// 一台 USB 摄像头都没有时，下拉里会同时出现"未检测到摄像头"和"网络摄像头"，两者都不占用本机设备。
+    /// 选中判定必须按身份区分，否则重算下拉时会把用户选好的网络摄像头顶回"未检测到摄像头"，
+    /// 网络摄像头地址框跟着被收起来。
+    /// </summary>
+    [Fact]
+    public void SelectIdentityIndex_KeepsNetworkCameraWhenNoUsbDeviceIsPresent()
+    {
+        var choices = new List<CameraDeviceChoice>
+        {
+            new("未检测到摄像头", "usb", "", 0),
+            new("网络摄像头（手动地址）", "network", CameraDeviceSelectionPolicy.NetworkIdentity, -1)
+        };
+
+        Assert.Equal(
+            1,
+            CameraDeviceSelectionPolicy.SelectIdentityIndex(choices, CameraDeviceSelectionPolicy.NetworkIdentity));
+        Assert.Equal(0, CameraDeviceSelectionPolicy.SelectIdentityIndex(choices, ""));
+        Assert.Equal(-1, CameraDeviceSelectionPolicy.SelectIdentityIndex([], "network:"));
+    }
+
+    /// <summary>网络摄像头的身份按"类型"给：副摄那一路的下拉项标识是空串，但也不能和"无"混起来。</summary>
+    [Fact]
+    public void IdentityOf_DistinguishesNetworkChoiceFromNoDevicePlaceholder()
+    {
+        Assert.Equal(
+            "network:",
+            CameraDeviceSelectionPolicy.IdentityOf(new CameraDeviceChoice("网络摄像头", "network", "", -1)));
+        Assert.Equal(
+            "",
+            CameraDeviceSelectionPolicy.IdentityOf(new CameraDeviceChoice("未检测到摄像头", "usb", "", 0)));
+        Assert.Equal("moniker-a", CameraDeviceSelectionPolicy.IdentityOf(CamA));
+    }
+
     [Fact]
     public void Project_KeepsOwnCurrentDeviceEvenIfListedAsTaken()
     {
