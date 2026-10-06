@@ -199,6 +199,8 @@ internal readonly record struct CameraWatchdogState(
     bool CameraRestarting,
     bool AutoReconnectSuspended,
     bool StartupRetryPending,
+    bool Recording,
+    bool RecentlyWoken,
     int ConsecutiveRestartFailures,
     int MaxRestartFailures,
     TimeSpan SinceLastRestartAttempt,
@@ -217,6 +219,9 @@ internal readonly record struct CameraWatchdogState(
 /// </summary>
 internal static class CameraWatchdogPolicy
 {
+    /// <summary>刚好被唤醒（休眠唤醒）时的取帧门限：比平时短，尽快走一次静默重启。</summary>
+    internal static readonly TimeSpan WakeFirstFrameThreshold = TimeSpan.FromSeconds(0.8);
+
     public static bool CanJudgeCameraLost(in CameraWatchdogState state) =>
         !state.CameraSleeping
         && !state.SetupWizardActive
@@ -227,6 +232,20 @@ internal static class CameraWatchdogPolicy
         && state.ConsecutiveRestartFailures < state.MaxRestartFailures
         && state.SinceLastRestartAttempt.TotalSeconds
             >= state.MinRestartIntervalSeconds * Math.Max(1, state.ConsecutiveRestartFailures);
+
+    /// <summary>
+    /// 判到"没有帧"之后要不要弹警告并播报。刚被用户活动唤醒的那十几秒里不要：
+    /// 现场反馈（日志 22:52 / 22:58 两次）：摄像头休眠后动一下鼠标唤醒，第一次启动成功但
+    /// 画面要 1.5 秒才来，看门狗先判了信号丢失，于是"摄像头重新连接中"的播报先出来，
+    /// 后面又整体重启一次——用户听到播报会以为设备出问题。这段时间静默重启即可，
+    /// 真正录着像的时候仍然要报（那时候操作员必须知道）。
+    /// </summary>
+    public static bool ShouldAnnounceCameraLost(in CameraWatchdogState state) =>
+        state.Recording || !state.RecentlyWoken;
+
+    /// <summary>判断"多久没有新帧"的门限：唤醒后的第一次等待用更短的门限。</summary>
+    public static TimeSpan ResolveFrameStaleThreshold(TimeSpan normal, bool recentlyWoken) =>
+        recentlyWoken ? WakeFirstFrameThreshold : normal;
 }
 
 internal sealed class CameraFrameRateGate

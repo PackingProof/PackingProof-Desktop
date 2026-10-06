@@ -256,6 +256,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 ResetCameraRestartCounters();
                 RuntimeLog.Info("Camera", "Wake requested by user activity");
+                // 唤醒后的宽限期：这段时间里的"没有帧"按唤醒过程处理，静默重启、不播报。
+                _cameraWakeGraceUntilUtc = DateTime.UtcNow + CameraWakeGracePeriod;
                 // 先启动再放开休眠标记：休眠期间设备本来就停着、帧时间也是旧的，
                 // 提前放开会让看门狗在启动的这一秒多里排队重连，把刚起来的摄像头又关掉。
                 StartCamera();
@@ -272,6 +274,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 RestartCamera();
             }
         }
+
+        /// <summary>是不是处在"刚被唤醒"的宽限期里（休眠唤醒后的十几秒）。</summary>
+        private bool IsWithinCameraWakeGrace() =>
+            DateTime.UtcNow < _cameraWakeGraceUntilUtc;
 
         private async Task CameraIdleWatchdogAsync(CancellationToken cancellationToken)
         {
@@ -1163,6 +1169,8 @@ namespace ExpressPackingMonitoring.ViewModels
                             _isRestartingCamera,
                             _cameraAutoReconnectSuspended,
                             Volatile.Read(ref _cameraStartupRetryPending) != 0,
+                            IsRecording,
+                            IsWithinCameraWakeGrace(),
                             _consecutiveRestartFailures,
                             MaxConsecutiveRestartFailures,
                             DateTime.Now - _lastRestartAttempt,
@@ -1177,13 +1185,27 @@ namespace ExpressPackingMonitoring.ViewModels
                                 {
                                     // 网络源等待首个关键帧期间不判信号丢失。
                                 }
-                                else if (noFrameSeconds > CameraFrameStaleThreshold.TotalSeconds)
+                                else if (noFrameSeconds > CameraWatchdogPolicy
+                                             .ResolveFrameStaleThreshold(
+                                                 CameraFrameStaleThreshold,
+                                                 IsWithinCameraWakeGrace()).TotalSeconds)
                                 {
-                                    Debug.WriteLine($"[Camera] 信号丢失 {noFrameSeconds:F1}s，尝试重连 (失败次数={_consecutiveRestartFailures})");
-                                    _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                                        ShowToast("摄像头信号丢失，尝试重连...", ToastSeverity.Warning);
-                                        SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
-                                        _ = RestartCameraWithRecordingStopAsync("camera-frame-timeout");
+                                    bool announce = CameraWatchdogPolicy.ShouldAnnounceCameraLost(
+                                        watchdogState);
+                                    RuntimeLog.Info(
+                                        "Camera",
+                                        $"信号丢失 {noFrameSeconds:F1}s，重连 (失败次数={_consecutiveRestartFailures},"
+                                        + $" 播报={announce})");
+                                    _ = Application.Current.Dispatcher.InvokeAsync(() =>
+                                    {
+                                        if (announce)
+                                        {
+                                            ShowToast("摄像头信号丢失，尝试重连...", ToastSeverity.Warning);
+                                            SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
+                                        }
+
+                                        _ = RestartCameraWithRecordingStopAsync(
+                                            announce ? "camera-frame-timeout" : "camera-wake-timeout");
                                     });
                                 }
                             }
@@ -1193,10 +1215,18 @@ namespace ExpressPackingMonitoring.ViewModels
                                 double missingSeconds = (DateTime.Now - _lastFrameTime).TotalSeconds;
                                 if (missingSeconds > 2.0)
                                 {
-                                    Debug.WriteLine($"[Camera] 摄像头断开，尝试重连 (失败次数={_consecutiveRestartFailures})");
+                                    bool announce = CameraWatchdogPolicy.ShouldAnnounceCameraLost(
+                                        watchdogState);
+                                    RuntimeLog.Info(
+                                        "Camera",
+                                        $"摄像头断开，重连 (失败次数={_consecutiveRestartFailures}, 播报={announce})");
                                     _ = Application.Current.Dispatcher.InvokeAsync(() => {
-                                        ShowToast("摄像头已断开，等待重新连接...", ToastSeverity.Warning);
-                                        SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
+                                        if (announce)
+                                        {
+                                            ShowToast("摄像头已断开，等待重新连接...", ToastSeverity.Warning);
+                                            SpeakWarning(DefaultSpeechCatalog.CameraReconnecting);
+                                        }
+
                                         _ = RestartCameraWithRecordingStopAsync("camera-source-stopped");
                                     });
                                 }

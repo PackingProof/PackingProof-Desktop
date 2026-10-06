@@ -143,6 +143,11 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan UiHeartbeatStaleThreshold = TimeSpan.FromSeconds(2);
         // 摄像头断流判定时间窗：处理循环取帧、录制前就绪检查共用同一个门限。
         private static readonly TimeSpan CameraFrameStaleThreshold = TimeSpan.FromSeconds(1.5);
+        /// <summary>
+        /// 休眠唤醒后的宽限期：这段时间里的"没有帧"按唤醒过程处理（静默重启、不播报），
+        /// 超过它还没画面才当作真的掉线去提醒用户。
+        /// </summary>
+        private static readonly TimeSpan CameraWakeGracePeriod = TimeSpan.FromSeconds(15);
         private DateTime _lastPreviewPublishedAt = DateTime.MinValue;
         // 程序自己的窗口是否在前台。仅用于资源诊断，不控制预览帧率。
         private volatile bool _isAppWindowFocused;
@@ -194,6 +199,11 @@ namespace ExpressPackingMonitoring.ViewModels
         // 摄像头空闲休眠
         private bool _isCameraSleeping = false;
         private DateTime _lastActivityTime = DateTime.Now;
+        /// <summary>
+        /// 休眠唤醒后的宽限期到什么时候（UTC）。这段时间里"没有帧"属正常唤醒过程：
+        /// 静默重启，不弹"信号丢失"、不播报，见 CameraWatchdogPolicy.ShouldAnnounceCameraLost。
+        /// </summary>
+        private DateTime _cameraWakeGraceUntilUtc = DateTime.MinValue;
         public bool IsCameraSleeping
         {
             get => _isCameraSleeping;

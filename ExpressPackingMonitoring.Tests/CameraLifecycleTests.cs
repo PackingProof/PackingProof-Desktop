@@ -152,12 +152,59 @@ public sealed class CameraLifecycleTests
             cameraRestarting,
             autoReconnectSuspended,
             startupRetryPending,
+            Recording: false,
+            RecentlyWoken: false,
             consecutiveRestartFailures,
             5,
             TimeSpan.FromSeconds(sinceLastRestartSeconds),
             3.0);
 
         Assert.Equal(expected, CameraWatchdogPolicy.CanJudgeCameraLost(state));
+    }
+
+    /// <summary>
+    /// 现场反馈（日志 22:52 / 22:58）：摄像头休眠后动鼠标唤醒，第一次启动成功但画面要 1.5 秒才来，
+    /// 看门狗先判了"信号丢失"，于是"摄像头重新连接中"的播报先出来、后面又整体重启一次，
+    /// 用户听到播报以为设备坏了。唤醒宽限期内必须静默重启；录着像的时候仍然要报。
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, true)]  // 平时断流：要播报
+    [InlineData(false, true, false)]  // 刚唤醒且没在录制：静默
+    [InlineData(true, true, true)]    // 刚唤醒但在录制：要播报
+    public void CameraWatchdogPolicy_StaysQuietDuringWakeGraceUnlessRecording(
+        bool recording,
+        bool recentlyWoken,
+        bool expectedAnnounce)
+    {
+        CameraWatchdogState state = new(
+            CameraSleeping: false,
+            SetupWizardActive: false,
+            CameraStarting: false,
+            CameraRestarting: false,
+            AutoReconnectSuspended: false,
+            StartupRetryPending: false,
+            Recording: recording,
+            RecentlyWoken: recentlyWoken,
+            ConsecutiveRestartFailures: 0,
+            MaxRestartFailures: 5,
+            SinceLastRestartAttempt: TimeSpan.FromSeconds(30),
+            MinRestartIntervalSeconds: 3.0);
+
+        Assert.Equal(expectedAnnounce, CameraWatchdogPolicy.ShouldAnnounceCameraLost(state));
+    }
+
+    [Theory]
+    [InlineData(false, 1.5)]
+    [InlineData(true, 0.8)]
+    public void CameraWatchdogPolicy_UsesShorterThresholdRightAfterWake(
+        bool recentlyWoken,
+        double expectedSeconds)
+    {
+        TimeSpan threshold = CameraWatchdogPolicy.ResolveFrameStaleThreshold(
+            TimeSpan.FromSeconds(1.5),
+            recentlyWoken);
+
+        Assert.Equal(expectedSeconds, threshold.TotalSeconds, 1);
     }
 
     [Theory]
