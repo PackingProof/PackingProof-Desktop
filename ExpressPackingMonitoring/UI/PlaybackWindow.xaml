@@ -173,6 +173,14 @@
                       Click="LocateFile_Click"
                       DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                       IsEnabled="{Binding CanLocateFile}"/>
+            <Separator Style="{StaticResource AppSeparatorStyle}"/>
+            <MenuItem Header="删除录像…"
+                      Style="{StaticResource AppMenuItemStyle}"
+                      Click="DeleteVideo_Click"
+                      DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                      IsEnabled="{Binding CanDelete}"
+                      ToolTip="{Binding DeleteBlockedHint}"
+                      ToolTipService.ShowOnDisabled="True"/>
         </ContextMenu>
     </Window.Resources>
 

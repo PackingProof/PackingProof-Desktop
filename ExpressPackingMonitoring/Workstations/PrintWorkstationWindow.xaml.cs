@@ -312,7 +312,11 @@ public partial class PrintWorkstationWindow : Window
                     out _,
                     out _);
             },
-            localComputerName: _config.NodeName)
+            localComputerName: _config.NodeName,
+            // 打包工位自己就是备份主机（会写录像数据），可以删除回放里的录像。
+            canDeleteRecords: DeploymentCapabilities
+                .ForPreset(DeploymentPresets.MobileBackupHost)
+                .CanDeleteRecordings)
         {
             Owner = this
         };

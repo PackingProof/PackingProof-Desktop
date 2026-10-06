@@ -161,6 +161,8 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderMigrator.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderNaming.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeviceFolderShortcuts.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeletePolicy.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\RecordingDeleteService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTreeEnumeration.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingSourceNameLookup.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\RecordingTransferService.cs" />

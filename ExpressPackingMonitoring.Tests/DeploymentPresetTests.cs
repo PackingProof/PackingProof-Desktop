@@ -190,6 +190,7 @@ public sealed class DeploymentPresetTests
         Assert.True(recording.CanUseScanner);
         Assert.True(recording.CanRecordPcVideo);
         Assert.True(recording.CanReceiveMobileBackup);
+        Assert.True(recording.CanDeleteRecordings);
 
         Assert.False(workstation.IsHost);
         Assert.True(workstation.IsRecordingDevice);
@@ -202,6 +203,7 @@ public sealed class DeploymentPresetTests
         Assert.False(workstation.CanRunWebServer);
         Assert.False(workstation.CanReceiveMobileBackup);
         Assert.False(workstation.CanManageRecordingDevices);
+        Assert.True(workstation.CanDeleteRecordings);
 
         Assert.False(viewer.IsHost);
         Assert.False(viewer.IsRecordingDevice);
@@ -209,6 +211,8 @@ public sealed class DeploymentPresetTests
         Assert.True(viewer.CanGenerateUserscript);
         Assert.False(viewer.CanConfigureStorage);
         Assert.False(viewer.CanRunWebServer);
+        // 删除会改录像记录，纯查看端只能看。
+        Assert.False(viewer.CanDeleteRecordings);
 
         Assert.True(mobileBackup.IsHost);
         Assert.False(mobileBackup.IsRecordingDevice);
@@ -218,6 +222,7 @@ public sealed class DeploymentPresetTests
         Assert.False(mobileBackup.CanUseCamera);
         Assert.False(mobileBackup.CanRecordAudio);
         Assert.False(mobileBackup.CanRecordPcVideo);
+        Assert.True(mobileBackup.CanDeleteRecordings);
     }
 
     [Theory]

@@ -41,6 +41,9 @@ namespace ExpressPackingMonitoring.UI
         public DateTime? DeletedAt { get; set; }
         public FileInfo? File { get; set; }
 
+        /// <summary>数据库记录 ID：右键删除要知道删的是哪一条。</summary>
+        public long RecordId { get; set; }
+
         // 悬浮提示与右键菜单需要的明细，与 Web 端 buildVideoTooltip 的字段保持一致。
         public string TrackingNumber { get; set; } = "";
         public string SourceOrderId { get; set; } = "";
@@ -60,6 +63,15 @@ namespace ExpressPackingMonitoring.UI
         /// <summary>只有本地真实存在的文件才能在资源管理器里定位。</summary>
         public bool CanLocateFile =>
             !string.IsNullOrWhiteSpace(FullPath) && !IsDeleted && !IsStoredOnHost && !IsMissing;
+
+        /// <summary>能不能删掉这条录像（右键“删除录像”，服务端还会在锁内复查一次）。</summary>
+        public bool CanDelete { get; set; }
+
+        /// <summary>不能删除的原因，作为禁用菜单项的悬浮提示。</summary>
+        public string DeleteBlockedHint { get; set; } = "";
+
+        /// <summary>这条录像在备份位置上还有归档副本：删除会保留它，确认框要说明。</summary>
+        public bool HasArchiveCopy { get; set; }
 
         public string ToolTipText => PlaybackTooltipBuilder.Build(this);
 
@@ -105,6 +117,8 @@ namespace ExpressPackingMonitoring.UI
         private readonly IReadOnlyDictionary<string, string>? _currentSourceDeviceNames;
         private readonly VideoDatabase? _db;
         private readonly bool _showDeletedVideos;
+        /// <summary>当前工位能不能删除录像（纯查看端不给这个入口）。</summary>
+        private readonly bool _canDeleteRecords;
         private bool _excludeUnavailableRecords;
         private readonly VideoFolderImportService? _videoImportService;
         private readonly Action<string>? _saveImportFolder;
@@ -145,8 +159,15 @@ namespace ExpressPackingMonitoring.UI
             string folderPath,
             VideoDatabase? db = null,
             bool showDeletedVideos = true,
-            string localComputerName = "")
-            : this(folderPath, db, showDeletedVideos, null, localComputerName: localComputerName)
+            string localComputerName = "",
+            bool canDeleteRecords = false)
+            : this(
+                folderPath,
+                db,
+                showDeletedVideos,
+                null,
+                localComputerName: localComputerName,
+                canDeleteRecords: canDeleteRecords)
         {
         }
 
@@ -159,7 +180,8 @@ namespace ExpressPackingMonitoring.UI
             Action<string>? saveImportFolder = null,
             Action? videosImported = null,
             string localComputerName = "",
-            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            bool canDeleteRecords = false)
         {
             InitializeComponent();
             _folderPath = folderPath;
@@ -167,6 +189,7 @@ namespace ExpressPackingMonitoring.UI
             _currentSourceDeviceNames = currentSourceDeviceNames;
             _db = db;
             _showDeletedVideos = showDeletedVideos;
+            _canDeleteRecords = canDeleteRecords;
             _videoImportService = videoImportService;
             _lastImportFolder = lastImportFolder ?? "";
             _saveImportFolder = saveImportFolder;
@@ -324,6 +347,84 @@ namespace ExpressPackingMonitoring.UI
             }
 
             LocateExportedOrderFile(item.FullPath);
+        }
+
+        /// <summary>
+        /// 右键“删除录像”：删掉本机录像文件，再把记录标记为删除。
+        /// 记录本身保留（列表里不再显示、删除日志留档），备份位置上的归档副本
+        /// 按“程序只上传不删除”的既有约定不在这里删。
+        /// </summary>
+        private async void DeleteVideo_Click(object sender, RoutedEventArgs e)
+        {
+            VideoItem? item = GetContextMenuItem(sender);
+            if (item == null) return;
+            if (_db == null)
+            {
+                AppDialog.Error(this, "录像数据库不可用，无法删除", "删除录像");
+                return;
+            }
+
+            if (!item.CanDelete)
+            {
+                AppDialog.Warning(
+                    this,
+                    string.IsNullOrWhiteSpace(item.DeleteBlockedHint)
+                        ? "这条录像不能删除"
+                        : item.DeleteBlockedHint,
+                    "删除录像");
+                return;
+            }
+
+            string orderText = string.IsNullOrWhiteSpace(item.OrderId)
+                ? "未记录订单号"
+                : item.OrderId;
+            string timeText = item.StartTime == default
+                ? "未知"
+                : item.StartTime.ToString("yyyy-MM-dd HH:mm:ss");
+            string message =
+                $"确定删除这条录像吗？\n\n单号：{orderText}\n时间：{timeText}\n\n"
+                + (item.HasArchiveCopy
+                    ? "本机录像文件会被删除，已备份到网络位置的归档副本会保留。\n"
+                    : "本机录像文件会被删除。\n")
+                + "删除后列表里不再显示这条记录";
+            if (!AppDialog.Confirm(
+                    this,
+                    message,
+                    "删除录像",
+                    AppDialogSeverity.Warning,
+                    confirmText: "删除",
+                    cancelText: "取消",
+                    isDangerous: true))
+            {
+                return;
+            }
+
+            // 正在播放的这条先停下来：LibVLC 还占着文件句柄时，Windows 上删不掉文件。
+            if (ReferenceEquals(VideoList.SelectedItem, item))
+            {
+                try { await Task.Run(() => _mediaPlayer?.Stop()); } catch { }
+            }
+
+            try
+            {
+                var service = new RecordingDeleteService(_db);
+                RecordingDeleteResult result = await service.DeleteRecordingAsync(item.RecordId);
+                if (!result.Deleted)
+                {
+                    AppDialog.Warning(this, result.Message, "删除录像");
+                    return;
+                }
+
+                if (ReferenceEquals(VideoList.SelectedItem, item))
+                    VideoList.SelectedItem = null;
+                ShowPlaybackToast("已删除该录像");
+                RequestVideoLoad();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Playback", "删除录像失败", ex);
+                AppDialog.Error(this, ex.Message, "删除录像");
+            }
         }
 
         /// <summary>
@@ -925,7 +1026,11 @@ namespace ExpressPackingMonitoring.UI
                                 total = window.Total;
                             hasMore = window.HasMore;
                             videos.AddRange(window.Records
-                                .Select(record => CreateVideoItem(record, _computerName, _currentSourceDeviceNames))
+                                .Select(record => CreateVideoItem(
+                                    record,
+                                    _computerName,
+                                    _currentSourceDeviceNames,
+                                    _canDeleteRecords))
                                 .Where(item => !item.IsMissing));
 
                             if (videos.Count > 0 || !hasMore)
@@ -967,7 +1072,11 @@ namespace ExpressPackingMonitoring.UI
                      }
                      foreach (var record in result.Records)
                     {
-                        videos.Add(CreateVideoItem(record, _computerName, _currentSourceDeviceNames));
+                        videos.Add(CreateVideoItem(
+                            record,
+                            _computerName,
+                            _currentSourceDeviceNames,
+                            _canDeleteRecords));
                     }
                     return new VideoPageLoadResult(videos, result.Total, page * PageSize < result.Total, false, page);
                  }
@@ -1008,7 +1117,8 @@ namespace ExpressPackingMonitoring.UI
         internal static VideoItem CreateVideoItem(
             VideoRecord record,
             string? localComputerName = null,
-            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null)
+            IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
+            bool canDeleteRecords = false)
         {
             bool deleted = record.IsDeleted;
             bool storedOnHost = string.Equals(
@@ -1048,12 +1158,15 @@ namespace ExpressPackingMonitoring.UI
             FileInfo? info = (!deleted && !missing && !storedOnHost && localExists)
                 ? new FileInfo(localPath)
                 : null;
+            // 删除条件由 RecordingDeletePolicy 统一判定，和服务端删除前的复查共用同一套规则。
+            string? deleteRefusal = RecordingDeletePolicy.DescribeRefusal(record, localExists);
             return new VideoItem
             {
                 DisplayName = GetOrderDisplayName(record.TrackingNumber, record.OrderId, record.FileName),
                 FullPath = string.IsNullOrWhiteSpace(resolvedPath)
                     ? record.FilePath ?? ""
                     : resolvedPath,
+                RecordId = record.Id,
                 OrderId = record.OrderId,
                 Mode = record.Mode,
                 Duration = record.DurationSeconds > 0 ? $"{(int)record.DurationSeconds}s" : "",
@@ -1077,6 +1190,12 @@ namespace ExpressPackingMonitoring.UI
                 DeleteReason = record.DeleteReason,
                 DeletedAt = record.DeletedAt,
                 File = info,
+                CanDelete = canDeleteRecords && deleteRefusal == null,
+                DeleteBlockedHint = canDeleteRecords
+                    ? deleteRefusal ?? ""
+                    : "当前工位只能查看，不能删除录像",
+                HasArchiveCopy = record.ArchiveCompletedAt != null
+                    && !string.IsNullOrWhiteSpace(record.ArchivePath),
                 TrackingNumber = record.TrackingNumber ?? "",
                 SourceOrderId = record.SourceOrderId ?? "",
                 BuyerMessage = record.BuyerMessage ?? "",

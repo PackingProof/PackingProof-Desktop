@@ -183,7 +183,11 @@ public partial class PlaybackWindow
             searchMode: VideoSearchMode.ExactOrderIdentifiers);
         foreach (VideoRecord record in page.Records)
         {
-            VideoItem item = CreateVideoItem(record, _computerName, _currentSourceDeviceNames);
+            VideoItem item = CreateVideoItem(
+                record,
+                _computerName,
+                _currentSourceDeviceNames,
+                _canDeleteRecords);
             if (item.IsUnavailable || string.IsNullOrWhiteSpace(item.FullPath))
                 continue;
 

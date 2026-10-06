@@ -89,7 +89,11 @@ namespace ExpressPackingMonitoring.ViewModels
                         RunRecordingCacheCleanup();
                     },
                     localComputerName: Config.NodeName,
-                    currentSourceDeviceNames: _webServer?.GetCurrentSourceDeviceNames());
+                    currentSourceDeviceNames: _webServer?.GetCurrentSourceDeviceNames(),
+                    // 删除会改录像记录，纯查看端不给这个入口。
+                    canDeleteRecords: DeploymentCapabilities
+                        .ForPreset(Config.DeploymentPreset)
+                        .CanDeleteRecordings);
                 // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
                 await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;

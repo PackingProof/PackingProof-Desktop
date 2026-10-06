@@ -1121,6 +1121,19 @@
   <data name="这条录像没有记录单号" xml:space="preserve"><value>这条录像没有记录单号</value></data>
   <data name="这条录像没有记录文件路径" xml:space="preserve"><value>这条录像没有记录文件路径</value></data>
   <data name="录像已清理或不在本机，无法定位文件" xml:space="preserve"><value>录像已清理或不在本机，无法定位文件</value></data>
+  <data name="删除录像…" xml:space="preserve"><value>删除录像…</value></data>
+  <data name="删除录像" xml:space="preserve"><value>删除录像</value></data>
+  <data name="已删除该录像" xml:space="preserve"><value>已删除该录像</value></data>
+  <data name="录像数据库不可用，无法删除" xml:space="preserve"><value>录像数据库不可用，无法删除</value></data>
+  <data name="这条录像不能删除" xml:space="preserve"><value>这条录像不能删除</value></data>
+  <data name="当前工位只能查看，不能删除录像" xml:space="preserve"><value>当前工位只能查看，不能删除录像</value></data>
+  <data name="该录像已删除或不存在" xml:space="preserve"><value>该录像已删除或不存在</value></data>
+  <data name="该录像已经删除" xml:space="preserve"><value>该录像已经删除</value></data>
+  <data name="录像正在录制，停止录制后才能删除" xml:space="preserve"><value>录像正在录制，停止录制后才能删除</value></data>
+  <data name="录像正在备份，请稍后再试" xml:space="preserve"><value>录像正在备份，请稍后再试</value></data>
+  <data name="录像正在备份或清理，请稍后再试" xml:space="preserve"><value>录像正在备份或清理，请稍后再试</value></data>
+  <data name="录像保存在录像主机上，请在录像主机上删除" xml:space="preserve"><value>录像保存在录像主机上，请在录像主机上删除</value></data>
+  <data name="本机找不到录像文件，无法删除" xml:space="preserve"><value>本机找不到录像文件，无法删除</value></data>
   <data name="打开文件所在位置" xml:space="preserve"><value>打开文件所在位置</value></data>
   <data name="剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序" xml:space="preserve"><value>剪贴板被其它程序占用，复制失败。请稍后重试，或关闭输入法、剪贴板管理器等占用剪贴板的程序</value></data>
   <data name="筛选" xml:space="preserve"><value>筛选</value></data>

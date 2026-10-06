@@ -36,6 +36,28 @@ internal static class VideoLifecycleCoordinator
         }
     }
 
+    /// <summary>
+    /// 限时获取所有权锁：超时返回 null 且不抛异常，供交互式操作使用。
+    /// 归档传输可能长时间持有同一条记录的锁，界面不能因此卡住，只能请用户稍后再试。
+    /// </summary>
+    public static async Task<IDisposable?> TryEnterAsync(
+        long recordId,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+        try
+        {
+            return await EnterAsync(recordId, timeoutSource.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
     private static void ReleaseReference(long recordId, Entry entry)
     {
         lock (Sync)

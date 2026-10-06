@@ -122,6 +122,51 @@ public sealed class PlaybackWindowTests
 
         Assert.Equal("打包电脑", item.SourceDisplay);
     }
+
+    [Fact]
+    public void CreateVideoItem_DeleteFollowsWorkstationCapabilityAndRecordState()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), $"packingproof-delete-{Guid.NewGuid():N}");
+        string file = Path.Combine(folder, "video.mp4");
+        Directory.CreateDirectory(folder);
+        File.WriteAllBytes(file, [1]);
+        try
+        {
+            var record = new VideoRecord
+            {
+                Id = 7,
+                FilePath = file,
+                OrderId = "单号A",
+                EndTime = DateTime.Now,
+                ArchiveStatus = VideoArchiveStatus.LocalOnly
+            };
+
+            VideoItem allowed = PlaybackWindow.CreateVideoItem(record, canDeleteRecords: true);
+            VideoItem viewer = PlaybackWindow.CreateVideoItem(record, canDeleteRecords: false);
+            VideoItem recording = PlaybackWindow.CreateVideoItem(
+                new VideoRecord
+                {
+                    Id = 8,
+                    FilePath = file,
+                    ArchiveStatus = VideoArchiveStatus.LocalOnly
+                },
+                canDeleteRecords: true);
+
+            Assert.True(allowed.CanDelete);
+            Assert.Equal(7, allowed.RecordId);
+            Assert.Equal("", allowed.DeleteBlockedHint);
+
+            Assert.False(viewer.CanDelete);
+            Assert.Equal("当前工位只能查看，不能删除录像", viewer.DeleteBlockedHint);
+
+            Assert.False(recording.CanDelete);
+            Assert.Contains("正在录制", recording.DeleteBlockedHint);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
     [Theory]
     [InlineData("external", "APP 备份", "")]
     [InlineData("external", "APP备份", "")]

@@ -92,6 +92,12 @@ public sealed class DeploymentCapabilities
     public bool CanManageRecordingDevices { get; }
     public bool CanGenerateUserscript { get; }
 
+    /// <summary>
+    /// 能不能在回放里删除单条录像：删除会改录像记录，只有录像主机、录像从机、备份主机
+    /// 这三个会写录像数据的工位可以；纯查看端只读，不给删除入口。
+    /// </summary>
+    public bool CanDeleteRecordings => IsHost || IsRecordingDevice;
+
     public static DeploymentCapabilities ForPreset(string? preset) =>
         DeploymentPresets.Normalize(preset) switch
         {
