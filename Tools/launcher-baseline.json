@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.76",
-  "tag": "launcher-v0.0.76",
-  "release_tag": "v0.0.76",
+  "version": "0.0.78",
+  "tag": "launcher-v0.0.78",
+  "release_tag": "v0.0.78",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
-  "source_fingerprint": "8978c4eb616222273ab6b674297bb82aaad636e57dafb7026874e6fd149ce090",
+  "source_fingerprint": "0a095d883f58b18a52135f7ec0437b23ec02baf87661d4b3f93d6940a60d4807",
   "fingerprint_files": [
     "ExpressPackingMonitoring.Launcher/Program.cs",
     "ExpressPackingMonitoring.Launcher/ExpressPackingMonitoring.Launcher.csproj",
@@ -19,10 +19,10 @@
     "Tools/Apply-LauncherPatch.ps1"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.76.zip",
-    "size": 3487156,
-    "sha256": "d16a9f2c82eefd5175d9e3db94e67f976f5b72aae1a687cc336259b7a48fae6a",
-    "executable_size": 7172096,
-    "executable_sha256": "2fc82e6f0e85c7484295407296f3a1eaa0bbfd647e2f28285c8219e694dcafb3"
+    "file": "PackingProof_LauncherPatch_v0.0.78.zip",
+    "size": 3487794,
+    "sha256": "66943e20807d623c5a13c3c787ee08cfac320907222dca0ab6b9b9c19fc8712b",
+    "executable_size": 7173120,
+    "executable_sha256": "27a2edcd6c97188fd08db9dbf7040a00732c059c7b675b0f331e6216c949d955"
   }
 }
