@@ -106,7 +106,8 @@ public sealed class ExtensionApiV1ContractTests
     [Fact]
     public async Task ResolvedOrderInfos_ArePersistedAndBackfillOlderRecords()
     {
-        await WithServerAsync(async (_, server, database) =>
+        // 这一段只用同步的库操作，不需要 async 形参。
+        await WithServerAsync((_, server, database) =>
         {
             long recordId = database.InsertVideoRecord(
                 "EXT-RESOLVED-001",
@@ -137,6 +138,7 @@ public sealed class ExtensionApiV1ContractTests
             VideoRecord record = database.GetVideoById(recordId);
             Assert.Equal("蓝色水杯 ×3", record.ProductInfo);
             Assert.Equal("请轻放", record.BuyerMessage);
+            return Task.CompletedTask;
         });
     }
 

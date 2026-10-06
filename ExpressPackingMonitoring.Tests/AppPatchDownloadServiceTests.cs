@@ -171,7 +171,10 @@ public sealed class AppPatchDownloadServiceTests
         string brokenManifestUrl = fixture.AddUnreachableGithubManifest("1.2.3");
 
         AppPatchPreparationResult result =
-            await fixture.PrepareWithManifestUrlAsync("1.2.3", brokenManifestUrl);
+            await fixture.PrepareWithManifestUrlAsync(
+                "1.2.3",
+                brokenManifestUrl,
+                TestContext.Current.CancellationToken);
 
         Assert.True(result.Status == AppPatchPreparationStatus.Ready, result.Message);
         int mirrorIndex = fixture.Requests.IndexOf(fixture.GiteeManifestUrl("1.2.3"));
@@ -206,7 +209,10 @@ public sealed class AppPatchDownloadServiceTests
         string brokenManifestUrl = fixture.AddUnreachableBothPlatformManifests("1.2.3");
 
         AppPatchPreparationResult result =
-            await fixture.PrepareWithManifestUrlAsync("1.2.3", brokenManifestUrl);
+            await fixture.PrepareWithManifestUrlAsync(
+                "1.2.3",
+                brokenManifestUrl,
+                TestContext.Current.CancellationToken);
 
         Assert.Equal(AppPatchPreparationStatus.Failed, result.Status);
         Assert.Equal(1, fixture.Requests.Count(url => url == brokenManifestUrl));

@@ -53,7 +53,7 @@ public sealed class ExtensionAutoUpdateTests
         installation.Add("local.only", "1.0.0");
 
         var service = new ExtensionAutoUpdateService(market, installation, "v0.0.76");
-        ExtensionAutoUpdateResult result = await service.RunAsync();
+        ExtensionAutoUpdateResult result = await service.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.False(result.Skipped);
         Assert.Equal(["packingproof.kdzs 2.16→2.17"], result.Updated);
@@ -75,7 +75,7 @@ public sealed class ExtensionAutoUpdateTests
         installation.Add("packingproof.kdzs", "2.16");
 
         var service = new ExtensionAutoUpdateService(market, installation, "v0.0.76");
-        ExtensionAutoUpdateResult result = await service.RunAsync();
+        ExtensionAutoUpdateResult result = await service.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Updated);
         Assert.Empty(installation.Installs);
@@ -93,7 +93,7 @@ public sealed class ExtensionAutoUpdateTests
         installation.Add("packingproof.kdzs", "2.16");
 
         var service = new ExtensionAutoUpdateService(market, installation, "v0.0.76");
-        ExtensionAutoUpdateResult result = await service.RunAsync();
+        ExtensionAutoUpdateResult result = await service.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(["packingproof.kdzs 2.16→2.17"], result.Updated);
         Assert.Contains("broken.id", Assert.Single(result.Failures));
@@ -107,7 +107,7 @@ public sealed class ExtensionAutoUpdateTests
         var installation = new FakeInstallation();
 
         var service = new ExtensionAutoUpdateService(market, installation, "v0.0.76");
-        ExtensionAutoUpdateResult result = await service.RunAsync();
+        ExtensionAutoUpdateResult result = await service.RunAsync(TestContext.Current.CancellationToken);
 
         Assert.True(result.Skipped);
         Assert.Empty(market.RequestedDetails);
