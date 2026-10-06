@@ -717,49 +717,11 @@ namespace ExpressPackingMonitoring.UI
 
             ResComboBox.IsEnabled = false;
             FpsComboBox.IsEnabled = false;
-            NetworkCameraStatusText.Text = "";
         }
 
         private static bool IsNetworkCamera(CameraInfo camera)
         {
             return string.Equals(camera?.Moniker, "network:", StringComparison.Ordinal);
-        }
-
-        private void NetworkCameraUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            NetworkCameraUrlPlaceholderText.Visibility = string.IsNullOrEmpty(NetworkCameraUrlTextBox.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-        }
-
-        private async void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!NetworkCameraUrlPolicy.TryNormalize(
-                    NetworkCameraUrlTextBox.Text,
-                    out string url,
-                    out string error))
-            {
-                NetworkCameraStatusText.Text = $"地址无效：{error}";
-                return;
-            }
-
-            NetworkCameraTestButton.IsEnabled = false;
-            NetworkCameraStatusText.Text = "正在连接网络摄像头...";
-            try
-            {
-                using var probeSource = new NetworkCameraSource(
-                    url,
-                    AppConfig.NormalizeNetworkTransport(Config.NetworkCameraRtspTransport),
-                    Config.Fps > 0 ? Config.Fps : 15);
-                bool connected = await probeSource.StartAsync();
-                NetworkCameraStatusText.Text = connected
-                    ? $"连接成功：{probeSource.ActualWidth}×{probeSource.ActualHeight} @ {probeSource.ActualFps} FPS"
-                    : $"连接失败：{probeSource.LastError ?? "无法获取画面信息"}";
-            }
-            finally
-            {
-                NetworkCameraTestButton.IsEnabled = true;
-            }
         }
 
         private bool TryGetCachedCameraRecommendation(
