@@ -1149,7 +1149,7 @@ namespace ExpressPackingMonitoring.Services
             }
         }
 
-        private void HandleRequest(HttpListenerContext ctx)
+        private async Task HandleRequest(HttpListenerContext ctx)
         {
             IDisposable requestLease = null;
             try
@@ -1308,7 +1308,7 @@ namespace ExpressPackingMonitoring.Services
                         HandleExtensionHeartbeat(ctx);
                         break;
                     case "/api/extensions/v1/scan-tasks/next" when method == "GET":
-                        HandlePollExtensionScanTask(ctx);
+                        await HandlePollExtensionScanTaskAsync(ctx);
                         break;
                     case "/api/extensions/v1/scan-results" when method == "POST":
                         HandleExtensionScanResult(ctx);
@@ -1408,7 +1408,7 @@ namespace ExpressPackingMonitoring.Services
                         HandleBroadcastOrderInfo(ctx);
                         break;
                     case "/api/order-lookup/pending" when method == "GET":
-                        HandlePollOrderLookup(ctx);
+                        await HandlePollOrderLookupAsync(ctx);
                         break;
                     case "/api/order-lookup/result" when method == "POST":
                         HandleOrderLookupResult(ctx);
@@ -3626,7 +3626,11 @@ namespace ExpressPackingMonitoring.Services
             });
         }
 
-        private void HandlePollExtensionScanTask(HttpListenerContext ctx)
+        /// <summary>
+        /// 扩展领取扫码任务的长轮询。等待期间用异步延时让出线程：以前是 Thread.Sleep(200) 空转，
+        /// 一个连着的扩展会一直占住一个线程池线程（最长 20 秒一轮，且它会立刻再连）。
+        /// </summary>
+        private async Task HandlePollExtensionScanTaskAsync(HttpListenerContext ctx)
         {
             if (!TryGetExtensionAuthorization(
                     ctx,
@@ -3644,7 +3648,8 @@ namespace ExpressPackingMonitoring.Services
                 waitSeconds = Math.Clamp(requestedWait, 0, 25);
             DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(waitSeconds);
             ExtensionScanDelivery delivery = null;
-            do
+            CancellationToken token = _cts.Token;
+            while (true)
             {
                 ExtensionScanDelivery candidate = _extensionScanTaskBroker.Poll(
                     authorization.ExtensionInstanceId);
@@ -3657,8 +3662,15 @@ namespace ExpressPackingMonitoring.Services
                 }
                 if (waitSeconds == 0 || DateTimeOffset.UtcNow >= deadline)
                     break;
-                Thread.Sleep(200);
-            } while (true);
+                try
+                {
+                    await Task.Delay(200, token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
 
             if (delivery == null)
             {
@@ -4380,7 +4392,8 @@ namespace ExpressPackingMonitoring.Services
                 : new OrderLookupResult { Responded = false };
         }
 
-        private void HandlePollOrderLookup(HttpListenerContext ctx)
+        /// <summary>打印端领取退款核验请求的长轮询：等待同样改成异步，不再占住线程池线程。</summary>
+        private async Task HandlePollOrderLookupAsync(HttpListenerContext ctx)
         {
             Interlocked.Increment(ref _activeOrderLookupPolls);
             Interlocked.Exchange(ref _lastOrderLookupPollUtcTicks, DateTime.UtcNow.Ticks);
@@ -4390,7 +4403,7 @@ namespace ExpressPackingMonitoring.Services
                 PendingOrderLookup pending = ClaimNextOrderLookup();
                 if (pending == null)
                 {
-                    try { _orderLookupSignal.Wait(TimeSpan.FromSeconds(20), _cts.Token); }
+                    try { await _orderLookupSignal.WaitAsync(TimeSpan.FromSeconds(20), _cts.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) { }
                     CleanupExpiredOrderLookups();
                     pending = ClaimNextOrderLookup();
