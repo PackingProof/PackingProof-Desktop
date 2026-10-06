@@ -438,6 +438,8 @@ namespace ExpressPackingMonitoring.ViewModels
             // 自动化临时运行模式禁用该系统级变更。
             _webServerStartupTask = RestartWebServerAsync(
                 allowAccessSetup: ShouldRepairLanAccessAtStartup(Config, AllowLanAccessSetupOnStartup));
+            // 市场里登记过的扩展有新版本时后台自动更新（一天最多一次，离线静默）。
+            QueueExtensionAutoUpdate();
 
             // 启动时自动将上次断电残留的 MKV 转换为 MP4
             _mkvRecoveryTask = Task.Run(RecoverOrphanedMkvAsync);

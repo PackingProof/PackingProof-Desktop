@@ -188,6 +188,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         nextConfig,
                         IsRecording);
                     bool themeChanged = Config.Theme != nextConfig.Theme;
+                    bool extensionAutoUpdateWasEnabled = Config.AutoUpdateExtensions;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition;
                     bool workstationChanged = !string.Equals(
                         Config.DeploymentPreset,
@@ -259,6 +260,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     ForceCheckDiskAndCleanup();
                     RunRecordingCacheCleanup();
+
+                    // 刚打开「自动更新扩展」时立刻查一次，不必等到下次启动。
+                    if (!extensionAutoUpdateWasEnabled && Config.AutoUpdateExtensions)
+                        QueueExtensionAutoUpdate(force: true);
 
                     ApplyGlobalKeyboardConfig();
                     bool webServerApplied = true;

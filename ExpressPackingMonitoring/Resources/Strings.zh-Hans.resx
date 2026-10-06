@@ -1022,6 +1022,8 @@
   <data name="导入自定义脚本" xml:space="preserve"><value>导入自定义脚本</value></data>
   <data name="PackingProof 扩展市场" xml:space="preserve"><value>PackingProof 扩展市场</value></data>
   <data name="扩展市场" xml:space="preserve"><value>扩展市场</value></data>
+  <data name="自动更新扩展" xml:space="preserve"><value>自动更新扩展</value></data>
+  <data name="市场里登记过的扩展有新版本时自动安装" xml:space="preserve"><value>市场里登记过的扩展有新版本时自动安装</value></data>
   <data name="正在读取经过签名的市场目录" xml:space="preserve"><value>正在读取经过签名的市场目录</value></data>
   <data name="安装本地扩展" xml:space="preserve"><value>安装本地扩展</value></data>
   <data name="刷新" xml:space="preserve"><value>刷新</value></data>

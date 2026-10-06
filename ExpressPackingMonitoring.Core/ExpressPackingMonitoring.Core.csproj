@@ -115,8 +115,10 @@
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionResultInboxProcessor.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\ExtensionRuntime.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionInstallationService.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionAutoUpdateService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketClient.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketModels.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionMarketVersionPolicy.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionPackageService.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\ExtensionProcessManager.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Services\Extensions\OfficialUserscriptMigrationService.cs" />

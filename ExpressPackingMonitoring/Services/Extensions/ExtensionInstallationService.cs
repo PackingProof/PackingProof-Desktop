@@ -22,7 +22,7 @@ internal sealed record ExtensionInstallResult(
     InstalledExtensionRecord Record,
     IReadOnlyList<string> Warnings);
 
-internal sealed class ExtensionInstallationService
+internal sealed class ExtensionInstallationService : IExtensionInstallationTarget
 {
     private const string RegistryFileName = "registry.json";
     private static readonly object Sync = new();
@@ -48,7 +48,7 @@ internal sealed class ExtensionInstallationService
         Directory.CreateDirectory(_extensionsDirectory);
     }
 
-    internal IReadOnlyList<InstalledExtensionRecord> GetInstalled()
+    public IReadOnlyList<InstalledExtensionRecord> GetInstalled()
     {
         lock (Sync) return LoadRegistry();
     }
@@ -62,7 +62,7 @@ internal sealed class ExtensionInstallationService
             : "";
     }
 
-    internal ExtensionInstallResult Install(
+    public ExtensionInstallResult Install(
         string packagePath,
         string displayName,
         string? expectedId = null,

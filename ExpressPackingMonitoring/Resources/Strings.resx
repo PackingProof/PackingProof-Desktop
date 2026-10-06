@@ -1029,6 +1029,8 @@
   <data name="导入自定义脚本" xml:space="preserve"><value>Import custom script</value></data>
   <data name="PackingProof 扩展市场" xml:space="preserve"><value>PackingProof Extension Marketplace</value></data>
   <data name="扩展市场" xml:space="preserve"><value>Extension Marketplace</value></data>
+  <data name="自动更新扩展" xml:space="preserve"><value>Update extensions automatically</value></data>
+  <data name="市场里登记过的扩展有新版本时自动安装" xml:space="preserve"><value>Install newer versions of extensions listed in the marketplace automatically</value></data>
   <data name="正在读取经过签名的市场目录" xml:space="preserve"><value>Loading the signed marketplace catalog</value></data>
   <data name="安装本地扩展" xml:space="preserve"><value>Install local extension</value></data>
   <data name="刷新" xml:space="preserve"><value>Refresh</value></data>

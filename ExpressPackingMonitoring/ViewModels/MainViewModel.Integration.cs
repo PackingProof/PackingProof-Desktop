@@ -933,6 +933,61 @@ namespace ExpressPackingMonitoring.ViewModels
             OnOrderInfoReceived([order]);
         }
 
+        /// <summary>
+        /// 后台把"扩展市场里登记过"的已安装扩展更新到最新版：一天最多一次，失败静默并写日志。
+        /// 目录和安装包沿用市场那套签名与 SHA-256 校验；市场里查不到的扩展不动。
+        /// </summary>
+        private void QueueExtensionAutoUpdate(bool force = false)
+        {
+            if (!Config.AutoUpdateExtensions) return;
+            if (!force && !ExtensionAutoUpdateService.ShouldCheckNow(Config.LastExtensionAutoUpdateCheck, DateTime.Now)) return;
+
+            // 先把检查时间落盘：离线时也按"今天查过了"处理，避免每次启动都去请求市场。
+            RecordExtensionAutoUpdateCheck();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var service = new ExtensionAutoUpdateService(
+                        new ExtensionMarketClient(),
+                        new ExtensionInstallationService(),
+                        AppVersion.Current);
+                    ExtensionAutoUpdateResult result = await service.RunAsync(
+                        _cts?.Token ?? CancellationToken.None);
+                    if (result.Skipped) return;
+
+                    if (result.Updated.Count > 0)
+                        RuntimeLog.Info("ExtensionUpdate", $"自动更新扩展：{string.Join("；", result.Updated)}");
+                    if (result.SkippedItems.Count > 0 || result.Failures.Count > 0)
+                        RuntimeLog.Warn(
+                            "ExtensionUpdate",
+                            $"自动更新扩展跳过=[{string.Join("；", result.SkippedItems)}] 失败=[{string.Join("；", result.Failures)}]");
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("ExtensionUpdate", $"自动更新扩展失败：{ex.Message}");
+                }
+            });
+        }
+
+        private void RecordExtensionAutoUpdateCheck()
+        {
+            string stamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            if (WorkstationConfigStore.TryUpdate(
+                    saved => saved.LastExtensionAutoUpdateCheck = stamp,
+                    out AppConfig savedConfig,
+                    out string error))
+            {
+                Config.LastExtensionAutoUpdateCheck = savedConfig.LastExtensionAutoUpdateCheck;
+                return;
+            }
+
+            RuntimeLog.Warn("ExtensionUpdate", $"记录扩展自动更新检查时间失败：{error}");
+        }
+
         public void OpenUserscriptGuide()
         {
             System.Windows.Window owner = Application.Current?.Windows

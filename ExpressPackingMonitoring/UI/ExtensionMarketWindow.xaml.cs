@@ -101,11 +101,9 @@ public partial class ExtensionMarketWindow : Window
                 _session,
                 selected.Item,
                 _operationCancellation?.Token ?? CancellationToken.None);
-            _selectedRelease = _selectedDetails.Versions
-                .FirstOrDefault(value => value.Status == "available"
-                    && value.Release.Version == selected.Item.LatestVersion)?.Release
-                ?? _selectedDetails.Versions
-                    .FirstOrDefault(value => value.Status == "available")?.Release;
+            _selectedRelease = ExtensionMarketVersionPolicy.SelectInstallableRelease(
+                _selectedDetails,
+                selected.Item.LatestVersion);
             ShowDetails(selected);
             restoreReadyStatus = true;
         }
@@ -152,7 +150,9 @@ public partial class ExtensionMarketWindow : Window
         InstalledExtensionRecord? installed = _installationService.GetInstalled()
             .FirstOrDefault(value => value.Id == selected.Item.Id);
         bool compatible = _selectedRelease != null
-            && IsCompatible(_selectedRelease.Compatibility.MinPackingProofVersion);
+            && ExtensionMarketVersionPolicy.IsAppCompatible(
+                _selectedRelease.Compatibility.MinPackingProofVersion,
+                AppVersion.Current);
         InstallButton.IsEnabled = _selectedRelease != null && compatible;
         bool canLaunch = installed?.Type == "external-adapter" && !string.IsNullOrWhiteSpace(installed.LauncherPath);
         InstallButton.Content = installed == null
@@ -222,7 +222,9 @@ public partial class ExtensionMarketWindow : Window
         };
         foreach (ExtensionMarketRelease release in releases)
         {
-            bool compatible = IsCompatible(release.Compatibility.MinPackingProofVersion);
+            bool compatible = ExtensionMarketVersionPolicy.IsAppCompatible(
+                release.Compatibility.MinPackingProofVersion,
+                AppVersion.Current);
             string installedSuffix = installed?.Version == release.Version ? "（已安装）" : "";
             var item = new MenuItem
             {
@@ -497,25 +499,6 @@ public partial class ExtensionMarketWindow : Window
         {
             UpdateActionState(selected);
         }
-    }
-
-    private static bool IsCompatible(string minimumVersion)
-    {
-        if (!Version.TryParse(NormalizeVersion(minimumVersion), out Version? minimum)) return false;
-        return Version.TryParse(NormalizeVersion(AppVersion.Current), out Version? current)
-            && current >= minimum;
-    }
-
-    private static string NormalizeVersion(string value)
-    {
-        string normalized = value.Trim().TrimStart('v', 'V').Split('-', '+')[0];
-        string[] parts = normalized.Split('.');
-        return parts.Length switch
-        {
-            1 => normalized + ".0.0",
-            2 => normalized + ".0",
-            _ => normalized
-        };
     }
 
     internal static IReadOnlyList<ExtensionMarketRelease> GetOtherAvailableReleases(

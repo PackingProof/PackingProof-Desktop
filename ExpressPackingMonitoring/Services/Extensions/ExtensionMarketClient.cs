@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace ExpressPackingMonitoring.Services.Extensions;
 
-internal sealed class ExtensionMarketClient
+internal sealed class ExtensionMarketClient : IExtensionMarketSource
 {
     internal const string GiteeRegistryBase = "https://gitee.com/PackingProof/PackingProof-Extensions/raw/main/registry/";
     internal const string GithubRegistryBase = "https://github.com/PackingProof/PackingProof-Extensions/raw/refs/heads/main/registry/";
@@ -36,7 +36,7 @@ internal sealed class ExtensionMarketClient
         _cacheDirectory = Path.GetFullPath(cacheDirectory);
     }
 
-    internal async Task<ExtensionMarketSession> LoadCatalogAsync(CancellationToken cancellationToken = default)
+    public async Task<ExtensionMarketSession> LoadCatalogAsync(CancellationToken cancellationToken = default)
     {
         var errors = new List<string>();
         foreach (string registryBase in RegistryBases())
@@ -71,7 +71,7 @@ internal sealed class ExtensionMarketClient
         }
     }
 
-    internal async Task<ExtensionMarketDetails> LoadDetailsAsync(
+    public async Task<ExtensionMarketDetails> LoadDetailsAsync(
         ExtensionMarketSession session,
         ExtensionMarketCatalogItem item,
         CancellationToken cancellationToken = default)
@@ -97,7 +97,7 @@ internal sealed class ExtensionMarketClient
         return ParseDetails(cached);
     }
 
-    internal async Task<string> DownloadPackageAsync(
+    public async Task<string> DownloadPackageAsync(
         ExtensionMarketRelease release,
         IProgress<ExtensionPackageProgress>? progress = null,
         CancellationToken cancellationToken = default)

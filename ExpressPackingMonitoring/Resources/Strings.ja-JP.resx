@@ -1028,6 +1028,8 @@
   <data name="导入自定义脚本" xml:space="preserve"><value>カスタムスクリプトをインポート</value></data>
   <data name="PackingProof 扩展市场" xml:space="preserve"><value>PackingProof 拡張マーケット</value></data>
   <data name="扩展市场" xml:space="preserve"><value>拡張マーケット</value></data>
+  <data name="自动更新扩展" xml:space="preserve"><value>拡張を自動更新</value></data>
+  <data name="市场里登记过的扩展有新版本时自动安装" xml:space="preserve"><value>マーケットに登録済みの拡張に新しいバージョンがあれば自動でインストールします</value></data>
   <data name="正在读取经过签名的市场目录" xml:space="preserve"><value>署名済みのマーケットカタログを読み込み中</value></data>
   <data name="安装本地扩展" xml:space="preserve"><value>ローカル拡張をインストール</value></data>
   <data name="刷新" xml:space="preserve"><value>更新</value></data>

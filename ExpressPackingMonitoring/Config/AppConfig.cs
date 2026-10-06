@@ -412,6 +412,10 @@ namespace ExpressPackingMonitoring.Config
         public bool EnableWatermark { get; set; } = true;
         public bool EnableThirdPartyWatermark { get; set; } = true;
         public bool EnableExtensionApi { get; set; } = false;
+        /// <summary>市场里登记过的已安装扩展，有新版本时后台自动更新。</summary>
+        public bool AutoUpdateExtensions { get; set; } = true;
+        /// <summary>最近一次扩展自动更新的检查时间（yyyy-MM-dd HH:mm:ss），用于一天最多查一次。</summary>
+        public string LastExtensionAutoUpdateCheck { get; set; } = "";
 
         // 局域网 Web 服务
         public bool EnableWebServer { get; set; } = true;
