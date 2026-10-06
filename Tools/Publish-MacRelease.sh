@@ -6,6 +6,7 @@
 #   Tools/Publish-MacRelease.sh [版本号] [github|gitee|both]
 # 环境变量:
 #   SIGN_IDENTITY / NOTARY_PROFILE / NOTARIZE   传给 Publish-MacHost.sh 做签名与公证
+#   SIGN_KEYCHAIN / SIGN_KEYCHAIN_PASSWORD      签名专用钥匙串（无人值守/SSH 发布时必须）
 #   GITEE_TOKEN                                 优先取环境变量，其次读仓库根 .env
 #
 # 为什么单独一个脚本：Mac 包只能在 Mac 上构建（swift + codesign），Windows 侧的
@@ -18,6 +19,15 @@ set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repository_root}"
+
+# 仓库根 .env 里放本机凭据（Gitee 令牌、签名钥匙串密码），不提交：
+# 先加载它，SSH 会话里也能拿到签名钥匙串密码，否则登录钥匙串锁定就签不了名。
+if [ -f "${repository_root}/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "${repository_root}/.env"
+  set +a
+fi
 
 version="${1:-}"
 if [[ -z "${version}" ]]; then
@@ -71,12 +81,6 @@ if [[ "${target}" == "github" || "${target}" == "both" ]]; then
 fi
 
 if [[ "${target}" == "gitee" || "${target}" == "both" ]]; then
-  if [[ -f "${repository_root}/.env" ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    . "${repository_root}/.env"
-    set +a
-  fi
   if [[ -z "${GITEE_TOKEN:-}" ]]; then
     echo "缺少 GITEE_TOKEN（环境变量或仓库根 .env），跳过 Gitee 上传" >&2
   else

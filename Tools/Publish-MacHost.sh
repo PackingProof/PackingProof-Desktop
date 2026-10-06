@@ -6,6 +6,10 @@
 #   Tools/Publish-MacHost.sh [输出目录] [RID] [版本号]
 # 环境变量:
 #   SIGN_IDENTITY  Developer ID Application 证书全名；不设置时用临时签名（本机自测）
+#   SIGN_KEYCHAIN  签名/公证凭据所在的钥匙串路径；无人值守（SSH）发布时必须设置，
+#                  否则登录钥匙串是锁定的，codesign 会报 errSecInternalComponent
+#   SIGN_KEYCHAIN_PASSWORD  SIGN_KEYCHAIN 的密码（创建钥匙串时自己设的那个），
+#                  用来在发布前解锁它；允许显式写成空值（空密码钥匙串）
 #   NOTARY_PROFILE 公证凭据在钥匙串里的名字（默认 PackingProofNotary）
 #   NOTARIZE=1     签名后提交 Apple 公证并装订（需要 SIGN_IDENTITY 与公证凭据）
 #
@@ -25,6 +29,22 @@ if [ -z "${version}" ]; then
 fi
 notary_profile="${NOTARY_PROFILE:-PackingProofNotary}"
 notarize="${NOTARIZE:-0}"
+sign_keychain="${SIGN_KEYCHAIN:-}"
+
+# 专用签名钥匙串：SSH/无人值守发布时登录钥匙串是锁定的（实测 codesign 报
+# errSecInternalComponent、notarytool 找不到凭据），所以显式解锁并只在这条钥匙串里找签名。
+# 这里用未加引号的字符串而不是数组：macOS 自带 bash 3.2 在 set -u 下展开空数组会报错。
+keychain_args=""
+if [ -n "${sign_keychain}" ]; then
+  # 用 +定义 判断而不是非空：空密码的钥匙串要能显式写成 SIGN_KEYCHAIN_PASSWORD=
+  if [ -z "${SIGN_KEYCHAIN_PASSWORD+defined}" ]; then
+    echo "设置了 SIGN_KEYCHAIN 却没有 SIGN_KEYCHAIN_PASSWORD，无法解锁签名钥匙串" >&2
+    exit 2
+  fi
+  echo "==> 解锁签名钥匙串 ${sign_keychain}"
+  security unlock-keychain -p "${SIGN_KEYCHAIN_PASSWORD}" "${sign_keychain}"
+  keychain_args="--keychain ${sign_keychain}"
+fi
 
 if [[ "${output_root}" == "/" || -z "${output_root}" ]]; then
   echo "输出目录不合法: ${output_root}" >&2
@@ -133,16 +153,16 @@ else
   # --deep 虽能一把签完，但会给嵌套代码写默认 entitlements，所以发布路径逐个签。
   echo "==> 签名（Developer ID + 加固运行时）"
   while IFS= read -r -d '' nested; do
-    codesign --force --options runtime --timestamp \
+    codesign --force --options runtime --timestamp ${keychain_args} \
       --sign "${sign_identity}" "${nested}"
   done < <(find "${host_dir}" -type f ! -name "${host_binary_name}" -print0)
   # 自包含 .NET 主机：JIT 与库校验相关 entitlements 只有它需要
-  codesign --force --options runtime --timestamp \
+  codesign --force --options runtime --timestamp ${keychain_args} \
     --entitlements "${entitlements_file}" \
     --sign "${sign_identity}" "${host_dir}/${host_binary_name}"
-  codesign --force --options runtime --timestamp \
+  codesign --force --options runtime --timestamp ${keychain_args} \
     --sign "${sign_identity}" "${app_bundle}/Contents/MacOS/${shell_binary_name}"
-  codesign --force --options runtime --timestamp \
+  codesign --force --options runtime --timestamp ${keychain_args} \
     --sign "${sign_identity}" "${app_bundle}"
 fi
 
@@ -168,12 +188,13 @@ hdiutil create -volname "PackingProof ${version}" -srcfolder "${dmg_staging}" \
 rm -rf "${dmg_staging}"
 
 if [ "${sign_identity}" != "-" ]; then
-  codesign --force --timestamp --sign "${sign_identity}" "${dmg_path}"
+  codesign --force --timestamp ${keychain_args} --sign "${sign_identity}" "${dmg_path}"
 fi
 
 if [ "${notarize}" = "1" ] && [ "${sign_identity}" != "-" ]; then
   echo "==> 公证 DMG（keychain-profile: ${notary_profile}）"
-  xcrun notarytool submit "${dmg_path}" --keychain-profile "${notary_profile}" --wait
+  xcrun notarytool submit "${dmg_path}" ${keychain_args} \
+    --keychain-profile "${notary_profile}" --wait
   # DMG 与里面的 .app 都装订票据，离线首次启动也能过 Gatekeeper
   xcrun stapler staple "${dmg_path}"
   xcrun stapler staple "${app_bundle}"
