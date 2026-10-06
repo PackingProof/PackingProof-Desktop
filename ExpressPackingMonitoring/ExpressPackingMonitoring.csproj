@@ -165,6 +165,7 @@
     <Compile Include="ViewModels\PreviewDownscalePolicy.cs" />
     <Compile Include="ViewModels\CameraOverlayLayout.cs" />
     <Compile Include="ViewModels\CameraOverlayComposer.cs" />
+    <Compile Include="ViewModels\WatermarkOverlayRenderer.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.ArchiveBackup.cs" />
     <Compile Include="ViewModels\MainViewModel.Camera.cs" />

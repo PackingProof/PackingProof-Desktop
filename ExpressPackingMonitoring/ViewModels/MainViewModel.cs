@@ -465,72 +465,35 @@ namespace ExpressPackingMonitoring.ViewModels
         internal static DateTimeOffset ToWatermarkLocalTime(DateTimeOffset timestamp) =>
             TimeZoneInfo.ConvertTime(timestamp, TimeZoneInfo.Local);
 
+        private static readonly WatermarkOverlayRenderer WatermarkRenderer = new();
+
         internal static void ApplyWatermarkToFrame(Mat frame, DateTimeOffset timestamp, string orderId, IReadOnlyList<string> extensionLines)
         {
             if (frame == null || frame.IsDisposed || frame.Empty()) return;
 
             // 水印时间永远按这台电脑的时区显示：调用方给的时间戳即使带了别的偏移，
             // 这里也换算成本机时区，避免出现"时区写死、和现场时钟对不上"的情况。
-            DateTimeOffset localTimestamp = ToWatermarkLocalTime(timestamp);
-            string line1 = FormatWatermarkTimestamp(localTimestamp);
-            double fontScale = Math.Max(0.5, frame.Height / 720.0) * 0.6;
-            // 笔画按画面尺寸等比加粗：固定像素在 4K 上显得又细又虚，在 720p 上又偏粗。
-            int thickness = Math.Max(2, (int)Math.Round(fontScale * 3.3));
-            int lineHeight = (int)(30 * fontScale / 0.6);
-
-            int nextLine = 1;
-            DrawWatermarkLine(frame, line1, fontScale, thickness, lineHeight, ref nextLine);
+            var lines = new List<string>(6);
+            lines.Add(FormatWatermarkTimestamp(ToWatermarkLocalTime(timestamp)));
 
             // 只印单号本身：水印不需要"Order:"这种前缀，多出来的单词只会占画面。
             if (!string.IsNullOrWhiteSpace(orderId))
-                DrawWatermarkLine(frame, orderId.Trim(), fontScale, thickness, lineHeight, ref nextLine);
+                lines.Add(orderId.Trim());
 
-            if (extensionLines == null) return;
-            foreach (string extensionLine in extensionLines.Take(4))
+            if (extensionLines != null)
             {
-                if (!string.IsNullOrWhiteSpace(extensionLine))
-                    DrawWatermarkLine(frame, extensionLine, fontScale, thickness, lineHeight, ref nextLine);
-            }
-        }
-
-        /// <summary>
-        /// 画一行水印，逐字按固定步进摆放：Hershey 字形本身不等宽，整串右对齐时秒数一变
-        /// 整行就会左右挪，看起来像"字在微微移动"。按本行最宽字符定步进后就是等距显示，
-        /// 行首位置也只跟字符数有关，跨帧完全稳定。
-        /// </summary>
-        private static void DrawWatermarkLine(Mat frame, string text, double fontScale, int thickness, int lineHeight, ref int lineIndex)
-        {
-            int baseline = (int)(lineHeight * 1.1 * (lineIndex + 1));
-            int advance = FixedWidthAdvance(text, fontScale, thickness);
-            int startX = Math.Max(8, frame.Width - WatermarkMargin(frame) - advance * text.Length);
-            for (int i = 0; i < text.Length; i++)
-            {
-                string glyph = text[i].ToString();
-                var position = new OpenCvSharp.Point(startX + advance * i, baseline);
-                Cv2.PutText(frame, glyph, position,
-                    HersheyFonts.HersheySimplex, fontScale, new Scalar(0, 0, 0), thickness + 2, LineTypes.AntiAlias);
-                Cv2.PutText(frame, glyph, position,
-                    HersheyFonts.HersheySimplex, fontScale, new Scalar(255, 255, 255), thickness, LineTypes.AntiAlias);
+                int taken = 0;
+                foreach (string extensionLine in extensionLines)
+                {
+                    if (taken >= 4) break;
+                    if (string.IsNullOrWhiteSpace(extensionLine)) continue;
+                    lines.Add(extensionLine);
+                    taken++;
+                }
             }
 
-            lineIndex++;
-        }
-
-        /// <summary>水印到画面右边缘的距离也按宽度等比：固定 15px 在 4K 上会显得贴边。</summary>
-        private static int WatermarkMargin(Mat frame) => Math.Max(8, (int)Math.Round(frame.Width * 0.012));
-
-        /// <summary>等宽步进：取本行最宽字符的宽度（空格不参与），保证每个字符占同样宽的一格。</summary>
-        private static int FixedWidthAdvance(string text, double fontScale, int thickness)
-        {
-            int widest = 0;
-            foreach (char character in text)
-            {
-                if (character == ' ') continue;
-                int width = Cv2.GetTextSize(character.ToString(), HersheyFonts.HersheySimplex, fontScale, thickness, out _).Width;
-                if (width > widest) widest = width;
-            }
-
-            return Math.Max(1, widest);
+            // 逐行绘制会每帧重复 PutText 几百次；渲染器按行缓存小图，每帧只剩一次叠加。
+            WatermarkRenderer.Draw(frame, lines);
         }
 
         private string _toastMessage;
