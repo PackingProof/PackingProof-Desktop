@@ -137,7 +137,8 @@ public static class UpdateReleaseSelection
         foreach (JsonElement asset in assets.EnumerateArray())
         {
             if (!asset.TryGetProperty("name", out JsonElement name)) continue;
-            if (assetPredicate(name.GetString())) return true;
+            // 资产名可能为空（JSON 里显式 null）：别把 null 传进判断回调。
+            if (assetPredicate(name.GetString() ?? "")) return true;
         }
 
         return false;
