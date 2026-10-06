@@ -425,7 +425,9 @@ namespace ExpressPackingMonitoring.UI
             // 会停在错误的位置；而且放大后框本身就等于整屏，画出来也没有信息量。
             // 进任何整屏编辑态（副摄取景编辑、调放大位置）也藏起来：那两屏都在干别的事，
             // 多一个框只会让人分不清当前在拖哪一个。
-            bool visible = vm.Config is not { ShowZoomGuideBox: false }
+            // 面单放大没开时这块框没有含义，别再画出来；
+            // "显示放大取景框"这个开关只在面单放大开启时才起作用。
+            bool visible = vm.Config is { EnableSmartZoom: true, ShowZoomGuideBox: not false }
                 && !vm.IsPreviewGuideEditing
                 && !vm.IsZoomingActive;
             double sourceW = vm.CameraFrameSize.Width;
