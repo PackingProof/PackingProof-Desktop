@@ -644,7 +644,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     ? channel.Config.FrameFps
                     : AppConfig.DefaultOverlayFrameFps;
 
-                MfCaptureProbe.Result probe = MfCaptureProbe.Probe(
+                MfCaptureProbe.Result probe = MfCaptureProbeCache.Probe(
                     device.SymbolicLink,
                     width,
                     height,

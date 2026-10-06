@@ -610,6 +610,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (CameraBackendPolicy.IsMediaFoundationDisabled(Config.CameraBackend))
                 return false;
 
+            string mfSymbolicLink = "";
             try
             {
                 using MfPlatform platform = MfPlatform.TryStart();
@@ -621,8 +622,11 @@ namespace ExpressPackingMonitoring.ViewModels
                     MfCaptureDevice.Enumerate());
                 if (device == null)
                     return false;
+                mfSymbolicLink = device.SymbolicLink;
 
-                MfCaptureProbe.Result probe = MfCaptureProbe.Probe(
+                // 走缓存：首次启动照旧真探测，之后（例如休眠唤醒）直接复用，
+                // 设备只开一次——避免探测刚关掉设备、正式源立刻再开导致的首帧迟迟不来。
+                MfCaptureProbe.Result probe = MfCaptureProbeCache.Probe(
                     device.SymbolicLink,
                     Config.FrameWidth,
                     Config.FrameHeight,
@@ -678,6 +682,8 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 RuntimeLog.Warn("Camera", $"Media Foundation 后端启动异常，改用 DirectShow：{ex.Message}");
+                // 探测结论在这台设备上已经不成立了，清掉缓存让下次重新探测。
+                MfCaptureProbeCache.Invalidate(mfSymbolicLink);
                 return false;
             }
         }

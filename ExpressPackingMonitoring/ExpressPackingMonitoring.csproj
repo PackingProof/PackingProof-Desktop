@@ -139,6 +139,7 @@
     <Compile Include="Services\MediaFoundation\MfCameraSource.Gpu.cs" />
     <Compile Include="Services\MediaFoundation\MfCameraSource.Diagnostics.cs" />
     <Compile Include="Services\MediaFoundation\MfCaptureProbe.cs" />
+    <Compile Include="Services\MediaFoundation\MfCaptureProbeCache.cs" />
     <Compile Include="Services\MediaFoundation\CameraBackendPolicy.cs" />
     <Compile Include="Services\MediaFoundation\MfDeviceMatcher.cs" />
     <Compile Include="Services\Gpu\GpuConversionShaders.cs" />
