@@ -370,9 +370,12 @@ internal static class Program
                 WriteLog("无法读取当前版本，跳过自动更新检查");
                 return null;
             }
-            if (ShouldSkipRecentSuccessfulUpdateCheck(currentVersion))
+            bool allowPrerelease = UpdateChannelPolicy.AllowPrerelease();
+            if (ShouldSkipRecentSuccessfulUpdateCheck(currentVersion, allowPrerelease))
             {
-                WriteLog($"最近 {SuccessfulUpdateCheckCacheHours} 小时已成功检查当前版本，跳过重复请求");
+                WriteLog(
+                    $"最近 {SuccessfulUpdateCheckCacheHours} 小时已成功检查当前版本"
+                    + $"（预览渠道={(allowPrerelease ? "开" : "关")}），跳过重复请求");
                 return null;
             }
 
@@ -389,7 +392,7 @@ internal static class Program
                 attemptsPerSource: MetadataRequestAttempts,
                 retryDelay: TimeSpan.FromMilliseconds(500),
                 log: message => WriteLog("更新元数据：" + message),
-                allowPrerelease: UpdateChannelPolicy.AllowPrerelease());
+                allowPrerelease: allowPrerelease);
             using ResolvedUpdateManifest resolved = await metadataClient.FetchLatestManifestAsync(
                 checkUrls,
                 cancellationToken);
@@ -397,7 +400,7 @@ internal static class Program
             WriteLog($"自动检查更新版本：current={currentVersion}, latest={latestVersion}");
             if (CompareVersions(latestVersion, currentVersion) <= 0)
             {
-                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
                 WriteLog("当前已是最新版或高于远程版本，不下载 Patch");
                 return null;
             }
@@ -408,7 +411,7 @@ internal static class Program
 
             if (!descriptor.PatchSupported)
             {
-                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
                 WriteLog("更新描述标记不支持自动增量更新，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.PatchNotSupported);
             }
@@ -423,24 +426,24 @@ internal static class Program
                     cancellationToken);
                 if (stepPrepared)
                 {
-                    SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                    SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
                     WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，已准备先升级到基线版本，下次启动安装");
                     return null;
                 }
-                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
                 WriteLog($"当前版本 {currentVersion} 低于 Patch 基线 {descriptor.PatchBaselineVersion}，未找到可先升级到基线的增量包，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.VersionBelowBaseline);
             }
 
             if (!IsPatchDescriptorUsable(descriptor))
             {
-                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+                SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
                 WriteLog("更新描述中的 Patch 信息不完整，提示用户下载完整包");
                 return BuildManualUpdateNotification(descriptor, ManualUpdateReason.PatchDescriptorUnavailable);
             }
 
             await DownloadPendingPatchAsync(resolved.Manifest.RootElement, descriptor, cancellationToken);
-            SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl);
+            SaveSuccessfulUpdateCheck(currentVersion, latestVersion, resolved.SourceUrl, allowPrerelease);
             WriteLog($"Patch 已下载到 pending，下次启动安装：{descriptor.LatestVersion}");
             return null;
         }
@@ -1370,7 +1373,9 @@ internal static class Program
         return Path.Combine(GetUpdatesCacheDir(), "app-check-state.json");
     }
 
-    private static bool ShouldSkipRecentSuccessfulUpdateCheck(string currentVersion)
+    private static bool ShouldSkipRecentSuccessfulUpdateCheck(
+        string currentVersion,
+        bool allowPrerelease)
     {
         string path = GetSuccessfulUpdateCheckStatePath();
         try
@@ -1379,11 +1384,17 @@ internal static class Program
                 return false;
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
             JsonElement root = document.RootElement;
-            string stateVersion = NormalizeVersion(ReadString(root, "current_version"));
-            string checkedAtText = ReadString(root, "checked_at_utc");
-            return string.Equals(stateVersion, NormalizeVersion(currentVersion), StringComparison.OrdinalIgnoreCase)
-                && DateTimeOffset.TryParse(checkedAtText, out DateTimeOffset checkedAt)
-                && DateTimeOffset.UtcNow - checkedAt <= TimeSpan.FromHours(SuccessfulUpdateCheckCacheHours);
+            bool stateAllowPrerelease = root.TryGetProperty("allow_prerelease", out JsonElement flag)
+                && flag.ValueKind == JsonValueKind.True;
+            // 渠道参与判定：用户刚打开预览版开关时，不能拿上一次正式渠道的结论挡住检查。
+            return UpdateCheckThrottle.ShouldSkip(
+                ReadString(root, "current_version"),
+                ReadString(root, "checked_at_utc"),
+                currentVersion,
+                stateAllowPrerelease,
+                allowPrerelease,
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromHours(SuccessfulUpdateCheckCacheHours));
         }
         catch (Exception ex)
         {
@@ -1395,7 +1406,8 @@ internal static class Program
     private static void SaveSuccessfulUpdateCheck(
         string currentVersion,
         string latestVersion,
-        string sourceUrl)
+        string sourceUrl,
+        bool allowPrerelease)
     {
         try
         {
@@ -1406,6 +1418,8 @@ internal static class Program
                 $"\"current_version\":\"{EscapeJsonString(NormalizeVersion(currentVersion))}\"," +
                 $"\"latest_version\":\"{EscapeJsonString(NormalizeVersion(latestVersion))}\"," +
                 $"\"source_url\":\"{EscapeJsonString(sourceUrl)}\"," +
+                // 渠道要一起记：用户切换"接收预览版更新"之后，上一次的结论不能继续挡住检查
+                $"\"allow_prerelease\":{(allowPrerelease ? "true" : "false")}," +
                 $"\"checked_at_utc\":\"{DateTimeOffset.UtcNow:O}\"" +
                 "}";
             File.WriteAllText(path, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
