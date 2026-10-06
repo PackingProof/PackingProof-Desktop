@@ -1124,9 +1124,12 @@ namespace ExpressPackingMonitoring.Services
                     try
                     {
                         BeginActiveRequest();
-                        _ = Task.Run(() =>
+                        // 必须 await：请求槽位与“空闲”事件要覆盖整个请求处理过程。
+                        // 长轮询改成异步等待后，不 await 会在第一个 await 处就释放槽位，
+                        // 请求限流形同虚设，关服时还会在请求没跑完就释放服务器资源。
+                        _ = Task.Run(async () =>
                         {
-                            try { HandleRequest(ctx); }
+                            try { await HandleRequest(ctx).ConfigureAwait(false); }
                             finally
                             {
                                 _requestSlots.Release();
