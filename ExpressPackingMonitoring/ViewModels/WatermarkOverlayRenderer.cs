@@ -2,6 +2,14 @@ using ExpressPackingMonitoring.Logging;
 using OpenCvSharp;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using CvPoint = OpenCvSharp.Point;
+using CvRect = OpenCvSharp.Rect;
+using WpfPoint = System.Windows.Point;
 
 namespace ExpressPackingMonitoring.ViewModels;
 
@@ -10,8 +18,11 @@ namespace ExpressPackingMonitoring.ViewModels;
 ///
 /// 为什么要预渲染：逐字 PutText（描边、填充各一次）在 4K 上要 1.5~2.6 ms/帧，而预录缓存
 /// 对每帧开销很敏感。水印文字变化很慢（时间戳每秒一次，单号与扩展行按需变化），所以按
-/// “文本 + 字号 + 笔画宽度”缓存渲染结果，每帧只剩一次 Cv2.BlendLinear 叠加：4K 实测
-/// 0.27~0.44 ms/帧，抗锯齿表现与逐字绘制一致（描边比字身宽，边缘仍按覆盖率混合）。
+/// “文本 + 字号”缓存渲染结果，每帧只剩一次 Cv2.BlendLinear 叠加：4K 实测 0.27~0.49 ms/帧。
+///
+/// 文字用 WPF 真字体（微软雅黑）渲染，不再用 OpenCV 的 Hershey 矢量字体：
+/// Hershey 只能画 ASCII，扩展字段里出现中文时那一行会整行画不出来，而且字形本身不等宽、
+/// 只能靠逐字摆放凑等宽。字号、行距、右边距都按画面尺寸等比换算，分辨率变大时水印跟着变大。
 /// </summary>
 internal sealed class WatermarkOverlayRenderer
 {
@@ -23,9 +34,20 @@ internal sealed class WatermarkOverlayRenderer
 
     /// <summary>
     /// 量字高用的参考串：必须覆盖实际可能画到的极端字形（斜杠、竖线、括号、% 等都比大写字母高），
-    /// 否则行图会把它们的上半截裁掉，白字墨迹的上边界跟着变低。
+    /// 否则行图会把它们的上半截裁掉。
     /// </summary>
     private const string VerticalMetricsReference = "Agjy|/\\()[]{}<>%&@#?*";
+
+    /// <summary>
+    /// 水印字体。实测（见 WatermarkRendererTests 的线程用例）：同一个 Typeface 实例可以被
+    /// 不同线程复用、也可以被两个线程并发使用，不会抛线程亲和异常——绘制用的
+    /// DrawingVisual / RenderTargetBitmap 是每次调用新建的，本来就各自独立。
+    /// </summary>
+    private static readonly Typeface WatermarkTypeface = new(
+        new FontFamily("Microsoft YaHei UI, Microsoft YaHei, Segoe UI, Arial"),
+        FontStyles.Normal,
+        FontWeights.Bold,
+        FontStretches.Normal);
 
     private readonly object _sync = new();
     private readonly Dictionary<string, LinkedListNode<Entry>> _entries = new(StringComparer.Ordinal);
@@ -72,11 +94,30 @@ internal sealed class WatermarkOverlayRenderer
     internal static int ThicknessOf(double fontScale) =>
         Math.Max(2, (int)Math.Round(fontScale * 3.3));
 
-    internal static int LineHeightOf(double fontScale) => (int)(30 * fontScale / 0.6);
+    /// <summary>
+    /// 行距基准：按画面高度等比。这里用四舍五入而不是截断——截断会让 4K 与 1080p 的
+    /// 行距比从 2.00 变成 2.02（浮点算出来是 44.999…），字号跟着一起偏。
+    /// </summary>
+    internal static int LineHeightOf(double fontScale) =>
+        (int)Math.Round(30 * fontScale / 0.6, MidpointRounding.AwayFromZero);
 
     /// <summary>水印到画面右边缘的距离也按宽度等比：固定 15px 在 4K 上会显得贴边。</summary>
     internal static int MarginOf(int frameWidth) =>
         Math.Max(8, (int)Math.Round(frameWidth * 0.012));
+
+    /// <summary>字号跟着行距等比走：分辨率变大时水印跟着变大，不会相对变小。</summary>
+    internal static double FontSizeOf(double fontScale) => LineHeightOf(fontScale) * 0.78;
+
+    /// <summary>描边宽度同样按字号等比：固定像素在 4K 上会细得看不出，在 720p 上又会糊。</summary>
+    internal static double OutlineWidthOf(double fontSize) => Math.Max(2, fontSize * 0.06);
+
+    /// <summary>量一个字符的推进宽度（等宽判断与单测共用）。</summary>
+    internal static double MeasureCharacterAdvance(char character, double fontScale) =>
+        MeasureCharacterWidth(character, FontSizeOf(fontScale));
+
+    /// <summary>量一行文字按当前字体排版的宽度（右对齐与单测共用）。</summary>
+    internal static double MeasureLineWidth(string text, double fontScale) =>
+        CreateFormattedText(text, FontSizeOf(fontScale)).WidthIncludingTrailingWhitespace;
 
     /// <summary>
     /// Hershey 字体只能画 ASCII：其它字符替换成 <c>?</c>，保证一行画不出来不会连累别的行。
@@ -100,7 +141,7 @@ internal sealed class WatermarkOverlayRenderer
         int baseline = (int)(lineHeight * 1.1 * (lineIndex + 1));
         int startX = Math.Max(
             8,
-            frame.Width - MarginOf(frame.Width) - (entry.Advance * entry.CharacterCount));
+            frame.Width - MarginOf(frame.Width) - entry.LineWidth);
         int left = startX + entry.LeftShift;
         int top = baseline + entry.TopShift;
 
@@ -122,11 +163,11 @@ internal sealed class WatermarkOverlayRenderer
         int height = Math.Min(entry.Height - sourceY, frame.Height - top);
         if (width <= 0 || height <= 0) return;
 
-        var source = new Rect(sourceX, sourceY, width, height);
+        var source = new CvRect(sourceX, sourceY, width, height);
         using var lineImage = new Mat(entry.Image, source);
         using var lineAlpha = new Mat(entry.Alpha, source);
         using var lineInverseAlpha = new Mat(entry.InverseAlpha, source);
-        using var region = new Mat(frame, new Rect(left, top, width, height));
+        using var region = new Mat(frame, new CvRect(left, top, width, height));
         using var blended = new Mat();
         Cv2.BlendLinear(lineImage, region, lineAlpha, lineInverseAlpha, blended);
         blended.CopyTo(region);
@@ -134,10 +175,9 @@ internal sealed class WatermarkOverlayRenderer
 
     private Entry? GetOrRender(string text, double fontScale, int thickness, int frameWidth)
     {
-        string rendered = SanitizeForHershey(text);
-        if (rendered.Length == 0) return null;
+        if (text.Length == 0) return null;
 
-        string key = BuildKey(rendered, fontScale, thickness);
+        string key = BuildKey(text, fontScale, thickness);
         lock (_sync)
         {
             if (_entries.TryGetValue(key, out LinkedListNode<Entry>? node))
@@ -148,7 +188,7 @@ internal sealed class WatermarkOverlayRenderer
             }
         }
 
-        Entry? created = Render(rendered, fontScale, thickness, frameWidth);
+        Entry? created = Render(text, fontScale, thickness, frameWidth);
         if (created == null) return null;
         lock (_sync)
         {
@@ -167,13 +207,6 @@ internal sealed class WatermarkOverlayRenderer
             Trim();
         }
 
-        if (!string.Equals(rendered, text, StringComparison.Ordinal))
-        {
-            RuntimeLog.Warn(
-                "Watermark",
-                $"水印行含无法用矢量字体绘制的字符，已按 ? 显示：{rendered}");
-        }
-
         return created;
     }
 
@@ -182,57 +215,41 @@ internal sealed class WatermarkOverlayRenderer
 
     private static Entry? Render(string text, double fontScale, int thickness, int frameWidth)
     {
-        // 等宽步进：取本行最宽字符的宽度（空格不参与）。Hershey 字形本身不等宽，
-        // 整串右对齐时秒数一变整行就会左右挪，按最宽字符定步进才能让行首位置只跟字符数有关。
-        int advance = 1;
-        foreach (char character in text)
-        {
-            if (character == ' ') continue;
-            advance = Math.Max(
-                advance,
-                Cv2.GetTextSize(
-                    character.ToString(),
-                    HersheyFonts.HersheySimplex,
-                    fontScale,
-                    thickness,
-                    out _).Width);
-        }
+        double fontSize = FontSizeOf(fontScale);
+        double outlineWidth = OutlineWidthOf(fontSize);
 
+        // 自然排版：微软雅黑的数字是等宽数字（实测 0~9 的宽度完全一致），
+        // 所以时间戳、单号这类整行宽度在秒数变化时不会变，右对齐也不会左右挪；
+        // 逐字强行按最宽字符等距摆放反而会在字母/数字混排时挤出乱间距。
         // 超长行只渲染装得下的部分，避免一条 1000 字的扩展行把缓存撑爆。
-        int maxCharacters = Math.Max(
-            1,
-            (frameWidth - MarginOf(frameWidth) - Padding) / Math.Max(1, advance));
-        int characterCount = Math.Min(text.Length, maxCharacters);
-        if (characterCount < text.Length)
-            text = text[..characterCount];
-
-        Size box = Cv2.GetTextSize(
-            VerticalMetricsReference,
-            HersheyFonts.HersheySimplex,
-            fontScale,
-            thickness,
-            out int baseline);
-        // GetTextSize 的字体度量对斜杠、竖线、括号这类字形会偏矮，先按宽松画布渲染，
-        // 再按真实墨迹裁剪（下面按 coverage 求包围盒），既不会裁掉字形上半截，也不会浪费内存。
-        int extraAbove = Math.Max(Padding, (int)Math.Ceiling(fontScale * 16));
-        int extraBelow = Math.Max(Padding, (int)Math.Ceiling(fontScale * 6));
-        int height = box.Height + extraAbove + extraBelow;
-        int width = (advance * characterCount) + (Padding * 2);
-        int localBaseline = extraAbove + (box.Height - baseline);
-
-        using var outlineMask = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
-        using var fillMask = new Mat(height, width, MatType.CV_8UC1, Scalar.Black);
-        for (int i = 0; i < characterCount; i++)
+        double available = frameWidth - MarginOf(frameWidth) - Padding;
+        double used = 0;
+        int characterCount = 0;
+        double visibleWidth = 0;
+        while (characterCount < text.Length)
         {
-            var position = new Point(Padding + (advance * i), localBaseline);
-            string glyph = text[i].ToString();
-            Cv2.PutText(
-                outlineMask, glyph, position,
-                HersheyFonts.HersheySimplex, fontScale, Scalar.White, thickness + 2, LineTypes.AntiAlias);
-            Cv2.PutText(
-                fillMask, glyph, position,
-                HersheyFonts.HersheySimplex, fontScale, Scalar.White, thickness, LineTypes.AntiAlias);
+            double next = MeasureCharacterWidth(text[characterCount], fontSize);
+            if (characterCount > 0 && used + next > available) break;
+            used += next;
+            visibleWidth = used;
+            characterCount++;
         }
+
+        // 渲染只画装得下的部分，但缓存键仍用整行原文：否则 Trim 回推的键对不上，条目永远淘汰不掉。
+        string renderedText = characterCount < text.Length ? text[..characterCount] : text;
+
+        FormattedText reference = CreateFormattedText(VerticalMetricsReference, fontSize);
+        int ascent = (int)Math.Ceiling(reference.Baseline);
+        int descent = (int)Math.Ceiling(reference.Height - reference.Baseline);
+        int outlinePadding = (int)Math.Ceiling(outlineWidth / 2) + 1;
+        int height = ascent + descent + ((outlinePadding + Padding) * 2);
+        int width = (int)Math.Ceiling(visibleWidth) + (Padding * 2);
+        int localBaseline = Padding + outlinePadding + ascent;
+
+        using Mat outlineMask = RenderMask(
+            renderedText, fontSize, localBaseline, width, height, outlineWidth, stroke: true);
+        using Mat fillMask = RenderMask(
+            renderedText, fontSize, localBaseline, width, height, outlineWidth, stroke: false);
 
         // 覆盖率（含抗锯齿）= 描边与填充的并集；字身填白、只被描边盖住的地方留黑。
         using var coverage = new Mat();
@@ -242,7 +259,7 @@ internal sealed class WatermarkOverlayRenderer
         if (inkPoints.Empty())
             return null;
 
-        Rect ink = Cv2.BoundingRect(inkPoints);
+        CvRect ink = Cv2.BoundingRect(inkPoints);
         // 颜色就是白字的覆盖率（抗锯齿边缘是灰的），alpha 才是描边与填充的并集：
         // 这样描边边缘按覆盖率压在画面上，字身边缘用灰度表示自身覆盖率，与逐字绘制的结果一致。
         using var canvasImage = new Mat();
@@ -266,13 +283,76 @@ internal sealed class WatermarkOverlayRenderer
             image,
             alpha,
             inverseAlpha,
-            advance,
-            characterCount,
+            (int)Math.Ceiling(visibleWidth),
             ink.X - Padding,
             ink.Y - localBaseline,
             ink.Width,
             ink.Height,
             bytes);
+    }
+
+    private static FormattedText CreateFormattedText(string text, double fontSize) =>
+        new(
+            text,
+            CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            WatermarkTypeface,
+            fontSize,
+            Brushes.White,
+            1.0);
+
+    private static double MeasureCharacterWidth(char character, double fontSize) =>
+        CreateFormattedText(character.ToString(), fontSize).WidthIncludingTrailingWhitespace;
+
+    /// <summary>
+    /// 把一行文字渲染成覆盖率掩码：填充（字身）或描边（黑框那层）单独一遍，
+    /// 和旧实现一样，最后用“填充覆盖率当颜色、两层并集当 alpha”合成。
+    /// </summary>
+    private static Mat RenderMask(
+        string text,
+        double fontSize,
+        int localBaseline,
+        int width,
+        int height,
+        double outlineWidth,
+        bool stroke)
+    {
+        var visual = new DrawingVisual();
+        using (DrawingContext context = visual.RenderOpen())
+        {
+            Brush? brush = stroke ? null : Brushes.White;
+            var pen = stroke ? new Pen(Brushes.White, outlineWidth) : null;
+            double x = Padding;
+            foreach (char character in text)
+            {
+                if (character != ' ')
+                {
+                    FormattedText formatted = CreateFormattedText(character.ToString(), fontSize);
+                    Geometry geometry = formatted.BuildGeometry(new WpfPoint(
+                        x,
+                        localBaseline - formatted.Baseline));
+                    context.DrawGeometry(brush, pen, geometry);
+                }
+
+                x += MeasureCharacterWidth(character, fontSize);
+            }
+        }
+
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+
+        int stride = width * 4;
+        var pixels = new byte[stride * height];
+        bitmap.CopyPixels(pixels, stride, 0);
+
+        using var bgra = new Mat(height, width, MatType.CV_8UC4);
+        for (int y = 0; y < height; y++)
+            Marshal.Copy(pixels, y * stride, bgra.Row(y).Data, stride);
+
+        // 白字预乘后 R 通道就是覆盖率（抗锯齿边缘是中间值）。
+        var mask = new Mat();
+        Cv2.ExtractChannel(bgra, mask, 2);
+        return mask;
     }
 
     /// <summary>按内存上限与条数上限淘汰最久没用到的行缓存。</summary>
@@ -305,6 +385,13 @@ internal sealed class WatermarkOverlayRenderer
             }
 
             string rendered = SanitizeForHershey(text);
+            if (!string.Equals(rendered, text, StringComparison.Ordinal))
+            {
+                RuntimeLog.Warn(
+                    "Watermark",
+                    $"非 8UC3 画面走了矢量字体兜底，水印里的非 ASCII 字符已按 ? 显示：{rendered}");
+            }
+
             int advance = 1;
             foreach (char character in rendered)
             {
@@ -323,7 +410,7 @@ internal sealed class WatermarkOverlayRenderer
             int startX = Math.Max(8, frame.Width - MarginOf(frame.Width) - (advance * rendered.Length));
             for (int i = 0; i < rendered.Length; i++)
             {
-                var position = new Point(startX + (advance * i), baseline);
+                var position = new CvPoint(startX + (advance * i), baseline);
                 string glyph = rendered[i].ToString();
                 Cv2.PutText(
                     frame, glyph, position,
@@ -346,8 +433,7 @@ internal sealed class WatermarkOverlayRenderer
             Mat image,
             Mat alpha,
             Mat inverseAlpha,
-            int advance,
-            int characterCount,
+            int lineWidth,
             int leftShift,
             int topShift,
             int width,
@@ -360,8 +446,7 @@ internal sealed class WatermarkOverlayRenderer
             Image = image;
             Alpha = alpha;
             InverseAlpha = inverseAlpha;
-            Advance = advance;
-            CharacterCount = characterCount;
+            LineWidth = lineWidth;
             LeftShift = leftShift;
             TopShift = topShift;
             Width = width;
@@ -376,8 +461,8 @@ internal sealed class WatermarkOverlayRenderer
         internal Mat Image { get; }
         internal Mat Alpha { get; }
         internal Mat InverseAlpha { get; }
-        internal int Advance { get; }
-        internal int CharacterCount { get; }
+        /// <summary>整行文字宽度（按字体实际排版宽度），用来右对齐。</summary>
+        internal int LineWidth { get; }
         /// <summary>行图左上角相对“字身起点（startX）”的水平偏移。</summary>
         internal int LeftShift { get; }
         /// <summary>行图左上角相对基线的垂直偏移。</summary>
