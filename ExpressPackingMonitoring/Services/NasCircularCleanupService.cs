@@ -128,9 +128,10 @@ internal sealed class NasCircularCleanupService
                        snapshot.Id,
                        CancellationToken.None).GetAwaiter().GetResult())
             {
-                VideoRecord? record = _database.GetVideoById(snapshot.Id);
+                // 用户删掉的记录也要看：它的本地副本没了，备份盘上的归档还在等容量回收。
+                VideoRecord? record = _database.GetVideoByIdIncludingDeleted(snapshot.Id);
                 if (record == null
-                    || record.IsDeleted
+                    || (record.IsDeleted && !IsUserRequestedDeletion(record))
                     || record.ArchiveCompletedAt == null
                     || string.IsNullOrWhiteSpace(record.ArchivePath)
                     || record.ArchiveStatus is not (
@@ -150,6 +151,16 @@ internal sealed class NasCircularCleanupService
                     case RemoteFileProbe.FileProbeState.Unavailable:
                         return false; // 不可判断：保持原状态，下轮再试
                     case RemoteFileProbe.FileProbeState.ConfirmedMissing:
+                        if (IsUserRequestedDeletion(record))
+                        {
+                            // 用户删掉的记录两个副本都没了：标记归档已回收，别再让它每次进候选。
+                            _database.MarkNasCopyDeleted(
+                                record.Id,
+                                record.ArchivePath,
+                                ReconcileReason,
+                                RecordingDeletionReasonCode.NasCopyMissingReconcile);
+                            return true;
+                        }
                         ReconcileRecordCore(record);
                         return true; // 已修复状态（NasDeleted 或 IsDeleted）
                 }
@@ -290,6 +301,13 @@ internal sealed class NasCircularCleanupService
         }
         return true;
     }
+
+    /// <summary>用户主动删除的录像：本地副本已删，只剩备份盘副本时仍要能被容量循环回收。</summary>
+    private static bool IsUserRequestedDeletion(VideoRecord record) =>
+        string.Equals(
+            record.DeleteReasonCode,
+            RecordingDeletionReasonCode.UserRequested,
+            StringComparison.Ordinal);
 
     /// <summary>判断归档路径是否属于指定网络根目录（规范化、忽略大小写）。</summary>
     internal static bool IsPathUnderRoot(string path, string root)

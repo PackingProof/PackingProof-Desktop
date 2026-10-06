@@ -1765,7 +1765,7 @@ namespace ExpressPackingMonitoring.Data
         }
 
         /// <summary>
-        /// 查询视频列表（支持日期范围 + 关键词过滤，包含已删除记录）
+        /// 按 Id 查询未删除的录像记录（含已删除记录请用 <see cref="GetVideoByIdIncludingDeleted"/>）。
         /// </summary>
         public VideoRecord GetVideoById(long id)
         {
@@ -1834,6 +1834,37 @@ namespace ExpressPackingMonitoring.Data
                     };
                 }
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// 按 Id 查询记录，包含已删除记录。NAS 归档回收要在候选复查时看到被用户删除的行，
+        /// 那些行的归档副本仍然躺在备份盘上，<see cref="GetVideoById"/> 看不到。
+        /// </summary>
+        public VideoRecord GetVideoByIdIncludingDeleted(long id)
+        {
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT Id, OrderId, Mode, VideoCodec, VideoEncoder, FilePath, FileSizeBytes,
+                           StartTime, EndTime, DurationSeconds, StopReason,
+                           IsDeleted, DeletedAt, DeleteReason,
+                           TrackingNumber, SourceOrderId, BuyerMessage, SellerMemo, ProductInfo, OrderInfoPushTime, OrderInfoJson,
+                           SourceType, SourceDeviceId, SourceDeviceName, SourceSessionId, ContentSha256,
+                           StorageState, RemoteVideoRecordId, SourceDeviceKind,
+                           ArchivePath, ArchiveStatus, ArchiveRetryCount,
+                           NextRetryAt, LastArchiveAttemptAt, ArchiveCompletedAt,
+                           LastArchiveProbeAt,
+                           ArchiveError, LocalCopyDeletedAt, LocalDeleteReason,
+                           DeleteReasonCode
+                    FROM VideoRecords WHERE Id = @id;";
+                cmd.Parameters.AddWithValue("@id", id);
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read())
+                    return null;
+
+                return ReadVideoRecord(reader);
             }
         }
 
@@ -2495,7 +2526,10 @@ namespace ExpressPackingMonitoring.Data
                            LastArchiveProbeAt,
                            ArchiveError, LocalCopyDeletedAt, LocalDeleteReason, DeleteReasonCode
                     FROM VideoRecords
-                    WHERE IsDeleted = 0
+                    -- 用户删除的录像本地副本已经删掉，但备份盘上的归档还在：也要能被容量循环回收，
+                    -- 否则它会永远占着备份盘（其它原因删除的记录不在此列）。
+                    WHERE (IsDeleted = 0
+                           OR (IsDeleted = 1 AND DeleteReasonCode = @userRequested))
                       AND ArchivePath <> ''
                       AND ArchiveCompletedAt IS NOT NULL
                       AND ArchiveStatus IN ('Verified', 'LocalDeleted')
@@ -2503,6 +2537,9 @@ namespace ExpressPackingMonitoring.Data
                     ORDER BY EndTime ASC, Id ASC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@prefix", prefix.ToLowerInvariant());
+                cmd.Parameters.AddWithValue(
+                    "@userRequested",
+                    RecordingDeletionReasonCode.UserRequested);
                 cmd.Parameters.AddWithValue("@limit", limit);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
@@ -3067,18 +3104,24 @@ namespace ExpressPackingMonitoring.Data
                     string localPath = "";
                     string orderId = "";
                     long fileSizeBytes = 0;
+                    bool userDeleted = false;
                     using (var selectCmd = _connection.CreateCommand())
                     {
                         selectCmd.Transaction = transaction;
                         selectCmd.CommandText = @"
-                            SELECT FilePath, OrderId, FileSizeBytes
+                            SELECT FilePath, OrderId, FileSizeBytes, IsDeleted
                             FROM VideoRecords
-                            WHERE Id = @id AND IsDeleted = 0
+                            WHERE Id = @id
+                              AND (IsDeleted = 0
+                                   OR (IsDeleted = 1 AND DeleteReasonCode = @userRequested))
                               AND ArchiveStatus IN ('Verified', 'LocalDeleted')
                               AND ArchiveCompletedAt IS NOT NULL
                               AND ArchivePath <> '';
                             ";
                         selectCmd.Parameters.AddWithValue("@id", recordId);
+                        selectCmd.Parameters.AddWithValue(
+                            "@userRequested",
+                            RecordingDeletionReasonCode.UserRequested);
                         using var reader = selectCmd.ExecuteReader();
                         if (!reader.Read())
                         {
@@ -3088,6 +3131,7 @@ namespace ExpressPackingMonitoring.Data
                         localPath = reader.GetString(0);
                         orderId = reader.IsDBNull(1) ? "" : reader.GetString(1);
                         fileSizeBytes = reader.GetInt64(2);
+                        userDeleted = reader.GetInt64(3) == 1;
                     }
 
                     bool localExists = !string.IsNullOrWhiteSpace(localPath)
@@ -3095,7 +3139,22 @@ namespace ExpressPackingMonitoring.Data
                     using (var updateCmd = _connection.CreateCommand())
                     {
                         updateCmd.Transaction = transaction;
-                        if (localExists)
+                        if (userDeleted)
+                        {
+                            // 用户删掉的记录：只把归档状态改成“备份盘副本已回收”，
+                            // 保留用户删除的原因码，别把“谁删的”覆盖成容量清理。
+                            updateCmd.CommandText = @"
+                                UPDATE VideoRecords SET
+                                    ArchiveStatus = @status,
+                                    ArchiveError = ''
+                                WHERE Id = @id
+                                  AND IsDeleted = 1
+                                  AND DeleteReasonCode = @userRequested
+                                  AND ArchiveStatus IN ('Verified', 'LocalDeleted')
+                                  AND ArchiveCompletedAt IS NOT NULL
+                                  AND ArchivePath = @archivePath;";
+                        }
+                        else if (localExists)
                         {
                             updateCmd.CommandText = @"
                                 UPDATE VideoRecords SET
@@ -3120,9 +3179,13 @@ namespace ExpressPackingMonitoring.Data
                         }
                         updateCmd.Parameters.AddWithValue("@id", recordId);
                         updateCmd.Parameters.AddWithValue("@archivePath", archivePath ?? "");
-                        if (localExists)
+                        if (userDeleted || localExists)
                             updateCmd.Parameters.AddWithValue("@status", VideoArchiveStatus.NasDeleted);
-                        else
+                        if (userDeleted)
+                            updateCmd.Parameters.AddWithValue(
+                                "@userRequested",
+                                RecordingDeletionReasonCode.UserRequested);
+                        if (!userDeleted && !localExists)
                         {
                             updateCmd.Parameters.AddWithValue("@deletedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                             updateCmd.Parameters.AddWithValue("@reason", reason ?? "");

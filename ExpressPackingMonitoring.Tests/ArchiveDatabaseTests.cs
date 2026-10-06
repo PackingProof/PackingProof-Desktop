@@ -737,7 +737,11 @@ public sealed class ArchiveDatabaseTests : IDisposable
         IReadOnlyList<VideoRecord> candidates =
             _database.GetNasCleanupCandidates(root);
 
-        Assert.Equal([localDeleted, verified], candidates.Select(record => record.Id));
+        // 用户删除的录像本地副本已经删了，备份盘上那份归档还占着地方：它也要进候选，
+        // 由容量循环在空间紧张时按最旧优先回收；按 EndTime 升序排在前面。
+        Assert.Equal(
+            [deleted, localDeleted, verified],
+            candidates.Select(record => record.Id));
     }
 
     [Fact]

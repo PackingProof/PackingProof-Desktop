@@ -85,6 +85,119 @@ public sealed class NasCircularCleanupServiceTests : IDisposable
             : values[^1];
     }
 
+    /// <summary>
+    /// 回放里右键删掉的录像：本地副本已经删了，备份盘上那份归档仍然要能按容量循环回收，
+    /// 否则它会永远占着备份盘（记录里只剩这个归档，用户也看不见它）。
+    /// </summary>
+    [Fact]
+    public void RunForRoot_ReclaimsArchiveOfUserDeletedRecording()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertVerified(
+            "user-deleted.mp4",
+            now.AddHours(-3),
+            now.AddHours(-2),
+            createLocal: true,
+            createNas: true);
+        string archivePath = _database.GetVideoById(id)!.ArchivePath;
+        File.Delete(_database.GetVideoById(id)!.FilePath);
+        _database.MarkRecordDeletedById(
+            id,
+            "用户删除",
+            RecordingDeletionReasonCode.UserRequested);
+        Assert.True(File.Exists(archivePath), "删除操作本身不碰备份盘");
+
+        var service = new NasCircularCleanupService(
+            _database,
+            volumeReader: Sequence(Volume(8), Volume(13)),
+            providerFactory: () => new NasArchiveProvider());
+        bool deletedAny = service.RunForRoot(_nasRoot, reserveBytes: 10);
+
+        Assert.True(deletedAny);
+        Assert.False(File.Exists(archivePath));
+
+        VideoRecord record = _database.GetVideoByIdIncludingDeleted(id);
+        Assert.True(record.IsDeleted);
+        Assert.Equal(RecordingDeletionReasonCode.UserRequested, record.DeleteReasonCode);
+        Assert.Equal(VideoArchiveStatus.NasDeleted, record.ArchiveStatus);
+
+        // 回收后不再是候选：第二轮不能再重复删。
+        var second = new NasCircularCleanupService(
+            _database,
+            volumeReader: _ => Volume(0),
+            providerFactory: () => new NasArchiveProvider());
+        Assert.False(second.RunForRoot(_nasRoot, reserveBytes: 10));
+    }
+
+    /// <summary>
+    /// 只有“用户删除”的记录进候选；其它原因删除的记录（例如容量清理、对账淘汰）保持原样，
+    /// 免得把别的流程的状态一并搅动。
+    /// </summary>
+    [Fact]
+    public void GetNasCleanupCandidates_IncludesUserDeletedOnly()
+    {
+        DateTime now = DateTime.Now;
+        long userDeleted = InsertVerified(
+            "u.mp4",
+            now.AddHours(-4),
+            now.AddHours(-3),
+            createLocal: true,
+            createNas: true);
+        long capacityDeleted = InsertVerified(
+            "c.mp4",
+            now.AddHours(-2),
+            now.AddHours(-1),
+            createLocal: true,
+            createNas: true);
+        _database.MarkRecordDeletedById(
+            userDeleted,
+            "用户删除",
+            RecordingDeletionReasonCode.UserRequested);
+        _database.MarkRecordDeletedById(
+            capacityDeleted,
+            "容量清理",
+            RecordingDeletionReasonCode.CapacityCleanupUnarchived);
+
+        var candidates = _database.GetNasCleanupCandidates(_nasRoot, limit: 50);
+
+        Assert.Contains(candidates, record => record.Id == userDeleted);
+        Assert.DoesNotContain(candidates, record => record.Id == capacityDeleted);
+    }
+
+    /// <summary>
+    /// 用户删掉的记录，如果备份盘那份也早就没了，对账时只把归档状态收成“已回收”，
+    /// 不能把“谁删的”覆盖掉，也不能让它每轮都重新进候选。
+    /// </summary>
+    [Fact]
+    public void RunForRoot_UserDeletedWithMissingArchive_ReconcilesWithoutTouchingReason()
+    {
+        DateTime now = DateTime.Now;
+        long id = InsertVerified(
+            "u-missing.mp4",
+            now.AddHours(-3),
+            now.AddHours(-2),
+            createLocal: true,
+            createNas: true);
+        string archivePath = _database.GetVideoById(id)!.ArchivePath;
+        File.Delete(_database.GetVideoById(id)!.FilePath);
+        _database.MarkRecordDeletedById(
+            id,
+            "用户删除",
+            RecordingDeletionReasonCode.UserRequested);
+        File.Delete(archivePath);
+
+        var service = new NasCircularCleanupService(
+            _database,
+            volumeReader: Sequence(Volume(0), Volume(0)),
+            providerFactory: () => new NasArchiveProvider(),
+            probe: (_, _, _) => RemoteFileProbe.FileProbeState.ConfirmedMissing);
+        service.RunForRoot(_nasRoot, reserveBytes: 10);
+
+        VideoRecord record = _database.GetVideoByIdIncludingDeleted(id);
+        Assert.Equal(RecordingDeletionReasonCode.UserRequested, record.DeleteReasonCode);
+        Assert.Equal(VideoArchiveStatus.NasDeleted, record.ArchiveStatus);
+    }
+
     [Fact]
     public void RunForRoot_StopsWhenVolumeRecoversAndDoesNotOverDelete()
     {
