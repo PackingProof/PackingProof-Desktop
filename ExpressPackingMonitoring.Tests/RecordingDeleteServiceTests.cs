@@ -12,6 +12,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 回放“删除录像”的回归：删本地副本、记录按用户删除留档、备份位置归档不被顺手删掉，
 /// 以及正在录制/正在备份/文件删不掉时绝不能只改数据库。
 /// </summary>
+[Collection("Recording lifecycle")]
 public sealed class RecordingDeleteServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(

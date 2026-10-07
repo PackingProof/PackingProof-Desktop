@@ -10,6 +10,7 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+[Collection("Recording lifecycle")]
 public sealed class ArchiveServiceTests : IDisposable
 {
     private sealed class GatedProvider : IArchiveProvider

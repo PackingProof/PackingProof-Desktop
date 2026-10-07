@@ -10,6 +10,7 @@ using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
 
+[Collection("Recording lifecycle")]
 public sealed class NasCircularCleanupServiceTests : IDisposable
 {
     private readonly string _directory = Path.Combine(
