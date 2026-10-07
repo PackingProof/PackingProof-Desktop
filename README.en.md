@@ -92,14 +92,14 @@ Announce order notes, catch post-print refunds, and back up recordings from mult
 
 </div>
 
-The mobile app supports both Android and iOS: download the signed ARM64 APK for Android; for iOS, install TestFlight first, then open the link above to join the beta.
+The mobile app supports Android (signed ARM64 APK) and iOS (TestFlight beta). It can record on its own, or upload recordings to a PC host.
 
 <br>
 
 ![PackingProof application](Image/软件截图.jpg)
 
-**Jump to**：[Core Features](#core-features) · [Extension Market](#extension-market) · [Workflow](#workflow) · [Quick Start](#quick-start) · [LAN Playback](#lan-playback) · [Order Notes and Refund Interception](#order-notes-and-refund-interception)
-[Recording Storage and Cache](#recording-storage-and-cache) · [Choosing a Download](#choosing-a-download) · [Updating](#updating) · [Uninstalling and Preserving Data](#uninstalling-and-preserving-data) · [Running from Source](#running-from-source) · [Feedback and Contributions](#feedback-and-contributions)
+**Jump to**：[Features](#features) · [How to Use](#how-to-use) · [More](#more) · [Extension Market](#extension-market) · [License](#license)
+[Order Notes and Refund Interception](#order-notes-and-refund-interception) · [Workstation Roles](#workstation-roles) · [LAN Playback](#lan-playback) · [Updating](#updating)
 
 ---
 
@@ -114,7 +114,7 @@ PackingProof links the **tracking number, order details, and packing recording**
 
 PackingProof also surfaces special instructions, warns about duplicate tracking numbers, and helps stop refunded orders before shipment.
 
-## Core Features
+## Features
 
 ### Scan to Record
 
@@ -161,50 +161,13 @@ Currently supported extensions include:
 
 External adapters must access PackingProof through the user-authorized extension API. They must not read the database, recording directory, or NAS credentials directly. Desktop never runs external programs automatically after installation, and being listed in the market is not a security guarantee for third-party programs.
 
-## Workflow
+## How to Use
 
-<div align="center">
+### Workflow
 
-**Scan the shipping label**
-
-↓
-
-**Start recording automatically**
-
-↓
-
-**Announce order notes and verify refund status**
-
-↓
-
-**Finish packing and stop recording**
-
-↓
-
-**Search and play by tracking number**
-
-</div>
+Scan the shipping label → start recording automatically → announce order notes and verify refund status → finish packing and stop recording → search and play by tracking number.
 
 Camera recognition and a keyboard-mode scanner can be used together without changing the existing packing workflow.
-
-## Workstation Roles
-
-On first launch, two simple questions help select the purpose of the current computer.
-
-![Purpose selection](Image/询问用途.jpg)
-
-| Role | Recommended use |
-| --- | --- |
-| **Record and store on this computer** | One packing station with long-term local storage |
-| **Record and store on another computer** | Multiple recording PCs uploading to one host |
-| **Recording file backup host** | Central receiver for phones and other recording PCs |
-| **Connect to a host for viewing only** | Search, playback, and management without local recording |
-
-A recording workstation remains usable before a host is bound or while its host is offline.
-
-Completed videos remain in a local cache and upload automatically after connectivity returns. Cache cleanup considers a file only after the host has confirmed that it was received and verified in full.
-
-## Quick Start
 
 ### 1. Prepare the Hardware
 
@@ -215,55 +178,47 @@ Completed videos remain in a local cache and upload automatically after connecti
 
 ### 2. Install PackingProof
 
-The recommended download is:
+Download `PackingProof_Setup_vX.Y.Z.exe` from [GitHub Releases](https://github.com/PackingProof/PackingProof-Desktop/releases) or [Gitee Releases](https://gitee.com/PackingProof/PackingProof-Desktop/releases) and install it. On networks where GitHub is slow, the [Baidu Netdisk backup](https://pan.baidu.com/s/1B9L9l19ZkjtNpK_9rVZxbw?pwd=6666) (access code 6666) works too.
 
-```text
-PackingProof_Setup_vX.Y.Z.exe
-```
-
-Download from [GitHub Releases](https://github.com/PackingProof/PackingProof-Desktop/releases) · [Gitee Releases](https://gitee.com/PackingProof/PackingProof-Desktop/releases) (the Gitee build is the trimmed installer without the .NET runtime) · [Baidu Netdisk backup](https://pan.baidu.com/s/1B9L9l19ZkjtNpK_9rVZxbw?pwd=6666) (access code 6666).
-
-The installer does not require administrator rights. It installs for the current user and creates a Start menu shortcut.
+The installer does not require administrator rights. It installs for the current user and creates a Start menu shortcut. See “Choosing a Download” below for which file you need.
 
 ### 3. Complete First-Time Setup
 
-After the first launch:
+After the first launch, the wizard walks you through these steps:
+
+![Purpose selection](Image/询问用途.jpg)
 
 1. Choose the purpose of this computer.
 2. Select the camera and microphone.
 3. Choose a recording storage or cache location.
 4. Connect a recording storage host if needed.
-5. Place the shipping-label barcode inside the guide in the center of the preview.
-6. When packing is complete, use the Stop button in the main window to end recording.
 
-Recording starts automatically after the barcode is recognized.
+After that, place the shipping-label barcode inside the guide in the center of the preview to start recording, and press Stop in the main window when packing is done.
 
 ### 4. Find a Recording
 
 Open the recording list and enter a tracking number.
 
+![Recording search and playback](Image/Replay.jpg)
+
 Recordings can also be played from a phone or another computer through the LAN Web interface.
 
-## LAN Playback
+### Choosing a Download
 
-The local-recording and recording-file-backup-host roles can run the LAN Web service.
+| File | Purpose |
+| --- | --- |
+| `PackingProof_Setup_vX.Y.Z.exe` | Recommended for most users |
+| `PackingProof_AppPatch_vX.Y.Z.zip` | Manual main-application update |
+| `PackingProof_LauncherPatch_vX.Y.Z.zip` | Manual root-launcher update |
+| `PackingProof_Setup_no-runtime_vX.Y.Z.exe` | Gitee only: installer without the .NET runtime (~60 MB), requires the .NET 8 Desktop Runtime (x64) first |
 
-1. Open **Connect phone/PC** in PackingProof.
-2. Scan the recording Web QR code with a phone.
-3. Alternatively, open the displayed address from another device on the same LAN.
-4. Enter a tracking number to search and play recordings.
+Official packages normally include the required .NET runtime and FFmpeg, so no separate installation is needed.
 
-The Web interface can also keep a selected time range and download the resulting clip.
-
-Allow LAN access if Windows Firewall prompts you.
-
-![LAN Web playback](Image/WebService.jpg)
-
-## Order Notes and Refund Interception
+### Order Notes and Refund Interception
 
 This feature uses the browser userscript included with PackingProof.
 
-### Basic Setup
+#### Basic Setup
 
 1. Install Tampermonkey or Violentmonkey.
 2. Click **Install order integration** in PackingProof.
@@ -303,7 +258,45 @@ Duplicate tracking numbers are checked against non-deleted recording records fro
 
 When the userscript connects to a new monitor address for the first time, the browser may request cross-origin access. Allow it only after confirming that the destination is this computer or another trusted PackingProof service on the LAN. Reinstalling the script through the in-app guide adds the exact permission required for the current service.
 
-## Recording Storage and Cache
+### Workstation Roles
+
+One computer can take on a single job or several at once. The wizard picks a sensible role on first launch, and you can switch it later in settings. The four roles are:
+
+| Role | Recommended use |
+| --- | --- |
+| **Record and store on this computer** | One packing station with long-term local storage |
+| **Record and store on another computer** | Multiple recording PCs uploading to one host |
+| **Recording file backup host** | Central receiver for phones and other recording PCs |
+| **Connect to a host for viewing only** | Search, playback, and management without local recording |
+
+A recording workstation remains usable before a host is bound or while its host is offline.
+
+Completed videos remain in a local cache and upload automatically after connectivity returns. Cache cleanup considers a file only after the host has confirmed that it was received and verified in full.
+
+### LAN Playback
+
+The local-recording and recording-file-backup-host roles can run the LAN Web service.
+
+1. Open **Connect phone/PC** in PackingProof.
+2. Scan the recording Web QR code with a phone.
+3. Alternatively, open the displayed address from another device on the same LAN.
+4. Enter a tracking number to search and play recordings.
+
+The Web interface can also keep a selected time range and download the resulting clip.
+
+Allow LAN access if Windows Firewall prompts you.
+
+![LAN Web playback](Image/WebService.jpg)
+
+### Packing Statistics
+
+Summarize packing counts, storage usage, accumulated working time, and average time per parcel by day or by week.
+
+![Packing statistics](Image/Statistics.jpg)
+
+## More
+
+### Recording Storage and Cache
 
 Long-term local recording can use multiple storage locations.
 
@@ -348,19 +341,7 @@ The following files are never removed automatically by cache cleanup:
 
 </details>
 
-## Choosing a Download
-
-| File | Purpose |
-| --- | --- |
-| `PackingProof_Setup_vX.Y.Z.exe` | Recommended for most users |
-| `PackingProof+vX.Y.Z.7z` | Smaller portable package |
-| `PackingProof+vX.Y.Z.zip` | Native Windows extraction and recovery |
-| `PackingProof_AppPatch_vX.Y.Z.zip` | Manual main-application update (legacy-named copy also ships during the transition) |
-| `PackingProof_LauncherPatch_vX.Y.Z.zip` | Manual root-launcher update |
-
-Official packages normally include the required .NET runtime and FFmpeg, so no separate installation is needed.
-
-## Updating
+### Updating
 
 For daily use, start PackingProof from:
 
@@ -374,53 +355,23 @@ The launcher checks for verified incremental updates in the background and insta
 
 <br>
 
-### Update the Main Application Manually
+#### Update the Main Application Manually
 
-Download and fully extract:
+Download `PackingProof_AppPatch_vX.Y.Z.zip`, extract it fully, and run `双击更新主程序.cmd` inside it. The script validates the patch, locates the existing installation, rolls back on failure, and preserves configuration, databases, and recordings.
 
-```text
-PackingProof_AppPatch_vX.Y.Z.zip
-```
+#### Update the Root Launcher Manually
 
-Then run:
+Download `PackingProof_LauncherPatch_vX.Y.Z.zip`, extract it fully, and run `双击更新启动器.cmd` inside it. This script replaces only the root launcher and retains a verified backup of the previous launcher.
 
-```text
-双击更新主程序.cmd
-```
+#### Upgrade an Older Installation
 
-The script validates the patch, locates the existing installation, rolls back on failure, and preserves configuration, databases, and recordings.
+If the installed version is below the AppPatch baseline, you skipped too many versions: run the newest Setup to install in place. Configuration, databases, and recordings are kept.
 
-### Update the Root Launcher Manually
-
-Download and fully extract:
-
-```text
-PackingProof_LauncherPatch_vX.Y.Z.zip
-```
-
-Then run:
-
-```text
-双击更新启动器.cmd
-```
-
-This script replaces only the root launcher and retains a verified backup of the previous launcher.
-
-### Upgrade an Older Installation
-
-If the installed version is below the AppPatch baseline, run the newer Setup for an in-place upgrade. The full ZIP can be used for recovery.
-
-Do not delete:
-
-```text
-%LOCALAPPDATA%\ExpressPackingMonitoring\
-```
-
-This directory contains application settings, databases, and recording records.
+Do not delete `%LOCALAPPDATA%\ExpressPackingMonitoring\` — application settings, databases, and recording records live there.
 
 </details>
 
-## Uninstalling and Preserving Data
+### Uninstalling and Preserving Data
 
 The uninstaller provides two independent options:
 
@@ -442,12 +393,7 @@ Recordings and databases are retained if the database is missing, corrupt, busy,
 
 </details>
 
-<details>
-<summary><strong>Running from Source (developers)</strong></summary>
-
-<br>
-
-## Running from Source
+### Running from Source
 
 Development requires:
 
@@ -470,24 +416,22 @@ cd PackingProof-Desktop
 
 Open and build the solution with Visual Studio, Rider, or the `dotnet` CLI.
 
-</details>
-
-## Feedback and Contributions
+### Feedback and Contributions
 
 Report problems or suggest features through [GitHub Issues](https://github.com/PackingProof/PackingProof-Desktop/issues) or [Gitee Issues](https://gitee.com/PackingProof/PackingProof-Desktop/issues).
 
 Contributions to testing, documentation, code, and real-world usage guidance are welcome. If PackingProof is useful to you, consider starring the repository so more sellers can discover it.
 
-<details>
-<summary><strong>License and Branding Policy</strong></summary>
-
-<br>
-
-## License and Branding
+### License
 
 PackingProof is open source under the [AGPL-3.0 License](LICENSE).
 
 You may use, study, and modify the project at no cost under the license. Distributing a modified version or providing it as a network service requires compliance with the corresponding AGPL-3.0 source-sharing obligations.
+
+<details>
+<summary><strong>Brand Asset Policy</strong></summary>
+
+<br>
 
 The `PackingProof` name and official application icon are project brand assets. The AGPL-3.0 source-code license does not grant permission to use them as the product identity of a modified version. Public modifications should use a distinct product name and icon, clearly identify themselves as unofficial, and may use “based on PackingProof” to describe their origin. See the [Brand Policy](docs/BRAND_POLICY.md).
 
