@@ -1,4 +1,9 @@
 using ExpressPackingMonitoring.Helpers;
+using ExpressPackingMonitoring.UI;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Xunit;
 using ZXing;
 using ZXing.Common;
@@ -10,6 +15,7 @@ namespace ExpressPackingMonitoring.Tests;
 /// 编码端一旦出错，现场就会出现 CLEAR 读成 CLEAN、CLAER 这类误读。
 /// 这里按指令清单逐条重画并真实解码，同时把编码表和标准表逐条比对，任何抄错都过不了。
 /// </summary>
+[Collection("WPF render tests")]
 public sealed class BarcodeRenderRoundTripTests
 {
     private const int ModulePixels = 3;
@@ -141,5 +147,243 @@ public sealed class BarcodeRenderRoundTripTests
         };
         return reader.DecodeMultiple(
             new RGBLuminanceSource(gray, width, height, RGBLuminanceSource.BitmapFormat.Gray8));
+    }
+
+    /// <summary>
+    /// 向导里的扫码枪测试条码也是给真扫码枪对着屏幕扫的，必须和指令条码过同一道门禁：
+    /// 真正渲染成位图后回读得到，且左右各留标准 10 个模块的静区。
+    /// </summary>
+    [Fact]
+    public void WizardTestBarcode_RendersScannableCodeWithStandardQuietZone()
+    {
+        RunOnStaThread(() =>
+        {
+            string payload = FirstUseSetupWizardWindow.BuildTestBarcodeValue(
+                new DateTime(2026, 10, 7, 5, 21, 17));
+            Assert.Equal("TEST0521", payload);
+
+            BitmapSource image = BarcodeHelper.Generate(
+                payload,
+                FirstUseSetupWizardWindow.TestBarcodeHeight,
+                FirstUseSetupWizardWindow.TestBarcodeModuleWidth,
+                // 测试宿主里 Application.MainWindow 可能挂在别的 STA 线程上，跨线程读 DPI 会抛异常；
+                // 这里按 100% 缩放渲染，也就是屏幕上最常见的场景。
+                dpiScale: 1);
+
+            int moduleWidth = FirstUseSetupWizardWindow.TestBarcodeModuleWidth;
+            int stride = image.PixelWidth * 4;
+            var pixels = new byte[stride * image.PixelHeight];
+            image.CopyPixels(pixels, stride, 0);
+
+            // 静区：最外侧 10 个模块必须是白底
+            int quietZonePixels = BarcodeHelper.QuietZoneModules * moduleWidth;
+            Assert.True(image.PixelWidth > quietZonePixels * 2, "条码宽度容不下两侧静区");
+            foreach (int y in new[] { 0, image.PixelHeight - 1 })
+            {
+                for (int x = 0; x < quietZonePixels; x++)
+                {
+                    Assert.True(
+                        IsWhite(pixels, y * stride + x * 4),
+                        $"左侧静区第 {x} 列不是白底");
+                    Assert.True(
+                        IsWhite(pixels, y * stride + (image.PixelWidth - 1 - x) * 4),
+                        $"右侧静区第 {x} 列不是白底");
+                }
+            }
+
+            // 最细的条不能比一个模块还窄，否则现场扫不出来
+            Assert.True(
+                MeasureMinBarWidth(pixels, stride, image.PixelWidth, image.PixelHeight / 2) >= moduleWidth,
+                "条码最细的条比一个模块还窄");
+
+            // 显示尺寸要放得下向导卡片，别把条码挤出可视区
+            Assert.True(image.Width <= 620, $"测试条码太宽：{image.Width} DIP");
+
+            int grayStride = image.PixelWidth;
+            var gray = new byte[grayStride * image.PixelHeight];
+            for (int y = 0; y < image.PixelHeight; y++)
+                for (int x = 0; x < image.PixelWidth; x++)
+                    gray[y * grayStride + x] = pixels[y * stride + x * 4 + 2];
+
+            Result[]? results = DecodeCode128(gray, image.PixelWidth, image.PixelHeight);
+            Assert.NotNull(results);
+            Assert.Contains(results, result => string.Equals(result.Text, payload, StringComparison.Ordinal));
+
+            AssertOnScreenRasterStaysCrisp(image, moduleWidth, payload);
+        });
+    }
+
+    /// <summary>
+    /// 位图标准还不够：条码贴到取景卡片里居中时，落点可能是半像素（卡片内宽减条码宽是奇数），
+    /// 默认的线性缩放会把 1 个模块的条糊成 2/5/8 像素——位图回读照样过，真扫码枪却扫不出来。
+    /// 这里按向导的做法（Stretch=None + NearestNeighbor + 布局取整）把条码真的画一遍，量屏幕像素。
+    /// </summary>
+    private static void AssertOnScreenRasterStaysCrisp(BitmapSource barcode, int moduleWidth, string payload)
+    {
+        // 向导里的摆法：卡片里居中（这里故意让差值是奇数，居中后落点正好在半个像素上），
+        // 外层布局取整把落点压回整像素，Image 用 NearestNeighbor 关掉插值。
+        var centred = new Grid
+        {
+            Width = barcode.Width + 1,
+            Height = barcode.Height + 8,
+            Background = Brushes.White,
+            UseLayoutRounding = true
+        };
+        centred.Children.Add(CreateBarcodeImage(barcode));
+        AssertRasterStaysCrisp(centred, barcode, moduleWidth, payload);
+    }
+
+    private static System.Windows.Controls.Image CreateBarcodeImage(BitmapSource barcode)
+    {
+        var image = new System.Windows.Controls.Image
+        {
+            Source = barcode,
+            Stretch = Stretch.None,
+            SnapsToDevicePixels = true
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.NearestNeighbor);
+        return image;
+    }
+
+    private static void AssertRasterStaysCrisp(
+        Panel host,
+        BitmapSource barcode,
+        int moduleWidth,
+        string payload)
+    {
+        host.Measure(new Size(host.Width, host.Height));
+        host.Arrange(new Rect(new Point(0, 0), new Size(host.Width, host.Height)));
+        host.UpdateLayout();
+
+        var image = (System.Windows.Controls.Image)host.Children[0];
+        double offset = image.TransformToAncestor(host).Transform(new Point(0, 0)).X;
+
+        var rtb = new RenderTargetBitmap(
+            (int)Math.Round(host.Width), (int)Math.Round(host.Height), 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(host);
+
+        int stride = rtb.PixelWidth * 4;
+        var pixels = new byte[stride * rtb.PixelHeight];
+        rtb.CopyPixels(pixels, stride, 0);
+
+        int cropLeft = (int)Math.Round(offset);
+        int cropStride = barcode.PixelWidth * 4;
+        var onScreen = new byte[cropStride * barcode.PixelHeight];
+        for (int y = 0; y < barcode.PixelHeight; y++)
+            Array.Copy(pixels, (y + 4) * stride + cropLeft * 4, onScreen, y * cropStride, cropStride);
+
+        int minBar = MeasureMinBarWidth(onScreen, cropStride, barcode.PixelWidth, barcode.PixelHeight / 2);
+        Assert.True(
+            minBar == moduleWidth,
+            $"屏幕像素里最细的条是 {minBar}px，应为 {moduleWidth}px" +
+            $"（offset={offset} bitmap={barcode.PixelWidth}x{barcode.PixelHeight} host={host.Width}x{host.Height}" +
+            $" bars={DescribeBars(onScreen, cropStride, barcode.PixelWidth, barcode.PixelHeight / 2)}）");
+
+        // 屏幕像素再解一次码：糊掉的条码就算尺寸对，也读不回来
+        var gray = new byte[barcode.PixelWidth * barcode.PixelHeight];
+        for (int y = 0; y < barcode.PixelHeight; y++)
+            for (int x = 0; x < barcode.PixelWidth; x++)
+                gray[y * barcode.PixelWidth + x] = onScreen[y * cropStride + x * 4 + 2];
+
+        Assert.Contains(
+            DecodeCode128(gray, barcode.PixelWidth, barcode.PixelHeight) ?? [],
+            result => string.Equals(result.Text, payload, StringComparison.Ordinal));
+    }
+
+    private static bool IsWhite(byte[] pixels, int index) => pixels[index + 2] > 200;
+
+    private static string DescribeBars(byte[] bgra, int stride, int width, int y)
+    {
+        var runs = new List<(bool Black, int Len)>();
+        bool? current = null;
+        int len = 0;
+        for (int x = 0; x < width; x++)
+        {
+            bool black = bgra[y * stride + x * 4 + 2] < 128;
+            if (current == null) { current = black; len = 1; }
+            else if (current == black) len++;
+            else { runs.Add((current.Value, len)); current = black; len = 1; }
+        }
+        runs.Add((current!.Value, len));
+
+        string bars = string.Join(",", runs.Where(run => run.Black)
+            .GroupBy(run => run.Len).OrderBy(group => group.Key)
+            .Select(group => $"{group.Key}px x{group.Count()}"));
+        return $"lead={runs[0].Len} {bars}";
+    }
+
+    /// <summary>量一行里最细的黑条由几个像素组成</summary>
+    private static int MeasureMinBarWidth(byte[] pixels, int stride, int width, int y)
+    {
+        int minBar = int.MaxValue;
+        int run = 0;
+        for (int x = 0; x < width; x++)
+        {
+            bool isBlack = pixels[y * stride + x * 4 + 2] < 128;
+            if (isBlack)
+            {
+                run++;
+            }
+            else if (run > 0)
+            {
+                minBar = Math.Min(minBar, run);
+                run = 0;
+            }
+        }
+
+        if (run > 0)
+            minBar = Math.Min(minBar, run);
+
+        Assert.True(minBar != int.MaxValue, "渲染结果里没有找到黑条");
+        return minBar;
+    }
+
+    /// <summary>WPF 渲染必须在 STA 线程，且要能解析到 App 的资源（BarcodeHelper 取画刷）</summary>
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                if (Application.Current == null)
+                    _ = new Application();
+                LoadAppResources();
+                action();
+            }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(60)), "STA 线程执行超时");
+        if (failure != null)
+        {
+            throw new Xunit.Sdk.XunitException($"测试条码渲染失败：{failure}");
+        }
+    }
+
+    /// <summary>与 App.xaml 相同的合并顺序，否则条码画刷取不到</summary>
+    private static void LoadAppResources()
+    {
+        string[] files =
+        [
+            "ColorTokens.xaml", "LightTheme.xaml", "ComboBoxTheme.xaml", "DatePickerTheme.xaml",
+            "SpinBoxTheme.xaml", "TextBoxTheme.xaml", "ButtonTheme.xaml", "ScrollBarTheme.xaml",
+            "FluentIcons.xaml", "SliderTheme.xaml", "MenuTheme.xaml"
+        ];
+
+        var merged = new ResourceDictionary();
+        foreach (string file in files)
+        {
+            merged.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri(
+                    $"pack://application:,,,/ExpressPackingMonitoring;component/themes/{file.ToLowerInvariant()}",
+                    UriKind.Absolute)
+            });
+        }
+
+        if (Application.Current != null)
+            Application.Current.Resources = merged;
     }
 }

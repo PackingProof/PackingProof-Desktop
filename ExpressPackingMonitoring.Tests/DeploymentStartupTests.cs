@@ -1708,7 +1708,9 @@ public sealed class DeploymentStartupTests
             "UI",
             "FirstUseSetupWizardWindow.xaml");
 
-        int bottomBar = wizard.LastIndexOf("Grid.Row=\"2\"", StringComparison.Ordinal);
+        // 底部操作条按"只有上边框"这个特征定位：行号会随版面调整变化，
+        // 之前写死 Grid.Row="2"，顶部标题一去掉就假红了。
+        int bottomBar = wizard.LastIndexOf("BorderThickness=\"0,1,0,0\"", StringComparison.Ordinal);
         Assert.True(bottomBar >= 0);
         string bottomSection = wizard[bottomBar..];
         int rightGroup = bottomSection.IndexOf("HorizontalAlignment=\"Right\"", StringComparison.Ordinal);
@@ -1810,7 +1812,11 @@ public sealed class DeploymentStartupTests
             "FirstUseSetupWizardWindow.xaml.cs");
 
         Assert.Contains("面单识别、扫码枪、订单联动和语音提醒", selector, StringComparison.Ordinal);
-        Assert.Contains("是否使用摄像头识别面单", wizard, StringComparison.Ordinal);
+        // 识别页不再用大标题+副标题（会占掉识别预览），主次关系落在两个选项卡片上：
+        // 推荐项写清"实时测试画面中的面单条码"，不用的那项写清后备方案。
+        Assert.DoesNotContain("是否使用摄像头识别面单", wizard, StringComparison.Ordinal);
+        Assert.Contains("实时测试画面中的面单条码", wizard, StringComparison.Ordinal);
+        Assert.Contains("改用扫码枪或手动输入面单号", wizard, StringComparison.Ordinal);
         Assert.Contains("没有扫码枪可直接进入下一步", wizard, StringComparison.Ordinal);
         Assert.Contains("可选扫码枪仍可随时作为后备方案", wizardSource, StringComparison.Ordinal);
     }

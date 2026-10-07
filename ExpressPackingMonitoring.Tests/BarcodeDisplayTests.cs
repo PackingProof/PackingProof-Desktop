@@ -64,6 +64,36 @@ public sealed class BarcodeDisplayTests
         Assert.Contains("BarcodeHelper.Generate(cmd2, 52, 3)", scannerSource);
     }
 
+    /// <summary>
+    /// 向导里的测试条码也必须用和主界面指令条码同一套"上屏不糊"的设置：
+    /// Stretch=None 按原始像素显示，NearestNeighbor 关掉插值，窗口布局取整把落点压到整像素。
+    /// 少了其中任何一条，条码落在半像素上就会被线性缩放糊成 2/5/8 像素的条，扫码枪现场读不出来。
+    /// </summary>
+    [Fact]
+    public void WizardTestBarcodeImage_UsesSameCrispPixelSettingsAsMainWindow()
+    {
+        XDocument wizard = XDocument.Load(FindRepositoryFile(
+            "ExpressPackingMonitoring",
+            "UI",
+            "FirstUseSetupWizardWindow.xaml"));
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XName nameAttribute = XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml");
+
+        XElement image = Assert.Single(
+            wizard.Descendants(presentation + "Image"),
+            element => string.Equals(
+                element.Attribute(nameAttribute)?.Value,
+                "TestBarcodeImage",
+                StringComparison.Ordinal));
+
+        Assert.Equal("None", image.Attribute("Stretch")?.Value);
+        Assert.Equal("True", image.Attribute("SnapsToDevicePixels")?.Value);
+        Assert.Equal("NearestNeighbor", image.Attribute("RenderOptions.BitmapScalingMode")?.Value);
+
+        XElement root = wizard.Root!.Elements(presentation + "Grid").First();
+        Assert.Equal("True", root.Attribute("UseLayoutRounding")?.Value);
+    }
+
     [Fact]
     public void CommandBarcodeLabelsUseConciseLocalizedActions()
     {

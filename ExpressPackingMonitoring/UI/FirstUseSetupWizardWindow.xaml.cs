@@ -20,8 +20,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using ZXing;
-using ZXing.Common;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Logging;
@@ -45,7 +43,8 @@ public partial class FirstUseSetupWizardWindow : Window
     private int _recognitionFrameWidth;
     private int _recognitionFrameHeight;
     private WasapiCapture _micCapture;
-    private readonly string _testBarcodeValue = $"TEST{DateTime.Now:yyyyMMddHHmmss}";
+    // 测试条码要能让普通扫码枪在屏幕上扫出来：值越短模块越宽，这里只留 10 个字符。
+    private readonly string _testBarcodeValue = BuildTestBarcodeValue(DateTime.Now);
     private bool _scannerDetectedEnter;
     private readonly CameraBarcodeRecognitionService _cameraBarcodeRecognition;
     private string _evaluatedCameraMoniker = "";
@@ -140,33 +139,29 @@ public partial class FirstUseSetupWizardWindow : Window
         return true;
     }
 
+    /// <summary>测试条码的条高（DIP）</summary>
+    internal const int TestBarcodeHeight = 96;
+
+    /// <summary>
+    /// 测试条码的模块宽度（DIP）。屏幕扫码靠的就是这个宽度：1 DIP = 0.26 毫米，
+    /// 4 DIP（约 1.06 毫米）和打印指令条码的推荐档一致，再窄现场就开始扫不出来。
+    /// </summary>
+    internal const int TestBarcodeModuleWidth = 4;
+
+    /// <summary>
+    /// 向导里的扫码枪测试条码内容（分钟级时间戳，用户能一眼看出是测试值）。
+    /// 只留 8 个字符是为了让模块能放到 4 DIP 还塞得进卡片宽度。
+    /// </summary>
+    internal static string BuildTestBarcodeValue(DateTime now) => $"TEST{now:HHmm}";
+
     private void RenderTestBarcode()
     {
-        var writer = new BarcodeWriterPixelData
-        {
-            Format = BarcodeFormat.CODE_128,
-            Options = new EncodingOptions
-            {
-                Width = 430,
-                Height = 120,
-                Margin = 12,
-                PureBarcode = false
-            }
-        };
-
-        var pixelData = writer.Write(_testBarcodeValue);
-        var source = BitmapSource.Create(
-            pixelData.Width,
-            pixelData.Height,
-            96,
-            96,
-            PixelFormats.Bgra32,
-            null,
-            pixelData.Pixels,
-            pixelData.Width * 4);
-        source.Freeze();
-
-        TestBarcodeImage.Source = source;
+        // 走项目自己的 BarcodeHelper：标准 Code 128 图案表 + 左右各 10 个模块静区，
+        // 渲染结果同时被 BarcodeRenderRoundTripTests 回读守卫盯着，画错就过不了门禁。
+        TestBarcodeImage.Source = BarcodeHelper.Generate(
+            _testBarcodeValue,
+            TestBarcodeHeight,
+            TestBarcodeModuleWidth);
         TestBarcodeText.Text = $"可选扫码枪测试条码：{_testBarcodeValue}，也可以扫描任意真实面单条码";
     }
 

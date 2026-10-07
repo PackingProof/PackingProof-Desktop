@@ -13,6 +13,33 @@
         Background="{DynamicResource WindowBackground}"
         FontFamily="Microsoft YaHei UI, Segoe UI">
     <Window.Resources>
+        <!-- 字号沿用向导原来的大小（22 号标题等），只把间距按设置页的节奏收紧过 -->
+        <Style x:Key="WizardPageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontWeight" Value="Black"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+
+        <Style x:Key="WizardPageHintStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,3,0,16"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+
+        <Style x:Key="WizardOptionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+
+        <Style x:Key="WizardOptionHintStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,3,0,0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+
         <Style x:Key="WizardCardButtonStyle" TargetType="RadioButton">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
@@ -119,25 +146,14 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="32">
+    <Grid Margin="32" UseLayoutRounding="True">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,22">
-            <TextBlock Text="电脑录像配置向导"
-                       FontSize="28"
-                       FontWeight="Black"
-                       Foreground="{DynamicResource TextPrimary}"/>
-            <TextBlock Text="按步骤配置摄像头、面单识别方式、麦克风和可选扫码枪"
-                       Margin="0,8,0,0"
-                       FontSize="14"
-                       Foreground="{DynamicResource TextSecondary}"/>
-        </StackPanel>
-
-        <Grid Grid.Row="1">
+        <!-- 每个步骤卡片自己带标题，窗口级的大标题+副标题只会白占卡片高度，这里不再重复 -->
+        <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="190"/>
                 <ColumnDefinition Width="24"/>
@@ -166,18 +182,14 @@
                     BorderBrush="{DynamicResource BorderLight}"
                     BorderThickness="1"
                     CornerRadius="12"
-                    Padding="24">
+                    Padding="20">
                 <Grid>
                     <Grid x:Name="ModePage">
                         <StackPanel>
                             <TextBlock Text="选择打包模式"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
+                                       Style="{StaticResource WizardPageTitleStyle}"/>
                             <TextBlock Text="推荐连续打包模式，识别或扫描下一张面单时自动保存上一单"
-                                       Margin="0,8,0,22"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                                       Style="{StaticResource WizardPageHintStyle}"/>
                             <RadioButton x:Name="ContinuousModeRadio"
                                          GroupName="PackingMode"
                                          IsChecked="True"
@@ -196,10 +208,8 @@
                                         </Border>
                                     </DockPanel>
                                     <TextBlock Text="识别或扫描下一张面单条码后，自动结束上一单并开始下一单"
-                                               Margin="0,7,0,0"
-                                               FontSize="14"
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextSecondary}"/>
+                                               Style="{StaticResource WizardOptionHintStyle}"
+                                               FontSize="14"/>
                                 </StackPanel>
                             </RadioButton>
                             <RadioButton x:Name="SameCodeModeRadio"
@@ -207,14 +217,12 @@
                                          Style="{StaticResource WizardCardButtonStyle}">
                                 <StackPanel>
                                     <TextBlock Text="同码停录模式"
-                                               FontSize="18"
-                                               FontWeight="Black"
-                                               Foreground="{DynamicResource TextPrimary}"/>
+                                                   FontSize="18"
+                                                   FontWeight="Black"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
                                     <TextBlock Text="识别或扫描面单条码开始录制，再次识别同一条码停止录制"
-                                               Margin="0,7,0,0"
-                                               FontSize="14"
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextSecondary}"/>
+                                               Style="{StaticResource WizardOptionHintStyle}"
+                                               FontSize="14"/>
                                 </StackPanel>
                             </RadioButton>
                         </StackPanel>
@@ -223,31 +231,29 @@
                     <Grid x:Name="CameraPage" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="选择摄像头"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="选择录像使用的摄像头，并确认实时画面显示正常"
-                                       Margin="0,8,0,20"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondary}"/>
-                        </StackPanel>
-                        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                        <!-- 摄像头标题压成下拉框左边的一行，标题与副标题不再占用预览画面 -->
+                        <StackPanel Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
+                                <TextBlock Text="选择摄像头"
+                                           Margin="0,0,10,0"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimary}"/>
                                 <ComboBox x:Name="CameraComboBox"
+                                          Grid.Column="1"
                                           Height="36"
                                           DisplayMemberPath="Name"
                                           SelectionChanged="CameraComboBox_SelectionChanged"/>
                                 <Button x:Name="NetworkCameraTestButton"
-                                        Grid.Column="1"
+                                        Grid.Column="2"
                                         Content="测试连接"
                                         Height="36"
                                         Margin="8,0,0,0"
@@ -272,7 +278,7 @@
                                 </Grid>
                             </StackPanel>
                         </StackPanel>
-                        <Border Grid.Row="2"
+                        <Border Grid.Row="1"
                                 Background="{StaticResource VideoSurfaceBackground}"
                                 BorderBrush="{DynamicResource BorderDefault}"
                                 BorderThickness="1"
@@ -311,22 +317,10 @@
                     <Grid x:Name="CameraRecognitionPage" Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="是否使用摄像头识别面单"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="开启后可直接将面单条形码放入画面，识别成功后自动开始或切换录像"
-                                       Margin="0,8,0,16"
-                                       FontSize="14"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextSecondary}"/>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <!-- 只留两个选项：标题与副标题去掉，把画面让给识别预览 -->
+                        <Grid Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="12"/>
@@ -340,9 +334,7 @@
                                 <StackPanel>
                                     <DockPanel LastChildFill="False">
                                         <TextBlock Text="使用摄像头识别"
-                                                   FontSize="16"
-                                                   FontWeight="Bold"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                                   Style="{StaticResource WizardOptionTitleStyle}"/>
                                         <Border Margin="8,0,0,0"
                                                 Padding="7,2"
                                                 Background="{DynamicResource AccentBlue}"
@@ -354,9 +346,7 @@
                                         </Border>
                                     </DockPanel>
                                     <TextBlock Text="实时测试画面中的面单条码"
-                                               Margin="0,5,0,0"
-                                               FontSize="13"
-                                               Foreground="{DynamicResource TextSecondary}"/>
+                                               Style="{StaticResource WizardOptionHintStyle}"/>
                                 </StackPanel>
                             </RadioButton>
                             <RadioButton x:Name="DisableCameraRecognitionRadio"
@@ -367,18 +357,14 @@
                                          Style="{StaticResource WizardCardButtonStyle}">
                                 <StackPanel>
                                     <TextBlock Text="不使用摄像头识别"
-                                               FontSize="16"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextPrimary}"/>
+                                               Style="{StaticResource WizardOptionTitleStyle}"/>
                                     <TextBlock Text="改用扫码枪或手动输入面单号"
-                                               Margin="0,5,0,0"
-                                               FontSize="13"
-                                               Foreground="{DynamicResource TextSecondary}"/>
+                                               Style="{StaticResource WizardOptionHintStyle}"/>
                                 </StackPanel>
                             </RadioButton>
                         </Grid>
 
-                        <Grid Grid.Row="2">
+                        <Grid Grid.Row="1">
                             <Border x:Name="CameraRecognitionPreviewPanel"
                                     Background="{StaticResource VideoSurfaceBackground}"
                                     BorderBrush="{DynamicResource BorderDefault}"
@@ -460,14 +446,9 @@
                     <Grid x:Name="RecordingProfilePage" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Text="检测录制性能"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
+                                       Style="{StaticResource WizardPageTitleStyle}"/>
                             <TextBlock Text="正在根据这台电脑的编码能力，为已选摄像头推荐稳定的原生分辨率和帧率"
-                                       Margin="0,8,0,22"
-                                       FontSize="14"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                                       Style="{StaticResource WizardPageHintStyle}"/>
 
                             <Border Background="{DynamicResource ControlBackground}"
                                     BorderBrush="{DynamicResource BorderDefault}"
@@ -477,9 +458,7 @@
                                 <StackPanel>
                                     <TextBlock x:Name="RecordingProfileStatusText"
                                                Text="正在测试 720P、1080P、2K 和 4K 的实时编码能力，请稍候"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               TextWrapping="Wrap"
+                                               Style="{StaticResource WizardOptionTitleStyle}"
                                                Foreground="{DynamicResource AccentBlue}"/>
                                     <controls:SmoothProgressBar x:Name="RecordingProfileProgress"
                                                                 Style="{StaticResource RoundedSmoothProgressBar}"
@@ -504,16 +483,14 @@
                                                        FontWeight="Bold"
                                                        Foreground="{DynamicResource AccentGreen}"/>
                                             <TextBlock x:Name="RecordingProfileResultText"
-                                                       Margin="0,10,0,0"
+                                                       Margin="0,8,0,0"
                                                        FontSize="15"
                                                        LineHeight="24"
                                                        TextWrapping="Wrap"
                                                        Foreground="{DynamicResource TextPrimary}"/>
                                             <TextBlock Text="点击“下一步”继续测试麦克风；完成整个向导后配置才会保存"
-                                                       Margin="0,12,0,0"
-                                                       FontSize="13"
-                                                       TextWrapping="Wrap"
-                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                                       Margin="0,10,0,0"
+                                                       Style="{StaticResource WizardOptionHintStyle}"/>
                                             <Button x:Name="RecordingProfileRetryButton"
                                                     Content="重新检测"
                                                     Margin="0,14,0,0"
@@ -531,9 +508,7 @@
                     <Grid x:Name="MicPage" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Text="选择麦克风"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
+                                       Style="{StaticResource WizardPageTitleStyle}"/>
                             <TextBlock Text="说话时音量条有跳动，就说明麦克风基础配置正常"
                                        Margin="0,8,0,20"
                                        FontSize="14"
@@ -550,10 +525,8 @@
                                     Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="实时音量"
-                                               FontSize="16"
-                                               FontWeight="Bold"
-                                               Foreground="{DynamicResource TextPrimary}"
-                                               Margin="0,0,0,12"/>
+                                               Style="{StaticResource WizardOptionTitleStyle}"
+                                               Margin="0,0,0,10"/>
                                     <!-- 电平表每帧都在更新，不用平滑动画（直接给 Value），只共用圆角外观 -->
                                     <controls:SmoothProgressBar x:Name="MicLevelBar"
                                                                 Style="{StaticResource RoundedSmoothProgressBar}"
@@ -564,7 +537,7 @@
                                                                 Background="{DynamicResource BorderStrong}"/>
                                     <TextBlock x:Name="MicStatusText"
                                                Text="正在准备麦克风..."
-                                               Margin="0,12,0,0"
+                                               Margin="0,10,0,0"
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondary}"/>
                                 </StackPanel>
@@ -575,14 +548,10 @@
                     <Grid x:Name="ScannerPage" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Text="扫码枪（可选）"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
+                                       Style="{StaticResource WizardPageTitleStyle}"/>
                             <TextBlock x:Name="ScannerIntroText"
                                        Text="没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪"
-                                       Margin="0,8,0,18"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                                       Style="{StaticResource WizardPageHintStyle}"/>
                             <Border Background="{DynamicResource ControlBackground}"
                                     BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
@@ -591,9 +560,10 @@
                                     Margin="0,0,0,12">
                                 <StackPanel HorizontalAlignment="Center">
                                     <Image x:Name="TestBarcodeImage"
-                                           Width="430"
-                                           Height="88"
-                                           Stretch="Uniform"/>
+                                           Stretch="None"
+                                           SnapsToDevicePixels="True"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                           HorizontalAlignment="Center"/>
                                     <TextBlock x:Name="TestBarcodeText"
                                                Margin="0,6,0,0"
                                                FontSize="12"
@@ -628,13 +598,9 @@
                     <Grid x:Name="DonePage" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock Text="配置完成"
-                                       FontSize="22"
-                                       FontWeight="Black"
-                                       Foreground="{DynamicResource TextPrimary}"/>
+                                       Style="{StaticResource WizardPageTitleStyle}"/>
                             <TextBlock Text="下面是日常打包流程"
-                                       Margin="0,8,0,20"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextSecondary}"/>
+                                       Style="{StaticResource WizardPageHintStyle}"/>
                             <Border Background="{DynamicResource ControlBackground}"
                                     BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
@@ -658,7 +624,7 @@
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextPrimary}"/>
                                     <TextBlock Text="完成向导后会显示手机连接二维码。手机与这台电脑连接同一个局域网，扫码即可打开打包视频和回放页面"
-                                               Margin="0,7,0,0"
+                                               Margin="0,5,0,0"
                                                FontSize="13"
                                                LineHeight="20"
                                                TextWrapping="Wrap"
@@ -671,9 +637,9 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="1"
                 Margin="0,22,0,0"
-                BorderBrush="{DynamicResource BorderLight}"
+                BorderBrush="{DynamicResource BorderStrong}"
                 BorderThickness="0,1,0,0"
                 Padding="0,16,0,0">
             <Grid>

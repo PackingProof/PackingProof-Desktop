@@ -51,6 +51,13 @@ namespace ExpressPackingMonitoring.Helpers
         /// 生成 Code 128B 条形码为 BitmapSource（WPF 可直接绑定）。
         /// </summary>
         public static BitmapSource Generate(string text, int height = 60, int moduleWidth = 2)
+            => Generate(text, height, moduleWidth, GetDpiScale());
+
+        /// <summary>
+        /// 指定 DPI 缩放的生成入口。主窗口和调用方可能不在同一线程（自动化宿主、测试宿主就是这样），
+        /// 跨线程读主窗口的 DPI 会抛异常，所以缩放值也作为参数暴露出来。
+        /// </summary>
+        internal static BitmapSource Generate(string text, int height, int moduleWidth, double dpiScale)
         {
             if (string.IsNullOrEmpty(text)) text = " ";
 
@@ -58,7 +65,6 @@ namespace ExpressPackingMonitoring.Helpers
 
             // 计算总宽度
             int totalModules = CalculateTotalModules(allCodes);
-            double dpiScale = GetDpiScale();
             (int pixelWidth, int pixelHeight, double moduleWidthDip, double heightDip) =
                 CalculateRasterMetrics(totalModules, height, moduleWidth, dpiScale);
             Brush background = ResolveBrush("BarcodeBackground");
