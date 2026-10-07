@@ -1,3 +1,4 @@
+using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
 using OpenCvSharp;
 using System.Diagnostics;
@@ -591,8 +592,9 @@ internal sealed class CameraBarcodeFailedStartSuppression
 
 internal sealed class CameraBarcodeFrameDecoder : IDisposable
 {
-    internal const double GuideWidthRatio = 0.85;
-    internal const double GuideHeightRatio = 0.85;
+    // 宽高同值 + 居中 是"用户没调过"的哨兵，运行时按实际帧尺寸换成正方形。
+    internal const double GuideWidthRatio = AppConfig.DefaultCameraBarcodeGuideRatio;
+    internal const double GuideHeightRatio = AppConfig.DefaultCameraBarcodeGuideRatio;
     internal const int MaxDecodeDimension = 1440;
     internal const int MaxDecodePixels = 1_200_000;
 

@@ -1,6 +1,7 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.ViewModels;
 using OpenCvSharp;
 using System.Text.Json;
 using Xunit;
@@ -1331,8 +1332,10 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.False(config.EnableCameraBarcodeRecognition);
         Assert.Equal(0, config.CameraBarcodeSetupVersion);
         Assert.Equal(CameraBarcodeSpeed.Standard, config.CameraBarcodeRecognitionSpeed);
-        Assert.Equal(0.85, config.CameraBarcodeGuideWidthRatio);
-        Assert.Equal(0.85, config.CameraBarcodeGuideHeightRatio);
+        // 存下来的是"用户没调过"的哨兵值（宽高同值 + 居中）；
+        // 实际形状在运行时按帧尺寸换算成正方形，见 ResolveMainCameraBarcodeGuideGeometry 的用例。
+        Assert.Equal(AppConfig.DefaultCameraBarcodeGuideRatio, config.CameraBarcodeGuideWidthRatio);
+        Assert.Equal(AppConfig.DefaultCameraBarcodeGuideRatio, config.CameraBarcodeGuideHeightRatio);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetX);
         Assert.Equal(0, config.CameraBarcodeGuideOffsetY);
         Assert.True(config.CameraBarcodeGuideLocked);
@@ -1354,6 +1357,73 @@ public sealed class CameraBarcodeRecognitionTests
         AppConfig.NormalizeAfterLoad(config);
 
         Assert.Equal(expected, config.CameraSameBarcodeConfirmationHits);
+    }
+
+    /// <summary>
+    /// 主摄识别框没调过时按"短边居中方形"算：16:9、4:3、竖装（旋转后的 1080×1920）都是方的，
+    /// 不会被摄像头长宽比带偏 —— 与画中画取景框同一套规则。
+    /// </summary>
+    [Theory]
+    [InlineData(1280, 720)]
+    [InlineData(2560, 1440)]
+    [InlineData(1440, 1080)]
+    [InlineData(1080, 1920)]
+    public void DefaultMainCameraGuide_IsACenteredSquare(int width, int height)
+    {
+        CameraBarcodeGuideGeometry guide =
+            MainViewModel.ResolveMainCameraBarcodeGuideGeometry(new AppConfig(), width, height);
+
+        // 宽高按像素算一样长 = 正方形；边长 = 短边 × 默认比例
+        Assert.Equal(guide.WidthRatio * width, guide.HeightRatio * height, 1);
+        Assert.Equal(
+            AppConfig.DefaultCameraBarcodeGuideRatio * System.Math.Min(width, height),
+            guide.WidthRatio * width,
+            1);
+        Assert.Equal(0.0, guide.OffsetX);
+        Assert.Equal(0.0, guide.OffsetY);
+    }
+
+    /// <summary>
+    /// 用户拖过之后按存下来的比例走（不再强制方形），并按当前旋转换算到旋转后的帧坐标：
+    /// 90° 时宽高比例互换，否则改旋转之后框会盖到另一块区域。
+    /// </summary>
+    [Fact]
+    public void TouchedMainCameraGuide_KeepsStoredGeometryAndFollowsRotation()
+    {
+        var config = new AppConfig
+        {
+            CameraRotationDegrees = 0,
+            CameraBarcodeGuideWidthRatio = 0.5,
+            CameraBarcodeGuideHeightRatio = 0.4
+        };
+
+        CameraBarcodeGuideGeometry upright =
+            MainViewModel.ResolveMainCameraBarcodeGuideGeometry(config, 1280, 720);
+        Assert.Equal(0.5, upright.WidthRatio, 3);
+        Assert.Equal(0.4, upright.HeightRatio, 3);
+
+        config.CameraRotationDegrees = 90;
+        CameraBarcodeGuideGeometry quarterTurn =
+            MainViewModel.ResolveMainCameraBarcodeGuideGeometry(config, 720, 1280);
+        Assert.Equal(0.4, quarterTurn.WidthRatio, 3);
+        Assert.Equal(0.5, quarterTurn.HeightRatio, 3);
+
+        config.CameraRotationDegrees = 180;
+        CameraBarcodeGuideGeometry flipped =
+            MainViewModel.ResolveMainCameraBarcodeGuideGeometry(config, 1280, 720);
+        Assert.Equal(0.5, flipped.WidthRatio, 3);
+        Assert.Equal(0.4, flipped.HeightRatio, 3);
+    }
+
+    /// <summary>摄像头还没出画面（帧尺寸未知）时退回存下来的几何，不能算出 0 尺寸的框。</summary>
+    [Fact]
+    public void MainCameraGuide_FallsBackBeforeFrameSizeIsKnown()
+    {
+        CameraBarcodeGuideGeometry guide =
+            MainViewModel.ResolveMainCameraBarcodeGuideGeometry(new AppConfig(), 0, 0);
+
+        Assert.Equal(AppConfig.DefaultCameraBarcodeGuideRatio, guide.WidthRatio, 3);
+        Assert.Equal(AppConfig.DefaultCameraBarcodeGuideRatio, guide.HeightRatio, 3);
     }
 
     [Fact]

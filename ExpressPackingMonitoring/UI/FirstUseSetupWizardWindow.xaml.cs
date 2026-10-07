@@ -41,6 +41,9 @@ public partial class FirstUseSetupWizardWindow : Window
     private NetworkCameraSource _networkPreviewSource;
     private Task _previewCameraForceStopTask;
     private DateTime _lastPreviewUpdateAt = DateTime.MinValue;
+    /// <summary>识别预览里最近一帧的尺寸（已是旋转后的口径），默认方形取景框按它算。</summary>
+    private int _recognitionFrameWidth;
+    private int _recognitionFrameHeight;
     private WasapiCapture _micCapture;
     private readonly string _testBarcodeValue = $"TEST{DateTime.Now:yyyyMMddHHmmss}";
     private bool _scannerDetectedEnter;
@@ -66,13 +69,11 @@ public partial class FirstUseSetupWizardWindow : Window
                 _config.Fps),
             // 向导里识别的是旋转后的预览帧，几何存的是原生坐标：这里必须先转一次，
             // 否则用户在向导里转过 90° 之后取景区会指到另一块画面上。
-            guideGeometryProvider: () => CameraBarcodeGuideLayout.Rotate(
-                new CameraBarcodeGuideGeometry(
-                    _config.CameraBarcodeGuideWidthRatio,
-                    _config.CameraBarcodeGuideHeightRatio,
-                    _config.CameraBarcodeGuideOffsetX,
-                    _config.CameraBarcodeGuideOffsetY),
-                _config.CameraRotationDegrees),
+            // 没调过时按实际帧短边算正方形，与主界面共用同一个换算。
+            guideGeometryProvider: () => MainViewModel.ResolveMainCameraBarcodeGuideGeometry(
+                _config,
+                _recognitionFrameWidth,
+                _recognitionFrameHeight),
             confirmationHitsProvider: () => _config.CameraSameBarcodeConfirmationHits);
         _cameraBarcodeRecognition.StatusChanged += CameraBarcodeRecognition_StatusChanged;
         _stepTexts = new List<TextBlock>
@@ -924,6 +925,8 @@ public partial class FirstUseSetupWizardWindow : Window
 
             int width = frame.Width;
             int height = frame.Height;
+            _recognitionFrameWidth = width;
+            _recognitionFrameHeight = height;
             byte[] pixels = new byte[width * height * 3];
             Marshal.Copy(frame.Data, pixels, 0, pixels.Length);
             BitmapSource source = BitmapSource.Create(
@@ -1053,6 +1056,8 @@ public partial class FirstUseSetupWizardWindow : Window
             bool recognitionPreview = _isRecognitionPreview;
             if (recognitionPreview)
             {
+                _recognitionFrameWidth = bitmap.Width;
+                _recognitionFrameHeight = bitmap.Height;
                 using Mat recognitionFrame = BitmapToMat(bitmap);
                 _cameraBarcodeRecognition.TrySubmitFrame(
                     recognitionFrame);
@@ -1131,14 +1136,12 @@ public partial class FirstUseSetupWizardWindow : Window
         if (source.PixelWidth <= 0 || source.PixelHeight <= 0 || actualW <= 0 || actualH <= 0)
             return;
 
-        // 画框也要按当前旋转换算：图上这一帧已经是转过之后的。
-        var geometry = CameraBarcodeGuideLayout.Rotate(
-            new CameraBarcodeGuideGeometry(
-                _config.CameraBarcodeGuideWidthRatio,
-                _config.CameraBarcodeGuideHeightRatio,
-                _config.CameraBarcodeGuideOffsetX,
-                _config.CameraBarcodeGuideOffsetY),
-            _config.CameraRotationDegrees);
+        // 画框与识别共用同一个几何：图上这一帧已经是转过之后的，
+        // 没调过时按实际帧短边算正方形（与主界面一致）。
+        var geometry = MainViewModel.ResolveMainCameraBarcodeGuideGeometry(
+            _config,
+            source.PixelWidth,
+            source.PixelHeight);
         double scale = Math.Min(actualW / source.PixelWidth, actualH / source.PixelHeight);
         CameraRecognitionGuide.Width = source.PixelWidth * geometry.WidthRatio * scale;
         CameraRecognitionGuide.Height = source.PixelHeight * geometry.HeightRatio * scale;

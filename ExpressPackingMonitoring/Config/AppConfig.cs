@@ -151,6 +151,13 @@ namespace ExpressPackingMonitoring.Config
         /// </summary>
         public const double DefaultZoomGuideRatio = 2.0 / 3.0;
 
+        /// <summary>
+        /// 识别框默认比例：宽高都取它、居中。它是"用户没调过"的哨兵值——运行时按实际帧尺寸
+        /// 换算成"短边居中的正方形"（见 MainViewModel.ResolveMainCameraBarcodeGuideGeometry），
+        /// 与画中画取景框同一套规则：方形既不会被摄像头长宽比带偏，也不受旋转影响。
+        /// </summary>
+        public const double DefaultCameraBarcodeGuideRatio = 0.85;
+
         /// <summary>叠加画面（画中画）默认采集规格。面单特写是静物，720p 足够看清字样。</summary>
         public const string DefaultOverlayResolutionPreset = "720p";
 
@@ -353,8 +360,8 @@ namespace ExpressPackingMonitoring.Config
         public double PreRecordSeconds { get; set; }
         public double SameCodePostRecordSeconds { get; set; } = 1.5;
         public string CameraBarcodeRecognitionSpeed { get; set; } = CameraBarcodeSpeed.Standard;
-        public double CameraBarcodeGuideWidthRatio { get; set; } = 0.85;
-        public double CameraBarcodeGuideHeightRatio { get; set; } = 0.85;
+        public double CameraBarcodeGuideWidthRatio { get; set; } = DefaultCameraBarcodeGuideRatio;
+        public double CameraBarcodeGuideHeightRatio { get; set; } = DefaultCameraBarcodeGuideRatio;
         public double CameraBarcodeGuideOffsetX { get; set; } = 0;
         public double CameraBarcodeGuideOffsetY { get; set; } = 0;
         // 识别框默认锁住，避免在主页面上被误拖动

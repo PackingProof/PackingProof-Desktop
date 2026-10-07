@@ -66,13 +66,54 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 配置里存的是原生坐标，改旋转后框仍盖住同一块画面区域。
         /// </summary>
         internal CameraBarcodeGuideGeometry MainCameraBarcodeGuideGeometry =>
-            CameraBarcodeGuideLayout.Rotate(
-                new CameraBarcodeGuideGeometry(
-                    Config?.CameraBarcodeGuideWidthRatio ?? CameraBarcodeGuideGeometry.Default.WidthRatio,
-                    Config?.CameraBarcodeGuideHeightRatio ?? CameraBarcodeGuideGeometry.Default.HeightRatio,
-                    Config?.CameraBarcodeGuideOffsetX ?? CameraBarcodeGuideGeometry.Default.OffsetX,
-                    Config?.CameraBarcodeGuideOffsetY ?? CameraBarcodeGuideGeometry.Default.OffsetY),
-                MainCameraRotationDegrees);
+            ResolveMainCameraBarcodeGuideGeometry(
+                Config,
+                _actualCameraWidth,
+                _actualCameraHeight);
+
+        /// <summary>
+        /// 主摄识别框几何（旋转后的帧坐标）。用户没调过（宽高还是默认比例且居中）时按
+        /// "短边居中的正方形"算 —— 也就是默认 1:1 取景框，和画中画取景框同一套规则：
+        /// 边长取实际帧短边 × 默认比例，所以 16:9、4:3 乃至竖装旋转后的画面都是方的，
+        /// 不会被摄像头长宽比带偏；调过之后按存下来的比例走，四角可以自由改大小。
+        ///
+        /// 传进来的宽高是<b>旋转后</b>的帧尺寸（<c>_actualCameraWidth/Height</c> 就是这个口径）；
+        /// 存下来的几何是原生画面坐标，所以"调过"的那一支要按当前旋转换算过去。
+        /// 没调过的默认方形是居中的，转不转都盖住同一块画面，直接按帧尺寸算即可。
+        /// </summary>
+        internal static CameraBarcodeGuideGeometry ResolveMainCameraBarcodeGuideGeometry(
+            AppConfig? config,
+            int rotatedFrameWidth,
+            int rotatedFrameHeight)
+        {
+            double widthRatio = config?.CameraBarcodeGuideWidthRatio
+                ?? AppConfig.DefaultCameraBarcodeGuideRatio;
+            double heightRatio = config?.CameraBarcodeGuideHeightRatio
+                ?? AppConfig.DefaultCameraBarcodeGuideRatio;
+            double offsetX = config?.CameraBarcodeGuideOffsetX ?? 0;
+            double offsetY = config?.CameraBarcodeGuideOffsetY ?? 0;
+
+            bool untouched =
+                Math.Abs(widthRatio - AppConfig.DefaultCameraBarcodeGuideRatio) < 0.001
+                && Math.Abs(heightRatio - AppConfig.DefaultCameraBarcodeGuideRatio) < 0.001
+                && Math.Abs(offsetX) < 0.001
+                && Math.Abs(offsetY) < 0.001;
+
+            if (untouched && rotatedFrameWidth > 0 && rotatedFrameHeight > 0)
+            {
+                double side = Math.Min(rotatedFrameWidth, rotatedFrameHeight)
+                    * AppConfig.DefaultCameraBarcodeGuideRatio;
+                return new CameraBarcodeGuideGeometry(
+                    side / rotatedFrameWidth,
+                    side / rotatedFrameHeight,
+                    0,
+                    0);
+            }
+
+            return CameraBarcodeGuideLayout.Rotate(
+                new CameraBarcodeGuideGeometry(widthRatio, heightRatio, offsetX, offsetY),
+                config?.CameraRotationDegrees ?? 0);
+        }
 
         /// <summary>
         /// 是否正在主画面上调整放大取景框（从设置页"调整放大位置"进入）。
