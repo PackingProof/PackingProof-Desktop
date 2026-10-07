@@ -37,7 +37,8 @@
         <!-- 【必需】3. SettingRow: 用于每一行设置项的容器边框 -->
         <Style x:Key="SettingRow" TargetType="Border">
             <Setter Property="Padding" Value="0,15"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <!-- 行分隔线：BorderLight 在浅色主题下和卡片白底几乎同色，看不见，改用分隔线用的 BorderDefault -->
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
 
@@ -258,7 +259,7 @@
 
         <Style x:Key="SettingsButtonSpinnerStyle" TargetType="{x:Type xctk:ButtonSpinner}">
             <Setter Property="Background" Value="{DynamicResource ControlBackground}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="BorderThickness" Value="1,0,0,0"/>
         </Style>
@@ -297,7 +298,7 @@
                             Grid.Column="2"
                             Visibility="Collapsed"
                             Background="{DynamicResource ControlBackground}"
-                            BorderBrush="{DynamicResource BorderLight}"
+                            BorderBrush="{DynamicResource BorderDefault}"
                             BorderThickness="1,0,0,0"
                             CornerRadius="0,8,8,0">
                         <xctk:ButtonSpinner x:Name="PART_Spinner"
@@ -363,7 +364,7 @@
                             Grid.Column="2"
                             Visibility="Collapsed"
                             Background="{DynamicResource ControlBackground}"
-                            BorderBrush="{DynamicResource BorderLight}"
+                            BorderBrush="{DynamicResource BorderDefault}"
                             BorderThickness="1,0,0,0"
                             CornerRadius="0,8,8,0">
                         <xctk:ButtonSpinner x:Name="PART_Spinner"
@@ -485,7 +486,7 @@
         <Style x:Key="StorageGridCellStyle" TargetType="DataGridCell">
             <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="Padding" Value="6,0"/>
             <Style.Triggers>
@@ -689,7 +690,7 @@
 
         <Style x:Key="SectionDividerStyle" TargetType="Border">
             <Setter Property="Height" Value="1"/>
-            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Background" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="Margin" Value="{StaticResource SectionDividerMargin}"/>
         </Style>
 
@@ -2124,7 +2125,7 @@
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}"
                                                   BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}"
                                                   Foreground="{DynamicResource TextPrimary}"
@@ -2207,7 +2208,7 @@
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}"
                                                   BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}"
                                                   Foreground="{DynamicResource TextPrimary}"
@@ -2279,7 +2280,7 @@
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}"
                                                   BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}"
                                                   Foreground="{DynamicResource TextPrimary}"
@@ -3502,7 +3503,7 @@
                                                   CanUserAddRows="False"
                                                   HeadersVisibility="Column"
                                                   GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}"
                                                   BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}"
                                                   Foreground="{DynamicResource TextPrimary}"
@@ -3570,7 +3571,7 @@
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid ItemsSource="{Binding ExtensionAuthorizations}" AutoGenerateColumns="False"
                                                   CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}" BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
                                                   RowHeight="72" MinHeight="48" MaxHeight="300" SelectionMode="Single"
                                                   PreviewMouseWheel="StorageDataGrid_PreviewMouseWheel" CanUserSortColumns="False"
@@ -3604,7 +3605,7 @@
                                             Background="{DynamicResource ControlBackground}">
                                         <DataGrid ItemsSource="{Binding OrderIntegrationDevices}" AutoGenerateColumns="False"
                                                   CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                                                  HorizontalGridLinesBrush="{DynamicResource BorderLight}" BorderThickness="0"
+                                                  HorizontalGridLinesBrush="{DynamicResource BorderDefault}" BorderThickness="0"
                                                   Background="{StaticResource TransparentBrush}" Foreground="{DynamicResource TextPrimary}"
                                                   RowHeight="64" MinHeight="48" MaxHeight="260" SelectionMode="Single"
                                                   FontSize="13" VerticalContentAlignment="Center"
@@ -3980,7 +3981,7 @@
         </TabControl>
 
         <Border Grid.Row="1"
-                BorderBrush="{DynamicResource BorderLight}"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1,1,0,0"
                 Padding="0,14,0,0">
             <Grid>

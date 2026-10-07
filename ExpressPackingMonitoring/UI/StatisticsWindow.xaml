@@ -148,11 +148,12 @@
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <Border Grid.Row="0" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0"/>
-                        <Border Grid.Row="1" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0"/>
-                        <Border Grid.Row="2" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0"/>
-                        <Border Grid.Row="3" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0"/>
-                        <Border Grid.Row="4" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,1"/>
+                        <!-- 图表网格线：BorderLight 在浅色下和白底几乎同色，看不见 -->
+                        <Border Grid.Row="0" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0"/>
+                        <Border Grid.Row="1" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0"/>
+                        <Border Grid.Row="2" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0"/>
+                        <Border Grid.Row="3" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,0"/>
+                        <Border Grid.Row="4" BorderBrush="{DynamicResource BorderDefault}" BorderThickness="0,1,0,1"/>
                     </Grid>
 
                     <ItemsControl ItemsSource="{Binding ChartData, Mode=OneWay}">

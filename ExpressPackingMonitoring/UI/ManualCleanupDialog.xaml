@@ -14,8 +14,8 @@
         Background="{StaticResource TransparentBrush}"
         Foreground="{DynamicResource TextPrimary}">
     <Border Background="{DynamicResource PanelBackground}"
-            BorderBrush="{DynamicResource BorderDefault}"
-            BorderThickness="1"
+            BorderBrush="{DynamicResource BorderStrong}"
+            BorderThickness="2"
             CornerRadius="14"
             Padding="24">
         <StackPanel>
