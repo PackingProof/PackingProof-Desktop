@@ -403,7 +403,12 @@ namespace ExpressPackingMonitoring.Config
         public string FloatingPreviewCorner { get; set; } = "BottomRight";
         public double BarcodeCooldownSeconds { get; set; } = 2.0;
         public string GpuEncoder { get; set; } = "auto";
-        public string VideoCodec { get; set; } = "h265"; // "h264" or "h265"
+        /// <summary>
+        /// 默认编码格式。用兼容性最好的 H.264 做默认值：H.265 体积更小，
+        /// 但部分电脑和浏览器不能直接播放，新装用户的默认记录要能被任何设备打开。
+        /// 已有配置里存过的值不会被改写，用户可以在设置里自行切换。
+        /// </summary>
+        public string VideoCodec { get; set; } = "h264"; // "h264" or "h265"
         public int VideoCqp { get; set; } = DefaultVideoCqp;
 
         // 全局键盘监听（后台接收扫码枪）

@@ -800,8 +800,9 @@ namespace ExpressPackingMonitoring.UI
             if (Available("av1")) items.Add(new GpuEncoderOption { Value = "av1", DisplayName = "AV1 (极致压缩)" });
             VideoCodecComboBox.ItemsSource = items;
             string current = Config.VideoCodec?.ToLowerInvariant() ?? "h264";
+            // 存的值在本机不可用时的兜底：优先 H.264（兼容性最好），而不是原来的 H.265
             VideoCodecComboBox.SelectedItem = items.FirstOrDefault(i => i.Value == current)
-                ?? items.FirstOrDefault(i => i.Value == "h265")
+                ?? items.FirstOrDefault(i => i.Value == "h264")
                 ?? items.FirstOrDefault();
         }
 

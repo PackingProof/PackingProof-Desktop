@@ -103,11 +103,11 @@ public sealed class EncodingEssentialsTests
     }
 
     [Fact]
-    public void NewConfiguration_DefaultsToScoredHardwareAutoAndH265()
+    public void NewConfiguration_DefaultsToScoredHardwareAutoAndH264()
     {
         var config = new AppConfig();
         Assert.Equal("auto", config.GpuEncoder);
-        Assert.Equal("h265", config.VideoCodec);
+        Assert.Equal("h264", config.VideoCodec);
     }
 
     [Fact]
