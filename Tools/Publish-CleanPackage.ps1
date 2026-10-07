@@ -1597,7 +1597,7 @@ if (-not [string]::IsNullOrWhiteSpace($preservedReleaseNotesText)) {
     Write-Host "Release notes kept from previous run: $releaseNotesPath"
 }
 elseif (-not (Test-Path -LiteralPath $releaseNotesPath -PathType Leaf)) {
-    Copy-Item -LiteralPath (Join-Path $repoRoot "RELEASE_NOTES_TEMPLATE.md") -Destination $releaseNotesPath
+    Copy-Item -LiteralPath (Join-Path $repoRoot "docs\development\RELEASE_NOTES_TEMPLATE.md") -Destination $releaseNotesPath
     Write-Host "Release notes skeleton created: $releaseNotesPath"
 }
 
@@ -1636,7 +1636,7 @@ Write-Host "Commit checklist created: $($commitChecklist.Path)"
 Write-Host "Release notes: $releaseNotesPath"
 Write-Host ""
 Write-Host "发布前必须完成："
-Write-Host "  1. 按 RELEASE_NOTES_TEMPLATE.md 填写 $releaseNotesFileName"
+Write-Host "  1. 按 docs\development\RELEASE_NOTES_TEMPLATE.md 填写 $releaseNotesFileName"
 Write-Host "  2. 逐条核对 $(Split-Path -Leaf $commitChecklist.Path)：$($commitChecklist.Range) 共 $($commitChecklist.Count) 个提交，用户可见变化都要写进发布笔记"
 Write-Host "  3. 填写 $(Split-Path -Leaf $updateJsonPath) 的 title 与 notes（面向启动器显示的简洁摘要）"
 Write-Host "  4. 运行 pwsh -NoProfile -File Tools\Publish-Releases.ps1 -ValidateOnly 自检后再正式发布"

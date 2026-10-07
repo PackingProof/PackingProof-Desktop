@@ -98,6 +98,9 @@ The mobile app supports both Android and iOS: download the signed ARM64 APK for 
 
 ![PackingProof application](Image/软件截图.jpg)
 
+**Jump to**：[Core Features](#core-features) · [Extension Market](#extension-market) · [Workflow](#workflow) · [Quick Start](#quick-start) · [LAN Playback](#lan-playback) · [Order Notes and Refund Interception](#order-notes-and-refund-interception)
+[Recording Storage and Cache](#recording-storage-and-cache) · [Choosing a Download](#choosing-a-download) · [Updating](#updating) · [Uninstalling and Preserving Data](#uninstalling-and-preserving-data) · [Running from Source](#running-from-source) · [Feedback and Contributions](#feedback-and-contributions)
+
 ---
 
 ## Why PackingProof
@@ -146,6 +149,17 @@ One computer can act as a recording storage host and receive:
 The resulting library can be searched and played across the LAN.
 
 The recording file backup host can also archive recordings to a NAS or network share and switches automatically when a NAS is full.
+
+## Extension Market
+
+PackingProof supports the official [extension market](https://gitee.com/PackingProof/PackingProof-Extensions), which installs userscripts and external adapters. Extensions are published and updated independently of the Desktop installer.
+
+Currently supported extensions include:
+
+* [Express Assistant order integration](https://gitee.com/PackingProof/PackingProof-KDZS): syncs orders, memos, and refund status from the Express Assistant (KDZS) pages
+* [PackingProof QQBot](https://gitee.com/PackingProof/PackingProof-QQBot): looks up and sends packing recordings by tracking number in QQ private chats or groups
+
+External adapters must access PackingProof through the user-authorized extension API. They must not read the database, recording directory, or NAS credentials directly. Desktop never runs external programs automatically after installation, and being listed in the market is not a security guarantee for third-party programs.
 
 ## Workflow
 
@@ -428,6 +442,11 @@ Recordings and databases are retained if the database is missing, corrupt, busy,
 
 </details>
 
+<details>
+<summary><strong>Running from Source (developers)</strong></summary>
+
+<br>
+
 ## Running from Source
 
 Development requires:
@@ -451,11 +470,18 @@ cd PackingProof-Desktop
 
 Open and build the solution with Visual Studio, Rider, or the `dotnet` CLI.
 
+</details>
+
 ## Feedback and Contributions
 
 Report problems or suggest features through [GitHub Issues](https://github.com/PackingProof/PackingProof-Desktop/issues) or [Gitee Issues](https://gitee.com/PackingProof/PackingProof-Desktop/issues).
 
 Contributions to testing, documentation, code, and real-world usage guidance are welcome. If PackingProof is useful to you, consider starring the repository so more sellers can discover it.
+
+<details>
+<summary><strong>License and Branding Policy</strong></summary>
+
+<br>
 
 ## License and Branding
 
@@ -463,7 +489,9 @@ PackingProof is open source under the [AGPL-3.0 License](LICENSE).
 
 You may use, study, and modify the project at no cost under the license. Distributing a modified version or providing it as a network service requires compliance with the corresponding AGPL-3.0 source-sharing obligations.
 
-The `PackingProof` name and official application icon are project brand assets. The AGPL-3.0 source-code license does not grant permission to use them as the product identity of a modified version. Public modifications should use a distinct product name and icon, clearly identify themselves as unofficial, and may use “based on PackingProof” to describe their origin. See the [Brand Policy](BRAND_POLICY.md).
+The `PackingProof` name and official application icon are project brand assets. The AGPL-3.0 source-code license does not grant permission to use them as the product identity of a modified version. Public modifications should use a distinct product name and icon, clearly identify themselves as unofficial, and may use “based on PackingProof” to describe their origin. See the [Brand Policy](docs/BRAND_POLICY.md).
+
+</details>
 
 ---
 

@@ -43,7 +43,7 @@ echo Launcher baseline: Tools\launcher-baseline.json
 if defined ARCHIVE_ARGS echo Local 7z archive: enabled
 echo.
 
-echo [WARN] Review RELEASE_CHECKLIST.md before publishing.
+echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
 rem 参数展开后拼成单行，避免 %ARCHIVE_ARGS% 为空时行尾 ^ 续接到空行导致命令被截断。

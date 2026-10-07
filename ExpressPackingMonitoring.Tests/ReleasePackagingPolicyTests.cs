@@ -558,7 +558,7 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "Tools", "ReleaseNotes.Common.ps1"),
             Encoding.UTF8);
         string template = File.ReadAllText(
-            Path.Combine(repositoryRoot, "RELEASE_NOTES_TEMPLATE.md"),
+            Path.Combine(repositoryRoot, "docs", "development", "RELEASE_NOTES_TEMPLATE.md"),
             Encoding.UTF8);
 
         // 启动器会折行，条目太长整页就乱，所以摘要必须卡住单条长度。

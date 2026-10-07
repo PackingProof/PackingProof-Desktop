@@ -11,7 +11,7 @@ if /i "%~1"=="7z" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if /i "%~1"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if defined ARCHIVE_ARGS echo [INFO] Local 7z archive enabled.
 
-echo [WARN] Review RELEASE_CHECKLIST.md before publishing.
+echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
 pwsh -NoProfile -ExecutionPolicy Bypass -File "Tools\Publish-CleanPackage.ps1" -DisablePatch %ARCHIVE_ARGS%

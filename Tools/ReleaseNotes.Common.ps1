@@ -104,7 +104,7 @@ function Get-ReleaseNotesProblems {
 
     $problems = New-Object System.Collections.Generic.List[string]
     if (-not (Test-Path -LiteralPath $NotesPath -PathType Leaf)) {
-        $problems.Add("发布笔记不存在：$NotesPath（按 RELEASE_NOTES_TEMPLATE.md 编写，或先运行 Tools\Publish-CleanPackage.ps1 生成骨架）")
+        $problems.Add("发布笔记不存在：$NotesPath（按 docs\development\RELEASE_NOTES_TEMPLATE.md 编写，或先运行 Tools\Publish-CleanPackage.ps1 生成骨架）")
         return $problems
     }
 
@@ -216,7 +216,7 @@ function Test-ReleaseNotesIsTemplate {
         return $true
     }
 
-    $templatePath = Join-Path $RepoRoot "RELEASE_NOTES_TEMPLATE.md"
+    $templatePath = Join-Path $RepoRoot "docs\development\RELEASE_NOTES_TEMPLATE.md"
     if (Test-Path -LiteralPath $templatePath -PathType Leaf) {
         $template = [System.IO.File]::ReadAllText($templatePath, [System.Text.Encoding]::UTF8)
         if (-not [string]::IsNullOrWhiteSpace($template) -and

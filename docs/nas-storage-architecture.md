@@ -25,7 +25,7 @@ flowchart LR
 - **LocalMissingUnverified / BackupLost**：本地缺失统一走历史证据 + 三态探测判定——Exists+证据 → LocalDeleted（确认）；Exists 无证据 / Unavailable → LocalMissingUnverified（计入、人工核实）；ConfirmedMissing → BackupLost（计入、最高级异常、不自动恢复）；Conflict 本地缺失 → BackupLost（`ConflictLocalMissing`）；NasDeleted 本地缺失按策略删除证据分流（有 → 策略终态，无 → BackupLost）。两者都不进回填/上传队列、不递增重试。
 - **状态卡片公共控件**：主界面（手机/电脑备份、录像备份、订单联动、从机保存主机/录像上传）与录像文件备份主机窗口共用 `StatusCard` 控件（图标 + 标题 + 短状态 + 详情/内容区），短状态颜色规则集中维护；备份主机窗口头部显示电脑昵称 + IP，并在左侧展示“手机/电脑备份、录像备份、订单联动”三张卡片，右侧操作按钮不变。
 - 默认存储列表只含本地固定磁盘；网络位置必须由用户在“存储管理”手动添加（映射盘保存前归一化为 UNC）。
-- **NAS 滚动归档**：NAS 用于扩展本地录像的保存周期；NAS 空间不足时按最旧优先循环清理已确认归档的副本（候选含 `Verified` 与已成功归档的 `LocalDeleted`），记录保留可查；用户删除仍只删本地记录，不主动删 NAS。
+- **NAS 滚动归档**：NAS 用于扩展本地录像的保存周期；NAS 空间不足时按最旧优先循环清理已确认归档的副本（候选含 `Verified`、已成功归档的 `LocalDeleted`，以及用户删除的记录——后者按 `DeleteReasonCode = UserRequested` 单独放行，回收时只把状态改成 `NasDeleted` 并保留用户删除的原因码），记录保留可查；用户删除动作本身只删本地副本、不当场删 NAS 归档。
 - **本地循环不依赖 NAS 可达性**：NAS 从未配置、暂时掉线或永久消失都不能阻止本地录像按容量策略循环；`Verified` 本地副本在“远端确认过期”（24 小时）后仍可被本地 GC 清理，未确认清理打独立原因码，由对账兜底校正。
 - **对账只认“明确不存在”**：探测三态（Exists/ConfirmedMissing/Unavailable）；只有明确不存在才把 `Verified/LocalDeleted` 修复为 `NasDeleted/IsDeleted`，网络不可达/超时/权限错误一律保持原状态，下轮再探测。
 - **NAS 空间状态只影响归档任务**：NAS 满时限频提示（60 分钟冷却），不影响本地录像、本地 GC 与硬循环保护机制。
@@ -80,7 +80,7 @@ stateDiagram-v2
 
 队列查询：`GetPendingArchives` 按 Copying → Verifying → Pending（**EndTime 降序，新录像优先**）→ Failed（到期优先）排序；`NASFull` 不进入队列，由空间检查恢复后重新入队；队列为空时完成即唤醒可秒级归档刚结束的录像。NAS 恢复后新录像先归档，历史积压按批次上限自然限速补传。
 
-`PendingDeleteAt` 列仅为旧数据库兼容保留，新代码完全不读写；`UserRequested` 仅表示用户请求删除本地记录，不代表删除 NAS 归档。
+`PendingDeleteAt` 列仅为旧数据库兼容保留，新代码完全不读写；`UserRequested` 表示用户请求删除本地记录——删除时只删本地副本并写删除日志，NAS 归档不当场删除，但该记录会重新进入 NAS 容量循环清理的候选，等备份盘空间低于预留值时按最旧优先回收。
 
 未来出现多归档目标（NAS + 云）时，拆独立 `ArchiveQueue` 表并按目标路由，`VideoRecords` 只保留状态摘要。
 

@@ -135,10 +135,12 @@ public sealed class ReleaseNotesPreservationTests
             Directory.CreateDirectory(root);
 
             string template = File.ReadAllText(
-                Path.Combine(repositoryRoot, "RELEASE_NOTES_TEMPLATE.md"),
+                Path.Combine(repositoryRoot, "docs", "development", "RELEASE_NOTES_TEMPLATE.md"),
                 Encoding.UTF8);
+            string templateDirectory = Path.Combine(root, "docs", "development");
+            Directory.CreateDirectory(templateDirectory);
             File.WriteAllText(
-                Path.Combine(root, "RELEASE_NOTES_TEMPLATE.md"),
+                Path.Combine(templateDirectory, "RELEASE_NOTES_TEMPLATE.md"),
                 template,
                 new UTF8Encoding(false));
             return new TempRepo(root, template);
