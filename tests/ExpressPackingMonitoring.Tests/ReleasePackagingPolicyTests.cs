@@ -693,7 +693,8 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, "AGENTS.md"),
             Encoding.UTF8);
 
-        // 改动一律走 PR：我们自己发现的 bug 先在 GitHub 开 issue，再提 PR 并在说明里关联；
+        // 改动默认走 PR；只有发布准备阶段仅更新版本号的 chore 可以直接提交 main。
+        // 我们自己发现的 bug 先在 GitHub 开 issue，再提 PR 并在说明里关联；
         // 性能、功能、工具、文档这类不是 bug 的改动直接提 PR，不必为了留痕再补 issue。
         // PR 默认 Gitee 和 GitHub 两边都提，合并用快进（提交原样保留）；提交前必须人工确认。
         // 脚本默认值和规范必须同步，避免流程说一套、脚本做另一套。
@@ -709,7 +710,9 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("提交 PR 必须人工确认", agentGuide, StringComparison.Ordinal);
         Assert.Contains("PR 默认 Gitee 和 GitHub 两边都提", agentGuide, StringComparison.Ordinal);
         Assert.Contains("PR 合并使用快进", agentGuide, StringComparison.Ordinal);
-        Assert.Contains("不再直接向 `main` 推送提交", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("发布准备阶段仅更新 `Directory.Build.props` 版本号", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("不得夹带代码、配置、测试或文档修改", releaseDocument, StringComparison.Ordinal);
+        Assert.Contains("发布准备阶段可以单独提交", agentGuide, StringComparison.Ordinal);
         Assert.Contains("先在 GitHub 开 issue", releaseDocument, StringComparison.Ordinal);
         Assert.Contains("先在 GitHub 开 issue", agentGuide, StringComparison.Ordinal);
         Assert.Contains("别人在某平台提的 issue", agentGuide, StringComparison.Ordinal);
