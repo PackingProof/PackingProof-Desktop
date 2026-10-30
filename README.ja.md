@@ -67,12 +67,8 @@
 
 <br>
 
-<a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
-  <img src="https://img.shields.io/badge/ダウンロード-Windows%20%E7%89%88-D97745?style=for-the-badge&logo=windows&logoColor=white" height="38" alt="Windows 版をダウンロード">
-</a>
-&nbsp;
-<a href="https://apps.microsoft.com/detail/9PKXFSV7ZQPV?cid=storebadge&ocid=badge">
-  <img src="https://developer.microsoft.com/store/badges/images/English_get-it-from-MS.png" height="38" alt="Microsoft Store から入手">
+<a href="https://get.microsoft.com/installer/download/9pkxfsv7zqpv?referrer=appbadge">
+  <img src="https://get.microsoft.com/images/ja%20dark.svg" height="38" alt="Microsoft Store から入手">
 </a>
 &nbsp;
 <a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
