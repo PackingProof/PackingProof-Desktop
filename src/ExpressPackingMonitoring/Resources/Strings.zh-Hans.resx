@@ -1512,7 +1512,6 @@
   <data name="正在切换" xml:space="preserve"><value>正在切换</value></data>
   <data name="正在切换视频..." xml:space="preserve"><value>正在切换视频...</value></data>
   <data name="正在清理临时文件，请稍候" xml:space="preserve"><value>正在清理临时文件，请稍候</value></data>
-  <data name="正在取消" xml:space="preserve"><value>正在取消</value></data>
   <data name="正在取消导出" xml:space="preserve"><value>正在取消导出</value></data>
   <data name="正在扫描 MKV 记录..." xml:space="preserve"><value>正在扫描 MKV 记录...</value></data>
   <data name="正在停止..." xml:space="preserve"><value>正在停止...</value></data>
@@ -1807,4 +1806,26 @@
   <data name="该扩展从本地 PPEXT 安装，未提供简介" xml:space="preserve"><value>该扩展从本地 PPEXT 安装，未提供简介</value></data>
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>该扩展从本地 PPEXT 安装，不会从市场自动更新</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
+  <data name="改进面单识别与放大" xml:space="preserve"><value>改进面单识别与放大</value></data>
+  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>按打包模式截取开头或结尾画面，改进面单识别与放大</value></data>
+  <data name="导出样本包" xml:space="preserve"><value>导出样本包</value></data>
+  <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>只读取本机录像并抽取少量画面。样本包不含录像、数据库、配置或日志，但会附带匿名设备标识；画面可能包含面单或人物，请确认后再发送</value></data>
+  <data name="开始抓取" xml:space="preserve"><value>开始抓取</value></data>
+  <data name="正在生成样本包" xml:space="preserve"><value>正在生成样本包</value></data>
+  <data name="正在导出样本包" xml:space="preserve"><value>正在导出样本包</value></data>
+  <data name="正在准备样本" xml:space="preserve"><value>正在准备样本</value></data>
+  <data name="正在压缩样本" xml:space="preserve"><value>正在压缩样本</value></data>
+  <data name="正在抓取样本 {0}/{1}" xml:space="preserve"><value>正在抓取样本 {0}/{1}</value></data>
+  <data name="正在取消" xml:space="preserve"><value>正在取消</value></data>
+  <data name="样本包已生成" xml:space="preserve"><value>样本包已生成</value></data>
+  <data name="图片：{0} 张" xml:space="preserve"><value>图片：{0} 张</value></data>
+  <data name="大小：{0}" xml:space="preserve"><value>大小：{0}</value></data>
+  <data name="已复制路径并打开所在文件夹" xml:space="preserve"><value>已复制路径并打开所在文件夹</value></data>
+  <data name="请检查画面内容后，把压缩包发送到 {0}" xml:space="preserve"><value>请检查画面内容后，把压缩包发送到 {0}</value></data>
+  <data name="复制邮箱地址" xml:space="preserve"><value>复制邮箱地址</value></data>
+  <data name="知道了" xml:space="preserve"><value>知道了</value></data>
+  <data name="已复制反馈邮箱：{0}" xml:space="preserve"><value>已复制反馈邮箱：{0}</value></data>
+  <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>请把刚生成的样本包作为附件发送</value></data>
+  <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>没能写入剪贴板，请手动记录反馈邮箱：{0}</value></data>
+  <data name="样本包生成失败：{0}" xml:space="preserve"><value>样本包生成失败：{0}</value></data>
 </root>

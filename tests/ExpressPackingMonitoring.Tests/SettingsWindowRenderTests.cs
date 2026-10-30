@@ -5,6 +5,7 @@ using System.Windows.Data;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.UI;
+using ExpressPackingMonitoring.UI.Controls;
 using System.Globalization;
 using Xunit;
 
@@ -163,6 +164,54 @@ public sealed class SettingsWindowRenderTests
                 BindingOperations.GetBinding(row, UIElement.VisibilityProperty)?.Path.Path);
 
             window.Close();
+        });
+    }
+
+    [Fact]
+    public void Constructor_RecognitionSampleExportControlsAreAvailable()
+    {
+        RunOnStaThread(() =>
+        {
+            var config = new AppConfig
+            {
+                DeploymentPreset = DeploymentPresets.RecordingWorkstation
+            };
+            AppConfig.NormalizeAfterLoad(config);
+            var context = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(config.DeploymentPreset),
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+
+            var window = new SettingsWindow(context, config, 12d, "12%");
+            window.Measure(new Size(1200, 900));
+            window.Arrange(new Rect(0, 0, 1200, 900));
+            window.UpdateLayout();
+
+            var button = Assert.IsType<Button>(window.FindName("ExportRecognitionSamplesButton"));
+            Assert.Equal(AppLanguage.Get("导出样本包"), button.Content);
+
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void Constructor_RecognitionSampleProgressDialogIsAvailable()
+    {
+        RunOnStaThread(() =>
+        {
+            var dialog = new RecognitionSampleExportProgressDialog(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString());
+            dialog.Measure(new Size(520, 320));
+            dialog.Arrange(new Rect(0, 0, 520, 320));
+            dialog.UpdateLayout();
+
+            Assert.Equal(AppLanguage.Get("正在导出样本包"), dialog.Title);
+            Assert.IsType<SmoothProgressBar>(
+                dialog.FindName("ExportProgressBar"));
+            Assert.IsType<Button>(dialog.FindName("CancelExportButton"));
+            dialog.Content = null;
         });
     }
 

@@ -1511,7 +1511,6 @@
   <data name="正在切换" xml:space="preserve"><value>Switching</value></data>
   <data name="正在切换视频..." xml:space="preserve"><value>Switching videos...</value></data>
   <data name="正在清理临时文件，请稍候" xml:space="preserve"><value>Cleaning up temporary files. Please wait</value></data>
-  <data name="正在取消" xml:space="preserve"><value>Canceling</value></data>
   <data name="正在取消导出" xml:space="preserve"><value>Canceling the export</value></data>
   <data name="正在扫描 MKV 记录..." xml:space="preserve"><value>Scanning MKV records...</value></data>
   <data name="正在停止..." xml:space="preserve"><value>Stopping...</value></data>
@@ -1805,4 +1804,26 @@
   <data name="该扩展从本地 PPEXT 安装，未提供简介" xml:space="preserve"><value>This extension was installed from a local PPEXT and has no description</value></data>
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>This extension was installed from a local PPEXT and will not update automatically from the marketplace</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>Local extensions are not reviewed by the marketplace. PackingProof cannot inspect their behavior or restrict their access to network, files, or other system resources</value></data>
+  <data name="改进面单识别与放大" xml:space="preserve"><value>Improve label recognition and zoom</value></data>
+  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>Samples opening or ending frames based on packing mode</value></data>
+  <data name="导出样本包" xml:space="preserve"><value>Export samples</value></data>
+  <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>Only sample frames are read from local recordings. The package has no videos, database, settings, or logs, but includes an anonymous device ID and may show labels or people. Review it before sending</value></data>
+  <data name="开始抓取" xml:space="preserve"><value>Start capture</value></data>
+  <data name="正在生成样本包" xml:space="preserve"><value>Creating sample package</value></data>
+  <data name="正在导出样本包" xml:space="preserve"><value>Exporting sample package</value></data>
+  <data name="正在准备样本" xml:space="preserve"><value>Preparing samples</value></data>
+  <data name="正在压缩样本" xml:space="preserve"><value>Compressing samples</value></data>
+  <data name="正在抓取样本 {0}/{1}" xml:space="preserve"><value>Capturing samples {0}/{1}</value></data>
+  <data name="正在取消" xml:space="preserve"><value>Canceling</value></data>
+  <data name="样本包已生成" xml:space="preserve"><value>Sample package created</value></data>
+  <data name="图片：{0} 张" xml:space="preserve"><value>Images: {0}</value></data>
+  <data name="大小：{0}" xml:space="preserve"><value>Size: {0}</value></data>
+  <data name="已复制路径并打开所在文件夹" xml:space="preserve"><value>The path was copied and its folder opened</value></data>
+  <data name="请检查画面内容后，把压缩包发送到 {0}" xml:space="preserve"><value>Check the frames, then send the package to {0}</value></data>
+  <data name="复制邮箱地址" xml:space="preserve"><value>Copy email address</value></data>
+  <data name="知道了" xml:space="preserve"><value>OK</value></data>
+  <data name="已复制反馈邮箱：{0}" xml:space="preserve"><value>Feedback email copied: {0}</value></data>
+  <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>Send the generated sample package as an attachment</value></data>
+  <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>Could not write to the clipboard. Copy the feedback email manually: {0}</value></data>
+  <data name="样本包生成失败：{0}" xml:space="preserve"><value>Could not create the sample package: {0}</value></data>
 </root>

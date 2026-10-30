@@ -129,6 +129,9 @@
     <Compile Include="Services\WinRtPlacementService.cs" />
     <Compile Include="Services\WpfQrCode.cs" />
     <Compile Include="Services\FeedbackPackageService.cs" />
+    <Compile Include="Services\RecordingSampleSelectionPolicy.cs" />
+    <Compile Include="Services\RecordingSamplePackageService.cs" />
+    <Compile Include="Services\RecordingSampleContributionStore.cs" />
     <Compile Include="Services\UninstallCleanupService.cs" />
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
@@ -260,9 +263,11 @@
     <Compile Include="UI\PlaybackWindowFitPolicy.cs" />
     <Compile Include="UI\PlaybackControlBarPolicy.cs" />
     <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />
+    <Compile Include="UI\RecognitionSampleExportProgressDialog.xaml.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
+    <Compile Include="UI\SettingsWindow.SampleContribution.cs" />
     <Compile Include="UI\SettingsWindow.ZoomGuide.cs" />
     <Compile Include="UI\SettingsWindow.About.cs" />
     <Compile Include="Localization\LocalizedExtension.cs" />

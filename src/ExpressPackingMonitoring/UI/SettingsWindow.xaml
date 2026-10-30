@@ -3990,6 +3990,26 @@
                                                 Style="{StaticResource SecondaryButtonStyle}"
                                                 HorizontalAlignment="Left"/>
                                     </Grid>
+
+                                    <Grid Style="{StaticResource SettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="300"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="{loc:Localized 改进面单识别与放大}" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="{loc:Localized 按打包模式截取开头或结尾画面，改进面单识别与放大}"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Button x:Name="ExportRecognitionSamplesButton"
+                                                Grid.Column="2"
+                                                Content="{loc:Localized 导出样本包}"
+                                                Click="ExportRecognitionSamples_Click"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                HorizontalAlignment="Left"/>
+                                    </Grid>
+
                                 </StackPanel>
                             </Border>
 

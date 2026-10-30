@@ -264,6 +264,11 @@ public sealed class WindowConstructionTests
                 new OrderNumberExportFilter(null, null),
                 Path.Combine(Path.GetTempPath(), "订单号导出.csv")));
         yield return (
+            "ExpressPackingMonitoring.UI.RecognitionSampleExportProgressDialog",
+            () => new RecognitionSampleExportProgressDialog(
+                Path.GetTempPath(),
+                Guid.NewGuid().ToString()));
+        yield return (
             "ExpressPackingMonitoring.UI.StoragePathSelectionDialog",
             () => new StoragePathSelectionDialog(Path.Combine(Path.GetTempPath(), "PackingProofVideos")));
         yield return (

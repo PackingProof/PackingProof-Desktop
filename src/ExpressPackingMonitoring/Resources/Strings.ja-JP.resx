@@ -1510,7 +1510,6 @@
   <data name="正在切换" xml:space="preserve"><value>切り替え中</value></data>
   <data name="正在切换视频..." xml:space="preserve"><value>動画を切り替え中...</value></data>
   <data name="正在清理临时文件，请稍候" xml:space="preserve"><value>一時ファイルを削除中です。しばらくお待ちください</value></data>
-  <data name="正在取消" xml:space="preserve"><value>キャンセル中</value></data>
   <data name="正在取消导出" xml:space="preserve"><value>エクスポートをキャンセル中</value></data>
   <data name="正在扫描 MKV 记录..." xml:space="preserve"><value>MKV の記録をスキャン中...</value></data>
   <data name="正在停止..." xml:space="preserve"><value>停止中...</value></data>
@@ -1805,4 +1804,26 @@
   <data name="该扩展从本地 PPEXT 安装，未提供简介" xml:space="preserve"><value>この拡張はローカル PPEXT からインストールされ、説明はありません</value></data>
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>この拡張はローカル PPEXT からインストールされたため、マーケットから自動更新されません</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>ローカル拡張はマーケット審査を受けていません。PackingProof は内部動作を審査できず、ネットワーク、ファイル、その他のシステム リソースへのアクセスも制限できません</value></data>
+  <data name="改进面单识别与放大" xml:space="preserve"><value>送り状の認識と拡大</value></data>
+  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>記録モードに応じて冒頭・末尾を抽出</value></data>
+  <data name="导出样本包" xml:space="preserve"><value>サンプルを書き出す</value></data>
+  <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>ローカル録画からフレームのみを抽出します。録画、データベース、設定、ログは含みませんが、匿名の端末 ID を含み、送り状や人物が映る場合があります。確認してから送信してください</value></data>
+  <data name="开始抓取" xml:space="preserve"><value>取得を開始</value></data>
+  <data name="正在生成样本包" xml:space="preserve"><value>サンプル パッケージを作成中</value></data>
+  <data name="正在导出样本包" xml:space="preserve"><value>サンプル パッケージを出力中</value></data>
+  <data name="正在准备样本" xml:space="preserve"><value>サンプルを準備中</value></data>
+  <data name="正在压缩样本" xml:space="preserve"><value>サンプルを圧縮中</value></data>
+  <data name="正在抓取样本 {0}/{1}" xml:space="preserve"><value>サンプル取得中 {0}/{1}</value></data>
+  <data name="正在取消" xml:space="preserve"><value>キャンセル中</value></data>
+  <data name="样本包已生成" xml:space="preserve"><value>サンプル パッケージを作成しました</value></data>
+  <data name="图片：{0} 张" xml:space="preserve"><value>画像: {0} 枚</value></data>
+  <data name="大小：{0}" xml:space="preserve"><value>サイズ: {0}</value></data>
+  <data name="已复制路径并打开所在文件夹" xml:space="preserve"><value>パスをコピーし、保存先フォルダーを開きました</value></data>
+  <data name="请检查画面内容后，把压缩包发送到 {0}" xml:space="preserve"><value>画像を確認してから、パッケージを {0} に送信してください</value></data>
+  <data name="复制邮箱地址" xml:space="preserve"><value>メール アドレスをコピー</value></data>
+  <data name="知道了" xml:space="preserve"><value>OK</value></data>
+  <data name="已复制反馈邮箱：{0}" xml:space="preserve"><value>フィードバック メールをコピーしました: {0}</value></data>
+  <data name="请把刚生成的样本包作为附件发送" xml:space="preserve"><value>作成したサンプル パッケージを添付して送信してください</value></data>
+  <data name="没能写入剪贴板，请手动记录反馈邮箱：{0}" xml:space="preserve"><value>クリップボードに書き込めませんでした。フィードバック メールを手動で控えてください: {0}</value></data>
+  <data name="样本包生成失败：{0}" xml:space="preserve"><value>サンプル パッケージを作成できませんでした: {0}</value></data>
 </root>
