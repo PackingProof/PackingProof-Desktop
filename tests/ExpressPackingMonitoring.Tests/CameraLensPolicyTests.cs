@@ -207,6 +207,15 @@ public sealed class CameraLensPolicyTests
 
         Assert.Contains("x:Name=\"LensFocusAutoButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LensFocusManualButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LensFocusFrameIcon\"", xaml, StringComparison.Ordinal);
+        int lensButtonStart = xaml.IndexOf("x:Name=\"BtnLensControl\"", StringComparison.Ordinal);
+        int lensButtonEnd = xaml.IndexOf("</Button>", lensButtonStart, StringComparison.Ordinal);
+        Assert.True(lensButtonStart >= 0 && lensButtonEnd > lensButtonStart);
+        string lensButton = xaml[lensButtonStart..lensButtonEnd];
+        Assert.Contains("Width=\"32\"", lensButton, StringComparison.Ordinal);
+        Assert.Contains("Height=\"32\"", lensButton, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius=\"8\"", lensButton, StringComparison.Ordinal);
+        Assert.Contains("Property=\"BorderThickness\" Value=\"2\"", lensButton, StringComparison.Ordinal);
         Assert.Contains(
             "Command=\"{Binding SetLensFocusAutoCommand}\"",
             xaml,

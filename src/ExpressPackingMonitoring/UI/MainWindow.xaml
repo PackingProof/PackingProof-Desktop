@@ -642,33 +642,76 @@
                                 </Style>
                             </StackPanel.Style>
                             <Button x:Name="BtnLensControl"
-                                    Width="34"
-                                    Height="34"
+                                    Width="32"
+                                    Height="32"
                                     Command="{Binding ToggleLensPanelCommand}"
                                     Focusable="False"
                                     Cursor="Hand"
+                                    UseLayoutRounding="True"
+                                    SnapsToDevicePixels="True"
                                     ToolTip="{loc:Localized 镜头焦距}"
                                     AutomationProperties.Name="{loc:Localized 镜头焦距}">
                                 <Button.Style>
                                     <Style TargetType="Button">
-                                        <Setter Property="Background" Value="{StaticResource OverlayStrong}"/>
+                                        <Setter Property="Background" Value="{StaticResource CameraPreviewOverlayButtonBackground}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource CameraPreviewOverlayButtonBorder}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border x:Name="LensButtonBorder"
                                                             Background="{TemplateBinding Background}"
-                                                            CornerRadius="17">
-                                                        <Path Data="{StaticResource FluentCameraIcon}"
-                                                              Width="17"
-                                                              Height="17"
-                                                              Stretch="Uniform"
-                                                              Fill="{StaticResource TextOnAccent}"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"/>
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            UseLayoutRounding="True"
+                                                            SnapsToDevicePixels="True">
+                                                        <Viewbox x:Name="LensFocusFrameIcon"
+                                                                 Width="16"
+                                                                 Height="16"
+                                                                 Stretch="Uniform"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path Data="M4 8V5.2C4 4.54 4.54 4 5.2 4H8"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      StrokeLineJoin="Round"/>
+                                                                <Path Data="M16 4H18.8C19.46 4 20 4.54 20 5.2V8"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      StrokeLineJoin="Round"/>
+                                                                <Path Data="M20 16V18.8C20 19.46 19.46 20 18.8 20H16"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      StrokeLineJoin="Round"/>
+                                                                <Path Data="M8 20H5.2C4.54 20 4 19.46 4 18.8V16"
+                                                                      Stroke="{StaticResource TextOnAccent}"
+                                                                      StrokeThickness="1.8"
+                                                                      StrokeStartLineCap="Round"
+                                                                      StrokeEndLineCap="Round"
+                                                                      StrokeLineJoin="Round"/>
+                                                                <Ellipse Canvas.Left="9.65"
+                                                                         Canvas.Top="9.65"
+                                                                         Width="4.7"
+                                                                         Height="4.7"
+                                                                         Stroke="{StaticResource TextOnAccent}"
+                                                                         StrokeThickness="1.8"/>
+                                                            </Canvas>
+                                                        </Viewbox>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsMouseOver" Value="True">
                                                             <Setter TargetName="LensButtonBorder" Property="Opacity" Value="0.85"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="LensButtonBorder" Property="Opacity" Value="0.7"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
