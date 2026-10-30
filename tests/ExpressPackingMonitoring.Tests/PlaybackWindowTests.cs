@@ -117,6 +117,45 @@ public sealed class PlaybackWindowTests
     }
 
     [Fact]
+    public void WindowClose_KeepsNativePlayerReleaseOffUiThread()
+    {
+        string windowSource = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+        string playbackSource = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.Playback.cs"));
+        string normalizedPlaybackSource = playbackSource.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("BeginPlaybackShutdown();", windowSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("_mediaPlayer.Stop();", windowSource, StringComparison.Ordinal);
+        Assert.Contains("private void BeginPlaybackShutdown()", normalizedPlaybackSource, StringComparison.Ordinal);
+        Assert.Contains(
+            "Task.Run(() =>\n                DisposePlaybackResourcesOnBackground",
+            normalizedPlaybackSource,
+            StringComparison.Ordinal);
+        Assert.Contains("PlayerView.MediaPlayer = null;", normalizedPlaybackSource, StringComparison.Ordinal);
+        Assert.Contains("player?.Stop();", normalizedPlaybackSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlayerInitialization_RequiresAnEmbeddedVideoHandleBeforePlayback()
+    {
+        string windowSource = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "UI",
+            "PlaybackWindow.xaml.cs"));
+
+        Assert.Contains("if (_mediaPlayer.Hwnd == IntPtr.Zero)", windowSource, StringComparison.Ordinal);
+        Assert.Contains("内置播放器未能连接到回放窗口", windowSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GetOrderDisplayName_PrefersTrackingNumber()
     {
         string result = PlaybackWindow.GetOrderDisplayName(

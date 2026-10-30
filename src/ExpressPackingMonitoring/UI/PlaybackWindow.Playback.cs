@@ -29,6 +29,7 @@ public partial class PlaybackWindow
     private int _fittedVideoHeight;
     private bool _initialWindowFitDone;
     private bool _initialWindowFitRequested;
+    private bool _playbackShutdownStarted;
     /// <summary>当前这段录像的显示尺寸是否已经由解析得到（用来决定还要不要用播放器报的尺寸兜底）。</summary>
     private bool _currentVideoSizeKnown;
     private string _lastProbedPath = "";
@@ -62,6 +63,109 @@ public partial class PlaybackWindow
     {
         _pendingStartUnpause = false;
         _startUnpauseFallback?.Stop();
+    }
+
+    /// <summary>
+    /// 关闭回放窗口时先断开 WPF 与 LibVLC 的连接，再把会等待原生线程退出的
+    /// Stop/Dispose 放到后台。MediaPlayer.Stop 是同步阻塞调用，留在 UI 线程上时
+    /// 一旦视频输出线程需要回 UI 线程，就会出现点击关闭后窗口无响应。
+    /// </summary>
+    private void BeginPlaybackShutdown()
+    {
+        if (_playbackShutdownStarted)
+            return;
+
+        _playbackShutdownStarted = true;
+        _pendingVideoLoad = null;
+        _videoLoadRequestVersion++;
+        _timer.Stop();
+        _searchTimer.Stop();
+        _toastTimer?.Stop();
+        CancelAwaitingFirstFrame();
+
+        MediaPlayer? player = _mediaPlayer;
+        PlaybackMediaSource? source = _currentMediaSource;
+        LibVLC? libVLC = _libVLC;
+        _mediaPlayer = null;
+        _currentMediaSource = null;
+        _libVLC = null;
+
+        if (player != null)
+            DetachPlaybackMediaPlayerEvents(player);
+
+        try
+        {
+            PlayerView.MediaPlayer = null;
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"关闭时断开播放视图失败：{ex.Message}");
+        }
+
+        RuntimeLog.Info("Playback", "Shutdown started; native player release moved off the UI thread");
+        if (player != null || source != null || libVLC != null)
+        {
+            _ = Task.Run(() =>
+                DisposePlaybackResourcesOnBackground(player, source, libVLC));
+        }
+    }
+
+    private void DetachPlaybackMediaPlayerEvents(MediaPlayer player)
+    {
+        player.LengthChanged -= MediaPlayer_LengthChanged;
+        player.TimeChanged -= MediaPlayer_TimeChanged;
+        player.EndReached -= MediaPlayer_EndReached;
+        player.EncounteredError -= MediaPlayer_EncounteredError;
+        player.Vout -= MediaPlayer_Vout;
+        player.Paused -= MediaPlayer_Paused;
+    }
+
+    /// <summary>
+    /// 原生播放器释放可能阻塞到全部 VLC 线程结束，只允许在后台线程执行。
+    /// 每一步单独兜底，前一步异常不能导致后续媒体流或 LibVLC 实例泄漏。
+    /// </summary>
+    private static void DisposePlaybackResourcesOnBackground(
+        MediaPlayer? player,
+        PlaybackMediaSource? source,
+        LibVLC? libVLC)
+    {
+        try
+        {
+            player?.Stop();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"关闭时停止播放器失败：{ex.Message}");
+        }
+
+        try
+        {
+            source?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"关闭时释放媒体流失败：{ex.Message}");
+        }
+
+        try
+        {
+            player?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"关闭时释放播放器失败：{ex.Message}");
+        }
+
+        try
+        {
+            libVLC?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            RuntimeLog.Warn("Playback", $"关闭时释放 LibVLC 失败：{ex.Message}");
+        }
+
+        RuntimeLog.Info("Playback", "Shutdown completed; native player resources released");
     }
 
     /// <summary>
@@ -209,14 +313,7 @@ public partial class PlaybackWindow
         UpdatePlayState(false);
 
         if (player != null)
-        {
-            player.LengthChanged -= MediaPlayer_LengthChanged;
-            player.TimeChanged -= MediaPlayer_TimeChanged;
-            player.EndReached -= MediaPlayer_EndReached;
-            player.EncounteredError -= MediaPlayer_EncounteredError;
-            player.Vout -= MediaPlayer_Vout;
-            player.Paused -= MediaPlayer_Paused;
-        }
+            DetachPlaybackMediaPlayerEvents(player);
 
         try
         {

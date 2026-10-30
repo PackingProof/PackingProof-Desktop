@@ -1369,52 +1369,7 @@ namespace ExpressPackingMonitoring.UI
             }
 
             _isClosing = true;
-            _pendingVideoLoad = null;
-            _videoLoadRequestVersion++;
-
-            // 1. 停止计时器
-            _timer?.Stop();
-            _searchTimer?.Stop();
-            CancelAwaitingFirstFrame();
-
-            // 2. 彻底释放 LibVLC 资源（注意顺序）
-            if (_mediaPlayer != null)
-            {
-                try
-                {
-                    // 重要：先解除事件订阅，防止销毁时触发回调导致死锁
-                    _mediaPlayer.LengthChanged -= MediaPlayer_LengthChanged;
-                    _mediaPlayer.TimeChanged -= MediaPlayer_TimeChanged;
-                    _mediaPlayer.EndReached -= MediaPlayer_EndReached;
-                    _mediaPlayer.EncounteredError -= MediaPlayer_EncounteredError;
-                    _mediaPlayer.Vout -= MediaPlayer_Vout;
-                    _mediaPlayer.Paused -= MediaPlayer_Paused;
-
-                    if (_mediaPlayer.IsPlaying)
-                    {
-                        _mediaPlayer.Stop();
-                    }
-                    DisposeCurrentMediaSource();
-
-                    // 断开视图连接
-                    PlayerView.MediaPlayer = null;
-
-                    _mediaPlayer.Dispose();
-                    _mediaPlayer = null;
-                }
-                catch { }
-            }
-            DisposeCurrentMediaSource();
-
-            if (_libVLC != null)
-            {
-                try
-                {
-                    _libVLC.Dispose();
-                    _libVLC = null;
-                }
-                catch { }
-            }
+            BeginPlaybackShutdown();
         }
 
         private async void VideoList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1492,6 +1447,9 @@ namespace ExpressPackingMonitoring.UI
                 {
                     _mediaPlayer?.Stop();
                 });
+                if (_isClosing)
+                    return;
+
                 DisposeCurrentMediaSource();
 
                 // 3. 准备新媒体
@@ -1518,7 +1476,8 @@ namespace ExpressPackingMonitoring.UI
                 CancelAwaitingFirstFrame();
                 ShowPlaybackCover("视频播放失败");
                 UpdatePlayState(false);
-                AppDialog.Error(this, $"视频播放失败：{ex.Message}", "播放错误");
+                if (!_isClosing)
+                    AppDialog.Error(this, $"视频播放失败：{ex.Message}", "播放错误");
             }
             finally
             {
@@ -1816,14 +1775,26 @@ namespace ExpressPackingMonitoring.UI
             {
                 LibVLC libVLC = null!;
                 LibVLCSharp.Shared.MediaPlayer mediaPlayer = null!;
+                LibVLC? sharedLibVLC = _libVLC;
 
                 await Task.Run(() =>
                 {
                     Core.Initialize();
                     // 开窗时解析分辨率那一步已经建过实例（进程级共享），这里直接复用。
-                    libVLC = _libVLC ?? new LibVLC("--avcodec-hw=any");
+                    libVLC = sharedLibVLC ?? new LibVLC("--avcodec-hw=any");
                     mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(libVLC);
                 });
+
+                if (_isClosing)
+                {
+                    await Task.Run(() =>
+                    {
+                        mediaPlayer?.Dispose();
+                        if (!ReferenceEquals(libVLC, sharedLibVLC))
+                            libVLC?.Dispose();
+                    });
+                    return false;
+                }
 
                 _libVLC = libVLC;
                 _mediaPlayer = mediaPlayer;
@@ -1850,6 +1821,22 @@ namespace ExpressPackingMonitoring.UI
                 PlayerView.UpdateLayout();
                 PlayerView.MediaPlayer = _mediaPlayer;
                 await Dispatcher.Yield(DispatcherPriority.Loaded);
+                if (_isClosing)
+                    return false;
+                if (_mediaPlayer.Hwnd == IntPtr.Zero)
+                {
+                    // 部分显卡/首次布局会更晚才建出 VideoView 的原生子窗口。
+                    // 必须重新挂接后再确认 HWND，否则 libvlc 会退回独立顶层窗口。
+                    PlayerView.UpdateLayout();
+                    PlayerView.MediaPlayer = null;
+                    PlayerView.MediaPlayer = _mediaPlayer;
+                    await Dispatcher.Yield(DispatcherPriority.Loaded);
+                }
+                if (_isClosing)
+                    return false;
+                if (_mediaPlayer.Hwnd == IntPtr.Zero)
+                    throw new InvalidOperationException("内置播放器未能连接到回放窗口");
+
                 BtnTogglePlay.IsEnabled = true;
                 TimelineSlider.IsEnabled = true;
                 return true;
@@ -1857,7 +1844,29 @@ namespace ExpressPackingMonitoring.UI
             catch (Exception ex)
             {
                 _playerInitializationFailed = true;
-                AppDialog.Error(this, $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放", "回放错误");
+                LibVLCSharp.Shared.MediaPlayer? failedPlayer = _mediaPlayer;
+                LibVLC? failedLibVLC = _libVLC;
+                _mediaPlayer = null;
+                _libVLC = null;
+                PlayerView.MediaPlayer = null;
+                if (failedPlayer != null)
+                    DetachPlaybackMediaPlayerEvents(failedPlayer);
+                if (failedPlayer != null || failedLibVLC != null)
+                {
+                    _ = Task.Run(() =>
+                        DisposePlaybackResourcesOnBackground(
+                            failedPlayer,
+                            null,
+                            failedLibVLC));
+                }
+                RuntimeLog.Error("Playback", "播放器初始化失败", ex);
+                if (!_isClosing)
+                {
+                    AppDialog.Error(
+                        this,
+                        $"播放器初始化失败：{ex.Message}\n\n回放列表仍可查看，但当前机器暂时无法内置播放",
+                        "回放错误");
+                }
                 return false;
             }
         }
