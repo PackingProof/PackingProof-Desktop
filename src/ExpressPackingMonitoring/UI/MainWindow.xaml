@@ -727,7 +727,6 @@
                                                 <Setter Property="Height" Value="28"/>
                                                 <Setter Property="MinWidth" Value="58"/>
                                                 <Setter Property="Padding" Value="10,0"/>
-                                                <Setter Property="Margin" Value="0,0,0,4"/>
                                                 <Setter Property="HorizontalAlignment" Value="Stretch"/>
                                                 <Setter Property="HorizontalContentAlignment" Value="Center"/>
                                                 <Style.Triggers>
@@ -758,26 +757,35 @@
                                         <TextBlock Text="{loc:Localized 对焦}"
                                                    Foreground="{StaticResource TextOnAccent}"
                                                    FontSize="13"/>
-                                        <StackPanel Margin="0,6,0,0">
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
                                             <Button x:Name="LensFocusAutoButton"
                                                     Content="{loc:Localized 自动对焦}"
                                                     Command="{Binding SetLensFocusAutoCommand}"
                                                     Style="{StaticResource LensFocusAutoButtonStyle}"
                                                     Focusable="False"
+                                                    Margin="0,0,4,0"
                                                     Cursor="Hand"/>
                                             <Button x:Name="LensFocusManualButton"
                                                     Content="{loc:Localized 手动对焦}"
                                                     Command="{Binding SetLensFocusManualCommand}"
                                                     Style="{StaticResource LensFocusManualButtonStyle}"
                                                     Focusable="False"
+                                                    Grid.Column="1"
+                                                    Margin="4,0,0,0"
                                                     Cursor="Hand"/>
-                                        </StackPanel>
+                                        </Grid>
                                         <Grid Margin="0,8,0,2">
-                                            <TextBlock Text="{loc:Localized 近}"
+                                            <TextBlock x:Name="LensFocusFarLabel"
+                                                       Text="{loc:Localized 远}"
                                                        Foreground="{StaticResource OverlayTextSecondary}"
                                                        FontSize="12"
                                                        HorizontalAlignment="Left"/>
-                                            <TextBlock Text="{loc:Localized 远}"
+                                            <TextBlock x:Name="LensFocusNearLabel"
+                                                       Text="{loc:Localized 近}"
                                                        Foreground="{StaticResource OverlayTextSecondary}"
                                                        FontSize="12"
                                                        HorizontalAlignment="Right"/>

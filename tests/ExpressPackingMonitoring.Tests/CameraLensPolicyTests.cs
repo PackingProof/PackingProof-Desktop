@@ -215,6 +215,24 @@ public sealed class CameraLensPolicyTests
             "Command=\"{Binding SetLensFocusManualCommand}\"",
             xaml,
             StringComparison.Ordinal);
+        int focusButtonsStart = xaml.IndexOf("x:Name=\"LensFocusAutoButton\"", StringComparison.Ordinal);
+        int focusButtonsEnd = xaml.IndexOf("</Grid>", focusButtonsStart, StringComparison.Ordinal);
+        Assert.True(focusButtonsStart >= 0 && focusButtonsEnd > focusButtonsStart);
+        string focusButtons = xaml[focusButtonsStart..focusButtonsEnd];
+        Assert.Contains("Grid.Column=\"1\"", focusButtons, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"0,0,4,0\"", focusButtons, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"4,0,0,0\"", focusButtons, StringComparison.Ordinal);
+        int farLabelIndex = xaml.IndexOf("x:Name=\"LensFocusFarLabel\"", StringComparison.Ordinal);
+        int nearLabelIndex = xaml.IndexOf("x:Name=\"LensFocusNearLabel\"", StringComparison.Ordinal);
+        Assert.True(farLabelIndex >= 0 && nearLabelIndex > farLabelIndex);
+        Assert.Contains(
+            "Text=\"{loc:Localized 远}\"",
+            xaml[farLabelIndex..(farLabelIndex + 180)],
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{loc:Localized 近}\"",
+            xaml[nearLabelIndex..(nearLabelIndex + 180)],
+            StringComparison.Ordinal);
         Assert.Contains(
             "IsEnabled=\"{Binding IsLensZoomControlEnabled, Mode=OneWay}\"",
             xaml,
