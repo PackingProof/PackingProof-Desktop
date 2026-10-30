@@ -70,6 +70,10 @@ Announce order notes, catch post-print refunds, and back up recordings from mult
   <img src="https://img.shields.io/badge/Download-Windows-D97745?style=for-the-badge&logo=windows&logoColor=white" height="38" alt="Download for Windows">
 </a>
 &nbsp;
+<a href="https://apps.microsoft.com/detail/9PKXFSV7ZQPV?cid=storebadge&ocid=badge">
+  <img src="https://developer.microsoft.com/store/badges/images/English_get-it-from-MS.png" height="38" alt="Get it from Microsoft Store">
+</a>
+&nbsp;
 <a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
   <img src="https://img.shields.io/badge/Download-macOS-555555?style=for-the-badge&logo=apple&logoColor=white" height="38" alt="Download for macOS">
 </a>

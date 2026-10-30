@@ -70,6 +70,10 @@
   <img src="https://img.shields.io/badge/下载-Windows%20版-D97745?style=for-the-badge&logo=windows&logoColor=white" height="38" alt="下载 Windows 版">
 </a>
 &nbsp;
+<a href="https://apps.microsoft.com/detail/9PKXFSV7ZQPV?cid=storebadge&ocid=badge">
+  <img src="https://developer.microsoft.com/store/badges/images/Chinese_Simplified_get-it-from-MS.png" height="38" alt="从 Microsoft Store 获取">
+</a>
+&nbsp;
 <a href="https://github.com/PackingProof/PackingProof-Desktop/releases/latest">
   <img src="https://img.shields.io/badge/下载-macOS%20版-555555?style=for-the-badge&logo=apple&logoColor=white" height="38" alt="下载 macOS 版">
 </a>
