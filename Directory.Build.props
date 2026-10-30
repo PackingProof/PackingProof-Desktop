@@ -7,7 +7,7 @@
     发布脚本仍会用 -p:InformationalVersion 全局覆盖正式产物的信息版本。
   -->
   <PropertyGroup>
-    <Version>0.0.93</Version>
+    <Version>0.0.94</Version>
   </PropertyGroup>
 
   <!--
