@@ -54,6 +54,7 @@
   <ItemGroup>
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Lens.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Yolo.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppPaths.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppVersion.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\CameraBarcodeSpeed.cs" />

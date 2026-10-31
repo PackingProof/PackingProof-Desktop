@@ -69,6 +69,9 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.21" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
+    <!-- 可选的面单定向（YOLO-OBB）。只引用托管包：原生 onnxruntime 由下方的
+         RemoveUnusedDlls 排除，不随安装包分发，使用方按需自备（与 Kokoro TTS 同款约定）。 -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -137,6 +140,12 @@
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
     <Compile Include="Services\CameraBarcodeGuideLayout.cs" />
+    <Compile Include="Services\CameraBarcodeDeskewPolicy.cs" />
+    <Compile Include="Services\CameraBarcodeUpscalePolicy.cs" />
+    <Compile Include="Services\CameraBarcodeEnhancedDecoder.cs" />
+    <Compile Include="Services\CameraBarcodeObbPolicy.cs" />
+    <Compile Include="Services\YoloObbDetector.cs" />
+    <Compile Include="Services\CameraBarcodeYoloAngleSource.cs" />
     <Compile Include="Services\CameraFormatCatalog.cs" />
     <Compile Include="Services\CameraDeviceChoice.cs" />
     <Compile Include="Services\CameraDeviceSelectionPolicy.cs" />

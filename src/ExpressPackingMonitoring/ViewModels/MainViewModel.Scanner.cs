@@ -332,7 +332,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         // 主摄这条路与绘制同源：配置里存的是原生坐标，识别吃的是旋转后的帧坐标。
                         : MainCameraBarcodeGuideGeometry,
                 confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits,
-                qrCodeEnabledProvider: () => Config.EnableCameraBarcodeQrCode);
+                qrCodeEnabledProvider: () => Config.EnableCameraBarcodeQrCode,
+                // 可选的面单定向：模型路径留空或文件缺失时，服务内部会退回
+                // 全画面梯度方向估角，功能降级但不报错。
+                yoloDetectionProvider: () => (
+                    Config.EnableCameraBarcodeYoloDetection,
+                    Config.CameraBarcodeYoloModelPath));
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmedWithGeometry += OnCameraBarcodeConfirmedWithGeometry;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
