@@ -362,6 +362,64 @@ public sealed class RecordingSamplePackageTests
         }
     }
 
+    [Fact]
+    public void CreatePackageUsesBoundedConcurrentFrameExtraction()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            var sources = Enumerable.Range(0, 12)
+                .Select(index => new RecordingSampleSource(
+                    index + 1,
+                    $"video-{index}.mp4",
+                    new DateTime(2026, 1, 1).AddDays(index),
+                    60))
+                .ToArray();
+            int activeExtractions = 0;
+            int maximumActiveExtractions = 0;
+            var service = new RecordingSamplePackageService(
+                directory,
+                TestNodeId,
+                outputDir: Path.Combine(directory, "cache", "feedback"),
+                sourcesProvider: () => sources,
+                frameExtractor: (
+                    string _,
+                    string outputPath,
+                    double _,
+                    CancellationToken _,
+                    out string error) =>
+                {
+                    int active = Interlocked.Increment(ref activeExtractions);
+                    UpdateMaximum(ref maximumActiveExtractions, active);
+                    try
+                    {
+                        Thread.Sleep(75);
+                        error = "";
+                        File.WriteAllBytes(outputPath, new byte[512]);
+                        return true;
+                    }
+                    finally
+                    {
+                        Interlocked.Decrement(ref activeExtractions);
+                    }
+                });
+
+            RecordingSamplePackageResult result =
+                service.CreatePackage(cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.Equal(sources.Length, result.ImageCount);
+            Assert.Equal(sources.Length, result.AttemptedCount);
+            Assert.InRange(
+                maximumActiveExtractions,
+                2,
+                RecordingSamplePackageService.MaxConcurrentFrameExtractions);
+        }
+        finally
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
     private static string CreateTempDirectory()
     {
         string directory = Path.Combine(
@@ -377,6 +435,15 @@ public sealed class RecordingSamplePackageTests
         ZipArchiveEntry entry = Assert.Single(archive.Entries, item => item.FullName == name);
         using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
         return reader.ReadToEnd();
+    }
+
+    private static void UpdateMaximum(ref int maximum, int value)
+    {
+        int observed;
+        while (value > (observed = Volatile.Read(ref maximum))
+               && Interlocked.CompareExchange(ref maximum, value, observed) != observed)
+        {
+        }
     }
 
     private static void TryDeleteDirectory(string directory)

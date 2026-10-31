@@ -31,6 +31,14 @@ internal sealed record RecordingSamplePackageResult(
     int CandidateCount,
     IReadOnlyList<string> Warnings);
 
+internal sealed record RecordingSampleExtractionResult(
+    int AttemptNumber,
+    RecordingSamplePick Pick,
+    string FileName,
+    string OutputPath,
+    bool Extracted,
+    string Error);
+
 internal delegate bool RecordingSampleFrameExtractor(
     string videoPath,
     string outputPath,
@@ -48,8 +56,11 @@ internal sealed class RecordingSamplePackageService
     internal const int MaxImageDimension = 1600;
     internal const long MaxImageBytes = 75L * 1024 * 1024;
     internal const int MaxPackagesToKeep = 5;
+    internal const int FfmpegThreadCount = 2;
     internal const string ZipPrefix = "PackingProof_RecognitionSamples_";
     internal const string SelectionRuleVersion = "date-stratified-stopreason-window-v4";
+    internal static readonly int MaxConcurrentFrameExtractions =
+        Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
 
     private readonly string _userDataDir;
     private readonly string _outputDir;
@@ -124,76 +135,86 @@ internal sealed class RecordingSamplePackageService
             var entries = new List<RecordingSampleManifestEntry>();
             var capturedSourceFingerprints = new List<string>();
             int attempted = 0;
+            int nextPickIndex = 0;
             long accumulatedImageBytes = 0;
-            foreach (RecordingSamplePick pick in picks)
+            bool imageLimitReached = false;
+            while (entries.Count < DefaultTargetCount && nextPickIndex < picks.Count)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (entries.Count >= DefaultTargetCount)
-                    break;
-
-                attempted++;
-                string fileName = $"sample_{attempted:D4}.jpg";
-                string outputPath = Path.Combine(imagesDir, fileName);
-                double seekSeconds = Math.Clamp(
-                    pick.Source.DurationSeconds * pick.PositionRatio,
-                    0,
-                    Math.Max(0, pick.Source.DurationSeconds - 0.05));
-                bool extracted = false;
-                string error = "";
-                try
+                int batchSize = Math.Min(
+                    MaxConcurrentFrameExtractions,
+                    DefaultTargetCount - entries.Count);
+                var batch = new List<(int AttemptNumber, RecordingSamplePick Pick)>(batchSize);
+                while (batch.Count < batchSize && nextPickIndex < picks.Count)
                 {
-                    extracted = _frameExtractor(
-                        pick.Source.FilePath,
-                        outputPath,
-                        seekSeconds,
-                        cancellationToken,
-                        out error);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    error = ex.Message;
+                    RecordingSamplePick pick = picks[nextPickIndex++];
+                    batch.Add((attempted + batch.Count + 1, pick));
                 }
 
-                long imageBytes = extracted && File.Exists(outputPath)
-                    ? new FileInfo(outputPath).Length
-                    : 0;
-                if (imageBytes <= 0)
+                attempted += batch.Count;
+                Task<RecordingSampleExtractionResult>[] extractionTasks = batch
+                    .Select(item => Task.Run(() =>
+                        ExtractSampleFrame(
+                            item.AttemptNumber,
+                            item.Pick,
+                            imagesDir,
+                            cancellationToken)))
+                    .ToArray();
+                RecordingSampleExtractionResult[] extractionResults =
+                    Task.WhenAll(extractionTasks).GetAwaiter().GetResult();
+                foreach (RecordingSampleExtractionResult extraction in extractionResults)
                 {
-                    TryDeleteFile(outputPath);
-                    warnings.Add($"第 {attempted} 个录像抽帧失败：{SanitizeExtractionError(error)}");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    long imageBytes = extraction.Extracted && File.Exists(extraction.OutputPath)
+                        ? new FileInfo(extraction.OutputPath).Length
+                        : 0;
+                    if (imageBytes <= 0)
+                    {
+                        TryDeleteFile(extraction.OutputPath);
+                        warnings.Add(
+                            $"第 {extraction.AttemptNumber} 个录像抽帧失败：" +
+                            SanitizeExtractionError(extraction.Error));
+                    }
+                    else if (accumulatedImageBytes + imageBytes > MaxImageBytes)
+                    {
+                        TryDeleteFile(extraction.OutputPath);
+                        warnings.Add("已达到图片体积上限，后续样本未继续抓取");
+                        imageLimitReached = true;
+                        break;
+                    }
+                    else
+                    {
+                        accumulatedImageBytes += imageBytes;
+                        string sourceFingerprint =
+                            RecordingSampleContributionStore.CreateSourceFingerprint(
+                                deviceFingerprint,
+                                extraction.Pick.Source.Id,
+                                extraction.Pick.Source.StartTime,
+                                extraction.Pick.Source.DurationSeconds);
+                        entries.Add(new RecordingSampleManifestEntry(
+                            "images/" + extraction.FileName,
+                            Math.Round(extraction.Pick.PositionRatio, 4),
+                            imageBytes,
+                            ComputeSha256(extraction.OutputPath),
+                            sourceFingerprint,
+                            extraction.Pick.CapturePhase == RecordingSampleCapturePhase.Start
+                                ? "start"
+                                : "end",
+                            extraction.Pick.Source.UsesSameCodeCapture
+                                ? "same-code"
+                                : "continuous",
+                            extraction.Pick.Source.StartTime.ToString(
+                                "yyyy-MM",
+                                CultureInfo.InvariantCulture),
+                            extraction.Pick.Source.StartTime.ToString(
+                                "HH",
+                                CultureInfo.InvariantCulture),
+                            extraction.Pick.Source.Mode));
+                        capturedSourceFingerprints.Add(sourceFingerprint);
+                    }
                 }
-                else if (accumulatedImageBytes + imageBytes > MaxImageBytes)
-                {
-                    TryDeleteFile(outputPath);
-                    warnings.Add("已达到图片体积上限，后续样本未继续抓取");
+                if (imageLimitReached)
                     break;
-                }
-                else
-                {
-                    accumulatedImageBytes += imageBytes;
-                    string sourceFingerprint =
-                        RecordingSampleContributionStore.CreateSourceFingerprint(
-                            deviceFingerprint,
-                            pick.Source.Id,
-                            pick.Source.StartTime,
-                            pick.Source.DurationSeconds);
-                    entries.Add(new RecordingSampleManifestEntry(
-                        "images/" + fileName,
-                        Math.Round(pick.PositionRatio, 4),
-                        imageBytes,
-                        ComputeSha256(outputPath),
-                        sourceFingerprint,
-                        pick.CapturePhase == RecordingSampleCapturePhase.Start ? "start" : "end",
-                        pick.Source.UsesSameCodeCapture ? "same-code" : "continuous",
-                        pick.Source.StartTime.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-                        pick.Source.StartTime.ToString("HH", CultureInfo.InvariantCulture),
-                        pick.Source.Mode));
-                    capturedSourceFingerprints.Add(sourceFingerprint);
-                }
 
                 progress?.Report(new RecordingSamplePackageProgress(
                     RecordingSamplePackageStage.Capturing,
@@ -255,6 +276,48 @@ internal sealed class RecordingSamplePackageService
             TryDeleteFile(temporaryZipPath ?? "");
             TryDeleteDirectory(stagingDir);
         }
+    }
+
+    private RecordingSampleExtractionResult ExtractSampleFrame(
+        int attemptNumber,
+        RecordingSamplePick pick,
+        string imagesDir,
+        CancellationToken cancellationToken)
+    {
+        string fileName = $"sample_{attemptNumber:D4}.jpg";
+        string outputPath = Path.Combine(imagesDir, fileName);
+        double seekSeconds = Math.Clamp(
+            pick.Source.DurationSeconds * pick.PositionRatio,
+            0,
+            Math.Max(0, pick.Source.DurationSeconds - 0.05));
+        bool extracted = false;
+        string error = "";
+        try
+        {
+            extracted = _frameExtractor(
+                pick.Source.FilePath,
+                outputPath,
+                seekSeconds,
+                cancellationToken,
+                out error);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDeleteFile(outputPath);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        return new RecordingSampleExtractionResult(
+            attemptNumber,
+            pick,
+            fileName,
+            outputPath,
+            extracted,
+            error);
     }
 
     private IReadOnlyList<RecordingSampleSource> LoadSources()
@@ -393,6 +456,10 @@ internal sealed class RecordingSamplePackageService
                      "-hide_banner",
                      "-loglevel",
                      "error",
+                     "-filter_threads",
+                     "1",
+                     "-threads",
+                     FfmpegThreadCount.ToString(CultureInfo.InvariantCulture),
                      "-ss",
                      seekSeconds.ToString("0.###", CultureInfo.InvariantCulture),
                      "-i",
@@ -406,6 +473,8 @@ internal sealed class RecordingSamplePackageService
                      "-dn",
                      "-frames:v",
                      "1",
+                     "-threads",
+                     FfmpegThreadCount.ToString(CultureInfo.InvariantCulture),
                      "-vf",
                      $"scale={MaxImageDimension}:{MaxImageDimension}:force_original_aspect_ratio=decrease",
                      "-q:v",
