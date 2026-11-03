@@ -229,8 +229,8 @@ Assert-SetupPayloadIntegrity `
     -AppDir $payloadAppDir
 $storeManifestPath = Join-Path $packageRoot $artifactNames.StoreManifestFileName
 $storePackagePath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StorePackageFileName
-# 预览版在 store_channel_allowed=false 期间必须用 -SkipStorePackage 出包，不能带 Store MSIX；
-# 只有正式发布才强制校验同一版本的 Store 包。
+# 精简 OpenCV 未获 Store 渠道放行时必须用 -SkipStorePackage 出包；
+# 当前正式发布仍强制校验同一版本的 Store 包。
 $storePackageRequired = -not $UpdateNotes -and -not $Prerelease
 $storePackageIncluded = $false
 $storeManifest = $null

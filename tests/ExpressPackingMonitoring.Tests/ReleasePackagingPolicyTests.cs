@@ -247,7 +247,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Packaging_UsesPinnedMinimalOpenCvOnlyForFreshInstalls()
+    public void Packaging_UsesPinnedMinimalOpenCvForFreshInstallsAndStore()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publishScript = File.ReadAllText(
@@ -290,7 +290,7 @@ public sealed class ReleasePackagingPolicyTests
             "imgproc",
             manifestDocument.RootElement.GetProperty("modules")[1].GetString());
         Assert.True(manifestDocument.RootElement.GetProperty("app_patch_excluded").GetBoolean());
-        Assert.False(manifestDocument.RootElement.GetProperty("store_channel_allowed").GetBoolean());
+        Assert.True(manifestDocument.RootElement.GetProperty("store_channel_allowed").GetBoolean());
         Assert.Equal(
             "62e1cfc1c1fa043d65f203be28aeeda40b61e001589c418752d68fbc34c23223",
             manifestDocument.RootElement.GetProperty("native").GetProperty("sha256").GetString());

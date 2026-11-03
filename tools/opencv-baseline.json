@@ -9,7 +9,7 @@
     "imgproc"
   ],
   "app_patch_excluded": true,
-  "store_channel_allowed": false,
+  "store_channel_allowed": true,
   "opencvsharp": {
     "repository": "https://github.com/shimat/opencvsharp.git",
     "commit": "ecd814da8fa508f32490251751f607c666263abb",
