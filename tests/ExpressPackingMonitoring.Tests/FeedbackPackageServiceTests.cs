@@ -64,7 +64,8 @@ public sealed class FeedbackPackageServiceTests
                     12,
                     32UL * 1024 * 1024 * 1024,
                     [new FeedbackGpuInfo("Test GPU", "31.2.3.4")],
-                    "ffmpeg version 4.4.1-test"));
+                    "ffmpeg version 4.4.1-test",
+                    "ONNX Runtime 1.23.0；vision-obb.onnx；wallbill_yolo11n_obb_v3；训练第 3 次"));
             string zipPath = service.CreatePackage(out IReadOnlyList<string> warnings);
 
             Assert.True(File.Exists(zipPath));
@@ -95,6 +96,8 @@ public sealed class FeedbackPackageServiceTests
                 Assert.Contains("物理内存：32.0 GB", infoText);
                 Assert.Contains("GPU 1：Test GPU（驱动 31.2.3.4）", infoText);
                 Assert.Contains("FFmpeg：ffmpeg version 4.4.1-test", infoText);
+                Assert.Contains("YOLO/ONNX：ONNX Runtime 1.23.0", infoText);
+                Assert.Contains("训练第 3 次", infoText);
             }
 
             string snapshotPath = Path.Combine(directory, "snapshot.db");

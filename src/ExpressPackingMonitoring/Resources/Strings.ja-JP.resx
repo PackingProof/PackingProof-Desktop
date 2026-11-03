@@ -229,6 +229,9 @@
   <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>空き不足時は次のディスクへ保存します。各ディスクには安全領域を確保するため、他ソフトの使用で空きが減る場合があります。調整は右クリックから行います</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>録画ページのアクセスキー</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>拡大枠の中を拡大し、しばらくしてから全体表示に戻します</value></data>
+  <data name="智能跟随面单" xml:space="preserve"><value>認識した送り状を追従</value></data>
+  <data name="优先放大本次识别到的面单；同屏多张时也只放大这一张" xml:space="preserve"><value>この認識で読み取った送り状を優先して拡大し、画面内に複数ある場合もその1枚だけを拡大します</value></data>
+  <data name="副摄像头只负责识别条码，智能跟随会从主摄像头画面中选择要放大的面单" xml:space="preserve"><value>サブカメラはバーコードの読み取りのみを担当し、スマート追従はメインカメラの映像から拡大する送り状を選択します</value></data>
   <data name="录制声音" xml:space="preserve"><value>音声を録音</value></data>
   <data name="面单大" xml:space="preserve"><value>送り状を大きく</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>録画の保存先と、各ディスクでシステムや他ソフト用に確保する領域を設定します</value></data>
@@ -587,6 +590,9 @@
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>バーコードをプレビューのガイド枠に入れると、安定して認識した後に録画を開始または切り替えます</value></data>
   <data name="识别二维码" xml:space="preserve"><value>QRコード認識</value></data>
   <data name="面单上印的是二维码时打开，开启后条码识别会略慢" xml:space="preserve"><value>送り状がQRコードの場合にオンにしてください。バーコード認識は少し遅くなります</value></data>
+  <data name="识别倾斜面单" xml:space="preserve"><value>傾いた送り状を認識</value></data>
+  <data name="面单不用横平竖直，斜着放也能自动找正识别；会多用一些电脑性能" xml:space="preserve"><value>送り状をまっすぐ置かなくても、傾きを自動補正して認識します。CPU / GPU を少し多く使用します</value></data>
+  <data name="使用副摄像头识别时不需要倾斜面单增强；智能跟随仍会使用主摄像头" xml:space="preserve"><value>サブカメラでバーコードを認識する場合、傾いた送り状の補正は不要です。スマート追従は引き続きメインカメラを使用します</value></data>
   <data name="新增摄像头识别面单" xml:space="preserve"><value>カメラによる送り状認識</value></data>
   <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>バーコードスキャナーがなくても自動で録画を開始できます</value></data>
   <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>送り状のバーコードをプレビューのガイド枠に入れると、安定して認識した後に自動で録画を開始または切り替えます</value></data>
@@ -1101,6 +1107,7 @@
   <data name="适配器" xml:space="preserve"><value>アダプター</value></data>
   <data name="作者：" xml:space="preserve"><value>作者: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>拡大枠</value></data>
+  <data name="默认放大取景框" xml:space="preserve"><value>既定の拡大枠</value></data>
   <data name="放大时隐藏画中画" xml:space="preserve"><value>拡大中はピクチャーインピクチャーを隠す</value></data>
   <data name="开启平滑过渡时有淡入淡出动画" xml:space="preserve"><value>スムーズな遷移が有効なときはフェードイン／フェードアウトします</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>メイン画面に戻り、拡大する範囲をドラッグで指定してください。完了または Esc で終了します</value></data>
@@ -1805,8 +1812,22 @@
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>この拡張はローカル PPEXT からインストールされたため、マーケットから自動更新されません</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>ローカル拡張はマーケット審査を受けていません。PackingProof は内部動作を審査できず、ネットワーク、ファイル、その他のシステム リソースへのアクセスも制限できません</value></data>
   <data name="改进面单识别与放大" xml:space="preserve"><value>送り状の認識と拡大</value></data>
-  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>記録モードに応じて冒頭・末尾を抽出</value></data>
+  <data name="截取录像开头和结尾画面，改进面单识别与放大" xml:space="preserve"><value>録画の冒頭と末尾を抽出し、送り状認識を改善します</value></data>
   <data name="导出样本包" xml:space="preserve"><value>サンプルを書き出す</value></data>
+  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>PackingProof の改善にご協力ください</value></data>
+  <data name="面单识别不可靠？" xml:space="preserve"><value>送り状認識が不安定ですか？</value></data>
+  <data name="本机性能检测通过，已自动开启倾斜面单识别" xml:space="preserve"><value>端末の性能テストに合格したため、傾いた送り状の認識を自動で有効にしました</value></data>
+  <data name="本机性能检测完成，倾斜面单识别保持关闭" xml:space="preserve"><value>端末の性能テストが完了しました。傾いた送り状の認識はオフのままです</value></data>
+  <data name="本机性能检测未通过，已自动关闭倾斜面单识别" xml:space="preserve"><value>端末の性能テストに合格しなかったため、傾いた送り状の認識を自動で無効にしました</value></data>
+  <data name="本机性能检测完成，已保持你的手动开启设置" xml:space="preserve"><value>端末の性能テストが完了しました。手動で有効にした設定を維持しています</value></data>
+  <data name="本机性能检测完成，已保持你的手动关闭设置" xml:space="preserve"><value>端末の性能テストが完了しました。手動で無効にした設定を維持しています</value></data>
+  <data name="你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠" xml:space="preserve"><value>ローカルの認識サンプルを提供して、送り状認識の信頼性向上にご協力いただけます</value></data>
+  <data name="如果当前识别不够可靠，可以贡献一些本机样本。我们会针对你的使用场景优化模型，改善类似环境下的识别" xml:space="preserve"><value>認識が不安定な場合は、ローカルのサンプルを提供できます。お客様の使用環境に合わせてモデルを改善し、同様の環境での認識精度を高めます</value></data>
+  <data name="我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者" xml:space="preserve"><value>自動ではアップロードしません。サンプル パッケージ作成後、メールアドレスまたはメンテナーへご送付ください</value></data>
+  <data name="包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物" xml:space="preserve"><value>パッケージには録画、注文データベース、設定、ログは含まれませんが、匿名の端末 ID と録画ソースの指紋が含まれ、送り状や人物が映る場合があります</value></data>
+  <data name="贡献样本" xml:space="preserve"><value>サンプルを提供</value></data>
+  <data name="暂不" xml:space="preserve"><value>今はしない</value></data>
+  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>画像を確認してから、WeChat で PackingProof のメンテナーに送るか、メール {0} に送信してください</value></data>
   <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>ローカル録画からフレームのみを抽出します。録画、データベース、設定、ログは含みませんが、匿名の端末 ID を含み、送り状や人物が映る場合があります。確認してから送信してください</value></data>
   <data name="开始抓取" xml:space="preserve"><value>取得を開始</value></data>
   <data name="正在生成样本包" xml:space="preserve"><value>サンプル パッケージを作成中</value></data>

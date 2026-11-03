@@ -11,8 +11,11 @@ public sealed class RecordingSamplePackageTests
 {
     private const string TestNodeId = "11111111-2222-3333-4444-555555555555";
 
-    [Fact]
-    public void ContinuousModeUsesOnlyTheOpeningWindow()
+    [Theory]
+    [InlineData("扫码切换")]
+    [InlineData("同码停录")]
+    [InlineData("同码停录（音频异常）")]
+    public void AllModesCaptureOpeningAndEndingWindows(string stopReason)
     {
         var sources = Enumerable.Range(0, 200)
             .Select(index => new RecordingSampleSource(
@@ -21,51 +24,37 @@ public sealed class RecordingSamplePackageTests
                 new DateTime(2026, 1, 1).AddDays(index),
                 60,
                 "发货",
-                "扫码切换"))
+                stopReason))
             .ToArray();
 
         IReadOnlyList<RecordingSamplePick> picks =
             RecordingSampleSelectionPolicy.Select(sources, 120, new Random(12345));
 
         Assert.Equal(120, picks.Count);
-        Assert.Equal(120, picks.Select(pick => pick.Source.Id).Distinct().Count());
+        Assert.Equal(60, picks.Select(pick => pick.Source.Id).Distinct().Count());
         Assert.Equal(new DateTime(2026, 1, 1), picks.Min(pick => pick.Source.StartTime).Date);
         Assert.Equal(new DateTime(2026, 7, 19), picks.Max(pick => pick.Source.StartTime).Date);
-        Assert.All(picks, pick =>
-        {
-            Assert.Equal(RecordingSampleCapturePhase.Start, pick.CapturePhase);
-            Assert.InRange(pick.PositionRatio, 0, 0.25);
-        });
-    }
-
-    [Fact]
-    public void SameCodeModeBalancesOpeningAndEndingWindowsAcrossVideos()
-    {
-        var sources = Enumerable.Range(0, 200)
-            .Select(index => new RecordingSampleSource(
-                index + 1,
-                $"video-{index}.mp4",
-                new DateTime(2026, 1, 1).AddDays(index),
-                80,
-                "发货",
-                index % 3 == 0 ? "同码停录（音频异常）" : "同码停录"))
-            .ToArray();
-
-        IReadOnlyList<RecordingSamplePick> picks =
-            RecordingSampleSelectionPolicy.Select(sources, 120, new Random(12345));
-
         Assert.Equal(
             60,
             picks.Count(pick => pick.CapturePhase == RecordingSampleCapturePhase.Start));
         Assert.Equal(
             60,
             picks.Count(pick => pick.CapturePhase == RecordingSampleCapturePhase.End));
+        Assert.All(
+            picks.GroupBy(pick => pick.Source.Id),
+            group => Assert.Equal(
+                new[]
+                {
+                    RecordingSampleCapturePhase.Start,
+                    RecordingSampleCapturePhase.End
+                },
+                group.Select(pick => pick.CapturePhase).ToArray()));
         Assert.All(picks, pick =>
         {
             if (pick.CapturePhase == RecordingSampleCapturePhase.Start)
-                Assert.InRange(pick.PositionRatio, 0, 0.25);
+                Assert.InRange(pick.PositionRatio, 0, 0.30);
             else
-                Assert.InRange(pick.PositionRatio, 0.75, 1);
+                Assert.InRange(pick.PositionRatio, 0.70, 1);
         });
     }
 
@@ -86,10 +75,13 @@ public sealed class RecordingSamplePackageTests
     }
 
     [Theory]
-    [InlineData(40, 10)]
-    [InlineData(60, 15)]
-    [InlineData(100, 15)]
-    public void CaptureWindowUsesQuarterDurationCappedAtFifteenSeconds(
+    [InlineData(20, 6)]
+    [InlineData(30, 9)]
+    [InlineData(40, 12)]
+    [InlineData(60, 18)]
+    [InlineData(70, 20)]
+    [InlineData(100, 20)]
+    public void CaptureWindowUsesThirtyPercentOfDurationCappedAtTwentySeconds(
         double durationSeconds,
         double expectedWindowSeconds)
     {
@@ -115,7 +107,7 @@ public sealed class RecordingSamplePackageTests
             RecordingSampleSelectionPolicy.Select(sources, 8, new Random(7));
 
         Assert.Equal(8, picks.Count);
-        Assert.Equal(8, picks.Select(pick => pick.Source.Id).Distinct().Count());
+        Assert.Equal(4, picks.Select(pick => pick.Source.Id).Distinct().Count());
         Assert.Single(picks.Select(pick => pick.Source.StartTime.Date).Distinct());
     }
 
@@ -163,7 +155,7 @@ public sealed class RecordingSamplePackageTests
             RecordingSamplePackageResult result =
                 service.CreatePackage(cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(2, result.ImageCount);
+            Assert.Equal(4, result.ImageCount);
             Assert.Empty(result.Warnings);
             Assert.StartsWith("PackingProof_RecognitionSamples_", Path.GetFileName(result.ZipPath));
             using ZipArchive zip = ZipFile.OpenRead(result.ZipPath);
@@ -172,12 +164,14 @@ public sealed class RecordingSamplePackageTests
             Assert.Contains("README.txt", names);
             Assert.Contains("images/sample_0001.jpg", names);
             Assert.Contains("images/sample_0002.jpg", names);
+            Assert.Contains("images/sample_0003.jpg", names);
+            Assert.Contains("images/sample_0004.jpg", names);
             Assert.DoesNotContain("videos.db", names);
             Assert.DoesNotContain("config.json", names);
 
             using JsonDocument manifest = JsonDocument.Parse(ReadEntry(zip, "manifest.json"));
             Assert.Equal(2, manifest.RootElement.GetProperty("schemaVersion").GetInt32());
-            Assert.Equal(2, manifest.RootElement.GetProperty("imageCount").GetInt32());
+            Assert.Equal(4, manifest.RootElement.GetProperty("imageCount").GetInt32());
             Assert.Equal(
                 RecordingSamplePackageService.SelectionRuleVersion,
                 manifest.RootElement.GetProperty("selectionRule").GetString());
@@ -187,7 +181,15 @@ public sealed class RecordingSamplePackageTests
             Assert.Matches(
                 "^[0-9a-f]{32}$",
                 manifest.RootElement.GetProperty("contributionId").GetString()!);
-            foreach (JsonElement sample in manifest.RootElement.GetProperty("samples").EnumerateArray())
+            string[] phases = manifest.RootElement
+                .GetProperty("samples")
+                .EnumerateArray()
+                .Select(sample => sample.GetProperty("capturePhase").GetString()!)
+                .ToArray();
+            Assert.Equal(new[] { "start", "end", "start", "end" }, phases);
+            foreach (JsonElement sample in manifest.RootElement
+                         .GetProperty("samples")
+                         .EnumerateArray())
             {
                 string imagePath = sample.GetProperty("file").GetString()!;
                 Assert.StartsWith("images/sample_", imagePath);
@@ -249,7 +251,7 @@ public sealed class RecordingSamplePackageTests
                 frameExtractor: extractor);
             RecordingSamplePackageResult first = firstService.CreatePackage(
                 cancellationToken: TestContext.Current.CancellationToken);
-            Assert.Equal(2, first.ImageCount);
+            Assert.Equal(4, first.ImageCount);
 
             RecordingSampleContributionState saved = store.Load();
             Assert.Equal(initialFingerprint, saved.DeviceFingerprint);
@@ -309,8 +311,8 @@ public sealed class RecordingSamplePackageTests
             RecordingSamplePackageResult result =
                 service.CreatePackage(cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(1, result.ImageCount);
-            Assert.Equal(2, result.AttemptedCount);
+            Assert.Equal(3, result.ImageCount);
+            Assert.Equal(4, result.AttemptedCount);
             Assert.Single(result.Warnings);
         }
         finally
@@ -407,8 +409,8 @@ public sealed class RecordingSamplePackageTests
             RecordingSamplePackageResult result =
                 service.CreatePackage(cancellationToken: TestContext.Current.CancellationToken);
 
-            Assert.Equal(sources.Length, result.ImageCount);
-            Assert.Equal(sources.Length, result.AttemptedCount);
+            Assert.Equal(sources.Length * 2, result.ImageCount);
+            Assert.Equal(sources.Length * 2, result.AttemptedCount);
             Assert.InRange(
                 maximumActiveExtractions,
                 2,

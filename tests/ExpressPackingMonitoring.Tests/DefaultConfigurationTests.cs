@@ -53,12 +53,70 @@ public sealed class DefaultConfigurationTests
     }
 
     [Fact]
+    public void EnhancedWaybillRecognitionWaitsForLocalBenchmark()
+    {
+        Assert.False(new AppConfig().EnableCameraBarcodeEnhancedRecognition);
+        Assert.False(
+            JsonSerializer.Deserialize<AppConfig>("{}")!
+                .EnableCameraBarcodeEnhancedRecognition);
+        Assert.Equal(
+            AppConfig.CameraVisionEnableSourceAuto,
+            new AppConfig().CameraVisionEnableSource);
+    }
+
+    [Fact]
+    public void BundledCameraVisionModelTakesPriorityOverLegacyUserModel()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "pp-camera-vision-model",
+            Guid.NewGuid().ToString("N"));
+        string bundled = Path.Combine(directory, "bundled.onnx");
+        string user = Path.Combine(directory, "user.onnx");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(user, "user");
+            Assert.Equal(user, AppPaths.ResolveCameraVisionModelPath(bundled, user));
+
+            File.WriteAllText(bundled, "bundled");
+            Assert.Equal(bundled, AppPaths.ResolveCameraVisionModelPath(bundled, user));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CameraVisionModelUsesStableRoleFileName()
+    {
+        Assert.EndsWith(
+            Path.DirectorySeparatorChar + "models" + Path.DirectorySeparatorChar + "vision-obb.onnx",
+            AppPaths.BundledCameraVisionModelPath,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(
+            Path.DirectorySeparatorChar + "models" + Path.DirectorySeparatorChar + "vision-obb.onnx",
+            AppPaths.UserCameraVisionModelPath,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void NewConfigurationUsesTwoPointFiveSecondZoomDwellByDefault()
     {
         Assert.Equal(2.5, new AppConfig().ZoomDurationSeconds);
         Assert.Equal(2.5, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomDurationSeconds);
         Assert.Equal(200.0, new AppConfig().ZoomAnimationDurationMs);
         Assert.Equal(200.0, JsonSerializer.Deserialize<AppConfig>("{}")!.ZoomAnimationDurationMs);
+    }
+
+    [Fact]
+    public void VisionObbSmartZoomIsOptIn()
+    {
+        Assert.False(new AppConfig().EnableVisionObbSmartZoom);
+        Assert.False(
+            JsonSerializer.Deserialize<AppConfig>("{}")!
+                .EnableVisionObbSmartZoom);
     }
 
     /// <summary>

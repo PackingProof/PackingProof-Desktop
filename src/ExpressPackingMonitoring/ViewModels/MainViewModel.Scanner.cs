@@ -7,6 +7,7 @@ using ExpressPackingMonitoring.Data;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Audio;
 using ExpressPackingMonitoring.Localization;
+using ExpressPackingMonitoring.Vision;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -332,19 +333,64 @@ namespace ExpressPackingMonitoring.ViewModels
                         // 主摄这条路与绘制同源：配置里存的是原生坐标，识别吃的是旋转后的帧坐标。
                         : MainCameraBarcodeGuideGeometry,
                 confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits,
-                qrCodeEnabledProvider: () => Config.EnableCameraBarcodeQrCode);
+                qrCodeEnabledProvider: () => Config.EnableCameraBarcodeQrCode,
+                visionObbProvider: () => (
+                    ShouldRunVisionObb,
+                    AppPaths.ResolveCameraVisionModelPath()),
+                fastGuideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
+                    CameraBarcodeSpeed.Realtime,
+                    _actualCameraFps),
+                visionFollowIntervalProvider:
+                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(_actualCameraFps),
+                cameraBarcodeDecodingEnabledProvider:
+                    () => Config.EnableCameraBarcodeRecognition,
+                visionObbDecodingEnabledProvider:
+                    () => Config.EnableCameraBarcodeEnhancedRecognition
+                        && !ShouldUseOverlayChannelForBarcode);
             _cameraBarcodeRecognition.StatusChanged += OnCameraBarcodeStatusChanged;
             _cameraBarcodeRecognition.BarcodeConfirmedWithGeometry += OnCameraBarcodeConfirmedWithGeometry;
             _cameraBarcodeRecognition.BarcodeConfirmed += OnCameraBarcodeConfirmed;
             _cameraBarcodeRecognition.InvalidCandidate += OnCameraBarcodeInvalidCandidate;
-            // 解码到合法条码立即响的独立反馈音，不依赖候选/确认状态。
-            _cameraBarcodeRecognition.BarcodeRecognized += _ => _speechService?.PlayShortBeep();
+
+            _cameraVisionSmartZoomRecognition = new CameraBarcodeRecognitionService(
+                IsAutoSubmitScanCandidate,
+                _ => TimeSpan.FromSeconds(Config.CameraSameBarcodeConfirmationSeconds),
+                () => TimeSpan.FromSeconds(Config.CameraBarcodeRearmSeconds),
+                guideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
+                    Config.CameraBarcodeRecognitionSpeed,
+                    _actualCameraFps),
+                guideGeometryProvider: () => MainCameraBarcodeGuideGeometry,
+                confirmationHitsProvider: () => Config.CameraSameBarcodeConfirmationHits,
+                qrCodeEnabledProvider: () => false,
+                visionObbProvider: () => (
+                    ShouldRunSeparateCameraSmartZoom,
+                    AppPaths.ResolveCameraVisionModelPath()),
+                fastGuideIntervalProvider: () => CameraBarcodeSpeed.GuideIntervalFor(
+                    CameraBarcodeSpeed.Realtime,
+                    _actualCameraFps),
+                visionFollowIntervalProvider:
+                    () => CameraBarcodeSpeed.VisionFollowIntervalFor(_actualCameraFps),
+                cameraBarcodeDecodingEnabledProvider: () => false,
+                visionObbDecodingEnabledProvider: () => false);
+            _cameraVisionSmartZoomRecognition.StatusChanged +=
+                OnCameraVisionSmartZoomStatusChanged;
         }
 
         private string _lastBarcodeSourceLogState = "";
 
         private bool CanSubmitCameraBarcode()        {
             return Config?.EnableCameraBarcodeRecognition == true
+                && !_isDisposed
+                && !_shutdownRequested
+                && !_isSetupWizardActive
+                && !_isCameraSleeping
+                && !IsBusy;
+        }
+
+        private bool CanSubmitCameraVisionFrame()
+        {
+            return (Config?.EnableCameraBarcodeRecognition == true
+                    || Config?.EnableVisionObbSmartZoom == true)
                 && !_isDisposed
                 && !_shutdownRequested
                 && !_isSetupWizardActive
@@ -369,21 +415,40 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             }
 
-            if (!CanSubmitCameraBarcode())
+            if (!CanSubmitCameraVisionFrame())
             {
                 LogBarcodeSubmitDiagnostic(sourceChannelNumber, expectedChannel, accepted: false, "前置条件不满足");
                 return;
             }
 
             // 叠加画面强制解码：面单放好后那一幕是静止的，不跳过运动门控就永远认不出来。
+            CameraBarcodeFrameIntent intent = CameraBarcodeFrameIntentPolicy.Resolve(
+                forceBarcodeDecode: sourceChannelNumber > 0,
+                updateVision: ShouldRunVisionObb);
             bool accepted = _cameraBarcodeRecognition?.TrySubmitFrame(
                 frame,
-                forceDecode: sourceChannelNumber > 0) == true;
+                intent) == true;
             LogBarcodeSubmitDiagnostic(
                 sourceChannelNumber,
                 expectedChannel,
                 accepted,
                 accepted ? "已提交" : "识别服务拒绝");
+        }
+
+        /// <summary>
+        /// 副摄像头负责条码解码时，智能跟随仍固定读取主摄画面。
+        /// 独立的视觉队列只产生 OBB，不参与任何条码或录像状态判断。
+        /// </summary>
+        private void TrySubmitCameraSmartZoomFrame(Mat frame)
+        {
+            if (!ShouldRunSeparateCameraSmartZoom || !CanSubmitCameraVisionFrame())
+                return;
+
+            _cameraVisionSmartZoomRecognition?.TrySubmitFrame(
+                frame,
+                CameraBarcodeFrameIntentPolicy.Resolve(
+                    forceBarcodeDecode: false,
+                    updateVision: true));
         }
 
         /// <summary>
@@ -489,8 +554,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void OnCameraBarcodeConfirmedWithGeometry(CameraBarcodeConfirmedEvent confirmed)
         {
-            // 放大改成按主画面上的放大取景框裁剪后，这里只保留诊断日志：
-            // 条码几何仍然有用（排查识别是否给到位置），但不再参与放大位置判定。
+            // 解码条码自身的外接几何只保留诊断日志；智能放大使用状态里携带的
+            // “本次选中的单个 OBB 面单”，不会把条码框或同屏其他面单混进来。
             RuntimeLog.Info(
                 "CameraBarcode",
                 confirmed.Geometry == null
@@ -505,6 +570,28 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             _ = dispatcher.BeginInvoke(new Action(() => ApplyCameraBarcodeStatus(status)));
+        }
+
+        private void OnCameraVisionSmartZoomStatusChanged(
+            CameraBarcodeRecognitionStatus status)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+                return;
+
+            _ = dispatcher.BeginInvoke(
+                new Action(() => ApplyCameraVisionSmartZoomStatus(status)));
+        }
+
+        private void ApplyCameraVisionSmartZoomStatus(
+            CameraBarcodeRecognitionStatus status)
+        {
+            if (_isDisposed || !ShouldRunSeparateCameraSmartZoom)
+                return;
+
+            SetCameraVisionModelAvailable(status.VisionObbAvailable);
+            CameraVisionObbDetections = status.ObbDetections ?? [];
+            UpdateCameraVisionSmartZoomTarget();
         }
 
         private void OnCameraBarcodeInvalidCandidate(string code)
@@ -532,7 +619,25 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private void ApplyCameraBarcodeStatus(CameraBarcodeRecognitionStatus status)
         {
-            if (_isDisposed || Config?.EnableCameraBarcodeRecognition != true)
+            if (_isDisposed)
+                return;
+
+            if (!ShouldRunSeparateCameraSmartZoom)
+            {
+                SetCameraVisionModelAvailable(status.VisionObbAvailable);
+                CameraVisionObbDetections = status.ObbDetections ?? [];
+                if (status.SelectedObbDetection is { } selected)
+                    CameraVisionSelectedObbDetection = selected;
+                else if (!IsCameraBarcodeConfirmed)
+                    CameraVisionSelectedObbDetection = null;
+            }
+            UpdateCameraVisionSmartZoomTarget(
+                ShouldRunSeparateCameraSmartZoom
+                    ? null
+                    : status.SelectedObbDetection);
+            if (!status.BarcodeDecodingEvaluated)
+                return;
+            if (Config?.EnableCameraBarcodeRecognition != true)
                 return;
 
             if (status.State == CameraBarcodeRecognitionState.Confirmed)
@@ -571,9 +676,17 @@ namespace ExpressPackingMonitoring.ViewModels
         private void ResetCameraBarcodeRecognition(bool preserveConfirmedCodes = false)
         {
             _cameraBarcodeFeedbackCts?.Cancel();
-            _cameraBarcodeRecognition?.Reset(preserveConfirmedCodes);
+            _cameraBarcodeRecognition?.Reset(
+                preserveConfirmedCodes,
+                releaseVisionRuntime: !ShouldRunVisionObb);
+            _cameraVisionSmartZoomRecognition?.Reset(
+                preserveConfirmedCodes,
+                releaseVisionRuntime: !ShouldRunSeparateCameraSmartZoom);
             IsCameraBarcodeCandidate = false;
             IsCameraBarcodeConfirmed = false;
+            CameraVisionObbDetections = [];
+            CameraVisionSelectedObbDetection = null;
+            CameraVisionSmartZoomTarget = null;
             CameraBarcodeStatusText = "将面单条形码放入框内";
         }
 
@@ -825,7 +938,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         CurrentOrderId = input;
                     }
 
-                    // 手动触发录制时也起一次放大
+                    // 手动开录没有单号也要跟随当前 YOLO 放大框；
+                    // 只有确实没有可用目标时才回退到固定取景框。
                     StartZoomForScan();
 
                     if (Config.EnableEventRecordingBuffer)
@@ -1086,7 +1200,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 _pendingPreRecordStartTime = pendingPreRecordStartTime;
                 await InternalStartRecordingAsync();
 
-                // 在录制停止/启动之后起一次放大（停录会把上一轮放大收干净）
+                // 摄像头或扫码枪确认条码后，都以当前智能目标启动放大，
+                // 后续逐帧跟随时仍会更新；没有可用 OBB 时回退到固定取景框。
                 StartZoomForScan();
 
                 // 语音播报完成后再暂停，避免"开始录制"和订单信息被延迟

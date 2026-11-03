@@ -25,6 +25,11 @@ set "ARCHIVE_ARGS="
 if /i "%~3"=="7z" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if /i "%~3"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
 
+rem 传 novision 可生成不含 YOLO-OBB 功能包的版本，可放在第三或第四参数。
+set "VISION_ARGS="
+if /i "%~3"=="novision" set "VISION_ARGS=-VisionObb exclude"
+if /i "%~4"=="novision" set "VISION_ARGS=-VisionObb exclude"
+
 if not exist "%BASELINE_APP_DIR%\ExpressPackingMonitoring.exe" (
     echo [ERROR] Baseline app not found:
     echo         %BASELINE_APP_DIR%
@@ -47,7 +52,7 @@ echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
 rem 参数展开后拼成单行，避免 %ARCHIVE_ARGS% 为空时行尾 ^ 续接到空行导致命令被截断。
-pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" %VERSION_ARG% -PatchBaselineVersion %BASELINE_VERSION% -BaselineAppDir "%BASELINE_APP_DIR%" %ARCHIVE_ARGS%
+pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" %VERSION_ARG% -PatchBaselineVersion %BASELINE_VERSION% -BaselineAppDir "%BASELINE_APP_DIR%" %ARCHIVE_ARGS% %VISION_ARGS%
 
 set "EXIT_CODE=%ERRORLEVEL%"
 echo.

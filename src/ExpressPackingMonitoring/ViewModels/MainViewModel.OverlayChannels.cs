@@ -1515,13 +1515,15 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         /// <summary>
-        /// 「摄像头自动识别面单」是否改用叠加画面：配置选了那一路、那一路开着、而且真的出过帧。
+        /// 「摄像头自动识别面单」是否改用叠加画面：条码识别已开启、配置选了那一路、
+        /// 那一路开着、而且真的出过帧。扫码枪模式下智能跟随仍读取主摄。
         ///
         /// 最后一条很重要：选了叠加画面但它连不上/还没出帧时必须回退主画面，
         /// 否则"换了识别摄像头但没连上"会直接变成完全识别不了。
         /// </summary>
         internal bool ShouldUseOverlayChannelForBarcode =>
-            ActiveBarcodeOverlayChannel is { HasFrame: true };
+            Config?.EnableCameraBarcodeRecognition == true
+            && ActiveBarcodeOverlayChannel is { HasFrame: true };
 
         /// <summary>识别来源当前选中的通道号；没选或那一路没接设备时为 0。</summary>
         internal int BarcodeOverlayChannelNumber => ActiveBarcodeOverlayChannel?.Number ?? 0;

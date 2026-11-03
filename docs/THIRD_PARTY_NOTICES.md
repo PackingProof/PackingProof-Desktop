@@ -15,6 +15,10 @@
 | `LGPL-2.1.txt` | LibVLC 核心（`libvlc.dll` / `libvlccore.dll`） | LGPL-2.1 |
 | `GPL-2.0.txt` | LibVLC 构建中含 GPL 组件的部分（VLC 3.0.x 为 GPLv2 或更高版本） | GPL-2.0 |
 | `ffmpeg-build-notice.txt` | FFmpeg Windows 构建说明：版本、上游 commit、构建参数 | — |
+| `ONNX-Runtime-LICENSE.txt` | ONNX Runtime | MIT |
+| `ONNX-Runtime-ThirdPartyNotices.txt` | ONNX Runtime 第三方组件 | — |
+| `DirectML-LICENSE.txt` | Microsoft DirectML | Microsoft 可再分发运行时条款 |
+| `DirectML-ThirdPartyNotices.txt` | DirectML 第三方组件 | — |
 | `THIRD_PARTY_NOTICES.md` | 本文件 | — |
 
 全文来源：Windows 的 `ffmpeg-build-notice.txt` 同时说明可随包使用的自建精简构建与 Gyan essentials 回退构建，具体实际使用哪一份可依据 `ffmpeg -version` 和基线哈希确认；`GPL-3.0.txt` 对应 FFmpeg 4.4.1 源码。`LGPL-2.1.txt` 与 `GPL-2.0.txt` 取自 VideoLAN 上游 `vlc` 仓库 `3.0.21` 标签的 `COPYING.LIB` 与 `COPYING`。仓库内的副本保存在 `docs/third-party-licenses/`，打包时原样复制进安装包。
@@ -45,3 +49,15 @@
 - 用途：电脑端本机录像回放
 
 发布包仅保留本地录像回放所需的运行库和插件，不包含网络串流、光盘访问或推流输出组件。
+
+## ONNX Runtime 与 DirectML
+
+- ONNX Runtime：`Microsoft.ML.OnnxRuntime.DirectML` 1.23.0，MIT 许可证
+- DirectML：`Microsoft.AI.DirectML` 1.15.4，Microsoft DirectX Machine Learning 可再分发条款
+- 用途：增强面单识别功能的本地 ONNX 推理，优先使用 DirectML 调用显卡，初始化失败时回退 CPU
+- 文件：`onnxruntime.dll`、`onnxruntime_providers_shared.dll`、`DirectML.dll` 与托管程序集
+- 训练权重不提交到 Git；`tools\vision-model-baseline.json` 锁定公开模型资产、大小与 SHA256
+
+增强识别模型由独立的 `PackingProof-Vision` 仓库使用 Ultralytics 训练与导出，
+Ultralytics 工具链许可证为 AGPL-3.0。训练仓库负责模型代码、导出参数和权重 Release；
+Desktop 只保存下载清单和运行时契约。

@@ -19,6 +19,7 @@
 - OpenCV 原生库由 `tools\opencv-baseline.json` 固定 OpenCvSharp 提交、OpenCV 文件包、MSVC/SDK 版本和最终 SHA256；`tools\Build-MinimalOpenCv.ps1` 只保留 `core,imgproc` 并生成可复现的 `OpenCvSharpExtern.dll`。**AppPatch 明确排除 `OpenCvSharpExtern.dll`**，老用户继续保留原官方完整库，新安装 Setup 用户先承担精简库兼容验证。Store 是整包更新，没有“保留旧 native”的能力：在 `store_channel_allowed=false` 期间打包脚本禁止生成 Store MSIX，预览版必须使用 `-SkipStorePackage`，避免存量 Store 用户被动切换到未验证的 native；只有真机验证完成且产品接受风险后才可改为 true。启动日志的 `[OpenCV] Native runtime loaded` 会记录 `variant/modules/size/sha256/path`，现场反馈时必须核对。确认精简库长期稳定后，才允许另行决定是否进入 AppPatch 或 Store。
 - LibVLC 按 `ExpressPackingMonitoring.csproj` 的显式白名单发布：保留 `filesystem`（本地/映射盘）、`imem`（UNC NAS 通过 `StreamMediaInput` 读取）、解码、解封装、字幕、音视频输出等必要插件；不包含 `smb`、HTTP 等网络访问插件，也不包含推流、复用、服务发现、可视化和 Lua 组件。UNC NAS 回放由 .NET `FileStream` 使用 Windows SMB 凭据，不能把 UNC 直接当 `file://` URI，也不能删除 `imem` 插件。
 - Edge TTS 是默认在线语音；Kokoro 模型和运行时默认不随包发布。完整包包含生成的默认 Edge TTS 缓存，AppPatch 必须排除 TTS 缓存。
+- 增强面单识别是可选功能包：主程序只依赖 `ExpressPackingMonitoring.Vision.Contracts`，YOLO/ONNX 实现位于 `ExpressPackingMonitoring.Vision.Obb`。默认发布包含功能包；使用 `Publish-CleanPackage.ps1 -VisionObb exclude` 时不得包含 `ExpressPackingMonitoring.Vision.Obb.dll`、`DirectML.dll` 或 `app\models\vision-obb.onnx`，AppPatch 也不得把这些文件当作可删除项。包含功能包时，模型不提交到 Desktop Git，也不作为 Desktop Release 附件；它由独立的 `PackingProof-Vision` 仓库发布，并通过 `tools\vision-model-baseline.json` 锁定仓库、Release 标签和 SHA256。CI 与发布前必须运行 `tools\Prepare-PinnedVisionModel.ps1` 下载并校验大小、SHA256；打包脚本还会强校验 `app\models\vision-obb.onnx`、`app\onnxruntime.dll` 和 `app\DirectML.dll`，任一缺失都不得生成 Setup、Store MSIX 或 AppPatch。模型资产必须先于引用它的应用版本发布。
 
 ## FFmpeg 兼容基线
 
@@ -79,6 +80,7 @@
 - 开始构建前先跑 `pwsh -NoProfile -File tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、启动器基线与逻辑输入指纹、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。启动器逻辑输入变化时它会直接要求先重建基线，避免打包到一半才返工。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。CI 配置 `STORE_IDENTITY_NAME` / `STORE_PUBLISHER` Secrets 时会一起构建 Store MSIX；未配置时只构建 Setup，并在日志里明确标记该产物不是正式发布包。
 - 发布工作流不需要额外 FFmpeg Secret。仓库不提交 54MB 精简产物，标签构建会优先使用缓存或本地产物；没有时按清单中的固定 HTTPS 来源下载 Gyan essentials，并校验大小和 SHA256。第三方开发者也因此可以直接构建和出包，只需承担更大的包体积。
+- 发布工作流同样不需要模型 Secret：`vision-model-baseline.json` 的 `source.repository` 必须指向 `PackingProof/PackingProof-Vision`，`source.urls` 使用该仓库对应 Release 的固定 HTTPS 地址，CI 和发布构建按 SHA256 校验。模型未上传到 Vision Release、下载失败或内容漂移时，发布门禁必须失败，不能用开发机缓存或“带开关但没有模型”的包继续发布。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用；正式发布默认同时构建 Store MSIX，只有本地验证才允许加 `-SkipStorePackage`：
 
 ```powershell

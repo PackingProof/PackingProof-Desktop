@@ -1093,6 +1093,19 @@ public sealed class CameraBarcodeRecognitionTests
     }
 
     [Fact]
+    public void Decoder_SkipsUndersizedGuideBeforeDecoding()
+    {
+        using Mat frame = new(
+            new OpenCvSharp.Size(100, 80),
+            MatType.CV_8UC3,
+            Scalar.White);
+        using var decoder = new CameraBarcodeFrameDecoder(() => true);
+
+        Assert.Null(decoder.DecodeGuideRegion(frame));
+        Assert.Equal(0, decoder.PixelBufferAllocationCount);
+    }
+
+    [Fact]
     public void Decoder_RepeatedDecodesAvoidPerFrameLargeManagedAllocations()
     {
         using Mat frame = CreateFrameWithBarcode("YT123456789012", BarcodeFormat.CODE_128, inGuide: true);
@@ -1176,6 +1189,91 @@ public sealed class CameraBarcodeRecognitionTests
 
         Assert.True(gate.ShouldDecode(frame, Start));
         Assert.True(gate.ShouldDecode(frame, Start.AddSeconds(2), forceDecode: true));
+    }
+
+    [Fact]
+    public async Task RecognitionService_VisionOnlyFrameSkipsBarcodeEvaluationOnStaticScene()
+    {
+        using Mat frame = CreateSolidFrame(128);
+        using var service = new CameraBarcodeRecognitionService(
+            _ => false,
+            guideIntervalProvider: () => TimeSpan.FromMilliseconds(1));
+        var firstProcessed = new TaskCompletionSource<CameraBarcodeRecognitionStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StatusChanged += status =>
+        {
+            if (status.BarcodeDecodingEvaluated)
+                firstProcessed.TrySetResult(status);
+        };
+
+        Assert.True(service.TrySubmitFrame(
+            frame,
+            CameraBarcodeFrameIntent.ForcedBarcode));
+        await firstProcessed.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+        await Task.Delay(1100, TestContext.Current.CancellationToken);
+
+        var visionOnly = new TaskCompletionSource<CameraBarcodeRecognitionStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StatusChanged += status =>
+        {
+            if (!status.BarcodeDecodingEvaluated)
+                visionOnly.TrySetResult(status);
+        };
+
+        Assert.True(service.TrySubmitFrame(
+            frame,
+            CameraBarcodeFrameIntent.VisionWithMotionGatedBarcode));
+        CameraBarcodeRecognitionStatus status = await visionOnly.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(status.BarcodeDecodingEvaluated);
+        Assert.Equal(CameraBarcodeRecognitionState.Idle, status.State);
+    }
+
+    [Fact]
+    public async Task RecognitionService_VisionCadenceDoesNotAccelerateBarcodeDecode()
+    {
+        using Mat firstFrame = CreateSolidFrame(32);
+        using Mat changedFrame = CreateSolidFrame(224);
+        using var service = new CameraBarcodeRecognitionService(
+            _ => false,
+            guideIntervalProvider: () => TimeSpan.FromSeconds(5),
+            visionFollowIntervalProvider: () => TimeSpan.FromMilliseconds(100));
+        var firstEvaluated = new TaskCompletionSource<CameraBarcodeRecognitionStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StatusChanged += status =>
+        {
+            if (status.BarcodeDecodingEvaluated)
+                firstEvaluated.TrySetResult(status);
+        };
+
+        Assert.True(service.TrySubmitFrame(
+            firstFrame,
+            CameraBarcodeFrameIntent.ForcedBarcode));
+        await firstEvaluated.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+        await Task.Delay(120, TestContext.Current.CancellationToken);
+
+        var visionOnly = new TaskCompletionSource<CameraBarcodeRecognitionStatus>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StatusChanged += status =>
+        {
+            if (!status.BarcodeDecodingEvaluated)
+                visionOnly.TrySetResult(status);
+        };
+
+        Assert.True(service.TrySubmitFrame(
+            changedFrame,
+            CameraBarcodeFrameIntent.VisionWithMotionGatedBarcode));
+        CameraBarcodeRecognitionStatus status = await visionOnly.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+
+        Assert.False(status.BarcodeDecodingEvaluated);
     }
 
     [Fact]
@@ -1327,7 +1425,9 @@ public sealed class CameraBarcodeRecognitionTests
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
                     TestContext.Current.CancellationToken);
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                while (!service.TrySubmitFrame(submittedFrame, forceDecode: true))
+                while (!service.TrySubmitFrame(
+                           submittedFrame,
+                           CameraBarcodeFrameIntent.ForcedBarcode))
                     await Task.Delay(25, timeout.Token);
                 await processed.Task.WaitAsync(
                     TimeSpan.FromSeconds(30),
@@ -1622,6 +1722,39 @@ public sealed class CameraBarcodeRecognitionTests
         Assert.InRange(actualMs, expectedMs - 0.5, expectedMs + 0.5);
     }
 
+    [Theory]
+    [InlineData(250, 100, 100)]
+    [InlineData(250, 300, 250)]
+    [InlineData(100, 66, 66)]
+    [InlineData(200, 100, 100)]
+    public void CameraBarcodeSpeed_ActiveDecodeAcceleratesWithoutExceedingConfiguredRate(
+        int configuredMs,
+        int realtimeMs,
+        int expectedMs)
+    {
+        TimeSpan interval = CameraBarcodeSpeed.ActiveDecodeInterval(
+            TimeSpan.FromMilliseconds(configuredMs),
+            TimeSpan.FromMilliseconds(realtimeMs));
+
+        Assert.Equal(expectedMs, interval.TotalMilliseconds);
+    }
+
+    [Theory]
+    [InlineData(0, 250)]
+    [InlineData(10, 250)]
+    [InlineData(15, 250)]
+    [InlineData(60, 250)]
+    [InlineData(3, 333.33)]
+    public void CameraBarcodeSpeed_VisionFollowHasIndependentBoundedCadence(
+        double frameRate,
+        double expectedMs)
+    {
+        Assert.Equal(
+            expectedMs,
+            CameraBarcodeSpeed.VisionFollowIntervalFor(frameRate).TotalMilliseconds,
+            2);
+    }
+
     [Fact]
     public void NormalizeAfterLoad_ResetsInvalidRecognitionSpeedToStandard()
     {
@@ -1803,7 +1936,7 @@ public sealed class CameraBarcodeRecognitionTests
         DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(30);
         while (!condition() && DateTimeOffset.UtcNow < deadline)
         {
-            service.TrySubmitFrame(frame, forceDecode: true);
+            service.TrySubmitFrame(frame, CameraBarcodeFrameIntent.ForcedBarcode);
             await Task.Delay(25, cancellationToken);
         }
     }
@@ -1829,7 +1962,12 @@ public sealed class CameraBarcodeRecognitionTests
             {
                 if (accepted < count)
                 {
-                    if (service.TrySubmitFrame(frame, forceDecode: true)) accepted++;
+                    if (service.TrySubmitFrame(
+                            frame,
+                            CameraBarcodeFrameIntent.ForcedBarcode))
+                    {
+                        accepted++;
+                    }
                 }
                 else if (Volatile.Read(ref processedCount) >= accepted)
                 {

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using ExpressPackingMonitoring.Logging;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Vision;
 using OpenCvSharp;
 
 namespace ExpressPackingMonitoring.ViewModels
@@ -11,10 +12,12 @@ namespace ExpressPackingMonitoring.ViewModels
     /// 相位机（等待 → 放大 → 停留 → 还原）、平移/缩放缓动、以及放大时画中画的淡出都在这里，
     /// 和采集/预览主循环分开：主循环只问"这一帧该用哪份画面"，不用管动画细节。
     /// 放大状态只有一个来源 —— 相位加相位开始时刻，别的字段都别记"放大到哪一步了"。
-    /// 放大位置只认放大取景框，识别结果、识别来源、识别框锁定状态都不参与。
+    /// 智能跟随时逐帧跟随当前选中的单个 OBB 面单；否则使用固定放大取景框。
     /// </summary>
     public partial class MainViewModel
     {
+        private VisionObbDetection? _smartZoomObbTarget;
+
         /// <summary>
         /// 扫码或手动开录后起一次放大。面单放大没开、或正在"调放大位置"那一屏
         /// （那一屏要拖动放大取景框）时不放大；"放大前等待"到点在处理循环里再步进。
@@ -24,8 +27,20 @@ namespace ExpressPackingMonitoring.ViewModels
             if (!CanApplyZoom)
                 return;
 
+            _smartZoomObbTarget = ResolveSmartZoomTarget();
             SetZoomPhase(Config.ZoomDelaySeconds > 0 ? ZoomPhase.Waiting : ZoomPhase.ZoomingIn);
             Debug.WriteLine($"[Zoom] 触发放大: ID={CurrentOrderId}, Delay={Config.ZoomDelaySeconds}s");
+        }
+
+        private VisionObbDetection? ResolveSmartZoomTarget()
+        {
+            if (!Config.EnableVisionObbSmartZoom
+                || CameraVisionSmartZoomTarget is not { } detection)
+            {
+                return null;
+            }
+
+            return detection;
         }
 
         /// <summary>
@@ -36,6 +51,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private void ResetZoomState()
         {
             SetZoomPhase(ZoomPhase.None);
+            _smartZoomObbTarget = null;
             _overlayZoomFadePercent = 100;
         }
 
@@ -98,12 +114,21 @@ namespace ExpressPackingMonitoring.ViewModels
                 return currentFrame;
             }
 
-            // 放大位置只认主画面上的放大取景框：识别结果不参与，
-            // 所以识别来源选副画面时也不会把副摄坐标系里的数值套到主画面上。
-            System.Windows.Rect zoomBox = CameraBarcodeGuideLayout.ToDisplayRect(
-                ZoomGuideGeometry,
-                new System.Windows.Rect(0, 0, currentFrame.Width, currentFrame.Height));
-            // 倍率也只有这一个来源：框住多大就放大铺满多大，没有第二个倍率参数。
+            System.Windows.Rect zoomBox = _smartZoomObbTarget is { } smartTarget
+                ? VisionSmartZoomPolicy.ResolveTargetRect(
+                    smartTarget,
+                    currentFrame.Width,
+                    currentFrame.Height)
+                : System.Windows.Rect.Empty;
+            bool usingSmartTarget = !zoomBox.IsEmpty;
+            if (!usingSmartTarget)
+            {
+                // 没有可用的本次识别坐标时，继续使用固定放大取景框。
+                zoomBox = CameraBarcodeGuideLayout.ToDisplayRect(
+                    ZoomGuideGeometry,
+                    new System.Windows.Rect(0, 0, currentFrame.Width, currentFrame.Height));
+            }
+            // 倍率由目标框决定：智能模式是本次选中的单个 OBB，否则是固定取景框。
             double zoomScale = ZoomCropPolicy.ResolveScale(
                 currentFrame.Width,
                 currentFrame.Height,
@@ -112,17 +137,15 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Info(
                     "Zoom",
-                    $"Applying zoom-box centered zoom scale={zoomScale:F2}, box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
+                    $"Applying {(usingSmartTarget ? "OBB" : "guide")} zoom scale={zoomScale:F2}, "
+                        + $"box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
             }
 
             Mat processedFrame = currentFrame;
 
-            // 根据缩放阶段计算动画倍率
+            // 触发时已经锁存目标；整个放大过程只使用这份坐标，不再跟随后续识别结果。
             double animDuration = Config.EnableZoomAnimation ? Config.ZoomAnimationDurationMs : 0;
             double animatedScale = 1.0;
-            // 平移进度（0 = 整帧中心，1 = 已滑到放大取景框中心）。
-            // 与倍率共用同一条缓动曲线，缩放和平移同时起步、同时停稳，
-            // 不会再出现"倍率在缓动、画面却一步跳到位"的割裂感。
             double panProgress = 0.0;
             bool applyZoom = false;
 
@@ -131,7 +154,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                 double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
                 double eased = SmoothStep(t);
-                animatedScale = 1.0 + (zoomScale - 1.0) * eased;
+                animatedScale = 1.0 + ((zoomScale - 1.0) * eased);
                 panProgress = eased;
                 if (Config.HideOverlayDuringZoom)
                     overlayFadePercent = 100.0 * (1.0 - eased);
@@ -146,16 +169,18 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (Config.HideOverlayDuringZoom)
                     overlayFadePercent = 0.0;
                 applyZoom = true;
-                if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds >= Config.ZoomDurationSeconds * 1000.0)
+                if ((DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds
+                    >= Config.ZoomDurationSeconds * 1000.0)
+                {
                     SetZoomPhase(ZoomPhase.ZoomingOut);
+                }
             }
             else if (_zoomPhase == ZoomPhase.ZoomingOut)
             {
                 double elapsed = (DateTime.Now - _zoomPhaseStartTime).TotalMilliseconds;
                 double t = animDuration > 0 ? Math.Min(elapsed / animDuration, 1.0) : 1.0;
                 double eased = SmoothStep(t);
-                animatedScale = zoomScale - (zoomScale - 1.0) * eased;
-                // 还原时反着走：从框中心滑回整帧中心
+                animatedScale = zoomScale - ((zoomScale - 1.0) * eased);
                 panProgress = 1.0 - eased;
                 if (Config.HideOverlayDuringZoom)
                     overlayFadePercent = 100.0 * eased;
@@ -163,6 +188,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (t >= 1.0)
                 {
                     SetZoomPhase(ZoomPhase.None);
+                    _smartZoomObbTarget = null;
                     Debug.WriteLine("[Zoom] 缩放动画结束，恢复原样");
                 }
             }

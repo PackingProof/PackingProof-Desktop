@@ -266,7 +266,10 @@ public sealed class ReleasePackagingPolicyTests
 
         Assert.Contains("Read-OpenCvBaselineManifest", publishScript, StringComparison.Ordinal);
         Assert.Contains("Resolve-OpenCvBaselineNativeDll", publishScript, StringComparison.Ordinal);
-        Assert.Contains("-ExcludeRelativePaths $openCvAppPatchExcludeRelativePaths", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "-ExcludeRelativePaths ($openCvAppPatchExcludeRelativePaths + $visionAppPatchExcludeRelativePaths)",
+            publishScript,
+            StringComparison.Ordinal);
         Assert.Contains("OpenCvSharp.dll changed while OpenCvSharpExtern.dll is excluded", publishScript, StringComparison.Ordinal);
         Assert.Contains("AppPatch delete list must not contain OpenCV native DLL", publishScript, StringComparison.Ordinal);
         Assert.Contains("OpenCV native DLL must not be included", publishScript, StringComparison.Ordinal);
@@ -319,6 +322,87 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("hevc_qsv", encoderScript, StringComparison.Ordinal);
         Assert.Contains("EPM_REQUIRED_ENCODERS", encoderScript, StringComparison.Ordinal);
         Assert.Contains("ExpressPackingMonitoring.EncodingIntegrationTests", solution, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseValidation_HasPerTestHangGuard()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string releaseScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-Release.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains("\"--blame-hang-timeout\"", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("\"5m\"", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("\"--blame-hang-dump-type\"", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("\"none\"", releaseScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Packaging_CanExcludeVisionObbFeaturePack()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string appProject = File.ReadAllText(
+            Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"),
+            Encoding.UTF8);
+        string incrementalScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "打包脚本-增量.bat"),
+            Encoding.UTF8);
+        string baselineScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "打包脚本-基线.bat"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "[ValidateSet(\"include\", \"exclude\")]",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains("-p:IncludeVisionObb=false", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            ") + $visionPublishArguments + @(",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains("$visionAppPatchExcludeRelativePaths", publishScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "Condition=\"'$(IncludeVisionObb)' == 'true'\"",
+            appProject,
+            StringComparison.Ordinal);
+        Assert.Contains("VISION_OBB", appProject, StringComparison.Ordinal);
+        Assert.Contains("Vision.Obb.csproj", appProject, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "PackageReference Include=\"Microsoft.ML.OnnxRuntime.DirectML\"",
+            appProject,
+            StringComparison.Ordinal);
+        Assert.Contains("novision", incrementalScript, StringComparison.Ordinal);
+        Assert.Contains("novision", baselineScript, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoRuntimePackage_InheritsVisionObbFeatureState()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string script = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-NoRuntimePackage.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "\"-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())\"",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("-p:CameraVisionModelPath=$visionModel", script, StringComparison.Ordinal);
+        Assert.Contains("no-runtime 包未继承视觉文件", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "Copy-Item -LiteralPath $sourceFile -Destination $publishedFile -Force",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("no-runtime 视觉文件与标准包不一致", script, StringComparison.Ordinal);
+        Assert.Contains(
+            "Assert-VisionModelRuntimeFiles `",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains("no-runtime 包出现", script, StringComparison.Ordinal);
     }
 
     [Fact]

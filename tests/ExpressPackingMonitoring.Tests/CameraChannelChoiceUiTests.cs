@@ -197,12 +197,26 @@ public sealed class CameraChannelChoiceUiTests
             probe.SelectedItem = BarcodeOptions(probe).First(option => option.Number == 1);
             Assert.Equal(1, config.CameraBarcodeRecognitionChannel);
             Assert.Equal(1, window.SelectedBarcodeRecognitionChannel?.Number);
+            Assert.False(window.CanUseEnhancedRecognitionForSelectedBarcodeSource);
+            Assert.Contains(
+                "智能跟随仍会使用主摄像头",
+                window.CameraBarcodeEnhancedRecognitionHint);
+            Assert.Contains(
+                "从主摄像头画面中选择",
+                window.VisionObbSmartZoomHint);
 
             // 主摄换设备（同步会重算一遍清单）以后，选择不能被冲回主摄。
             main.SelectedItem = ItemOf(main, "moniker-c");
             Assert.Equal(1, config.CameraBarcodeRecognitionChannel);
             Assert.Equal(1, window.SelectedBarcodeRecognitionChannel?.Number);
+            Assert.False(window.CanUseEnhancedRecognitionForSelectedBarcodeSource);
             Assert.Equal(["主摄像头", "副摄像头 1"], BarcodeNames(probe));
+
+            probe.SelectedItem = BarcodeOptions(probe).First(option => option.Number == 0);
+            Assert.True(window.CanUseEnhancedRecognitionForSelectedBarcodeSource);
+            Assert.Contains(
+                "斜着放也能自动找正识别",
+                window.CameraBarcodeEnhancedRecognitionHint);
         });
     }
 

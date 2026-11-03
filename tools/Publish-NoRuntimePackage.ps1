@@ -29,6 +29,7 @@ Set-Location $repoRoot
 
 . (Join-Path $PSScriptRoot "ReleaseVersion.Common.ps1")
 . (Join-Path $PSScriptRoot "GiteeAuth.Common.ps1")
+. (Join-Path $PSScriptRoot "VisionModelBaseline.Common.ps1")
 
 $releaseTag = if ([string]::IsNullOrWhiteSpace($Tag)) { (git describe --tags --exact-match 2>$null) } else { $Tag }
 if ([string]::IsNullOrWhiteSpace($releaseTag)) {
@@ -86,13 +87,77 @@ if (-not (Test-Path -LiteralPath $sourceAppDir -PathType Container)) {
 $runtimePackageAppDir = Join-Path $packageDir "app"
 New-Item -ItemType Directory -Force -Path $runtimePackageAppDir | Out-Null
 $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
-$publishOutput = & dotnet publish $appProject -c $Configuration -r $Runtime --nologo `
-    --self-contained false -p:PublishSingleFile=false `
-    -p:InformationalVersion=$normalizedVersion `
-    -p:IncludeSourceRevisionInInformationalVersion=false `
-    -o $runtimePackageAppDir 2>&1
+$visionAssembly = Join-Path $sourceAppDir "ExpressPackingMonitoring.Vision.Obb.dll"
+$visionModel = Join-Path $sourceAppDir "models\vision-obb.onnx"
+$hasVisionAssembly = Test-Path -LiteralPath $visionAssembly -PathType Leaf
+$hasVisionModel = Test-Path -LiteralPath $visionModel -PathType Leaf
+if ($hasVisionAssembly -ne $hasVisionModel) {
+    throw "标准包的视觉功能状态不一致：Vision.Obb 与模型必须同时存在或同时排除"
+}
+$includeVisionObb = $hasVisionAssembly
+$visionPublishArguments = @(
+    "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
+)
+if ($includeVisionObb) {
+    $visionPublishArguments += "-p:CameraVisionModelPath=$visionModel"
+}
+$publishArguments = @(
+    "publish", $appProject,
+    "-c", $Configuration,
+    "-r", $Runtime,
+    "--nologo",
+    "--self-contained", "false",
+    "-p:PublishSingleFile=false",
+    "-p:InformationalVersion=$normalizedVersion",
+    "-p:IncludeSourceRevisionInInformationalVersion=false",
+    "-o", $runtimePackageAppDir
+) + $visionPublishArguments
+$publishOutput = & dotnet @publishArguments 2>&1
 if (-not (Test-Path -LiteralPath (Join-Path $runtimePackageAppDir "ExpressPackingMonitoring.dll") -PathType Leaf)) {
     throw "框架依赖发布失败：$([Environment]::NewLine)$($publishOutput -join [Environment]::NewLine)"
+}
+$visionRuntimeFiles = @(
+    "ExpressPackingMonitoring.Vision.Obb.dll",
+    "Microsoft.ML.OnnxRuntime.dll",
+    "System.Numerics.Tensors.dll",
+    "DirectML.dll",
+    "onnxruntime.dll",
+    "onnxruntime_providers_shared.dll",
+    "models\vision-obb.onnx"
+)
+if ($includeVisionObb) {
+    foreach ($visionFile in $visionRuntimeFiles) {
+        $sourceFile = Join-Path $sourceAppDir $visionFile
+        $publishedFile = Join-Path $runtimePackageAppDir $visionFile
+        if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
+            throw "no-runtime 包未继承视觉文件：$visionFile"
+        }
+        $publishedDirectory = Split-Path -Parent $publishedFile
+        [System.IO.Directory]::CreateDirectory($publishedDirectory) | Out-Null
+        Copy-Item -LiteralPath $sourceFile -Destination $publishedFile -Force
+        $sourceHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash
+        $publishedHash = (Get-FileHash -LiteralPath $publishedFile -Algorithm SHA256).Hash
+        if (-not [string]::Equals($sourceHash, $publishedHash, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "no-runtime 视觉文件与标准包不一致：$visionFile"
+        }
+    }
+    $visionModelBaseline = Read-VisionModelBaselineManifest `
+        -ManifestPath (Join-Path $PSScriptRoot "vision-model-baseline.json")
+    Assert-VisionModelRuntimeFiles `
+        -AppDir $runtimePackageAppDir `
+        -Baseline $visionModelBaseline
+}
+else {
+    foreach ($visionOnlyFile in @(
+        "ExpressPackingMonitoring.Vision.Obb.dll",
+        "Microsoft.ML.OnnxRuntime.dll",
+        "DirectML.dll",
+        "onnxruntime_providers_shared.dll",
+        "models\vision-obb.onnx")) {
+        if (Test-Path -LiteralPath (Join-Path $runtimePackageAppDir $visionOnlyFile)) {
+            throw "标准包未包含视觉功能，但 no-runtime 包出现：$visionOnlyFile"
+        }
+    }
 }
 foreach ($runtimeOnlyFile in @("coreclr.dll", "hostfxr.dll", "System.Private.CoreLib.dll")) {
     if (Test-Path -LiteralPath (Join-Path $runtimePackageAppDir $runtimeOnlyFile)) {

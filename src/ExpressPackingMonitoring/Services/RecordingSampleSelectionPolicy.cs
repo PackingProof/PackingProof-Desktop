@@ -25,13 +25,14 @@ internal enum RecordingSampleCapturePhase
 
 /// <summary>
 /// 从历史录像中选择用于训练反馈的抽帧位置。
-/// 优先按日期均匀覆盖；连续打包只取开头，同码停录交替取开头和结尾。
+/// 优先按日期均匀覆盖；每段入选录像同时取开头和结尾。
+/// 单侧窗口取视频总时长的 30%，最多 20 秒。
 /// </summary>
 internal static class RecordingSampleSelectionPolicy
 {
     internal const int DefaultTargetCount = 200;
-    internal const double CaptureWindowRatio = 0.25;
-    internal const double MaxCaptureWindowSeconds = 15;
+    internal const double CaptureWindowRatio = 0.30;
+    internal const double CaptureWindowMaxSeconds = 20;
 
     internal static bool IsSameCodeStopReason(string? stopReason) =>
         stopReason?.StartsWith("同码停录", StringComparison.Ordinal) == true;
@@ -39,7 +40,7 @@ internal static class RecordingSampleSelectionPolicy
     internal static double GetCaptureWindowSeconds(double durationSeconds) =>
         Math.Min(
             Math.Max(0, durationSeconds) * CaptureWindowRatio,
-            MaxCaptureWindowSeconds);
+            CaptureWindowMaxSeconds);
 
     internal static IReadOnlyList<RecordingSamplePick> Select(
         IReadOnlyList<RecordingSampleSource> sources,
@@ -70,12 +71,12 @@ internal static class RecordingSampleSelectionPolicy
         int candidateLimit = maxCandidateCount <= 0
             ? targetCount
             : Math.Max(targetCount, maxCandidateCount);
-        candidateLimit = Math.Min(candidateLimit, eligible.Count);
+        candidateLimit = Math.Min(candidateLimit, eligible.Count * 2);
+        int sourceLimit = Math.Max(1, (candidateLimit + 1) / 2);
         var selected = new List<RecordingSamplePick>(candidateLimit);
         var selectedIds = new HashSet<long>();
-        int sameCodePickCount = 0;
 
-        int datesToUse = Math.Min(targetCount, byDate.Count);
+        int datesToUse = Math.Min(sourceLimit, byDate.Count);
         var queuesByDate = new List<Queue<RecordingSampleSource>>(datesToUse);
         for (int index = 0; index < datesToUse; index++)
         {
@@ -124,27 +125,29 @@ internal static class RecordingSampleSelectionPolicy
         {
             if (!selectedIds.Add(source.Id))
                 return;
-            RecordingSampleCapturePhase phase = RecordingSampleCapturePhase.Start;
-            if (source.UsesSameCodeCapture)
+            foreach (RecordingSampleCapturePhase phase in new[]
             {
-                phase = sameCodePickCount % 2 == 0
-                    ? RecordingSampleCapturePhase.Start
-                    : RecordingSampleCapturePhase.End;
-                sameCodePickCount++;
+                RecordingSampleCapturePhase.Start,
+                RecordingSampleCapturePhase.End
+            })
+            {
+                if (selected.Count >= candidateLimit)
+                    return;
+                double windowSeconds = GetCaptureWindowSeconds(source.DurationSeconds);
+                double windowStart = phase == RecordingSampleCapturePhase.Start
+                    ? 0
+                    : Math.Max(0, source.DurationSeconds - windowSeconds);
+                double positionSeconds =
+                    windowStart + sourceRandom.NextDouble() * windowSeconds;
+                positionSeconds = Math.Clamp(
+                    positionSeconds,
+                    0,
+                    Math.Max(0, source.DurationSeconds - 0.05));
+                selected.Add(new RecordingSamplePick(
+                    source,
+                    phase,
+                    positionSeconds / Math.Max(0.001, source.DurationSeconds)));
             }
-            double windowSeconds = GetCaptureWindowSeconds(source.DurationSeconds);
-            double windowStart = phase == RecordingSampleCapturePhase.Start
-                ? 0
-                : Math.Max(0, source.DurationSeconds - windowSeconds);
-            double positionSeconds = windowStart + sourceRandom.NextDouble() * windowSeconds;
-            positionSeconds = Math.Clamp(
-                positionSeconds,
-                0,
-                Math.Max(0, source.DurationSeconds - 0.05));
-            selected.Add(new RecordingSamplePick(
-                source,
-                phase,
-                positionSeconds / Math.Max(0.001, source.DurationSeconds)));
         }
     }
 }

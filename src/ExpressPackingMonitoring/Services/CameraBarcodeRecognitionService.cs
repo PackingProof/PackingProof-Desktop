@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Logging;
+using ExpressPackingMonitoring.Vision;
 using OpenCvSharp;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -26,7 +27,11 @@ internal sealed record CameraBarcodeGeometry(double X, double Y, double Width, d
 internal sealed record CameraBarcodeRecognitionStatus(
     CameraBarcodeRecognitionState State,
     string Code = "",
-    CameraBarcodeGeometry? Geometry = null);
+    CameraBarcodeGeometry? Geometry = null,
+    IReadOnlyList<VisionObbDetection>? ObbDetections = null,
+    VisionObbDetection? SelectedObbDetection = null,
+    bool BarcodeDecodingEvaluated = true,
+    bool VisionObbAvailable = false);
 
 internal sealed record CameraBarcodeConfirmedEvent(string Code, CameraBarcodeGeometry? Geometry);
 
@@ -663,6 +668,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     };
     private readonly DecodeWorkspace _guideWorkspace = new();
     private readonly DecodeWorkspace _fullFrameWorkspace = new();
+    private readonly DecodeWorkspace _detachedWorkspace = new();
+    private readonly CameraBarcodeFastDecoder _fastDecoder = new();
     private bool _disposed;
     internal CameraBarcodeGeometry? LastGeometry { get; private set; }
 
@@ -672,7 +679,10 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     }
 
     internal int PixelBufferAllocationCount =>
-        _guideWorkspace.Buffers.AllocationCount + _fullFrameWorkspace.Buffers.AllocationCount;
+        _guideWorkspace.Buffers.AllocationCount
+        + _fullFrameWorkspace.Buffers.AllocationCount
+        + _detachedWorkspace.Buffers.AllocationCount
+        + _fastDecoder.PixelBufferAllocationCount;
 
     private bool IsQrCodeEnabled()
     {
@@ -688,6 +698,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
 
     private BarcodeReaderGeneric SelectSlowReader() =>
         IsQrCodeEnabled() ? _readerWithQrCode : _reader;
+
+    internal bool QrCodeEnabledForDecoding => IsQrCodeEnabled();
 
     public string? DecodeGuideRegion(Mat frame)
         => DecodeGuideRegion(frame, isValid: null, CameraBarcodeGuideGeometry.Default);
@@ -708,6 +720,14 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         if (guide.Width <= 0 || guide.Height <= 0)
             return null;
 
+        if (!CameraBarcodeDecodeSizePolicy.ShouldDecode(
+                guide.Width,
+                guide.Height,
+                QrCodeEnabledForDecoding))
+        {
+            return null;
+        }
+
         using Mat cropped = new(frame, guide);
         if (isValid == null)
             return DecodeSingle(cropped, _guideWorkspace);
@@ -727,6 +747,49 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
             }
         }
         return decoded;
+    }
+
+    /// <summary>解码已经按 OBB 四点裁正的独立图像，不更新原图坐标系里的候选框。</summary>
+    internal string? DecodeDetached(Mat image, Func<string, bool>? isValid)
+    {
+        LastGeometry = null;
+        _lastBestCandidate = null;
+        if (_disposed || image == null || image.IsDisposed || image.Empty())
+            return null;
+        if (!CameraBarcodeDecodeSizePolicy.ShouldDecode(
+                image.Width,
+                image.Height,
+                QrCodeEnabledForDecoding))
+        {
+            return null;
+        }
+
+        string? decoded = DecodeSingle(image, _detachedWorkspace);
+        if (decoded != null && (isValid == null || isValid(decoded)))
+        {
+            LastGeometry = _lastBestCandidate?.Geometry;
+            return decoded;
+        }
+        decoded = isValid == null
+            ? null
+            : DecodeBest(
+                image,
+                _detachedWorkspace,
+                isValid,
+                new Rect(0, 0, image.Width, image.Height));
+        LastGeometry = _lastBestCandidate?.Geometry;
+        return decoded;
+    }
+
+    /// <summary>
+    /// 小角度快速通道：只做一次轻量解码，失败后结束当前候选，
+    /// 不再继续尝试慢速扫描或旋转校正。
+    /// </summary>
+    internal string? DecodeDetachedFast(Mat image)
+    {
+        LastGeometry = null;
+        _lastBestCandidate = null;
+        return _fastDecoder.Decode(image, QrCodeEnabledForDecoding);
     }
 
     private DecodedCandidate? _lastBestCandidate;
@@ -1163,6 +1226,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         _disposed = true;
         _guideWorkspace.Dispose();
         _fullFrameWorkspace.Dispose();
+        _detachedWorkspace.Dispose();
+        _fastDecoder.Dispose();
     }
 }
 
@@ -1388,97 +1453,6 @@ internal sealed class ReusableGrayLuminanceSource : LuminanceSource
     }
 }
 
-internal sealed class CameraBarcodeMotionGate : IDisposable
-{
-    internal static readonly TimeSpan DecodeHoldDuration = TimeSpan.FromSeconds(1);
-    internal const int SampleWidth = 160;
-    internal const int SampleHeight = 90;
-    internal const double MeanDifferenceThreshold = 6.0;
-    internal const double ChangedPixelRatioThreshold = 0.01;
-    internal const double PixelDifferenceThreshold = 18;
-
-    private static readonly OpenCvSharp.Size SampleSize = new(SampleWidth, SampleHeight);
-    private readonly Mat _sampled = new();
-    private readonly Mat _currentGray = new();
-    private readonly Mat _previousGray = new();
-    private readonly Mat _difference = new();
-    private readonly Mat _changedPixels = new();
-    private bool _hasBaseline;
-    private DateTimeOffset _decodeUntil;
-    private bool _disposed;
-
-    public bool ShouldDecode(Mat frame, DateTimeOffset now, bool forceDecode = false)
-    {
-        if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
-            return false;
-
-        switch (frame.Channels())
-        {
-            case 1:
-                Cv2.Resize(frame, _currentGray, SampleSize, interpolation: InterpolationFlags.Area);
-                break;
-            case 3:
-                Cv2.Resize(frame, _sampled, SampleSize, interpolation: InterpolationFlags.Area);
-                Cv2.CvtColor(_sampled, _currentGray, ColorConversionCodes.BGR2GRAY);
-                break;
-            case 4:
-                Cv2.Resize(frame, _sampled, SampleSize, interpolation: InterpolationFlags.Area);
-                Cv2.CvtColor(_sampled, _currentGray, ColorConversionCodes.BGRA2GRAY);
-                break;
-            default:
-                return false;
-        }
-
-        if (!_hasBaseline)
-        {
-            _currentGray.CopyTo(_previousGray);
-            _hasBaseline = true;
-            _decodeUntil = now + DecodeHoldDuration;
-            return true;
-        }
-
-        Cv2.Absdiff(_currentGray, _previousGray, _difference);
-        double meanDifference = Cv2.Mean(_difference).Val0;
-        Cv2.Threshold(
-            _difference,
-            _changedPixels,
-            PixelDifferenceThreshold,
-            255,
-            ThresholdTypes.Binary);
-        double changedPixelRatio = (double)Cv2.CountNonZero(_changedPixels) / (SampleWidth * SampleHeight);
-        _currentGray.CopyTo(_previousGray);
-
-        bool changed = meanDifference >= MeanDifferenceThreshold
-            || changedPixelRatio >= ChangedPixelRatioThreshold;
-        if (changed)
-            _decodeUntil = now + DecodeHoldDuration;
-
-        return forceDecode || now <= _decodeUntil;
-    }
-
-    public void Reset()
-    {
-        if (_disposed)
-            return;
-
-        _hasBaseline = false;
-        _decodeUntil = default;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _sampled.Dispose();
-        _currentGray.Dispose();
-        _previousGray.Dispose();
-        _difference.Dispose();
-        _changedPixels.Dispose();
-    }
-}
-
 internal sealed class CameraBarcodeRecognitionService : IDisposable
 {
     private static readonly TimeSpan GuideInterval = TimeSpan.FromMilliseconds(250);
@@ -1490,9 +1464,11 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Func<int>? _confirmationHitsProvider;
     private readonly Func<TimeSpan>? _rearmDelayProvider;
     private readonly Func<TimeSpan> _guideIntervalProvider;
+    private readonly Func<TimeSpan> _fastGuideIntervalProvider;
+    private readonly Func<TimeSpan> _visionFollowIntervalProvider;
     private readonly Func<CameraBarcodeGuideGeometry> _guideGeometryProvider;
     private readonly bool _reportVisibleCodes;
-    private readonly CameraBarcodeFrameDecoder _decoder;
+    private readonly CameraBarcodeVisionProcessor _visionProcessor;
     private readonly CameraBarcodeMotionGate _motionGate = new();
     private readonly CameraBarcodeStabilityTracker _stabilityTracker = new();
     private readonly object _pendingLock = new();
@@ -1502,7 +1478,11 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     private readonly Task _workerTask;
     private Mat? _pendingFrame;
     private int _pendingGeneration;
+    private bool _pendingDecodeAllowed;
+    private bool _pendingVisionUpdate;
     private DateTimeOffset _lastAcceptedAt;
+    private DateTimeOffset _lastBarcodeDecodeAt;
+    private DateTimeOffset _lastVisionUpdateAt;
     private DateTimeOffset _lastSlowDecodeLogAt;
     private DateTimeOffset _lastRecognitionErrorLogAt;
     private string _lastInvalidCandidate = "";
@@ -1534,14 +1514,27 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         Func<TimeSpan>? guideIntervalProvider = null,
         Func<CameraBarcodeGuideGeometry>? guideGeometryProvider = null,
         Func<int>? confirmationHitsProvider = null,
-        Func<bool>? qrCodeEnabledProvider = null)
+        Func<bool>? qrCodeEnabledProvider = null,
+        Func<(bool Enabled, string Path)>? visionObbProvider = null,
+        Func<TimeSpan>? fastGuideIntervalProvider = null,
+        Func<TimeSpan>? visionFollowIntervalProvider = null,
+        Func<bool>? cameraBarcodeDecodingEnabledProvider = null,
+        Func<bool>? visionObbDecodingEnabledProvider = null)
     {
         _candidateValidator = candidateValidator ?? throw new ArgumentNullException(nameof(candidateValidator));
-        _decoder = new CameraBarcodeFrameDecoder(qrCodeEnabledProvider);
+        _visionProcessor = new CameraBarcodeVisionProcessor(
+            new CameraBarcodeFrameDecoder(qrCodeEnabledProvider),
+            visionObbProvider,
+            cameraBarcodeDecodingEnabledProvider,
+            visionObbDecodingEnabledProvider);
         _confirmationWindowProvider = confirmationWindowProvider;
         _confirmationHitsProvider = confirmationHitsProvider;
         _rearmDelayProvider = rearmDelayProvider;
         _guideIntervalProvider = guideIntervalProvider ?? (() => GuideInterval);
+        _fastGuideIntervalProvider =
+            fastGuideIntervalProvider ?? (() => TimeSpan.FromMilliseconds(100));
+        _visionFollowIntervalProvider = visionFollowIntervalProvider
+            ?? _fastGuideIntervalProvider;
         _guideGeometryProvider = guideGeometryProvider ?? (() => CameraBarcodeGuideGeometry.Default);
         _reportVisibleCodes = reportVisibleCodes;
         _invalidCandidateThrottle = invalidCandidateThrottle ?? TimeSpan.FromSeconds(3);
@@ -1549,12 +1542,13 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         _workerTask = Task.Run(ProcessLoopAsync);
     }
 
-    /// <param name="forceDecode">
-    /// 跳过运动门控强制解码。副画面识别要靠它：面单在副摄像头前放好之后画面是静止的，
-    /// 运动门控会判定"没有变化"而停止解码，静止的条码就永远认不出来。
-    /// 提交本身仍受 guideInterval 节流，不会变成每帧都解码。
+    /// <param name="intent">
+    /// 明确区分普通运动门控、副画面强制解码、视觉更新以及两者组合。
+    /// 视觉更新本身不会获得强制 ZXing 解码语义。
     /// </param>
-    public bool TrySubmitFrame(Mat frame, bool forceDecode = false)
+    public bool TrySubmitFrame(
+        Mat frame,
+        CameraBarcodeFrameIntent intent = CameraBarcodeFrameIntent.MotionGatedBarcode)
     {
         if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
             return false;
@@ -1565,22 +1559,58 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         lock (_pendingLock)
         {
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            TimeSpan guideInterval = _guideIntervalProvider();
-            if (guideInterval <= TimeSpan.Zero)
-                guideInterval = GuideInterval;
-            if (_disposed || now - _lastAcceptedAt < guideInterval)
+            bool forceVision = CameraBarcodeFrameIntentPolicy.ShouldUpdateVision(intent);
+            TimeSpan barcodeInterval = _guideIntervalProvider();
+            if (barcodeInterval <= TimeSpan.Zero)
+                barcodeInterval = GuideInterval;
+            bool activeDecodeWindow =
+                now.UtcTicks <= Volatile.Read(ref _forceDecodeUntilUtcTicks);
+            if (activeDecodeWindow)
+            {
+                barcodeInterval = CameraBarcodeSpeed.ActiveDecodeInterval(
+                    barcodeInterval,
+                    _fastGuideIntervalProvider());
+            }
+
+            TimeSpan visionInterval = _visionFollowIntervalProvider();
+            if (visionInterval <= TimeSpan.Zero)
+                visionInterval = barcodeInterval;
+            TimeSpan submissionInterval = barcodeInterval;
+            if (forceVision)
+            {
+                submissionInterval = CameraBarcodeSpeed.ActiveDecodeInterval(
+                    submissionInterval,
+                    visionInterval);
+            }
+            if (_disposed || now - _lastAcceptedAt < submissionInterval)
                 return false;
 
             _lastAcceptedAt = now;
-            bool shouldForceDecode = forceDecode
-                || now.UtcTicks <= Volatile.Read(ref _forceDecodeUntilUtcTicks);
-            if (!_motionGate.ShouldDecode(frame, now, shouldForceDecode))
+            bool visionDue = forceVision
+                && (_lastVisionUpdateAt == default
+                    || now - _lastVisionUpdateAt >= visionInterval);
+            bool shouldForceDecode = CameraBarcodeFrameIntentPolicy.ShouldForceDecode(intent)
+                || activeDecodeWindow;
+            bool motionAllowsDecode = _motionGate.ShouldDecode(
+                frame,
+                now,
+                shouldForceDecode);
+            bool decodeDue = _lastBarcodeDecodeAt == default
+                || now - _lastBarcodeDecodeAt >= barcodeInterval;
+            bool decodeAllowed = decodeDue && motionAllowsDecode;
+            if (!decodeAllowed && !visionDue)
                 return false;
+            if (visionDue)
+                _lastVisionUpdateAt = now;
+            if (decodeAllowed)
+                _lastBarcodeDecodeAt = now;
 
             replacement = frame.Clone();
             dropped = _pendingFrame;
             _pendingFrame = replacement;
             _pendingGeneration = _generation;
+            _pendingDecodeAllowed |= decodeAllowed;
+            _pendingVisionUpdate |= visionDue;
             if (dropped != null)
                 Interlocked.Increment(ref _droppedFrames);
             shouldSignal = _pendingSignal.CurrentCount == 0;
@@ -1596,7 +1626,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         return true;
     }
 
-    public void Reset(bool preserveConfirmedCodes = false)
+    public void Reset(
+        bool preserveConfirmedCodes = false,
+        bool releaseVisionRuntime = false)
     {
         if (_disposed)
             return;
@@ -1607,11 +1639,17 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
             Interlocked.Increment(ref _generation);
             pending = _pendingFrame;
             _pendingFrame = null;
+            _pendingDecodeAllowed = false;
+            _pendingVisionUpdate = false;
             _lastAcceptedAt = default;
+            _lastBarcodeDecodeAt = default;
+            _lastVisionUpdateAt = default;
             Volatile.Write(ref _forceDecodeUntilUtcTicks, 0);
             _motionGate.Reset();
         }
         pending?.Dispose();
+        if (releaseVisionRuntime)
+            _visionProcessor.ReleaseDetector();
         lock (_trackerLock)
             _stabilityTracker.Reset(preserveConfirmedCodes);
         lock (_trackerLock)
@@ -1639,17 +1677,23 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
 
                 Mat? frame;
                 int generation;
+                bool decodeAllowed;
+                bool visionUpdate;
                 lock (_pendingLock)
                 {
                     frame = _pendingFrame;
                     generation = _pendingGeneration;
+                    decodeAllowed = _pendingDecodeAllowed;
+                    visionUpdate = _pendingVisionUpdate;
                     _pendingFrame = null;
+                    _pendingDecodeAllowed = false;
+                    _pendingVisionUpdate = false;
                 }
                 if (frame == null)
                     continue;
 
                 using (frame)
-                    ProcessFrame(frame, generation);
+                    ProcessFrame(frame, generation, visionUpdate, decodeAllowed);
             }
         }
         catch (OperationCanceledException) { }
@@ -1659,18 +1703,39 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
         }
     }
 
-    private void ProcessFrame(Mat frame, int generation)
+    private void ProcessFrame(
+        Mat frame,
+        int generation,
+        bool visionUpdate,
+        bool decodeAllowed)
     {
         var stopwatch = Stopwatch.StartNew();
         string? code = null;
         try
         {
-            string? decoded = _decoder.DecodeGuideRegion(
+            string? decoded = _visionProcessor.ProcessFrame(
                 frame,
                 IsValidCandidate,
-                _guideGeometryProvider());
+                _guideGeometryProvider(),
+                visionUpdate,
+                decodeAllowed);
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            CameraBarcodeGeometry? decodedGeometry = _decoder.LastGeometry;
+            CameraBarcodeGeometry? decodedGeometry = _visionProcessor.DecodedGeometry;
+            if (!decodeAllowed)
+            {
+                if (generation == Volatile.Read(ref _generation) && !_disposed)
+                {
+                    StatusChanged?.Invoke(new CameraBarcodeRecognitionStatus(
+                        CameraBarcodeRecognitionState.Idle,
+                        ObbDetections: _visionProcessor.ObbDetections.Count == 0
+                            ? null
+                            : _visionProcessor.ObbDetections,
+                        SelectedObbDetection: _visionProcessor.SelectedObbDetection,
+                        BarcodeDecodingEvaluated: false,
+                        VisionObbAvailable: _visionProcessor.VisionObbAvailable));
+                }
+                return;
+            }
             if (!string.IsNullOrWhiteSpace(decoded) && decodedGeometry != null)
                 _lastGeometryByCode[decoded] = decodedGeometry;
 
@@ -1742,7 +1807,15 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                     GetGeometryForCode(observation.ConfirmedCode.Length > 0
                         ? observation.ConfirmedCode
                         : observation.CandidateCode,
-                        decodedGeometry));
+                        decodedGeometry))
+                with
+                {
+                    ObbDetections = _visionProcessor.ObbDetections.Count == 0
+                        ? null
+                        : _visionProcessor.ObbDetections,
+                    SelectedObbDetection = _visionProcessor.SelectedObbDetection,
+                    VisionObbAvailable = _visionProcessor.VisionObbAvailable
+                };
             if (observation.ConfirmedCode.Length > 0)
             {
                 long dropped = Interlocked.Read(ref _droppedFrames);
@@ -1897,7 +1970,7 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
     {
         if (Interlocked.Exchange(ref _workerResourcesDisposed, 1) != 0)
             return;
-        _decoder.Dispose();
+        _visionProcessor.Dispose();
         _motionGate.Dispose();
         _pendingSignal.Dispose();
         _cts.Dispose();

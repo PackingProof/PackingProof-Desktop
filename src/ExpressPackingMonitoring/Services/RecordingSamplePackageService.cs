@@ -58,7 +58,7 @@ internal sealed class RecordingSamplePackageService
     internal const int MaxPackagesToKeep = 5;
     internal const int FfmpegThreadCount = 2;
     internal const string ZipPrefix = "PackingProof_RecognitionSamples_";
-    internal const string SelectionRuleVersion = "date-stratified-stopreason-window-v4";
+    internal const string SelectionRuleVersion = "date-stratified-double-ended-window-v8";
     internal static readonly int MaxConcurrentFrameExtractions =
         Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
 
@@ -133,7 +133,7 @@ internal sealed class RecordingSamplePackageService
 
             var warnings = new List<string>();
             var entries = new List<RecordingSampleManifestEntry>();
-            var capturedSourceFingerprints = new List<string>();
+            var capturedSourceFingerprints = new HashSet<string>(StringComparer.Ordinal);
             int attempted = 0;
             int nextPickIndex = 0;
             long accumulatedImageBytes = 0;
@@ -378,6 +378,7 @@ internal sealed class RecordingSamplePackageService
             "PackingProof 面单识别样本包\r\n\r\n" +
             $"图片数量：{imageCount}\r\n" +
             "本包只包含从本机历史录像中随机抽取的画面和 manifest.json，不包含录像、数据库、配置或运行日志。\r\n" +
+            "每段入选录像会在开头和结尾的时间窗口内各抽取画面。\r\n" +
             "manifest.json 包含匿名设备标识和录像来源指纹，仅用于区分贡献和去重。\r\n" +
             "画面可能包含面单、人物或其他现场信息，请检查确认后再交给 PackingProof 维护者。\r\n";
         File.WriteAllText(Path.Combine(stagingDir, "README.txt"), content, Encoding.UTF8);

@@ -156,6 +156,7 @@ namespace ExpressPackingMonitoring.UI
         }
         private string _originalNodeName;
         private string _originalWebAccessKey;
+        private bool _originalEnhancedRecognitionEnabled;
         private bool _isRecording;
         private CollectionViewSource _localStorageView;
         private CollectionViewSource _backupStorageView;
@@ -171,7 +172,7 @@ namespace ExpressPackingMonitoring.UI
         {
             Interval = TimeSpan.FromSeconds(5)
         };
-        private const string FeedbackEmail = "PackingProof@outlook.com";
+        private const string FeedbackEmail = FeedbackContact.Email;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
             : this(SettingsContext.ForCameraWorkstation(mainVM), clonedConfig, diskUsagePercent, diskUsageText, isRecording)
@@ -193,6 +194,8 @@ namespace ExpressPackingMonitoring.UI
                 ExpressPackingMonitoring.Config.AppVersion.CommitShortId);
             _originalNodeName = Config.NodeName;
             _originalWebAccessKey = Config.WebAccessKey;
+            _originalEnhancedRecognitionEnabled =
+                Config.EnableCameraBarcodeEnhancedRecognition;
             InitializeComponent();
 
             CurrentDiskUsagePercent = diskUsagePercent;
@@ -1830,6 +1833,13 @@ namespace ExpressPackingMonitoring.UI
                 DateTime.UtcNow);
             // 副摄下拉里选的是这台设备实际支持的档位，保存时写回配置（与主摄同一套口径）
             ApplySecondaryCameraFormatsToConfig();
+            if (Config.EnableCameraBarcodeEnhancedRecognition
+                != _originalEnhancedRecognitionEnabled)
+            {
+                AppConfig.MarkCameraVisionUserChoice(
+                    Config,
+                    Config.EnableCameraBarcodeEnhancedRecognition);
+            }
             AppConfig.NormalizeAfterLoad(Config);
 
             if (Capabilities.CanRecordPcVideo && !ValidateEncoderSelectionBeforeSave())
@@ -1844,9 +1854,16 @@ namespace ExpressPackingMonitoring.UI
             bool applied = await Context.ApplyAsync(appliedConfig);
             if (applied)
             {
+                bool enhancedRecognitionDisabled =
+                    SampleContributionPromptPolicy
+                        .ShouldPromptAfterEnhancedRecognitionDisabled(
+                            _originalEnhancedRecognitionEnabled,
+                            Config.EnableCameraBarcodeEnhancedRecognition);
                 _originalTheme = Config.Theme;
                 _originalNodeName = Config.NodeName;
                 _originalWebAccessKey = Config.WebAccessKey;
+                _originalEnhancedRecognitionEnabled =
+                    Config.EnableCameraBarcodeEnhancedRecognition;
                 if (_originalLanguage != Config.Language)
                 {
                     AppDialog.Information(
@@ -1855,6 +1872,8 @@ namespace ExpressPackingMonitoring.UI
                         AppLanguage.Get("RestartRequired"));
                     _originalLanguage = Config.Language;
                 }
+                if (enhancedRecognitionDisabled)
+                    Context.ShowRecognitionSampleContributionPrompt?.Invoke(this);
             }
             return applied;
         }

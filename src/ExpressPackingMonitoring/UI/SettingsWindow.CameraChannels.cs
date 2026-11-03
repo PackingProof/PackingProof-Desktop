@@ -337,8 +337,24 @@ namespace ExpressPackingMonitoring.UI
 
                 config.CameraBarcodeRecognitionChannel = value.Number;
                 Raise(nameof(SelectedBarcodeRecognitionChannel));
+                Raise(nameof(CanUseEnhancedRecognitionForSelectedBarcodeSource));
+                Raise(nameof(CameraBarcodeEnhancedRecognitionHint));
+                Raise(nameof(VisionObbSmartZoomHint));
             }
         }
+
+        public bool CanUseEnhancedRecognitionForSelectedBarcodeSource =>
+            (Config?.CameraBarcodeRecognitionChannel ?? 0) == 0;
+
+        public string CameraBarcodeEnhancedRecognitionHint =>
+            CanUseEnhancedRecognitionForSelectedBarcodeSource
+                ? AppLanguage.Get("面单不用横平竖直，斜着放也能自动找正识别；会多用一些电脑性能")
+                : AppLanguage.Get("使用副摄像头识别时不需要倾斜面单增强；智能跟随仍会使用主摄像头");
+
+        public string VisionObbSmartZoomHint =>
+            CanUseEnhancedRecognitionForSelectedBarcodeSource
+                ? AppLanguage.Get("优先放大本次识别到的面单；同屏多张时也只放大这一张")
+                : AppLanguage.Get("副摄像头只负责识别条码，智能跟随会从主摄像头画面中选择要放大的面单");
 
         /// <summary>
         /// 取一份完整设备清单。主摄清单是**异步**填进下拉的，第一次读到很可能还是空的，
@@ -609,6 +625,9 @@ namespace ExpressPackingMonitoring.UI
 
             Raise(nameof(BarcodeRecognitionChannelChoices));
             Raise(nameof(SelectedBarcodeRecognitionChannel));
+            Raise(nameof(CanUseEnhancedRecognitionForSelectedBarcodeSource));
+            Raise(nameof(CameraBarcodeEnhancedRecognitionHint));
+            Raise(nameof(VisionObbSmartZoomHint));
         }
 
         /// <summary>识别来源是不是指向一路真的接了设备的通道。</summary>

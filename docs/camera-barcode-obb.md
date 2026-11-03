@@ -1,0 +1,138 @@
+# 增强面单识别（YOLO-OBB）
+
+增强面单识别是可选的摄像头识别路径。开关打开后：
+
+YOLO-OBB 已拆为可选功能包：主程序只依赖
+`ExpressPackingMonitoring.Vision.Contracts`，ONNX Runtime、DirectML、模型加载和输出解析位于
+`ExpressPackingMonitoring.Vision.Obb`。默认构建与安装包仍包含该功能包；商业版或不需要该功能的
+构建可显式排除：
+
+```powershell
+pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb exclude
+```
+
+也可以运行 `打包脚本-增量.bat <版本> 0.0.84 novision`。排除后设置页隐藏相关选项，
+普通 ZXing 识别、倾斜码重试、扫码枪和录像流程不受影响。注意 `org.k2fsa.sherpa.onnx`
+仍可能为本地语音功能携带另一份 `onnxruntime.dll`；它与 YOLO 功能包无关。
+
+1. 用单类别 YOLO-OBB 模型定位面单并得到旋转框
+2. 旋转框离最近的 90° 不超过 `10°` 时直接裁轴对齐外接框并快速解码；
+   超过 `10°` 时按四点透视裁正后再交给现有 ZXing 解码器
+3. 小角度快速解码失败后直接放弃该候选，不使用慢速扫描或整帧兜底
+4. 把旋转框画在预览画面上
+
+开关关闭时完全不加载模型，也不执行 OBB 推理。
+
+增强模式直接处理整帧，不要求用户维护第二个识别取景框。检测框使用
+`220ms` 三次缓出动画平滑移动到新位置；新框淡入、消失框淡出。
+
+检测框使用轻量级短时轨迹跟踪：按预测位置、框重叠率和尺寸做最多
+`6×6` 的一对一匹配。目标短暂遮挡后，轨迹会保留 `1.5 秒` 并按速度预测位置，
+重新出现时优先接回原框，避免两个面单交换身份或突然跳成新框。
+
+框颜色沿用摄像头识别状态：
+
+- 蓝色：仅检测到面单位置和角度
+- 黄色：当前选中并识别出待确认单号的那一个框
+- 绿色：最终确认单号所对应的那一个框
+
+其他同时存在的面单框保持蓝色，不会跟着一起变色。
+
+## 多张面单的候选选择
+
+同一帧里解出多个有效单号时，不按模型输出顺序直接取第一个，而是为每个候选计算：
+
+| 因素 | 权重 | 归一化方式 |
+| --- | ---: | --- |
+| 旋转框面积 | 45% | 当前框面积 / 候选中的最大框面积 |
+| 模型置信度 | 35% | `(分数 - 0.35) / (1 - 0.35)` |
+| 中心接近度 | 20% | `1 - 框中心到识别框中心的距离 / 识别框中心到角的距离` |
+
+同一订单的裸单号与包裹码先归为一组，组内选最高分；不同订单之间再按总分选择最高者。
+总分相同时才用原始模型置信度兜底。
+
+## 运行时
+
+安装包随附 `Microsoft.ML.OnnxRuntime.DirectML` 1.23.0 和 DirectML 1.15.4：
+
+- Windows 上优先使用 DirectML 调用 NVIDIA、AMD 或 Intel 显卡
+- DirectML Session 初始化失败时自动回退 CPU
+- 不要求用户安装 CUDA 或 cuDNN
+
+发布包不包含 `DirectML.Debug.dll` 和 PDB。
+
+## 权重
+
+模型二进制不提交到 Desktop Git 仓库，而是由独立的 `PackingProof-Vision` 训练仓库
+随其 Release 发布，并由 `tools\vision-model-baseline.json` 锁定版本、仓库地址和哈希。
+Desktop 的 Release 不承载模型二进制。模型资产和运行时统一使用角色文件名
+`vision-obb.onnx`，训练批次只记录在 Release 标签、锁定清单和 ONNX 元数据中。
+基线清单同时锁定训练批次、文件大小、SHA256 和下载地址；
+`tools\Prepare-PinnedVisionModel.ps1` 在 CI、发布和本地准备阶段下载并校验，
+模型缺失或哈希不一致会直接阻断构建。工程和用户替换统一使用稳定的角色文件名，
+不把训练批次编进路径。程序优先加载：
+
+```
+<安装目录>\app\models\vision-obb.onnx
+```
+
+开发环境或没有内置模型的包会回退到：
+
+```
+%LOCALAPPDATA%\ExpressPackingMonitoring\models\vision-obb.onnx
+```
+
+普通设置页不再暴露模型路径。新安装默认不先开启增强识别，而是在主界面加载后运行一次
+本机 benchmark：
+
+- benchmark 按每秒识别 4 次计算，每帧预算 `250ms`；保留 30% 余量后，墙钟延迟
+  p95 必须不超过 `175ms`
+- DirectML 路径达到延迟门槛即可自动开启；CPU 路径还必须让每帧累计 CPU 时间不超过
+  `175ms`，也就是最多约占一个 CPU 核心的 70%
+- 未达到自动开启条件时保持关闭，用户仍可在设置中手动开启
+- 结果和模型身份写入配置；同一模型版本不会重复自动检测，之后以用户手动开关为准
+
+实际训练版本写在 ONNX 的 `metadata_props` 中，由训练脚本自动维护：
+
+- `packingproof.model`：模型名称、任务和基础模型
+- `packingproof.training`：训练批次、轮次和关键参数
+- `packingproof.dataset`：训练数据包名、数据指纹和样本统计
+- `packingproof.evaluation_summary`：当前模型在独立测试和留出集上的对比指标
+- `packingproof.independent_evaluation`：旧版单模型独立测试元数据，保持向后兼容
+
+“导出诊断日志”同时兼容新旧评估元数据，在 `feedback-info.txt` 中显示实际模型名、
+训练批次、数据指纹和独立测试指标。用户自行替换的模型如果没有 PackingProof 元数据，
+会明确标记，不会把旧版本信息误当成当前模型。
+
+模型要求：
+
+- 默认随包权重为单类别 `Waybill`
+- 输入 `1×3×640×640`
+- 输出 `1×6×8400`
+- 每通道依次为 `cx, cy, w, h, classScore, angle`
+- letterbox 填充值 `114`，缩放使用最近邻
+
+解析层保存每个检测的类别 ID，不把类别固定成 `Waybill`。替换成多类别模型时，至少要保持
+上述输入输出张量契约；当前面单链路是第一个消费方，以后商品识别可以直接复用同一份 OBB
+检测结果。
+
+模型缺失或加载失败时只记录日志，并回退到原来的引导框识别；模型可用但 OBB 候选全部
+失败时不会扫描整帧。这样失败路径的耗时受控，不会在空针、遮挡或模型漏检时额外执行一次
+全画面 ZXing 扫描。
+正式 Setup、Store MSIX 和 AppPatch 都会校验 `models\vision-obb.onnx`、
+`onnxruntime.dll` 与 `DirectML.dll` 是否进入实际应用负载。
+
+## 训练来源
+
+训练代码、数据准备、评估和权重发布由独立的 `PackingProof-Vision` 仓库维护。当前训练
+底座从 Ultralytics YOLO11n-OBB 基础权重开始迭代，支持 AnyLabeling JSON 与 YOLO TXT
+标注、按来源录像分组切分、可选负样本比例限制，以及训练和评估元数据写入模型。
+Desktop 只下载并校验锁定后的 Release 资产，不包含训练流程或样本数据。
+Ultralytics 工具链采用 AGPL-3.0，模型正式分发前仍需按发布方式复核许可证义务。
+
+## 后续扩展边界
+
+- 自定义模型：替换 `models\vision-obb.onnx`，不需要改检测器和坐标转换代码，但必须保持
+  相同的输入输出张量契约
+- 商品识别：建立独立模型配置，读取同一套带类别 ID 的旋转框结果
+- 装箱核对：订单期望商品与识别结果做独立匹配，不把映射规则塞进相机识别服务

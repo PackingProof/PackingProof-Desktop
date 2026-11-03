@@ -33,6 +33,7 @@ public sealed class SettingsCapabilities
     public bool CanUseCamera { get; }
     public bool CanRecordAudio { get; }
     public bool CanUseCameraBarcode { get; }
+    public bool CanUseVisionObb => CanUseCameraBarcode && VisionObbHost.IsAvailable;
     public bool CanUseScanner { get; }
     public bool CanRecordPcVideo { get; }
     public bool CanConfigureStorage { get; }
@@ -101,6 +102,7 @@ public sealed class SettingsContext
     public Action? RequestZoomGuideEdit { get; init; }
     public Func<bool>? SuspendCameraForSetupWizard { get; init; }
     public Action? ResumeCameraAfterSetupWizard { get; init; }
+    public Action<Window>? ShowRecognitionSampleContributionPrompt { get; init; }
     public Action<string, ToastSeverity>? ShowToast { get; init; }
     public Func<IProgress<string>, CancellationToken, Task<MkvBatchConversionResult>>? BatchConvertMkvToMp4Async { get; init; }
     public Func<ManualCleanupOptions, Task<ManualCleanupPreview>>? PreviewManualCleanupAsync { get; init; }
@@ -133,6 +135,8 @@ public sealed class SettingsContext
             RequestZoomGuideEdit = mainViewModel.RequestZoomGuideEdit,
             SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
             ResumeCameraAfterSetupWizard = mainViewModel.ResumeCameraAfterSetupWizard,
+            ShowRecognitionSampleContributionPrompt =
+                mainViewModel.ShowRecognitionSampleContributionPrompt,
             ShowToast = mainViewModel.ShowToast,
             BatchConvertMkvToMp4Async = (progress, token) =>
                 mainViewModel.BatchConvertMkvToMp4Async(progress, token, forceRetry: true),

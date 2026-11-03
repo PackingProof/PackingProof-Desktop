@@ -88,7 +88,11 @@ foreach ($requiredTest in $requiredCoreTests) {
 }
 
 Write-Host "Running complete release test suite..."
-Invoke-DotNet -Arguments @("test", $testsProject, "-c", $Configuration, "--nologo", "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot)
+Invoke-DotNet -Arguments @(
+    "test", $testsProject, "-c", $Configuration, "--nologo",
+    "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot,
+    "--blame-hang-timeout", "5m", "--blame-hang-dump-type", "none"
+)
 
 Write-Host "Running hardware-aware FFmpeg encoder round trips..."
 & $encodingTestScript -Configuration $Configuration -ArtifactsPath $artifactsRoot -NoBuild

@@ -55,6 +55,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _lensFocusControlEnabled;
         /// <summary>挂接代数：停止/换设备时递增，作废仍在途的异步挂接（网络探测是秒级往返）</summary>
         private int _lensAttachGeneration;
+        private Func<Action, Task> _uiThreadInvoker = RunOnApplicationUiThreadAsync;
         /// <summary>镜头设备写入串行化：快速拖动/切换时保持下发顺序，避免旧值最后落到设备。</summary>
         private readonly SemaphoreSlim _lensCommandGate = new(1, 1);
         private long _lensZoomApplyVersion;
@@ -934,7 +935,13 @@ namespace ExpressPackingMonitoring.ViewModels
             }).ConfigureAwait(false);
         }
 
-        private static Task RunOnUiThreadAsync(Action action)
+        private Task RunOnUiThreadAsync(Action action)
+        {
+            Func<Action, Task> invoker = _uiThreadInvoker ?? RunOnApplicationUiThreadAsync;
+            return invoker(action);
+        }
+
+        private static Task RunOnApplicationUiThreadAsync(Action action)
         {
             Dispatcher dispatcher = Application.Current?.Dispatcher;
             if (dispatcher == null || dispatcher.CheckAccess())

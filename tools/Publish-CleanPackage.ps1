@@ -26,6 +26,8 @@ param(
     [switch]$ReuseExistingLauncherBaseline,
     [switch]$DisablePatch,
     [switch]$SkipStorePackage,
+    [ValidateSet("include", "exclude")]
+    [string]$VisionObb = "include",
     [switch]$AllowExperimentalOpenCvStore,
     [string]$StoreIdentityConfigPath = "",
     [string]$OpenCvNativeDllPath = "",
@@ -41,6 +43,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "LauncherBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "FFmpegBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "OpenCvBaseline.Common.ps1")
+. (Join-Path $PSScriptRoot "VisionModelBaseline.Common.ps1")
 . (Join-Path $PSScriptRoot "AppPatchRuntimeCompatibility.Common.ps1")
 . (Join-Path $PSScriptRoot "SharedRuntimeLayout.Common.ps1")
 $appProject = Join-Path $repoRoot "src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj"
@@ -60,6 +63,7 @@ $launcherPatchManifestName = "launcher_patch_manifest.json"
 $launcherPatchNoticeName = "启动器更新说明.txt"
 $ffmpegBaselineManifestPath = Join-Path $PSScriptRoot "ffmpeg-baseline.json"
 $openCvBaselineManifestPath = Join-Path $PSScriptRoot "opencv-baseline.json"
+$visionModelBaselineManifestPath = Join-Path $PSScriptRoot "vision-model-baseline.json"
 $openCvBuilderPath = Join-Path $PSScriptRoot "Build-MinimalOpenCv.ps1"
 
 function Invoke-CoreRegressionTests {
@@ -743,10 +747,14 @@ function Test-ZipContainsEntry {
     )
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $normalizedEntryName = $EntryName.Replace('\', '/')
     $zip = [System.IO.Compression.ZipFile]::OpenRead($ZipFile)
     try {
         foreach ($entry in $zip.Entries) {
-            if ([string]::Equals($entry.FullName.Replace('\', '/'), $EntryName, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if ([string]::Equals(
+                    $entry.FullName.Replace('\', '/'),
+                    $normalizedEntryName,
+                    [System.StringComparison]::OrdinalIgnoreCase)) {
                 return $true
             }
         }
@@ -1015,6 +1023,7 @@ function New-AppPatchPackage {
         }
         if ($currentRelativePaths.ContainsKey($relativePath)) { continue }
         if ($relativePath.StartsWith("tts_cache\", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        if ($excludedPaths.Contains($relativePath)) { continue }
         # runtime-seed 只能由落成器读取，补丁不得清理；旧装机里多出的 WinForms 种子
         # 留着无害，下一次安装完整包会自然收敛。
         if ($relativePath.StartsWith("runtime-seed\", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
@@ -1342,7 +1351,29 @@ if (-not (Test-LauncherBaselineSourceUnchanged -RepositoryRoot $repoRoot -Tag $l
 New-DefaultTtsCache
 
 Stop-StaleReleaseAppInstances
-Invoke-DotNetPublish -Arguments @(
+$includeVisionObb = $VisionObb -eq "include"
+$visionModelBaseline = $null
+$visionModelCachePath = ""
+if ($includeVisionObb) {
+    $visionModelBaseline = Read-VisionModelBaselineManifest `
+        -ManifestPath $visionModelBaselineManifestPath
+    $visionModelCacheDirectory = Join-Path $repoRoot "package\dependency-cache\vision-models"
+    $visionModelCachePath = Join-Path $visionModelCacheDirectory ([string]$visionModelBaseline.file_name)
+    $visionModelCachePath = Resolve-VisionModelBaseline `
+        -Baseline $visionModelBaseline `
+        -CacheDirectory $visionModelCacheDirectory `
+        -DestinationPath $visionModelCachePath
+}
+$visionPublishArguments = if ($includeVisionObb) {
+    @(
+        "-p:IncludeVisionObb=true",
+        "-p:CameraVisionModelPath=$visionModelCachePath"
+    )
+}
+else {
+    @("-p:IncludeVisionObb=false")
+}
+$appPublishArguments = @(
     $appProject,
     "-c", $Configuration,
     "-r", $Runtime,
@@ -1351,11 +1382,13 @@ Invoke-DotNetPublish -Arguments @(
     "--self-contained", "true",
     "-p:InformationalVersion=$informationalVersion",
     "-p:IncludeSourceRevisionInInformationalVersion=false",
-    "-p:GitCommitId=$gitCommitId",
+    "-p:GitCommitId=$gitCommitId"
+) + $visionPublishArguments + @(
     "-p:PublishSingleFile=false",
     "--artifacts-path", $appBuildArtifacts,
     "-o", $appPublishDir
 )
+Invoke-DotNetPublish -Arguments $appPublishArguments
 Remove-Item -LiteralPath $appBuildArtifacts -Recurse -Force
 
 # Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
@@ -1393,6 +1426,20 @@ $openCvAppPatchExcludeRelativePaths = if ([bool]$openCvBaseline.app_patch_exclud
 }
 else {
     @()
+}
+$visionAppPatchExcludeRelativePaths = if ($includeVisionObb) {
+    @()
+}
+else {
+    @(
+        "ExpressPackingMonitoring.Vision.Obb.dll",
+        "Microsoft.ML.OnnxRuntime.dll",
+        "Microsoft.AI.DirectML.dll",
+        "System.Numerics.Tensors.dll",
+        "onnxruntime_providers_shared.dll",
+        "DirectML.dll",
+        "models\vision-obb.onnx"
+    )
 }
 $openCvCacheDirectory = Join-Path $repoRoot "package\dependency-cache\opencv\$($openCvBaseline.version)-$($openCvBaseline.artifact_id)"
 Resolve-OpenCvBaselineNativeDll `
@@ -1438,6 +1485,13 @@ $requiredAppRuntimeFiles = @(
     "OpenCvSharp.WpfExtensions.dll",
     "OpenCvSharpExtern.dll"
 )
+if ($includeVisionObb) {
+    $requiredAppRuntimeFiles += @(
+        "onnxruntime.dll",
+        "DirectML.dll",
+        ("models\" + [string]$visionModelBaseline.installed_name)
+    )
+}
 if (-not (Test-Path $launcherExe)) {
     throw "Clean package validation failed: missing root launcher"
 }
@@ -1448,6 +1502,9 @@ foreach ($runtimeFile in $requiredAppRuntimeFiles) {
     if (-not (Test-Path (Join-Path $appPublishDir $runtimeFile))) {
         throw "Clean package validation failed: missing camera barcode runtime dependency app\$runtimeFile"
     }
+}
+if ($includeVisionObb) {
+    Assert-VisionModelRuntimeFiles -AppDir $appPublishDir -Baseline $visionModelBaseline
 }
 
 # 自包含发布：运行时平铺在 app\ 里。老启动器只认 app\ 内的条目（它不认 root 落点），所以补丁里的应用
@@ -1637,7 +1694,7 @@ else {
             -InstallerCmdPath $appPatchCmdSource `
             -InstallerScriptPath $appPatchScriptSource `
             -ExcludeCompatibleRuntimes `
-            -ExcludeRelativePaths $openCvAppPatchExcludeRelativePaths `
+            -ExcludeRelativePaths ($openCvAppPatchExcludeRelativePaths + $visionAppPatchExcludeRelativePaths) `
             -RuntimeDir $(if ($IncludeRuntimeInPatch) { $sharedRuntimeLayoutPath } else { "" })
 
         if (-not (Test-ZipContainsEntry -ZipFile $appPatchZipPath -EntryName "patch_manifest.json")) {

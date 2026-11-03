@@ -36,7 +36,7 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>
         /// 扫码放大当前是否可用：只看「面单放大」总开关，外加"调放大位置"那一屏让位
         /// （那屏在摆放大取景框，预览被裁切会摆不准）。
-        /// 识别框锁没锁不参与：放大位置只认放大取景框，解锁识别框只是允许拖动它。
+        /// 智能跟随时使用本次识别选中的单个 OBB；否则使用固定放大取景框。
         /// </summary>
         private bool CanApplyZoom =>
             ZoomCropPolicy.ShouldApplyZoom(
@@ -44,7 +44,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 IsEditingZoomGuide);
 
         /// <summary>
-        /// 放大取景框几何：主画面坐标，与识别来源无关。识别结果不再参与放大位置判定。
+        /// 固定放大取景框几何：主画面坐标，在智能跟随没有可用 OBB 时作为兜底。
         /// 返回的已是"按当前旋转换算过"的帧坐标，并且规范成和画面同长宽比的那一块：
         /// 框住的地方就是放大后填满画面的地方，绘制与裁剪都直接吃这一份。
         /// </summary>

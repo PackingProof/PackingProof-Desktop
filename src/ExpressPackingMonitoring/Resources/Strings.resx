@@ -229,6 +229,9 @@
   <data name="录像按列表顺序保存，当前磁盘空间不足时自动换到下一个。系统会为每块磁盘保留安全空间，按整块磁盘计算，其他软件占用后可用容量可能减少；需要调整时右键磁盘" xml:space="preserve"><value>Space runs out: recordings move to the next disk. Each disk keeps a safety margin, so other apps can reduce usable space. Right-click a disk to adjust</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>Recording page access key</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>Zoom the area inside the guide box, then restore the full view.</value></data>
+  <data name="智能跟随面单" xml:space="preserve"><value>Follow the recognized label</value></data>
+  <data name="优先放大本次识别到的面单；同屏多张时也只放大这一张" xml:space="preserve"><value>Prefer the label recognized in this scan; when several labels are visible, zoom only that one</value></data>
+  <data name="副摄像头只负责识别条码，智能跟随会从主摄像头画面中选择要放大的面单" xml:space="preserve"><value>The secondary camera only reads the barcode. Smart following selects the label to zoom from the main camera</value></data>
   <data name="录制声音" xml:space="preserve"><value>Record sound</value></data>
   <data name="面单大" xml:space="preserve"><value>Larger shipping label</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>Configure the recording storage location and the space on each disk to be reserved for the system and other software</value></data>
@@ -587,6 +590,9 @@
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>Place the barcode inside the preview guide to start or switch recordings after a stable read</value></data>
   <data name="识别二维码" xml:space="preserve"><value>QR code recognition</value></data>
   <data name="面单上印的是二维码时打开，开启后条码识别会略慢" xml:space="preserve"><value>Turn on when the shipping label only carries a QR code; barcode recognition becomes slightly slower</value></data>
+  <data name="识别倾斜面单" xml:space="preserve"><value>Recognize tilted labels</value></data>
+  <data name="面单不用横平竖直，斜着放也能自动找正识别；会多用一些电脑性能" xml:space="preserve"><value>Labels do not need to be perfectly level. Tilted labels are straightened and read automatically; uses some extra CPU or GPU resources</value></data>
+  <data name="使用副摄像头识别时不需要倾斜面单增强；智能跟随仍会使用主摄像头" xml:space="preserve"><value>Tilted-label enhancement is not needed when using a secondary camera for barcode recognition. Smart following still uses the main camera</value></data>
   <data name="新增摄像头识别面单" xml:space="preserve"><value>Camera shipping-label recognition</value></data>
   <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>Start recording without a scanner</value></data>
   <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>Place the shipping-label barcode inside the preview guide to start or switch recordings after a stable read</value></data>
@@ -1102,6 +1108,7 @@
   <data name="适配器" xml:space="preserve"><value>Adapter</value></data>
   <data name="作者：" xml:space="preserve"><value>Author: </value></data>
   <data name="放大取景框" xml:space="preserve"><value>Zoom guide box</value></data>
+  <data name="默认放大取景框" xml:space="preserve"><value>Default zoom guide box</value></data>
   <data name="放大时隐藏画中画" xml:space="preserve"><value>Hide picture-in-picture while zooming</value></data>
   <data name="开启平滑过渡时有淡入淡出动画" xml:space="preserve"><value>Fades in and out when smooth transition is enabled.</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>Go back to the main view and drag the box over the area to zoom; click Done or press Esc to exit.</value></data>
@@ -1805,8 +1812,22 @@
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>This extension was installed from a local PPEXT and will not update automatically from the marketplace</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>Local extensions are not reviewed by the marketplace. PackingProof cannot inspect their behavior or restrict their access to network, files, or other system resources</value></data>
   <data name="改进面单识别与放大" xml:space="preserve"><value>Improve label recognition and zoom</value></data>
-  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>Samples opening or ending frames based on packing mode</value></data>
+  <data name="截取录像开头和结尾画面，改进面单识别与放大" xml:space="preserve"><value>Samples opening and ending frames to improve label recognition</value></data>
   <data name="导出样本包" xml:space="preserve"><value>Export samples</value></data>
+  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>Help make PackingProof better</value></data>
+  <data name="面单识别不可靠？" xml:space="preserve"><value>Label recognition unreliable?</value></data>
+  <data name="本机性能检测通过，已自动开启倾斜面单识别" xml:space="preserve"><value>The device performance check passed, so tilted-label recognition was enabled automatically</value></data>
+  <data name="本机性能检测完成，倾斜面单识别保持关闭" xml:space="preserve"><value>The device performance check is complete. Tilted-label recognition remains off</value></data>
+  <data name="本机性能检测未通过，已自动关闭倾斜面单识别" xml:space="preserve"><value>The device performance check did not pass, so tilted-label recognition was disabled automatically</value></data>
+  <data name="本机性能检测完成，已保持你的手动开启设置" xml:space="preserve"><value>The device performance check is complete. Your manual enabled setting was retained</value></data>
+  <data name="本机性能检测完成，已保持你的手动关闭设置" xml:space="preserve"><value>The device performance check is complete. Your manual disabled setting was retained</value></data>
+  <data name="你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠" xml:space="preserve"><value>You can contribute a small set of local recognition samples to help us make label recognition more reliable</value></data>
+  <data name="如果当前识别不够可靠，可以贡献一些本机样本。我们会针对你的使用场景优化模型，改善类似环境下的识别" xml:space="preserve"><value>If recognition is not reliable in your setup, you can contribute some local samples. We will use them to improve the model for your scenarios and similar environments</value></data>
+  <data name="我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者" xml:space="preserve"><value>We never upload automatically. After the sample package is created, you will need to send it to the email address or the maintainers</value></data>
+  <data name="包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物" xml:space="preserve"><value>The package does not include recordings, the order database, settings, or logs, but includes an anonymous device ID and recording-source fingerprints and may contain shipping labels or people</value></data>
+  <data name="贡献样本" xml:space="preserve"><value>Contribute samples</value></data>
+  <data name="暂不" xml:space="preserve"><value>Not now</value></data>
+  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>Check the frames, then send the package to a PackingProof maintainer on WeChat or email {0}</value></data>
   <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>Only sample frames are read from local recordings. The package has no videos, database, settings, or logs, but includes an anonymous device ID and may show labels or people. Review it before sending</value></data>
   <data name="开始抓取" xml:space="preserve"><value>Start capture</value></data>
   <data name="正在生成样本包" xml:space="preserve"><value>Creating sample package</value></data>

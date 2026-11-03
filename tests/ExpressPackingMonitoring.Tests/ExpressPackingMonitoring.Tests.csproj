@@ -35,6 +35,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
+    <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Contracts\ExpressPackingMonitoring.Vision.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
     <Resource Include="..\..\src\ExpressPackingMonitoring\app.ico" Link="app.ico" />
     <None Include="Fixtures\ExtensionApiV1\*.json" CopyToOutputDirectory="PreserveNewest" />

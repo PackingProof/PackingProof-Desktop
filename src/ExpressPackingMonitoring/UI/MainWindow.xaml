@@ -338,6 +338,10 @@
                     <Grid ui:RoundedClip.Radius="10">
                         <Image x:Name="VideoImage" Source="{Binding PreviewImageSource}" Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <Canvas x:Name="CameraVisionObbLayer"
+                                Panel.ZIndex="8"
+                                IsHitTestVisible="False"
+                                ClipToBounds="True"/>
                         <!--
                             放大取景框：录制触发时被放大铺满的那块区域。
                             平时只读显示（设置里可关），进"调整放大位置"编辑态时改用上面那个
@@ -372,6 +376,10 @@
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCameraSleeping, Mode=OneWay}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <!-- 增强识别直接处理整帧，不再需要用户维护第二个取景框 -->
+                                        <DataTrigger Binding="{Binding IsCameraVisionFullFrameMode}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <!--
@@ -885,6 +893,9 @@
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCameraSleeping, Mode=OneWay}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsCameraVisionFullFrameMode}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsBarcodeGuideVisible}" Value="False">

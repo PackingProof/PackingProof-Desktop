@@ -162,6 +162,48 @@ public sealed class SettingsWindowRenderTests
             Assert.Equal(
                 "Capabilities.CanUseCameraBarcode",
                 BindingOperations.GetBinding(row, UIElement.VisibilityProperty)?.Path.Path);
+            Assert.Null(window.FindName("CameraVisionModelPathBox"));
+
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public void Constructor_EnhancedRecognitionSwitchIsBoundAndGated()
+    {
+        RunOnStaThread(() =>
+        {
+            var config = new AppConfig
+            {
+                DeploymentPreset = DeploymentPresets.RecordingWorkstation,
+                EnableCameraBarcodeRecognition = true
+            };
+            AppConfig.NormalizeAfterLoad(config);
+            var context = new SettingsContext
+            {
+                Capabilities = SettingsCapabilities.ForPreset(config.DeploymentPreset),
+                ApplyAsync = _ => Task.FromResult(true)
+            };
+
+            var window = new SettingsWindow(context, config, 12d, "12%");
+            window.Measure(new Size(1200, 900));
+            window.Arrange(new Rect(0, 0, 1200, 900));
+            window.UpdateLayout();
+
+            var checkBox = Assert.IsType<CheckBox>(
+                window.FindName("CameraBarcodeEnhancedRecognitionCheckBox"));
+            Assert.Equal(
+                "Config.EnableCameraBarcodeEnhancedRecognition",
+                BindingOperations.GetBinding(checkBox, ToggleButton.IsCheckedProperty)?.Path.Path);
+
+            var row = Assert.IsType<Grid>(
+                window.FindName("CameraBarcodeEnhancedRecognitionRow"));
+            Assert.Equal(
+                "Capabilities.CanUseVisionObb",
+                BindingOperations.GetBinding(row, UIElement.VisibilityProperty)?.Path.Path);
+            Assert.Equal(
+                nameof(SettingsWindow.CanUseEnhancedRecognitionForSelectedBarcodeSource),
+                BindingOperations.GetBinding(row, UIElement.IsEnabledProperty)?.Path.Path);
 
             window.Close();
         });

@@ -10,6 +10,8 @@ namespace ExpressPackingMonitoring.Config
 {
     internal static class AppPaths
     {
+        internal const string CameraVisionModelFileName = "vision-obb.onnx";
+
         public static readonly string UserDataDir = Path.Combine(
             EarlyStartupConfig.GetLocalAppDataRoot(),
             EarlyStartupConfig.UserDataDirectoryName);
@@ -17,6 +19,7 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string LogDir = Path.Combine(UserDataDir, "log");
         public static readonly string CacheDir = Path.Combine(UserDataDir, "cache");
         public static readonly string BackupsDir = Path.Combine(UserDataDir, "backups");
+        public static readonly string ModelsDir = Path.Combine(UserDataDir, "models");
         // 手机/电脑备份与配对的持久化状态目录：不得放在 cache 中，避免被缓存清理或上传状态清理误删。
         public static readonly string MobileBackupStateDir = Path.Combine(UserDataDir, "mobile-backup-state");
         public static readonly string ClipPreviewDir = Path.Combine(CacheDir, "clip_previews");
@@ -42,6 +45,13 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string WebDebugLogPath = Path.Combine(LogDir, "web_debug.log");
         public static readonly string EncoderDetectLogPath = Path.Combine(LogDir, "encoder_detect.log");
         public static readonly string RuntimeLogPath = Path.Combine(LogDir, "runtime.log");
+        public static readonly string UserCameraVisionModelPath = Path.Combine(
+            ModelsDir,
+            CameraVisionModelFileName);
+        public static readonly string BundledCameraVisionModelPath = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory,
+            "models",
+            CameraVisionModelFileName);
         // 仅用于把旧版本 JSON 缓存一次性迁移到 SQLite；新版本不再写入此文件。
         public static readonly string OrderInfoCachePath = Path.Combine(CacheDir, "orderinfo_cache.json");
         public static readonly string UpdateCheckCachePath = Path.Combine(CacheDir, "update_check_cache.json");
@@ -61,6 +71,7 @@ namespace ExpressPackingMonitoring.Config
             Directory.CreateDirectory(LogDir);
             Directory.CreateDirectory(CacheDir);
             Directory.CreateDirectory(BackupsDir);
+            Directory.CreateDirectory(ModelsDir);
             Directory.CreateDirectory(MobileBackupStateDir);
             Directory.CreateDirectory(ClipPreviewDir);
             Directory.CreateDirectory(ClipsDir);
@@ -91,6 +102,16 @@ namespace ExpressPackingMonitoring.Config
                 AppDomain.CurrentDomain.BaseDirectory,
                 Environment.GetEnvironmentVariable("PATH"));
         }
+
+        internal static string ResolveCameraVisionModelPath()
+            => ResolveCameraVisionModelPath(
+                BundledCameraVisionModelPath,
+                UserCameraVisionModelPath);
+
+        internal static string ResolveCameraVisionModelPath(
+            string bundledPath,
+            string userPath)
+            => File.Exists(bundledPath) ? bundledPath : userPath;
 
         internal static string FindFFmpeg(string baseDir, string pathEnvironment)
             => FindFFmpeg(baseDir, pathEnvironment, DefaultFFmpegFileName());

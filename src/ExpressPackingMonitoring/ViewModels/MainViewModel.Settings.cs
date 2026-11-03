@@ -20,6 +20,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using ExpressPackingMonitoring.UpdateCore;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using OpenCvSharp;
@@ -36,6 +37,8 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private string _previousRunVersion = "";
+
         private void LoadConfig()
         {
             bool containsRemovedStorageQuota = false;
@@ -78,6 +81,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 configMigrated = true;
             }
             configMigrated = AppConfig.NormalizeAfterLoad(Config) || configMigrated;
+            _previousRunVersion = Config.LastRunAppVersion?.Trim() ?? "";
             if (configMigrated)
                 SaveConfig();
 
@@ -187,10 +191,21 @@ namespace ExpressPackingMonitoring.ViewModels
                         Config,
                         nextConfig,
                         IsRecording);
+                    bool mainCameraResolutionChanged =
+                        Config.FrameWidth != nextConfig.FrameWidth
+                        || Config.FrameHeight != nextConfig.FrameHeight;
+                    bool barcodeSourceChanged =
+                        Config.CameraBarcodeRecognitionChannel
+                        != nextConfig.CameraBarcodeRecognitionChannel;
                     bool themeChanged = Config.Theme != nextConfig.Theme;
                     bool extensionAutoUpdateWasEnabled = Config.AutoUpdateExtensions;
                     bool cameraBarcodeChanged = Config.EnableCameraBarcodeRecognition != nextConfig.EnableCameraBarcodeRecognition
-                        || Config.EnableCameraBarcodeQrCode != nextConfig.EnableCameraBarcodeQrCode;
+                        || Config.EnableCameraBarcodeQrCode != nextConfig.EnableCameraBarcodeQrCode
+                        || Config.EnableCameraBarcodeEnhancedRecognition
+                            != nextConfig.EnableCameraBarcodeEnhancedRecognition
+                        || Config.EnableVisionObbSmartZoom != nextConfig.EnableVisionObbSmartZoom
+                        || Config.CameraBarcodeRecognitionChannel
+                            != nextConfig.CameraBarcodeRecognitionChannel;
                     bool workstationChanged = !string.Equals(
                         Config.DeploymentPreset,
                         nextConfig.DeploymentPreset,
@@ -297,6 +312,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (!webServerShouldApply || webServerApplied)
                             ShowToast(webServerShouldApply ? "配置已保存，局域网服务已应用" : "提示：配置已保存");
                     }
+                    if (mainCameraResolutionChanged
+                        || (barcodeSourceChanged
+                            && nextConfig.CameraBarcodeRecognitionChannel == 0))
+                    {
+                        _ = RunCameraVisionBenchmarkIfNeededAsync();
+                    }
                     return true;
             }
             catch (Exception ex)
@@ -316,6 +337,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_isDisposed || !Config.FirstUseWizardCompleted)
                     return;
                 await RunRecordingWorkstationHostBindingPromptIfNeededAsync(owner);
+                await RunCameraVisionBenchmarkIfNeededAsync();
                 return;
             }
 
@@ -324,6 +346,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
             RunCameraBarcodeUpgradePromptIfNeeded(owner);
             await RunMobileConnectionSetupPromptIfNeededAsync(owner);
+            await RunCameraVisionBenchmarkIfNeededAsync();
+            if (!_isDisposed)
+                RunPreviewSampleContributionPromptIfNeeded(owner);
         }
 
         private async Task RunFirstUseSetupWizardIfNeededAsync(System.Windows.Window owner)
@@ -420,6 +445,108 @@ namespace ExpressPackingMonitoring.ViewModels
             ShowToast(enableRecognition
                 ? "已启用摄像头识别面单"
                 : "已保留当前设置，可随时在设置中开启");
+        }
+
+        private void RunPreviewSampleContributionPromptIfNeeded(System.Windows.Window owner)
+        {
+            string currentVersion = AppVersion.Current;
+            if (_isDisposed)
+                return;
+
+            bool shouldPrompt = SampleContributionPromptPolicy.ShouldPrompt(
+                PackagingIdentity.IsPackaged,
+                Config.AllowPrereleaseUpdates,
+                currentVersion,
+                _previousRunVersion,
+                Config.PreviewSamplePromptVersion);
+            if (!shouldPrompt
+                && string.Equals(
+                    Config.LastRunAppVersion,
+                    currentVersion,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var nextConfig = JsonSerializer.Deserialize<AppConfig>(
+                JsonSerializer.Serialize(Config)) ?? new AppConfig();
+            nextConfig.LastRunAppVersion = currentVersion;
+            if (shouldPrompt)
+                nextConfig.PreviewSamplePromptVersion = currentVersion;
+            if (!SaveConfig(nextConfig, notifyUser: true))
+                return;
+            Config = nextConfig;
+            if (!shouldPrompt)
+                return;
+
+            ShowSampleContributionPrompt(
+                owner,
+                "帮助 PackingProof 变得更好",
+                [
+                    "你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠",
+                    "我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者",
+                    "包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物"
+                ],
+                "preview update");
+        }
+
+        internal void ShowRecognitionSampleContributionPrompt(
+            System.Windows.Window owner)
+        {
+            if (_isDisposed)
+                return;
+
+            string currentVersion = AppVersion.Current;
+            if (string.IsNullOrWhiteSpace(currentVersion)
+                || string.Equals(
+                    Config.PreviewSamplePromptVersion,
+                    currentVersion,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var nextConfig = JsonSerializer.Deserialize<AppConfig>(
+                JsonSerializer.Serialize(Config)) ?? new AppConfig();
+            nextConfig.PreviewSamplePromptVersion = currentVersion;
+            if (!SaveConfig(nextConfig, notifyUser: true))
+                return;
+            Config = nextConfig;
+
+            ShowSampleContributionPrompt(
+                owner,
+                "面单识别不可靠？",
+                [
+                    "如果当前识别不够可靠，可以贡献一些本机样本。我们会针对你的使用场景优化模型，改善类似环境下的识别",
+                    "我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者",
+                    "包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物"
+                ],
+                "enhanced recognition disabled");
+        }
+
+        private void ShowSampleContributionPrompt(
+            System.Windows.Window owner,
+            string titleKey,
+            IReadOnlyList<string> messageKeys,
+            string reason)
+        {
+            bool accepted = AppDialog.Confirm(
+                owner,
+                string.Join(
+                    "\n\n",
+                    messageKeys.Select(AppLanguage.Get)),
+                AppLanguage.Get(titleKey),
+                AppDialogSeverity.Information,
+                confirmText: AppLanguage.Get("贡献样本"),
+                cancelText: AppLanguage.Get("暂不"),
+                isDangerous: false);
+            if (!accepted)
+                return;
+
+            RuntimeLog.Info(
+                "RecognitionSamples",
+                $"Contribution accepted reason={reason} version={AppVersion.Current}");
+            RecognitionSampleExportWorkflow.Run(owner, AppPaths.UserDataDir, Config.NodeId);
         }
 
         private async Task RunMobileConnectionSetupPromptIfNeededAsync(System.Windows.Window owner)

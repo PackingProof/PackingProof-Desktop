@@ -296,6 +296,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private PlaybackWindow _playbackWindow;
         private GlobalKeyboardRuntimeController _globalKeyboardRuntime;
         private CameraBarcodeRecognitionService _cameraBarcodeRecognition;
+        private CameraBarcodeRecognitionService _cameraVisionSmartZoomRecognition;
         private CancellationTokenSource _cameraBarcodeFeedbackCts;
         private readonly CameraPairingQrFrameDecoder _cameraPairingQrDecoder = new();
         private readonly object _cameraPairingQrLock = new();
@@ -667,7 +668,9 @@ namespace ExpressPackingMonitoring.ViewModels
                         RefreshPreRecordBufferCapacityAfterConfigChange();
                     }
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
+                    OnPropertyChanged(nameof(IsCameraVisionFullFrameMode));
                     OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
+                    UpdateCameraVisionSmartZoomTarget();
                     OnPropertyChanged(nameof(IsRecordingWorkstation));
                     OnPropertyChanged(nameof(IsMainConnectionVisible));
                     OnPropertyChanged(nameof(MainConnectionButtonText));
@@ -901,6 +904,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _previewAlertCts?.Cancel();
             try { StopOverlayChannels(); } catch { }
             try { _cameraBarcodeRecognition?.Dispose(); } catch { }
+            try { _cameraVisionSmartZoomRecognition?.Dispose(); } catch { }
             try { _cameraPairingQrDecoder.Dispose(); } catch { }
             try { _uiHeartbeatTimer?.Stop(); } catch { }
             _stopReason = "程序退出";

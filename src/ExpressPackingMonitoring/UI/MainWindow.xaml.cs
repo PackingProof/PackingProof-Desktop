@@ -13,6 +13,7 @@ using ExpressPackingMonitoring.Helpers;
 using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.ViewModels;
 using ExpressPackingMonitoring.Services;
+using ExpressPackingMonitoring.Vision;
 using System.IO;
 using System.Windows.Media.Imaging;
 
@@ -289,6 +290,28 @@ namespace ExpressPackingMonitoring.UI
                                 UpdateOverlayBoxes(vm);
                             }));
                         }
+                        else if (args.PropertyName == nameof(MainViewModel.CameraVisionObbDetections))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() =>
+                                UpdateCameraVisionObbBoxes(vm, targetCadenceChanged: true)));
+                        }
+                        else if (args.PropertyName == nameof(MainViewModel.CameraVisionSelectedObbDetection))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() => UpdateCameraVisionObbBoxes(vm)));
+                        }
+                        else if (args.PropertyName == nameof(MainViewModel.CameraVisionSmartZoomTarget))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() => UpdateZoomGuideBox(vm)));
+                        }
+                        else if (args.PropertyName == nameof(MainViewModel.IsCameraBarcodeCandidate)
+                                 || args.PropertyName == nameof(MainViewModel.IsCameraBarcodeConfirmed))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                if (DataContext is MainViewModel current)
+                                    UpdateVisionObbBoxColors(current);
+                            }));
+                        }
                         else if (args.PropertyName == nameof(MainViewModel.IsEditingZoomGuide))
                         {
                             // 放大取景框编辑态是设置页那边切进来的：进出都要重摆两层框，
@@ -375,6 +398,7 @@ namespace ExpressPackingMonitoring.UI
         /// <summary>预览上跟画中画有关的两层：每一路的拖动框、以及识别框。</summary>
         private void UpdateCameraOverlays(MainViewModel vm)
         {
+            UpdateCameraVisionObbBoxes(vm);
             UpdateOverlayBoxes(vm);
             UpdateCameraBarcodeGuide(vm);
         }
@@ -418,9 +442,6 @@ namespace ExpressPackingMonitoring.UI
         /// </summary>
         private void UpdateZoomGuideBox(MainViewModel vm)
         {
-            ZoomGuideBoxHost.Visibility = Visibility.Collapsed;
-            ZoomGuideBoxHost.RenderTransform = null;
-
             // 放大进行中先藏起来：预览已经被裁切并拉回整屏，框却还按未放大的画面坐标画，
             // 会停在错误的位置；而且放大后框本身就等于整屏，画出来也没有信息量。
             // 进任何整屏编辑态（副摄取景编辑、调放大位置）也藏起来：那两屏都在干别的事，
@@ -436,30 +457,44 @@ namespace ExpressPackingMonitoring.UI
             double actualH = VideoImage.ActualHeight;
             if (!visible || sourceW <= 0 || sourceH <= 0 || actualW <= 0 || actualH <= 0)
             {
-                ZoomGuideBoxHost.Width = 0;
-                ZoomGuideBoxHost.Height = 0;
+                HideZoomGuideBox();
                 return;
             }
 
             Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
             Rect boxRect = CameraBarcodeGuideLayout.ToDisplayRect(vm.ZoomGuideGeometry, videoRect);
+            if (vm.Config is { EnableVisionObbSmartZoom: true }
+                && vm.CameraVisionSmartZoomTarget is { } smartTarget)
+            {
+                Rect sourceBox = VisionSmartZoomPolicy.ResolveTargetRect(
+                    smartTarget,
+                    (int)Math.Round(sourceW),
+                    (int)Math.Round(sourceH));
+                if (!sourceBox.IsEmpty)
+                {
+                    boxRect = new Rect(
+                        videoRect.X + (sourceBox.X / sourceW * videoRect.Width),
+                        videoRect.Y + (sourceBox.Y / sourceH * videoRect.Height),
+                        sourceBox.Width / sourceW * videoRect.Width,
+                        sourceBox.Height / sourceH * videoRect.Height);
+                }
+            }
             if (boxRect.IsEmpty || boxRect.Width <= 0 || boxRect.Height <= 0)
             {
-                ZoomGuideBoxHost.Width = 0;
-                ZoomGuideBoxHost.Height = 0;
+                HideZoomGuideBox();
                 return;
             }
 
-            ZoomGuideBoxHost.Width = boxRect.Width;
-            ZoomGuideBoxHost.Height = boxRect.Height;
-            ZoomGuideBoxHost.Visibility = Visibility.Visible;
             if (ZoomGuideBoxHost.Parent is not FrameworkElement zoomGuideHost)
                 return;
 
             Point videoOriginInHost = VideoImage.TranslatePoint(new Point(0, 0), zoomGuideHost);
-            ZoomGuideBoxHost.RenderTransform = new TranslateTransform(
-                videoOriginInHost.X + boxRect.X - ((zoomGuideHost.ActualWidth - boxRect.Width) / 2.0),
-                videoOriginInHost.Y + boxRect.Y - ((zoomGuideHost.ActualHeight - boxRect.Height) / 2.0));
+            ZoomGuideBoxHost.Visibility = Visibility.Visible;
+            SetZoomGuideTargetRect(new Rect(
+                videoOriginInHost.X + boxRect.X,
+                videoOriginInHost.Y + boxRect.Y,
+                boxRect.Width,
+                boxRect.Height));
         }
 
         private void UpdateCameraBarcodeGuide(MainViewModel vm)

@@ -430,13 +430,16 @@ public sealed class CameraChannelConfigurationTests
         string scanner = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Scanner.cs"));
 
         Assert.Contains("GetOverlayGuideGeometry(barcodeChannel.Number)", scanner, StringComparison.Ordinal);
-        Assert.Contains("forceDecode: sourceChannelNumber > 0", scanner, StringComparison.Ordinal);
+        Assert.Contains("forceBarcodeDecode: sourceChannelNumber > 0", scanner, StringComparison.Ordinal);
 
         string channels = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.OverlayChannels.cs"));
         Assert.Contains("BarcodeGuideWidthRatio", channels, StringComparison.Ordinal);
 
         string service = ReadProjectFile(Path.Combine("Services", "CameraBarcodeRecognitionService.cs"));
-        Assert.Contains("public bool TrySubmitFrame(Mat frame, bool forceDecode = false)", service, StringComparison.Ordinal);
+        Assert.Contains("public bool TrySubmitFrame(", service, StringComparison.Ordinal);
+        Assert.Contains("CameraBarcodeFrameIntent intent", service, StringComparison.Ordinal);
+        Assert.Contains("if (forceVision)", service, StringComparison.Ordinal);
+        Assert.Contains("_visionFollowIntervalProvider()", service, StringComparison.Ordinal);
     }
 
     /// <summary>

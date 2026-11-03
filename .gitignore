@@ -23,6 +23,10 @@ src/ExpressPackingMonitoring.Core/obj/
 src/MacHostShell/.build/
 src/ExpressPackingMonitoring.WinTts/bin/
 src/ExpressPackingMonitoring.WinTts/obj/
+src/ExpressPackingMonitoring.Vision.Contracts/bin/
+src/ExpressPackingMonitoring.Vision.Contracts/obj/
+src/ExpressPackingMonitoring.Vision.Obb/bin/
+src/ExpressPackingMonitoring.Vision.Obb/obj/
 tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
 tools/ExpressPackingMonitoring.TtsCacheBuilder/obj/
 tools/ExpressPackingMonitoring.AutomationHost/bin/

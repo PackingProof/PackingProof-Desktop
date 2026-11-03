@@ -221,6 +221,9 @@
   <data name="录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少" xml:space="preserve"><value>录像会按列表顺序保存。达到录像空间上限或磁盘安全空间不足时，会自动换到下一个磁盘；容量上限不会提前占用空间，其他软件占用磁盘后，实际可用容量可能减少</value></data>
   <data name="录像网页访问密钥" xml:space="preserve"><value>录像网页访问密钥</value></data>
   <data name="放大取景框内的画面，停留一会儿后恢复全景" xml:space="preserve"><value>放大取景框内的画面，停留一会儿后恢复全景</value></data>
+  <data name="智能跟随面单" xml:space="preserve"><value>智能跟随面单</value></data>
+  <data name="优先放大本次识别到的面单；同屏多张时也只放大这一张" xml:space="preserve"><value>优先放大本次识别到的面单；同屏多张时也只放大这一张</value></data>
+  <data name="副摄像头只负责识别条码，智能跟随会从主摄像头画面中选择要放大的面单" xml:space="preserve"><value>副摄像头只负责识别条码，智能跟随会从主摄像头画面中选择要放大的面单</value></data>
   <data name="录制声音" xml:space="preserve"><value>录制声音</value></data>
   <data name="面单大" xml:space="preserve"><value>面单大</value></data>
   <data name="配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间" xml:space="preserve"><value>配置录像保存位置，以及每个磁盘要留给系统和其他软件的空间</value></data>
@@ -581,6 +584,9 @@
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>将条形码放入预览引导框，稳定识别后自动开始或切换录像</value></data>
   <data name="识别二维码" xml:space="preserve"><value>识别二维码</value></data>
   <data name="面单上印的是二维码时打开，开启后条码识别会略慢" xml:space="preserve"><value>面单上印的是二维码时打开，开启后条码识别会略慢</value></data>
+  <data name="识别倾斜面单" xml:space="preserve"><value>识别倾斜面单</value></data>
+  <data name="面单不用横平竖直，斜着放也能自动找正识别；会多用一些电脑性能" xml:space="preserve"><value>面单不用横平竖直，斜着放也能自动找正识别；会多用一些电脑性能</value></data>
+  <data name="使用副摄像头识别时不需要倾斜面单增强；智能跟随仍会使用主摄像头" xml:space="preserve"><value>使用副摄像头识别时不需要倾斜面单增强；智能跟随仍会使用主摄像头</value></data>
   <data name="新增摄像头识别面单" xml:space="preserve"><value>新增摄像头识别面单</value></data>
   <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>无需扫码枪，也能自动开始录像</value></data>
   <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像</value></data>
@@ -1078,6 +1084,7 @@
   <data name="适配器" xml:space="preserve"><value>适配器</value></data>
   <data name="作者：" xml:space="preserve"><value>作者：</value></data>
   <data name="放大取景框" xml:space="preserve"><value>放大取景框</value></data>
+  <data name="默认放大取景框" xml:space="preserve"><value>默认放大取景框</value></data>
   <data name="放大时隐藏画中画" xml:space="preserve"><value>放大时隐藏画中画</value></data>
   <data name="开启平滑过渡时有淡入淡出动画" xml:space="preserve"><value>开启平滑过渡时有淡入淡出动画</value></data>
   <data name="回到主画面框选要放大的区域，点完成或按 Esc 退出" xml:space="preserve"><value>回到主画面框选要放大的区域，点完成或按 Esc 退出</value></data>
@@ -1807,8 +1814,22 @@
   <data name="该扩展从本地 PPEXT 安装，不会从市场自动更新" xml:space="preserve"><value>该扩展从本地 PPEXT 安装，不会从市场自动更新</value></data>
   <data name="本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源" xml:space="preserve"><value>本地扩展未经市场审核。PackingProof 无法审查其内部行为，也无法限制它访问网络、文件或其他系统资源</value></data>
   <data name="改进面单识别与放大" xml:space="preserve"><value>改进面单识别与放大</value></data>
-  <data name="按打包模式截取开头或结尾画面，改进面单识别与放大" xml:space="preserve"><value>按打包模式截取开头或结尾画面，改进面单识别与放大</value></data>
+  <data name="截取录像开头和结尾画面，改进面单识别与放大" xml:space="preserve"><value>截取录像开头和结尾画面，改进面单识别与放大</value></data>
   <data name="导出样本包" xml:space="preserve"><value>导出样本包</value></data>
+  <data name="帮助 PackingProof 变得更好" xml:space="preserve"><value>帮助 PackingProof 变得更好</value></data>
+  <data name="面单识别不可靠？" xml:space="preserve"><value>面单识别不可靠？</value></data>
+  <data name="本机性能检测通过，已自动开启倾斜面单识别" xml:space="preserve"><value>本机性能检测通过，已自动开启倾斜面单识别</value></data>
+  <data name="本机性能检测完成，倾斜面单识别保持关闭" xml:space="preserve"><value>本机性能检测完成，倾斜面单识别保持关闭</value></data>
+  <data name="本机性能检测未通过，已自动关闭倾斜面单识别" xml:space="preserve"><value>本机性能检测未通过，已自动关闭倾斜面单识别</value></data>
+  <data name="本机性能检测完成，已保持你的手动开启设置" xml:space="preserve"><value>本机性能检测完成，已保持你的手动开启设置</value></data>
+  <data name="本机性能检测完成，已保持你的手动关闭设置" xml:space="preserve"><value>本机性能检测完成，已保持你的手动关闭设置</value></data>
+  <data name="你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠" xml:space="preserve"><value>你可以贡献一些本机识别样本，帮助我们把面单识别做得更可靠</value></data>
+  <data name="如果当前识别不够可靠，可以贡献一些本机样本。我们会针对你的使用场景优化模型，改善类似环境下的识别" xml:space="preserve"><value>如果当前识别不够可靠，可以贡献一些本机样本。我们会针对你的使用场景优化模型，改善类似环境下的识别</value></data>
+  <data name="我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者" xml:space="preserve"><value>我们不会主动上传。生成样本包后，需要你发送到邮箱或维护者</value></data>
+  <data name="包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物" xml:space="preserve"><value>包内不含录像、订单数据库、配置和日志，但会附带匿名设备标识和录像来源指纹，画面也可能包含面单和人物</value></data>
+  <data name="贡献样本" xml:space="preserve"><value>贡献样本</value></data>
+  <data name="暂不" xml:space="preserve"><value>暂不</value></data>
+  <data name="请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}" xml:space="preserve"><value>请检查画面内容后，通过微信发送给 PackingProof 维护者，或发送到邮箱 {0}</value></data>
   <data name="将只读取本机录像并抽取少量画面，生成 ZIP 样本包。包内不含录像、数据库、配置或日志，但画面可能包含面单和人物信息，请确认后再发送" xml:space="preserve"><value>只读取本机录像并抽取少量画面。样本包不含录像、数据库、配置或日志，但会附带匿名设备标识；画面可能包含面单或人物，请确认后再发送</value></data>
   <data name="开始抓取" xml:space="preserve"><value>开始抓取</value></data>
   <data name="正在生成样本包" xml:space="preserve"><value>正在生成样本包</value></data>

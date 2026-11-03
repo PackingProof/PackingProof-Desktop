@@ -29,6 +29,9 @@
     <!-- 开发构建使用与发布一致的 FFmpeg 基线（tools/ffmpeg-baseline.json），避免开发/发布能力漂移。 -->
     <FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>
     <FFmpegBaselineExecutable>..\..\package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
+    <CameraVisionModelPath>..\..\package\dependency-cache\vision-models\vision-obb.onnx</CameraVisionModelPath>
+    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">true</IncludeVisionObb>
+    <DefineConstants Condition="'$(IncludeVisionObb)' == 'true'">$(DefineConstants);VISION_OBB</DefineConstants>
     <SatelliteResourceLanguages>en-US;zh-Hans;ja-JP</SatelliteResourceLanguages>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
@@ -53,6 +56,9 @@
     <ProjectReference Include="..\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="..\ExpressPackingMonitoring.UpdateCore\ExpressPackingMonitoring.UpdateCore.csproj" />
     <ProjectReference Include="..\ExpressPackingMonitoring.Core\ExpressPackingMonitoring.Core.csproj" />
+    <ProjectReference Include="..\ExpressPackingMonitoring.Vision.Contracts\ExpressPackingMonitoring.Vision.Contracts.csproj" />
+    <ProjectReference Include="..\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj"
+                      Condition="'$(IncludeVisionObb)' == 'true'" />
     <PackageReference Include="AForge.Video" Version="2.2.5" />
     <PackageReference Include="EdgeTTS.Framework" Version="1.0.5" />
     <PackageReference Include="NAudio" Version="2.2.1" />
@@ -73,6 +79,15 @@
 
   <ItemGroup>
     <Resource Include="app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(CameraVisionModelPath)" Condition="'$(IncludeVisionObb)' == 'true' And Exists('$(CameraVisionModelPath)')">
+      <TargetPath>models\vision-obb.onnx</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
@@ -129,6 +144,11 @@
     <Compile Include="Services\WinRtPlacementService.cs" />
     <Compile Include="Services\WpfQrCode.cs" />
     <Compile Include="Services\FeedbackPackageService.cs" />
+    <Compile Include="Services\FeedbackContact.cs" />
+    <Compile Include="Services\SampleContributionPromptPolicy.cs" />
+    <Compile Include="Services\VisionSmartZoomPolicy.cs" />
+    <Compile Include="Services\VisionObbRuntimePolicy.cs" />
+    <Compile Include="Services\VisionObbHost.cs" />
     <Compile Include="Services\RecordingSampleSelectionPolicy.cs" />
     <Compile Include="Services\RecordingSamplePackageService.cs" />
     <Compile Include="Services\RecordingSampleContributionStore.cs" />
@@ -136,6 +156,15 @@
     <Compile Include="Services\AutoStartService.cs" />
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
+    <Compile Include="Services\CameraBarcodeFrameIntent.cs" />
+    <Compile Include="Services\CameraBarcodeMotionGate.cs" />
+    <Compile Include="Services\CameraVisionAutoEnablePolicy.cs" />
+    <Compile Include="Services\CameraBarcodeFastDecoder.cs" />
+    <Compile Include="Services\CameraBarcodeDecodeSizePolicy.cs" />
+    <Compile Include="Services\CameraBarcodeVisionProcessor.cs" />
+    <Compile Include="Services\VisionObbPerformanceBenchmark.cs" />
+    <Compile Include="Services\CameraBarcodeObbDecoder.cs" />
+    <Compile Include="Services\VisionModelDiagnostics.cs" />
     <Compile Include="Services\CameraBarcodeGuideLayout.cs" />
     <Compile Include="Services\CameraFormatCatalog.cs" />
     <Compile Include="Services\CameraDeviceChoice.cs" />
@@ -207,6 +236,7 @@
     <Compile Include="ViewModels\MainViewModel.Zoom.cs" />
     <Compile Include="ViewModels\MainViewModel.Lens.cs" />
     <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
+    <Compile Include="ViewModels\MainViewModel.CameraVisionObb.cs" />
     <Compile Include="ViewModels\MainViewModel.OverlayChannels.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />
     <Compile Include="ViewModels\MainViewModel.Notifications.cs" />
@@ -250,6 +280,8 @@
     <Compile Include="UI\DriveSelectionDialog.cs" />
     <Compile Include="UI\FirstUseSetupWizardWindow.xaml.cs" />
     <Compile Include="UI\MainWindow.xaml.cs" />
+    <Compile Include="UI\MainWindow.CameraVisionObb.cs" />
+    <Compile Include="UI\MainWindow.ZoomGuideAnimation.cs" />
     <Compile Include="UI\MainWindow.OverlayBoxes.cs" />
     <Compile Include="UI\MarkdownFlowDocumentRenderer.cs" />
     <Compile Include="UI\MobileAppUpdatePrompt.cs" />
@@ -264,6 +296,7 @@
     <Compile Include="UI\PlaybackControlBarPolicy.cs" />
     <Compile Include="UI\OrderNumberExportProgressDialog.xaml.cs" />
     <Compile Include="UI\RecognitionSampleExportProgressDialog.xaml.cs" />
+    <Compile Include="UI\RecognitionSampleExportWorkflow.cs" />
     <Compile Include="UI\VideoImportDialog.xaml.cs" />
     <Compile Include="UI\SettingsWindow.xaml.cs" />
     <Compile Include="UI\SettingsWindow.CameraChannels.cs" />
@@ -300,8 +333,7 @@
     <ItemGroup>
       <!-- OpenCV 内置 ffmpeg -->
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('opencv_videoio_ffmpeg'))" />
-      <!-- Kokoro native runtime is optional and should not be bundled by default. -->
-      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'onnxruntime'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'DirectML.Debug'" />
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)' == 'sherpa-onnx-c-api'" />
     </ItemGroup>
   </Target>
@@ -310,7 +342,7 @@
   <Target Name="RemoveUnusedFromPublish" AfterTargets="ComputeFilesToPublish">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('opencv_videoio_ffmpeg'))" />
-      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'onnxruntime'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'DirectML.Debug'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)' == 'sherpa-onnx-c-api'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb' Or '%(Extension)' == '.xml' Or '%(Extension)' == '.lib'" />
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="$([System.String]::Copy('%(RelativePath)').StartsWith('libvlc\win-x86\'))" />

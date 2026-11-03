@@ -320,8 +320,7 @@ public sealed class CameraBarcodeGuideLayoutTests
             source,
             StringComparison.Ordinal);
 
-        // 放大位置只认放大取景框，识别框锁没锁不参与：
-        // 否则用户解锁识别框调完位置忘记锁回去，放大就一直不触发。
+        // 放大总开关和编辑态才能阻止放大；识别框锁没锁不参与。
         int propertyIndex = source.IndexOf("private bool CanApplyZoom", StringComparison.Ordinal);
         Assert.True(propertyIndex > 0, "没找到 CanApplyZoom");
         string canApplyZoom = source[propertyIndex..Math.Min(source.Length, propertyIndex + 220)];

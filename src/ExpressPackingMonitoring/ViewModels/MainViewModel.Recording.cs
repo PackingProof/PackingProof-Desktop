@@ -286,6 +286,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 PostRollProgress = 0;
                 IsBusy = false;
             }
+            _speechService?.PlayShortBeep();
 
             if (_pendingCameraRestart && !_isDisposed)
             {
@@ -958,6 +959,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 ShowToast("开始录像", ToastSeverity.Information);
+                _speechService?.PlayShortBeep();
                 Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
                 if (_currentScanRecord != null)
                 {

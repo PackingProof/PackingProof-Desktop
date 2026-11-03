@@ -1119,6 +1119,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.PairingQr, currentFrameSequence);
                         TrySubmitCameraPairingQrFrame(currentFrame);
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.BarcodeRecognition, currentFrameSequence);
+                        TrySubmitCameraSmartZoomFrame(currentFrame);
                         TrySubmitCameraBarcodeFrame(currentFrame, 0);
                         MarkRecordingFramePipelineStage(RecordingFramePipelineStage.FrameMetadata, currentFrameSequence);
                         CameraFrameSize = new System.Windows.Size(currentFrame.Width, currentFrame.Height);

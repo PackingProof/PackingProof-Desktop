@@ -347,13 +347,14 @@ namespace ExpressPackingMonitoring.Config
         /// </summary>
         public string CameraBackend { get; set; } = "auto";
         public bool EnableSmartZoom { get; set; } = false;
+        /// <summary>摄像头确认条码后，优先放大本次选中的单个 OBB 面单。</summary>
+        public bool EnableVisionObbSmartZoom { get; set; } = false;
         public double ZoomDelaySeconds { get; set; } = 0.0;
         public double ZoomDurationSeconds { get; set; } = DefaultZoomDurationSeconds;
         public bool EnableZoomAnimation { get; set; } = true;
         public double ZoomAnimationDurationMs { get; set; } = 200.0;
         /// <summary>
-        /// 放大取景框：录制开始时放大主画面的哪一块。与识别框各自独立，
-        /// 识别结果不再参与放大位置的判定。
+        /// 固定放大取景框：智能跟随没有可用 OBB 时，放大主画面的哪一块。
         /// </summary>
         public double ZoomGuideWidthRatio { get; set; } = DefaultZoomGuideRatio;
         public double ZoomGuideHeightRatio { get; set; } = DefaultZoomGuideRatio;
@@ -413,8 +414,6 @@ namespace ExpressPackingMonitoring.Config
         public bool ShowDeletedVideos { get; set; } = false;
         public bool AutoStartOnBoot { get; set; } = true;
         public bool EnableAutoCheckUpdate { get; set; } = true;
-        // 接收预览版更新：测试机用，打开后连 prerelease 版本一起收；正式机器保持关闭
-        public bool AllowPrereleaseUpdates { get; set; } = false;
         // 仅用于显卡或虚拟显示驱动导致窗口全白/全黑的机器；进程级设置，改动后需重启程序。
         public bool ForceSoftwareRendering { get; set; } = false;
         public bool EnableAudioRecording { get; set; } = true;
@@ -614,6 +613,7 @@ namespace ExpressPackingMonitoring.Config
         public static bool NormalizeAfterLoad(AppConfig config)
         {
             bool changed = false;
+            changed = NormalizeCameraVisionSettings(config) || changed;
 
             int normalizedVideoCqp = NormalizeVideoCqp(config.VideoCqp);
             if (config.VideoCqp != normalizedVideoCqp)

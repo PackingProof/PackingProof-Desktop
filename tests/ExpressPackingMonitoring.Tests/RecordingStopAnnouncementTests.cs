@@ -71,6 +71,28 @@ public sealed class RecordingStopAnnouncementTests
         Assert.True(resume > stop, "收尾停录后必须把语音生成从暂停状态恢复");
     }
 
+    [Fact]
+    public void BeepOnlyFollowsConfirmedRecordingStateChanges()
+    {
+        string scanner = ReadViewModelSource("MainViewModel.Scanner.cs");
+        string recording = ReadViewModelSource("MainViewModel.Recording.cs");
+        string start = ExtractMethod(
+            recording,
+            "private async Task InternalStartRecordingAsync",
+            "private void BackgroundFFmpegRecordingLoop");
+        string stop = ExtractMethod(
+            recording,
+            "private async Task InternalStopRecordingAsync",
+            "private string ResolveBestStoragePath");
+
+        Assert.DoesNotContain(
+            "BarcodeRecognized += _ => _speechService?.PlayShortBeep()",
+            scanner,
+            StringComparison.Ordinal);
+        Assert.Contains("_speechService?.PlayShortBeep();", start, StringComparison.Ordinal);
+        Assert.Contains("_speechService?.PlayShortBeep();", stop, StringComparison.Ordinal);
+    }
+
     private static string ExtractMethod(string source, string startMarker, string endMarker)
     {
         int start = source.IndexOf(startMarker, StringComparison.Ordinal);

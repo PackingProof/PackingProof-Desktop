@@ -10,29 +10,62 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 放大取景框：主画面上一块独立于识别框的区域，录制触发时按它放大主画面。
-/// 这一组守卫盯住三件事——位置只认这个框（不看识别结果）、编辑态能无遮挡地摆框、
-/// 编辑期间放大与副画面合成都要让位。
+/// 面单放大：智能模式跟随本次选中的单个 OBB，没有可用坐标时回退到固定取景框。
+/// 这一组守卫同时盯住智能目标、编辑态和放大与副画面合成的互斥。
 /// </summary>
 public sealed class ZoomGuideEditingTests
 {
     [Fact]
-    public void ZoomBranch_NoLongerUsesRecognizedBarcodeGeometry()
+    public void ZoomBranch_UsesSelectedObbWithGuideFallback()
     {
         string camera = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Camera.cs"));
         string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
 
         Assert.Contains("ZoomCropPolicy.ResolveScale", zoom, StringComparison.Ordinal);
+        Assert.Contains("_smartZoomObbTarget", zoom, StringComparison.Ordinal);
+        Assert.Contains("_smartZoomObbTarget = ResolveSmartZoomTarget()", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "_smartZoomObbTarget = CameraVisionSmartZoomTarget",
+            zoom,
+            StringComparison.Ordinal);
+        Assert.Contains("VisionSmartZoomPolicy.ResolveTargetRect", zoom, StringComparison.Ordinal);
+        Assert.Contains("CameraVisionSmartZoomTarget is not { } detection", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain("Config.CameraBarcodeRecognitionChannel != 0", zoom, StringComparison.Ordinal);
         Assert.Contains("ZoomGuideGeometry", zoom, StringComparison.Ordinal);
+        Assert.Contains("CameraBarcodeGuideLayout.ToDisplayRect", zoom, StringComparison.Ordinal);
         Assert.Contains("ZoomCropPolicy.CreateCropRect", zoom, StringComparison.Ordinal);
         // 倍率只有取景框这一个来源：不能再有第二个倍率参数
         Assert.DoesNotContain("MaxZoomScale", zoom, StringComparison.Ordinal);
         Assert.DoesNotContain("PreviewZoomScale", zoom, StringComparison.Ordinal);
-        // 智能放大那套坐标已经删干净：放大分支不得再引用识别到的条码几何
+        // 使用专门的 OBB 选中框，不再引用按条码结果二次估算的旧几何。
         Assert.DoesNotContain("_lastBarcodeGeometry", zoom, StringComparison.Ordinal);
-        Assert.DoesNotContain("SmartZoomPolicy", zoom, StringComparison.Ordinal);
         // 主循环只问"这一帧该用哪份画面"，放大细节都在独立分部里
         Assert.Contains("ApplyZoomToFrame(currentFrame, currentFrameSequence)", camera, StringComparison.Ordinal);
+
+        string scanner = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Scanner.cs"));
+        Assert.Contains("StartZoomForScan()", scanner, StringComparison.Ordinal);
+        Assert.DoesNotContain("useVisionObbTarget", scanner, StringComparison.Ordinal);
+        Assert.Contains("CanSubmitCameraVisionFrame", scanner, StringComparison.Ordinal);
+        Assert.Contains("cameraBarcodeDecodingEnabledProvider", scanner, StringComparison.Ordinal);
+        Assert.Contains("visionObbDecodingEnabledProvider", scanner, StringComparison.Ordinal);
+        Assert.Contains("updateVision: ShouldRunVisionObb", scanner, StringComparison.Ordinal);
+        Assert.DoesNotContain("forceDecode:", scanner, StringComparison.Ordinal);
+        Assert.Contains("releaseVisionRuntime: !ShouldRunVisionObb", scanner, StringComparison.Ordinal);
+        Assert.Contains("_cameraVisionSmartZoomRecognition", scanner, StringComparison.Ordinal);
+        Assert.Contains("TrySubmitCameraSmartZoomFrame(currentFrame)", camera, StringComparison.Ordinal);
+        string overlayBoxes = ReadProjectFile(Path.Combine("UI", "MainWindow.CameraVisionObb.cs"));
+        Assert.Contains(
+            "!vm.ShouldRunVisionObb && !vm.ShouldRunSeparateCameraSmartZoom",
+            overlayBoxes,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "|| vm.ShouldUseOverlayChannelForBarcode",
+            overlayBoxes,
+            StringComparison.Ordinal);
+        string service = ReadProjectFile(Path.Combine(
+            "Services",
+            "CameraBarcodeRecognitionService.cs"));
+        Assert.Contains("_visionProcessor.ReleaseDetector()", service, StringComparison.Ordinal);
     }
 
     /// <summary>设置页里不该再有"最大放大倍数"这类第二个倍率参数。</summary>
@@ -104,7 +137,7 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("nameof(IsCameraBarcodeGuideEditable)", setterBody, StringComparison.Ordinal);
 
         // 起放大只在扫码与手动开录两处，且都走同一个入口，不再各自写一遍状态
-        Assert.Equal(2, CountOccurrences(scanner, "StartZoomForScan();"));
+        Assert.Equal(2, CountOccurrences(scanner, "StartZoomForScan()"));
         Assert.DoesNotContain("_zoomPhase", scanner, StringComparison.Ordinal);
 
         // 停录会打断正在跑的放大：这里必须走同一个复位
@@ -138,18 +171,15 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
-    public void ZoomAnimation_PansWithTheSameEasedProgressAsTheScale()
+    public void ZoomAnimation_LocksTargetAndUsesPhaseEasing()
     {
         string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
 
-        // 平移进度必须是缓动后的值，且与倍率共用同一个变量
         Assert.Contains("double eased = SmoothStep(t);", zoom, StringComparison.Ordinal);
         Assert.Contains("panProgress = eased;", zoom, StringComparison.Ordinal);
         Assert.Contains("panProgress = 1.0 - eased;", zoom, StringComparison.Ordinal);
-        // 动画帧的裁剪窗口要用插值出来的中心，不能再粘在框中心
         Assert.Contains("ZoomCropPolicy.ResolvePanCenter", zoom, StringComparison.Ordinal);
-        Assert.Contains("panCenter.X", zoom, StringComparison.Ordinal);
-        Assert.Contains("panCenter.Y", zoom, StringComparison.Ordinal);
+        Assert.DoesNotContain("_smartZoomObbTarget = CameraVisionSmartZoomTarget", zoom, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -259,6 +289,63 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
+    public void ZoomGuideBox_UsesOneLiveSmartTargetWhenEnabled()
+    {
+        string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
+
+        Assert.Contains("CameraVisionSmartZoomTarget is { } smartTarget", code, StringComparison.Ordinal);
+        Assert.Contains("VisionSmartZoomPolicy.ResolveTargetRect", code, StringComparison.Ordinal);
+        Assert.Contains(
+            "nameof(MainViewModel.CameraVisionSmartZoomTarget)",
+            code,
+            StringComparison.Ordinal);
+        Assert.Contains("ShowZoomGuideBox: not false", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SmartZoomTargetBox", code, StringComparison.Ordinal);
+
+        string animation = ReadProjectFile(Path.Combine(
+            "UI",
+            "MainWindow.ZoomGuideAnimation.cs"));
+        Assert.Contains("CompositionTarget.Rendering", animation, StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideTargetStabilityMs = 180", animation, StringComparison.Ordinal);
+        Assert.Contains("SmoothDampZoomGuideComponent", animation, StringComparison.Ordinal);
+        Assert.Contains("SetZoomGuideTargetRect", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ZoomGuideBoxHost.RenderTransform = new TranslateTransform", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZoomGuideAnimation_HasItsOwnContinuousMotionState()
+    {
+        double velocity = 0;
+        double first = MainWindow.SmoothDampZoomGuideComponent(
+            0,
+            300,
+            ref velocity,
+            0.016);
+        double second = MainWindow.SmoothDampZoomGuideComponent(
+            first,
+            300,
+            ref velocity,
+            0.016);
+
+        Assert.True(first > 0);
+        Assert.True(first < 300);
+        Assert.True(second > first);
+        Assert.True(second < 300);
+    }
+
+    [Fact]
+    public void ZoomGuideAnimation_WaitsForFarTargetStability()
+    {
+        string animation = ReadProjectFile(Path.Combine(
+            "UI",
+            "MainWindow.ZoomGuideAnimation.cs"));
+        Assert.Contains("_zoomGuidePendingRect", animation, StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideTargetStabilityMs", animation, StringComparison.Ordinal);
+        Assert.Contains("IsSameZoomGuideTarget", animation, StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideMaxSpeed", animation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ZoomGuideEditingScreen_DrawsTheMainFrameBoxInsteadOfTheRecognitionBox()
     {
         string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
@@ -288,20 +375,25 @@ public sealed class ZoomGuideEditingTests
         Assert.True(tabStart > 0 && tabEnd > tabStart, "没找到面单放大栏");
         string tab = xaml[tabStart..tabEnd];
 
-        // 行序：面单放大 → 显示放大取景框 → 放大取景框 → 放大时隐藏画中画 → 放大前等待 → … → 平滑过渡
+        // 行序：面单放大 → 智能跟随面单 → 显示放大取景框 → 放大取景框
+        // → 放大时隐藏画中画 → 放大前等待 → … → 平滑过渡
         int zoomToggle = tab.IndexOf("x:Name=\"ZoomEnableCheckBox\"", StringComparison.Ordinal);
+        int smartFollow = tab.IndexOf("x:Name=\"VisionObbSmartZoomCheckBox\"", StringComparison.Ordinal);
         int showBox = tab.IndexOf("x:Name=\"ShowZoomGuideBoxCheckBox\"", StringComparison.Ordinal);
         int adjustBox = tab.IndexOf("x:Name=\"BtnAdjustZoomGuide\"", StringComparison.Ordinal);
         int hideOverlay = tab.IndexOf("x:Name=\"HideOverlayDuringZoomCheckBox\"", StringComparison.Ordinal);
         int delay = tab.IndexOf("x:Name=\"ZoomDelaySlider\"", StringComparison.Ordinal);
         int smooth = tab.IndexOf("x:Name=\"ZoomAnimationCheckBox\"", StringComparison.Ordinal);
-        Assert.True(zoomToggle > 0 && showBox > zoomToggle, "显示放大取景框应紧跟面单放大开关");
+        Assert.True(zoomToggle > 0 && smartFollow > zoomToggle, "智能跟随面单应紧跟面单放大开关");
+        Assert.True(showBox > smartFollow, "显示放大取景框应排在智能跟随面单之后");
         Assert.True(adjustBox > showBox, "放大取景框（调整放大位置）应排在显示放大取景框之后");
         Assert.True(hideOverlay > adjustBox, "放大时隐藏画中画应是这一栏的第 4 项");
         Assert.True(delay > hideOverlay && smooth > hideOverlay, "放大时隐藏画中画要排在放大前等待之前");
 
         // 副标题要短；隐藏画中画的说明指向平滑过渡
         Assert.Contains("放大取景框内的画面，停留一会儿后恢复全景", tab, StringComparison.Ordinal);
+        Assert.Contains("{Binding Config.EnableVisionObbSmartZoom}", tab, StringComparison.Ordinal);
+        Assert.Contains("{Binding VisionObbSmartZoomHint}", tab, StringComparison.Ordinal);
         Assert.Contains("开启平滑过渡时有淡入淡出动画", tab, StringComparison.Ordinal);
 
         // 放大前等待/放大停留时间属于常用项：不打开高级设置也要显示
@@ -335,6 +427,7 @@ public sealed class ZoomGuideEditingTests
         string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
         Assert.Contains("x:Name=\"ZoomTabItem\"", xaml, StringComparison.Ordinal);
         Assert.Contains("调整大小与位置…", xaml, StringComparison.Ordinal);
+        Assert.Contains("默认放大取景框", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ShowZoomGuideBoxCheckBox\"", xaml, StringComparison.Ordinal);
         Assert.Contains("{Binding Config.ShowZoomGuideBox}", xaml, StringComparison.Ordinal);
         Assert.Contains("{Binding CanAdjustZoomGuide", xaml, StringComparison.Ordinal);

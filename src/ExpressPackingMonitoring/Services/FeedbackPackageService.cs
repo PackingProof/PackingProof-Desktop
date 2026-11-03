@@ -254,6 +254,7 @@ internal sealed class FeedbackPackageService
                 }
             }
             builder.AppendLine($"- FFmpeg：{ValueOrUnavailable(info.FfmpegVersion)}");
+            builder.AppendLine($"- YOLO/ONNX：{ValueOrUnavailable(info.VisionModelVersion)}");
         }
         catch (Exception ex)
         {
@@ -335,7 +336,8 @@ internal sealed record FeedbackHardwareInfo(
     int LogicalProcessorCount,
     ulong TotalPhysicalMemoryBytes,
     IReadOnlyList<FeedbackGpuInfo> Gpus,
-    string FfmpegVersion)
+    string FfmpegVersion,
+    string VisionModelVersion)
 {
     private const string DisplayAdapterClassPath =
         @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
@@ -347,7 +349,8 @@ internal sealed record FeedbackHardwareInfo(
             Environment.ProcessorCount,
             ReadTotalPhysicalMemory(),
             ReadGpus(),
-            ReadFfmpegVersion());
+            ReadFfmpegVersion(),
+            VisionModelDiagnostics.Describe());
     }
 
     private static string ReadCpuName()

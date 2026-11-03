@@ -284,6 +284,7 @@ public sealed class CameraLensPolicyTests
     {
         var viewModel = (MainViewModel)RuntimeHelpers.GetUninitializedObject(typeof(MainViewModel));
         var controller = new CountingLensController();
+        UseInlineUiThread(viewModel);
         SetPrivateField(viewModel, "_lensController", controller);
         SetPrivateField(viewModel, "_lensZoomControlEnabled", false);
         SetPrivateField(viewModel, "_lensFocusControlEnabled", false);
@@ -300,6 +301,7 @@ public sealed class CameraLensPolicyTests
     public async Task RefreshingLensPanel_DoesNotOverwriteANewerZoomOperation()
     {
         var viewModel = (MainViewModel)RuntimeHelpers.GetUninitializedObject(typeof(MainViewModel));
+        UseInlineUiThread(viewModel);
         using var readStarted = new ManualResetEventSlim();
         using var releaseRead = new ManualResetEventSlim();
         var controller = new CountingLensController
@@ -418,6 +420,18 @@ public sealed class CameraLensPolicyTests
             BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new MissingFieldException(typeof(MainViewModel).FullName, name);
         field.SetValue(viewModel, value);
+    }
+
+    private static void UseInlineUiThread(MainViewModel viewModel)
+    {
+        SetPrivateField(
+            viewModel,
+            "_uiThreadInvoker",
+            new Func<Action, Task>(action =>
+            {
+                action();
+                return Task.CompletedTask;
+            }));
     }
 
     private sealed class CountingLensController : ILensController

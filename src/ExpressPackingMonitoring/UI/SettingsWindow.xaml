@@ -1608,6 +1608,28 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <Grid x:Name="CameraBarcodeEnhancedRecognitionRow"
+                                          Style="{StaticResource SettingRowStyle}"
+                                          IsEnabled="{Binding CanUseEnhancedRecognitionForSelectedBarcodeSource}"
+                                          Visibility="{Binding Capabilities.CanUseVisionObb, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="识别倾斜面单" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="{Binding CameraBarcodeEnhancedRecognitionHint}"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="CameraBarcodeEnhancedRecognitionCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableCameraBarcodeEnhancedRecognition}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1999,6 +2021,27 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <Grid Style="{StaticResource SettingRowStyle}"
+                                          IsEnabled="{Binding IsChecked, ElementName=ZoomEnableCheckBox, TargetNullValue=False}"
+                                          Visibility="{Binding Capabilities.CanUseVisionObb, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="智能跟随面单" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="{Binding VisionObbSmartZoomHint}"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="VisionObbSmartZoomCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableVisionObbSmartZoom}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -2027,7 +2070,7 @@
                                             <ColumnDefinition Width="260"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
-                                            <TextBlock Text="放大取景框" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="默认放大取景框" Style="{StaticResource FieldLabelStyle}"/>
                                             <TextBlock Text="回到主画面框选要放大的区域，点完成或按 Esc 退出"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
@@ -3999,7 +4042,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Margin="0,0,16,0">
                                             <TextBlock Text="{loc:Localized 改进面单识别与放大}" Style="{StaticResource FieldLabelStyle}"/>
-                                            <TextBlock Text="{loc:Localized 按打包模式截取开头或结尾画面，改进面单识别与放大}"
+                                            <TextBlock Text="{loc:Localized 截取录像开头和结尾画面，改进面单识别与放大}"
                                                        Style="{StaticResource FieldHintStyle}"/>
                                         </StackPanel>
                                         <Button x:Name="ExportRecognitionSamplesButton"

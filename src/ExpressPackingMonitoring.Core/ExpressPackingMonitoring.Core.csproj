@@ -26,6 +26,9 @@
       <_Parameter1>ExpressPackingMonitoring.Tests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>ExpressPackingMonitoring.Vision.Obb</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>ExpressPackingMonitoring.EncodingIntegrationTests</_Parameter1>
     </AssemblyAttribute>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
@@ -54,6 +57,8 @@
   <ItemGroup>
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Lens.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.Update.cs" />
+    <Compile Include="..\ExpressPackingMonitoring\Config\AppConfig.CameraVision.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppPaths.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\AppVersion.cs" />
     <Compile Include="..\ExpressPackingMonitoring\Config\CameraBarcodeSpeed.cs" />

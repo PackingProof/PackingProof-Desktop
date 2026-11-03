@@ -11,8 +11,12 @@ if /i "%~1"=="7z" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if /i "%~1"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if defined ARCHIVE_ARGS echo [INFO] Local 7z archive enabled.
 
+set "VISION_ARGS="
+if /i "%~1"=="novision" set "VISION_ARGS=-VisionObb exclude"
+if /i "%~2"=="novision" set "VISION_ARGS=-VisionObb exclude"
+
 echo [WARN] Review docs\development\RELEASE_CHECKLIST.md before publishing.
 echo [WARN] Unconfirmed real-device checks no longer block packaging.
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" -DisablePatch %ARCHIVE_ARGS%
+pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\Publish-CleanPackage.ps1" -DisablePatch %ARCHIVE_ARGS% %VISION_ARGS%
 exit /b %ERRORLEVEL%

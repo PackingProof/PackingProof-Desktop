@@ -3,9 +3,8 @@ using System.Windows;
 namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
-/// 固定版「面单放大」的裁剪换算：放大位置由主画面上的放大取景框决定，
-/// 与识别结果、识别来源都无关 —— 所以识别来源选副画面时也不会再把副摄坐标系里的数值
-/// 直接套到主画面上（那正是"放大位置跑到别处"的根因）。
+/// 「面单放大」的裁剪换算：智能跟随模式由本次选中的单个 OBB 提供目标，
+/// 无可用坐标时回退到主画面上的固定放大取景框。
 ///
 /// 倍率完全由框决定：框住多大就放大铺满多大（画面尺寸 / 框尺寸），再没有第二个倍率参数；
 /// 裁剪以框中心为中心，并夹进画面边界。
@@ -16,8 +15,7 @@ internal static class ZoomCropPolicy
     /// 是否执行扫码放大：只看「面单放大」总开关，另外在进放大框编辑（摆放大位置）
     /// 那一屏让位 —— 那屏要拖动放大取景框，预览被裁切会摆不准。
     ///
-    /// 识别框锁没锁不参与：放大位置只认放大取景框，解锁识别框只是允许拖动它，
-    /// 不该把放大一起停掉（否则用户忘记锁回去，放大就一直不生效）。
+    /// 识别框锁没锁不参与；智能跟随目标是否可用由调用方决定。
     /// </summary>
     internal static bool ShouldApplyZoom(bool zoomEnabled, bool editingZoomGuide) =>
         zoomEnabled && !editingZoomGuide;
