@@ -9,6 +9,7 @@ using ExpressPackingMonitoring.Themes;
 using ExpressPackingMonitoring.UpdateCore;
 using ExpressPackingMonitoring.ViewModels;
 using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Windows;
@@ -29,6 +30,14 @@ namespace ExpressPackingMonitoring
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            long startupStartedAt = Stopwatch.GetTimestamp();
+            void LogStartupStage(string stage)
+            {
+                RuntimeLog.Info(
+                    "StartupTrace",
+                    $"{stage} elapsedMs={Stopwatch.GetElapsedTime(startupStartedAt).TotalMilliseconds:F0}");
+            }
+
             ApplyConfiguredWpfRenderingMode();
             WinRtPlacementService.Apply();
             base.OnStartup(e);
@@ -75,10 +84,25 @@ namespace ExpressPackingMonitoring
             RuntimeLog.Info(
                 "Rendering",
                 $"WPF process render mode={RenderOptions.ProcessRenderMode}, softwareForced={SoftwareRenderingForced}");
+            LogStartupStage("bootstrap");
             _launcherUpdateCancellation = new CancellationTokenSource();
-            _ = new LauncherUpdateService().CheckAndApplyAsync(
-                config.EnableAutoCheckUpdate,
-                _launcherUpdateCancellation.Token);
+            bool enableAutoCheckUpdate = config.EnableAutoCheckUpdate;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await new LauncherUpdateService().CheckAndApplyAsync(
+                        enableAutoCheckUpdate,
+                        _launcherUpdateCancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Error("LauncherUpdate", "Startup launcher update check failed", ex);
+                }
+            });
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             if (AudioProbe.TryHandleCommandLine(e.Args, out int exitCode))
@@ -269,6 +293,7 @@ namespace ExpressPackingMonitoring
             bool allowLanAccessSetup = !IsLanAccessSetupDisabled();
             MainViewModel.AllowLanAccessSetupOnStartup = allowLanAccessSetup;
 
+            LogStartupStage("before-window-create");
             Window window = DeploymentPresets.Normalize(startupPreset) switch
             {
                 DeploymentPresets.ViewerClient => new ViewerClientWindow(config),
@@ -279,6 +304,7 @@ namespace ExpressPackingMonitoring
                     enableCloseBehaviorPrompt: true),
                 _ => new MainWindow(enableCloseBehaviorPrompt: true)
             };
+            LogStartupStage($"window-created type={window.GetType().Name}");
             window.SourceInitialized += (_, _) =>
             {
                 if (PresentationSource.FromVisual(window) is HwndSource source)
@@ -287,6 +313,7 @@ namespace ExpressPackingMonitoring
             MainWindow = window;
             _instanceCoordinator?.StartActivationListener(window);
             window.Show();
+            LogStartupStage("window-shown");
             ShutdownMode = ShutdownMode.OnMainWindowClose;
         }
 

@@ -1588,6 +1588,29 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void LauncherUpdateCheckCannotBlockStartupThread()
+    {
+        string app = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring",
+            "App.xaml.cs");
+        int launcherCheck = app.IndexOf(
+            "new LauncherUpdateService().CheckAndApplyAsync",
+            StringComparison.Ordinal);
+        Assert.True(launcherCheck >= 0, "必须保留启动器更新检查");
+        int taskRun = app.LastIndexOf(
+            "_ = Task.Run(async () =>",
+            launcherCheck,
+            StringComparison.Ordinal);
+        int windowCreation = app.IndexOf(
+            "Window window = DeploymentPresets.Normalize(startupPreset) switch",
+            StringComparison.Ordinal);
+
+        Assert.True(taskRun >= 0, "启动器更新检查必须在线程池执行");
+        Assert.InRange(launcherCheck, taskRun, windowCreation - 1);
+        Assert.Contains("StartupTrace", app, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RecordingWorkstationBindingPromptRunsAfterLanStartupAndCanReturnToMainWindow()
     {
         string mainWindow = ReadRepositoryFile(

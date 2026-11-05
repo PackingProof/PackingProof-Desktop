@@ -133,6 +133,14 @@ namespace ExpressPackingMonitoring.ViewModels
 
         public MainViewModel()
         {
+            long startupStartedAt = Stopwatch.GetTimestamp();
+            void LogStartupStage(string stage)
+            {
+                RuntimeLog.Info(
+                    "StartupTrace",
+                    $"view-model-{stage} elapsedMs={Stopwatch.GetElapsedTime(startupStartedAt).TotalMilliseconds:F0}");
+            }
+
             _printedRefundLookupCoordinator = new PrintedRefundLookupCoordinator(
                 () => _webServer is { } server
                     ? new WebServerPrintedRefundOrderSource(server)
@@ -159,6 +167,7 @@ namespace ExpressPackingMonitoring.ViewModels
             LoadConfig();
             HookApplicationFocusTracking();
             InitializeCameraBarcodeRecognition();
+            LogStartupStage("config-and-barcode");
             // 在起动时后台探测可用 GPU 编码器并缓存
             Task.Run(() => {
                 _isEncoderDetectRunning = true;
@@ -218,6 +227,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
             });
             InitDatabase();
+            LogStartupStage("database");
             InitializeRecordingTransfers();
             RefreshTodayStats();
             RestoreRecentScanRecords();
@@ -247,6 +257,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 resumeAudio: _speechService.ResumeAfterRecording);
             foreach (DefaultSpeechPrompt prompt in DefaultSpeechCatalog.Prompts)
                 _speechService.PreGenerateCache(prompt.Text, prompt.VoiceStyle == AlertVoiceStyle.Warning);
+            LogStartupStage("speech");
             ScanCommand = new AsyncRelayCommand<string>(
                 scanResult => HandleScanAsync(scanResult),
                 AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -261,10 +272,12 @@ namespace ExpressPackingMonitoring.ViewModels
             ClearScanInputCommand = new RelayCommand(() => ScanInputText = "");
             ClearSearchCommand = new RelayCommand(() => LogSearchText = "");
             InitializeSystem();
+            LogStartupStage("system");
             StartUiHeartbeat();
             RefreshBarcodes();
             PrimeCommandBarcodeImages();
             InitGlobalKeyboardHook();
+            LogStartupStage("ready");
         }
 
         /// <summary>启动时预生成一次指令条码图片，用户点"打开所在位置"时目录里已经有文件</summary>
