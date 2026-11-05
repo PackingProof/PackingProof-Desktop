@@ -32,6 +32,7 @@ internal static class VisionObbPerformanceBenchmark
     internal const double TargetIntervalMs = 1000 / TargetDecodesPerSecond;
     internal const double RecommendedP95Ms = TargetIntervalMs * (1 - HeadroomRatio);
     internal const double RecommendedCpuMsPerFrame = RecommendedP95Ms;
+    internal const double CpuProviderSelectionMargin = 0.10;
     internal const int WarmupIterations = 3;
     internal const int MeasuredIterations = 20;
     internal const int ReferenceFrameWidth = 1920;
@@ -69,6 +70,29 @@ internal static class VisionObbPerformanceBenchmark
             currentModelKey,
             completedModelKey,
             StringComparison.Ordinal);
+
+    internal static VisionObbBenchmarkResult SelectFasterProvider(
+        VisionObbBenchmarkResult directMl,
+        VisionObbBenchmarkResult cpu)
+    {
+        if (!directMl.ModelAvailable)
+            return cpu.ModelAvailable ? cpu : directMl;
+        if (!cpu.ModelAvailable
+            || !string.Equals(
+                directMl.Provider,
+                "DirectML",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return directMl;
+        }
+        if (cpu.Recommended != directMl.Recommended)
+            return cpu.Recommended ? cpu : directMl;
+        return cpu.EnhancedP95Ms > 0
+            && cpu.EnhancedP95Ms
+                < directMl.EnhancedP95Ms * (1 - CpuProviderSelectionMargin)
+            ? cpu
+            : directMl;
+    }
 
     internal static VisionObbBenchmarkResult Run(
         string? modelPath,

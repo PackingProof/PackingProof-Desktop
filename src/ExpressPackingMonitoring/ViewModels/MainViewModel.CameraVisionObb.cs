@@ -18,6 +18,21 @@ public partial class MainViewModel
 
     public bool IsVisionObbAvailable => VisionObbHost.IsAvailable;
 
+    /// <summary>
+    /// 自动选择增强识别时，性能和模型结论出来前不画传统取景框；检测失败回退普通识别后
+    /// 也保持隐藏，避免先闪出默认框再切换。用户手动关闭增强识别时仍显示传统取景框。
+    /// </summary>
+    public bool IsCameraVisionGuideSuppressed =>
+        IsVisionObbAvailable
+        && IsCameraBarcodeRecognitionEnabled
+        && !ShouldUseOverlayChannelForBarcode
+        && !IsPreviewGuideEditing
+        && (Config?.CameraVisionEnableSource == AppConfig.CameraVisionEnableSourceAuto
+            || Config?.EnableCameraBarcodeEnhancedRecognition == true)
+        && (_cameraVisionBenchmarkRunning
+            || !_cameraVisionModelAvailable
+            || Config?.EnableCameraBarcodeEnhancedRecognition != true);
+
     /// <summary>最近一帧主摄像头视觉检测到的旋转框，坐标位于主摄输入帧。</summary>
     public IReadOnlyList<VisionObbDetection> CameraVisionObbDetections
     {
@@ -117,9 +132,10 @@ public partial class MainViewModel
         }
 
         _cameraVisionBenchmarkRunning = true;
+        NotifyCameraVisionGuideStateChanged();
         try
         {
-            VisionObbBenchmarkResult result =
+            VisionObbBenchmarkResult directMlResult =
                 await Task.Run(() => VisionObbPerformanceBenchmark.Run(
                     modelPath,
                     preferDirectMl: true,
@@ -127,6 +143,30 @@ public partial class MainViewModel
                     frameHeight: Config.FrameHeight));
             if (_isDisposed)
                 return;
+            VisionObbBenchmarkResult result = directMlResult;
+            if (directMlResult.ModelAvailable
+                && string.Equals(
+                    directMlResult.Provider,
+                    "DirectML",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                VisionObbBenchmarkResult cpuResult =
+                    await Task.Run(() => VisionObbPerformanceBenchmark.Run(
+                        modelPath,
+                        preferDirectMl: false,
+                        frameWidth: Config.FrameWidth,
+                        frameHeight: Config.FrameHeight));
+                if (_isDisposed)
+                    return;
+                result = VisionObbPerformanceBenchmark.SelectFasterProvider(
+                    directMlResult,
+                    cpuResult);
+                RuntimeLog.Info(
+                    "CameraVision",
+                    $"CPU/GPU 性能比较：directMlP95={directMlResult.EnhancedP95Ms:F2}ms, "
+                        + $"cpuP95={cpuResult.EnhancedP95Ms:F2}ms, "
+                        + $"selected={result.Provider}");
+            }
             SetCameraVisionModelAvailable(result.ModelAvailable);
             if (!result.ModelAvailable)
                 return;
@@ -175,6 +215,7 @@ public partial class MainViewModel
         finally
         {
             _cameraVisionBenchmarkRunning = false;
+            NotifyCameraVisionGuideStateChanged();
         }
     }
 
@@ -200,10 +241,15 @@ public partial class MainViewModel
                 recommended);
         Config.EnableCameraBarcodeEnhancedRecognition = decision.Enabled;
         Config.CameraVisionEnableSource = decision.Source;
+        VisionObbHost.PreferDirectMl = !string.Equals(
+            provider,
+            "CPU",
+            StringComparison.OrdinalIgnoreCase);
         if (!SaveConfig(notifyUser: showToast))
             return null;
 
-        ResetCameraBarcodeRecognition();
+        ResetCameraBarcodeRecognition(forceReleaseVisionRuntime: true);
+        NotifyCameraVisionGuideStateChanged();
         if (showToast)
         {
             ShowToast(
@@ -261,6 +307,12 @@ public partial class MainViewModel
             return;
         _cameraVisionModelAvailable = available;
         OnPropertyChanged(nameof(IsCameraVisionFullFrameMode));
+        NotifyCameraVisionGuideStateChanged();
+    }
+
+    private void NotifyCameraVisionGuideStateChanged()
+    {
+        OnPropertyChanged(nameof(IsCameraVisionGuideSuppressed));
     }
 
     private void UpdateCameraVisionSmartZoomTarget(

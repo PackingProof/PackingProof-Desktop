@@ -334,7 +334,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         }
 
         _detector?.Dispose();
-        _detector = _detectorFactory.TryLoad(path);
+        _detector = _detectorFactory.TryLoad(path, VisionObbHost.PreferDirectMl);
         _loadedPath = _detector == null ? null : path;
         _unavailableModelPath = _detector == null ? path : null;
         if (_detector == null && !_missingModelLogged)

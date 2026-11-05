@@ -81,6 +81,10 @@ namespace ExpressPackingMonitoring.ViewModels
                 configMigrated = true;
             }
             configMigrated = AppConfig.NormalizeAfterLoad(Config) || configMigrated;
+            VisionObbHost.PreferDirectMl = !string.Equals(
+                Config.CameraVisionBenchmarkProvider,
+                "CPU",
+                StringComparison.OrdinalIgnoreCase);
             _previousRunVersion = Config.LastRunAppVersion?.Trim() ?? "";
             if (configMigrated)
                 SaveConfig();

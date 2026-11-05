@@ -673,15 +673,18 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (OperationCanceledException) { }
         }
 
-        private void ResetCameraBarcodeRecognition(bool preserveConfirmedCodes = false)
+        private void ResetCameraBarcodeRecognition(
+            bool preserveConfirmedCodes = false,
+            bool forceReleaseVisionRuntime = false)
         {
             _cameraBarcodeFeedbackCts?.Cancel();
             _cameraBarcodeRecognition?.Reset(
                 preserveConfirmedCodes,
-                releaseVisionRuntime: !ShouldRunVisionObb);
+                releaseVisionRuntime: forceReleaseVisionRuntime || !ShouldRunVisionObb);
             _cameraVisionSmartZoomRecognition?.Reset(
                 preserveConfirmedCodes,
-                releaseVisionRuntime: !ShouldRunSeparateCameraSmartZoom);
+                releaseVisionRuntime:
+                    forceReleaseVisionRuntime || !ShouldRunSeparateCameraSmartZoom);
             IsCameraBarcodeCandidate = false;
             IsCameraBarcodeConfirmed = false;
             CameraVisionObbDetections = [];

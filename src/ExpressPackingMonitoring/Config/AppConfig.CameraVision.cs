@@ -8,7 +8,7 @@ public partial class AppConfig
     /// 视觉行为版本。修改模型预处理、张量契约、OBB/ZXing 解码策略、benchmark
     /// 场景或性能门槛时必须递增，使所有已缓存的本机检测结果失效并重新 benchmark。
     /// </summary>
-    public const int CurrentCameraVisionPolicyVersion = 1;
+    public const int CurrentCameraVisionPolicyVersion = 2;
 
     public const string CameraVisionEnableSourceAuto = "Auto";
     public const string CameraVisionEnableSourceManualOn = "ManualOn";

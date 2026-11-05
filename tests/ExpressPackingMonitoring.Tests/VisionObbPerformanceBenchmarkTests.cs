@@ -151,6 +151,44 @@ public sealed class VisionObbPerformanceBenchmarkTests
     }
 
     [Fact]
+    public void ProviderSelectionPrefersRecommendedThenMeaningfullyFasterProvider()
+    {
+        static VisionObbBenchmarkResult Result(
+            string provider,
+            double p95,
+            bool recommended) =>
+            new(
+                ModelAvailable: true,
+                Provider: provider,
+                BaselineP95Ms: 20,
+                EnhancedP95Ms: p95,
+                BaselineCpuMsPerFrame: 20,
+                EnhancedCpuMsPerFrame: p95,
+                Recommended: recommended);
+
+        Assert.Equal(
+            "CPU",
+            VisionObbPerformanceBenchmark.SelectFasterProvider(
+                Result("DirectML", 100, recommended: false),
+                Result("CPU", 120, recommended: true)).Provider);
+        Assert.Equal(
+            "DirectML",
+            VisionObbPerformanceBenchmark.SelectFasterProvider(
+                Result("DirectML", 100, recommended: true),
+                Result("CPU", 80, recommended: false)).Provider);
+        Assert.Equal(
+            "CPU",
+            VisionObbPerformanceBenchmark.SelectFasterProvider(
+                Result("DirectML", 100, recommended: false),
+                Result("CPU", 80, recommended: false)).Provider);
+        Assert.Equal(
+            "DirectML",
+            VisionObbPerformanceBenchmark.SelectFasterProvider(
+                Result("DirectML", 100, recommended: false),
+                Result("CPU", 95, recommended: false)).Provider);
+    }
+
+    [Fact]
     public void ModelIdentityReadFailureReturnsEmptyInsteadOfThrowing()
     {
         string path = Path.Combine(

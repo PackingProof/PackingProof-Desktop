@@ -50,7 +50,10 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("visionObbDecodingEnabledProvider", scanner, StringComparison.Ordinal);
         Assert.Contains("updateVision: ShouldRunVisionObb", scanner, StringComparison.Ordinal);
         Assert.DoesNotContain("forceDecode:", scanner, StringComparison.Ordinal);
-        Assert.Contains("releaseVisionRuntime: !ShouldRunVisionObb", scanner, StringComparison.Ordinal);
+        Assert.Contains(
+            "forceReleaseVisionRuntime || !ShouldRunVisionObb",
+            scanner,
+            StringComparison.Ordinal);
         Assert.Contains("_cameraVisionSmartZoomRecognition", scanner, StringComparison.Ordinal);
         Assert.Contains("TrySubmitCameraSmartZoomFrame(currentFrame)", camera, StringComparison.Ordinal);
         string overlayBoxes = ReadProjectFile(Path.Combine("UI", "MainWindow.CameraVisionObb.cs"));
@@ -66,6 +69,24 @@ public sealed class ZoomGuideEditingTests
             "Services",
             "CameraBarcodeRecognitionService.cs"));
         Assert.Contains("_visionProcessor.ReleaseDetector()", service, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VisionDecisionPendingOrFallbackDoesNotFlashDefaultGuide()
+    {
+        string cameraVision = ReadProjectFile(Path.Combine(
+            "ViewModels",
+            "MainViewModel.CameraVisionObb.cs"));
+        string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
+
+        Assert.Contains("IsCameraVisionGuideSuppressed", cameraVision, StringComparison.Ordinal);
+        Assert.Contains("_cameraVisionBenchmarkRunning", cameraVision, StringComparison.Ordinal);
+        Assert.Contains("_cameraVisionModelAvailable", cameraVision, StringComparison.Ordinal);
+        Assert.Equal(
+            3,
+            xaml.Split(
+                "{Binding IsCameraVisionGuideSuppressed}",
+                StringSplitOptions.None).Length - 1);
     }
 
     /// <summary>设置页里不该再有"最大放大倍数"这类第二个倍率参数。</summary>

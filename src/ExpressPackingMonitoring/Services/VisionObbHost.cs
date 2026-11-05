@@ -11,6 +11,7 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal static class VisionObbHost
 {
+    private static int _preferDirectMl = 1;
 #if VISION_OBB
     private static readonly IVisionObbDetectorFactory Factory = VisionObbModule.Instance;
 #else
@@ -20,6 +21,12 @@ internal static class VisionObbHost
     internal static bool IsAvailable => Factory.IsAvailable;
 
     internal static IVisionObbDetectorFactory DetectorFactory => Factory;
+
+    internal static bool PreferDirectMl
+    {
+        get => Volatile.Read(ref _preferDirectMl) != 0;
+        set => Volatile.Write(ref _preferDirectMl, value ? 1 : 0);
+    }
 
     private sealed class UnavailableFactory : IVisionObbDetectorFactory
     {
