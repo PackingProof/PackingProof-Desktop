@@ -1557,6 +1557,37 @@ public sealed class DeploymentStartupTests
     }
 
     [Fact]
+    public void VisionRuntimeStartsOnlyAfterMainWindowHasRendered()
+    {
+        string mainWindow = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring",
+            "UI",
+            "MainWindow.xaml.cs");
+        string cameraVision = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.CameraVisionObb.cs");
+
+        int activate = mainWindow.IndexOf(
+            "ActivateCameraVisionAfterStartup();",
+            StringComparison.Ordinal);
+        int startupFlows = mainWindow.IndexOf(
+            "RunStartupSetupFlowsIfNeeded(this);",
+            StringComparison.Ordinal);
+        int mainVisionGate = cameraVision.IndexOf(
+            "_cameraVisionStartupReady",
+            StringComparison.Ordinal);
+        int smartZoomGate = cameraVision.IndexOf(
+            "_cameraVisionStartupReady",
+            mainVisionGate + 1,
+            StringComparison.Ordinal);
+        Assert.True(activate >= 0, "主窗口加载后必须启用视觉运行时");
+        Assert.True(startupFlows > activate, "视觉运行时必须早于启动检测和提示流程启用");
+        Assert.True(mainVisionGate >= 0, "主摄 OBB 必须受首屏显示门控");
+        Assert.True(smartZoomGate > mainVisionGate, "独立智能跟随也必须受同一门控");
+    }
+
+    [Fact]
     public void RecordingWorkstationBindingPromptRunsAfterLanStartupAndCanReturnToMainWindow()
     {
         string mainWindow = ReadRepositoryFile(

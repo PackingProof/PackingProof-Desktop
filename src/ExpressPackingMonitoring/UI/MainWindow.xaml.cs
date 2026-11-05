@@ -346,7 +346,12 @@ namespace ExpressPackingMonitoring.UI
 
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    (DataContext as MainViewModel)?.RunStartupSetupFlowsIfNeeded(this);
+                    if (DataContext is MainViewModel startupViewModel)
+                    {
+                        // 主窗口已经完成首次显示，再允许 OBB 建会话和跑自动性能检测。
+                        startupViewModel.ActivateCameraVisionAfterStartup();
+                        startupViewModel.RunStartupSetupFlowsIfNeeded(this);
+                    }
                 }), DispatcherPriority.ContextIdle);
             };
             SourceInitialized += (_, __) =>

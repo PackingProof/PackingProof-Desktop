@@ -15,6 +15,7 @@ public partial class MainViewModel
     private VisionObbDetection? _cameraVisionSmartZoomTarget;
     private bool _cameraVisionBenchmarkRunning;
     private bool _cameraVisionModelAvailable;
+    private bool _cameraVisionStartupReady;
 
     public bool IsVisionObbAvailable => VisionObbHost.IsAvailable;
 
@@ -53,7 +54,8 @@ public partial class MainViewModel
     }
 
     internal bool ShouldRunVisionObb =>
-        IsVisionObbAvailable
+        _cameraVisionStartupReady
+        && IsVisionObbAvailable
         && VisionObbRuntimePolicy.ShouldRunMainBarcodeVision(
             Config?.EnableCameraBarcodeRecognition == true
                 && Config?.EnableCameraBarcodeEnhancedRecognition == true,
@@ -63,13 +65,27 @@ public partial class MainViewModel
             !ShouldUseOverlayChannelForBarcode);
 
     internal bool ShouldRunSeparateCameraSmartZoom =>
-        IsVisionObbAvailable
+        _cameraVisionStartupReady
+        && IsVisionObbAvailable
         && VisionObbRuntimePolicy.ShouldRunSeparateSmartZoom(
             VisionObbRuntimePolicy.ShouldRunSmartZoom(
                 Config?.EnableSmartZoom == true,
                 Config?.EnableVisionObbSmartZoom == true),
             Config?.EnableCameraBarcodeRecognition == true,
             ShouldUseOverlayChannelForBarcode);
+
+    /// <summary>
+    /// 主窗口完成首次显示后才允许提交 OBB 推理。模型会话加载和自动性能检测会占用
+    /// CPU/GPU，不能抢在首屏渲染之前；普通 ZXing 扫码不受这个门控影响。
+    /// </summary>
+    internal void ActivateCameraVisionAfterStartup()
+    {
+        if (_cameraVisionStartupReady)
+            return;
+
+        _cameraVisionStartupReady = true;
+        RuntimeLog.Info("CameraVision", "主界面已显示，开始启用增强识别");
+    }
 
     public bool IsCameraVisionFullFrameMode =>
         VisionObbRuntimePolicy.ShouldUseFullFrameMode(
