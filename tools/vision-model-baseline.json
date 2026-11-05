@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "id": "waybill-yolo11n-obb-v8",
-  "version": "8",
-  "training_run": "waybill_yolo11n_obb_v8",
+  "id": "waybill-yolo11n-obb-v9",
+  "version": "9",
+  "training_run": "waybill_yolo11n_obb_v9",
   "file_name": "vision-obb.onnx",
   "installed_name": "vision-obb.onnx",
-  "size": 5478303,
-  "sha256": "c13887e5c0a1c6c9e7effb9f94e40f185a326d8a479bae4be9e3fedfbc203986",
+  "size": 5477732,
+  "sha256": "a4c4826a5c301e2fe922131ba7037264a781ca0b206438c5de906171bfe786e6",
   "source": {
     "repository": "PackingProof/PackingProof-Vision",
-    "release_tag": "vision-model-v8",
+    "release_tag": "vision-model-v9",
     "urls": [
-      "https://github.com/PackingProof/PackingProof-Vision/releases/download/vision-model-v8/vision-obb.onnx",
-      "https://gitee.com/PackingProof/PackingProof-Vision/releases/download/vision-model-v8/vision-obb.onnx"
+      "https://github.com/PackingProof/PackingProof-Vision/releases/download/vision-model-v9/vision-obb.onnx",
+      "https://gitee.com/PackingProof/PackingProof-Vision/releases/download/vision-model-v9/vision-obb.onnx"
     ]
   }
 }
