@@ -2679,12 +2679,9 @@ namespace ExpressPackingMonitoring.UI
                 new AppPatchDownloadService(),
                 () => Context.ToastSource is MainViewModel viewModel
                     ? viewModel.IsRecording
-                    : _isRecording)
-            {
-                Owner = this
-            };
+                    : _isRecording);
 
-            dialog.ShowDialog();
+            dialog.ShowAsDialog(this);
             if (dialog.RestartRequested)
             {
                 RestartForPreparedUpdate();

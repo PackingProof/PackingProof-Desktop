@@ -179,6 +179,20 @@ public sealed class WindowConstructionTests
     }
 
     [Fact]
+    public void UpdateDialogCannotSetResultAfterItCloses()
+    {
+        Assert.True(UpdateAvailableDialog.CanSetDialogResult(
+            isShownAsDialog: true,
+            isClosed: false));
+        Assert.False(UpdateAvailableDialog.CanSetDialogResult(
+            isShownAsDialog: false,
+            isClosed: false));
+        Assert.False(UpdateAvailableDialog.CanSetDialogResult(
+            isShownAsDialog: true,
+            isClosed: true));
+    }
+
+    [Fact]
     public void WorkstationSelectionFooterStaysOutsideScrollViewer()
     {
         RunOnStaThread(() =>

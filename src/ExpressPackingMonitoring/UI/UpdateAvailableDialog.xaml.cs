@@ -10,8 +10,11 @@ namespace ExpressPackingMonitoring.UI
         private readonly UpdateCheckResult _result;
         private readonly AppPatchDownloadService _downloadService;
         private readonly Func<bool> _isRecordingProvider;
+        private readonly CancellationTokenSource _downloadCancellation = new();
         private bool _openFullDownloadPage;
         private bool _restartForLauncherUpdate;
+        private bool _isShownAsDialog;
+        private bool _isClosed;
 
         public bool OpenFullDownloadPageRequested { get; private set; }
         public bool RestartRequested { get; private set; }
@@ -31,6 +34,11 @@ namespace ExpressPackingMonitoring.UI
             _result = result;
             _downloadService = downloadService;
             _isRecordingProvider = isRecordingProvider ?? (() => false);
+            Closed += (_, _) =>
+            {
+                _isClosed = true;
+                _downloadCancellation.Cancel();
+            };
             DownloadUrl = result.DownloadUrl;
             VersionText.Text = AppLanguage.Format("发现新版本：{0}", result.LatestVersion);
             TitleText.Text = string.IsNullOrWhiteSpace(result.Title)
@@ -41,13 +49,46 @@ namespace ExpressPackingMonitoring.UI
             BodyViewer.Document = document;
         }
 
+        /// <summary>
+        /// 由设置窗口以模态方式显示，并记录对话框是否仍处于 ShowDialog 生命周期内。
+        /// 下载是异步的，用户可能在下载过程中关闭窗口；关闭后不能再设置 DialogResult。
+        /// </summary>
+        internal bool? ShowAsDialog(Window owner)
+        {
+            Owner = owner;
+            _isShownAsDialog = true;
+            try
+            {
+                return ShowDialog();
+            }
+            finally
+            {
+                _isShownAsDialog = false;
+                _downloadCancellation.Cancel();
+            }
+        }
+
+        internal static bool CanSetDialogResult(bool isShownAsDialog, bool isClosed)
+            => isShownAsDialog && !isClosed;
+
+        private void CompleteDialog(bool result)
+        {
+            if (CanSetDialogResult(_isShownAsDialog, _isClosed))
+            {
+                DialogResult = result;
+                return;
+            }
+
+            if (!_isClosed)
+                Close();
+        }
+
         private async void Download_Click(object sender, RoutedEventArgs e)
         {
             if (_openFullDownloadPage)
             {
                 OpenFullDownloadPageRequested = true;
-                DialogResult = true;
-                Close();
+                CompleteDialog(true);
                 return;
             }
 
@@ -55,8 +96,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 // 启动器已经换好了，但只有它下次启动才会应用新载荷：直接走"重启升级"，别在这里空等。
                 RestartRequested = true;
-                DialogResult = true;
-                Close();
+                CompleteDialog(true);
                 return;
             }
 
@@ -77,9 +117,23 @@ namespace ExpressPackingMonitoring.UI
                 }
             });
 
-            AppPatchPreparationResult preparation = await _downloadService.PrepareAsync(
-                _result,
-                progress);
+            AppPatchPreparationResult preparation;
+            try
+            {
+                preparation = await _downloadService.PrepareAsync(
+                    _result,
+                    progress,
+                    _downloadCancellation.Token);
+            }
+            catch (OperationCanceledException) when (_downloadCancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            // 用户关闭窗口后，下载可能刚好完成；此时不再弹二次确认或触碰 DialogResult。
+            if (!CanSetDialogResult(_isShownAsDialog, _isClosed))
+                return;
+
             switch (preparation.Status)
             {
                 case AppPatchPreparationStatus.Ready:
@@ -101,8 +155,7 @@ namespace ExpressPackingMonitoring.UI
                         confirmText: isRecording ? "保存录像并重启" : "立即重启更新",
                         cancelText: "稍后更新",
                         isDangerous: isRecording);
-                    DialogResult = RestartRequested;
-                    Close();
+                    CompleteDialog(RestartRequested);
                     break;
 
                 case AppPatchPreparationStatus.FullPackageRequired:
@@ -190,14 +243,12 @@ namespace ExpressPackingMonitoring.UI
         private void FallbackDownload_Click(object sender, RoutedEventArgs e)
         {
             OpenFullDownloadPageRequested = true;
-            DialogResult = true;
-            Close();
+            CompleteDialog(true);
         }
 
         private void Later_Click(object sender, RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            CompleteDialog(false);
         }
     }
 }
