@@ -141,7 +141,7 @@ public sealed class ZoomGuideEditingTests
         Assert.DoesNotContain("_zoomPhase", scanner, StringComparison.Ordinal);
 
         // 停录会打断正在跑的放大：这里必须走同一个复位
-        int stop = recording.IndexOf("private async Task InternalStopRecordingAsync()", StringComparison.Ordinal);
+        int stop = recording.IndexOf("private async Task InternalStopRecordingAsync(bool playCompletionBeep = true)", StringComparison.Ordinal);
         Assert.True(stop > 0, "没找到 InternalStopRecordingAsync");
         Assert.Contains(
             "ResetZoomState();",

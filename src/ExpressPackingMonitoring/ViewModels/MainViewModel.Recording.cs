@@ -35,32 +35,38 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private void AnnounceStopTriggered()
         {
+            _speechService?.PlayShortBeep();
             Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
             PauseSpeechForRecording();
         }
 
         /// <summary>
-        /// 手动停止与停止指令共用的停止时序：有收尾窗口时先把停止语音播出去再等收尾画面，
-        /// 没有收尾窗口时保持先暂停播报、停录后再播报的顺序。
+        /// 开始触发后的即时反馈。编码器与 FFmpeg 已确认可用，但实时音频、预录回灌和
+        /// 首帧确认仍可能耗时，提示音与开始语音必须在这里先入队，不能等整个启动流程结束。
+        /// </summary>
+        private void AnnounceStartTriggered()
+        {
+            _speechService?.PlayShortBeep();
+            Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
+        }
+
+        /// <summary>
+        /// 手动停止与停止指令共用的停止时序：触发停止时立即先“滴”再播报，
+        /// 然后等待可选的收尾画面，最后执行真正的文件停止。
         /// </summary>
         private async Task StopWithManualAnnouncementAsync()
         {
-            bool postRollStarted = await WaitForManualPostRollAsync();
-            if (!postRollStarted)
-                PauseSpeechForRecording();
-            await InternalStopRecordingAsync();
-            if (!postRollStarted)
-                Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
+            AnnounceStopTriggered();
+            await WaitForManualPostRollAsync();
+            await InternalStopRecordingAsync(playCompletionBeep: false);
         }
 
-        /// <summary>手动停止与停止指令共用的收尾等待</summary>
-        /// <returns>true 表示已进入收尾窗口并播报过停止语音，调用方不要再重复播报。</returns>
-        private async Task<bool> WaitForManualPostRollAsync()
+        /// <summary>手动停止与停止指令共用的收尾等待。</summary>
+        private async Task WaitForManualPostRollAsync()
         {
             if (!HasPendingPostRollWindow())
-                return false;
+                return;
 
-            AnnounceStopTriggered();
             double seconds = Math.Clamp(Config.SameCodePostRecordSeconds, 0, 5);
             IsPostRollActive = true;
             PostRollProgress = 0;
@@ -84,11 +90,9 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 PostRollProgress = 1;
             }
-
-            return true;
         }
 
-        private async Task InternalStopRecordingAsync()
+        private async Task InternalStopRecordingAsync(bool playCompletionBeep = true)
         {
             if (!IsRecording || _isDisposed) return;
 
@@ -286,7 +290,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 PostRollProgress = 0;
                 IsBusy = false;
             }
-            _speechService?.PlayShortBeep();
+            if (playCompletionBeep)
+                _speechService?.PlayShortBeep();
 
             if (_pendingCameraRestart && !_isDisposed)
             {
@@ -712,6 +717,10 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
+                // 开始动作已经通过必要预检，先给出即时反馈；后续音频初始化、预录回灌
+                // 和首帧确认仍会继续，但不能再把“滴”和开始语音压到整段流程末尾。
+                AnnounceStartTriggered();
+
                 // 管道准备会清理上一轮音频，内部包含设备停止及写入任务等待。
                 // 录制串行锁仍由调用方持有，仅把设备工作移出 UI 线程。
                 if (useDirectAac && !await Task.Run(PrepareDirectAudioPipe))
@@ -959,8 +968,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
 
                 ShowToast("开始录像", ToastSeverity.Information);
-                _speechService?.PlayShortBeep();
-                Speak(DefaultSpeechCatalog.StartRecording, cancelPrevious: false);
                 if (_currentScanRecord != null)
                 {
                     _currentScanRecord.IsActive = false;

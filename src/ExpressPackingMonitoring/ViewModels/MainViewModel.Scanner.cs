@@ -1143,12 +1143,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         ShowToast($"已触发停录，将继续录制 {Config.SameCodePostRecordSeconds:F1} 秒");
                         return;
                     }
-                    await InternalStopRecordingAsync();
+                    AnnounceStopTriggered();
+                    await InternalStopRecordingAsync(playCompletionBeep: false);
                     QueuePostStopMux("同码停录");
                     CurrentOrderId = "";
                     ScanInputText = "";
                     ShowToast("单号匹配，已停止录制");
-                    Speak(DefaultSpeechCatalog.StopRecording, cancelPrevious: false);
                 }
                 catch (Exception ex)
                 {
@@ -1298,7 +1298,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         && ReferenceEquals(_sameCodePostRollCts, owner)
                         && IsRecording)
                     {
-                        await InternalStopRecordingAsync();
+                        await InternalStopRecordingAsync(playCompletionBeep: false);
                         QueuePostStopMux("同码停录");
                         CurrentOrderId = "";
                         ScanInputText = "";
