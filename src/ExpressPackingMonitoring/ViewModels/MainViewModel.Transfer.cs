@@ -40,6 +40,9 @@ public partial class MainViewModel
         _recordingTransferProgressTimer;
     private bool _recordingTransferProgressTimerRunning;
     private bool _recordingTransferProgressWakeScheduled;
+    private int _recordingTransferSummaryRefreshRunning;
+    private int _recordingTransferSummaryRefreshRequested;
+    private int _recordingTransferRecentlyUploadedPending;
     private DateTime _lastRecordingWorkstationHeartbeatAt = DateTime.MinValue;
     private DateTime _nextRecordingWorkstationDiscoveryAt = DateTime.MinValue;
     private int _recordingWorkstationDiscoveryFailureCount;
@@ -525,8 +528,82 @@ public partial class MainViewModel
 
     private void RefreshRecordingTransferSummary(bool recentlyUploaded = false)
     {
-        RecordingTransferSummary? summary = _recordingTransferStore?.GetSummary();
-        if (summary == null) return;
+        if (recentlyUploaded)
+            Interlocked.Exchange(ref _recordingTransferRecentlyUploadedPending, 1);
+        if (_isDisposed || _recordingTransferStore == null)
+            return;
+
+        Interlocked.Exchange(ref _recordingTransferSummaryRefreshRequested, 1);
+        if (Interlocked.CompareExchange(
+                ref _recordingTransferSummaryRefreshRunning,
+                1,
+                0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(RefreshRecordingTransferSummaryLoopAsync);
+    }
+
+    private async Task RefreshRecordingTransferSummaryLoopAsync()
+    {
+        try
+        {
+            while (!_isDisposed
+                   && Volatile.Read(ref _recordingTransferSummaryRefreshRequested) != 0)
+            {
+                Interlocked.Exchange(ref _recordingTransferSummaryRefreshRequested, 0);
+                RecordingTransferQueueStore? store = _recordingTransferStore;
+                if (store == null)
+                    return;
+
+                RecordingTransferSummary summary;
+                try
+                {
+                    // 上传队列是独立 SQLite 连接。录像转换或主库写入繁忙时，
+                    // 不能在 UI 线程等待数据库锁，否则摄像头预览和扫码会一起冻结。
+                    summary = store.GetSummary();
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn(
+                        "RecordingTransfer",
+                        $"Transfer summary refresh failed: {ex.Message}");
+                    return;
+                }
+
+                bool recentlyUploaded =
+                    Interlocked.Exchange(
+                        ref _recordingTransferRecentlyUploadedPending,
+                        0) != 0;
+                if (Application.Current?.Dispatcher is not { } dispatcher)
+                    return;
+                await dispatcher.InvokeAsync(() =>
+                {
+                    if (!_isDisposed)
+                        ApplyRecordingTransferSummary(summary, recentlyUploaded);
+                });
+            }
+        }
+        finally
+        {
+            Volatile.Write(ref _recordingTransferSummaryRefreshRunning, 0);
+            if (!_isDisposed
+                && Volatile.Read(ref _recordingTransferSummaryRefreshRequested) != 0
+                && Interlocked.CompareExchange(
+                    ref _recordingTransferSummaryRefreshRunning,
+                    1,
+                    0) == 0)
+            {
+                _ = Task.Run(RefreshRecordingTransferSummaryLoopAsync);
+            }
+        }
+    }
+
+    private void ApplyRecordingTransferSummary(
+        RecordingTransferSummary summary,
+        bool recentlyUploaded)
+    {
         PendingRecordingTransferCount =
             summary.PendingCount + summary.UploadingCount + summary.FailedCount;
         LastRecordingTransferError = summary.LastError;

@@ -52,4 +52,48 @@ public sealed class RecordingTransferCardStateTests
     [InlineData(null, false)]
     public void IsReconnectRequiredError_DetectsPairingFailures(string? error, bool expected) =>
         Assert.Equal(expected, MainViewModel.IsReconnectRequiredError(error));
+
+    [Fact]
+    public void TransferSummaryQueryRunsOffTheUiThread()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Transfer.cs"));
+        int refresh = source.IndexOf(
+            "private void RefreshRecordingTransferSummary",
+            StringComparison.Ordinal);
+        int backgroundRefresh = source.IndexOf(
+            "Task.Run(RefreshRecordingTransferSummaryLoopAsync)",
+            refresh,
+            StringComparison.Ordinal);
+        int query = source.IndexOf(
+            "summary = store.GetSummary();",
+            backgroundRefresh,
+            StringComparison.Ordinal);
+        int dispatcherApply = source.IndexOf(
+            "await dispatcher.InvokeAsync(",
+            query,
+            StringComparison.Ordinal);
+
+        Assert.True(refresh >= 0);
+        Assert.True(backgroundRefresh > refresh);
+        Assert.True(query > backgroundRefresh);
+        Assert.True(dispatcherApply > query);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            if (File.Exists(Path.Combine(directory, "ExpressPackingMonitoring.sln")))
+                return directory;
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+
+        throw new DirectoryNotFoundException("找不到仓库根目录");
+    }
 }
