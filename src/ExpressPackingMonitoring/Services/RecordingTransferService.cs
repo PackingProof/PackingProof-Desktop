@@ -116,8 +116,7 @@ internal sealed class RecordingTransferService : IDisposable
         }
 
         int added = 0;
-        foreach (VideoRecord record in _database.GetCompletedPcVideosForTransfer(
-                     config.RecordingWorkstationActivatedAtUtc))
+        foreach (VideoRecord record in _database.GetCompletedPcVideosForTransfer())
         {
             if (!File.Exists(record.FilePath))
                 continue;

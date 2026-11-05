@@ -334,7 +334,7 @@ public sealed class VideoFolderImportServiceTests
                     "电脑1"));
 
                 VideoRecord record = Assert.Single(
-                    database.GetCompletedPcVideosForTransfer(DateTime.UtcNow.AddDays(-1)));
+                    database.GetCompletedPcVideosForTransfer());
 
                 Assert.Equal("导入", record.StopReason);
             }

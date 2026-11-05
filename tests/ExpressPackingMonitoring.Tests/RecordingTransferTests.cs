@@ -97,7 +97,7 @@ public sealed class RecordingTransferTests
     }
 
     [Fact]
-    public void QueueOnlyIncludesRecordingsCreatedAfterWorkstationActivation()
+    public void QueueIncludesCompletedRecordingsFromBeforeWorkstationActivation()
     {
         string directory = CreateTempDirectory();
         try
@@ -131,12 +131,17 @@ public sealed class RecordingTransferTests
             var store = new RecordingTransferQueueStore(databasePath);
             using (var service = new RecordingTransferService(store, database, () => config))
             {
-                Assert.Equal(1, service.EnqueueCompletedRecordings());
+                Assert.Equal(2, service.EnqueueCompletedRecordings());
             }
 
             using var reopened = new RecordingTransferQueueStore(databasePath);
-            RecordingTransferTask queued = Assert.Single(reopened.GetReady(DateTime.UtcNow));
-            Assert.Equal(newRecordId, queued.LocalVideoRecordId);
+            RecordingTransferTask[] queued = reopened.GetReady(
+                    DateTime.UtcNow,
+                    limit: 10)
+                .ToArray();
+            Assert.Equal(
+                [oldRecordId, newRecordId],
+                queued.Select(task => task.LocalVideoRecordId).OrderBy(id => id));
         }
         finally
         {

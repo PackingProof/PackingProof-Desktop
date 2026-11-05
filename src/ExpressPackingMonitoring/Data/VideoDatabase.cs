@@ -2102,9 +2102,7 @@ namespace ExpressPackingMonitoring.Data
                 sourceDeviceName, mode);
         }
 
-        public List<VideoRecord> GetCompletedPcVideosForTransfer(
-            DateTime? recordedAfter = null,
-            int limit = 500)
+        public List<VideoRecord> GetCompletedPcVideosForTransfer(int limit = 500)
         {
             if (limit <= 0) return new List<VideoRecord>();
             lock (_lock)
@@ -2126,19 +2124,16 @@ namespace ExpressPackingMonitoring.Data
                     FROM VideoRecords
                     WHERE SourceType = 'pc'
                       AND IsDeleted = 0
+                      AND StorageState = 'Local'
                       AND EndTime IS NOT NULL
                       AND FilePath <> ''
                       AND lower(FilePath) LIKE '%.mp4'
-                      AND (@recordedAfter = '' OR StartTime >= @recordedAfter OR StopReason = '导入')
                       AND NOT EXISTS (
                           SELECT 1 FROM RecordingTransferQueue q
                           WHERE q.LocalVideoRecordId = VideoRecords.Id)
                     ORDER BY StartTime ASC, Id ASC
                     LIMIT @limit;";
                 cmd.Parameters.AddWithValue("@limit", limit);
-                cmd.Parameters.AddWithValue(
-                    "@recordedAfter",
-                    recordedAfter?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "");
                 using var reader = cmd.ExecuteReader();
                 var result = new List<VideoRecord>();
                 while (reader.Read())
