@@ -31,6 +31,8 @@ tools/ExpressPackingMonitoring.TtsCacheBuilder/bin/
 tools/ExpressPackingMonitoring.TtsCacheBuilder/obj/
 tools/ExpressPackingMonitoring.AutomationHost/bin/
 tools/ExpressPackingMonitoring.AutomationHost/obj/
+tools/ExpressPackingMonitoring.VisionProbe/bin/
+tools/ExpressPackingMonitoring.VisionProbe/obj/
 src/ExpressPackingMonitoring/bin/Release/package/
 src/ExpressPackingMonitoring/package/
 src/ExpressPackingMonitoring/publish-test/
