@@ -424,10 +424,12 @@ public sealed class RecordingTransferTests
 
             using var reopened = new RecordingTransferQueueStore(databasePath);
             RecordingTransferSummary summary = reopened.GetSummary();
-            Assert.Equal(1, summary.FailedCount);
+            Assert.Equal(0, summary.FailedCount);
+            Assert.Equal(1, summary.AbandonedCount);
             Assert.Contains("未明确确认", summary.LastError);
             Assert.True(File.Exists(videoPath));
             Assert.Empty(reopened.GetUploadedWithLocalCache());
+            Assert.Empty(reopened.GetReady(DateTime.UtcNow));
         }
         finally
         {
@@ -509,10 +511,11 @@ public sealed class RecordingTransferTests
             }
 
             using var reopened = new RecordingTransferQueueStore(databasePath);
-            Assert.Equal(1, reopened.GetSummary().FailedCount);
-            RecordingTransferTask task = Assert.Single(
-                reopened.GetReady(DateTime.UtcNow.AddMinutes(10)));
-            Assert.Equal(originalNodeId, task.TargetNodeId);
+            RecordingTransferSummary summary = reopened.GetSummary();
+            Assert.Equal(0, summary.FailedCount);
+            Assert.Equal(1, summary.AbandonedCount);
+            Assert.Contains("保存主机与当前配置不一致", summary.LastError);
+            Assert.Empty(reopened.GetReady(DateTime.UtcNow.AddMinutes(10)));
             Assert.True(File.Exists(videoPath));
         }
         finally
@@ -854,6 +857,7 @@ public sealed class RecordingTransferTests
             string databasePath = Path.Combine(directory, "videos.db");
             using var store = new RecordingTransferQueueStore(databasePath);
             string nodeId = Guid.NewGuid().ToString("D");
+            string previousNodeId = Guid.NewGuid().ToString("D");
             for (long recordId = 1; recordId <= 3; recordId++)
             {
                 Assert.True(store.Enqueue(
@@ -864,6 +868,13 @@ public sealed class RecordingTransferTests
                     "http://127.0.0.1:5280",
                     DateTime.UtcNow));
             }
+            Assert.True(store.Enqueue(
+                4,
+                Path.Combine(directory, "recording-4.mp4"),
+                "session-4",
+                previousNodeId,
+                "http://127.0.0.1:5280",
+                DateTime.UtcNow));
 
             RecordingTransferTask[] tasks = store.GetReady(DateTime.UtcNow, limit: 10).ToArray();
             store.MarkAbandoned(
@@ -878,12 +889,17 @@ public sealed class RecordingTransferTests
                 tasks[2].Id,
                 "本地录像已删除，已停止上传",
                 DateTime.UtcNow);
+            store.MarkAbandoned(
+                tasks[3].Id,
+                RecordingTransferRetryPolicy.TransientRetryExhaustedPrefix + "21 次，已停止自动重试",
+                DateTime.UtcNow);
 
-            Assert.Equal(1, store.ReviveRetryExhaustedAbandoned(DateTime.UtcNow));
+            Assert.Equal(1, store.ReviveRetryExhaustedAbandoned(nodeId, DateTime.UtcNow));
             RecordingTransferTask revived = Assert.Single(store.GetReady(DateTime.UtcNow));
             Assert.Equal(tasks[0].LocalVideoRecordId, revived.LocalVideoRecordId);
             Assert.Equal(0, revived.RetryCount);
-            Assert.Equal(2, store.GetSummary().AbandonedCount);
+            Assert.Equal("", revived.LastError);
+            Assert.Equal(3, store.GetSummary().AbandonedCount);
         }
         finally
         {
@@ -900,7 +916,7 @@ public sealed class RecordingTransferTests
     {
         var exception = new RecordingTransferHostException(errorCode, "主机拒绝");
 
-        string reason = RecordingTransferService.ClassifyFailure(exception);
+        string reason = RecordingTransferFailurePolicy.ClassifyFailure(exception);
 
         Assert.Equal(expectsStop, reason.Length > 0);
     }
@@ -908,10 +924,166 @@ public sealed class RecordingTransferTests
     [Fact]
     public void ClassifyFailure_StopsWhenLocalRecordingIsMissing()
     {
-        string reason = RecordingTransferService.ClassifyFailure(
+        string reason = RecordingTransferFailurePolicy.ClassifyFailure(
             new FileNotFoundException("本地缓存录像不存在"));
 
         Assert.Contains("本地缓存录像不存在", reason);
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(HttpStatusCode.RequestTimeout, false)]
+    [InlineData(HttpStatusCode.TooManyRequests, false)]
+    [InlineData(HttpStatusCode.InternalServerError, false)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, false)]
+    [InlineData(HttpStatusCode.BadRequest, true)]
+    [InlineData(HttpStatusCode.Forbidden, true)]
+    [InlineData(HttpStatusCode.NotFound, true)]
+    public void ClassifyFailure_UsesHttpStatusForTransientVsDeterministicFailure(
+        HttpStatusCode? statusCode,
+        bool expectsStop)
+    {
+        var exception = new HttpRequestException("host request failed", null, statusCode);
+
+        string reason = RecordingTransferFailurePolicy.ClassifyFailure(exception);
+
+        Assert.Equal(expectsStop, reason.Length > 0);
+    }
+
+    [Theory]
+    [InlineData("server_busy", HttpStatusCode.ServiceUnavailable, false)]
+    [InlineData("storage_unavailable", HttpStatusCode.BadRequest, false)]
+    [InlineData("upload_not_found", HttpStatusCode.NotFound, false)]
+    [InlineData("backup_client_upgrade_required", HttpStatusCode.BadRequest, true)]
+    [InlineData("device_identity_required", HttpStatusCode.Forbidden, true)]
+    public void ClassifyFailure_UsesHostErrorCodeBeforeStatus(
+        string errorCode,
+        HttpStatusCode statusCode,
+        bool expectsStop)
+    {
+        var exception = new RecordingTransferHostException(
+            errorCode,
+            "host rejected upload",
+            statusCode);
+
+        string reason = RecordingTransferFailurePolicy.ClassifyFailure(exception);
+
+        Assert.Equal(expectsStop, reason.Length > 0);
+    }
+
+    [Theory]
+    [MemberData(nameof(DeterministicProtocolFailures))]
+    public void ClassifyFailure_StopsOnDeterministicProtocolFailures(Exception exception)
+    {
+        Assert.NotEmpty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
+    }
+
+    public static TheoryData<Exception> DeterministicProtocolFailures => new()
+    {
+        new InvalidOperationException("保存主机版本过旧"),
+        new InvalidDataException("主机返回的断点位置无效"),
+        new JsonException("invalid host response"),
+        new UnauthorizedAccessException("access denied")
+    };
+
+    [Fact]
+    public void ClassifyFailure_RestartsExpiredUploadInsteadOfStopping()
+    {
+        var exception = new RecordingTransferHostException(
+            "upload_not_found",
+            "上传任务不存在或已过期",
+            HttpStatusCode.NotFound);
+
+        Assert.Empty(RecordingTransferFailurePolicy.ClassifyFailure(exception));
+    }
+
+    [Fact]
+    public void HostErrorParser_ReadsWholeFileRetryContract()
+    {
+        (string errorCode, string message, bool retryWholeFile, int maxFileAttempts) =
+            RecordingTransferFailurePolicy.TryReadError("""
+                {
+                  "errorCode": "sha256_mismatch",
+                  "error": "完整文件校验失败",
+                  "retryWholeFile": true,
+                  "maxFileAttempts": 3
+                }
+                """);
+
+        Assert.Equal("sha256_mismatch", errorCode);
+        Assert.Equal("完整文件校验失败", message);
+        Assert.True(retryWholeFile);
+        Assert.Equal(3, maxFileAttempts);
+    }
+
+    [Fact]
+    public async Task Transfer_ShaMismatchStopsAfterThreeWholeFileAttempts()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            string videoPath = Path.Combine(directory, "hash-mismatch.mp4");
+            await File.WriteAllBytesAsync(
+                videoPath,
+                new byte[8192],
+                TestContext.Current.CancellationToken);
+            using var database = new VideoDatabase(databasePath);
+            long recordId = database.InsertVideoRecord(
+                "HASH-MISMATCH",
+                "发货",
+                "",
+                "",
+                videoPath,
+                DateTime.Now.AddMinutes(-1));
+            database.UpdateVideoRecordOnStop(recordId, DateTime.Now, 30, 8192, "手动");
+
+            string targetNodeId = Guid.NewGuid().ToString("D");
+            AppConfig config = CreateConfig(directory, targetNodeId);
+            var handler = new BackupProtocolHandler(
+                verified: true,
+                targetNodeId,
+                config.NodeId,
+                sha256MismatchResponses: 3);
+            using var client = new HttpClient(handler);
+            using var store = new RecordingTransferQueueStore(databasePath);
+            using var service = new RecordingTransferService(
+                store,
+                database,
+                () => config,
+                client,
+                (_, _) => Task.FromResult<PackingProofNodeInfo?>(CreateHost(targetNodeId)));
+            Assert.Equal(1, service.EnqueueCompletedRecordings());
+
+            for (int attempt = 1; attempt <= 2; attempt++)
+            {
+                Assert.Equal(
+                    1,
+                    await service.ProcessReadyOnceAsync(
+                        TestContext.Current.CancellationToken));
+                RecordingTransferSummary attemptSummary = store.GetSummary();
+                Assert.True(
+                    attemptSummary.FailedCount == 1,
+                    $"expected retryable failure, failed={attemptSummary.FailedCount}, "
+                    + $"abandoned={attemptSummary.AbandonedCount}, error={attemptSummary.LastError}");
+                MakeQueueTaskImmediatelyReady(databasePath, recordId);
+            }
+
+            Assert.Equal(
+                1,
+                await service.ProcessReadyOnceAsync(
+                    TestContext.Current.CancellationToken));
+            RecordingTransferSummary summary = store.GetSummary();
+            Assert.Equal(0, summary.FailedCount);
+            Assert.Equal(1, summary.AbandonedCount);
+            Assert.Contains("整文件共尝试 3 次后停止自动重试", summary.LastError);
+            Assert.Empty(store.GetReady(DateTime.UtcNow.AddDays(1)));
+            Assert.True(File.Exists(videoPath));
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
     }
 
     private static AppConfig CreateConfig(string directory, string targetNodeId)
@@ -964,6 +1136,20 @@ public sealed class RecordingTransferTests
             Directory.Delete(path, recursive: true);
     }
 
+    private static void MakeQueueTaskImmediatelyReady(string databasePath, long localVideoRecordId)
+    {
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+            $"Data Source={databasePath}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = @"
+            UPDATE RecordingTransferQueue
+            SET NextAttemptAt = NULL
+            WHERE LocalVideoRecordId = @recordId;";
+        command.Parameters.AddWithValue("@recordId", localVideoRecordId);
+        command.ExecuteNonQuery();
+    }
+
     [Fact]
     public void ProgressAccumulator_CoalescesUploadingAndPreservesCompletion()
     {
@@ -1006,9 +1192,11 @@ public sealed class RecordingTransferTests
         bool verified,
         string hostNodeId = "",
         string sourceDeviceId = "",
-        bool uploadVideoCodec = false) : HttpMessageHandler
+        bool uploadVideoCodec = false,
+        int sha256MismatchResponses = 0) : HttpMessageHandler
     {
         private string _sha256 = "";
+        private int _remainingSha256MismatchResponses = sha256MismatchResponses;
         public long ReceivedBytes { get; private set; }
         public bool SawSignedAuthentication { get; private set; }
         public bool SawPcSource { get; private set; }
@@ -1032,6 +1220,7 @@ public sealed class RecordingTransferTests
                 using JsonDocument document = JsonDocument.Parse(
                     await request.Content!.ReadAsStringAsync(cancellationToken));
                 _sha256 = document.RootElement.GetProperty("fileSha256").GetString()!;
+                ReceivedBytes = 0;
                 return Json(new
                 {
                     uploadId = _sha256,
@@ -1061,6 +1250,18 @@ public sealed class RecordingTransferTests
                 ReceivedVideoCodec = document.RootElement.TryGetProperty("videoCodec", out JsonElement codec)
                     ? codec.GetString() ?? ""
                     : "";
+                if (_remainingSha256MismatchResponses > 0)
+                {
+                    _remainingSha256MismatchResponses--;
+                    return Json(HttpStatusCode.UnprocessableEntity, new
+                    {
+                        errorCode = "sha256_mismatch",
+                        error = "完整文件校验失败",
+                        expectedOffset = 0,
+                        retryWholeFile = true,
+                        maxFileAttempts = 3
+                    });
+                }
                 string sessionId = session.GetProperty("id").GetString() ?? "";
                 long verifiedAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 long recordId = verified ? 42 : 0;
@@ -1094,6 +1295,16 @@ public sealed class RecordingTransferTests
         }
 
         private static HttpResponseMessage Json(object payload) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        private static HttpResponseMessage Json(
+            HttpStatusCode statusCode,
+            object payload) => new(statusCode)
         {
             Content = new StringContent(
                 JsonSerializer.Serialize(payload),

@@ -36,6 +36,9 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private const int MaxPreviewProductLines = 8;
+        private const int MaxPreviewProductLineLength = 80;
+
         public void ShowToast(string message, ToastSeverity severity = ToastSeverity.Success)
         {
             message = AppLanguage.Translate(message);
@@ -118,7 +121,13 @@ namespace ExpressPackingMonitoring.ViewModels
             if (products.Count > 0)
             {
                 lines.Add(AppLanguage.Get("Main.PreviewProduct"));
-                lines.AddRange(products);
+                lines.AddRange(products.Take(MaxPreviewProductLines));
+                if (products.Count > MaxPreviewProductLines)
+                {
+                    lines.Add(AppLanguage.Format(
+                        "Main.PreviewProductMore",
+                        products.Count - MaxPreviewProductLines));
+                }
             }
 
             if (orderInfo.HasRefund || orderInfo.IsPrintedRefund)
@@ -143,7 +152,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     ['\n', ',', '，', '、', ';', '；', '|'],
                     StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(line => CompactPreviewText(
-                    line.Trim().Trim(',', '，', '、', ';', '；', '|')))
+                    line.Trim().Trim(',', '，', '、', ';', '；', '|'),
+                    MaxPreviewProductLineLength))
                 .Where(line => line.Length > 0)
                 .ToArray();
         }
@@ -212,10 +222,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 lines.Add(AppLanguage.Format(resourceKey, compact));
         }
 
-        private static string CompactPreviewText(string value)
+        private static string CompactPreviewText(string value, int maxLength = 160)
         {
             string compact = string.Join(" ", (value ?? "").Split((char[])null, StringSplitOptions.RemoveEmptyEntries));
-            const int maxLength = 160;
             return compact.Length <= maxLength ? compact : compact[..maxLength] + "…";
         }
 

@@ -599,6 +599,8 @@
   <data name="Main.PreviewBuyerMessage" xml:space="preserve"><value>买家留言：{0}</value></data>
   <data name="Main.PreviewSellerMemo" xml:space="preserve"><value>卖家备注：{0}</value></data>
   <data name="Main.PreviewProduct" xml:space="preserve"><value>商品</value></data>
+  <data name="Main.PreviewProductMore" xml:space="preserve"><value>还有 {0} 个商品</value></data>
+  <data name="Main.RecordingTransfer.WholeFileAttemptsExhausted" xml:space="preserve"><value>{0}；整文件共尝试 {1} 次后停止自动重试</value></data>
   <data name="Main.PreviewTotalItemCount" xml:space="preserve"><value>共 {0} 件商品</value></data>
   <data name="Main.PreviewException" xml:space="preserve"><value>异常：{0}</value></data>
   <data name="高峰时段不休眠" xml:space="preserve"><value>高峰时段不休眠</value></data>

@@ -23,6 +23,11 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private static readonly object StaleConversionTempCleanupLock = new();
+        private static readonly TimeSpan StaleConversionTempMinAge = TimeSpan.FromHours(1);
+        private static readonly TimeSpan StaleConversionTempCleanupInterval = TimeSpan.FromHours(6);
+        private static long _lastStaleConversionTempCleanupUtcTicks;
+
         private void ConvertMkvToMp4(string mkvPath, string? audioPath = null, string? audioLogPath = null, bool audioFailed = false, long audioBytesWritten = 0)
         {
             try
@@ -381,6 +386,100 @@ namespace ExpressPackingMonitoring.ViewModels
                     $"Unable to flush converted MP4 before deleting source file={Path.GetFileName(path)}, error={ex.Message}");
                 return false;
             }
+        }
+
+        private static void CleanupStaleMkvConversionTempsIfNeeded(
+            IEnumerable<string> activePaths)
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            lock (StaleConversionTempCleanupLock)
+            {
+                long previousTicks = Interlocked.Read(ref _lastStaleConversionTempCleanupUtcTicks);
+                if (previousTicks > 0
+                    && new TimeSpan(nowTicks - previousTicks) < StaleConversionTempCleanupInterval)
+                {
+                    return;
+                }
+                Interlocked.Exchange(ref _lastStaleConversionTempCleanupUtcTicks, nowTicks);
+            }
+
+            int removed = CleanupStaleMkvConversionTemps(
+                activePaths,
+                DateTime.UtcNow,
+                StaleConversionTempMinAge);
+            if (removed > 0)
+            {
+                RuntimeLog.Info(
+                    "MkvToMp4",
+                    $"Cleaned stale conversion temporaries count={removed}");
+            }
+        }
+
+        internal static int CleanupStaleMkvConversionTemps(
+            IEnumerable<string> activePaths,
+            DateTime nowUtc,
+            TimeSpan minimumAge)
+        {
+            if (activePaths == null)
+                return 0;
+
+            DateTime cutoffUtc = nowUtc - minimumAge;
+            var directories = activePaths
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(path =>
+                {
+                    try { return Path.GetDirectoryName(path); }
+                    catch { return null; }
+                })
+                .OfType<string>()
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            int removed = 0;
+            foreach (string directory in directories)
+            {
+                try
+                {
+                    if (!Directory.Exists(directory))
+                        continue;
+                    foreach (string tempPath in Directory.EnumerateFiles(
+                                 directory,
+                                 "*.converting-*.mp4",
+                                 SearchOption.TopDirectoryOnly))
+                    {
+                        try
+                        {
+                            if (File.GetLastWriteTimeUtc(tempPath) > cutoffUtc)
+                                continue;
+
+                            using (new FileStream(
+                                       tempPath,
+                                       FileMode.Open,
+                                       FileAccess.ReadWrite,
+                                       FileShare.None))
+                            {
+                            }
+                            File.Delete(tempPath);
+                            removed++;
+                        }
+                        catch (IOException)
+                        {
+                            // 文件仍被占用：可能正在转换，留给下一轮。
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                        }
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    RuntimeLog.Warn(
+                        "MkvToMp4",
+                        $"Unable to scan stale conversion temporaries directory={directory}, error={ex.Message}");
+                }
+            }
+
+            return removed;
         }
 
         internal static void DeleteIncompleteMp4WhileSourceIsPreserved(string? mkvPath)

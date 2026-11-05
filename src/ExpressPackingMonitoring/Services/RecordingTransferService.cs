@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using ExpressPackingMonitoring.Config;
 using ExpressPackingMonitoring.Data;
+using ExpressPackingMonitoring.Localization;
 using ExpressPackingMonitoring.Logging;
 
 namespace ExpressPackingMonitoring.Services;
@@ -17,16 +18,6 @@ internal sealed record RecordingTransferProgress(
     long TotalBytes,
     string State,
     string Error = "");
-
-/// <summary>保存主机按协议拒绝了这次上传；ErrorCode 用于判定能否继续重试。</summary>
-internal sealed class RecordingTransferHostException : Exception
-{
-    public RecordingTransferHostException(string errorCode, string message)
-        : base(message) =>
-        ErrorCode = errorCode ?? "";
-
-    public string ErrorCode { get; }
-}
 
 internal sealed class RecordingTransferService : IDisposable
 {
@@ -93,7 +84,9 @@ internal sealed class RecordingTransferService : IDisposable
         if (IsRecordingWorkstation(config)
             && !string.IsNullOrWhiteSpace(config.LastKnownHostNodeId))
         {
-            int revived = _store.ReviveRetryExhaustedAbandoned(DateTime.UtcNow);
+            int revived = _store.ReviveRetryExhaustedAbandoned(
+                config.LastKnownHostNodeId,
+                DateTime.UtcNow);
             if (revived > 0)
             {
                 RuntimeLog.Info(
@@ -157,23 +150,6 @@ internal sealed class RecordingTransferService : IDisposable
     {
         string session = record.SourceSessionId?.Trim() ?? "";
         return session.Length > 0 ? session : $"{config.NodeId}:{record.Id}";
-    }
-
-    /// <summary>返回非空表示必须停止自动重试（内容为原因），空串表示继续退避重试。</summary>
-    internal static string ClassifyFailure(Exception exception)
-    {
-        if (exception is RecordingTransferHostException host
-            && string.Equals(host.ErrorCode, "session_conflict", StringComparison.OrdinalIgnoreCase))
-        {
-            return "保存主机上已存在同编号的其它录像，已停止自动重试；请先在保存主机删除那条旧记录，再手动重试";
-        }
-
-        if (exception is FileNotFoundException)
-        {
-            return "本地缓存录像不存在，已停止自动重试；请检查录像文件或手动重试";
-        }
-
-        return "";
     }
 
     internal async Task<int> ProcessReadyOnceAsync(CancellationToken cancellationToken = default)
@@ -355,8 +331,14 @@ internal sealed class RecordingTransferService : IDisposable
         }
         catch (Exception ex)
         {
+            if (ex is RecordingTransferHostException { RetryWholeFile: true } wholeFile)
+            {
+                HandleWholeFileRetry(task, wholeFile, now);
+                return;
+            }
+
             int retryCount = task.RetryCount + 1;
-            string stopReason = ClassifyFailure(ex);
+            string stopReason = RecordingTransferFailurePolicy.ClassifyFailure(ex);
             if (stopReason.Length > 0)
             {
                 AbandonTask(task, stopReason, now);
@@ -372,6 +354,50 @@ internal sealed class RecordingTransferService : IDisposable
                 "RecordingTransfer",
                 $"Upload deferred localRecord={task.LocalVideoRecordId}, retry={retryCount}, error={ex.Message}");
         }
+    }
+
+    private void HandleWholeFileRetry(
+        RecordingTransferTask task,
+        RecordingTransferHostException exception,
+        DateTime now)
+    {
+        int maxAttempts = Math.Clamp(
+            exception.MaxFileAttempts > 0 ? exception.MaxFileAttempts : 3,
+            1,
+            10);
+        int attemptCount = task.WholeFileRetryCount + 1;
+        string reason = string.IsNullOrWhiteSpace(exception.Message)
+            ? "上传失败"
+            : exception.Message.Trim();
+        if (attemptCount >= maxAttempts)
+        {
+            _store.MarkWholeFileRetry(task.Id, attemptCount, reason, now, now);
+            AbandonTask(
+                task,
+                AppLanguage.Format(
+                    "Main.RecordingTransfer.WholeFileAttemptsExhausted",
+                    reason,
+                    attemptCount),
+                now);
+            return;
+        }
+
+        TimeSpan backoff = GetBackoff(attemptCount, task.Id);
+        _store.MarkWholeFileRetry(
+            task.Id,
+            attemptCount,
+            reason,
+            now.Add(backoff),
+            now);
+        ProgressChanged?.Invoke(new RecordingTransferProgress(
+            task.Id,
+            0,
+            GetExistingLength(task.LocalFilePath),
+            RecordingTransferStates.Failed,
+            reason));
+        RuntimeLog.Warn(
+            "RecordingTransfer",
+            $"Whole-file upload retry localRecord={task.LocalVideoRecordId}, attempt={attemptCount}/{maxAttempts}, error={reason}");
     }
 
     private void AbandonTask(RecordingTransferTask task, string reason, DateTime now)
@@ -632,35 +658,22 @@ internal sealed class RecordingTransferService : IDisposable
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            (string errorCode, string message) = TryReadError(body);
+            (string errorCode, string message, bool retryWholeFile, int maxFileAttempts) =
+                RecordingTransferFailurePolicy.TryReadError(body);
             string text = string.IsNullOrWhiteSpace(message)
                 ? $"主机请求失败：HTTP {(int)response.StatusCode}"
                 : message;
             throw string.IsNullOrWhiteSpace(errorCode)
-                ? new HttpRequestException(text)
-                : new RecordingTransferHostException(errorCode, text);
+                ? new HttpRequestException(text, null, response.StatusCode)
+                : new RecordingTransferHostException(
+                    errorCode,
+                    text,
+                    response.StatusCode,
+                    retryWholeFile,
+                    maxFileAttempts);
         }
         T? result = JsonSerializer.Deserialize<T>(body, JsonOptions);
         return result ?? throw new InvalidDataException("主机返回空响应");
-    }
-
-    private static (string ErrorCode, string Message) TryReadError(string body)
-    {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(body);
-            string errorCode = document.RootElement.TryGetProperty("errorCode", out JsonElement code)
-                ? code.GetString() ?? ""
-                : "";
-            string message = document.RootElement.TryGetProperty("error", out JsonElement error)
-                ? error.GetString() ?? ""
-                : "";
-            return (errorCode, message);
-        }
-        catch
-        {
-            return ("", "");
-        }
     }
 
     private static void ValidateTaskTarget(RecordingTransferTask task, AppConfig config)

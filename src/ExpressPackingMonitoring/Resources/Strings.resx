@@ -605,6 +605,8 @@
   <data name="Main.PreviewBuyerMessage" xml:space="preserve"><value>Buyer message: {0}</value></data>
   <data name="Main.PreviewSellerMemo" xml:space="preserve"><value>Seller note: {0}</value></data>
   <data name="Main.PreviewProduct" xml:space="preserve"><value>Products</value></data>
+  <data name="Main.PreviewProductMore" xml:space="preserve"><value>and {0} more products</value></data>
+  <data name="Main.RecordingTransfer.WholeFileAttemptsExhausted" xml:space="preserve"><value>{0}; stopped automatic retry after {1} whole-file attempts</value></data>
   <data name="Main.PreviewTotalItemCount" xml:space="preserve"><value>Total items: {0}</value></data>
   <data name="Main.PreviewException" xml:space="preserve"><value>Exception: {0}</value></data>
   <data name="高峰时段不休眠" xml:space="preserve"><value>Keep camera awake during peak hours</value></data>

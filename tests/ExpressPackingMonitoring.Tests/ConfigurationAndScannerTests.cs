@@ -235,6 +235,26 @@ public sealed class ConfigurationAndScannerTests
         Assert.DoesNotContain(",", details, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BuildPreviewOrderDetailNotice_LimitsProductsAndAddsLocalizedSummary()
+    {
+        string products = string.Join(
+            "，",
+            Enumerable.Range(1, 12).Select(index => $"商品 {index} ×1"));
+
+        string details = MainViewModel.BuildPreviewOrderDetailNotice(new OrderInfo
+        {
+            ProductInfo = products
+        });
+
+        string[] lines = details.Split(Environment.NewLine);
+        Assert.Equal(10, lines.Length);
+        Assert.Equal("商品", lines[0]);
+        Assert.Equal("商品 1 ×1", lines[1]);
+        Assert.Equal("商品 8 ×1", lines[8]);
+        Assert.Equal("还有 4 个商品", lines[9]);
+    }
+
     [Theory]
     [InlineData(0, "")]
     [InlineData(1, "")]

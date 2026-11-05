@@ -172,6 +172,9 @@ namespace ExpressPackingMonitoring.ViewModels
             var batchResult = new MkvBatchConversionResult();
             if (_db == null) return batchResult;
 
+            IReadOnlyList<string> activePaths = _db.QueryActiveVideoFilePaths();
+            CleanupStaleMkvConversionTempsIfNeeded(activePaths);
+
             string ffmpegPath = FindFFmpeg();
             if (string.IsNullOrEmpty(ffmpegPath))
             {
@@ -179,7 +182,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return batchResult;
             }
 
-            var mkvPaths = GetMkvConversionTargets();
+            var mkvPaths = GetMkvConversionTargets(activePaths);
             int total = mkvPaths.Count;
             var failedPaths = new List<string>();
 
@@ -391,9 +394,8 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private List<string> GetMkvConversionTargets()
+        private List<string> GetMkvConversionTargets(IEnumerable<string> paths)
         {
-            var paths = _db?.QueryActiveVideoFilePaths() ?? [];
             var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (string path in paths)
