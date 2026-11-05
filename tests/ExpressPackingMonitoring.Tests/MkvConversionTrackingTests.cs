@@ -174,6 +174,32 @@ public sealed class MkvConversionTrackingTests
         }
     }
 
+    [Fact]
+    public void AutomaticSuppressionRunsBeforeMp4Probe()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Media.cs"));
+        int methodStart = source.IndexOf(
+            "private async Task<MkvBatchConversionResult> BatchConvertMkvToMp4CoreAsync",
+            StringComparison.Ordinal);
+        int suppression = source.IndexOf(
+            "if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)",
+            methodStart,
+            StringComparison.Ordinal);
+        int probe = source.IndexOf(
+            "ValidateConvertedMp4(",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        Assert.InRange(suppression, methodStart, probe - 1);
+        Assert.True(probe > suppression);
+    }
+
     private static MkvConversionFailureState CreateState(
         DateTime firstFailedAt,
         DateTime lastAttemptAt,
@@ -197,6 +223,20 @@ public sealed class MkvConversionTrackingTests
         command.CommandText = "SELECT COUNT(*) FROM VideoRecords WHERE MkvFailureCount = @failureCount;";
         command.Parameters.AddWithValue("@failureCount", failureCount);
         return Convert.ToInt32(command.ExecuteScalar());
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (!string.IsNullOrWhiteSpace(directory))
+        {
+            if (File.Exists(Path.Combine(directory, "ExpressPackingMonitoring.sln")))
+                return directory;
+
+            directory = Directory.GetParent(directory)?.FullName;
+        }
+
+        throw new DirectoryNotFoundException("找不到仓库根目录");
     }
 
     private static string CreateTemporaryDirectory()

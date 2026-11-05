@@ -193,6 +193,22 @@ namespace ExpressPackingMonitoring.ViewModels
                 string fileName = Path.GetFileName(mkvPath);
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
 
+                // 已记账的确定性失败先进入抑制，不再调用 FFmpeg 探测或转换。
+                // 旧顺序会先探测损坏 MP4，导致同一条记录在每次录像收尾时重复产生
+                // "moov atom not found" 和约 1 秒的进程开销。
+                MkvAutomaticRetryDecision retryDecision =
+                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
+                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                {
+                    batchResult.SuppressedCount++;
+                    if (File.Exists(mkvPath))
+                        batchResult.AddFinalFile(mkvPath, mkvPath);
+                    _db.MarkArchivePendingByFilePath(mkvPath);
+                    _archiveService?.Wake();
+                    progress?.Report($"[{i + 1}/{total}] 已跳过历史失败录像: {fileName}");
+                    continue;
+                }
+
                 // 如果 MKV 已不存在但 MP4 存在，只更新数据库
                 if (!File.Exists(mkvPath))
                 {
@@ -246,20 +262,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
                         continue;
                     }
-                }
-
-                // 历史失败记录在完成文件对账后直接进入终态，不再后台重复转换。
-                MkvAutomaticRetryDecision retryDecision =
-                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
-                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
-                {
-                    batchResult.SuppressedCount++;
-                    if (File.Exists(mkvPath))
-                        batchResult.AddFinalFile(mkvPath, mkvPath);
-                    _db.MarkArchivePendingByFilePath(mkvPath);
-                    _archiveService?.Wake();
-                    progress?.Report($"[{i + 1}/{total}] 未生成兼容 MP4，已保留原始录像: {fileName}");
-                    continue;
                 }
 
                 progress?.Report($"[{i + 1}/{total}] 正在转换: {fileName}");
