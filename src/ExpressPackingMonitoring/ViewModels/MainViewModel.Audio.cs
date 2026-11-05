@@ -23,6 +23,9 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
+        private DateTime _nextAudioUnavailableRuntimeLogAt = DateTime.MinValue;
+        private DateTime _nextAudioUnavailableUserWarningAt = DateTime.MinValue;
+
         private bool PrepareDirectAudioPipe()
         {
             try
@@ -67,7 +70,26 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (device == null)
                 {
                     Debug.WriteLine("[Audio] 未找到可用麦克风端点");
-                    WriteAudioDiagnostic($"未找到可用麦克风端点：{DescribeCaptureEndpoints()}");
+                    bool reportRuntimeLog;
+                    lock (_audioLock)
+                    {
+                        DateTime now = DateTime.Now;
+                        reportRuntimeLog =
+                            RecordingAudioStartPolicy.IsAudioUnavailableNotificationDue(
+                                now,
+                                _nextAudioUnavailableRuntimeLogAt);
+                        if (reportRuntimeLog)
+                        {
+                            _nextAudioUnavailableRuntimeLogAt =
+                                now + RecordingAudioStartPolicy.AudioUnavailableNotificationCooldown;
+                        }
+                    }
+                    string detail = reportRuntimeLog
+                        ? $"：{DescribeCaptureEndpoints()}"
+                        : "";
+                    WriteAudioDiagnostic(
+                        $"未找到可用麦克风端点{detail}",
+                        writeRuntimeLog: reportRuntimeLog);
                     return false;
                 }
 

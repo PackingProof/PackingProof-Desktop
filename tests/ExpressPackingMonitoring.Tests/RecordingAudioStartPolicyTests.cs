@@ -45,6 +45,24 @@ public sealed class RecordingAudioStartPolicyTests
         Assert.InRange(RecordingAudioStartPolicy.RetryDelayMs, 100, 1500);
     }
 
+    [Fact]
+    public void MissingMicrophoneWarningsAreThrottledWithoutChangingRecordingFallback()
+    {
+        DateTime now = new(2026, 11, 6, 12, 0, 0, DateTimeKind.Local);
+        DateTime nextAllowedAt =
+            now + RecordingAudioStartPolicy.AudioUnavailableNotificationCooldown;
+
+        Assert.False(RecordingAudioStartPolicy.IsAudioUnavailableNotificationDue(
+            now,
+            nextAllowedAt));
+        Assert.True(RecordingAudioStartPolicy.IsAudioUnavailableNotificationDue(
+            nextAllowedAt,
+            nextAllowedAt));
+        Assert.Equal(
+            RecordingAudioStartPolicy.AudioStartFailureAction.ContinueVideoOnly,
+            RecordingAudioStartPolicy.Decide(directAac: false, attemptIndex: 1));
+    }
+
     /// <summary>最后一次尝试必须给出终态（降级或取消），否则开录会一直卡在重试里。</summary>
     [Theory]
     [InlineData(false)]

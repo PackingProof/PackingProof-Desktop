@@ -827,7 +827,28 @@ namespace ExpressPackingMonitoring.ViewModels
             return (int)Math.Clamp(timeout, 60_000L, 600_000L);
         }
 
-        private void WriteAudioDiagnostic(string message, string? explicitLogPath = null)
+        private bool TryClaimAudioUnavailableUserWarning()
+        {
+            lock (_audioLock)
+            {
+                DateTime now = DateTime.Now;
+                if (!RecordingAudioStartPolicy.IsAudioUnavailableNotificationDue(
+                        now,
+                        _nextAudioUnavailableUserWarningAt))
+                {
+                    return false;
+                }
+
+                _nextAudioUnavailableUserWarningAt =
+                    now + RecordingAudioStartPolicy.AudioUnavailableNotificationCooldown;
+                return true;
+            }
+        }
+
+        private void WriteAudioDiagnostic(
+            string message,
+            string? explicitLogPath = null,
+            bool writeRuntimeLog = true)
         {
 #if DEBUG
             bool shouldWrite = !ShouldSkipDebugAudioDiagnostic(message, explicitLogPath);
@@ -837,7 +858,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
             if (!shouldWrite) return;
             Debug.WriteLine($"[AudioDiagnostic] {message}");
-            if (IsImportantAudioDiagnostic(message))
+            if (writeRuntimeLog && IsImportantAudioDiagnostic(message))
                 RuntimeLog.Warn("Audio", message);
             string? logPath = explicitLogPath ?? _currentAudioLogPath;
             if (string.IsNullOrWhiteSpace(logPath)) return;

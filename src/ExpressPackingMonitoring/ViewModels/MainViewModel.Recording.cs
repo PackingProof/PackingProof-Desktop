@@ -905,8 +905,11 @@ namespace ExpressPackingMonitoring.ViewModels
                             RuntimeLog.Warn(
                                 "Recording",
                                 $"Audio capture unavailable, recording video only, file={Path.GetFileName(filePath)}");
-                            ShowToast("麦克风不可用，本次仅录视频", ToastSeverity.Warning);
-                            SpeakWarning(DefaultSpeechCatalog.AudioRecordingStartFailed);
+                            if (TryClaimAudioUnavailableUserWarning())
+                            {
+                                ShowToast("麦克风不可用，本次仅录视频", ToastSeverity.Warning);
+                                SpeakWarning(DefaultSpeechCatalog.AudioRecordingStartFailed);
+                            }
                             break;
                         }
 

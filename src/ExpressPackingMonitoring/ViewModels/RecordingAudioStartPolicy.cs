@@ -30,6 +30,18 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>重试前的等待时间，给音频服务一点恢复时间。</summary>
         internal const int RetryDelayMs = 500;
 
+        /// <summary>
+        /// 没有活动麦克风时，日志详情、Toast 和语音提示的抑制窗口。
+        /// 每一单仍按无音频处理，只避免连续作业时反复重扫、刷屏和播报。
+        /// </summary>
+        internal static readonly TimeSpan AudioUnavailableNotificationCooldown =
+            TimeSpan.FromMinutes(10);
+
+        internal static bool IsAudioUnavailableNotificationDue(
+            DateTime now,
+            DateTime nextAllowedAt) =>
+            now >= nextAllowedAt;
+
         internal static AudioStartFailureAction Decide(bool directAac, int attemptIndex)
         {
             if (attemptIndex + 1 < AudioStartAttempts)
