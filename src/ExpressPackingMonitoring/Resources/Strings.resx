@@ -604,7 +604,7 @@
   <data name="已保留当前设置，可随时在设置中开启" xml:space="preserve"><value>Current setting kept; camera recognition can be enabled in Settings at any time</value></data>
   <data name="Main.PreviewBuyerMessage" xml:space="preserve"><value>Buyer message: {0}</value></data>
   <data name="Main.PreviewSellerMemo" xml:space="preserve"><value>Seller note: {0}</value></data>
-  <data name="Main.PreviewProduct" xml:space="preserve"><value>Product: {0}</value></data>
+  <data name="Main.PreviewProduct" xml:space="preserve"><value>Products</value></data>
   <data name="Main.PreviewTotalItemCount" xml:space="preserve"><value>Total items: {0}</value></data>
   <data name="Main.PreviewException" xml:space="preserve"><value>Exception: {0}</value></data>
   <data name="高峰时段不休眠" xml:space="preserve"><value>Keep camera awake during peak hours</value></data>

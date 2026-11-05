@@ -184,7 +184,7 @@ public sealed class ConfigurationAndScannerTests
         Assert.Contains("检查颜色", notice);
         Assert.Contains("蓝色外套", notice);
         Assert.Contains("退款已完成", notice);
-        Assert.Equal(4, notice.Split(Environment.NewLine).Length);
+        Assert.Equal(5, notice.Split(Environment.NewLine).Length);
     }
 
     [Fact]
@@ -217,6 +217,22 @@ public sealed class ConfigurationAndScannerTests
 
         Assert.DoesNotContain("共 3 件商品", details, StringComparison.Ordinal);
         Assert.Contains("蓝色外套", details);
+    }
+
+    [Fact]
+    public void BuildPreviewOrderDetailNotice_ShowsProductHeaderThenOneProductPerLine()
+    {
+        string details = MainViewModel.BuildPreviewOrderDetailNotice(new OrderInfo
+        {
+            ProductInfo = "蓝色外套 ×2，白色水杯 ×1\r\n红色背包 ×3"
+        });
+
+        string[] lines = details.Split(Environment.NewLine);
+        Assert.Equal(
+            ["商品", "蓝色外套 ×2", "白色水杯 ×1", "红色背包 ×3"],
+            lines);
+        Assert.DoesNotContain("，", details, StringComparison.Ordinal);
+        Assert.DoesNotContain(",", details, StringComparison.Ordinal);
     }
 
     [Theory]

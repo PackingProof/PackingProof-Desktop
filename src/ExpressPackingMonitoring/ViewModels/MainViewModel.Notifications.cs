@@ -114,7 +114,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 return "";
 
             var lines = new List<string>();
-            AddPreviewOrderLine(lines, "Main.PreviewProduct", orderInfo.ProductInfo);
+            IReadOnlyList<string> products = SplitPreviewProductLines(orderInfo.ProductInfo);
+            if (products.Count > 0)
+            {
+                lines.Add(AppLanguage.Get("Main.PreviewProduct"));
+                lines.AddRange(products);
+            }
 
             if (orderInfo.HasRefund || orderInfo.IsPrintedRefund)
             {
@@ -124,6 +129,23 @@ namespace ExpressPackingMonitoring.ViewModels
             }
 
             return string.Join(Environment.NewLine, lines);
+        }
+
+        internal static IReadOnlyList<string> SplitPreviewProductLines(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return [];
+
+            return value
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n')
+                .Split(
+                    ['\n', ',', '，', '、', ';', '；', '|'],
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(line => CompactPreviewText(
+                    line.Trim().Trim(',', '，', '、', ';', '；', '|')))
+                .Where(line => line.Length > 0)
+                .ToArray();
         }
 
         internal static string BuildPreviewOrderItemCountText(OrderInfo orderInfo)

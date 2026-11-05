@@ -604,7 +604,7 @@
   <data name="已保留当前设置，可随时在设置中开启" xml:space="preserve"><value>現在の設定を保持しました。設定からいつでも有効にできます</value></data>
   <data name="Main.PreviewBuyerMessage" xml:space="preserve"><value>購入者メッセージ: {0}</value></data>
   <data name="Main.PreviewSellerMemo" xml:space="preserve"><value>販売者メモ: {0}</value></data>
-  <data name="Main.PreviewProduct" xml:space="preserve"><value>商品: {0}</value></data>
+  <data name="Main.PreviewProduct" xml:space="preserve"><value>商品</value></data>
   <data name="Main.PreviewTotalItemCount" xml:space="preserve"><value>合計点数: {0}</value></data>
   <data name="Main.PreviewException" xml:space="preserve"><value>例外: {0}</value></data>
   <data name="高峰时段不休眠" xml:space="preserve"><value>ピーク時間帯はスリープしない</value></data>
