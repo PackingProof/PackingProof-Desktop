@@ -84,6 +84,28 @@ public sealed class MkvConversionSafetyTests
         }
     }
 
+    [Theory]
+    [InlineData(false, true, true, true, true)]
+    [InlineData(true, true, true, true, false)]
+    [InlineData(false, false, true, true, false)]
+    [InlineData(false, true, false, true, false)]
+    [InlineData(false, true, true, false, false)]
+    public void ExistingMp4MustPassValidationAndFlushBeforeMkvCanBeDeleted(
+        bool hasRecoverySidecar,
+        bool existsAndIsNonEmpty,
+        bool validationPassed,
+        bool flushedToDisk,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            MainViewModel.CanUseExistingConvertedMp4(
+                hasRecoverySidecar,
+                existsAndIsNonEmpty,
+                validationPassed,
+                flushedToDisk));
+    }
+
     [Fact]
     public void FailedSecondTask_DoesNotDeleteMp4CreatedByFirstTask()
     {

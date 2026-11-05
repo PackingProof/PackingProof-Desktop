@@ -244,7 +244,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 // 如果 MP4 已存在，直接删 MKV 并更新数据库；但带 WAV/audio.log 的 MKV 需要重新合并，避免误用录制中生成的半截 MP4。
                 if (File.Exists(mp4Path)
-                    && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token))
+                    && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token)
+                    && TryFlushFileToDisk(mp4Path))
                 {
                     if (HasMuxRecoverySidecar(mkvPath))
                     {
