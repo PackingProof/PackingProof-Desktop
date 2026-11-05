@@ -840,22 +840,73 @@ public sealed class RecordingTransferTests
         }
     }
 
+    [Fact]
+    public void QueueStore_RevivesOnlyRetryExhaustedTransientFailures()
+    {
+        string directory = CreateTempDirectory();
+        try
+        {
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var store = new RecordingTransferQueueStore(databasePath);
+            string nodeId = Guid.NewGuid().ToString("D");
+            for (long recordId = 1; recordId <= 3; recordId++)
+            {
+                Assert.True(store.Enqueue(
+                    recordId,
+                    Path.Combine(directory, $"recording-{recordId}.mp4"),
+                    $"session-{recordId}",
+                    nodeId,
+                    "http://127.0.0.1:5280",
+                    DateTime.UtcNow));
+            }
+
+            RecordingTransferTask[] tasks = store.GetReady(DateTime.UtcNow, limit: 10).ToArray();
+            store.MarkAbandoned(
+                tasks[0].Id,
+                RecordingTransferRetryPolicy.TransientRetryExhaustedPrefix + "21 次，已停止自动重试",
+                DateTime.UtcNow);
+            store.MarkAbandoned(
+                tasks[1].Id,
+                "保存主机上已存在同编号的其它录像，已停止自动重试",
+                DateTime.UtcNow);
+            store.MarkAbandoned(
+                tasks[2].Id,
+                "本地录像已删除，已停止上传",
+                DateTime.UtcNow);
+
+            Assert.Equal(1, store.ReviveRetryExhaustedAbandoned(DateTime.UtcNow));
+            RecordingTransferTask revived = Assert.Single(store.GetReady(DateTime.UtcNow));
+            Assert.Equal(tasks[0].LocalVideoRecordId, revived.LocalVideoRecordId);
+            Assert.Equal(0, revived.RetryCount);
+            Assert.Equal(2, store.GetSummary().AbandonedCount);
+        }
+        finally
+        {
+            DeleteTempDirectory(directory);
+        }
+    }
+
     [Theory]
-    [InlineData("session_conflict", 1, true)]
-    [InlineData("session_conflict", RecordingTransferService.MaxRetryCount + 1, true)]
-    [InlineData("upload_not_found", 1, false)]
-    [InlineData("upload_not_found", RecordingTransferService.MaxRetryCount, false)]
-    [InlineData("upload_not_found", RecordingTransferService.MaxRetryCount + 1, true)]
-    public void ClassifyFailure_StopsOnlyOnSessionConflictOrRetryCap(
+    [InlineData("session_conflict", true)]
+    [InlineData("upload_not_found", false)]
+    public void ClassifyFailure_StopsOnlyOnDeterministicHostConflict(
         string errorCode,
-        int retryCount,
         bool expectsStop)
     {
         var exception = new RecordingTransferHostException(errorCode, "主机拒绝");
 
-        string reason = RecordingTransferService.ClassifyFailure(exception, retryCount);
+        string reason = RecordingTransferService.ClassifyFailure(exception);
 
         Assert.Equal(expectsStop, reason.Length > 0);
+    }
+
+    [Fact]
+    public void ClassifyFailure_StopsWhenLocalRecordingIsMissing()
+    {
+        string reason = RecordingTransferService.ClassifyFailure(
+            new FileNotFoundException("本地缓存录像不存在"));
+
+        Assert.Contains("本地缓存录像不存在", reason);
     }
 
     private static AppConfig CreateConfig(string directory, string targetNodeId)

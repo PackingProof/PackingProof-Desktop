@@ -13,6 +13,15 @@ internal static class RecordingTransferStates
     public const string Abandoned = "Abandoned";
 }
 
+internal static class RecordingTransferRetryPolicy
+{
+    /// <summary>
+    /// 旧版本在连续重试上限后写入的停止原因。升级时可据此只恢复网络/主机离线型失败，
+    /// 不动会话冲突、本地录像已删除等确定性失败。
+    /// </summary>
+    internal const string TransientRetryExhaustedPrefix = "连续上传失败 ";
+}
+
 internal sealed class RecordingTransferTask
 {
     public long Id { get; init; }
@@ -403,11 +412,37 @@ internal sealed class RecordingTransferQueueStore : IDisposable
                 UPDATE RecordingTransferQueue
                 SET State = 'Pending',
                     RetryCount = 0,
+                    LastError = '',
                     NextAttemptAt = NULL,
                     UpdatedAt = @now
                 WHERE State IN ('Failed', 'Abandoned');";
             cmd.Parameters.AddWithValue("@now", Format(now));
             cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// 恢复旧版本因重试次数耗尽而停止的网络型上传任务。会话冲突和本地文件缺失等原因
+    /// 不在此列，仍由用户明确点击“重试上传”处理。
+    /// </summary>
+    public int ReviveRetryExhaustedAbandoned(DateTime now)
+    {
+        lock (_lock)
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = @"
+                UPDATE RecordingTransferQueue
+                SET State = 'Pending',
+                    RetryCount = 0,
+                    NextAttemptAt = NULL,
+                    UpdatedAt = @now
+                WHERE State = 'Abandoned'
+                  AND LastError LIKE @retryExhaustedPrefix;";
+            cmd.Parameters.AddWithValue(
+                "@retryExhaustedPrefix",
+                RecordingTransferRetryPolicy.TransientRetryExhaustedPrefix + "%");
+            cmd.Parameters.AddWithValue("@now", Format(now));
+            return cmd.ExecuteNonQuery();
         }
     }
 

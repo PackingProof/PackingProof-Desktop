@@ -30,9 +30,6 @@ internal sealed class RecordingTransferHostException : Exception
 
 internal sealed class RecordingTransferService : IDisposable
 {
-    /// <summary>同一段录像连续失败到这个次数就停止自动重试，等用户处理。</summary>
-    internal const int MaxRetryCount = 20;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -92,6 +89,18 @@ internal sealed class RecordingTransferService : IDisposable
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        AppConfig config = _configProvider();
+        if (IsRecordingWorkstation(config)
+            && !string.IsNullOrWhiteSpace(config.LastKnownHostNodeId))
+        {
+            int revived = _store.ReviveRetryExhaustedAbandoned(DateTime.UtcNow);
+            if (revived > 0)
+            {
+                RuntimeLog.Info(
+                    "RecordingTransfer",
+                    $"Retry-exhausted uploads restored count={revived}; host={config.LastKnownHostNodeId}");
+            }
+        }
         _worker ??= Task.Run(() => WorkerLoopAsync(_cts.Token));
         Signal();
     }
@@ -152,7 +161,7 @@ internal sealed class RecordingTransferService : IDisposable
     }
 
     /// <summary>返回非空表示必须停止自动重试（内容为原因），空串表示继续退避重试。</summary>
-    internal static string ClassifyFailure(Exception exception, int retryCount)
+    internal static string ClassifyFailure(Exception exception)
     {
         if (exception is RecordingTransferHostException host
             && string.Equals(host.ErrorCode, "session_conflict", StringComparison.OrdinalIgnoreCase))
@@ -160,9 +169,9 @@ internal sealed class RecordingTransferService : IDisposable
             return "保存主机上已存在同编号的其它录像，已停止自动重试；请先在保存主机删除那条旧记录，再手动重试";
         }
 
-        if (retryCount > MaxRetryCount)
+        if (exception is FileNotFoundException)
         {
-            return $"连续上传失败 {retryCount} 次，已停止自动重试；请检查网络与保存主机后手动重试";
+            return "本地缓存录像不存在，已停止自动重试；请检查录像文件或手动重试";
         }
 
         return "";
@@ -348,14 +357,14 @@ internal sealed class RecordingTransferService : IDisposable
         catch (Exception ex)
         {
             int retryCount = task.RetryCount + 1;
-            string stopReason = ClassifyFailure(ex, retryCount);
+            string stopReason = ClassifyFailure(ex);
             if (stopReason.Length > 0)
             {
                 AbandonTask(task, stopReason, now);
                 return;
             }
 
-            TimeSpan backoff = GetBackoff(retryCount);
+            TimeSpan backoff = GetBackoff(retryCount, task.Id);
             _store.MarkFailed(task.Id, retryCount, ex.Message, now.Add(backoff), now);
             ProgressChanged?.Invoke(new RecordingTransferProgress(
                 task.Id, task.ServerOffset, GetExistingLength(task.LocalFilePath),
@@ -745,8 +754,15 @@ internal sealed class RecordingTransferService : IDisposable
             DeploymentPresets.RecordingWorkstation,
             StringComparison.OrdinalIgnoreCase);
 
-    private static TimeSpan GetBackoff(int retryCount) =>
-        TimeSpan.FromSeconds(Math.Min(300, 5 * Math.Pow(2, Math.Clamp(retryCount - 1, 0, 6))));
+    private static TimeSpan GetBackoff(int retryCount, long taskId)
+    {
+        double exponentialSeconds = Math.Min(
+            900,
+            5 * Math.Pow(2, Math.Clamp(retryCount - 1, 0, 8)));
+        // 长时间离线后大量任务会同时到期；按任务 ID 加少量抖动，避免十台机器同时冲击主机。
+        int jitterSeconds = (int)((ulong)taskId % 31);
+        return TimeSpan.FromSeconds(exponentialSeconds + jitterSeconds);
+    }
 
     private static long GetExistingLength(string path)
     {
