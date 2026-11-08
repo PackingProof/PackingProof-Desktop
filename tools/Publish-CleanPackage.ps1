@@ -1315,6 +1315,10 @@ function Resolve-LauncherBaselineExecutable {
 
 $appPublishDir = Join-Path $outputFullPath "app"
 $appBuildArtifacts = Join-Path $outputFullPath ".build-artifacts"
+$storeSymbolsDir = Join-Path $repoRoot "package\.store-symbols-tmp"
+if (Test-Path -LiteralPath $storeSymbolsDir) {
+    Remove-Item -LiteralPath $storeSymbolsDir -Recurse -Force
+}
 $packageUpdateCheckUrl = Get-ConfiguredValue -Key "UPDATE_CHECK_URL" -DefaultValue "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest"
 $launcherManifestFullPath = if (-not [string]::IsNullOrWhiteSpace($LauncherBaselineManifestPath)) {
     [System.IO.Path]::GetFullPath($LauncherBaselineManifestPath)
@@ -1382,7 +1386,10 @@ $appPublishArguments = @(
     "--self-contained", "true",
     "-p:InformationalVersion=$informationalVersion",
     "-p:IncludeSourceRevisionInInformationalVersion=false",
-    "-p:GitCommitId=$gitCommitId"
+    "-p:GitCommitId=$gitCommitId",
+    "-p:PackingProofCollectStoreSymbols=true",
+    "-p:DebugType=portable",
+    "-p:DebugSymbols=true"
 ) + $visionPublishArguments + @(
     "-p:PublishSingleFile=false",
     "--artifacts-path", $appBuildArtifacts,
@@ -1390,6 +1397,18 @@ $appPublishArguments = @(
 )
 Invoke-DotNetPublish -Arguments $appPublishArguments
 Remove-Item -LiteralPath $appBuildArtifacts -Recurse -Force
+
+$publishedPdbFiles = @(Get-ChildItem -LiteralPath $appPublishDir -Recurse -File -Filter "*.pdb")
+if ($publishedPdbFiles.Count -eq 0) {
+    throw "Release publish did not produce Store symbol files"
+}
+foreach ($pdbFile in $publishedPdbFiles) {
+    Copy-FilePreservingRelativePath `
+        -SourceFile $pdbFile.FullName `
+        -DestinationRoot $storeSymbolsDir `
+        -RelativePath (Get-RelativePath -BaseDir $appPublishDir -Path $pdbFile.FullName)
+    Remove-Item -LiteralPath $pdbFile.FullName -Force
+}
 
 # Win10/11 标准包附带 Windows 系统语音（WinRT）辅助程序集；
 # Win7 兼容变体在下方产物生成后剔除这些文件。
@@ -1407,6 +1426,10 @@ foreach ($winttsFile in @("ExpressPackingMonitoring.WinTts.dll", "Microsoft.Wind
         throw "WinTts publish output missing: $winttsSource"
     }
     Copy-Item -LiteralPath $winttsSource -Destination (Join-Path $appPublishDir $winttsFile) -Force
+}
+$winttsPdb = Join-Path $winttsPublishDir "ExpressPackingMonitoring.WinTts.pdb"
+if (Test-Path -LiteralPath $winttsPdb -PathType Leaf) {
+    Copy-Item -LiteralPath $winttsPdb -Destination (Join-Path $storeSymbolsDir "ExpressPackingMonitoring.WinTts.pdb") -Force
 }
 Remove-Item -LiteralPath $winttsPublishDir -Recurse -Force
 
@@ -1762,6 +1785,7 @@ $storePackageSize = 0
 $storePackageVersion = ""
 $storePackageIdentity = ""
 if ($SkipStorePackage) {
+    Remove-Item -LiteralPath $storeSymbolsDir -Recurse -Force -ErrorAction SilentlyContinue
     if (-not [bool]$openCvBaseline.store_channel_allowed) {
         Write-Host "精简 OpenCV 尚未完成现场验证：本次按要求跳过 Microsoft Store MSIX，避免覆盖存量 Store 用户。"
     }
@@ -1781,6 +1805,7 @@ else {
     $storeBuildArgs = @(
         "-Version", $normalizedVersion,
         "-AppPayloadDir", $appPublishDir,
+        "-SymbolsDir", $storeSymbolsDir,
         "-RequireStoreIdentity",
         "-Sign",
         "-SuppressCertificateDetails",
@@ -1790,19 +1815,30 @@ else {
         $storeBuildArgs += @("-ConfigPath", $StoreIdentityConfigPath)
     }
     Write-Host "Building Microsoft Store MSIX from the release app payload..."
-    & pwsh -NoProfile -File $storePackageScript @storeBuildArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Microsoft Store MSIX build failed with exit code $LASTEXITCODE"
+    try {
+        & pwsh -NoProfile -File $storePackageScript @storeBuildArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Microsoft Store MSIX build failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $storeSymbolsDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     $storeProductDir = Join-Path $storeOutputRoot ("PackingProof_Store_v" + $normalizedVersion)
     $storePackagePath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".msix")
+    $storeSymbolPath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".appxsym")
     if (-not (Test-Path -LiteralPath $storePackagePath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package $storePackagePath"
+    }
+    if (-not (Test-Path -LiteralPath $storeSymbolPath -PathType Leaf)) {
+        throw "Store symbol validation failed: missing package $storeSymbolPath"
     }
 
     $storePackageHash = (Get-FileHash -LiteralPath $storePackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $storePackageSize = (Get-Item -LiteralPath $storePackagePath).Length
+    $storeSymbolHash = (Get-FileHash -LiteralPath $storeSymbolPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $storeSymbolSize = (Get-Item -LiteralPath $storeSymbolPath).Length
     $storeMarkerPath = Join-Path $storeProductDir "payload\PackingProof.PackageEdition.json"
     if (-not (Test-Path -LiteralPath $storeMarkerPath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package edition marker $storeMarkerPath"
@@ -1832,9 +1868,22 @@ else {
                 throw "Store MSIX validation failed: Setup update script is embedded: $forbiddenEntry"
             }
         }
+        if ($storeEntries | Where-Object { $_ -like "*.pdb" }) {
+            throw "Store MSIX validation failed: PDB files must be submitted through the appxsym package"
+        }
     }
     finally {
         $storeArchive.Dispose()
+    }
+    $storeSymbolArchive = [System.IO.Compression.ZipFile]::OpenRead($storeSymbolPath)
+    try {
+        $symbolEntries = @($storeSymbolArchive.Entries | Where-Object { $_.Name -like "*.pdb" })
+        if ($symbolEntries.Count -eq 0) {
+            throw "Store appxsym validation failed: no PDB files were found"
+        }
+    }
+    finally {
+        $storeSymbolArchive.Dispose()
     }
 
     $storeManifest = [ordered]@{
@@ -1845,6 +1894,9 @@ else {
         relative_path = $storePackagePath.Substring($repoRoot.TrimEnd('\').Length + 1)
         sha256 = $storePackageHash
         size = $storePackageSize
+        symbol_file = Split-Path -Leaf $storeSymbolPath
+        symbol_sha256 = $storeSymbolHash
+        symbol_size = $storeSymbolSize
         app_payload_sha256 = $appPayloadFingerprint
         app_payload_file_count = $appPayloadManifestFiles.Count
         signed = $true

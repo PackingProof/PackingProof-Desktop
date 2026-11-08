@@ -89,7 +89,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - `<基线版本>` 在 0.0.86 及以后固定为 `0.0.84`；0.0.83/0.0.84 历史发布才使用 `0.0.18`。`tools\打包脚本-增量.bat` 与 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`，不要再复制旧命令里的 `0.0.18`。
 - `-BaselineAppDir` 必须指向真实固定基线的 `app` 子目录并包含 `tools\ffmpeg.exe`。脚本从目录解析实际基线，并强制与更新清单和补丁清单一致，禁止手工伪造。
-- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX 的身份、版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX 或旧清单不能借同版本号通过门禁。
+- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。发布负载同时保留与最终二进制匹配的 PDB，并生成 `PackingProof_Store_v<X.Y.Z>.appxsym` 供 Partner Center 做崩溃符号化；PDB 不进入 MSIX。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX 和 appxsym 的版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX、旧符号包或旧清单不能借同版本号通过门禁。
 - 产物根目录同时生成 `package_integrity_v<X.Y.Z>.json`，记录 Setup 的文件名、大小、SHA256 和本次 exact `app\` 的逐文件指纹；`Publish-Releases.ps1` 会校验 Setup 未被替换，并要求 Setup 与 Store MSIX 指向同一份 exact 应用负载。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
 - 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release；同一版本的 Store MSIX 必须在 Partner Center 完成提交，才算这次发布完成。禁止普通 `main` push 触发发布包工作流。
@@ -116,7 +116,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 | GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；macOS 包 `PackingProof-macOS-<版本>.dmg`（在 Mac 上用 `tools/Publish-MacRelease.sh` 上传） |
 | Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；完整 Setup 严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则由下面的 no-runtime 包补安装入口；macOS 包 `PackingProof-macOS-<版本>.dmg` 同上 |
 | Gitee no-runtime（仅完整 Setup 达到 100MB 时） | `PackingProof_Setup_no-runtime_vX.Y.Z.exe`：不含 .NET 运行时的安装向导，给只能下载 100MB 以内附件的 Gitee 用户使用。用 `pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 由该脚本**自己**跑一次 `dotnet publish --self-contained false` 得到（不能再复用正式包的 app，那是自包含的、会把运行时也带进去），并从正式包里补上 `tools\ffmpeg.exe`、WinTts 程序集与 `tts_cache`（这类安装靠机器上的 .NET 10 Desktop Runtime 跑，也没有种子可落共享布局，扩展直接走系统运行时）。AppPatch 本身是自包含形态，这类目录吃到补丁后会变成自包含，往后一切正常。默认不上传 ZIP 免安装包（`PackingProof_no-runtime_vX.Y.Z.zip`），确有需要时加 `-IncludeZip` |
-| Microsoft Store / Partner Center | `PackingProof_Store_vX.Y.Z.msix`：与 Setup 共用同一次 `app\` 负载，身份/版本/哈希记录在 `store_package_vX.Y.Z.json`；只提交 Partner Center，不上传 GitHub/Gitee Release。正式发布必须提交，不能把它当成可选的旁路产物 |
+| Microsoft Store / Partner Center | `PackingProof_Store_vX.Y.Z.msix` 与 `PackingProof_Store_vX.Y.Z.appxsym`：与 Setup 共用同一次 `app\` 负载，身份/版本/哈希记录在 `store_package_vX.Y.Z.json`；两者一起提交 Partner Center，不上传 GitHub/Gitee Release。正式发布必须提交，不能把它们当成可选的旁路产物 |
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release，默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`。对外分发只有 Setup（Gitee 侧在完整 Setup 小于 100MB 时直接复用，否则换成 no-runtime 安装向导）、AppPatch、update JSON 与 macOS DMG；普通用户通过启动器自动更新，无需手动下载清单。
 
@@ -150,7 +150,7 @@ pwsh -NoProfile -File tools\Republish-SameVersion.ps1 -Version <X.Y.Z> -Title "<
 4. 两边替换资产：`Publish-Releases.ps1 -UpdateNotes -ReplaceAssets` —— GitHub 用 `gh release upload --clobber`；
    Gitee 先删同名旧附件再上传（Gitee 不会覆盖同名附件）；同一命令会校验本次重建出的 `store_package_v<X.Y.Z>.json` 与 MSIX
 5. Gitee 安装包：完整 Setup 严格小于 100MB 时由 `Publish-Releases.ps1` 直接上传并删除旧的 no-runtime 安装包；达到 100MB 时才重做 `Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（上传前同样先删同名旧附件）
-6. Microsoft Store：把本次重建的 `PackingProof_Store_v<X.Y.Z>.msix` 重新提交 Partner Center，不能沿用旧包
+6. Microsoft Store：把本次重建的 `PackingProof_Store_v<X.Y.Z>.msix` 和匹配的 `.appxsym` 一起重新提交 Partner Center，不能沿用旧包或旧符号
 7. macOS 侧：在 Mac 上 `SIGN_IDENTITY="Developer ID Application: ..." NOTARIZE=1 tools/Publish-MacRelease.sh <版本> both`。
    **签名必须在 Mac 桌面会话的终端里跑**：SSH 会话拿不到登录钥匙串里的签名私钥，会报 `errSecInternalComponent`
 

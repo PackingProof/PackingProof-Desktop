@@ -59,6 +59,7 @@ function Get-ReleaseArtifactNames {
         LauncherPatchFileName = "PackingProof_LauncherPatch_$releaseTag.zip"
         StorePackageRoot = Join-Path $RepoRoot "package\store\PackingProof_Store_v$normalizedVersion"
         StorePackageFileName = "PackingProof_Store_v$normalizedVersion.msix"
+        StoreSymbolFileName = "PackingProof_Store_v$normalizedVersion.appxsym"
         StoreManifestFileName = "store_package_$releaseTag.json"
     }
 }

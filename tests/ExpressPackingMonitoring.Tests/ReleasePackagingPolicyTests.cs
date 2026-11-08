@@ -667,6 +667,7 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("\"PackingProof_LauncherPatch_$releaseTag.zip\"", versionCommon, StringComparison.Ordinal);
         Assert.Contains("\"store_package_$releaseTag.json\"", versionCommon, StringComparison.Ordinal);
         Assert.Contains("\"PackingProof_Store_v$normalizedVersion.msix\"", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("\"PackingProof_Store_v$normalizedVersion.appxsym\"", versionCommon, StringComparison.Ordinal);
         Assert.Contains("StorePackageRoot = Join-Path $RepoRoot \"package\\store\\PackingProof_Store_v$normalizedVersion\"", versionCommon, StringComparison.Ordinal);
 
         // 发布脚本按归一化结果挑文件，不再自己用 tag 或 TrimStart 拼名字。
@@ -693,6 +694,10 @@ public sealed class ReleasePackagingPolicyTests
             StringComparison.Ordinal);
         Assert.Contains(
             "$storePackagePath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StorePackageFileName",
+            publisher,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "$storeSymbolPath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StoreSymbolFileName",
             publisher,
             StringComparison.Ordinal);
         Assert.Contains("store_package_$releaseTag.json", publishScript, StringComparison.Ordinal);

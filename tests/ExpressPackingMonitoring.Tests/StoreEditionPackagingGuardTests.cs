@@ -14,6 +14,9 @@ public sealed class StoreEditionPackagingGuardTests
     public void StorePackage_ContainsEditionMarkerAndRejectsSetupUpdateScripts()
     {
         string script = ReadRepositoryFile("tools", "Publish-StorePackage.ps1");
+        string cleanPackageScript = ReadRepositoryFile("tools", "Publish-CleanPackage.ps1");
+        string appProject = ReadRepositoryFile("src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj");
+        string updateCoreProject = ReadRepositoryFile("src", "ExpressPackingMonitoring.UpdateCore", "ExpressPackingMonitoring.UpdateCore.csproj");
 
         Assert.Contains("PackingProof.PackageEdition.json", script, StringComparison.Ordinal);
         Assert.Contains("edition = \"store\"", script, StringComparison.Ordinal);
@@ -25,6 +28,17 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("Copy-Item -Destination $payloadDir -Recurse -Force", script, StringComparison.Ordinal);
         Assert.Contains("runtime-seed 只服务 Setup 版", script, StringComparison.Ordinal);
         Assert.Contains("Remove-Item -LiteralPath $runtimeSeedDir -Recurse -Force", script, StringComparison.Ordinal);
+        Assert.Contains("[string]$SymbolsDir", script, StringComparison.Ordinal);
+        Assert.Contains(".appxsym", script, StringComparison.Ordinal);
+        Assert.Contains("PackingProofCollectStoreSymbols=true", script, StringComparison.Ordinal);
+        Assert.Contains("-p:DebugType=portable", script, StringComparison.Ordinal);
+        Assert.Contains("-p:DebugSymbols=true", script, StringComparison.Ordinal);
+        Assert.Contains("-p:DebugType=portable", cleanPackageScript, StringComparison.Ordinal);
+        Assert.Contains("-p:DebugSymbols=true", cleanPackageScript, StringComparison.Ordinal);
+        Assert.Contains("Store 符号包缺少程序集符号", script, StringComparison.Ordinal);
+        Assert.Contains("PackingProofCollectStoreSymbols", appProject, StringComparison.Ordinal);
+        Assert.Contains("<DebugType>none</DebugType>", updateCoreProject, StringComparison.Ordinal);
+        Assert.DoesNotContain("<DebugType>portable</DebugType>", updateCoreProject, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -83,6 +97,7 @@ public sealed class StoreEditionPackagingGuardTests
         string releaseScript = ReadRepositoryFile("tools", "Publish-Releases.ps1");
         string versionCommon = ReadRepositoryFile("tools", "ReleaseVersion.Common.ps1");
         string prereqs = ReadRepositoryFile("tools", "Check-ReleasePrereqs.ps1");
+        string releaseWorkflow = ReadRepositoryFile(".github", "workflows", "release-package.yml");
 
         Assert.Contains("-AppPayloadDir", publishScript, StringComparison.Ordinal);
         Assert.Contains("-RequireStoreIdentity", publishScript, StringComparison.Ordinal);
@@ -91,7 +106,11 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("store_package_$releaseTag.json", publishScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_sha256", publishScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_file_count", publishScript, StringComparison.Ordinal);
+        Assert.Contains("symbol_sha256", publishScript, StringComparison.Ordinal);
+        Assert.Contains("symbol_size", publishScript, StringComparison.Ordinal);
+        Assert.Contains("PDB files must be submitted through the appxsym package", publishScript, StringComparison.Ordinal);
         Assert.Contains("Get-AppPayloadFingerprint", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("StoreSymbolFileName", versionCommon, StringComparison.Ordinal);
         Assert.Contains("Assert-AppPayloadMatchesArchive", releaseScript, StringComparison.Ordinal);
         Assert.Contains("-ExcludeRelativePrefixes @(\"runtime-seed/\")", releaseScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_sha256", releaseScript, StringComparison.Ordinal);
@@ -120,6 +139,8 @@ public sealed class StoreEditionPackagingGuardTests
             "构建 Setup 前必须先删除同版本旧 Store 清单");
         Assert.Contains("正式发布必须包含 Microsoft Store 包", releaseScript, StringComparison.Ordinal);
         Assert.Contains("Microsoft Store MSIX (submit via Partner Center", publishScript, StringComparison.Ordinal);
+        Assert.Contains("Store 符号包中没有 PDB 文件，拒绝发布", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("*.appxsym", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("store-package.local.json", prereqs, StringComparison.Ordinal);
         Assert.Contains("makeappx.exe", prereqs, StringComparison.Ordinal);
         Assert.Contains("makepri.exe", prereqs, StringComparison.Ordinal);

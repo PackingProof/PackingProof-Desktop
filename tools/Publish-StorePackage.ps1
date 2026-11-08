@@ -14,6 +14,7 @@ param(
     [string]$ConfigPath = "",
     [string]$OutputRoot = "",
     [string]$AppPayloadDir = "",
+    [string]$SymbolsDir = "",
     [switch]$SkipBuild,
     [switch]$RequireStoreIdentity,
     [switch]$Sign,
@@ -139,6 +140,59 @@ function Resolve-SdkTool {
     return $tool
 }
 
+function Copy-SymbolFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceDirectory,
+        [Parameter(Mandatory = $true)][string]$DestinationDirectory,
+        [switch]$RemoveSource
+    )
+
+    if (-not (Test-Path -LiteralPath $SourceDirectory -PathType Container)) {
+        throw "符号目录不存在：$SourceDirectory"
+    }
+
+    $sourceRoot = [System.IO.Path]::GetFullPath($SourceDirectory).TrimEnd('\') + '\'
+    $symbolFiles = @(Get-ChildItem -LiteralPath $SourceDirectory -Recurse -File -Filter "*.pdb")
+    foreach ($symbolFile in $symbolFiles) {
+        $relativePath = $symbolFile.FullName.Substring($sourceRoot.Length)
+        $destinationPath = Join-Path $DestinationDirectory $relativePath
+        $destinationParent = Split-Path -Parent $destinationPath
+        [System.IO.Directory]::CreateDirectory($destinationParent) | Out-Null
+        Copy-Item -LiteralPath $symbolFile.FullName -Destination $destinationPath -Force
+        if ($RemoveSource) {
+            Remove-Item -LiteralPath $symbolFile.FullName -Force
+        }
+    }
+    return $symbolFiles
+}
+
+function Assert-RequiredStoreSymbols {
+    param(
+        [Parameter(Mandatory = $true)][string]$SymbolsDirectory,
+        [Parameter(Mandatory = $true)][string]$PayloadDirectory
+    )
+
+    $actualNames = @(Get-ChildItem -LiteralPath $SymbolsDirectory -Recurse -File -Filter "*.pdb" |
+        ForEach-Object { $_.Name })
+    $requiredAssemblies = @(
+        Get-ChildItem -LiteralPath $PayloadDirectory -File -Filter "ExpressPackingMonitoring*.dll" |
+            ForEach-Object { $_.BaseName }
+    )
+    $missing = @(
+        $requiredAssemblies |
+            Where-Object {
+                Test-Path -LiteralPath (Join-Path $PayloadDirectory "$_.dll") -PathType Leaf
+            } |
+            Where-Object {
+                $actualNames -notcontains "$_.pdb"
+            } |
+            ForEach-Object { "$_.pdb" }
+    )
+    if ($missing.Count -gt 0) {
+        throw "Store 符号包缺少程序集符号：$($missing -join ', ')"
+    }
+}
+
 $makeappx = Resolve-SdkTool -Name "makeappx.exe"
 $makepri = Resolve-SdkTool -Name "makepri.exe"
 $signtool = Resolve-SdkTool -Name "signtool.exe"
@@ -155,11 +209,17 @@ if (-not $productDir.StartsWith($expectedPrefix, [System.StringComparison]::Ordi
 
 $payloadDir = Join-Path $productDir "payload"
 $msixPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".msix")
+$appxsymPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".appxsym")
+$symbolStagingDir = Join-Path $productDir ".appxsym-staging"
 
 $useExistingPayload = -not [string]::IsNullOrWhiteSpace($AppPayloadDir)
 if ($useExistingPayload) {
     if (-not (Test-Path -LiteralPath $AppPayloadDir -PathType Container)) {
         throw "找不到已构建的应用负载：$AppPayloadDir"
+    }
+    if ([string]::IsNullOrWhiteSpace($SymbolsDir) -or
+        -not (Test-Path -LiteralPath $SymbolsDir -PathType Container)) {
+        throw "复用已构建负载时必须提供 -SymbolsDir，确保 .appxsym 与应用二进制来自同一次编译"
     }
     $resolvedAppPayloadDir = (Resolve-Path -LiteralPath $AppPayloadDir).Path
     if (-not (Test-Path -LiteralPath (Join-Path $resolvedAppPayloadDir "ExpressPackingMonitoring.exe") -PathType Leaf) -or
@@ -202,8 +262,14 @@ else {
         -p:Version=$Version `
         -p:InformationalVersion=$Version `
         -p:IncludeSourceRevisionInInformationalVersion=false `
+        -p:PackingProofCollectStoreSymbols=true `
+        -p:DebugType=portable `
+        -p:DebugSymbols=true `
         -o $payloadDir
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败，退出码 $LASTEXITCODE" }
+
+    [System.IO.Directory]::CreateDirectory($symbolStagingDir) | Out-Null
+    [void](Copy-SymbolFiles -SourceDirectory $payloadDir -DestinationDirectory $symbolStagingDir -RemoveSource)
 
     # 主程序工程不会把 WinTts 的运行时复制进 publish 输出，按发布脚本的方式单独补三份。
     $winttsTemp = Join-Path $productDir ".wintts"
@@ -217,11 +283,22 @@ else {
             }
             Copy-Item -LiteralPath $source -Destination (Join-Path $payloadDir $file) -Force
         }
+        $winttsPdb = Join-Path $winttsTemp "ExpressPackingMonitoring.WinTts.pdb"
+        if (Test-Path -LiteralPath $winttsPdb -PathType Leaf) {
+            Copy-Item -LiteralPath $winttsPdb -Destination (Join-Path $symbolStagingDir "ExpressPackingMonitoring.WinTts.pdb") -Force
+        }
     }
     finally {
         Remove-Item -LiteralPath $winttsTemp -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+[System.IO.Directory]::CreateDirectory($symbolStagingDir) | Out-Null
+if (-not [string]::IsNullOrWhiteSpace($SymbolsDir)) {
+    [void](Copy-SymbolFiles -SourceDirectory $SymbolsDir -DestinationDirectory $symbolStagingDir)
+}
+[void](Copy-SymbolFiles -SourceDirectory $payloadDir -DestinationDirectory $symbolStagingDir -RemoveSource)
+Assert-RequiredStoreSymbols -SymbolsDirectory $symbolStagingDir -PayloadDirectory $payloadDir
 
 if (-not (Test-Path -LiteralPath (Join-Path $payloadDir "ExpressPackingMonitoring.exe") -PathType Leaf)) {
     throw "payload 里没有 ExpressPackingMonitoring.exe"
@@ -362,14 +439,46 @@ if ($Sign) {
     $signed = $true
 }
 
+if (Test-Path -LiteralPath $appxsymPath -PathType Leaf) {
+    Remove-Item -LiteralPath $appxsymPath -Force
+}
+$temporarySymbolArchive = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".appxsym.tmp.zip")
+if (Test-Path -LiteralPath $temporarySymbolArchive -PathType Leaf) {
+    Remove-Item -LiteralPath $temporarySymbolArchive -Force
+}
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory(
+    $symbolStagingDir,
+    $temporarySymbolArchive,
+    [System.IO.Compression.CompressionLevel]::Optimal,
+    $false)
+Move-Item -LiteralPath $temporarySymbolArchive -Destination $appxsymPath -Force
+Remove-Item -LiteralPath $symbolStagingDir -Recurse -Force
+
+$symbolArchive = [System.IO.Compression.ZipFile]::OpenRead($appxsymPath)
+try {
+    $symbolEntries = @($symbolArchive.Entries | Where-Object { $_.Name -like "*.pdb" })
+    if ($symbolEntries.Count -eq 0) {
+        throw "Store 符号包中没有 PDB 文件：$appxsymPath"
+    }
+}
+finally {
+    $symbolArchive.Dispose()
+}
+
 $hash = (Get-FileHash -LiteralPath $msixPath -Algorithm SHA256).Hash
 $sizeMb = [Math]::Round((Get-Item -LiteralPath $msixPath).Length / 1MB, 1)
+$symbolSizeMb = [Math]::Round((Get-Item -LiteralPath $appxsymPath).Length / 1MB, 1)
+$symbolHash = (Get-FileHash -LiteralPath $appxsymPath -Algorithm SHA256).Hash
 
 Write-Host ""
 Write-Host "MSIX 已生成"
 Write-Host "  路径：$msixPath"
 Write-Host "  大小：$sizeMb MB"
 Write-Host "  SHA256：$hash"
+Write-Host "  符号包：$appxsymPath"
+Write-Host "  符号包大小：$symbolSizeMb MB"
+Write-Host "  符号包 SHA256：$symbolHash"
 Write-Host "  Identity：$IdentityName"
 Write-Host "  Publisher：$Publisher"
 Write-Host "  Version：$packageVersion"

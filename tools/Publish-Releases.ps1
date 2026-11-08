@@ -229,6 +229,7 @@ Assert-SetupPayloadIntegrity `
     -AppDir $payloadAppDir
 $storeManifestPath = Join-Path $packageRoot $artifactNames.StoreManifestFileName
 $storePackagePath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StorePackageFileName
+$storeSymbolPath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StoreSymbolFileName
 # 精简 OpenCV 未获 Store 渠道放行时必须用 -SkipStorePackage 出包；
 # 当前正式发布仍强制校验同一版本的 Store 包。
 $storePackageRequired = -not $UpdateNotes -and -not $Prerelease
@@ -244,8 +245,13 @@ else {
     if (-not (Test-Path -LiteralPath $storePackagePath -PathType Leaf)) {
         throw "Store 包清单存在但 MSIX 不存在：$storePackagePath"
     }
+    if (-not (Test-Path -LiteralPath $storeSymbolPath -PathType Leaf)) {
+        throw "Store 包清单存在但符号包不存在：$storeSymbolPath"
+    }
     $storePackageHash = (Get-FileHash -LiteralPath $storePackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $storePackageSize = (Get-Item -LiteralPath $storePackagePath).Length
+    $storeSymbolHash = (Get-FileHash -LiteralPath $storeSymbolPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $storeSymbolSize = (Get-Item -LiteralPath $storeSymbolPath).Length
     if ([string]$storeManifest.package_file -ne (Split-Path -Leaf $storePackagePath)) {
         throw "Store 包清单文件名与 MSIX 不一致：$($storeManifest.package_file)"
     }
@@ -255,6 +261,22 @@ else {
     if ([string]$storeManifest.sha256 -ne $storePackageHash -or
         [long]$storeManifest.size -ne $storePackageSize) {
         throw "Store MSIX 的大小或 SHA256 与清单不一致，拒绝发布"
+    }
+    if ([string]$storeManifest.symbol_file -ne (Split-Path -Leaf $storeSymbolPath) -or
+        [string]$storeManifest.symbol_sha256 -ne $storeSymbolHash -or
+        [long]$storeManifest.symbol_size -ne $storeSymbolSize) {
+        throw "Store 符号包的文件名、大小或 SHA256 与清单不一致，拒绝发布"
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $storeSymbolArchive = [System.IO.Compression.ZipFile]::OpenRead($storeSymbolPath)
+    try {
+        $symbolEntries = @($storeSymbolArchive.Entries | Where-Object { $_.Name -like "*.pdb" })
+        if ($symbolEntries.Count -eq 0) {
+            throw "Store 符号包中没有 PDB 文件，拒绝发布"
+        }
+    }
+    finally {
+        $storeSymbolArchive.Dispose()
     }
 
     if (-not [string]::Equals(
