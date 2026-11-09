@@ -95,7 +95,7 @@ public partial class PlaybackWindow
 
         try
         {
-            PlayerView.MediaPlayer = null;
+            PlayerView.Detach(player);
         }
         catch (Exception ex)
         {

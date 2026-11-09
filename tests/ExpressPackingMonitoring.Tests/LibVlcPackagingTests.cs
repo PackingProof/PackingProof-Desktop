@@ -84,19 +84,29 @@ public sealed class LibVlcPackagingTests
     }
 
     [Fact]
-    public void PlaybackWindow_WaitsForVideoViewBeforeAttachingMediaPlayer()
+    public void PlaybackWindow_UsesOnlyTheEmbeddedNativeVideoHost()
     {
         string xaml = ReadRepositoryFile(
             "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml");
         string code = ReadRepositoryFile(
             "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs");
+        string host = ReadRepositoryFile(
+            "src", "ExpressPackingMonitoring", "UI", "VlcVideoHost.cs");
+        string project = ReadProject();
 
         Assert.Contains("Loaded=\"PlayerView_Loaded\"", xaml, StringComparison.Ordinal);
         int waitIndex = code.IndexOf("_playerViewLoaded.Task", StringComparison.Ordinal);
-        int attachIndex = code.IndexOf("PlayerView.MediaPlayer = _mediaPlayer", StringComparison.Ordinal);
+        int attachIndex = code.IndexOf("PlayerView.Attach(_mediaPlayer)", StringComparison.Ordinal);
         Assert.True(
             waitIndex >= 0 && attachIndex > waitIndex,
-            "VideoView 必须先完成加载再绑定 MediaPlayer，否则 libvlc 会创建独立的 Direct3D 输出窗口");
+            "视频宿主必须先完成加载并创建子 HWND，再绑定 MediaPlayer");
+        Assert.Contains("<ui:VlcVideoHost", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("LibVLCSharp.WPF", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("LibVLCSharp.WPF", project, StringComparison.Ordinal);
+        Assert.Contains("PackageReference Include=\"LibVLCSharp\"", project, StringComparison.Ordinal);
+        Assert.Contains("class VlcVideoHost : HwndHost", host, StringComparison.Ordinal);
+        Assert.Contains("player.Hwnd = _videoHwnd", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ForegroundWindow", host, StringComparison.Ordinal);
     }
 
     [Theory]

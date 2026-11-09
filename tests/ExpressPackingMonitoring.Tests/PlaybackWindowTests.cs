@@ -138,12 +138,12 @@ public sealed class PlaybackWindowTests
             "Task.Run(() =>\n                DisposePlaybackResourcesOnBackground",
             normalizedPlaybackSource,
             StringComparison.Ordinal);
-        Assert.Contains("PlayerView.MediaPlayer = null;", normalizedPlaybackSource, StringComparison.Ordinal);
+        Assert.Contains("PlayerView.Detach(player);", normalizedPlaybackSource, StringComparison.Ordinal);
         Assert.Contains("player?.Stop();", normalizedPlaybackSource, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void PlayerInitialization_RequiresAnEmbeddedVideoHandleBeforePlayback()
+    public void PlayerInitialization_RequiresTheManagedVideoHostBeforePlayback()
     {
         string windowSource = File.ReadAllText(FindRepositoryFile(
             "src",
@@ -151,7 +151,7 @@ public sealed class PlaybackWindowTests
             "UI",
             "PlaybackWindow.xaml.cs"));
 
-        Assert.Contains("if (_mediaPlayer.Hwnd == IntPtr.Zero)", windowSource, StringComparison.Ordinal);
+        Assert.Contains("if (!PlayerView.Attach(_mediaPlayer))", windowSource, StringComparison.Ordinal);
         Assert.Contains("内置播放器未能连接到回放窗口", windowSource, StringComparison.Ordinal);
     }
 

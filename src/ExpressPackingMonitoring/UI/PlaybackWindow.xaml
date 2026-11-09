@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:ExpressPackingMonitoring.UI.Controls"
         xmlns:loc="clr-namespace:ExpressPackingMonitoring.Localization"
-        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+        xmlns:ui="clr-namespace:ExpressPackingMonitoring.UI"
         Title="历史录像检索与回放" Height="700" Width="1100" MinHeight="560" MinWidth="920"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource WindowBackground}"
         Icon="/app.ico"
@@ -594,29 +594,29 @@
 
                 <!-- 1. 播放器填满可用区域，由 LibVLC 保持录像原始比例 -->
                 <Grid x:Name="VideoArea" Grid.Row="0" Background="{DynamicResource VideoSurfaceBackground}">
-                    <vlc:VideoView x:Name="PlayerView"
-                                   Background="{DynamicResource VideoSurfaceBackground}"
-                                   HorizontalAlignment="Stretch"
-                                   VerticalAlignment="Stretch"
-                                   Loaded="PlayerView_Loaded">
-                        <Border x:Name="PlaybackCover"
-                                Background="{DynamicResource PanelBackground}">
-                            <StackPanel HorizontalAlignment="Center"
-                                        VerticalAlignment="Center">
-                                <Path Data="{StaticResource FluentPlayIcon}"
-                                      Width="36"
-                                      Height="36"
-                                      Stretch="Uniform"
-                                      Fill="{DynamicResource TextMuted}"
-                                      HorizontalAlignment="Center"/>
-                                <TextBlock x:Name="PlaybackCoverText"
-                                           Text="请选择录像开始播放"
-                                           Margin="0,12,0,0"
-                                           Foreground="{DynamicResource TextSecondary}"
-                                           HorizontalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                    </vlc:VideoView>
+                    <ui:VlcVideoHost x:Name="PlayerView"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Stretch"
+                                     Visibility="Hidden"
+                                     Loaded="PlayerView_Loaded"/>
+                    <Border x:Name="PlaybackCover"
+                            Background="{DynamicResource PanelBackground}"
+                            Panel.ZIndex="1">
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Path Data="{StaticResource FluentPlayIcon}"
+                                  Width="36"
+                                  Height="36"
+                                  Stretch="Uniform"
+                                  Fill="{DynamicResource TextMuted}"
+                                  HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="PlaybackCoverText"
+                                       Text="请选择录像开始播放"
+                                       Margin="0,12,0,0"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <!-- 2. 控制条放在第 1 行 -->

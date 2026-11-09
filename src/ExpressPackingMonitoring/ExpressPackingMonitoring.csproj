@@ -67,7 +67,7 @@
     <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.2" />
     <PackageReference Include="Extended.Wpf.Toolkit" Version="5.0.0" />
-    <PackageReference Include="LibVLCSharp.WPF" Version="3.10.1" />
+    <PackageReference Include="LibVLCSharp" Version="3.10.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
     <PackageReference Include="MiniExcel" Version="1.45.0" />
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260226" />
@@ -180,6 +180,7 @@
     <Compile Include="Services\ClipboardHelper.cs" />
     <Compile Include="Services\PastedTextNormalizer.cs" />
     <Compile Include="UI\PlaybackTooltipPresenter.cs" />
+    <Compile Include="UI\VlcVideoHost.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
     <Compile Include="Services\MediaFoundation\MfInterop.cs" />
     <Compile Include="Services\MediaFoundation\MfPlatform.cs" />

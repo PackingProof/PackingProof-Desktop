@@ -1608,6 +1608,7 @@ namespace ExpressPackingMonitoring.UI
         {
             _awaitingFirstFrame = false;
             PlaybackCoverText.Text = message;
+            PlayerView.Visibility = Visibility.Hidden;
             PlaybackCover.Visibility = Visibility.Visible;
         }
 
@@ -1617,6 +1618,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             _awaitingFirstFrame = false;
+            PlayerView.Visibility = Visibility.Visible;
             PlaybackCover.Visibility = Visibility.Collapsed;
         }
 
@@ -1806,9 +1808,8 @@ namespace ExpressPackingMonitoring.UI
                 _mediaPlayer.Vout += MediaPlayer_Vout;
                 _mediaPlayer.Paused += MediaPlayer_Paused;
 
-                // VideoView 必须先完成模板应用并拿到原生 HWND，否则 libvlc 会自己创建一个
-                // 独立的 "VLC (Direct3D11 output)" 窗口，视频看起来就像从回放窗口里弹出去。
-                // 开窗时的初始化是异步的，列表自动选中第一段录像可能比 VideoView 的 Loaded 更早。
+                // 播放宿主必须先完成布局并创建子 HWND，否则 libvlc 会自己创建一个
+                // 独立的 "VLC (Direct3D11 output)" 窗口。
                 if (!PlayerView.IsLoaded)
                 {
                     await Task.WhenAny(
@@ -1817,24 +1818,15 @@ namespace ExpressPackingMonitoring.UI
                 }
                 if (_isClosing)
                     return false;
-                PlayerView.ApplyTemplate();
                 PlayerView.UpdateLayout();
-                PlayerView.MediaPlayer = _mediaPlayer;
-                await Dispatcher.Yield(DispatcherPriority.Loaded);
-                if (_isClosing)
-                    return false;
-                if (_mediaPlayer.Hwnd == IntPtr.Zero)
+                if (!PlayerView.Attach(_mediaPlayer))
                 {
-                    // 部分显卡/首次布局会更晚才建出 VideoView 的原生子窗口。
-                    // 必须重新挂接后再确认 HWND，否则 libvlc 会退回独立顶层窗口。
-                    PlayerView.UpdateLayout();
-                    PlayerView.MediaPlayer = null;
-                    PlayerView.MediaPlayer = _mediaPlayer;
                     await Dispatcher.Yield(DispatcherPriority.Loaded);
+                    PlayerView.UpdateLayout();
                 }
                 if (_isClosing)
                     return false;
-                if (_mediaPlayer.Hwnd == IntPtr.Zero)
+                if (!PlayerView.Attach(_mediaPlayer))
                     throw new InvalidOperationException("内置播放器未能连接到回放窗口");
 
                 BtnTogglePlay.IsEnabled = true;
@@ -1848,7 +1840,7 @@ namespace ExpressPackingMonitoring.UI
                 LibVLC? failedLibVLC = _libVLC;
                 _mediaPlayer = null;
                 _libVLC = null;
-                PlayerView.MediaPlayer = null;
+                PlayerView.Detach(failedPlayer);
                 if (failedPlayer != null)
                     DetachPlaybackMediaPlayerEvents(failedPlayer);
                 if (failedPlayer != null || failedLibVLC != null)
