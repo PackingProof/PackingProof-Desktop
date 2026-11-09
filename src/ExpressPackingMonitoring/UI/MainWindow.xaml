@@ -378,10 +378,6 @@
                                         <DataTrigger Binding="{Binding IsCameraSleeping, Mode=OneWay}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
-                                        <!-- 增强识别直接处理整帧，不再需要用户维护第二个取景框 -->
-                                        <DataTrigger Binding="{Binding IsCameraVisionFullFrameMode}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
                                         <!--
                                             识别改用副画面时收起来：这时是按副画面整帧解码的，
                                             主画面取景框既不起作用，又会叠在副画面上造成"框不对位"的错觉。
@@ -411,6 +407,43 @@
                                     </Style.Triggers>
                                 </Style>
                             </Grid.Style>
+                            <!--
+                                增强识别仍然只处理这块取景区域。开启后把完整虚线换成
+                                四个圆角 L 角，既明确实际输入范围，又不遮住面单本身。
+                            -->
+                            <Path x:Name="CameraVisionGuideCorners"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Top"
+                                  Stretch="None"
+                                  StrokeThickness="3"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  IsHitTestVisible="False">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCameraVisionGuideCornerMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource CameraCandidateStroke}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCameraBarcodeConfirmed}" Value="True">
+                                                <Setter Property="Stroke" Value="{StaticResource CameraConfirmedStroke}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsPreviewGuideEditing}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
                             <Rectangle x:Name="CameraBarcodeGuideBox"
                                        RadiusX="6" RadiusY="6" StrokeThickness="3" StrokeDashArray="6 3" IsHitTestVisible="False">
                                 <Rectangle.Style>
@@ -418,6 +451,15 @@
                                         <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
                                         <Setter Property="Fill" Value="{StaticResource CameraGuideFill}"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCameraVisionGuideCornerMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsPreviewGuideEditing}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
                                                 <Setter Property="Stroke" Value="{StaticResource CameraCandidateStroke}"/>
                                                 <Setter Property="Fill" Value="{StaticResource CameraCandidateFill}"/>
@@ -900,9 +942,6 @@
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsCameraSleeping, Mode=OneWay}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsCameraVisionFullFrameMode}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsBarcodeGuideVisible}" Value="False">

@@ -1,4 +1,5 @@
 using System.Windows;
+using CvRect = OpenCvSharp.Rect;
 
 namespace ExpressPackingMonitoring.Services;
 
@@ -145,6 +146,44 @@ public static class CameraBarcodeGuideLayout
             videoRect.Y + marginY * (1 + Clamp(geometry.OffsetY, -1, 1)),
             width,
             height);
+    }
+
+    /// <summary>
+    /// 把比例几何换算成摄像头帧里的实际裁剪矩形。识别和显示必须共用这里，
+    /// 否则模型看到的区域会与界面圈出的区域出现偏差。
+    /// </summary>
+    public static CvRect ToFrameRect(
+        int frameWidth,
+        int frameHeight,
+        CameraBarcodeGuideGeometry geometry)
+    {
+        if (frameWidth <= 0 || frameHeight <= 0)
+            return default;
+
+        double widthRatio = Clamp(geometry.WidthRatio, 0.1, 1.0);
+        double heightRatio = Clamp(geometry.HeightRatio, 0.1, 1.0);
+        double offsetX = Clamp(geometry.OffsetX, -1, 1);
+        double offsetY = Clamp(geometry.OffsetY, -1, 1);
+
+        int width = Math.Clamp(
+            (int)Math.Round(frameWidth * widthRatio),
+            1,
+            frameWidth);
+        int height = Math.Clamp(
+            (int)Math.Round(frameHeight * heightRatio),
+            1,
+            frameHeight);
+        double marginX = (frameWidth - width) / 2.0;
+        double marginY = (frameHeight - height) / 2.0;
+        int left = Math.Clamp(
+            (int)Math.Round(marginX * (1 + offsetX)),
+            0,
+            Math.Max(0, frameWidth - width));
+        int top = Math.Clamp(
+            (int)Math.Round(marginY * (1 + offsetY)),
+            0,
+            Math.Max(0, frameHeight - height));
+        return new CvRect(left, top, width, height);
     }
 
     /// <summary>把预览里的矩形换算回比例几何，超出的部分收回画面内</summary>

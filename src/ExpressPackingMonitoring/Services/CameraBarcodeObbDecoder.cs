@@ -70,13 +70,19 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             useGuideRegionFallback: !detectorAvailable);
     }
 
-    internal void DetectOnly(Mat frame)
+    internal void DetectOnly(
+        Mat frame,
+        double sourceOffsetX = 0,
+        double sourceOffsetY = 0)
     {
         LastObbDetections = [];
         LastSelectedObbDetection = null;
         if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
             return;
-        LastObbDetections = DetectDetections(frame).Detections;
+        LastObbDetections = DetectDetections(
+            frame,
+            sourceOffsetX,
+            sourceOffsetY).Detections;
     }
 
     internal void ReleaseDetector()
@@ -122,7 +128,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     }
 
     private (IReadOnlyList<VisionObbDetection> Detections, bool DetectorAvailable)
-        DetectDetections(Mat frame)
+        DetectDetections(
+            Mat frame,
+            double sourceOffsetX = 0,
+            double sourceOffsetY = 0)
     {
         (bool enabled, string path) = ReadSettings();
         IVisionObbDetector? detector = ResolveDetector(enabled, path);
@@ -132,6 +141,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             {
                 LastObbDetections = detector.Detect(frame)
                     .Take(VisionObbModelPolicy.MaxDetections)
+                    .Select(detection => TranslateDetection(
+                        detection,
+                        sourceOffsetX,
+                        sourceOffsetY))
                     .ToArray();
             }
             catch (Exception ex)
@@ -142,6 +155,19 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         }
         return (LastObbDetections, detector != null);
     }
+
+    internal static VisionObbDetection TranslateDetection(
+        in VisionObbDetection detection,
+        double sourceOffsetX,
+        double sourceOffsetY) =>
+        new(
+            detection.CenterX + sourceOffsetX,
+            detection.CenterY + sourceOffsetY,
+            detection.Width,
+            detection.Height,
+            detection.AngleDegrees,
+            detection.Score,
+            detection.ClassId);
 
     internal string? DecodeDetectedRegions(
         Mat frame,

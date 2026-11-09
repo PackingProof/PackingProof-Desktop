@@ -22,7 +22,7 @@ internal static class VisionObbRuntimePolicy
         && barcodeRecognitionEnabled
         && useOverlayBarcodeSource;
 
-    internal static bool ShouldUseFullFrameMode(
+    internal static bool ShouldUseGuideCornerMode(
         bool componentAvailable,
         bool recognitionEnabled,
         bool enhancedRecognitionEnabled,

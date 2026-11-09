@@ -798,26 +798,7 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         => GetGuideRect(width, height, CameraBarcodeGuideGeometry.Default);
 
     internal static Rect GetGuideRect(int width, int height, CameraBarcodeGuideGeometry geometry)
-    {
-        double widthRatio = Math.Clamp(geometry.WidthRatio, 0.1, 1.0);
-        double heightRatio = Math.Clamp(geometry.HeightRatio, 0.1, 1.0);
-        double offsetX = Math.Clamp(geometry.OffsetX, -1.0, 1.0);
-        double offsetY = Math.Clamp(geometry.OffsetY, -1.0, 1.0);
-
-        int guideWidth = Math.Clamp((int)Math.Round(width * widthRatio), 1, Math.Max(1, width));
-        int guideHeight = Math.Clamp((int)Math.Round(height * heightRatio), 1, Math.Max(1, height));
-        double marginX = (width - guideWidth) / 2.0;
-        double marginY = (height - guideHeight) / 2.0;
-        int left = Math.Clamp(
-            (int)Math.Round(marginX * (1 + offsetX)),
-            0,
-            Math.Max(0, width - guideWidth));
-        int top = Math.Clamp(
-            (int)Math.Round(marginY * (1 + offsetY)),
-            0,
-            Math.Max(0, height - guideHeight));
-        return new Rect(left, top, guideWidth, guideHeight);
-    }
+        => CameraBarcodeGuideLayout.ToFrameRect(width, height, geometry);
 
     private string? DecodeSingle(Mat frame, DecodeWorkspace workspace)
     {

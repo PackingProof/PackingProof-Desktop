@@ -15,6 +15,9 @@ public partial class MainWindow
     private const double MinObbAnimationDurationMs = 80;
     private const double MaxObbAnimationDurationMs = 240;
     private const double VisionObbCornerRadius = 6;
+    private const double VisionGuideStrokeThickness = 3;
+    private const double VisionGuideCornerRadius = 8;
+    private const double VisionGuideCornerLength = 28;
     private const long ObbTrackRetentionMs = 1500;
     private static readonly Brush VisionObbIdleStroke = new SolidColorBrush(Color.FromRgb(59, 130, 246));
     private static readonly Brush VisionObbIdleFill = new SolidColorBrush(Color.FromArgb(48, 59, 130, 246));
@@ -587,6 +590,89 @@ public partial class MainWindow
                 origin.X + corner.X * scale,
                 origin.Y + corner.Y * scale))
             .ToArray();
+    }
+
+    internal static PathGeometry BuildVisionGuideCornerGeometry(
+        double width,
+        double height)
+    {
+        var geometry = new PathGeometry();
+        if (!double.IsFinite(width)
+            || !double.IsFinite(height)
+            || width <= 0
+            || height <= 0)
+        {
+            return geometry;
+        }
+
+        // 描边以几何线为中心向两侧展开。向内收半个线宽，避免外半边被
+        // 画面边界裁掉后看起来比同线宽的虚线细。
+        double inset = VisionGuideStrokeThickness / 2;
+        double left = inset;
+        double top = inset;
+        double right = width - inset;
+        double bottom = height - inset;
+        if (right <= left || bottom <= top)
+            return geometry;
+
+        double shortest = Math.Min(right - left, bottom - top);
+        double length = Math.Min(
+            VisionGuideCornerLength,
+            shortest * 0.45);
+        double radius = Math.Min(
+            VisionGuideCornerRadius,
+            Math.Min(length * 0.45, shortest * 0.2));
+        if (length <= 0 || radius <= 0)
+            return geometry;
+
+        geometry.Figures.Add(BuildCornerFigure(
+            new Point(left, top + length),
+            new Point(left, top + radius),
+            new Point(left, top),
+            new Point(left + radius, top),
+            new Point(left + length, top)));
+        geometry.Figures.Add(BuildCornerFigure(
+            new Point(right - length, top),
+            new Point(right - radius, top),
+            new Point(right, top),
+            new Point(right, top + radius),
+            new Point(right, top + length)));
+        geometry.Figures.Add(BuildCornerFigure(
+            new Point(right, bottom - length),
+            new Point(right, bottom - radius),
+            new Point(right, bottom),
+            new Point(right - radius, bottom),
+            new Point(right - length, bottom)));
+        geometry.Figures.Add(BuildCornerFigure(
+            new Point(left + length, bottom),
+            new Point(left + radius, bottom),
+            new Point(left, bottom),
+            new Point(left, bottom - radius),
+            new Point(left, bottom - length)));
+        geometry.Freeze();
+        return geometry;
+    }
+
+    private static PathFigure BuildCornerFigure(
+        Point start,
+        Point lineEnd,
+        Point curveControl,
+        Point curveEnd,
+        Point finish)
+    {
+        var figure = new PathFigure
+        {
+            StartPoint = start,
+            IsClosed = false,
+            IsFilled = false
+        };
+        figure.Segments.Add(new LineSegment(lineEnd, isStroked: true));
+        figure.Segments.Add(new QuadraticBezierSegment(
+            curveControl,
+            curveEnd,
+            isStroked: true));
+        figure.Segments.Add(new LineSegment(finish, isStroked: true));
+        return figure;
     }
 }
 

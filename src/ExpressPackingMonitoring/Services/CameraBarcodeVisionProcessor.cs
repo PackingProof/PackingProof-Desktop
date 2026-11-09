@@ -18,12 +18,14 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
         CameraBarcodeFrameDecoder standardDecoder,
         Func<(bool Enabled, string Path)>? visionObbProvider,
         Func<bool>? cameraBarcodeDecodingEnabledProvider,
-        Func<bool>? visionObbDecodingEnabledProvider)
+        Func<bool>? visionObbDecodingEnabledProvider,
+        IVisionObbDetectorFactory? detectorFactory = null)
     {
         _decoder = new CameraBarcodeObbDecoder(
             standardDecoder,
             visionObbProvider,
-            visionObbDecodingEnabledProvider);
+            visionObbDecodingEnabledProvider,
+            detectorFactory);
         _cameraBarcodeDecodingEnabledProvider =
             cameraBarcodeDecodingEnabledProvider ?? (() => true);
         _visionObbDecodingEnabledProvider =
@@ -46,8 +48,24 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
     {
         lock (_gate)
         {
+            bool enhancedVisionEnabled = ReadProvider(
+                _visionObbDecodingEnabledProvider);
             if (updateVision)
-                _decoder.DetectOnly(frame);
+            {
+                if (enhancedVisionEnabled)
+                {
+                    Rect guide = CameraBarcodeGuideLayout.ToFrameRect(
+                        frame.Width,
+                        frame.Height,
+                        geometry);
+                    using var roi = new Mat(frame, guide);
+                    _decoder.DetectOnly(roi, guide.X, guide.Y);
+                }
+                else
+                {
+                    _decoder.DetectOnly(frame);
+                }
+            }
 
             if (!decodeBarcodes
                 || !ReadProvider(_cameraBarcodeDecodingEnabledProvider))
@@ -55,7 +73,7 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
                 return null;
             }
 
-            if (ReadProvider(_visionObbDecodingEnabledProvider))
+            if (enhancedVisionEnabled)
             {
                 return _decoder.DecodeCachedDetections(
                     frame,

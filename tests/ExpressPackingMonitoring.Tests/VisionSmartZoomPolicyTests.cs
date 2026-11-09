@@ -82,7 +82,7 @@ public sealed class VisionSmartZoomPolicyTests
     [InlineData(true, false, true, true, false)]
     [InlineData(true, true, false, true, false)]
     [InlineData(false, true, true, true, false)]
-    public void FullFrameModeRequiresAvailableModelAndBothFeatureSwitches(
+    public void GuideCornerModeRequiresAvailableModelAndBothFeatureSwitches(
         bool componentAvailable,
         bool recognitionEnabled,
         bool enhancedRecognitionEnabled,
@@ -91,7 +91,7 @@ public sealed class VisionSmartZoomPolicyTests
     {
         Assert.Equal(
             expected,
-            VisionObbRuntimePolicy.ShouldUseFullFrameMode(
+            VisionObbRuntimePolicy.ShouldUseGuideCornerMode(
                 componentAvailable,
                 recognitionEnabled,
                 enhancedRecognitionEnabled,
