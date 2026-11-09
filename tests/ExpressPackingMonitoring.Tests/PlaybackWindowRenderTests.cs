@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using ExpressPackingMonitoring.UI;
+using System.Reflection;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -81,6 +83,39 @@ public sealed class PlaybackWindowRenderTests
             window.Measure(new Size(1400, 900));
             window.Arrange(new Rect(0, 0, 1400, 900));
             window.UpdateLayout();
+        });
+    }
+
+    [Fact]
+    public void PreparationStateShowsIndeterminateProgressAndCanBeCleared()
+    {
+        RunOnStaThread(() =>
+        {
+            var window = new PlaybackWindow(
+                Path.GetTempPath(),
+                null,
+                true,
+                "本机");
+            var progress = Assert.IsType<ProgressBar>(
+                window.FindName("PlaybackPreparationProgress"));
+            var icon = Assert.IsType<System.Windows.Shapes.Path>(
+                window.FindName("PlaybackCoverIcon"));
+            MethodInfo showPreparing = Assert.IsAssignableFrom<MethodInfo>(
+                typeof(PlaybackWindow).GetMethod(
+                    "ShowPlaybackPreparing",
+                    BindingFlags.Instance | BindingFlags.NonPublic));
+            MethodInfo showCover = Assert.IsAssignableFrom<MethodInfo>(
+                typeof(PlaybackWindow).GetMethod(
+                    "ShowPlaybackCover",
+                    BindingFlags.Instance | BindingFlags.NonPublic));
+            _ = showPreparing.Invoke(window, ["正在转码，完成后会自动播放"]);
+            Assert.Equal(Visibility.Visible, progress.Visibility);
+            Assert.True(progress.IsIndeterminate);
+            Assert.Equal(Visibility.Collapsed, icon.Visibility);
+
+            _ = showCover.Invoke(window, ["请选择录像开始播放"]);
+            Assert.Equal(Visibility.Collapsed, progress.Visibility);
+            Assert.Equal(Visibility.Visible, icon.Visibility);
         });
     }
 }

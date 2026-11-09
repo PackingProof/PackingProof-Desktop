@@ -179,7 +179,9 @@
     <Compile Include="Services\CameraFrameOrientation.cs" />
     <Compile Include="Services\ClipboardHelper.cs" />
     <Compile Include="Services\PastedTextNormalizer.cs" />
+    <Compile Include="Services\PlaybackPreparationPolicy.cs" />
     <Compile Include="UI\PlaybackTooltipPresenter.cs" />
+    <Compile Include="UI\PlaybackWindow.Preparation.cs" />
     <Compile Include="UI\VlcVideoHost.cs" />
     <Compile Include="Services\NoCameraWorkstationHost.cs" />
     <Compile Include="Services\MediaFoundation\MfInterop.cs" />

@@ -97,7 +97,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 删除会改录像记录，纯查看端不给这个入口。
                     canDeleteRecords: DeploymentCapabilities
                         .ForPreset(Config.DeploymentPreset)
-                        .CanDeleteRecordings);
+                        .CanDeleteRecordings,
+                    prepareMkvForPlayback: PreparePlaybackVideoAsync);
                 // 先按最新那条录像把窗口尺寸定好，再显示：否则用户会先看到默认大小再跳一下。
                 await playbackWindow.PrepareInitialWindowSizeAsync();
                 _playbackWindow = playbackWindow;
@@ -144,6 +145,26 @@ namespace ExpressPackingMonitoring.ViewModels
                 playback.RefreshLatestVideos();
             });
         }
+
+        private Task<MkvConversionResult> PreparePlaybackVideoAsync(
+            VideoItem video,
+            string sourcePath,
+            CancellationToken cancellationToken) =>
+            Task.Run(() =>
+            {
+                MkvConversionResult result = ConvertMkvToMp4ForPlayback(
+                    sourcePath,
+                    cancellationToken,
+                    video?.VideoCodec);
+                if (result.Success)
+                    _db?.ClearMkvConversionFailure(sourcePath);
+                else
+                    _db?.RecordMkvConversionFailure(
+                        sourcePath,
+                        DateTime.Now,
+                        result.ErrorMessage);
+                return result;
+            }, cancellationToken);
 
         /// <summary>
         /// 批量将数据库中的旧 MKV 文件转换为 MP4（无损容器转换）

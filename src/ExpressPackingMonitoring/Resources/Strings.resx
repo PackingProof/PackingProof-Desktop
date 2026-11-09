@@ -975,6 +975,10 @@
   <data name="下载并准备更新" xml:space="preserve"><value>Download update</value></data>
   <data name="请选择录像开始播放" xml:space="preserve"><value>Select a recording</value></data>
   <data name="正在准备视频..." xml:space="preserve"><value>Preparing video...</value></data>
+  <data name="正在转码，完成后会自动播放" xml:space="preserve"><value>Transcoding. Playback will start automatically when it is ready</value></data>
+  <data name="主机正在准备兼容版本，完成后会自动播放" xml:space="preserve"><value>The host is preparing a compatible version. Playback will start automatically when it is ready</value></data>
+  <data name="录像暂时无法播放，请稍后重试" xml:space="preserve"><value>The recording cannot be played right now. Try again shortly</value></data>
+  <data name="录像仍在准备中，请稍后重新选择" xml:space="preserve"><value>The recording is still being prepared. Choose it again shortly</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>Video playback failed</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>Video decoding failed</value></data>
   <data name="导出诊断日志" xml:space="preserve"><value>Export logs</value></data>

@@ -305,6 +305,7 @@ public partial class PlaybackWindow
     /// </summary>
     private async Task StopAndDisposePlaybackForDeletionAsync()
     {
+        AbandonPlaybackPreparation();
         MediaPlayer? player = _mediaPlayer;
         PlaybackMediaSource? source = _currentMediaSource;
         _currentMediaSource = null;

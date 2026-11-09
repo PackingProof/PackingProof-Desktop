@@ -71,16 +71,17 @@ public sealed class LibVlcPackagingTests
         string source = ReadRepositoryFile(
             "src", "ExpressPackingMonitoring", "UI", "PlaybackMediaSource.cs");
         string playback = ReadRepositoryFile(
-            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.xaml.cs");
+            "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.Preparation.cs");
         string probe = ReadRepositoryFile(
             "src", "ExpressPackingMonitoring", "UI", "PlaybackWindow.Playback.cs");
 
         Assert.Contains("FileStream", source, StringComparison.Ordinal);
         Assert.Contains("StreamMediaInput", source, StringComparison.Ordinal);
         Assert.Contains("IsUncPath", source, StringComparison.Ordinal);
-        Assert.Contains("PlaybackMediaSource.Create(_libVLC!, video.FullPath)", playback, StringComparison.Ordinal);
+        Assert.Contains("PlaybackMediaSource.Create(", playback, StringComparison.Ordinal);
+        Assert.Contains("playbackPath);", playback, StringComparison.Ordinal);
         Assert.Contains("PlaybackMediaSource.Create(libVlc, path)", probe, StringComparison.Ordinal);
-        Assert.DoesNotContain("new Media(_libVLC!, new Uri(video.FullPath))", playback, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Media(_libVLC!, new Uri(playbackPath))", playback, StringComparison.Ordinal);
     }
 
     [Fact]

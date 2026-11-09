@@ -123,6 +123,11 @@ namespace ExpressPackingMonitoring.UI
         private readonly VideoFolderImportService? _videoImportService;
         private readonly Action<string>? _saveImportFolder;
         private readonly Action? _videosImported;
+        private readonly Func<
+            VideoItem,
+            string,
+            CancellationToken,
+            Task<MkvConversionResult>>? _prepareMkvForPlayback;
         private string _lastImportFolder;
         private readonly DispatcherTimer _timer;
         private readonly DispatcherTimer _searchTimer;
@@ -149,6 +154,12 @@ namespace ExpressPackingMonitoring.UI
         private readonly TaskCompletionSource<bool> _playerViewLoaded = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _awaitingFirstFrame;
+        private bool _isPreparingPlayback;
+        private int _playbackRequestVersion;
+        private CancellationTokenSource? _playbackPreparationCts;
+        private PlaybackPreparationResult? _lastPlaybackFallback;
+        private static readonly TimeSpan RemotePlaybackPreparationTimeout =
+            TimeSpan.FromMinutes(2);
         private int _currentPage = 1;
         private int _totalVideos;
         private bool _hasMoreVideoPages;
@@ -186,7 +197,12 @@ namespace ExpressPackingMonitoring.UI
             Action? videosImported = null,
             string localComputerName = "",
             IReadOnlyDictionary<string, string>? currentSourceDeviceNames = null,
-            bool canDeleteRecords = false)
+            bool canDeleteRecords = false,
+            Func<
+                VideoItem,
+                string,
+                CancellationToken,
+                Task<MkvConversionResult>>? prepareMkvForPlayback = null)
         {
             InitializeComponent();
             _folderPath = folderPath;
@@ -199,6 +215,7 @@ namespace ExpressPackingMonitoring.UI
             _lastImportFolder = lastImportFolder ?? "";
             _saveImportFolder = saveImportFolder;
             _videosImported = videosImported;
+            _prepareMkvForPlayback = prepareMkvForPlayback;
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _timer.Tick += Timer_Tick;
@@ -459,6 +476,7 @@ namespace ExpressPackingMonitoring.UI
                 if (_isClosing)
                     return;
 
+                AbandonPlaybackPreparation();
                 _timer.Stop();
                 _awaitingFirstFrame = false;
                 CancelAwaitingFirstFrame();
@@ -1369,6 +1387,8 @@ namespace ExpressPackingMonitoring.UI
             }
 
             _isClosing = true;
+            Interlocked.Increment(ref _playbackRequestVersion);
+            CancelPlaybackPreparation();
             BeginPlaybackShutdown();
         }
 
@@ -1416,74 +1436,6 @@ namespace ExpressPackingMonitoring.UI
 
             PlaySelectedVideo(video);
             UpdateLocateButtonState(video);
-        }
-
-        private async void PlaySelectedVideo(VideoItem video)
-        {
-            // 1. 尝试获取信号量，如果已经在切换中，则直接返回，防止疯狂点击导致的排队
-            if (!await _playerSemaphore.WaitAsync(0)) return;
-            PlaybackMediaSource? mediaSource = null;
-
-            try
-            {
-                if (!await EnsurePlayerReadyAsync())
-                    return;
-
-                // UI 状态立即重置
-                ShowPlaybackCover("正在准备视频...");
-                _timer.Stop();
-                _currentMediaLengthMs = 0;
-                SetTimelineMaximum(0);
-                SetTimelineValue(0);
-                TimeLabel.Text = "正在切换视频...";
-
-                // 起播前先按这段录像的分辨率把窗口调好（解析文件头，不依赖播放器状态）
-                await FitWindowToVideoBeforePlaybackAsync(video.FullPath);
-                if (_isClosing)
-                    return;
-
-                // 2. 在后台线程执行阻塞的 Stop 操作
-                await Task.Run(() =>
-                {
-                    _mediaPlayer?.Stop();
-                });
-                if (_isClosing)
-                    return;
-
-                DisposeCurrentMediaSource();
-
-                // 3. 准备新媒体
-                mediaSource = PlaybackMediaSource.Create(_libVLC!, video.FullPath);
-
-                // 增加一些优化参数，减少内存压力
-                mediaSource.Media.AddOption(":file-caching=300"); // 减小缓存
-                // 先以暂停状态打开媒体：等 libvlc 解出首帧、视频输出建好（见 PlaybackWindow.Playback.cs）
-                // 再放开播放。否则时钟立刻开始走，画面还没上屏的前几帧就被丢掉了。
-                mediaSource.Media.AddOption(":start-paused");
-
-                BeginAwaitingFirstFrame();
-                if (!_mediaPlayer!.Play(mediaSource.Media))
-                    throw new InvalidOperationException("播放器未能启动该文件");
-                _currentMediaSource = mediaSource;
-                mediaSource = null;
-
-                // 放开播放与开始计时都交给"首帧就绪"那一步，这里不再提前把状态改成播放中。
-            }
-            catch (Exception ex)
-            {
-                mediaSource?.Dispose();
-                DisposeCurrentMediaSource();
-                CancelAwaitingFirstFrame();
-                ShowPlaybackCover("视频播放失败");
-                UpdatePlayState(false);
-                if (!_isClosing)
-                    AppDialog.Error(this, $"视频播放失败：{ex.Message}", "播放错误");
-            }
-            finally
-            {
-                // 4. 释放信号量，允许下一次切换
-                _playerSemaphore.Release();
-            }
         }
 
         private void DisposeCurrentMediaSource()
@@ -1597,10 +1549,15 @@ namespace ExpressPackingMonitoring.UI
             CancelAwaitingFirstFrame();
             Dispatcher.Invoke(() =>
             {
-                ShowPlaybackCover("视频解码失败");
+                if (_isPreparingPlayback)
+                    return;
+
+                ShowPlaybackCover(GetPlaybackFailureMessage());
                 _timer.Stop();
                 UpdatePlayState(false);
-                AppDialog.Error(this, "播放器解码失败，请确认视频文件完整", "播放错误");
+                RuntimeLog.Warn(
+                    "Playback",
+                    "Media player reported a decoding error");
             });
         }
 
@@ -1608,6 +1565,8 @@ namespace ExpressPackingMonitoring.UI
         {
             _awaitingFirstFrame = false;
             PlaybackCoverText.Text = message;
+            PlaybackCoverIcon.Visibility = Visibility.Visible;
+            PlaybackPreparationProgress.Visibility = Visibility.Collapsed;
             PlayerView.Visibility = Visibility.Hidden;
             PlaybackCover.Visibility = Visibility.Visible;
         }

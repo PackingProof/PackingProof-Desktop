@@ -974,6 +974,10 @@
   <data name="下载并准备更新" xml:space="preserve"><value>更新をダウンロード</value></data>
   <data name="请选择录像开始播放" xml:space="preserve"><value>録画を選択</value></data>
   <data name="正在准备视频..." xml:space="preserve"><value>動画を準備中...</value></data>
+  <data name="正在转码，完成后会自动播放" xml:space="preserve"><value>トランスコード中です。準備が完了すると自動的に再生します</value></data>
+  <data name="主机正在准备兼容版本，完成后会自动播放" xml:space="preserve"><value>ホストが互換バージョンを準備しています。完了すると自動的に再生します</value></data>
+  <data name="录像暂时无法播放，请稍后重试" xml:space="preserve"><value>現在この録画を再生できません。しばらくしてから再試行してください</value></data>
+  <data name="录像仍在准备中，请稍后重新选择" xml:space="preserve"><value>録画はまだ準備中です。しばらくしてからもう一度選択してください</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>動画の再生に失敗しました</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>動画のデコードに失敗しました</value></data>
   <data name="导出诊断日志" xml:space="preserve"><value>診断ログを保存</value></data>

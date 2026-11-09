@@ -968,6 +968,10 @@
   <data name="下载并准备更新" xml:space="preserve"><value>下载并准备更新</value></data>
   <data name="请选择录像开始播放" xml:space="preserve"><value>请选择录像开始播放</value></data>
   <data name="正在准备视频..." xml:space="preserve"><value>正在准备视频...</value></data>
+  <data name="正在转码，完成后会自动播放" xml:space="preserve"><value>正在转码，完成后会自动播放</value></data>
+  <data name="主机正在准备兼容版本，完成后会自动播放" xml:space="preserve"><value>主机正在准备兼容版本，完成后会自动播放</value></data>
+  <data name="录像暂时无法播放，请稍后重试" xml:space="preserve"><value>录像暂时无法播放，请稍后重试</value></data>
+  <data name="录像仍在准备中，请稍后重新选择" xml:space="preserve"><value>录像仍在准备中，请稍后重新选择</value></data>
   <data name="视频播放失败" xml:space="preserve"><value>视频播放失败</value></data>
   <data name="视频解码失败" xml:space="preserve"><value>视频解码失败</value></data>
   <data name="导出诊断日志" xml:space="preserve"><value>导出诊断日志</value></data>
