@@ -97,6 +97,18 @@ public sealed class CameraVisionEnablePolicyTests
     }
 
     [Fact]
+    public void RoiPreprocessingUsesANewBenchmarkPolicyVersion()
+    {
+        Assert.Equal(3, AppConfig.CurrentCameraVisionPolicyVersion);
+        Assert.Equal(
+            "model-sha:3:1920x1080",
+            CameraVisionAutoEnablePolicy.BuildBenchmarkInput(
+                "model-sha",
+                1920,
+                1080));
+    }
+
+    [Fact]
     public void BenchmarkCacheRoundTripsMultipleResolutions()
     {
         var config = new AppConfig
