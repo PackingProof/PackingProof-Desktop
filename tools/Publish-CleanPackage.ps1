@@ -4,6 +4,7 @@ param(
     [string]$OutputDir = "",
     [string]$ZipPath = "",
     [string]$Version = "",
+    [string]$AppRuntimeFrameworkVersion = "10.0.13",
     [string]$BaselineAppDir = "",
     [string]$BaselineLauncherPath = "",
     [string]$BaselineLauncherManifestPath = "",
@@ -1384,6 +1385,7 @@ $appPublishArguments = @(
     # 自包含发布：老启动器只能装 app\ 内的条目（它不认 root 落点），所以增量包里的应用必须自带运行时；
     # 共享布局由主程序首次启动时按 app\runtime-seed\ 用硬链接落成（见 RuntimeLayoutSeeder）。
     "--self-contained", "true",
+    "-p:PackingProofAppRuntimeFrameworkVersion=$AppRuntimeFrameworkVersion",
     "-p:InformationalVersion=$informationalVersion",
     "-p:IncludeSourceRevisionInInformationalVersion=false",
     "-p:GitCommitId=$gitCommitId",

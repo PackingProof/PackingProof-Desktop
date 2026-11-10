@@ -11,6 +11,7 @@
       现在由共享运行时布局根治）。自包含只用于跨机用的分发形态，由发布脚本显式传参。
     -->
     <SelfContained>false</SelfContained>
+    <RuntimeFrameworkVersion Condition="'$(PackingProofAppRuntimeFrameworkVersion)' != ''">$(PackingProofAppRuntimeFrameworkVersion)</RuntimeFrameworkVersion>
     <UseRidGraph>true</UseRidGraph>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

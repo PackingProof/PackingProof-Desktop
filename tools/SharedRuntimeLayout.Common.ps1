@@ -124,7 +124,16 @@ function Resolve-SharedRuntimeSource {
         }
 
         $root = Join-Path (Join-Path $DotNetRoot 'shared') $framework.Name
-        $directory = Get-HighestSharedVersionDirectory -Root $root -MajorMinor $prefix
+        # 优先使用应用实际声明的精确补丁版本。机器上同时安装多个补丁版本时，
+        # 不能擅自选择更高版本，否则自包含产物和 runtime-seed 会来自不同版本，
+        # AppPatch 会意外携带整套运行时。
+        $exactDirectory = Join-Path $root $required.ToString()
+        $directory = if (Test-Path -LiteralPath $exactDirectory -PathType Container) {
+            $exactDirectory
+        }
+        else {
+            Get-HighestSharedVersionDirectory -Root $root -MajorMinor $prefix
+        }
         if ($directory.Length -eq 0) {
             throw "找不到共享框架 $($framework.Name) $prefix.x：$root（请安装对应 .NET 运行时）"
         }
@@ -140,10 +149,18 @@ function Resolve-SharedRuntimeSource {
             })
     }
 
-    # hostfxr 与框架按同一 major.minor 搭配；hostfxr 的补丁号可以低于框架补丁号（已实测）。
-    $hostFxrDirectory = Get-HighestSharedVersionDirectory -Root (Join-Path $DotNetRoot 'host\fxr') -MajorMinor $majorMinor
+    # hostfxr 与框架按同一 major.minor 搭配；优先与应用声明的补丁版本保持一致。
+    $hostFxrRoot = Join-Path $DotNetRoot 'host\fxr'
+    $preferredHostFxrVersion = [string]$Requirements.Frameworks[0].Version
+    $exactHostFxrDirectory = Join-Path $hostFxrRoot $preferredHostFxrVersion
+    $hostFxrDirectory = if (Test-Path -LiteralPath $exactHostFxrDirectory -PathType Container) {
+        $exactHostFxrDirectory
+    }
+    else {
+        Get-HighestSharedVersionDirectory -Root $hostFxrRoot -MajorMinor $majorMinor
+    }
     if ($hostFxrDirectory.Length -eq 0) {
-        throw "找不到 host\fxr\$majorMinor.x：$(Join-Path $DotNetRoot 'host\fxr')"
+        throw "找不到 host\fxr\$majorMinor.x：$hostFxrRoot"
     }
 
     return [pscustomobject]@{

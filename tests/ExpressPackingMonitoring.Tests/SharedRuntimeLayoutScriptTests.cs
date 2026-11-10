@@ -59,6 +59,24 @@ public sealed class SharedRuntimeLayoutScriptTests
     }
 
     [Fact]
+    public void Build_PrefersTheExactRuntimeVersionDeclaredByTheApp()
+    {
+        using var fixture = new Fixture(requiredNetCoreVersion: "8.0.31");
+        fixture.AddHostFxrVersion("8.0.31");
+        fixture.AddNewerRuntimeVersion("8.0.32", "8.0.12");
+
+        ProcessResult build = fixture.Build();
+
+        Assert.True(build.ExitCode == 0, build.Output + build.Error);
+        using JsonDocument manifest = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(fixture.LayoutPath, "layout.json"), Encoding.UTF8));
+        JsonElement root = manifest.RootElement;
+        Assert.Equal("8.0.31", root.GetProperty("hostFxrVersion").GetString());
+        foreach (JsonElement framework in root.GetProperty("frameworks").EnumerateArray())
+            Assert.Equal(Fixture.RuntimeVersion, framework.GetProperty("version").GetString());
+    }
+
+    [Fact]
     public void Verify_DetectsTamperedFile()
     {
         using var fixture = new Fixture();
@@ -184,6 +202,21 @@ public sealed class SharedRuntimeLayoutScriptTests
 
         /// <summary>布局里应有的文件数：dotnet.exe + hostfxr + 两个框架各 4 个文件。</summary>
         public int ExpectedLayoutFileCount => 1 + 1 + 4 + 4;
+
+        public void AddHostFxrVersion(string version)
+            => WriteFile(Path.Combine(_dotNetRoot, "host", "fxr", version, "hostfxr.dll"), "exact-hostfxr");
+
+        public void AddNewerRuntimeVersion(string runtimeVersion, string hostFxrVersion)
+        {
+            WriteFile(Path.Combine(_dotNetRoot, "host", "fxr", hostFxrVersion, "hostfxr.dll"), "newer-hostfxr");
+            foreach (string framework in new[] { "Microsoft.NETCore.App", "Microsoft.WindowsDesktop.App" })
+            {
+                string frameworkRoot = Path.Combine(_dotNetRoot, "shared", framework, runtimeVersion);
+                WriteFile(Path.Combine(frameworkRoot, framework + ".deps.json"), "{}");
+                WriteFile(Path.Combine(frameworkRoot, framework + ".runtimeconfig.json"), "{}");
+                WriteFile(Path.Combine(frameworkRoot, "newer-only.dll"), "newer");
+            }
+        }
 
         public ProcessResult Build()
         {

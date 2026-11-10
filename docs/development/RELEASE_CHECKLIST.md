@@ -42,6 +42,7 @@
 - 完整包包含预生成的默认 Edge TTS 语音缓存，首次使用固定文案不需要现场生成
 - 增量包不包含 TTS 缓存，并验证补丁清单、`update_vX.Y.Z.json`、启动器基线清单、标签和程序版本号一致
 - 发布前把仓根 `Directory.Build.props` 的 `<Version>` 更新为本次版本（这是唯一的版本来源，工程文件不得再各自写 `<Version>`），并与 `vX.Y.Z` 标签、`update_vX.Y.Z.json` 保持一致
+- AppPatch 运行时稳定性核对：默认必须保持 `-AppRuntimeFrameworkVersion 10.0.13`，打包日志不得出现“检测到 .NET/WPF 运行时发生变化”；如确需升级应用运行时，必须改走完整包/Store 发布并重新评估补丁体积
 - 补丁基线：0.0.83、0.0.84 历史发布使用 `-PatchBaselineVersion 0.0.18`；**0.0.84 之后的下一个正式版（0.0.86）起统一使用 `-PatchBaselineVersion 0.0.84`**，0.0.85 从未正式发布，不单独作为基线版本；把 0.0.84 定成所有老装机必须经过的补丁基线。低于 0.0.84 的客户端会先通过 0.0.84 的 `update_v0.0.84.json` 与 AppPatch 自动升到基线，再继续升级到 0.0.86；只有中间基线包不可用时才提示完整安装包，因此 0.0.84 的 Release 与 AppPatch 必须保留。**主动强制完整包的标志位是 `patch_supported: false`**；`required_launcher_protocol` 只会先触发启动器更新，不是强制完整包。打包脚本会拒绝 0.0.86+ 使用更低的基线；`tools\打包脚本-增量.bat` 和 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`
 - 自包含发布形态核对：`app\` 有 `coreclr.dll`/`hostfxr.dll`、包根没有 `runtime\`、`app\runtime-seed\layout.json` 与布局清单逐文件一致；`pwsh -NoProfile -File tools\Test-RuntimeLayoutSeed.ps1` 全绿（含"框架依赖的探针带 DOTNET_ROOT 从落成的布局加载运行时"）
 - 升级时序字段核对：带 `root=runtime` 载荷的补丁必须声明 `required_launcher_protocol >= 2`；`launcher_package.required_app_protocol` 只在"新启动器需要更新的主程序"时才填

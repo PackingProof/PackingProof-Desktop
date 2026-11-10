@@ -735,6 +735,38 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Packaging_PinsAppRuntimeToKeepAppPatchSmall()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string publishScript = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Publish-CleanPackage.ps1"),
+            Encoding.UTF8);
+        string runtimeCommon = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "SharedRuntimeLayout.Common.ps1"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "[string]$AppRuntimeFrameworkVersion = \"10.0.13\"",
+            publishScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "\"-p:PackingProofAppRuntimeFrameworkVersion=$AppRuntimeFrameworkVersion\"",
+            publishScript,
+            StringComparison.Ordinal);
+        string appProject = File.ReadAllText(
+            Path.Combine(repositoryRoot, "src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"),
+            Encoding.UTF8);
+        Assert.Contains(
+            "<RuntimeFrameworkVersion Condition=\"'$(PackingProofAppRuntimeFrameworkVersion)' != ''\">$(PackingProofAppRuntimeFrameworkVersion)</RuntimeFrameworkVersion>",
+            appProject,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "优先使用应用实际声明的精确补丁版本",
+            runtimeCommon,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Packaging_EnforcesModernPatchBaselineAndDocsAgree()
     {
         string repositoryRoot = FindRepositoryRoot();
