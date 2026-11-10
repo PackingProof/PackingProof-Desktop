@@ -409,9 +409,10 @@
                             </Grid.Style>
                             <!--
                                 增强识别仍然只处理这块取景区域。开启后把完整虚线换成
-                                四个圆角 L 角，既明确实际输入范围，又不遮住面单本身。
+                                四个圆角 L 角和四边中点短线，既明确实际输入范围，
+                                又不遮住面单本身。
                             -->
-                            <Path x:Name="CameraVisionGuideCorners"
+                            <Path x:Name="CameraVisionGuideMarkers"
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Top"
                                   Stretch="None"
@@ -425,7 +426,7 @@
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCameraVisionGuideCornerMode}" Value="True">
+                                            <DataTrigger Binding="{Binding IsCameraVisionGuideMarkerMode}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeCandidate}" Value="True">
@@ -451,7 +452,7 @@
                                         <Setter Property="Stroke" Value="{StaticResource CameraGuideStroke}"/>
                                         <Setter Property="Fill" Value="{StaticResource CameraGuideFill}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCameraVisionGuideCornerMode}" Value="True">
+                                            <DataTrigger Binding="{Binding IsCameraVisionGuideMarkerMode}" Value="True">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">

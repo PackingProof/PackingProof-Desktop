@@ -22,7 +22,7 @@ internal static class VisionObbRuntimePolicy
         && barcodeRecognitionEnabled
         && useOverlayBarcodeSource;
 
-    internal static bool ShouldUseGuideCornerMode(
+    internal static bool ShouldUseGuideMarkerMode(
         bool componentAvailable,
         bool recognitionEnabled,
         bool enhancedRecognitionEnabled,

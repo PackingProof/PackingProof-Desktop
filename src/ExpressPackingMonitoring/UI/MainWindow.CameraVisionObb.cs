@@ -18,6 +18,7 @@ public partial class MainWindow
     private const double VisionGuideStrokeThickness = 3;
     private const double VisionGuideCornerRadius = 8;
     private const double VisionGuideCornerLength = 28;
+    private const double VisionGuideMidpointLength = 18;
     private const long ObbTrackRetentionMs = 1500;
     private static readonly Brush VisionObbIdleStroke = new SolidColorBrush(Color.FromRgb(59, 130, 246));
     private static readonly Brush VisionObbIdleFill = new SolidColorBrush(Color.FromArgb(48, 59, 130, 246));
@@ -592,7 +593,7 @@ public partial class MainWindow
             .ToArray();
     }
 
-    internal static PathGeometry BuildVisionGuideCornerGeometry(
+    internal static PathGeometry BuildVisionGuideMarkerGeometry(
         double width,
         double height)
     {
@@ -649,6 +650,25 @@ public partial class MainWindow
             new Point(left, bottom),
             new Point(left, bottom - radius),
             new Point(left, bottom - length)));
+
+        double midpointLength = Math.Min(
+            VisionGuideMidpointLength,
+            Math.Max(4, shortest * 0.18));
+        double halfMidpoint = midpointLength / 2;
+        double centerX = (left + right) / 2;
+        double centerY = (top + bottom) / 2;
+        geometry.Figures.Add(BuildMarkerLine(
+            new Point(centerX - halfMidpoint, top),
+            new Point(centerX + halfMidpoint, top)));
+        geometry.Figures.Add(BuildMarkerLine(
+            new Point(right, centerY - halfMidpoint),
+            new Point(right, centerY + halfMidpoint)));
+        geometry.Figures.Add(BuildMarkerLine(
+            new Point(centerX + halfMidpoint, bottom),
+            new Point(centerX - halfMidpoint, bottom)));
+        geometry.Figures.Add(BuildMarkerLine(
+            new Point(left, centerY + halfMidpoint),
+            new Point(left, centerY - halfMidpoint)));
         geometry.Freeze();
         return geometry;
     }
@@ -672,6 +692,18 @@ public partial class MainWindow
             curveEnd,
             isStroked: true));
         figure.Segments.Add(new LineSegment(finish, isStroked: true));
+        return figure;
+    }
+
+    private static PathFigure BuildMarkerLine(Point start, Point end)
+    {
+        var figure = new PathFigure
+        {
+            StartPoint = start,
+            IsClosed = false,
+            IsFilled = false
+        };
+        figure.Segments.Add(new LineSegment(end, isStroked: true));
         return figure;
     }
 }

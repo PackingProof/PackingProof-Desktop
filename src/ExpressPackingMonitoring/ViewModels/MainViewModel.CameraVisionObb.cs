@@ -87,8 +87,8 @@ public partial class MainViewModel
         RuntimeLog.Info("CameraVision", "主界面已显示，开始启用增强识别");
     }
 
-    public bool IsCameraVisionGuideCornerMode =>
-        VisionObbRuntimePolicy.ShouldUseGuideCornerMode(
+    public bool IsCameraVisionGuideMarkerMode =>
+        VisionObbRuntimePolicy.ShouldUseGuideMarkerMode(
             IsVisionObbAvailable,
             IsCameraBarcodeRecognitionEnabled,
             Config?.EnableCameraBarcodeEnhancedRecognition == true
@@ -322,7 +322,7 @@ public partial class MainViewModel
         if (_cameraVisionModelAvailable == available)
             return;
         _cameraVisionModelAvailable = available;
-        OnPropertyChanged(nameof(IsCameraVisionGuideCornerMode));
+        OnPropertyChanged(nameof(IsCameraVisionGuideMarkerMode));
         NotifyCameraVisionGuideStateChanged();
     }
 

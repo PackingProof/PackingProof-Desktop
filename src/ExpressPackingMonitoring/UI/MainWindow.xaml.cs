@@ -515,7 +515,7 @@ namespace ExpressPackingMonitoring.UI
                 CameraBarcodeGuide.Width = 0;
                 CameraBarcodeGuide.Height = 0;
                 CameraBarcodeGuide.RenderTransform = null;
-                CameraVisionGuideCorners.Data = null;
+                CameraVisionGuideMarkers.Data = null;
                 return;
             }
 
@@ -565,15 +565,15 @@ namespace ExpressPackingMonitoring.UI
                 CameraBarcodeGuide.Width = 0;
                 CameraBarcodeGuide.Height = 0;
                 CameraBarcodeGuide.RenderTransform = null;
-                CameraVisionGuideCorners.Data = null;
+                CameraVisionGuideMarkers.Data = null;
                 return;
             }
 
             CameraBarcodeGuide.Width = guideRect.Width;
             CameraBarcodeGuide.Height = guideRect.Height;
             CameraBarcodeGuideBox.StrokeThickness = VisionGuideStrokeThickness;
-            CameraVisionGuideCorners.StrokeThickness = VisionGuideStrokeThickness;
-            CameraVisionGuideCorners.Data = BuildVisionGuideCornerGeometry(
+            CameraVisionGuideMarkers.StrokeThickness = VisionGuideStrokeThickness;
+            CameraVisionGuideMarkers.Data = BuildVisionGuideMarkerGeometry(
                 guideRect.Width,
                 guideRect.Height);
             // 取景框的位置是在"画面"（VideoImage）坐标系里算出来的，而框是挂在预览容器上的：
@@ -589,7 +589,7 @@ namespace ExpressPackingMonitoring.UI
             // 画中画在主摄识别框之上：被小窗盖住的那段框线要真的被遮掉，不能透出来。
             // 只裁框体本身，别裁到四角把手和拖动命中层（它们要留在框外一点）。
             CameraBarcodeGuideBox.Clip = BuildGuideClip(guideRect, ResolveOverlayOccluders(vm, actualW, actualH));
-            CameraVisionGuideCorners.Clip = CameraBarcodeGuideBox.Clip;
+            CameraVisionGuideMarkers.Clip = CameraBarcodeGuideBox.Clip;
 
             // 小锁与提示是独立的一层（铺满整块预览、在最顶层）：居中放在取景框顶部内侧，
             // 再整体夹进预览范围内 —— 框很窄、或者贴着预览边缘时也不会被预览边界裁掉。

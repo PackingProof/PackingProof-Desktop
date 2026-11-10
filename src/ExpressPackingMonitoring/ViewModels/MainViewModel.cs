@@ -668,7 +668,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         RefreshPreRecordBufferCapacityAfterConfigChange();
                     }
                     OnPropertyChanged(nameof(IsCameraBarcodeRecognitionEnabled));
-                    OnPropertyChanged(nameof(IsCameraVisionGuideCornerMode));
+                    OnPropertyChanged(nameof(IsCameraVisionGuideMarkerMode));
                     OnPropertyChanged(nameof(IsCameraVisionGuideSuppressed));
                     OnPropertyChanged(nameof(IsCameraBarcodeGuideEditable));
                     UpdateCameraVisionSmartZoomTarget();

@@ -141,19 +141,20 @@ public sealed class CameraVisionGuideRoiTests
     }
 
     [Fact]
-    public void CornerGeometryContainsFourRoundedLFramesWithoutACompleteBorder()
+    public void MarkerGeometryContainsRoundedCornersAndFourMidpointSegments()
     {
-        PathGeometry geometry = MainWindow.BuildVisionGuideCornerGeometry(
+        PathGeometry geometry = MainWindow.BuildVisionGuideMarkerGeometry(
             width: 240,
             height: 160);
 
-        Assert.Equal(4, geometry.Figures.Count);
+        Assert.Equal(8, geometry.Figures.Count);
         Assert.Equal(1.5, geometry.Bounds.Left, 3);
         Assert.Equal(1.5, geometry.Bounds.Top, 3);
         Assert.Equal(238.5, geometry.Bounds.Right, 3);
         Assert.Equal(158.5, geometry.Bounds.Bottom, 3);
         Assert.All(
-            geometry.Figures,
+            geometry.Figures.Where(figure =>
+                figure.Segments.OfType<QuadraticBezierSegment>().Any()),
             figure =>
             {
                 Assert.False(figure.IsClosed);
@@ -161,6 +162,11 @@ public sealed class CameraVisionGuideRoiTests
                 Assert.Single(figure.Segments.OfType<QuadraticBezierSegment>());
                 Assert.Equal(2, figure.Segments.OfType<LineSegment>().Count());
             });
+        Assert.Equal(
+            4,
+            geometry.Figures.Count(figure =>
+                figure.Segments.Count == 1
+                && figure.Segments[0] is LineSegment));
     }
 
     [Fact]
@@ -172,7 +178,7 @@ public sealed class CameraVisionGuideRoiTests
             "UI",
             "MainWindow.xaml");
         int cornerPath = xaml.IndexOf(
-            "x:Name=\"CameraVisionGuideCorners\"",
+            "x:Name=\"CameraVisionGuideMarkers\"",
             StringComparison.Ordinal);
         int guideBox = xaml.IndexOf(
             "x:Name=\"CameraBarcodeGuideBox\"",
@@ -180,7 +186,7 @@ public sealed class CameraVisionGuideRoiTests
 
         Assert.True(cornerPath >= 0 && guideBox > cornerPath);
         Assert.Contains(
-            "{Binding IsCameraVisionGuideCornerMode}",
+            "{Binding IsCameraVisionGuideMarkerMode}",
             xaml,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -210,7 +216,7 @@ public sealed class CameraVisionGuideRoiTests
             const int height = 200;
             var path = new WpfPath
             {
-                Data = MainWindow.BuildVisionGuideCornerGeometry(
+                Data = MainWindow.BuildVisionGuideMarkerGeometry(
                     width,
                     height),
                 Stroke = Brushes.Black,
