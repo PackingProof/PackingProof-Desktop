@@ -39,6 +39,98 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordedMp4PathWithAdjacentMkvUsesLocalValidationWithoutSidecar()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        string mp4Path = CreateFile("recording.mp4", "mp4");
+        bool converterCalled = false;
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mp4Path,
+                _ =>
+                {
+                    converterCalled = true;
+                    return Task.FromResult(
+                        MkvConversionResult.Ok(mp4Path));
+                },
+                TimeSpan.FromSeconds(1),
+                CancellationToken.None);
+
+        Assert.True(converterCalled);
+        Assert.Equal(mkvPath, PlaybackPreparationPolicy.ResolveSourcePath(mp4Path));
+        Assert.Equal(PlaybackPreparationState.Ready, result.State);
+        Assert.Equal(mp4Path, result.FilePath);
+    }
+
+    [Fact]
+    public async Task RemotePreparationUsesExistingMp4WhenOnlyTheHostCanValidateIt()
+    {
+        _ = CreateFile("recording.mkv", "mkv");
+        string mp4Path = CreateFile("recording.mp4", "mp4");
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mp4Path,
+                converter: null,
+                waitTimeout: TimeSpan.FromSeconds(1),
+                cancellationToken: CancellationToken.None);
+
+        Assert.Equal(PlaybackPreparationState.Ready, result.State);
+        Assert.Equal(mp4Path, result.FilePath);
+    }
+
+    [Fact]
+    public async Task RecordedMp4PathWithRecoverySidecarWaitsForSourceMkvHostConversion()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        string mp4Path = CreateFile("recording.mp4", "incomplete");
+        CreateFile("recording.wav", "audio");
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mp4Path,
+                converter: null,
+                waitTimeout: TimeSpan.FromMilliseconds(40),
+                cancellationToken: CancellationToken.None,
+                pollInterval: TimeSpan.FromMilliseconds(10));
+
+        Assert.Equal(mkvPath, PlaybackPreparationPolicy.ResolveSourcePath(mp4Path));
+        Assert.Equal(
+            PlaybackPreparationState.FallbackSource,
+            result.State);
+        Assert.True(result.TimedOut);
+        Assert.Equal(mkvPath, result.FilePath);
+    }
+
+    [Fact]
+    public async Task RecordedMp4PathWithRecoverySidecarUsesValidatedLocalConversion()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        string mp4Path = CreateFile("recording.mp4", "incomplete");
+        CreateFile("recording.embedded-audio", "audio");
+        bool converterCalled = false;
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mp4Path,
+                _ =>
+                {
+                    converterCalled = true;
+                    File.WriteAllText(mp4Path, "mp4");
+                    return Task.FromResult(
+                        MkvConversionResult.Ok(mp4Path));
+                },
+                TimeSpan.FromSeconds(1),
+                CancellationToken.None);
+
+        Assert.True(converterCalled);
+        Assert.Equal(mkvPath, PlaybackPreparationPolicy.ResolveSourcePath(mp4Path));
+        Assert.Equal(PlaybackPreparationState.Ready, result.State);
+        Assert.Equal(mp4Path, result.FilePath);
+    }
+
+    [Fact]
     public async Task AmbiguousMkvAndMp4UseLocalValidationBeforePlayback()
     {
         string mkvPath = CreateFile("recording.mkv", "mkv");

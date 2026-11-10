@@ -162,8 +162,7 @@ internal static class PlaybackPreparationPolicy
     internal static string ResolveSourcePath(string path)
     {
         if (string.IsNullOrWhiteSpace(path)
-            || !path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
-            || IsCompletedFile(path))
+            || !path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
         {
             return path;
         }
