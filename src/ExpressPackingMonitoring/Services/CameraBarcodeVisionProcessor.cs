@@ -9,10 +9,16 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal sealed class CameraBarcodeVisionProcessor : IDisposable
 {
+    private static readonly TimeSpan QuadrilateralFallbackInterval =
+        TimeSpan.FromMilliseconds(300);
+
     private readonly CameraBarcodeObbDecoder _decoder;
+    private readonly CameraBarcodeQuadrilateralDecoder _quadrilateralDecoder;
     private readonly Func<bool> _cameraBarcodeDecodingEnabledProvider;
     private readonly Func<bool> _visionObbDecodingEnabledProvider;
     private readonly object _gate = new();
+    private CameraBarcodeGeometry? _lastDecodedGeometry;
+    private DateTimeOffset _lastQuadrilateralAttemptAt;
 
     internal CameraBarcodeVisionProcessor(
         CameraBarcodeFrameDecoder standardDecoder,
@@ -26,6 +32,7 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
             visionObbProvider,
             visionObbDecodingEnabledProvider,
             detectorFactory);
+        _quadrilateralDecoder = new CameraBarcodeQuadrilateralDecoder(standardDecoder);
         _cameraBarcodeDecodingEnabledProvider =
             cameraBarcodeDecodingEnabledProvider ?? (() => true);
         _visionObbDecodingEnabledProvider =
@@ -37,7 +44,7 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
     internal VisionObbDetection? SelectedObbDetection =>
         _decoder.LastSelectedObbDetection;
     internal bool VisionObbAvailable => _decoder.IsDetectorAvailable;
-    internal CameraBarcodeGeometry? DecodedGeometry => _decoder.LastGeometry;
+    internal CameraBarcodeGeometry? DecodedGeometry => _lastDecodedGeometry;
 
     internal string? ProcessFrame(
         Mat frame,
@@ -48,6 +55,7 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
     {
         lock (_gate)
         {
+            _lastDecodedGeometry = null;
             bool enhancedVisionEnabled = ReadProvider(
                 _visionObbDecodingEnabledProvider);
             if (updateVision)
@@ -73,15 +81,32 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
                 return null;
             }
 
+            string? decoded;
             if (enhancedVisionEnabled)
             {
-                return _decoder.DecodeCachedDetections(
+                decoded = _decoder.DecodeCachedDetections(
                     frame,
                     isValid,
                     geometry);
             }
+            else
+            {
+                decoded = _decoder.DecodeStandardGuideRegion(frame, isValid, geometry);
+            }
 
-            return _decoder.DecodeStandardGuideRegion(frame, isValid, geometry);
+            if (!string.IsNullOrWhiteSpace(decoded))
+            {
+                _lastDecodedGeometry = _decoder.LastGeometry;
+                return decoded;
+            }
+
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (now - _lastQuadrilateralAttemptAt < QuadrilateralFallbackInterval)
+                return null;
+            _lastQuadrilateralAttemptAt = now;
+            decoded = _quadrilateralDecoder.Decode(frame, isValid, geometry);
+            _lastDecodedGeometry = _quadrilateralDecoder.LastGeometry;
+            return decoded;
         }
     }
 
@@ -103,5 +128,9 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
         }
     }
 
-    public void Dispose() => _decoder.Dispose();
+    public void Dispose()
+    {
+        _quadrilateralDecoder.Dispose();
+        _decoder.Dispose();
+    }
 }
