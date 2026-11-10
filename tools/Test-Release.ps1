@@ -1,5 +1,7 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [ValidateSet("include", "exclude")]
+    [string]$VisionObb = "include"
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +12,10 @@ $testsProject = Join-Path $repoRoot "tests\ExpressPackingMonitoring.Tests\Expres
 $encodingTestScript = Join-Path $repoRoot "tools\Test-EncodingCodecs.ps1"
 $webPage = Join-Path $repoRoot "src\ExpressPackingMonitoring\Web\index.html"
 $artifactsRoot = Join-Path $repoRoot "TestResults\ReleaseBuild\$Configuration"
+$visionArguments = @()
+if ($VisionObb -eq "exclude") {
+    $visionArguments = @("-p:IncludeVisionObb=false")
+}
 
 $requiredCoreTests = @(
     "CameraLifecycleTests.PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession",
@@ -74,10 +80,13 @@ if (Test-Path $artifactsRoot) {
 New-Item -ItemType Directory -Force -Path $artifactsRoot | Out-Null
 
 Write-Host "Building complete release solution..."
-Invoke-DotNet -Arguments @("build", $solution, "-c", $Configuration, "--nologo", "--artifacts-path", $artifactsRoot)
+Invoke-DotNet -Arguments (@(
+    "build", $solution, "-c", $Configuration, "--nologo",
+    "--artifacts-path", $artifactsRoot
+) + $visionArguments)
 
 Write-Host "Discovering required core business and recovery tests..."
-$testList = (& dotnet test $testsProject -c $Configuration --nologo --list-tests --no-build --no-restore --artifacts-path $artifactsRoot 2>&1 | Out-String)
+$testList = (& dotnet test $testsProject -c $Configuration --nologo --list-tests --no-build --no-restore --artifacts-path $artifactsRoot @visionArguments 2>&1 | Out-String)
 if ($LASTEXITCODE -ne 0) {
     throw "Test discovery failed with exit code $LASTEXITCODE`n$testList"
 }
@@ -88,11 +97,11 @@ foreach ($requiredTest in $requiredCoreTests) {
 }
 
 Write-Host "Running complete release test suite..."
-Invoke-DotNet -Arguments @(
+Invoke-DotNet -Arguments (@(
     "test", $testsProject, "-c", $Configuration, "--nologo",
     "--no-build", "--no-restore", "--artifacts-path", $artifactsRoot,
     "--blame-hang-timeout", "5m", "--blame-hang-dump-type", "none"
-)
+) + $visionArguments)
 
 Write-Host "Running hardware-aware FFmpeg encoder round trips..."
 & $encodingTestScript -Configuration $Configuration -ArtifactsPath $artifactsRoot -NoBuild

@@ -7,6 +7,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">true</IncludeVisionObb>
+    <DefineConstants Condition="'$(IncludeVisionObb)' == 'true'">$(DefineConstants);VISION_OBB</DefineConstants>
     <!-- GPU 渲染结果的回读验证要用指针读映射内存（仅测试路径用到）。 -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--
@@ -36,11 +38,17 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.WinTts\ExpressPackingMonitoring.WinTts.csproj" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Contracts\ExpressPackingMonitoring.Vision.Contracts.csproj" />
-    <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj" />
+    <ProjectReference Include="..\..\src\ExpressPackingMonitoring.Vision.Obb\ExpressPackingMonitoring.Vision.Obb.csproj"
+                      Condition="'$(IncludeVisionObb)' == 'true'" />
     <ProjectReference Include="..\..\src\ExpressPackingMonitoring\ExpressPackingMonitoring.csproj" />
     <Resource Include="..\..\src\ExpressPackingMonitoring\app.ico" Link="app.ico" />
     <None Include="Fixtures\ExtensionApiV1\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures\ExtensionMarket\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IncludeVisionObb)' != 'true'">
+    <Compile Remove="CameraVisionObbTests.cs" />
+    <Compile Remove="VisionObbDetectorContractTests.cs" />
   </ItemGroup>
 
 </Project>

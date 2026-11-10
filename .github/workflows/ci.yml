@@ -127,3 +127,41 @@ jobs:
           node --check "docs\examples\extension-v1-minimal.js"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check "docs\examples\extension-v1-serial-scale.js"
+
+  build-test-no-vision:
+    name: 构建与单元测试（无视觉功能包）
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+
+      - name: 安装 .NET SDK（10.0）
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.400
+
+      - name: 缓存 NuGet 包
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-no-vision-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-no-vision-${{ runner.os }}-
+
+      - name: 还原、构建并测试无视觉功能包
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet restore "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
+            -p:IncludeVisionObb=false --nologo
+          if ($LASTEXITCODE -ne 0) { throw "restore failed: $LASTEXITCODE" }
+          dotnet build "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
+            -c Debug -p:IncludeVisionObb=false --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw "build failed: $LASTEXITCODE" }
+          dotnet test "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
+            -c Debug -p:IncludeVisionObb=false --no-build --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw "test failed: $LASTEXITCODE" }

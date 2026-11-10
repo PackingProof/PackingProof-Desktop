@@ -1,21 +1,28 @@
 param(
-    [string]$Configuration = "Debug"
+    [string]$Configuration = "Debug",
+    [ValidateSet("include", "exclude")]
+    [string]$VisionObb = "include"
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
+    $visionArguments = @()
+    if ($VisionObb -eq "exclude") {
+        $visionArguments = @("-p:IncludeVisionObb=false")
+    }
+
     Write-Host "还原解决方案..."
-    dotnet restore ExpressPackingMonitoring.sln --nologo
+    dotnet restore ExpressPackingMonitoring.sln --nologo @visionArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet restore 失败，退出码：$LASTEXITCODE" }
 
     Write-Host "构建解决方案（$Configuration）..."
-    dotnet build ExpressPackingMonitoring.sln -c $Configuration --no-restore --nologo
+    dotnet build ExpressPackingMonitoring.sln -c $Configuration --no-restore --nologo @visionArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet build 失败，退出码：$LASTEXITCODE" }
 
     Write-Host "运行单元测试..."
-    dotnet test tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj -c $Configuration --no-build --no-restore --nologo
+    dotnet test tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj -c $Configuration --no-build --no-restore --nologo @visionArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet test 失败，退出码：$LASTEXITCODE" }
 
     Write-Host "运行网页 UI 自动化测试（真实浏览器）..."

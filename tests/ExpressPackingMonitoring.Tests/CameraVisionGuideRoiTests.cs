@@ -5,7 +5,9 @@ using System.Windows.Media.Imaging;
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.UI;
 using ExpressPackingMonitoring.Vision;
+#if VISION_OBB
 using ExpressPackingMonitoring.Vision.Obb;
+#endif
 using OpenCvSharp;
 using Xunit;
 using CvRect = OpenCvSharp.Rect;
@@ -17,6 +19,7 @@ namespace ExpressPackingMonitoring.Tests;
 [Collection("WPF render tests")]
 public sealed class CameraVisionGuideRoiTests
 {
+#if VISION_OBB
     [Fact]
     public void RealModelSmoke_UsesOnlyTheGuideCrop()
     {
@@ -66,6 +69,7 @@ public sealed class CameraVisionGuideRoiTests
                 Assert.InRange(detection.CenterY, guide.Y, guide.Bottom);
             });
     }
+#endif
 
     [Fact]
     public void EnhancedVisionRunsOnGuideCropAndMapsDetectionBackToTheFrame()

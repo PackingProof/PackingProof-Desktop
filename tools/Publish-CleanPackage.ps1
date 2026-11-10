@@ -72,7 +72,9 @@ function Invoke-CoreRegressionTests {
         throw "Release validation script not found: $releaseValidationScript"
     }
 
-    & $releaseValidationScript -Configuration $Configuration
+    & $releaseValidationScript `
+        -Configuration $Configuration `
+        -VisionObb $VisionObb
 }
 
 function Invoke-DotNetPublish {

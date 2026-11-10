@@ -1,5 +1,7 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [ValidateSet("include", "exclude")]
+    [string]$VisionObb = "include"
 )
 
 $ErrorActionPreference = "Stop"
@@ -71,7 +73,10 @@ try {
     New-Item -ItemType Directory -Force -Path $runRoot, $dataRoot | Out-Null
 
     Write-Host "[1/7] Running release unit tests, JavaScript validation and Release build..."
-    Invoke-Checked -FilePath "pwsh" -Arguments @("-NoProfile", "-File", $releaseTest, "-Configuration", $Configuration)
+    Invoke-Checked -FilePath "pwsh" -Arguments @(
+        "-NoProfile", "-File", $releaseTest,
+        "-Configuration", $Configuration,
+        "-VisionObb", $VisionObb)
     Invoke-Checked -FilePath "node" -Arguments @("--check", "docs\examples\extension-v1-minimal.js")
 
     Write-Host "[2/7] Running an isolated WPF startup and shutdown smoke test..."

@@ -1,6 +1,5 @@
 using ExpressPackingMonitoring.Services;
 using ExpressPackingMonitoring.Vision;
-using ExpressPackingMonitoring.Vision.Obb;
 using OpenCvSharp;
 using System.Diagnostics;
 using Xunit;

@@ -15,6 +15,17 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb exclude
 普通 ZXing 识别、倾斜码重试、扫码枪和录像流程不受影响。注意 `org.k2fsa.sherpa.onnx`
 仍可能为本地语音功能携带另一份 `onnxruntime.dll`；它与 YOLO 功能包无关。
 
+无视觉功能包的本地验证：
+
+```powershell
+pwsh -NoProfile -File tools\Test-CI.ps1 -VisionObb exclude
+pwsh -NoProfile -File tools\Test-Release.ps1 -Configuration Release -VisionObb exclude
+pwsh -NoProfile -File tools\Test-Release-Automated.ps1 -VisionObb exclude
+```
+
+该模式不会编译或引用 `ExpressPackingMonitoring.Vision.Obb`，OBB 专属测试会从测试工程排除；
+普通扫码、透视兜底、业务规则、WPF 和 Web 测试继续执行。
+
 1. 从摄像头完整画面中按用户设置的识别区域裁出局部图像，只把这块图像送入
    单类别 YOLO-OBB 模型
 2. 模型定位面单后得到旋转框，并把检测坐标加回识别区域偏移，恢复为完整画面坐标

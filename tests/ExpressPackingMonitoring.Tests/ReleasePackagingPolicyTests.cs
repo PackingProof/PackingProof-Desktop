@@ -380,6 +380,57 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
+    public void Tests_CanExcludeVisionObbFeaturePack()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string testProject = File.ReadAllText(
+            Path.Combine(
+                repositoryRoot,
+                "tests",
+                "ExpressPackingMonitoring.Tests",
+                "ExpressPackingMonitoring.Tests.csproj"),
+            Encoding.UTF8);
+        string testCi = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-CI.ps1"),
+            Encoding.UTF8);
+        string releaseTest = File.ReadAllText(
+            Path.Combine(repositoryRoot, "tools", "Test-Release.ps1"),
+            Encoding.UTF8);
+        string ciWorkflow = File.ReadAllText(
+            Path.Combine(repositoryRoot, ".github", "workflows", "ci.yml"),
+            Encoding.UTF8);
+
+        Assert.Contains(
+            "Condition=\"'$(IncludeVisionObb)' == 'true'\"",
+            testProject,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Compile Remove=\"CameraVisionObbTests.cs\" />",
+            testProject,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<Compile Remove=\"VisionObbDetectorContractTests.cs\" />",
+            testProject,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[ValidateSet(\"include\", \"exclude\")]",
+            testCi,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "[ValidateSet(\"include\", \"exclude\")]",
+            releaseTest,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "build-test-no-vision:",
+            ciWorkflow,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "-p:IncludeVisionObb=false",
+            ciWorkflow,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NoRuntimePackage_InheritsVisionObbFeatureState()
     {
         string repositoryRoot = FindRepositoryRoot();
