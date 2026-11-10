@@ -4,6 +4,7 @@
   "retired": [
     "LibVLCSharp.WPF.dll",
     "Microsoft.VisualBasic.Forms.dll",
+    "mscordaccore_amd64_amd64_10.0.1326.50504.dll",
     "mscordaccore_amd64_amd64_8.0.2826.26413.dll",
     "NAudio.WinForms.dll",
     "Scripts/快递助手订单推送.user.js",
