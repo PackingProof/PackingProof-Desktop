@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "protocol_version": 1,
-  "version": "0.0.87",
-  "tag": "launcher-v0.0.87",
-  "release_tag": "v0.0.87",
+  "version": "0.0.96",
+  "tag": "launcher-v0.0.96",
+  "release_tag": "v0.0.96",
   "runtime": "win-x64",
   "update_check_url": "https://gitee.com/api/v5/repos/PackingProof/PackingProof-Desktop/releases/latest",
   "source_fingerprint": "d25ec41e4cf04f4108bd8e2afeca32f0e493c994e976df68e2c2f512c8b865bb",
@@ -27,10 +27,10 @@
     "ExpressPackingMonitoring.UpdateCore/UpdateReleaseSelection.cs"
   ],
   "package": {
-    "file": "PackingProof_LauncherPatch_v0.0.87.zip",
-    "size": 3167613,
-    "sha256": "fbdb7261d3858241e14d220b77c5b0cc616826121c99e1b3945ea08487064866",
+    "file": "PackingProof_LauncherPatch_v0.0.96.zip",
+    "size": 3167831,
+    "sha256": "a62a6119fcb8d2a3a34203fd0def7cc1f98c6dc35c075047043b0a40d5b5ea62",
     "executable_size": 6912000,
-    "executable_sha256": "d7110bdea4eed2b13ff899729c7f79de44dd94719bbaf1462bec20046b5e3268"
+    "executable_sha256": "a840ad2daaff0544058ea505993d73a9450301936c8ca1fbf347a6b600a8d7b7"
   }
 }

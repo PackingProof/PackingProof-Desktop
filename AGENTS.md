@@ -60,7 +60,7 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 - Gitee 发布认证固定从项目根目录 `.env` 的 `GITEE_TOKEN` 读取；若缺失或失效，先读取并同步本机 `C:\Users\Administrator\.gitee\apikey.txt`，不得要求用户手工上传发布资产。`.env` 已被 Git 忽略，禁止提交 token。
 - Mac 负责 iOS/Xcode 与 macOS 保存主机（`tools/Publish-MacHost.sh`、`tools/Publish-MacRelease.sh`）；Windows 负责桌面端构建与测试。双机同步优先 rebase，禁止为同步制造本地 merge 提交。
 - 不提交配置、数据库、日志、缓存、录像、`.env`、证书、签名材料、密钥或其他本机状态。运行时数据属于 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。
-- 本机工具链固定为 .NET 10 SDK（`global.json` 钉在 10.0.400，`tools\Build-SharedRuntimeLayout.ps1` 等脚本按它取运行时）。.NET 10 的 `minimumMSBuildVersion` 是 18.0.0，所以 IDE 必须是 Visual Studio 2026（18.x）；用 VS 2022 打开解决方案会报"未能正确加载解决方案中的一个或多个项目"，命令行 `dotnet` 构建与发布脚本不受影响，别去改 `.sln` 或回退 TFM 掩盖它。
+- 本机工具链固定为 .NET 10 SDK（`global.json` 钉在 10.0.404，`tools\Build-SharedRuntimeLayout.ps1` 等脚本按它取运行时）。.NET 10 的 `minimumMSBuildVersion` 是 18.0.0，所以 IDE 必须是 Visual Studio 2026（18.x）；用 VS 2022 打开解决方案会报"未能正确加载解决方案中的一个或多个项目"，命令行 `dotnet` 构建与发布脚本不受影响，别去改 `.sln` 或回退 TFM 掩盖它。
 
 ## 代码与界面
 
