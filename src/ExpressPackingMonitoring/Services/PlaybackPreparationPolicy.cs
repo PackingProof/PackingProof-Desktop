@@ -47,7 +47,11 @@ internal static class PlaybackPreparationPolicy
         }
 
         string convertedPath = Path.ChangeExtension(path, ".mp4");
-        if (IsCompletedFile(convertedPath))
+        bool sourceMkvExists = IsCompletedFile(path);
+        bool convertedExists = IsCompletedFile(convertedPath);
+        if (convertedExists
+            && (!sourceMkvExists
+                || (converter == null && !HasRecoverySidecar(path))))
         {
             return new PlaybackPreparationResult(
                 PlaybackPreparationState.Ready,
@@ -79,14 +83,7 @@ internal static class PlaybackPreparationPolicy
                     PlaybackPreparationState.Ready,
                     conversion.FilePath);
             }
-            if (IsCompletedFile(convertedPath))
-            {
-                return new PlaybackPreparationResult(
-                    PlaybackPreparationState.Ready,
-                    convertedPath);
-            }
-
-            return IsCompletedFile(path)
+            return sourceMkvExists
                 ? new PlaybackPreparationResult(
                     PlaybackPreparationState.FallbackSource,
                     path,
@@ -106,16 +103,24 @@ internal static class PlaybackPreparationPolicy
         {
             await Task.Delay(interval, cancellationToken)
                 .ConfigureAwait(false);
-            if (IsCompletedFile(convertedPath))
+            bool sourceStillExists = File.Exists(path);
+            if (IsCompletedFile(convertedPath)
+                && (!sourceStillExists || !HasRecoverySidecar(path)))
             {
                 return new PlaybackPreparationResult(
                     PlaybackPreparationState.Ready,
                     convertedPath);
             }
-            if (!IsCompletedFile(path) && !File.Exists(path))
+            if (!sourceStillExists)
                 break;
         }
 
+        if (!File.Exists(path) && IsCompletedFile(convertedPath))
+        {
+            return new PlaybackPreparationResult(
+                PlaybackPreparationState.Ready,
+                convertedPath);
+        }
         return IsCompletedFile(path)
             ? new PlaybackPreparationResult(
                 PlaybackPreparationState.FallbackSource,
@@ -126,6 +131,11 @@ internal static class PlaybackPreparationPolicy
                 path,
                 TimedOut: true);
     }
+
+    internal static bool HasRecoverySidecar(string mkvPath) =>
+        File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
+        || File.Exists(Path.ChangeExtension(mkvPath, ".audio.log"))
+        || File.Exists(Path.ChangeExtension(mkvPath, ".embedded-audio"));
 
     internal static bool CanConvertOnThisMachine(string path)
     {

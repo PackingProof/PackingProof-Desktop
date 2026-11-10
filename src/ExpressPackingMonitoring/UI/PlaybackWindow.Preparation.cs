@@ -87,9 +87,11 @@ public partial class PlaybackWindow
                     return;
 
                 DisposeCurrentMediaSource();
-                mediaSource = PlaybackMediaSource.Create(
-                    _libVLC!,
-                    playbackPath);
+                mediaSource = await Task.Run(
+                    () => PlaybackMediaSource.Create(
+                        _libVLC!,
+                        playbackPath),
+                    preparationCts.Token);
                 mediaSource.Media.AddOption(":file-caching=300");
                 mediaSource.Media.AddOption(":start-paused");
 
@@ -143,33 +145,50 @@ public partial class PlaybackWindow
         VideoItem video,
         CancellationToken cancellationToken)
     {
-        string sourcePath = PlaybackPreparationPolicy.ResolveSourcePath(
-            video.FullPath);
+        Func<
+            VideoItem,
+            string,
+            CancellationToken,
+            Task<MkvConversionResult>>? prepareMkvForPlayback =
+                _prepareMkvForPlayback;
+        (string SourcePath, bool IsMkv, bool CanConvertLocally) plan =
+            await Task.Run(() =>
+            {
+                string sourcePath =
+                    PlaybackPreparationPolicy.ResolveSourcePath(video.FullPath);
+                bool isMkv = sourcePath.EndsWith(
+                    ".mkv",
+                    StringComparison.OrdinalIgnoreCase);
+                return (
+                    sourcePath,
+                    isMkv,
+                    isMkv
+                    && prepareMkvForPlayback != null
+                    && PlaybackPreparationPolicy.CanConvertOnThisMachine(
+                        sourcePath));
+            }, cancellationToken);
         Func<CancellationToken, Task<MkvConversionResult>>? converter = null;
-        bool isMkv = sourcePath.EndsWith(
-            ".mkv",
-            StringComparison.OrdinalIgnoreCase);
-        if (isMkv
-            && _prepareMkvForPlayback != null
-            && PlaybackPreparationPolicy.CanConvertOnThisMachine(sourcePath))
+        if (plan.CanConvertLocally)
         {
             ShowPlaybackPreparing(
                 AppLanguage.Get("正在转码，完成后会自动播放"));
-            converter = token => _prepareMkvForPlayback(
+            converter = token => prepareMkvForPlayback!(
                 video,
-                sourcePath,
+                plan.SourcePath,
                 token);
         }
-        else if (isMkv)
+        else if (plan.IsMkv)
         {
             ShowPlaybackPreparing(
                 AppLanguage.Get("主机正在准备兼容版本，完成后会自动播放"));
         }
 
-        return await PlaybackPreparationPolicy.PrepareAsync(
-            sourcePath,
-            converter,
-            RemotePlaybackPreparationTimeout,
+        return await Task.Run(
+            () => PlaybackPreparationPolicy.PrepareAsync(
+                plan.SourcePath,
+                converter,
+                RemotePlaybackPreparationTimeout,
+                cancellationToken),
             cancellationToken);
     }
 

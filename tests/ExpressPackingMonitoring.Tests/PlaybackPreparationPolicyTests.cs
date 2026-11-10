@@ -16,15 +16,14 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
     }
 
     [Fact]
-    public async Task CompletedMp4IsUsedWithoutStartingAnotherConversion()
+    public async Task CompletedMp4WithoutItsSourceMkvIsUsedDirectly()
     {
-        string mkvPath = CreateFile("recording.mkv", "mkv");
         string mp4Path = CreateFile("recording.mp4", "mp4");
         int conversionCalls = 0;
 
         PlaybackPreparationResult result =
             await PlaybackPreparationPolicy.PrepareAsync(
-                mkvPath,
+                mp4Path,
                 _ =>
                 {
                     conversionCalls++;
@@ -37,6 +36,30 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
         Assert.Equal(PlaybackPreparationState.Ready, result.State);
         Assert.Equal(mp4Path, result.FilePath);
         Assert.Equal(0, conversionCalls);
+    }
+
+    [Fact]
+    public async Task AmbiguousMkvAndMp4UseLocalValidationBeforePlayback()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        string mp4Path = CreateFile("recording.mp4", "mp4");
+        bool converterCalled = false;
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mkvPath,
+                _ =>
+                {
+                    converterCalled = true;
+                    return Task.FromResult(
+                        MkvConversionResult.Ok(mp4Path));
+                },
+                TimeSpan.FromSeconds(1),
+                CancellationToken.None);
+
+        Assert.True(converterCalled);
+        Assert.Equal(PlaybackPreparationState.Ready, result.State);
+        Assert.Equal(mp4Path, result.FilePath);
     }
 
     [Fact]
@@ -94,6 +117,7 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
     public async Task ConversionFailureFallsBackWithTheOriginalPreserved()
     {
         string mkvPath = CreateFile("recording.mkv", "mkv");
+        CreateFile("recording.mp4", "incomplete");
 
         PlaybackPreparationResult result =
             await PlaybackPreparationPolicy.PrepareAsync(
@@ -107,6 +131,28 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
             PlaybackPreparationState.FallbackSource,
             result.State);
         Assert.True(result.ConversionFailed);
+        Assert.Equal(mkvPath, result.FilePath);
+    }
+
+    [Fact]
+    public async Task ExistingMp4IsNotTrustedWhileMuxSidecarsRemain()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        CreateFile("recording.mp4", "incomplete");
+        CreateFile("recording.wav", "audio");
+
+        PlaybackPreparationResult result =
+            await PlaybackPreparationPolicy.PrepareAsync(
+                mkvPath,
+                converter: null,
+                waitTimeout: TimeSpan.FromMilliseconds(40),
+                cancellationToken: CancellationToken.None,
+                pollInterval: TimeSpan.FromMilliseconds(10));
+
+        Assert.Equal(
+            PlaybackPreparationState.FallbackSource,
+            result.State);
+        Assert.True(result.TimedOut);
         Assert.Equal(mkvPath, result.FilePath);
     }
 
@@ -207,6 +253,36 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
             "PlaybackPreparationPolicy.PrepareAsync(",
             code,
             StringComparison.Ordinal);
+        int sourceResolve = code.IndexOf(
+            "PlaybackPreparationPolicy.ResolveSourcePath(video.FullPath)",
+            StringComparison.Ordinal);
+        int preparationCall = code.IndexOf(
+            "PlaybackPreparationPolicy.PrepareAsync(",
+            StringComparison.Ordinal);
+        int mediaSourceCreate = code.IndexOf(
+            "PlaybackMediaSource.Create(",
+            StringComparison.Ordinal);
+        Assert.True(
+            sourceResolve >= 0
+            && code.LastIndexOf(
+                "await Task.Run(",
+                sourceResolve,
+                StringComparison.Ordinal) >= 0,
+            "远程路径探测必须在后台线程执行");
+        Assert.True(
+            preparationCall >= 0
+            && code.LastIndexOf(
+                "await Task.Run(",
+                preparationCall,
+                StringComparison.Ordinal) >= 0,
+            "转码等待中的文件探测必须在后台线程执行");
+        Assert.True(
+            mediaSourceCreate >= 0
+            && code.LastIndexOf(
+                "await Task.Run(",
+                mediaSourceCreate,
+                StringComparison.Ordinal) >= 0,
+            "UNC 媒体文件打开必须在后台线程执行");
         Assert.True(
             code.IndexOf(
                 "await PreparePlaybackPathAsync(",
