@@ -25,8 +25,11 @@ set "ARCHIVE_ARGS="
 if /i "%~3"=="7z" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if /i "%~3"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
 
-rem 传 novision 可生成不含 YOLO-OBB 功能包的版本，可放在第三或第四参数。
+rem 默认不包含 YOLO-OBB 功能包；传 vision 可显式包含，可放在第三或第四参数。
 set "VISION_ARGS="
+if /i "%~3"=="vision" set "VISION_ARGS=-VisionObb include"
+if /i "%~4"=="vision" set "VISION_ARGS=-VisionObb include"
+rem novision 继续接受，便于旧命令兼容。
 if /i "%~3"=="novision" set "VISION_ARGS=-VisionObb exclude"
 if /i "%~4"=="novision" set "VISION_ARGS=-VisionObb exclude"
 

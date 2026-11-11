@@ -4,14 +4,14 @@
 
 YOLO-OBB 已拆为可选功能包：主程序只依赖
 `ExpressPackingMonitoring.Vision.Contracts`，ONNX Runtime、DirectML、模型加载和输出解析位于
-`ExpressPackingMonitoring.Vision.Obb`。默认构建与安装包仍包含该功能包；商业版或不需要该功能的
-构建可显式排除：
+`ExpressPackingMonitoring.Vision.Obb`。默认构建和发布不再包含该功能包；需要重新启用时必须
+显式包含：
 
 ```powershell
-pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb exclude
+pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb include
 ```
 
-也可以运行 `打包脚本-增量.bat <版本> 0.0.84 novision`。排除后设置页隐藏相关选项，
+也可以运行 `打包脚本-增量.bat <版本> 0.0.84 vision`。默认排除时设置页隐藏相关选项，
 普通 ZXing 识别、倾斜码重试、扫码枪和录像流程不受影响。注意 `org.k2fsa.sherpa.onnx`
 仍可能为本地语音功能携带另一份 `onnxruntime.dll`；它与 YOLO 功能包无关。
 
@@ -155,8 +155,10 @@ Desktop 的 Release 不承载模型二进制。模型资产和运行时统一使
 模型缺失或加载失败时只记录日志，并回退到引导框识别；全部失败后再进入受
 `300ms` 节流限制的无模型透视兜底。兜底只扫描引导区域，不会扫描整帧。这样在空针、
 遮挡或模型漏检时仍有有限次数的倾斜面单重试，同时避免每帧都重复执行高成本轮廓与 Hough。
-正式 Setup、Store MSIX 和 AppPatch 都会校验 `models\vision-obb.onnx`、
-`onnxruntime.dll` 与 `DirectML.dll` 是否进入实际应用负载。
+显式使用 `-VisionObb include` 时，正式 Setup、Store MSIX 和 AppPatch 都会校验
+`models\vision-obb.onnx`、`onnxruntime.dll` 与 `DirectML.dll` 是否进入实际应用负载；
+默认的无功能包构建则要求这些文件不存在。
+GitHub 发布工作流默认不下载模型；只有手动触发并勾选 `vision_obb` 时才按同一规则包含功能包。
 
 ## 训练来源
 

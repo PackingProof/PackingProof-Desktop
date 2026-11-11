@@ -12,6 +12,9 @@ if /i "%~1"=="-IncludeSevenZip" set "ARCHIVE_ARGS=-IncludeSevenZip"
 if defined ARCHIVE_ARGS echo [INFO] Local 7z archive enabled.
 
 set "VISION_ARGS="
+if /i "%~1"=="vision" set "VISION_ARGS=-VisionObb include"
+if /i "%~2"=="vision" set "VISION_ARGS=-VisionObb include"
+rem 默认排除视觉功能包；novision 继续接受以兼容旧命令。
 if /i "%~1"=="novision" set "VISION_ARGS=-VisionObb exclude"
 if /i "%~2"=="novision" set "VISION_ARGS=-VisionObb exclude"
 

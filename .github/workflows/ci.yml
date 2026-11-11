@@ -57,12 +57,6 @@ jobs:
           path: package/dependency-cache/ffmpeg
           key: ffmpeg-${{ hashFiles('tools/ffmpeg-baseline.json') }}
 
-      - name: 缓存锁定的视觉模型
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: package/dependency-cache/vision-models
-          key: vision-model-${{ hashFiles('tools/vision-model-baseline.json') }}
-
       - name: 缓存 NuGet 包
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
@@ -74,16 +68,6 @@ jobs:
       - name: 准备钉死的 FFmpeg 依赖
         shell: pwsh
         run: pwsh -NoProfile -File tools\Prepare-PinnedFFmpeg.ps1
-
-      - name: 准备并校验锁定的视觉模型
-        shell: pwsh
-        run: |
-          pwsh -NoProfile -File tools\Prepare-PinnedVisionModel.ps1
-          $modelPath = Join-Path $PWD "package\dependency-cache\vision-models\vision-obb.onnx"
-          "PACKINGPROOF_WAYBILL_OBB_MODEL=$modelPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PACKINGPROOF_BENCHMARK_OBB=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PACKINGPROOF_BENCHMARK_OBB_WIDTH=1280" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "PACKINGPROOF_BENCHMARK_OBB_HEIGHT=720" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: 还原依赖
         run: dotnet restore ExpressPackingMonitoring.sln --nologo
@@ -128,8 +112,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check "docs\examples\extension-v1-serial-scale.js"
 
-  build-test-no-vision:
-    name: 构建与单元测试（无视觉功能包）
+  build-test-vision:
+    name: 构建与单元测试（显式包含视觉功能包）
     runs-on: windows-latest
     timeout-minutes: 30
 
@@ -144,24 +128,40 @@ jobs:
         with:
           dotnet-version: 10.0.400
 
+      - name: 缓存锁定的视觉模型
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: package/dependency-cache/vision-models
+          key: vision-model-${{ hashFiles('tools/vision-model-baseline.json') }}
+
       - name: 缓存 NuGet 包
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.nuget/packages
-          key: nuget-no-vision-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          key: nuget-vision-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
           restore-keys: |
-            nuget-no-vision-${{ runner.os }}-
+            nuget-vision-${{ runner.os }}-
 
-      - name: 还原、构建并测试无视觉功能包
+      - name: 准备并校验锁定的视觉模型
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tools\Prepare-PinnedVisionModel.ps1
+          $modelPath = Join-Path $PWD "package\dependency-cache\vision-models\vision-obb.onnx"
+          "PACKINGPROOF_WAYBILL_OBB_MODEL=$modelPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PACKINGPROOF_BENCHMARK_OBB=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PACKINGPROOF_BENCHMARK_OBB_WIDTH=1280" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PACKINGPROOF_BENCHMARK_OBB_HEIGHT=720" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: 还原、构建并测试显式视觉功能包
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           dotnet restore "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
-            -p:IncludeVisionObb=false --nologo
+            -p:IncludeVisionObb=true --nologo
           if ($LASTEXITCODE -ne 0) { throw "restore failed: $LASTEXITCODE" }
           dotnet build "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
-            -c Debug -p:IncludeVisionObb=false --no-restore --nologo
+            -c Debug -p:IncludeVisionObb=true --no-restore --nologo
           if ($LASTEXITCODE -ne 0) { throw "build failed: $LASTEXITCODE" }
           dotnet test "tests\ExpressPackingMonitoring.Tests\ExpressPackingMonitoring.Tests.csproj" `
-            -c Debug -p:IncludeVisionObb=false --no-build --no-restore --nologo
+            -c Debug -p:IncludeVisionObb=true --no-build --no-restore --nologo
           if ($LASTEXITCODE -ne 0) { throw "test failed: $LASTEXITCODE" }

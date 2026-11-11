@@ -1,17 +1,17 @@
 param(
     [string]$Configuration = "Debug",
     [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include"
+    [string]$VisionObb = "exclude"
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
-    $visionArguments = @()
-    if ($VisionObb -eq "exclude") {
-        $visionArguments = @("-p:IncludeVisionObb=false")
-    }
+    $includeVisionObb = $VisionObb -eq "include"
+    $visionArguments = @(
+        "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
+    )
 
     Write-Host "还原解决方案..."
     dotnet restore ExpressPackingMonitoring.sln --nologo @visionArguments

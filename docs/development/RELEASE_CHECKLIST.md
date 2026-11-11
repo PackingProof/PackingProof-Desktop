@@ -27,7 +27,7 @@
 - 确认 Release 全量测试全部通过
 - 确认 Web JavaScript 语法检查通过
 - 确认完整解决方案 Release 构建为 0 警告、0 错误
-- 确认 `tools\vision-model-baseline.json` 的 `source.repository` 指向 `PackingProof/PackingProof-Vision`，对应模型 Release 已先于 Desktop 发布，且 GitHub/Gitee 两个地址都能下载相同 SHA256 的 `vision-obb.onnx`
+- 默认发布必须确认应用负载不含 `ExpressPackingMonitoring.Vision.Obb.dll`、`DirectML.dll`、`onnxruntime_providers_shared.dll` 和 `models\vision-obb.onnx`；只有显式使用 `-VisionObb include` 时，才确认 `tools\vision-model-baseline.json` 指向 `PackingProof/PackingProof-Vision`、对应模型 Release 已先于 Desktop 发布，且 GitHub/Gitee 两个地址都能下载相同 SHA256 的 `vision-obb.onnx`
 
 ## 产物与发布校验
 

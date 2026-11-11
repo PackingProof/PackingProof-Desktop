@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = "Release",
     [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "include"
+    [string]$VisionObb = "exclude"
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,10 +12,10 @@ $testsProject = Join-Path $repoRoot "tests\ExpressPackingMonitoring.Tests\Expres
 $encodingTestScript = Join-Path $repoRoot "tools\Test-EncodingCodecs.ps1"
 $webPage = Join-Path $repoRoot "src\ExpressPackingMonitoring\Web\index.html"
 $artifactsRoot = Join-Path $repoRoot "TestResults\ReleaseBuild\$Configuration"
-$visionArguments = @()
-if ($VisionObb -eq "exclude") {
-    $visionArguments = @("-p:IncludeVisionObb=false")
-}
+$includeVisionObb = $VisionObb -eq "include"
+$visionArguments = @(
+    "-p:IncludeVisionObb=$($includeVisionObb.ToString().ToLowerInvariant())"
+)
 
 $requiredCoreTests = @(
     "CameraLifecycleTests.PreviewSessionGate_StaleCallbackCannotReleaseAwakenedSession",
