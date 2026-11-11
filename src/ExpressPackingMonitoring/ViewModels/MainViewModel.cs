@@ -847,7 +847,7 @@ namespace ExpressPackingMonitoring.ViewModels
         // 录制、编码、磁盘清理逻辑已移动到 MainViewModel.Recording.cs / MainViewModel.Encoder.cs / MainViewModel.Cleanup.cs
 
         private void FilterLogs() { FilteredLogs.Clear(); var keyword = LogSearchText?.ToUpper() ?? ""; foreach (var log in _allLogs) { if (string.IsNullOrEmpty(keyword) || log.OrderId.ToUpper().Contains(keyword)) FilteredLogs.Add(log); } }
-        private void AddRecord(ScanRecord record) { Application.Current.Dispatcher.InvokeAsync(() => { _allLogs.Insert(0, record); if (string.IsNullOrEmpty(LogSearchText)) FilteredLogs.Insert(0, record); if (_allLogs.Count > 200) _allLogs.RemoveAt(_allLogs.Count - 1); }); }
+        private void AddRecord(ScanRecord record) { Interlocked.Increment(ref _recentScanRecordMutationVersion); Application.Current.Dispatcher.InvokeAsync(() => { _allLogs.Insert(0, record); if (string.IsNullOrEmpty(LogSearchText)) FilteredLogs.Insert(0, record); if (_allLogs.Count > 200) _allLogs.RemoveAt(_allLogs.Count - 1); }); }
 
         private void Speak(string text, bool cancelPrevious = true) => PublishVoice(
             text,
@@ -896,6 +896,7 @@ namespace ExpressPackingMonitoring.ViewModels
             if (_isDisposed) return;
             _shutdownRequested = true;
             _isDisposed = true;
+            DisposeBackgroundUiRefreshes();
             UnhookApplicationFocusTracking();
             try { DisposeCameraLens(); } catch { }
             try { _playbackWindow?.Close(); } catch { }

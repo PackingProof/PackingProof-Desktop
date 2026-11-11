@@ -54,28 +54,6 @@ public partial class MainViewModel
         }
     }
 
-    private void RefreshArchiveBackupSummary()
-    {
-        bool visible = ArchiveBackupCardModel.ShouldShowArchiveBackupCard(
-            Config,
-            IsRecordingWorkstation);
-        IsArchiveBackupCardVisible = visible;
-        if (!visible)
-            return;
-
-        ArchiveQueueSummary summary = _db?.GetArchiveQueueSummary()
-            ?? new ArchiveQueueSummary(0, 0, 0, 0, 0, 0, 0, 0, 0);
-        RemainingArchiveBackupCount = summary.RemainingCount;
-        ArchiveBackupCardState state = ArchiveBackupCardModel.BuildArchiveBackupCardState(
-            summary,
-            ArchiveBackupCardModel.ResolveCurrentArchiveTarget(Config),
-            _archiveTargetUnavailable,
-            _archiveUnavailableRoot,
-            _archiveService?.CurrentWorkerSnapshot ?? default);
-        ArchiveBackupShortStatusText = state.ShortStatusText;
-        ArchiveBackupStatusText = state.DetailText;
-    }
-
     private void OnArchiveWorkerStateChanged(ArchiveWorkerSnapshot _) =>
         Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
 

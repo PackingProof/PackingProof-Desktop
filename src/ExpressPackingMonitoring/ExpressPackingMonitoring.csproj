@@ -164,6 +164,7 @@
     <Compile Include="Services\CameraBarcodeDecodeSizePolicy.cs" />
     <Compile Include="Services\CameraBarcodeVisionProcessor.cs" />
     <Compile Include="Services\CameraBarcodeQuadrilateralDecoder.cs" />
+    <Compile Include="Services\CoalescingBackgroundRefresh.cs" />
     <Compile Include="Services\VisionObbPerformanceBenchmark.cs" />
     <Compile Include="Services\CameraBarcodeObbDecoder.cs" />
     <Compile Include="Services\VisionModelDiagnostics.cs" />
@@ -242,6 +243,7 @@
     <Compile Include="ViewModels\MainViewModel.Lens.cs" />
     <Compile Include="ViewModels\MainViewModel.FloatingPreview.cs" />
     <Compile Include="ViewModels\MainViewModel.CameraVisionObb.cs" />
+    <Compile Include="ViewModels\MainViewModel.BackgroundUi.cs" />
     <Compile Include="ViewModels\MainViewModel.OverlayChannels.cs" />
     <Compile Include="ViewModels\MainViewModel.Scanner.cs" />
     <Compile Include="ViewModels\MainViewModel.Notifications.cs" />

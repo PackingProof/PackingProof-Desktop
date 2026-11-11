@@ -33,13 +33,18 @@ public sealed class RecordingOrderStartHandlingTests
     {
         string recording = ReadProjectFile("ViewModels", "MainViewModel.Recording.cs");
         string scanner = ReadProjectFile("ViewModels", "MainViewModel.Scanner.cs");
+        string backgroundUi = ReadProjectFile("ViewModels", "MainViewModel.BackgroundUi.cs");
 
         Assert.Contains("RecordingStartOrderPolicy.ShouldHandle(", recording, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(recording, "HandleOrderNumberRecordingStarted("));
         Assert.Contains("private void HandleOrderNumberRecordingStarted(", scanner, StringComparison.Ordinal);
+        Assert.Contains("_ = RefreshOrderStartContextAsync(", scanner, StringComparison.Ordinal);
         // 重复单号提醒只有统一处理方法会发，扫码调用点不再自己发一份。
-        Assert.Equal(1, CountOccurrences(scanner, "duplicate-order-number:"));
-        Assert.Equal(1, CountOccurrences(scanner, "OrderIdExistsRecent("));
+        Assert.Equal(
+            1,
+            CountOccurrences(scanner, "duplicate-order-number:")
+            + CountOccurrences(backgroundUi, "duplicate-order-number:"));
+        Assert.Equal(1, CountOccurrences(backgroundUi, "OrderIdExistsRecent("));
     }
 
     [Fact]

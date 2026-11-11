@@ -390,6 +390,10 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private string _lastBarcodeSourceLogState = "";
+        private int _cameraBarcodeStatusApplyPending;
+        private CameraBarcodeRecognitionStatus _latestCameraBarcodeStatus;
+        private int _cameraVisionStatusApplyPending;
+        private CameraBarcodeRecognitionStatus _latestCameraVisionStatus;
 
         private bool CanSubmitCameraBarcode()        {
             return Config?.EnableCameraBarcodeRecognition == true
@@ -582,7 +586,17 @@ namespace ExpressPackingMonitoring.ViewModels
             if (dispatcher == null)
                 return;
 
-            _ = dispatcher.BeginInvoke(new Action(() => ApplyCameraBarcodeStatus(status)));
+            Interlocked.Exchange(ref _latestCameraBarcodeStatus, status);
+            if (Interlocked.Exchange(ref _cameraBarcodeStatusApplyPending, 1) != 0)
+                return;
+            _ = dispatcher.BeginInvoke(new Action(() =>
+            {
+                Interlocked.Exchange(ref _cameraBarcodeStatusApplyPending, 0);
+                CameraBarcodeRecognitionStatus latest =
+                    Interlocked.Exchange(ref _latestCameraBarcodeStatus, null!);
+                if (latest != null && !_isDisposed)
+                    ApplyCameraBarcodeStatus(latest);
+            }), System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void OnCameraVisionSmartZoomStatusChanged(
@@ -592,8 +606,19 @@ namespace ExpressPackingMonitoring.ViewModels
             if (dispatcher == null)
                 return;
 
+            Interlocked.Exchange(ref _latestCameraVisionStatus, status);
+            if (Interlocked.Exchange(ref _cameraVisionStatusApplyPending, 1) != 0)
+                return;
             _ = dispatcher.BeginInvoke(
-                new Action(() => ApplyCameraVisionSmartZoomStatus(status)));
+                new Action(() =>
+                {
+                    Interlocked.Exchange(ref _cameraVisionStatusApplyPending, 0);
+                    CameraBarcodeRecognitionStatus latest =
+                        Interlocked.Exchange(ref _latestCameraVisionStatus, null!);
+                    if (latest != null && !_isDisposed)
+                        ApplyCameraVisionSmartZoomStatus(latest);
+                }),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void ApplyCameraVisionSmartZoomStatus(
@@ -721,7 +746,18 @@ namespace ExpressPackingMonitoring.ViewModels
             };
             _uiHeartbeatTimer.Tick += (_, __) =>
             {
-                _lastUiHeartbeatAt = DateTime.Now;
+                DateTime now = DateTime.Now;
+                TimeSpan heartbeatGap = now - _lastUiHeartbeatAt;
+                if (heartbeatGap >= UiHeartbeatStallThreshold
+                    && now - _lastUiHeartbeatStallLogAt >= TimeSpan.FromSeconds(30))
+                {
+                    _lastUiHeartbeatStallLogAt = now;
+                    RuntimeLog.Warn(
+                        "UiHeartbeat",
+                        $"UI thread stalled for {heartbeatGap.TotalSeconds:F1}s");
+                    LogResourceHealthIfDue("ui-heartbeat-stall", force: true);
+                }
+                _lastUiHeartbeatAt = now;
                 Interlocked.Exchange(ref _archiveUiHeartbeatUtcTicks, DateTime.UtcNow.Ticks);
                 if (_mobileBackupStatusDate != DateTime.Today)
                     RefreshMobileBackupStatuses();
@@ -848,51 +884,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 _archiveService = null;
                 _nasCircularCleanup = null;
                 AppDialog.Error(null, $"数据库初始化失败，部分功能将不可用：{ex.Message}", "启动警告");
-            }
-        }
-
-        private void RefreshTodayStats()
-        {
-            try
-            {
-                var todayList = _db?.GetAggregatedStats(DateTime.Today, DateTime.Today, "day", "pc");
-                if (todayList != null && todayList.Count > 0)
-                {
-                    var today = todayList[0];
-                    TotalPieces = today.TotalPieces;
-                    _totalPackTime = TimeSpan.FromSeconds(today.TotalDurationSec);
-                }
-                else
-                {
-                    TotalPieces = 0;
-                    _totalPackTime = TimeSpan.Zero;
-                }
-                OnPropertyChanged(nameof(TotalPackTimeDisplay)); OnPropertyChanged(nameof(AveragePackTimeDisplay));
-            }
-            catch { }
-        }
-
-        private void RestoreRecentScanRecords()
-        {
-            try
-            {
-                var records = _db?.GetRecentCompletedVideos(DateTime.Today, 20, "pc");
-                if (records == null) return;
-
-                _allLogs.Clear();
-                foreach (var record in records)
-                {
-                    _allLogs.Add(new ScanRecord(
-                        record.OrderId,
-                        "已保存",
-                        record.StartTime.ToString("HH:mm:ss"),
-                        record.Mode));
-                }
-                FilterLogs();
-            }
-            catch (Exception ex)
-            {
-                RuntimeLog.Error("ScanHistory", "Failed to restore recent scan records", ex);
             }
         }
 
@@ -1131,8 +1122,17 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     // 打包期间才退款的情况：同码停录时再核验一次（同一会话同一运单号只报一次）。
                     VerifyRefundOnSameCodeStop(upperResult);
-                    if (JdBarcodePolicy.MatchesPackage(_recordingOrderId ?? "", upperResult)
-                        && _db?.CompleteRecordingPackageIdentity(_currentRecordId, _recordingOrderId, upperResult) == true)
+                    VideoDatabase database = _db;
+                    long recordId = _currentRecordId;
+                    string recordingOrderId = _recordingOrderId ?? "";
+                    bool packageIdentityCompleted =
+                        JdBarcodePolicy.MatchesPackage(recordingOrderId, upperResult)
+                        && database != null
+                        && await Task.Run(() => database.CompleteRecordingPackageIdentity(
+                            recordId,
+                            recordingOrderId,
+                            upperResult));
+                    if (packageIdentityCompleted)
                     {
                         _recordingOrderId = upperResult;
                         CurrentOrderId = upperResult;
@@ -1244,46 +1244,18 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private void HandleOrderNumberRecordingStarted(string orderNumber)
         {
+            if (_isDisposed)
+                return;
+
             PublishExtensionScanTask(orderNumber);
             QueuePrintedRefundCheck(orderNumber, CurrentMode, _recordingSessionId);
-
-            // 录制已启动、数据库记录已写入，此时检查重复单号（排除刚刚插入的当前记录）
-            bool isDuplicate = _db != null && _db.OrderIdExistsRecent(orderNumber, excludeRecordId: _currentRecordId);
-            if (isDuplicate)
-            {
-                PublishScannerAlert(
-                    $"duplicate-order-number:{orderNumber}",
-                    "警告：重复单号，请确认",
-                    DefaultSpeechCatalog.DuplicateOrderNumber,
-                    repeatCount: 2);
-            }
-
-            // 查询快递助手推送的订单信息，在预览画面持续提示并按设置播报
-            if (Config.EnableOrderInfoLog)
-                System.Diagnostics.Debug.WriteLine($"[OrderInfo] 扫码查询: {orderNumber}, EnableAnnounce={Config.EnableOrderInfoAnnounce}, WebServer={(_webServer != null ? "已启动" : "未启动")}");
-            var orderInfo = _webServer?.GetOrderInfo(orderNumber);
-            if (IsRecording && orderInfo != null)
-                SetPreviewOrderNotice(orderInfo);
-            if (Config.EnableOrderInfoLog)
-                System.Diagnostics.Debug.WriteLine($"[OrderInfo] 查询结果: {(orderInfo != null ? $"命中 买家=[{orderInfo.BuyerMessage}] 卖家=[{orderInfo.SellerMemo}] 商品=[{orderInfo.ProductInfo}]" : "未命中")}");
-            if (Config.EnableOrderInfoAnnounce && orderInfo != null)
-            {
-                foreach (AlertSpeechFollowup announcement in BuildOrderInfoSpeechFollowups(
-                             orderInfo,
-                             Config.EnableOrderInfoAnnounce,
-                             Config.AnnounceBuyerMessage,
-                             Config.AnnounceSellerMemo,
-                             Config.AnnounceProductInfo,
-                             Config.AnnounceTotalItemCount))
-                {
-                    PublishVoice(
-                        announcement.Text,
-                        announcement.VoiceStyle,
-                        announcement.Sound,
-                        repeatCount: 1,
-                        interruptCurrent: false);
-                }
-            }
+            _ = RefreshOrderStartContextAsync(
+                orderNumber,
+                _currentRecordId,
+                _recordingSessionId,
+                Config,
+                _db,
+                _webServer);
         }
 
         private async Task CompleteSameCodePostRollAsync(CancellationTokenSource owner)
