@@ -174,6 +174,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     using var process = Process.Start(psi);
                     if (process == null)
                         return MkvConversionResult.Fail("FFmpeg 进程启动失败", mkvPath);
+                    try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
 
                     string stderr;
                     bool exited = WaitForProcessExit(process, GetMediaProcessTimeoutMs(mkvPath, audioPath), cancellationToken, out stderr);
