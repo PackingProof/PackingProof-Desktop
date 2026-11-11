@@ -69,6 +69,8 @@ public partial class PrintWorkstationWindow : Window
     private readonly DispatcherTimer _deviceRefreshTimer;
     private readonly DispatcherTimer _archiveRefreshTimer;
     private readonly DispatcherTimer _toastTimer;
+    private readonly CoalescingBackgroundRefresh _deviceSummaryRefresh = new();
+    private readonly CoalescingBackgroundRefresh _archiveSummaryRefresh = new();
     private StatisticsWindow? _statisticsWindow;
     private PlaybackWindow? _playbackWindow;
     private bool _loaded;
@@ -127,6 +129,8 @@ public partial class PrintWorkstationWindow : Window
             _deviceRefreshTimer.Stop();
             _archiveRefreshTimer.Stop();
             _toastTimer.Stop();
+            _deviceSummaryRefresh.Dispose();
+            _archiveSummaryRefresh.Dispose();
             ToastState.IsToastVisible = false;
             _lifetimeCts.Cancel();
             _host.MobileBackupStatusChanged -= OnMobileBackupStatusChanged;
@@ -417,37 +421,74 @@ public partial class PrintWorkstationWindow : Window
 
     private void RefreshDeviceSummary()
     {
-        UserscriptTargetStatus userscriptStatus = UserscriptTargetState.GetStatus(
-            _config,
-            _host.GetRecordingDevices(includeKnown: true));
-        (string shortStatus, string detailText) =
-            UserscriptStatusCardModel.GetCardTexts(userscriptStatus);
-        UserscriptStatusCard.ShortStatusText = AppLanguage.Get(shortStatus);
-        UserscriptStatusCard.DetailText = AppLanguage.Get(detailText);
-        InstallUserscriptButtonText.Text = AppLanguage.Get(userscriptStatus.ButtonText);
-        InstallUserscriptButton.IsEnabled = userscriptStatus.CurrentSignature.Length > 0;
+        _deviceSummaryRefresh.Request("设备备份概览", RefreshDeviceSummaryAsync);
+    }
 
-        MobileBackupDeviceStatuses.Clear();
-        if (!_host.HasDatabase)
+    private async Task RefreshDeviceSummaryAsync()
+    {
+        NoCameraWorkstationHost host = _host;
+        AppConfig config = _config;
+        DeviceSummarySnapshot snapshot;
+        try
         {
-            TodayBackupCountTextBlock.Text = "0";
-            TotalBackupCountTextBlock.Text = "0";
-            AddEmptyDeviceStatus();
+            UserscriptTargetStatus userscriptStatus = UserscriptTargetState.GetStatus(
+                config,
+                host.GetRecordingDevices(includeKnown: true));
+            (string shortStatus, string detailText) =
+                UserscriptStatusCardModel.GetCardTexts(userscriptStatus);
+            if (!host.HasDatabase)
+            {
+                snapshot = new DeviceSummarySnapshot(
+                    userscriptStatus,
+                    shortStatus,
+                    detailText,
+                    [],
+                    0,
+                    0);
+            }
+            else
+            {
+                MobileBackupOverview overview =
+                    host.Database.GetMobileBackupOverview(DateTime.Today);
+                IReadOnlyList<MobileBackupStatusItem> statuses =
+                    BuildMobileBackupStatuses(
+                        overview.DeviceCounts,
+                        host.GetRecordingDevices(),
+                        config.NodeId,
+                        host.GetCurrentRecordingDeviceNames());
+                snapshot = new DeviceSummarySnapshot(
+                    userscriptStatus,
+                    shortStatus,
+                    detailText,
+                    statuses,
+                    overview.TodayCount,
+                    overview.TotalCount);
+            }
+        }
+        catch
+        {
             return;
         }
 
-        MobileBackupOverview overview = _host.Database.GetMobileBackupOverview(DateTime.Today);
-        foreach (MobileBackupStatusItem status in BuildMobileBackupStatuses(
-            overview.DeviceCounts,
-            _host.GetRecordingDevices(),
-            _config.NodeId,
-            _host.GetCurrentRecordingDeviceNames()))
+        await Dispatcher.InvokeAsync(() =>
         {
-            MobileBackupDeviceStatuses.Add(status);
-        }
+            if (!_loaded)
+                return;
+            UserscriptStatusCard.ShortStatusText = AppLanguage.Get(snapshot.ShortStatus);
+            UserscriptStatusCard.DetailText = AppLanguage.Get(snapshot.DetailText);
+            InstallUserscriptButtonText.Text =
+                AppLanguage.Get(snapshot.UserscriptStatus.ButtonText);
+            InstallUserscriptButton.IsEnabled =
+                snapshot.UserscriptStatus.CurrentSignature.Length > 0;
 
-        TodayBackupCountTextBlock.Text = overview.TodayCount.ToString();
-        TotalBackupCountTextBlock.Text = overview.TotalCount.ToString();
+            MobileBackupDeviceStatuses.Clear();
+            foreach (MobileBackupStatusItem status in snapshot.Statuses)
+                MobileBackupDeviceStatuses.Add(status);
+            if (snapshot.Statuses.Count == 0)
+                AddEmptyDeviceStatus();
+            TodayBackupCountTextBlock.Text = snapshot.TodayCount.ToString();
+            TotalBackupCountTextBlock.Text = snapshot.TotalCount.ToString();
+        });
     }
 
     private void UpdateHeaderIdentity()
@@ -471,18 +512,45 @@ public partial class PrintWorkstationWindow : Window
 
     private void RefreshArchiveBackupSummary()
     {
-        (bool isVisible, ArchiveBackupCardState state) = _host.GetArchiveBackupCardState();
-        ArchiveBackupStatusCard.Visibility = isVisible
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        if (!isVisible)
+        _archiveSummaryRefresh.Request("网络备份卡片", RefreshArchiveBackupSummaryAsync);
+    }
+
+    private async Task RefreshArchiveBackupSummaryAsync()
+    {
+        (bool IsVisible, ArchiveBackupCardState State) snapshot;
+        try
+        {
+            snapshot = _host.GetArchiveBackupCardState();
+        }
+        catch
+        {
             return;
-        ArchiveBackupStatusCard.ShortStatusText = state.ShortStatusText;
-        ArchiveBackupStatusCard.DetailText = state.DetailText;
+        }
+
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (!_loaded)
+                return;
+            ArchiveBackupStatusCard.Visibility = snapshot.IsVisible
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            if (!snapshot.IsVisible)
+                return;
+            ArchiveBackupStatusCard.ShortStatusText = snapshot.State.ShortStatusText;
+            ArchiveBackupStatusCard.DetailText = snapshot.State.DetailText;
+        });
     }
 
     private void OnArchiveBackupStatusChanged() =>
         Interlocked.Exchange(ref _archiveBackupSummaryDirty, 1);
+
+    private sealed record DeviceSummarySnapshot(
+        UserscriptTargetStatus UserscriptStatus,
+        string ShortStatus,
+        string DetailText,
+        IReadOnlyList<MobileBackupStatusItem> Statuses,
+        int TodayCount,
+        int TotalCount);
 
     internal static IReadOnlyList<MobileBackupStatusItem> BuildMobileBackupStatuses(
         IEnumerable<MobileBackupDailyCount> counts,
@@ -573,11 +641,7 @@ public partial class PrintWorkstationWindow : Window
 
     private void OnMobileBackupStatusChanged()
     {
-        _ = Dispatcher.InvokeAsync(() =>
-        {
-            if (IsLoaded)
-                RefreshDeviceSummary();
-        });
+        RefreshDeviceSummary();
     }
 
     private BackupDeviceEnrollmentApprovalDecision ApproveBackupDeviceEnrollment(

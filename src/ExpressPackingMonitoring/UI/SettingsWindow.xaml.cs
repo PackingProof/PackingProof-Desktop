@@ -172,6 +172,7 @@ namespace ExpressPackingMonitoring.UI
         {
             Interval = TimeSpan.FromSeconds(5)
         };
+        private readonly CoalescingBackgroundRefresh _integrationStatusRefresh = new();
         private const string FeedbackEmail = FeedbackContact.Email;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -203,8 +204,7 @@ namespace ExpressPackingMonitoring.UI
 
             this.DataContext = this;
             RefreshCustomUserscripts();
-            RefreshExtensionAuthorizations();
-            RefreshOrderIntegrationDevices();
+            QueueIntegrationStatusRefresh();
             _integrationStatusTimer.Tick += IntegrationStatusTimer_Tick;
             if (Capabilities.CanRunWebServer)
                 _integrationStatusTimer.Start();
@@ -2373,27 +2373,52 @@ namespace ExpressPackingMonitoring.UI
                 CustomUserscripts.Add(script);
         }
 
-        private void RefreshExtensionAuthorizations()
+        private void QueueIntegrationStatusRefresh()
         {
-            ExtensionAuthorizations.Clear();
-            foreach (ExtensionAuthorizationDisplayItem item in
-                     Context.GetExtensionAuthorizations?.Invoke() ?? [])
-                ExtensionAuthorizations.Add(item);
+            if (_isClosing)
+                return;
+            _integrationStatusRefresh.Request(
+                "扩展与订单设备状态",
+                RefreshIntegrationStatusAsync);
         }
 
-        private void IntegrationStatusTimer_Tick(object sender, EventArgs e)
+        private async Task RefreshIntegrationStatusAsync()
         {
-            RefreshExtensionAuthorizations();
-            RefreshOrderIntegrationDevices();
+            Task<IReadOnlyList<ExtensionAuthorizationDisplayItem>> authorizationsTask =
+                Task.Run(() => Context.GetExtensionAuthorizations?.Invoke()
+                    ?? Array.Empty<ExtensionAuthorizationDisplayItem>());
+            Task<IReadOnlyList<OrderIntegrationDeviceDisplayItem>> devicesTask =
+                Task.Run(() => Context.GetOrderIntegrationDevices?.Invoke()
+                    ?? Array.Empty<OrderIntegrationDeviceDisplayItem>());
+            try
+            {
+                await Task.WhenAll(authorizationsTask, devicesTask);
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Warn(
+                    "Settings",
+                    $"刷新扩展与订单设备状态失败：{ex.GetType().Name}: {ex.Message}");
+                return;
+            }
+            if (_isClosing)
+                return;
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_isClosing)
+                    return;
+                ExtensionAuthorizations.Clear();
+                foreach (ExtensionAuthorizationDisplayItem item in authorizationsTask.Result)
+                    ExtensionAuthorizations.Add(item);
+                OrderIntegrationDevices.Clear();
+                foreach (OrderIntegrationDeviceDisplayItem item in devicesTask.Result)
+                    OrderIntegrationDevices.Add(item);
+            });
         }
 
-        private void RefreshOrderIntegrationDevices()
-        {
-            OrderIntegrationDevices.Clear();
-            foreach (OrderIntegrationDeviceDisplayItem item in
-                     Context.GetOrderIntegrationDevices?.Invoke() ?? [])
-                OrderIntegrationDevices.Add(item);
-        }
+        private void IntegrationStatusTimer_Tick(object sender, EventArgs e) =>
+            QueueIntegrationStatusRefresh();
 
         private void RevokeExtensionAuthorization_Click(object sender, RoutedEventArgs e)
         {
@@ -2407,7 +2432,7 @@ namespace ExpressPackingMonitoring.UI
                 return;
             if (Context.RevokeExtensionAuthorization?.Invoke(item.ExtensionInstanceId) == true)
             {
-                RefreshExtensionAuthorizations();
+                QueueIntegrationStatusRefresh();
                 Context.ShowToast?.Invoke("扩展授权已撤销", ToastSeverity.Success);
             }
         }
@@ -2453,6 +2478,7 @@ namespace ExpressPackingMonitoring.UI
             _isClosing = true;
             _integrationStatusTimer.Stop();
             _integrationStatusTimer.Tick -= IntegrationStatusTimer_Tick;
+            _integrationStatusRefresh.Dispose();
             var migrationCts = Interlocked.Exchange(ref _migrationCts, null);
             try { migrationCts?.Cancel(); } catch (ObjectDisposedException) { }
             _previewSpeechService?.Stop();
