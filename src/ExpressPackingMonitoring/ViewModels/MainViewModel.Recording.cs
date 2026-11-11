@@ -297,7 +297,7 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 _pendingCameraRestart = false;
                 ResetCameraRestartCounters();
-                RestartCamera();
+                await RestartCameraAsync();
                 ShowToast("摄像头配置已生效");
             }
         }
@@ -612,7 +612,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (!IsVideoSourceRunning())
                 {
                     // 尝试重启一次摄像头，以防万一用户刚插上
-                    RestartCamera();
+                    await RestartCameraAsync();
                     await Task.Delay(1000); // 给一点点启动时间
 
                     if (!IsVideoSourceRunning())

@@ -546,6 +546,7 @@
   <data name="扫码过快，已保留最后一个单号" xml:space="preserve"><value>スキャンが速すぎたため、最後の送り状番号を保持しました</value></data>
   <data name="摄像头配置已生效" xml:space="preserve"><value>カメラ設定を反映しました</value></data>
   <data name="摄像头启动失败" xml:space="preserve"><value>カメラの起動に失敗しました</value></data>
+  <data name="重启摄像头失败：{0}" xml:space="preserve"><value>カメラの再起動に失敗しました: {0}</value></data>
   <data name="摄像头停止失败，请重新插拔后重试" xml:space="preserve"><value>カメラを停止できませんでした。接続し直してから再度お試しください</value></data>
   <data name="摄像头停止失败，未继续重连" xml:space="preserve"><value>カメラを停止できなかったため、再接続を中止しました</value></data>
   <data name="摄像头未能进入休眠，请重新插拔后重试" xml:space="preserve"><value>カメラをスリープにできませんでした。接続し直してから再度お試しください</value></data>

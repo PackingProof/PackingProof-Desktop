@@ -546,6 +546,7 @@
   <data name="扫码过快，已保留最后一个单号" xml:space="preserve"><value>Scans arrived too quickly; the latest order number was kept</value></data>
   <data name="摄像头配置已生效" xml:space="preserve"><value>Camera configuration has taken effect</value></data>
   <data name="摄像头启动失败" xml:space="preserve"><value>Camera startup failed</value></data>
+  <data name="重启摄像头失败：{0}" xml:space="preserve"><value>Camera restart failed: {0}</value></data>
   <data name="摄像头停止失败，请重新插拔后重试" xml:space="preserve"><value>The camera failed to stop, please plug it in again and try again.</value></data>
   <data name="摄像头停止失败，未继续重连" xml:space="preserve"><value>The camera failed to stop and did not continue to reconnect.</value></data>
   <data name="摄像头未能进入休眠，请重新插拔后重试" xml:space="preserve"><value>The camera failed to enter sleep mode, please re-plug and try again.</value></data>

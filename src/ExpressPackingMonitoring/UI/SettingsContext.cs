@@ -100,8 +100,8 @@ public sealed class SettingsContext
     /// 设置页据此隐藏"调整放大位置"入口。
     /// </summary>
     public Action? RequestZoomGuideEdit { get; init; }
-    public Func<bool>? SuspendCameraForSetupWizard { get; init; }
-    public Action? ResumeCameraAfterSetupWizard { get; init; }
+    public Func<Task<bool>>? SuspendCameraForSetupWizardAsync { get; init; }
+    public Func<Task>? ResumeCameraAfterSetupWizardAsync { get; init; }
     public Action<Window>? ShowRecognitionSampleContributionPrompt { get; init; }
     public Action<string, ToastSeverity>? ShowToast { get; init; }
     public Func<IProgress<string>, CancellationToken, Task<MkvBatchConversionResult>>? BatchConvertMkvToMp4Async { get; init; }
@@ -133,8 +133,8 @@ public sealed class SettingsContext
             GetOrderIntegrationDevices = mainViewModel.GetOrderIntegrationDevices,
             RevokeExtensionAuthorization = mainViewModel.RevokeExtensionAuthorization,
             RequestZoomGuideEdit = mainViewModel.RequestZoomGuideEdit,
-            SuspendCameraForSetupWizard = mainViewModel.SuspendCameraForSetupWizard,
-            ResumeCameraAfterSetupWizard = mainViewModel.ResumeCameraAfterSetupWizard,
+            SuspendCameraForSetupWizardAsync = mainViewModel.SuspendCameraForSetupWizardAsync,
+            ResumeCameraAfterSetupWizardAsync = mainViewModel.ResumeCameraAfterSetupWizardAsync,
             ShowRecognitionSampleContributionPrompt =
                 mainViewModel.ShowRecognitionSampleContributionPrompt,
             ShowToast = mainViewModel.ShowToast,

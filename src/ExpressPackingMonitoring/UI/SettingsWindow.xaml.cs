@@ -1995,8 +1995,8 @@ namespace ExpressPackingMonitoring.UI
         private async void RunSetupWizard_Click(object sender, RoutedEventArgs e)
         {
             if (!Capabilities.CanUseCamera ||
-                Context.SuspendCameraForSetupWizard == null ||
-                Context.ResumeCameraAfterSetupWizard == null)
+                Context.SuspendCameraForSetupWizardAsync == null ||
+                Context.ResumeCameraAfterSetupWizardAsync == null)
                 return;
 
             Keyboard.ClearFocus();
@@ -2007,7 +2007,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 if (!_isRecording)
                 {
-                    pausedCamera = Context.SuspendCameraForSetupWizard();
+                    pausedCamera = await Context.SuspendCameraForSetupWizardAsync();
                     if (!pausedCamera)
                         return;
                 }
@@ -2032,7 +2032,7 @@ namespace ExpressPackingMonitoring.UI
             finally
             {
                 if (pausedCamera)
-                    Context.ResumeCameraAfterSetupWizard();
+                    await Context.ResumeCameraAfterSetupWizardAsync();
             }
         }
 

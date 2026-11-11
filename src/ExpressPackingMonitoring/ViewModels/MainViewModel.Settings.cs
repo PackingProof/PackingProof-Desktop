@@ -308,7 +308,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             ShowToast("配置已保存，重启相机", ToastSeverity.Information);
                             ResetCameraRestartCounters();
-                            RestartCamera();
+                            await RestartCameraAsync();
                         }
                     }
                     else
@@ -366,7 +366,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _isSetupWizardActive = true;
                 if (!IsRecording)
                 {
-                    pausedCamera = StopCamera();
+                    pausedCamera = await StopCameraAsync();
                     if (!pausedCamera)
                     {
                         ShowToast("摄像头未能停止，暂时无法打开配置向导", ToastSeverity.Warning);
@@ -426,7 +426,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (pausedCamera && !IsRecording && !_isDisposed)
                 {
                     ResetCameraRestartCounters();
-                    RestartCamera();
+                    await RestartCameraAsync();
                 }
             }
         }
@@ -597,13 +597,13 @@ namespace ExpressPackingMonitoring.ViewModels
             RuntimeLog.Info("MobileConnection", "Mobile connection setup prompt completed");
         }
 
-        public bool SuspendCameraForSetupWizard()
+        public async Task<bool> SuspendCameraForSetupWizardAsync()
         {
             if (IsRecording || _isDisposed)
                 return false;
 
             _isSetupWizardActive = true;
-            if (StopCamera())
+            if (await StopCameraAsync())
                 return true;
 
             _isSetupWizardActive = false;
@@ -611,14 +611,14 @@ namespace ExpressPackingMonitoring.ViewModels
             return false;
         }
 
-        public void ResumeCameraAfterSetupWizard()
+        public async Task ResumeCameraAfterSetupWizardAsync()
         {
             _isSetupWizardActive = false;
             if (IsRecording || _isDisposed)
                 return;
 
             ResetCameraRestartCounters();
-            RestartCamera();
+            await RestartCameraAsync();
         }
 
     }

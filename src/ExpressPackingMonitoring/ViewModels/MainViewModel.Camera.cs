@@ -38,7 +38,7 @@ namespace ExpressPackingMonitoring.ViewModels
 {
     public partial class MainViewModel
     {
-        private void RestartCamera()
+        private async Task RestartCameraAsync()
         {
             if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
             {
@@ -52,7 +52,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try
             {
                 RuntimeLog.Warn("Camera", $"RestartCamera start recording={IsRecording}, failures={_consecutiveRestartFailures}");
-                if (!StopCamera())
+                if (!await StopCameraAsync())
                 {
                     RuntimeLog.Warn("Camera", "RestartCamera aborted because previous camera did not stop");
                     ShowToast("摄像头停止失败，请重新插拔后重试", ToastSeverity.Error);
@@ -65,7 +65,11 @@ namespace ExpressPackingMonitoring.ViewModels
             catch (Exception ex)
             {
                 RuntimeLog.Error("Camera", "RestartCamera failed", ex);
-                throw;
+                ShowToast(
+                    AppLanguage.Format(
+                        "重启摄像头失败：{0}",
+                        ex.GetBaseException().Message),
+                    ToastSeverity.Error);
             }
             finally
             {
@@ -94,7 +98,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     RuntimeLog.Warn("Camera", "Camera reconnect requested while recording, stopping current recording before restart");
                     await SafeStopRecordingAsync();
 
-                    if (!StopCamera())
+                    if (!await StopCameraAsync())
                     {
                         ShowToast("摄像头停止失败，未继续重连", ToastSeverity.Error);
                         return;
@@ -137,7 +141,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 else
                 {
                     // 非录制状态：原有逻辑
-                    if (!StopCamera())
+                    if (!await StopCameraAsync())
                     {
                         ShowToast("摄像头停止失败，未继续重连", ToastSeverity.Error);
                         return;
@@ -217,7 +221,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 SpeakWarning(DefaultSpeechCatalog.ReconnectCamera, 3);
                 // 停掉这台只会报错的设备，避免日志和句柄继续增长
                 if (!_isRestartingCamera)
-                    StopCamera();
+                    _ = StopCameraAsync();
                 return;
             }
 
@@ -263,7 +267,7 @@ namespace ExpressPackingMonitoring.ViewModels
             // 手动重启：回到用户配置的传输方式，不要沿用自动回退记住的选择。
             _networkCameraWorkingTransport = "";
             _networkCameraTransportOverride = "";
-            RestartCamera();
+            QueueCameraRestart();
         }
 
         /// <summary>
@@ -294,7 +298,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 启动失败导致的停止不在这里兜底：那台设备每次都会报同样的错，重试只会刷屏。
                 ResetCameraRestartCounters();
                 Debug.WriteLine("[Camera] 用户活动，重置重连计数器并重试");
-                RestartCamera();
+                QueueCameraRestart();
             }
         }
 
@@ -317,14 +321,21 @@ namespace ExpressPackingMonitoring.ViewModels
                     double idleMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
                     if (idleMinutes >= Config.CameraIdleMinutes && !Config.IsCameraIdleNoSleepTime(DateTime.Now))
                     {
+                        bool stopped = await StopCameraAsync();
                         await Application.Current.Dispatcher.InvokeAsync(() => {
                             if (_isDisposed
                                 || _shutdownRequested
                                 || _isCameraSleeping
                                 || IsRecording
                                 || _isSetupWizardActive
-                                || Config.IsCameraIdleNoSleepTime(DateTime.Now)) return; // 再次检查防止竞态和跨入保护时段
-                            if (!StopCamera())
+                                || Config.IsCameraIdleNoSleepTime(DateTime.Now))
+                            {
+                                // 停止期间状态已变化时，把刚停下的摄像头接回来，避免录制点下后没有画面。
+                                if (!_isDisposed && !_shutdownRequested && !_isCameraSleeping)
+                                    StartCamera();
+                                return;
+                            }
+                            if (!stopped)
                             {
                                 ShowToast("摄像头未能进入休眠，请重新插拔后重试", ToastSeverity.Warning);
                                 return;
@@ -836,111 +847,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 ShowToast("网络摄像头连接异常，尝试重连...", ToastSeverity.Warning);
                 _ = RestartCameraWithRecordingStopAsync("network-source-error");
             });
-        }
-
-        private bool StopCamera()
-        {
-            LogResourceHealthIfDue("camera-stop", force: true);
-            // 镜头控制在媒体源失效前回收入口；重连成功后 AttachCameraLens 会重新恢复。
-            DetachCameraLens();
-            if (!_isDisposed)
-                ResetCameraBarcodeRecognition();
-
-            NetworkCameraSource networkSource = _networkCameraSource;
-            if (networkSource != null)
-            {
-                LogZeroFrameNetworkCameraSession(networkSource);
-
-                networkSource.StreamInfoReady -= NetworkCameraSource_StreamInfoReady;
-                networkSource.FrameReady -= NetworkCameraSource_FrameReady;
-                networkSource.SourceError -= NetworkCameraSource_SourceError;
-                try
-                {
-                    networkSource.Stop();
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Warn("Camera", $"Network camera stop failed: {ex.Message}");
-                }
-                if (ReferenceEquals(_networkCameraSource, networkSource))
-                    _networkCameraSource = null;
-                lock (_frameLock) { _latestCameraFrame.Clear(); }
-                ClearPreRecordBuffer();
-                ClearPendingEventRecordingFrames();
-                BeginPreviewSession(clearFrame: true);
-                RuntimeLog.Info("Camera", "StopNetworkCamera completed");
-                return true;
-            }
-
-            MfCameraSource mfSource = _mfCameraSource;
-            if (mfSource != null)
-            {
-                RuntimeLog.Info("Camera", $"StopCamera（Media Foundation）running={mfSource.IsRunning}");
-                try { mfSource.FrameReady -= MfCameraSource_FrameReady; } catch { }
-                try { mfSource.SourceError -= MfCameraSource_SourceError; } catch { }
-                try
-                {
-                    mfSource.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    RuntimeLog.Warn("Camera", $"Media Foundation camera stop failed: {ex.Message}");
-                }
-                if (ReferenceEquals(_mfCameraSource, mfSource))
-                    _mfCameraSource = null;
-                lock (_frameLock) { _latestCameraFrame.Clear(); }
-                ClearPreRecordBuffer();
-                ClearPendingEventRecordingFrames();
-                BeginPreviewSession(clearFrame: true);
-                Volatile.Write(ref _archiveCameraActive, 0);
-                RuntimeLog.Info("Camera", "StopCamera（Media Foundation）completed");
-                return true;
-            }
-
-            VideoCaptureDevice source = _videoSource;
-            if (source != null)
-            {
-                RuntimeLog.Info("Camera", $"StopCamera running={source.IsRunning}");
-                try { source.NewFrame -= VideoSource_NewFrame; } catch { }
-                try
-                {
-                    if (source.IsRunning)
-                    {
-                        source.SignalToStop();
-                        for (int i = 0; i < 50 && source.IsRunning; i++)
-                            Thread.Sleep(100);
-                    }
-                }
-                catch (SEHException) { /* AForge COM cleanup on some laptops */ }
-                catch (Exception ex) { RuntimeLog.Warn("Camera", $"Graceful camera stop failed: {ex.Message}"); }
-
-                if (source.IsRunning)
-                {
-                    RuntimeLog.Warn("Camera", "Graceful camera stop timed out, forcing stop");
-                    if (_cameraForceStopTask == null || _cameraForceStopTask.IsCompleted)
-                        _cameraForceStopTask = Task.Run(() => source.Stop());
-
-                    try { _cameraForceStopTask.Wait(2000); }
-                    catch (Exception ex) { RuntimeLog.Warn("Camera", $"Forced camera stop failed: {ex.GetBaseException().Message}"); }
-                }
-
-                if (source.IsRunning)
-                {
-                    RuntimeLog.Error("Camera", "Camera source is still running after forced stop");
-                    return false;
-                }
-
-                if (ReferenceEquals(_videoSource, source))
-                    _videoSource = null;
-                _cameraForceStopTask = null;
-            }
-            lock (_frameLock) { _latestCameraFrame.Clear(); }
-            ClearPreRecordBuffer();
-            ClearPendingEventRecordingFrames();
-            BeginPreviewSession(clearFrame: true);
-            Volatile.Write(ref _archiveCameraActive, 0);
-            RuntimeLog.Info("Camera", "StopCamera completed");
-            return true;
         }
 
         /// <summary>
