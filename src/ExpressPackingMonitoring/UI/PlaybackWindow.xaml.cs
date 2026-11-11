@@ -231,7 +231,7 @@ namespace ExpressPackingMonitoring.UI
                 ? Visibility.Collapsed
                 : Visibility.Visible;
             UpdateExportOrderNumbersButtonState();
-            LoadSourceFilterOptions();
+            _ = LoadSourceFilterOptionsAsync();
             UpdateLocateButtonState();
         }
 
@@ -784,31 +784,38 @@ namespace ExpressPackingMonitoring.UI
         /// 填充来源下拉。设备列表来自数据库里出现过的来源，
         /// 没有录像时只保留"全部设备"。
         /// </summary>
-        private void LoadSourceFilterOptions()
+        private async Task LoadSourceFilterOptionsAsync()
         {
-            var options = new List<VideoSourceOption> { new(AppLanguage.Get("全部设备"), "", "", true) };
-            try
+            VideoDatabase? database = _db;
+            IReadOnlyList<VideoSourceFilterOption> grouped = [];
+            if (database != null)
             {
-                if (_db != null)
+                try
                 {
-                    // 同一台手机换过设备号就会在数据库里分成多组，
-                    // 不按显示名合并的话下拉里会出现好几个"手机1"。
-                    // 本机那一项的名字走 GetSourceDisplay，和 Web 端的命名口径保持一致。
-                    IReadOnlyList<VideoSourceFilterOption> grouped = VideoSourceFilterOptions.Build(
-                        _db.GetVideoSources(),
+                    IReadOnlyList<VideoSourceInfo> sources =
+                        await Task.Run(database.GetVideoSources);
+                    grouped = VideoSourceFilterOptions.Build(
+                        sources,
                         source => string.Equals(source.SourceType, "external", StringComparison.OrdinalIgnoreCase)
                             ? GetSourceDeviceDisplayName(
                                 source.DeviceId,
                                 ResolveCurrentSourceDeviceName(source.DeviceId, source.DeviceName))
                             : GetSourceDisplay(source.SourceType, source.DeviceId, source.DeviceName, null, _computerName));
-                    foreach (VideoSourceFilterOption source in grouped)
-                        options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false, source.FilterDeviceIds));
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn("Playback", $"读取录像来源失败：{ex.Message}");
                 }
             }
-            catch (Exception ex)
-            {
-                RuntimeLog.Warn("Playback", $"读取录像来源失败：{ex.Message}");
-            }
+
+            if (_isClosing || !ReferenceEquals(_db, database))
+                return;
+            var options = new List<VideoSourceOption> { new(AppLanguage.Get("全部设备"), "", "", true) };
+            // 同一台手机换过设备号就会在数据库里分成多组，
+            // 不按显示名合并的话下拉里会出现好几个"手机1"。
+            // 本机那一项的名字走 GetSourceDisplay，和 Web 端的命名口径保持一致。
+            foreach (VideoSourceFilterOption source in grouped)
+                options.Add(new VideoSourceOption(source.Name, source.SourceType, source.DeviceId, false, source.FilterDeviceIds));
 
             _suppressFilterEvents = true;
             try
@@ -1514,7 +1521,7 @@ namespace ExpressPackingMonitoring.UI
         private void MediaPlayer_LengthChanged(object? sender, MediaPlayerLengthChangedEventArgs e)
         {
             _currentMediaLengthMs = e.Length;
-            Dispatcher.Invoke(() => SetTimelineMaximum(e.Length / 1000.0));
+            _ = Dispatcher.BeginInvoke(() => SetTimelineMaximum(e.Length / 1000.0));
         }
 
         private void MediaPlayer_TimeChanged(object? sender, MediaPlayerTimeChangedEventArgs e)
@@ -1536,7 +1543,7 @@ namespace ExpressPackingMonitoring.UI
         private void MediaPlayer_EndReached(object? sender, EventArgs e)
         {
             CancelAwaitingFirstFrame();
-            Dispatcher.Invoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 _timer.Stop();
                 UpdatePlayState(false);
@@ -1547,7 +1554,7 @@ namespace ExpressPackingMonitoring.UI
         private void MediaPlayer_EncounteredError(object? sender, EventArgs e)
         {
             CancelAwaitingFirstFrame();
-            Dispatcher.Invoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 if (_isPreparingPlayback)
                     return;
