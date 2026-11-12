@@ -1608,6 +1608,54 @@
                                                   Style="{StaticResource ToggleSwitchStyle}"/>
                                     </Grid>
 
+                                    <!-- 可选：面单定向。模型与 ONNX Runtime 不随包分发，由使用方自备，
+                                         缺失时自动退回纯图像处理的摆正方案。 -->
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="面单定向（可选）" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="用 YOLO 模型判断面单倾斜角度，面单歪着放也能识别；模型文件与 ONNX 运行时需自行准备"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="CameraBarcodeYoloCheckBox"
+                                                  Grid.Column="2"
+                                                  IsChecked="{Binding Config.EnableCameraBarcodeYoloDetection}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitchStyle}"/>
+                                    </Grid>
+
+                                    <Grid Style="{StaticResource AdvancedSettingRowStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,16,0">
+                                            <TextBlock Text="面单定向模型" Style="{StaticResource FieldLabelStyle}"/>
+                                            <TextBlock Text="YOLO-OBB 模型（.onnx）的完整路径；留空或文件不存在时使用内置的图像摆正"
+                                                       Style="{StaticResource FieldHintStyle}"/>
+                                        </StackPanel>
+                                        <Grid Grid.Column="2" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="CameraBarcodeYoloModelPathBox"
+                                                     Text="{Binding Config.CameraBarcodeYoloModelPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     VerticalContentAlignment="Center"/>
+                                            <Button Grid.Column="2"
+                                                    Content="浏览…"
+                                                    Click="CameraBarcodeYoloModelBrowse_Click"
+                                                    Cursor="Hand"/>
+                                        </Grid>
+                                    </Grid>
+
                                     <Grid Style="{StaticResource SettingRowStyle}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>

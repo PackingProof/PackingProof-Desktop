@@ -289,6 +289,31 @@ namespace ExpressPackingMonitoring.UI
 
         internal bool IsSyncingCameraChoices => _syncingCameraChoices;
 
+        /// <summary>
+        /// 选「面单定向模型」的 .onnx 文件。
+        ///
+        /// 这里直接写文本框而不是只改 Config：AppConfig 没有属性变更通知，
+        /// 只赋值的话输入框不会跟着变（用户会以为没选上）。
+        /// 文本框是 TwoWay 绑定，写回 Config 由绑定负责。
+        /// </summary>
+        private void CameraBarcodeYoloModelBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "选择面单定向模型",
+                Filter = "ONNX 模型 (*.onnx)|*.onnx|所有文件 (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (dialog.ShowDialog(this) != true)
+                return;
+
+            if (CameraBarcodeYoloModelPathBox != null)
+                CameraBarcodeYoloModelPathBox.Text = dialog.FileName;
+            if (Config != null)
+                Config.CameraBarcodeYoloModelPath = dialog.FileName;
+        }
+
         /// <summary>每一路叠加画面一张卡；没接设备的那一路也留着，用户才能"添加"。</summary>
         public ObservableCollection<OverlayChannelCard> OverlayCameraCards { get; } = new();
 

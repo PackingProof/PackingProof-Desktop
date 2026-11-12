@@ -587,6 +587,10 @@
   <data name="将条形码放入预览引导框，稳定识别后自动开始或切换录像" xml:space="preserve"><value>Place the barcode inside the preview guide to start or switch recordings after a stable read</value></data>
   <data name="识别二维码" xml:space="preserve"><value>QR code recognition</value></data>
   <data name="面单上印的是二维码时打开，开启后条码识别会略慢" xml:space="preserve"><value>Turn on when the shipping label only carries a QR code; barcode recognition becomes slightly slower</value></data>
+  <data name="面单定向（可选）" xml:space="preserve"><value>Label orientation (optional)</value></data>
+  <data name="用 YOLO 模型判断面单倾斜角度，面单歪着放也能识别；模型文件与 ONNX 运行时需自行准备" xml:space="preserve"><value>Use a YOLO model to measure how far the shipping label is tilted, so a label placed at an angle can still be read; the model file and ONNX runtime must be provided separately</value></data>
+  <data name="面单定向模型" xml:space="preserve"><value>Label orientation model</value></data>
+  <data name="YOLO-OBB 模型（.onnx）的完整路径；留空或文件不存在时使用内置的图像摆正" xml:space="preserve"><value>Full path to the YOLO-OBB model (.onnx); when left empty or the file is missing, the built-in image deskew is used</value></data>
   <data name="新增摄像头识别面单" xml:space="preserve"><value>Camera shipping-label recognition</value></data>
   <data name="无需扫码枪，也能自动开始录像" xml:space="preserve"><value>Start recording without a scanner</value></data>
   <data name="将面单条形码放入预览引导框，稳定识别后会自动开始或切换录像" xml:space="preserve"><value>Place the shipping-label barcode inside the preview guide to start or switch recordings after a stable read</value></data>
