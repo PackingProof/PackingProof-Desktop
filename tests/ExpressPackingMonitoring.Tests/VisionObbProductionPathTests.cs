@@ -270,6 +270,35 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void CachedDecodeFallsBackToGuideRegionWhenEveryObbCandidateIsWrong()
+    {
+        using var frame = CreateRotatedBarcodeFrame(angleDegrees: 0);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(
+            decoder,
+            settingsProvider: () => (true, "test-model.onnx"),
+            decodeBarcodesProvider: () => true,
+            detectorFactory: new FixedDetectorFactory(
+                new FixedDetector(
+                    new VisionObbDetection(
+                        CenterX: 60,
+                        CenterY: 60,
+                        Width: 100,
+                        Height: 40,
+                        AngleDegrees: 30,
+                        Score: 0.95f))));
+
+        obbDecoder.DetectOnly(frame);
+        string? decoded = obbDecoder.DecodeCachedDetections(
+            frame,
+            _ => true,
+            CameraBarcodeGuideGeometry.Default);
+
+        Assert.Equal("YT123456789012", decoded);
+        Assert.Null(obbDecoder.LastSelectedObbDetection);
+    }
+
+    [Fact]
     public void DirectCropFallsBackToFullDecoderWhenFastPassRejectsBareWaybill()
     {
         using var barcode = CreateBarcodeMat("79023021221301");
@@ -491,5 +520,29 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
         var bgr = new Mat();
         Cv2.CvtColor(bgra, bgr, ColorConversionCodes.BGRA2BGR);
         return bgr;
+    }
+
+    private sealed class FixedDetectorFactory(IVisionObbDetector detector)
+        : IVisionObbDetectorFactory
+    {
+        public bool IsAvailable => true;
+
+        public IVisionObbDetector? TryLoad(
+            string? modelPath,
+            bool preferDirectMl = true) => detector;
+
+        public VisionModelMetadata? ReadModelMetadata(string modelPath) => null;
+    }
+
+    private sealed class FixedDetector(VisionObbDetection detection)
+        : IVisionObbDetector
+    {
+        public string ExecutionProvider => "test";
+
+        public IReadOnlyList<VisionObbDetection> Detect(Mat frame) => [detection];
+
+        public void Dispose()
+        {
+        }
     }
 }

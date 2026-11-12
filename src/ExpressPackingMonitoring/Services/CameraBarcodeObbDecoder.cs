@@ -119,12 +119,19 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             return _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
         }
 
-        return DecodeDetectedRegions(
+        string? decoded = DecodeDetectedRegions(
             frame,
             LastObbDetections,
             isValid,
             geometry,
             useGuideRegionFallback: false);
+        if (decoded != null)
+            return decoded;
+
+        // 检测框只代表候选区域，不能作为“画面里一定有码”的证据。
+        // 所有 OBB 裁图都失败后必须回到原始取景区域，避免假框阻断正常 ZXing。
+        LastSelectedObbDetection = null;
+        return _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
     }
 
     private (IReadOnlyList<VisionObbDetection> Detections, bool DetectorAvailable)

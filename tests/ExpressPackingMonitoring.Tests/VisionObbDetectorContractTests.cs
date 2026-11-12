@@ -25,4 +25,34 @@ public sealed class VisionObbDetectorContractTests
                 out _,
                 out _));
     }
+
+    [Fact]
+    public void YoloxOutputLayoutAcceptsChannelsLastTensor()
+    {
+        Assert.True(
+            VisionObbDetector.TryResolveContract(
+                [1, 3, 640, 640],
+                [1, 8400, 7],
+                "yolox_obb",
+                out bool channelsFirst,
+                out VisionObbOutputLayout outputLayout,
+                out string error),
+            error);
+
+        Assert.False(channelsFirst);
+        Assert.Equal(VisionObbOutputLayout.Yolox, outputLayout);
+    }
+
+    [Fact]
+    public void UnknownOutputLayoutIsRejected()
+    {
+        Assert.False(VisionObbDetector.TryResolveContract(
+            [1, 3, 640, 640],
+            [1, 8400, 7],
+            "unknown_obb",
+            out _,
+            out _,
+            out string error));
+        Assert.Contains("unknown_obb", error);
+    }
 }

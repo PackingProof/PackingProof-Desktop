@@ -49,6 +49,28 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FillInputCanPreserveYoloxRawScale()
+    {
+        using var canvas = new Mat(
+            VisionObbDetector.InputSize,
+            VisionObbDetector.InputSize,
+            MatType.CV_8UC3,
+            new Scalar(114, 114, 114));
+        Cv2.Rectangle(canvas, new Rect(0, 0, 1, 1), new Scalar(10, 20, 30), -1);
+        var values = new float[3 * VisionObbDetector.InputSize * VisionObbDetector.InputSize];
+
+        Assert.True(VisionObbDetector.FillInput(
+            canvas,
+            values,
+            normalize: false));
+
+        int plane = VisionObbDetector.InputSize * VisionObbDetector.InputSize;
+        Assert.Equal(30f, values[0], 6);
+        Assert.Equal(20f, values[plane], 6);
+        Assert.Equal(10f, values[2 * plane], 6);
+    }
+
+    [Fact]
     public void ParseOutputReadsUltralyticsChannelsFirstTensor()
     {
         float[] values =
@@ -116,6 +138,35 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ParseOutputReadsYoloxObjectnessAndClassConfidence()
+    {
+        float[] values =
+        [
+            320,
+            240,
+            120,
+            60,
+            MathF.PI / 6,
+            0.80f,
+            0.75f
+        ];
+
+        VisionObbDetection detection = Assert.Single(
+            VisionObbDetector.ParseOutput(
+                values,
+                [1, 1, 7],
+                channelsFirst: false,
+                VisionObbOutputLayout.Yolox));
+
+        Assert.Equal(320, detection.CenterX);
+        Assert.Equal(240, detection.CenterY);
+        Assert.Equal(120, detection.Width);
+        Assert.Equal(60, detection.Height);
+        Assert.Equal(-30, detection.AngleDegrees, 3);
+        Assert.Equal(0.60f, detection.Score, 6);
+    }
+
+    [Fact]
     public void SuppressOverlapsKeepsHighestScoringDuplicate()
     {
         var high = new VisionObbDetection(100, 100, 80, 40, 0, 0.90f);
@@ -143,6 +194,33 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
 
         VisionObbDetection detection = Assert.Single(kept);
         Assert.Equal(200, detection.Width);
+    }
+
+    [Fact]
+    public void SuppressOverlapsKeepsCrossingRotatedLabelsWithSimilarBounds()
+    {
+        var diagonal = new VisionObbDetection(100, 100, 200, 20, 45, 0.90f);
+        var oppositeDiagonal = new VisionObbDetection(100, 100, 200, 20, 135, 0.90f);
+
+        List<VisionObbDetection> kept = VisionObbDetector.SuppressOverlaps(
+            [diagonal, oppositeDiagonal],
+            VisionObbDetector.NmsThreshold);
+
+        Assert.Equal(2, kept.Count);
+    }
+
+    [Fact]
+    public void SuppressOverlapsUsesRotatedOverlapForDuplicates()
+    {
+        var high = new VisionObbDetection(100, 100, 120, 50, 30, 0.90f);
+        var duplicate = new VisionObbDetection(104, 102, 120, 50, 31, 0.60f);
+
+        VisionObbDetection detection = Assert.Single(
+            VisionObbDetector.SuppressOverlaps(
+                [duplicate, high],
+                VisionObbDetector.NmsThreshold));
+
+        Assert.Equal(0.90f, detection.Score);
     }
 
     [Fact]
@@ -415,6 +493,17 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
 
         using Mat sample = Cv2.ImRead(samplePath, ImreadModes.Color);
         Assert.False(sample.Empty());
-        Assert.NotEmpty(detector.Detect(sample));
+        IReadOnlyList<VisionObbDetection> sampleDetections = detector.Detect(sample);
+        output.WriteLine(
+            $"OBB sample candidates={detector.LastRawCandidateCount}, "
+            + $"filtered={detector.LastFilteredDetectionCount}: "
+            + string.Join(
+                "; ",
+                sampleDetections.Select(detection =>
+                    $"score={detection.Score:F3},"
+                    + $"center=({detection.CenterX:F1},{detection.CenterY:F1}),"
+                    + $"size={detection.Width:F1}x{detection.Height:F1},"
+                    + $"angle={detection.AngleDegrees:F1}")));
+        Assert.NotEmpty(sampleDetections);
     }
 }

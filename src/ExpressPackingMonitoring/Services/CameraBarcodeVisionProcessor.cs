@@ -100,6 +100,9 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
                 return decoded;
             }
 
+            if (!ShouldRunQuadrilateralFallback(enhancedVisionEnabled))
+                return null;
+
             DateTimeOffset now = DateTimeOffset.UtcNow;
             if (now - _lastQuadrilateralAttemptAt < QuadrilateralFallbackInterval)
                 return null;
@@ -109,6 +112,9 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
             return decoded;
         }
     }
+
+    internal static bool ShouldRunQuadrilateralFallback(bool enhancedVisionEnabled) =>
+        !enhancedVisionEnabled;
 
     internal void ReleaseDetector()
     {

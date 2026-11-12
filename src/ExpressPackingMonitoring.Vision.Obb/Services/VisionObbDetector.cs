@@ -7,10 +7,15 @@ using System.IO;
 
 namespace ExpressPackingMonitoring.Vision.Obb;
 
+internal enum VisionObbOutputLayout
+{
+    Ultralytics,
+    Yolox
+}
+
 /// <summary>
 /// 通用 YOLO-OBB 检测器，可用于面单、商品或其他单类/多类目标。
-/// 模型输入固定为 640×640，输出采用 Ultralytics OBB 原始头
-/// [cx, cy, w, h, classScore, angle]。
+/// 模型输入固定为 640×640，通过 ONNX 元数据选择 Ultralytics 或 YOLOX 输出契约。
 /// </summary>
 internal sealed class VisionObbDetector : IVisionObbDetector
 {
@@ -24,6 +29,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     private readonly string _inputName;
     private readonly string _outputName;
     private readonly bool _channelsFirst;
+    private readonly VisionObbOutputLayout _outputLayout;
     private readonly string _executionProvider;
     private readonly Mat _canvas = new(
         InputSize,
@@ -44,16 +50,20 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         string inputName,
         string outputName,
         bool channelsFirst,
+        VisionObbOutputLayout outputLayout,
         string executionProvider)
     {
         _session = session;
         _inputName = inputName;
         _outputName = outputName;
         _channelsFirst = channelsFirst;
+        _outputLayout = outputLayout;
         _executionProvider = executionProvider;
     }
 
     public string ExecutionProvider => _executionProvider;
+    internal int LastRawCandidateCount { get; private set; }
+    internal int LastFilteredDetectionCount { get; private set; }
 
     internal static VisionObbDetector? TryLoad(
         string? modelPath,
@@ -70,10 +80,15 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             string outputName = session.OutputMetadata.Keys.First();
             int[]? inputDimensions = session.InputMetadata[inputName].Dimensions;
             int[]? outputDimensions = session.OutputMetadata[outputName].Dimensions;
+            session.ModelMetadata.CustomMetadataMap.TryGetValue(
+                "packingproof.output_layout",
+                out string? configuredOutputLayout);
             if (!TryResolveContract(
                     inputDimensions,
                     outputDimensions,
+                    configuredOutputLayout,
                     out bool channelsFirst,
+                    out VisionObbOutputLayout outputLayout,
                     out string contractError))
             {
                 throw new InvalidDataException(contractError);
@@ -86,6 +101,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 inputName,
                 outputName,
                 channelsFirst,
+                outputLayout,
                 executionProvider);
         }
         catch (Exception ex)
@@ -102,9 +118,25 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         int[]? inputDimensions,
         int[]? outputDimensions,
         out bool channelsFirst,
+        out string error) =>
+        TryResolveContract(
+            inputDimensions,
+            outputDimensions,
+            configuredOutputLayout: null,
+            out channelsFirst,
+            out _,
+            out error);
+
+    internal static bool TryResolveContract(
+        int[]? inputDimensions,
+        int[]? outputDimensions,
+        string? configuredOutputLayout,
+        out bool channelsFirst,
+        out VisionObbOutputLayout outputLayout,
         out string error)
     {
         channelsFirst = true;
+        outputLayout = VisionObbOutputLayout.Ultralytics;
         error = "";
         if (inputDimensions is not { Length: 4 }
             || inputDimensions[0] is not (1 or -1)
@@ -128,10 +160,29 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         channelsFirst = outputDimensions[1] <= outputDimensions[2];
         int channels = channelsFirst ? outputDimensions[1] : outputDimensions[2];
         int anchors = channelsFirst ? outputDimensions[2] : outputDimensions[1];
-        if (channels < 6 || anchors <= 0)
+        if (string.Equals(
+                configuredOutputLayout,
+                "yolox_obb",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            outputLayout = VisionObbOutputLayout.Yolox;
+        }
+        else if (!string.IsNullOrWhiteSpace(configuredOutputLayout)
+                 && !string.Equals(
+                     configuredOutputLayout,
+                     "ultralytics_obb",
+                     StringComparison.OrdinalIgnoreCase))
         {
             error =
-                "模型输出必须包含至少 cx、cy、w、h、类别分和角度六个通道，"
+                $"不支持的模型输出布局：{configuredOutputLayout}";
+            return false;
+        }
+
+        int minimumChannels = outputLayout == VisionObbOutputLayout.Yolox ? 7 : 6;
+        if (channels < minimumChannels || anchors <= 0)
+        {
+            error =
+                $"模型输出布局 {outputLayout} 至少需要 {minimumChannels} 个通道，"
                 + $"实际为 {FormatDimensions(outputDimensions)}";
             return false;
         }
@@ -177,6 +228,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     {
         lock (_detectLock)
         {
+            LastRawCandidateCount = 0;
+            LastFilteredDetectionCount = 0;
             if (_disposed || frame == null || frame.IsDisposed || frame.Empty())
                 return [];
 
@@ -185,12 +238,19 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     _canvas,
                     _resized,
                     _convertedBgr,
+                    topLeftPadding: _outputLayout == VisionObbOutputLayout.Yolox,
+                    interpolation: _outputLayout == VisionObbOutputLayout.Yolox
+                        ? InterpolationFlags.Linear
+                        : InterpolationFlags.Nearest,
                     ref _canvasSourceWidth,
                     ref _canvasSourceHeight,
                     out double scale,
                     out int padLeft,
                     out int padTop)
-                || !FillInput(_canvas, _input.Buffer.Span))
+                || !FillInput(
+                    _canvas,
+                    _input.Buffer.Span,
+                    normalize: _outputLayout != VisionObbOutputLayout.Yolox))
             {
                 return [];
             }
@@ -201,8 +261,11 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             List<VisionObbDetection> candidates = ParseOutput(
                 output.ToDenseTensor().Buffer.Span,
                 output.Dimensions.ToArray(),
-                _channelsFirst);
+                _channelsFirst,
+                _outputLayout);
+            LastRawCandidateCount = candidates.Count;
             List<VisionObbDetection> kept = SuppressOverlaps(candidates, NmsThreshold);
+            LastFilteredDetectionCount = kept.Count;
 
             var restored = new List<VisionObbDetection>(kept.Count);
             foreach (VisionObbDetection detection in kept)
@@ -222,7 +285,18 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     internal static List<VisionObbDetection> ParseOutput(
         ReadOnlySpan<float> data,
         int[] dimensions,
-        bool channelsFirst)
+        bool channelsFirst) =>
+        ParseOutput(
+            data,
+            dimensions,
+            channelsFirst,
+            VisionObbOutputLayout.Ultralytics);
+
+    internal static List<VisionObbDetection> ParseOutput(
+        ReadOnlySpan<float> data,
+        int[] dimensions,
+        bool channelsFirst,
+        VisionObbOutputLayout outputLayout)
     {
         var detections = new List<VisionObbDetection>();
         if (dimensions.Length < 3)
@@ -230,12 +304,16 @@ internal sealed class VisionObbDetector : IVisionObbDetector
 
         int channels = channelsFirst ? dimensions[1] : dimensions[2];
         int anchors = channelsFirst ? dimensions[2] : dimensions[1];
-        if (channels < 6 || anchors <= 0)
+        int minimumChannels = outputLayout == VisionObbOutputLayout.Yolox ? 7 : 6;
+        if (channels < minimumChannels || anchors <= 0)
             return detections;
 
-        int classCount = channels - 5;
+        int classCount = channels - (outputLayout == VisionObbOutputLayout.Yolox ? 6 : 5);
         for (int anchor = 0; anchor < anchors; anchor++)
         {
+            float objectness = outputLayout == VisionObbOutputLayout.Yolox
+                ? Read(data, channels, anchors, 5, anchor, channelsFirst)
+                : 1;
             float score = 0;
             int bestClassId = 0;
             for (int classIndex = 0; classIndex < classCount; classIndex++)
@@ -244,12 +322,13 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     data,
                     channels,
                     anchors,
-                    4 + classIndex,
+                    (outputLayout == VisionObbOutputLayout.Yolox ? 6 : 4) + classIndex,
                     anchor,
                     channelsFirst);
-                if (value > score)
+                float candidateScore = value * objectness;
+                if (candidateScore > score)
                 {
-                    score = value;
+                    score = candidateScore;
                     bestClassId = classIndex;
                 }
             }
@@ -261,7 +340,14 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 Read(data, channels, anchors, 1, anchor, channelsFirst),
                 Read(data, channels, anchors, 2, anchor, channelsFirst),
                 Read(data, channels, anchors, 3, anchor, channelsFirst),
-                Read(data, channels, anchors, channels - 1, anchor, channelsFirst)
+                (outputLayout == VisionObbOutputLayout.Yolox ? -1 : 1)
+                    * Read(
+                        data,
+                        channels,
+                        anchors,
+                        outputLayout == VisionObbOutputLayout.Yolox ? 4 : channels - 1,
+                        anchor,
+                        channelsFirst)
                     * 180.0 / Math.PI,
                 score,
                 bestClassId));
@@ -282,8 +368,12 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                      .Take(MaxDetections * 4))
         {
             if (kept.Any(existing =>
-                    AxisAlignedIoU(candidate, existing) > iouThreshold
-                    || AxisAlignedContainment(candidate, existing) > 0.85))
+                {
+                    (float iou, float containment) = RotatedOverlap(
+                        candidate,
+                        existing);
+                    return iou > iouThreshold || containment > 0.85f;
+                }))
                 continue;
             kept.Add(candidate);
             if (kept.Count >= MaxDetections)
@@ -292,42 +382,53 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         return kept;
     }
 
-    private static float AxisAlignedIoU(
+    private static (float IoU, float Containment) RotatedOverlap(
         in VisionObbDetection left,
         in VisionObbDetection right)
     {
-        Bounds a = GetBounds(left);
-        Bounds b = GetBounds(right);
-        double intersectionWidth = Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left));
-        double intersectionHeight = Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top));
-        double intersection = intersectionWidth * intersectionHeight;
-        if (intersection <= 0)
-            return 0;
-        double union = a.Area + b.Area - intersection;
-        return union <= 0 ? 0 : (float)(intersection / union);
+        double leftArea = Math.Max(0, left.Width * left.Height);
+        double rightArea = Math.Max(0, right.Width * right.Height);
+        if (leftArea <= 0 || rightArea <= 0)
+            return (0, 0);
+
+        var leftRect = new RotatedRect(
+            new Point2f((float)left.CenterX, (float)left.CenterY),
+            new Size2f((float)left.Width, (float)left.Height),
+            (float)left.AngleDegrees);
+        var rightRect = new RotatedRect(
+            new Point2f((float)right.CenterX, (float)right.CenterY),
+            new Size2f((float)right.Width, (float)right.Height),
+            (float)right.AngleDegrees);
+        RectanglesIntersectTypes intersectionType =
+            Cv2.RotatedRectangleIntersection(leftRect, rightRect, out Point2f[] region);
+        if (intersectionType == RectanglesIntersectTypes.None
+            || region.Length < 3)
+        {
+            return (0, 0);
+        }
+
+        double intersectionArea = Math.Abs(PolygonArea(region));
+        double unionArea = leftArea + rightArea - intersectionArea;
+        float iou = unionArea <= 0
+            ? 0
+            : (float)Math.Clamp(intersectionArea / unionArea, 0, 1);
+        float containment = (float)Math.Clamp(
+            intersectionArea / Math.Max(0.001, Math.Min(leftArea, rightArea)),
+            0,
+            1);
+        return (iou, containment);
     }
 
-    private static float AxisAlignedContainment(
-        in VisionObbDetection left,
-        in VisionObbDetection right)
+    private static double PolygonArea(IReadOnlyList<Point2f> points)
     {
-        Bounds a = GetBounds(left);
-        Bounds b = GetBounds(right);
-        double intersectionWidth = Math.Max(0, Math.Min(a.Right, b.Right) - Math.Max(a.Left, b.Left));
-        double intersectionHeight = Math.Max(0, Math.Min(a.Bottom, b.Bottom) - Math.Max(a.Top, b.Top));
-        double intersection = intersectionWidth * intersectionHeight;
-        double smallerArea = Math.Max(0.001, Math.Min(a.Area, b.Area));
-        return (float)Math.Clamp(intersection / smallerArea, 0, 1);
-    }
-
-    private static Bounds GetBounds(in VisionObbDetection detection)
-    {
-        Point2f[] corners = VisionObbGeometry.ToCorners(detection);
-        double left = corners.Min(point => point.X);
-        double top = corners.Min(point => point.Y);
-        double right = corners.Max(point => point.X);
-        double bottom = corners.Max(point => point.Y);
-        return new Bounds(left, top, right, bottom);
+        double twiceArea = 0;
+        for (int index = 0; index < points.Count; index++)
+        {
+            Point2f current = points[index];
+            Point2f next = points[(index + 1) % points.Count];
+            twiceArea += current.X * next.Y - next.X * current.Y;
+        }
+        return twiceArea / 2.0;
     }
 
     private static bool PrepareLetterbox(
@@ -335,6 +436,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         Mat canvas,
         Mat resized,
         Mat convertedBgr,
+        bool topLeftPadding,
+        InterpolationFlags interpolation,
         ref int canvasSourceWidth,
         ref int canvasSourceHeight,
         out double scale,
@@ -372,19 +475,25 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         scale = Math.Min((double)InputSize / source.Width, (double)InputSize / source.Height);
         int width = Math.Max(1, (int)Math.Round(source.Width * scale));
         int height = Math.Max(1, (int)Math.Round(source.Height * scale));
-        padLeft = (InputSize - width) / 2;
-        padTop = (InputSize - height) / 2;
+        padLeft = topLeftPadding ? 0 : (InputSize - width) / 2;
+        padTop = topLeftPadding ? 0 : (InputSize - height) / 2;
         Cv2.Resize(
             source,
             resized,
             new Size(width, height),
-            interpolation: InterpolationFlags.Nearest);
+            interpolation: interpolation);
         using Mat target = canvas.SubMat(new Rect(padLeft, padTop, width, height));
         resized.CopyTo(target);
         return true;
     }
 
     internal static unsafe bool FillInput(Mat canvas, Span<float> buffer)
+        => FillInput(canvas, buffer, normalize: true);
+
+    internal static unsafe bool FillInput(
+        Mat canvas,
+        Span<float> buffer,
+        bool normalize)
     {
         int expectedValues = 3 * InputSize * InputSize;
         if (canvas == null
@@ -400,7 +509,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         }
 
         int plane = InputSize * InputSize;
-        const float scale = 1f / 255f;
+        float scale = normalize ? 1f / 255f : 1f;
         byte* source = (byte*)canvas.DataPointer;
         fixed (float* destination = buffer)
         {
@@ -440,10 +549,6 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         }
     }
 
-    private readonly record struct Bounds(double Left, double Top, double Right, double Bottom)
-    {
-        internal double Area => Math.Max(0, Right - Left) * Math.Max(0, Bottom - Top);
-    }
 }
 
 /// <summary>可选的 OBB 视觉实现入口；主程序只编译依赖其公开契约。</summary>
