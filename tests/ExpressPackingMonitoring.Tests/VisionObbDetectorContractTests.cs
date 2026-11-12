@@ -55,4 +55,21 @@ public sealed class VisionObbDetectorContractTests
             out string error));
         Assert.Contains("unknown_obb", error);
     }
+
+    [Fact]
+    public void RtmdetOutputLayoutAcceptsCombinedChannelsLastTensor()
+    {
+        Assert.True(
+            VisionObbDetector.TryResolveContract(
+                [1, 3, 640, 640],
+                [1, 8400, 6],
+                "rtmdet_obb",
+                out bool channelsFirst,
+                out VisionObbOutputLayout outputLayout,
+                out string error),
+            error);
+
+        Assert.False(channelsFirst);
+        Assert.Equal(VisionObbOutputLayout.Rtmdet, outputLayout);
+    }
 }

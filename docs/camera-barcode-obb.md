@@ -160,8 +160,17 @@ Desktop 的 Release 不承载模型二进制。模型资产和运行时统一使
 - 最终置信度为 `objectness × classScore`
 - `angle` 转换到 C# 图像坐标的旋转方向后再用于预览、裁图和旋转 NMS
 - 预处理按 YOLOX 训练参数使用左上角对齐、双线性缩放、`114` 填充和 `0–255` 像素值
+- 可选 `packingproof.score_threshold`、`packingproof.nms_threshold` 覆盖运行时默认阈值
 
 未声明该元数据时继续使用上面的 Ultralytics 默认契约，现有基线模型行为不变。
+
+RTMDet-R 的旋转头可通过 `packingproof.output_layout=rtmdet_obb` 接入：
+
+- 导出时将 `bboxes` 与 `scores` 合并为 `1×8400×6`
+- 每行依次为 `cx, cy, w, h, angle, score`
+- 预处理使用左上角对齐、双线性缩放、`114` 填充，
+  并按 BGR 通道执行 RTMDet 的均值/标准差归一化
+- 未内置的 mmdeploy 自定义 NMS 不进入 ONNX，由运行时统一执行旋转框去重
 
 解析层保存每个检测的类别 ID，不把类别固定成 `Waybill`。替换成多类别模型时，至少要保持
 上述输入输出张量契约；当前面单链路是第一个消费方，以后商品识别可以直接复用同一份 OBB

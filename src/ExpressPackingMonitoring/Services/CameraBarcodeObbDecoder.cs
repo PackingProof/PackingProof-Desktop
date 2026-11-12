@@ -18,6 +18,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal const double ConfidenceWeight = 0.35;
     internal const double CenterWeight = 0.20;
     internal const double DirectCropMaxResidualAngleDegrees = 10;
+    internal const double CropPaddingRatio = 0.04;
 
     private readonly CameraBarcodeFrameDecoder _standardDecoder;
     private readonly Func<(bool Enabled, string Path)> _settingsProvider;
@@ -212,24 +213,18 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             }
 
             bool useDirectCrop = ShouldUseDirectCrop(detection);
-            using Mat patch = useDirectCrop
-                ? CreateAxisAlignedPatch(frame, detection)
-                : CreateUprightPatch(frame, detection);
-            if (patch.Empty())
-                continue;
-            string? oriented = null;
-            if (useDirectCrop)
+            string? oriented = DecodeDetectionPatch(
+                frame,
+                detection,
+                useDirectCrop,
+                isValid);
+            if (string.IsNullOrWhiteSpace(oriented))
             {
-                oriented = _standardDecoder.DecodeDetachedFast(patch);
-                if (string.IsNullOrWhiteSpace(oriented)
-                    || (isValid != null && !TryValidate(isValid, oriented)))
-                {
-                    oriented = _standardDecoder.DecodeDetached(patch, isValid);
-                }
-            }
-            else
-            {
-                oriented = _standardDecoder.DecodeDetached(patch, isValid);
+                oriented = DecodeDetectionPatch(
+                    frame,
+                    detection,
+                    !useDirectCrop,
+                    isValid);
             }
             if (string.IsNullOrWhiteSpace(oriented))
             {
@@ -253,6 +248,29 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         string? decoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
         LastSelectedObbDetection = FindDetectionForDecodedGeometry();
         return decoded;
+    }
+
+    private string? DecodeDetectionPatch(
+        Mat frame,
+        in VisionObbDetection detection,
+        bool useDirectCrop,
+        Func<string, bool>? isValid)
+    {
+        using Mat patch = useDirectCrop
+            ? CreateAxisAlignedPatch(frame, detection)
+            : CreateUprightPatch(frame, detection);
+        if (patch.Empty())
+            return null;
+        if (!useDirectCrop)
+            return _standardDecoder.DecodeDetached(patch, isValid);
+
+        string? decoded = _standardDecoder.DecodeDetachedFast(patch);
+        if (!string.IsNullOrWhiteSpace(decoded)
+            && (isValid == null || TryValidate(isValid, decoded)))
+        {
+            return decoded;
+        }
+        return _standardDecoder.DecodeDetached(patch, isValid);
     }
 
     internal static ObbBarcodeSelection SelectCandidate(
@@ -469,7 +487,8 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
 
         int padding = Math.Max(
             8,
-            (int)Math.Round(Math.Min(detection.Width, detection.Height) * 0.04));
+            (int)Math.Round(
+                Math.Min(detection.Width, detection.Height) * CropPaddingRatio));
         int left = Math.Clamp(
             (int)Math.Floor(minX - padding),
             0,
@@ -493,7 +512,9 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     {
         int width = Math.Max(1, (int)Math.Round(detection.Width));
         int height = Math.Max(1, (int)Math.Round(detection.Height));
-        int padding = Math.Max(8, (int)Math.Round(Math.Min(width, height) * 0.04));
+        int padding = Math.Max(
+            8,
+            (int)Math.Round(Math.Min(width, height) * CropPaddingRatio));
         int outputWidth = Math.Clamp(width + padding * 2, 8, 4096);
         int outputHeight = Math.Clamp(height + padding * 2, 8, 4096);
 

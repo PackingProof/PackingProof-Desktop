@@ -3,6 +3,7 @@ using ExpressPackingMonitoring.Vision;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
+using System.Globalization;
 using System.IO;
 
 namespace ExpressPackingMonitoring.Vision.Obb;
@@ -10,7 +11,8 @@ namespace ExpressPackingMonitoring.Vision.Obb;
 internal enum VisionObbOutputLayout
 {
     Ultralytics,
-    Yolox
+    Yolox,
+    Rtmdet
 }
 
 /// <summary>
@@ -30,6 +32,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     private readonly string _outputName;
     private readonly bool _channelsFirst;
     private readonly VisionObbOutputLayout _outputLayout;
+    private readonly float _scoreThreshold;
+    private readonly float _nmsThreshold;
     private readonly string _executionProvider;
     private readonly Mat _canvas = new(
         InputSize,
@@ -51,6 +55,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         string outputName,
         bool channelsFirst,
         VisionObbOutputLayout outputLayout,
+        float scoreThreshold,
+        float nmsThreshold,
         string executionProvider)
     {
         _session = session;
@@ -58,6 +64,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         _outputName = outputName;
         _channelsFirst = channelsFirst;
         _outputLayout = outputLayout;
+        _scoreThreshold = scoreThreshold;
+        _nmsThreshold = nmsThreshold;
         _executionProvider = executionProvider;
     }
 
@@ -83,6 +91,14 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             session.ModelMetadata.CustomMetadataMap.TryGetValue(
                 "packingproof.output_layout",
                 out string? configuredOutputLayout);
+            float scoreThreshold = ReadThreshold(
+                session.ModelMetadata.CustomMetadataMap,
+                "packingproof.score_threshold",
+                ScoreThreshold);
+            float nmsThreshold = ReadThreshold(
+                session.ModelMetadata.CustomMetadataMap,
+                "packingproof.nms_threshold",
+                NmsThreshold);
             if (!TryResolveContract(
                     inputDimensions,
                     outputDimensions,
@@ -102,6 +118,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 outputName,
                 channelsFirst,
                 outputLayout,
+                scoreThreshold,
+                nmsThreshold,
                 executionProvider);
         }
         catch (Exception ex)
@@ -157,15 +175,33 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             return false;
         }
 
-        channelsFirst = outputDimensions[1] <= outputDimensions[2];
+        channelsFirst = outputDimensions[1] == -1
+            ? false
+            : outputDimensions[2] == -1
+                ? true
+                : outputDimensions[1] <= outputDimensions[2];
         int channels = channelsFirst ? outputDimensions[1] : outputDimensions[2];
         int anchors = channelsFirst ? outputDimensions[2] : outputDimensions[1];
+        if (channels == -1)
+        {
+            error =
+                "模型输出必须包含固定的通道维，不能同时把通道数和候选数设为动态"
+                + $"实际为 {FormatDimensions(outputDimensions)}";
+            return false;
+        }
         if (string.Equals(
                 configuredOutputLayout,
                 "yolox_obb",
                 StringComparison.OrdinalIgnoreCase))
         {
             outputLayout = VisionObbOutputLayout.Yolox;
+        }
+        else if (string.Equals(
+                     configuredOutputLayout,
+                     "rtmdet_obb",
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            outputLayout = VisionObbOutputLayout.Rtmdet;
         }
         else if (!string.IsNullOrWhiteSpace(configuredOutputLayout)
                  && !string.Equals(
@@ -178,7 +214,12 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             return false;
         }
 
-        int minimumChannels = outputLayout == VisionObbOutputLayout.Yolox ? 7 : 6;
+        int minimumChannels = outputLayout switch
+        {
+            VisionObbOutputLayout.Yolox => 7,
+            VisionObbOutputLayout.Rtmdet => 6,
+            _ => 6
+        };
         if (channels < minimumChannels || anchors <= 0)
         {
             error =
@@ -191,6 +232,24 @@ internal sealed class VisionObbDetector : IVisionObbDetector
 
     private static string FormatDimensions(int[]? dimensions) =>
         dimensions == null ? "unknown" : $"[{string.Join(",", dimensions)}]";
+
+    private static float ReadThreshold(
+        IReadOnlyDictionary<string, string> metadata,
+        string key,
+        float fallback)
+    {
+        if (!metadata.TryGetValue(key, out string? value)
+            || !float.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out float parsed)
+            || !float.IsFinite(parsed))
+        {
+            return fallback;
+        }
+        return Math.Clamp(parsed, 0.01f, 0.99f);
+    }
 
     private static (InferenceSession Session, string Provider) CreateSession(
         string modelPath,
@@ -238,8 +297,10 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     _canvas,
                     _resized,
                     _convertedBgr,
-                    topLeftPadding: _outputLayout == VisionObbOutputLayout.Yolox,
-                    interpolation: _outputLayout == VisionObbOutputLayout.Yolox
+                    topLeftPadding: _outputLayout is VisionObbOutputLayout.Yolox
+                        or VisionObbOutputLayout.Rtmdet,
+                    interpolation: _outputLayout is VisionObbOutputLayout.Yolox
+                        or VisionObbOutputLayout.Rtmdet
                         ? InterpolationFlags.Linear
                         : InterpolationFlags.Nearest,
                     ref _canvasSourceWidth,
@@ -247,10 +308,12 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     out double scale,
                     out int padLeft,
                     out int padTop)
-                || !FillInput(
-                    _canvas,
-                    _input.Buffer.Span,
-                    normalize: _outputLayout != VisionObbOutputLayout.Yolox))
+                || (_outputLayout == VisionObbOutputLayout.Rtmdet
+                    ? !FillRtmdetInput(_canvas, _input.Buffer.Span)
+                    : !FillInput(
+                        _canvas,
+                        _input.Buffer.Span,
+                        normalize: _outputLayout != VisionObbOutputLayout.Yolox)))
             {
                 return [];
             }
@@ -262,9 +325,10 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 output.ToDenseTensor().Buffer.Span,
                 output.Dimensions.ToArray(),
                 _channelsFirst,
-                _outputLayout);
+                _outputLayout,
+                _scoreThreshold);
             LastRawCandidateCount = candidates.Count;
-            List<VisionObbDetection> kept = SuppressOverlaps(candidates, NmsThreshold);
+            List<VisionObbDetection> kept = SuppressOverlaps(candidates, _nmsThreshold);
             LastFilteredDetectionCount = kept.Count;
 
             var restored = new List<VisionObbDetection>(kept.Count);
@@ -290,13 +354,15 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             data,
             dimensions,
             channelsFirst,
-            VisionObbOutputLayout.Ultralytics);
+            VisionObbOutputLayout.Ultralytics,
+            ScoreThreshold);
 
     internal static List<VisionObbDetection> ParseOutput(
         ReadOnlySpan<float> data,
         int[] dimensions,
         bool channelsFirst,
-        VisionObbOutputLayout outputLayout)
+        VisionObbOutputLayout outputLayout,
+        float scoreThreshold = ScoreThreshold)
     {
         var detections = new List<VisionObbDetection>();
         if (dimensions.Length < 3)
@@ -308,9 +374,37 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         if (channels < minimumChannels || anchors <= 0)
             return detections;
 
-        int classCount = channels - (outputLayout == VisionObbOutputLayout.Yolox ? 6 : 5);
+        int classCount = outputLayout switch
+        {
+            VisionObbOutputLayout.Yolox => channels - 6,
+            VisionObbOutputLayout.Rtmdet => 0,
+            _ => channels - 5
+        };
         for (int anchor = 0; anchor < anchors; anchor++)
         {
+            if (outputLayout == VisionObbOutputLayout.Rtmdet)
+            {
+                float rtmdetScore = Read(
+                    data,
+                    channels,
+                    anchors,
+                    5,
+                    anchor,
+                    channelsFirst);
+                if (rtmdetScore < scoreThreshold)
+                    continue;
+                detections.Add(new VisionObbDetection(
+                    Read(data, channels, anchors, 0, anchor, channelsFirst),
+                    Read(data, channels, anchors, 1, anchor, channelsFirst),
+                    Read(data, channels, anchors, 2, anchor, channelsFirst),
+                    Read(data, channels, anchors, 3, anchor, channelsFirst),
+                    Read(data, channels, anchors, 4, anchor, channelsFirst)
+                        * 180.0 / Math.PI,
+                    rtmdetScore,
+                    0));
+                continue;
+            }
+
             float objectness = outputLayout == VisionObbOutputLayout.Yolox
                 ? Read(data, channels, anchors, 5, anchor, channelsFirst)
                 : 1;
@@ -332,7 +426,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                     bestClassId = classIndex;
                 }
             }
-            if (score < ScoreThreshold)
+            if (score < scoreThreshold)
                 continue;
 
             detections.Add(new VisionObbDetection(
@@ -519,6 +613,41 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 destination[offset] = source[sourceOffset + 2] * scale;
                 destination[plane + offset] = source[sourceOffset + 1] * scale;
                 destination[2 * plane + offset] = source[sourceOffset] * scale;
+            }
+        }
+        return true;
+    }
+
+    internal static unsafe bool FillRtmdetInput(Mat canvas, Span<float> buffer)
+    {
+        int expectedValues = 3 * InputSize * InputSize;
+        if (canvas == null
+            || canvas.IsDisposed
+            || canvas.Empty()
+            || canvas.Type() != MatType.CV_8UC3
+            || canvas.Width != InputSize
+            || canvas.Height != InputSize
+            || !canvas.IsContinuous()
+            || buffer.Length < expectedValues)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<float> means = [103.53f, 116.28f, 123.675f];
+        ReadOnlySpan<float> standardDeviations = [57.375f, 57.12f, 58.395f];
+        int plane = InputSize * InputSize;
+        byte* source = (byte*)canvas.DataPointer;
+        fixed (float* destination = buffer)
+        {
+            for (int offset = 0; offset < plane; offset++)
+            {
+                int sourceOffset = offset * 3;
+                destination[offset] =
+                    (source[sourceOffset] - means[0]) / standardDeviations[0];
+                destination[plane + offset] =
+                    (source[sourceOffset + 1] - means[1]) / standardDeviations[1];
+                destination[2 * plane + offset] =
+                    (source[sourceOffset + 2] - means[2]) / standardDeviations[2];
             }
         }
         return true;

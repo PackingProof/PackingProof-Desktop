@@ -71,6 +71,25 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FillRtmdetInputUsesBgrMeanAndStandardDeviation()
+    {
+        using var canvas = new Mat(
+            VisionObbDetector.InputSize,
+            VisionObbDetector.InputSize,
+            MatType.CV_8UC3,
+            new Scalar(114, 114, 114));
+        Cv2.Rectangle(canvas, new Rect(0, 0, 1, 1), new Scalar(10, 20, 30), -1);
+        var values = new float[3 * VisionObbDetector.InputSize * VisionObbDetector.InputSize];
+
+        Assert.True(VisionObbDetector.FillRtmdetInput(canvas, values));
+
+        int plane = VisionObbDetector.InputSize * VisionObbDetector.InputSize;
+        Assert.Equal((10f - 103.53f) / 57.375f, values[0], 6);
+        Assert.Equal((20f - 116.28f) / 57.12f, values[plane], 6);
+        Assert.Equal((30f - 123.675f) / 58.395f, values[2 * plane], 6);
+    }
+
+    [Fact]
     public void ParseOutputReadsUltralyticsChannelsFirstTensor()
     {
         float[] values =
@@ -164,6 +183,53 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
         Assert.Equal(60, detection.Height);
         Assert.Equal(-30, detection.AngleDegrees, 3);
         Assert.Equal(0.60f, detection.Score, 6);
+    }
+
+    [Fact]
+    public void ParseOutputUsesModelDeclaredScoreThreshold()
+    {
+        float[] values =
+        [
+            320,
+            240,
+            120,
+            60,
+            MathF.PI / 6,
+            0.70f,
+            0.60f
+        ];
+
+        Assert.Empty(
+            VisionObbDetector.ParseOutput(
+                values,
+                [1, 1, 7],
+                channelsFirst: false,
+                VisionObbOutputLayout.Yolox,
+                scoreThreshold: 0.50f));
+    }
+
+    [Fact]
+    public void ParseOutputReadsCombinedRtmdetTensor()
+    {
+        float[] values =
+        [
+            320,
+            240,
+            120,
+            60,
+            MathF.PI / 6,
+            0.75f
+        ];
+
+        VisionObbDetection detection = Assert.Single(
+            VisionObbDetector.ParseOutput(
+                values,
+                [1, 1, 6],
+                channelsFirst: false,
+                VisionObbOutputLayout.Rtmdet));
+
+        Assert.Equal(30, detection.AngleDegrees, 3);
+        Assert.Equal(0.75f, detection.Score, 6);
     }
 
     [Fact]
