@@ -137,6 +137,9 @@
     <Compile Include="Services\Extensions\ExtensionStartupEntryRewriter.cs" />
     <Compile Include="Services\CameraBarcodeRecognitionService.cs" />
     <Compile Include="Services\CameraBarcodeGuideLayout.cs" />
+    <Compile Include="Services\CameraBarcodeDeskewPolicy.cs" />
+    <Compile Include="Services\CameraBarcodeUpscalePolicy.cs" />
+    <Compile Include="Services\CameraBarcodeEnhancedDecoder.cs" />
     <Compile Include="Services\CameraFormatCatalog.cs" />
     <Compile Include="Services\CameraDeviceChoice.cs" />
     <Compile Include="Services\CameraDeviceSelectionPolicy.cs" />

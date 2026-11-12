@@ -629,6 +629,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     ];
 
     private readonly Func<bool> _qrCodeEnabledProvider;
+    // 🔴 摆正+放大兜底默认开启；关掉后退回改动前的行为（测试要对比用）。
+    private readonly bool _enableEnhancedDecode;
 
     // 快速通道永远只认一维码：框里有一维码时二维码解码完全不参与，识别延迟不变。
     private readonly BarcodeReaderGeneric _fastReader = new()
@@ -663,12 +665,19 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
     };
     private readonly DecodeWorkspace _guideWorkspace = new();
     private readonly DecodeWorkspace _fullFrameWorkspace = new();
+    // 🔴 常规解码没命中时的兜底（摆正 + 放大重试）。
+    // 单独一个 workspace：增强链路走的是变换后的图，不能和常规链路共用缓冲。
+    private readonly DecodeWorkspace _enhancedWorkspace = new();
+    private readonly CameraBarcodeEnhancedDecoder _enhancedDecoder = new();
     private bool _disposed;
     internal CameraBarcodeGeometry? LastGeometry { get; private set; }
 
-    public CameraBarcodeFrameDecoder(Func<bool>? qrCodeEnabledProvider = null)
+    public CameraBarcodeFrameDecoder(
+        Func<bool>? qrCodeEnabledProvider = null,
+        bool enableEnhancedDecode = true)
     {
         _qrCodeEnabledProvider = qrCodeEnabledProvider ?? (() => false);
+        _enableEnhancedDecode = enableEnhancedDecode;
     }
 
     internal int PixelBufferAllocationCount =>
@@ -710,7 +719,12 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
 
         using Mat cropped = new(frame, guide);
         if (isValid == null)
-            return DecodeSingle(cropped, _guideWorkspace);
+        {
+            string? direct = DecodeSingle(cropped, _guideWorkspace);
+            return string.IsNullOrEmpty(direct)
+                ? DecodeEnhanced(cropped, null)
+                : direct;
+        }
         string? decoded = DecodeBest(cropped, _guideWorkspace, isValid, guide);
         if (decoded != null)
         {
@@ -725,8 +739,40 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
                     local.Width * scaleX,
                     local.Height * scaleY);
             }
+            return decoded;
         }
-        return decoded;
+        return DecodeEnhanced(cropped, isValid);
+    }
+
+    /// <summary>
+    /// 常规解码没命中时的兜底：先把斜放的面单摆正，再按倍数放大，各试一次。
+    ///
+    /// 只在常规路径已经失败时才会走，正常识别不增加任何开销。
+    /// </summary>
+    private string? DecodeEnhanced(Mat cropped, Func<string, bool>? isValid)
+    {
+        if (!_enableEnhancedDecode)
+            return null;
+        if (!_enhancedDecoder.TryDecode(
+                cropped,
+                image => DecodeEnhancedOnce(image, isValid),
+                out string? code)
+            || string.IsNullOrEmpty(code))
+        {
+            return null;
+        }
+
+        // 摆正/放大后的坐标系和原图对不上，别拿它的候选框去画位置。
+        _lastBestCandidate = null;
+        return code;
+    }
+
+    private string? DecodeEnhancedOnce(Mat image, Func<string, bool>? isValid)
+    {
+        string? code = DecodeSingle(image, _enhancedWorkspace);
+        if (string.IsNullOrEmpty(code))
+            return null;
+        return isValid == null || isValid(code) ? code : null;
     }
 
     private DecodedCandidate? _lastBestCandidate;
@@ -1163,6 +1209,8 @@ internal sealed class CameraBarcodeFrameDecoder : IDisposable
         _disposed = true;
         _guideWorkspace.Dispose();
         _fullFrameWorkspace.Dispose();
+        _enhancedWorkspace.Dispose();
+        _enhancedDecoder.Dispose();
     }
 }
 
