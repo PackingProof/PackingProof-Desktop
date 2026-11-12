@@ -215,9 +215,9 @@
   <data name="只停预览画面，录像与扫码识别照常，可省 GPU" xml:space="preserve"><value>Stops only the preview image; recording and barcode recognition keep working, which saves GPU</value></data>
   <data name="快递打包监控" xml:space="preserve"><value>Express packaging monitoring</value></data>
   <data name="快要自动停止录像前，提前多久提醒" xml:space="preserve"><value>How long to remind before automatically stopping recording</value></data>
-  <data name="离线语音" xml:space="preserve"><value>Offline voice</value></data>
   <data name="连续字符平均间隔低于该值时，认为更像扫码枪高速输入" xml:space="preserve"><value>Lower values reject slower typing</value></data>
   <data name="联网语音" xml:space="preserve"><value>Online voice</value></data>
+  <data name="使用在线语音，网络不可用时自动回退系统语音" xml:space="preserve"><value>Uses online voice and falls back to system voice when offline</value></data>
   <data name="浏览器访问用的端口，保存后自动重启服务" xml:space="preserve"><value>The port used for browser access, and the service will be automatically restarted after saving.</value></data>
   <data name="录像保存位置" xml:space="preserve"><value>Recording locations</value></data>
   <data name="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率" xml:space="preserve"><value>Test this PC and recommend stable camera settings</value></data>
@@ -299,7 +299,6 @@
   <data name="无回车窗口内识别" xml:space="preserve"><value>In-window recognition without Enter</value></data>
   <data name="无回车窗口内识别时，最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成" xml:space="preserve"><value>Wait after the last character before submitting a scan</value></data>
   <data name="系统语音" xml:space="preserve"><value>System voice</value></data>
-  <data name="系统语音不需要网络；联网语音声音更自然；离线语音使用本地模型，需要额外运行依赖" xml:space="preserve"><value>Online sounds better; offline needs extra runtime</value></data>
   <data name="下移" xml:space="preserve"><value>Move down</value></data>
   <data name="显示已清理记录" xml:space="preserve"><value>Show cleared records</value></data>
   <data name="限制录像时长" xml:space="preserve"><value>Limit recording duration</value></data>
@@ -309,7 +308,6 @@
   <data name="需要保留现场声音时开启" xml:space="preserve"><value>Turn on when you need to preserve live sound</value></data>
   <data name="选择录制声音使用的麦克风" xml:space="preserve"><value>Select the microphone used to record sound</value></data>
   <data name="选择拍摄打包过程的摄像头" xml:space="preserve"><value>Camera used to record packing</value></data>
-  <data name="选择提醒声音使用系统语音、联网语音还是离线语音" xml:space="preserve"><value>Choose whether the reminder sound uses system voice, online voice, or offline voice</value></data>
   <data name="选择这台电脑负责录像还是打印" xml:space="preserve"><value>Choose whether this computer is responsible for recording or printing</value></data>
   <data name="移除选中" xml:space="preserve"><value>Remove selected</value></data>
   <data name="应用" xml:space="preserve"><value>Apply</value></data>
@@ -322,7 +320,6 @@
   <data name="用于重复单号、非法单号等提醒" xml:space="preserve"><value>Used to remind duplicate order numbers, illegal order numbers, etc.</value></data>
   <data name="优先使用显卡进行视频编码，可降低 CPU 占用；如果录像异常，可改为自动或 CPU" xml:space="preserve"><value>Uses the GPU to reduce CPU load; switch if recording fails</value></data>
   <data name="语速" xml:space="preserve"><value>Speech rate</value></data>
-  <data name="语音引擎" xml:space="preserve"><value>Voice engine</value></data>
   <data name="语音预览" xml:space="preserve"><value>Voice preview</value></data>
   <data name="越高越流畅，也更占空间" xml:space="preserve"><value>Higher is smoother; uses more space</value></data>
   <data name="越高越清晰，文件也越大" xml:space="preserve"><value>Higher is clearer; files get larger</value></data>
@@ -347,7 +344,6 @@
   <data name="最小文件大小" xml:space="preserve"><value>Minimum file size</value></data>
   <data name="Edge 声线来自微软在线语音服务，网络不可用时会回退到系统语音" xml:space="preserve"><value>Falls back to system voice when offline</value></data>
   <data name="H.265/HEVC 体积更小，但部分电脑或浏览器可能无法直接播放；H.264 兼容性更好" xml:space="preserve"><value>H.265 saves space; H.264 plays more widely</value></data>
-  <data name="Kokoro 声线编号由本地模型决定；不了解时保持默认即可" xml:space="preserve"><value>Kokoro voice IDs come from the local model</value></data>
   <data name="分钟" xml:space="preserve"><value> min</value></data>
   <data name="秒" xml:space="preserve"><value> sec</value></data>
   <data name="倍" xml:space="preserve"><value>x</value></data>

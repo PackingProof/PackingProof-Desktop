@@ -63,62 +63,6 @@ public sealed class LocalizationTests
         Assert.Equal(config.EdgeTtsVoiceJaJp, config.EdgeTtsVoice);
         Assert.Equal(config.EdgeTtsWarningVoiceJaJp, config.EdgeTtsWarningVoice);
         Assert.DoesNotContain("zh-CN", config.EdgeTtsVoice, StringComparison.Ordinal);
-        // 随包发布的 Kokoro 模型没有日语词典，日语默认走联网语音。
-        Assert.Equal("Edge", config.AiTtsEngineJaJp);
-        Assert.Equal("Edge", config.AiTtsEngine);
-    }
-
-    /// <summary>
-    /// 语音引擎按语言保存：历史单一值迁到中文/英文槽位，日语默认联网语音，
-    /// 用户为某种语言显式选过的引擎不会被其他语言覆盖。
-    /// </summary>
-    [Fact]
-    public void NormalizeAfterLoad_KeepsTtsEnginePerLanguage()
-    {
-        var config = new AppConfig
-        {
-            Language = AppLanguage.Chinese,
-            AiTtsEngine = "Kokoro"
-        };
-
-        AppConfig.NormalizeAfterLoad(config);
-
-        Assert.Equal("Kokoro", config.AiTtsEngineZhHans);
-        Assert.Equal("Kokoro", config.AiTtsEngineEnUs);
-        Assert.Equal("Edge", config.AiTtsEngineJaJp);
-        Assert.Equal("Kokoro", config.AiTtsEngine);
-
-        config.Language = AppLanguage.Japanese;
-        AppConfig.NormalizeAfterLoad(config);
-
-        Assert.Equal("Edge", config.AiTtsEngine);
-        Assert.Equal("Kokoro", config.AiTtsEngineZhHans);
-    }
-
-    /// <summary>
-    /// Kokoro 声线编号同样按语言分别保存：历史单一值迁到中文槽位，其他语言用各自默认值，
-    /// 生效值取当前界面语言。
-    /// </summary>
-    [Fact]
-    public void NormalizeAfterLoad_KeepsKokoroVoicesPerLanguage()
-    {
-        var config = new AppConfig
-        {
-            Language = AppLanguage.Japanese,
-            AiTtsSpeakerId = 7,
-            AiTtsWarningSpeakerId = 8
-        };
-
-        AppConfig.NormalizeAfterLoad(config);
-
-        Assert.Equal(7, config.AiTtsSpeakerIdZhHans);
-        Assert.Equal(8, config.AiTtsWarningSpeakerIdZhHans);
-        Assert.Equal(AppConfig.DefaultKokoroSpeakerId, config.AiTtsSpeakerIdEnUs);
-        Assert.Equal(AppConfig.DefaultKokoroWarningSpeakerId, config.AiTtsWarningSpeakerIdEnUs);
-        Assert.Equal(AppConfig.DefaultKokoroSpeakerId, config.AiTtsSpeakerIdJaJp);
-        Assert.Equal(AppConfig.DefaultKokoroWarningSpeakerId, config.AiTtsWarningSpeakerIdJaJp);
-        Assert.Equal(config.AiTtsSpeakerIdJaJp, config.AiTtsSpeakerId);
-        Assert.Equal(config.AiTtsWarningSpeakerIdJaJp, config.AiTtsWarningSpeakerId);
     }
 
     /// <summary>保存设置时只写回当前语言，不覆盖其他语言已经选好的声线。</summary>
@@ -127,30 +71,19 @@ public sealed class LocalizationTests
     {
         var config = new AppConfig { Language = AppLanguage.English };
         AppConfig.NormalizeAfterLoad(config);
-        int chineseSpeakerId = config.AiTtsSpeakerIdZhHans;
         string chineseVoice = config.EdgeTtsVoiceZhHans;
-        config.AiTtsEngineZhHans = "Kokoro";
 
         config.EdgeTtsVoice = "en-US-AriaNeural";
         config.EdgeTtsWarningVoice = "en-US-DavisNeural";
-        config.AiTtsEngine = "Edge";
-        config.AiTtsSpeakerId = 12;
-        config.AiTtsWarningSpeakerId = 13;
         config.StoreSelectedSpeechVoices();
 
         Assert.Equal("en-US-AriaNeural", config.EdgeTtsVoiceEnUs);
         Assert.Equal("en-US-DavisNeural", config.EdgeTtsWarningVoiceEnUs);
-        Assert.Equal(12, config.AiTtsSpeakerIdEnUs);
-        Assert.Equal(13, config.AiTtsWarningSpeakerIdEnUs);
-        Assert.Equal("Edge", config.AiTtsEngineEnUs);
-        Assert.Equal("Kokoro", config.AiTtsEngineZhHans);
         Assert.NotEqual("en-US-AriaNeural", config.EdgeTtsVoiceZhHans);
         Assert.Equal(chineseVoice, config.EdgeTtsVoiceZhHans);
-        Assert.Equal(chineseSpeakerId, config.AiTtsSpeakerIdZhHans);
 
         AppConfig.NormalizeAfterLoad(config);
         Assert.Equal("en-US-AriaNeural", config.EdgeTtsVoice);
-        Assert.Equal(12, config.AiTtsSpeakerId);
     }
 
     [Fact]

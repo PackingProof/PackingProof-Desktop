@@ -215,9 +215,9 @@
   <data name="只停预览画面，录像与扫码识别照常，可省 GPU" xml:space="preserve"><value>プレビュー画面だけを停止します。録画とバーコード認識は動作を続け、GPU を節約できます</value></data>
   <data name="快递打包监控" xml:space="preserve"><value>梱包モニター</value></data>
   <data name="快要自动停止录像前，提前多久提醒" xml:space="preserve"><value>録画が自動停止する前に、どのくらい前から通知するか</value></data>
-  <data name="离线语音" xml:space="preserve"><value>オフライン音声</value></data>
   <data name="连续字符平均间隔低于该值时，认为更像扫码枪高速输入" xml:space="preserve"><value>小さいほど手入力に厳しくなります</value></data>
   <data name="联网语音" xml:space="preserve"><value>オンライン音声</value></data>
+  <data name="使用在线语音，网络不可用时自动回退系统语音" xml:space="preserve"><value>オンライン音声を使用し、オフライン時はシステム音声に戻します</value></data>
   <data name="浏览器访问用的端口，保存后自动重启服务" xml:space="preserve"><value>ブラウザーからアクセスするポートです。保存するとサービスが自動で再起動します</value></data>
   <data name="录像保存位置" xml:space="preserve"><value>録画の保存先</value></data>
   <data name="检测本机实时录制能力，并按摄像头原生模式推荐分辨率和帧率" xml:space="preserve"><value>このパソコンを測定し、安定したカメラ設定を推奨します</value></data>
@@ -299,7 +299,6 @@
   <data name="无回车窗口内识别" xml:space="preserve"><value>Enter なしのウィンドウ内認識</value></data>
   <data name="无回车窗口内识别时，最后一次输入后超过这个时间没有新字符，才判断一次扫码是否完成" xml:space="preserve"><value>最後の入力からこの時間が過ぎてからスキャンを送信します</value></data>
   <data name="系统语音" xml:space="preserve"><value>システム音声</value></data>
-  <data name="系统语音不需要网络；联网语音声音更自然；离线语音使用本地模型，需要额外运行依赖" xml:space="preserve"><value>オンライン音声は自然です。オフラインには追加ランタイムが必要です</value></data>
   <data name="下移" xml:space="preserve"><value>下へ</value></data>
   <data name="显示已清理记录" xml:space="preserve"><value>削除済みの記録を表示</value></data>
   <data name="限制录像时长" xml:space="preserve"><value>録画時間を制限</value></data>
@@ -309,7 +308,6 @@
   <data name="需要保留现场声音时开启" xml:space="preserve"><value>現場の音声を残したい場合にオンにします</value></data>
   <data name="选择录制声音使用的麦克风" xml:space="preserve"><value>音声録音に使用するマイクを選択</value></data>
   <data name="选择拍摄打包过程的摄像头" xml:space="preserve"><value>梱包を撮影するカメラ</value></data>
-  <data name="选择提醒声音使用系统语音、联网语音还是离线语音" xml:space="preserve"><value>通知音声にシステム音声、オンライン音声、オフライン音声のどれを使うか選択します</value></data>
   <data name="选择这台电脑负责录像还是打印" xml:space="preserve"><value>このパソコンが録画と印刷のどちらを担当するか選択します</value></data>
   <data name="移除选中" xml:space="preserve"><value>選択項目を削除</value></data>
   <data name="应用" xml:space="preserve"><value>適用</value></data>
@@ -322,7 +320,6 @@
   <data name="用于重复单号、非法单号等提醒" xml:space="preserve"><value>送り状番号の重複や不正などの通知に使用します</value></data>
   <data name="优先使用显卡进行视频编码，可降低 CPU 占用；如果录像异常，可改为自动或 CPU" xml:space="preserve"><value>GPU でエンコードして CPU 負荷を下げます。録画が不安定なら自動または CPU に変更してください</value></data>
   <data name="语速" xml:space="preserve"><value>話す速さ</value></data>
-  <data name="语音引擎" xml:space="preserve"><value>音声エンジン</value></data>
   <data name="语音预览" xml:space="preserve"><value>音声プレビュー</value></data>
   <data name="越高越流畅，也更占空间" xml:space="preserve"><value>高いほど滑らかですが、容量も増えます</value></data>
   <data name="越高越清晰，文件也越大" xml:space="preserve"><value>高いほど高画質ですが、ファイルも大きくなります</value></data>
@@ -347,7 +344,6 @@
   <data name="最小文件大小" xml:space="preserve"><value>最小ファイルサイズ</value></data>
   <data name="Edge 声线来自微软在线语音服务，网络不可用时会回退到系统语音" xml:space="preserve"><value>オフライン時はシステム音声に切り替わります</value></data>
   <data name="H.265/HEVC 体积更小，但部分电脑或浏览器可能无法直接播放；H.264 兼容性更好" xml:space="preserve"><value>H.265 は容量を抑えられますが、H.264 の方が広く再生できます</value></data>
-  <data name="Kokoro 声线编号由本地模型决定；不了解时保持默认即可" xml:space="preserve"><value>Kokoro の声番号はローカルモデルで決まります</value></data>
   <data name="分钟" xml:space="preserve"><value>分</value></data>
   <data name="秒" xml:space="preserve"><value>秒</value></data>
   <data name="倍" xml:space="preserve"><value>倍</value></data>

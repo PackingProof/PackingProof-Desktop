@@ -214,8 +214,6 @@ namespace ExpressPackingMonitoring.ViewModels
                         Config.DeploymentPreset,
                         nextConfig.DeploymentPreset,
                         StringComparison.OrdinalIgnoreCase);
-                    bool aiTtsChanged = Config.EnableAiTts != nextConfig.EnableAiTts
-                        || Config.AiTtsEngine != nextConfig.AiTtsEngine;
                     bool webServerChanged = Config.EnableWebServer != nextConfig.EnableWebServer
                         || Config.WebServerPort != nextConfig.WebServerPort
                         || Config.TranscodeCacheMaxMB != nextConfig.TranscodeCacheMaxMB
@@ -257,17 +255,12 @@ namespace ExpressPackingMonitoring.ViewModels
                         _speechService.EnableSoundPrompt = Config.EnableSoundPrompt;
                         _speechService.MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech;
                         _speechService.EnableAiTts = Config.EnableAiTts;
-                        _speechService.AiTtsEngine = Config.AiTtsEngine;
-                        _speechService.AiTtsSpeakerId = Config.AiTtsSpeakerId;
-                        _speechService.AiTtsWarningSpeakerId = Config.AiTtsWarningSpeakerId;
                         _speechService.AiTtsSpeed = Config.AiTtsSpeed;
                         _speechService.EdgeTtsVoice = Config.EdgeTtsVoice;
                         _speechService.EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice;
                         _speechService.PlaybackDeviceId = Config.PlaybackDeviceMoniker;
                         _speechService.PlaybackDeviceName = Config.PlaybackDeviceName;
                         _speechService.UpdateBreakWords(Config.TtsBreakWords);
-                        if (aiTtsChanged && Config.EnableAiTts && !_speechService.IsAiTtsAvailable)
-                            _speechService.InitAiTts();
                     }
 
                     if (themeChanged)

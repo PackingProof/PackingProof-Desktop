@@ -4,7 +4,7 @@ using System.Windows.Controls;
 namespace ExpressPackingMonitoring.UI
 {
     /// <summary>
-    /// 语音声线按界面语言分别保存（引擎 / 在线音色 / 离线声线各一份）。
+    /// 在线语音声线按界面语言分别保存。
     ///
     /// 设置页的语音控件绑定的是 Config 上"当前语言那一份"的字段，而 Config 是纯 POCO、
     /// 不会发属性通知；所以**切语言的瞬间**就得把上一语言的界面选择存回它的槽位、
@@ -35,15 +35,11 @@ namespace ExpressPackingMonitoring.UI
             SyncSpeechVoiceSelectionsFromConfig();
         }
 
-        /// <summary>把 Config 上当前语言的语音选择刷到控件上（引擎下拉、在线音色、离线声线）。</summary>
+        /// <summary>把 Config 上当前语言的在线音色刷到控件上。</summary>
         private void SyncSpeechVoiceSelectionsFromConfig()
         {
-            SyncVoiceEngineComboBoxFromConfig();
-
             EdgeNormalVoiceComboBox?.GetBindingExpression(ComboBox.SelectedValueProperty)?.UpdateTarget();
             EdgeWarningVoiceComboBox?.GetBindingExpression(ComboBox.SelectedValueProperty)?.UpdateTarget();
-            KokoroNormalSpeakerUpDown?.GetBindingExpression(Xceed.Wpf.Toolkit.IntegerUpDown.ValueProperty)?.UpdateTarget();
-            KokoroWarningSpeakerUpDown?.GetBindingExpression(Xceed.Wpf.Toolkit.IntegerUpDown.ValueProperty)?.UpdateTarget();
         }
     }
 }

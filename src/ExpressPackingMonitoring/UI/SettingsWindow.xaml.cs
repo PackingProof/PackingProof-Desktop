@@ -161,7 +161,6 @@ namespace ExpressPackingMonitoring.UI
         private CollectionViewSource _localStorageView;
         private CollectionViewSource _backupStorageView;
         private bool _isLoadingDevices;
-        private bool _isSyncingVoiceEngine;
         private bool _isSyncingScannerModes;
         private bool _isApplyingDirectAacRecordingChoice;
         private bool _recordingCacheLimitExplained;
@@ -208,8 +207,6 @@ namespace ExpressPackingMonitoring.UI
             _integrationStatusTimer.Tick += IntegrationStatusTimer_Tick;
             if (Capabilities.CanRunWebServer)
                 _integrationStatusTimer.Start();
-            if (Capabilities.IsRecordingDevice)
-                SyncVoiceEngineComboBoxFromConfig();
             if (Capabilities.CanUseScanner)
                 SyncPackingModeComboBoxFromConfig();
             UpdateEventRecordingBufferControlState();
@@ -2198,37 +2195,6 @@ namespace ExpressPackingMonitoring.UI
             }
         }
 
-        private void SyncVoiceEngineComboBoxFromConfig()
-        {
-            if (VoiceEngineComboBox == null) return;
-
-            _isSyncingVoiceEngine = true;
-            VoiceEngineComboBox.SelectedValue = Config.EnableAiTts
-                ? NormalizeVoiceEngine(Config.AiTtsEngine)
-                : "System";
-            _isSyncingVoiceEngine = false;
-        }
-
-        private void VoiceEngineComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isSyncingVoiceEngine || Config == null) return;
-
-            string engine = VoiceEngineComboBox.SelectedValue?.ToString() ?? "System";
-            if (string.Equals(engine, "System", StringComparison.OrdinalIgnoreCase))
-            {
-                Config.EnableAiTts = false;
-                return;
-            }
-
-            Config.EnableAiTts = true;
-            Config.AiTtsEngine = NormalizeVoiceEngine(engine);
-        }
-
-        private static string NormalizeVoiceEngine(string engine)
-        {
-            return string.Equals(engine, "Kokoro", StringComparison.OrdinalIgnoreCase) ? "Kokoro" : "Edge";
-        }
-
         private void SyncPackingModeComboBoxFromConfig()
         {
             if (PackingModeComboBox == null) return;
@@ -2792,9 +2758,6 @@ namespace ExpressPackingMonitoring.UI
                     EnableSoundPrompt = true,
                     MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech,
                     EnableAiTts = Config.EnableAiTts,
-                    AiTtsEngine = Config.AiTtsEngine,
-                    AiTtsSpeakerId = Config.AiTtsSpeakerId,
-                    AiTtsWarningSpeakerId = Config.AiTtsWarningSpeakerId,
                     AiTtsSpeed = Config.AiTtsSpeed,
                     EdgeTtsVoice = Config.EdgeTtsVoice,
                     EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice,
@@ -2805,17 +2768,12 @@ namespace ExpressPackingMonitoring.UI
                     .Split(new[] { '\r', '\n', '，', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(w => w.Trim()).Where(w => w.Length > 0);
                 _previewSpeechService.UpdateBreakWords(words);
-                if (Config.EnableAiTts)
-                    _previewSpeechService.InitAiTts();
             }
             else
             {
                 // 更新参数
                 _previewSpeechService.EnableAiTts = Config.EnableAiTts;
                 _previewSpeechService.MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech;
-                _previewSpeechService.AiTtsEngine = Config.AiTtsEngine;
-                _previewSpeechService.AiTtsSpeakerId = Config.AiTtsSpeakerId;
-                _previewSpeechService.AiTtsWarningSpeakerId = Config.AiTtsWarningSpeakerId;
                 _previewSpeechService.AiTtsSpeed = Config.AiTtsSpeed;
                 _previewSpeechService.EdgeTtsVoice = Config.EdgeTtsVoice;
                 _previewSpeechService.EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice;

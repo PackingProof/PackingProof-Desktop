@@ -5,7 +5,7 @@ using Xunit;
 namespace ExpressPackingMonitoring.Tests;
 
 /// <summary>
-/// 语音声线按界面语言分别保存：中文 / 英文 / 日语各有一套引擎、在线音色与离线声线。
+/// 在线语音声线按界面语言分别保存：中文 / 英文 / 日语各有一套音色。
 ///
 /// "改了语言但两种语言串成一份"的根因：保存时按**当前**语言写槽位，而那一刻
 /// Config.Language 已经是新语言了，于是上一语言界面上的声线被写进新语言的槽位，
@@ -22,9 +22,6 @@ public sealed class VoiceSettingsPerLanguageTests
         // 中文：改一套并存回中文槽位
         config.EdgeTtsVoice = "zh-CN-XiaoyiNeural";
         config.EdgeTtsWarningVoice = "zh-CN-YunyangNeural";
-        config.AiTtsEngine = "Kokoro";
-        config.AiTtsSpeakerId = 12;
-        config.AiTtsWarningSpeakerId = 13;
         config.StoreSelectedSpeechVoices();
 
         // 切到英文：装进来的是英文自己那套（默认值）
@@ -43,9 +40,6 @@ public sealed class VoiceSettingsPerLanguageTests
         config.ApplySpeechVoicesForLanguage();
         Assert.Equal("zh-CN-XiaoyiNeural", config.EdgeTtsVoice);
         Assert.Equal("zh-CN-YunyangNeural", config.EdgeTtsWarningVoice);
-        Assert.Equal("Kokoro", config.AiTtsEngine);
-        Assert.Equal(12, config.AiTtsSpeakerId);
-        Assert.Equal(13, config.AiTtsWarningSpeakerId);
 
         // 再切回英文：英文那套也还在
         config.Language = "en-US";
@@ -74,14 +68,13 @@ public sealed class VoiceSettingsPerLanguageTests
         Assert.Equal("en-US-JennyNeural", config.EdgeTtsVoiceEnUs);
     }
 
-    /// <summary>日语也要有自己的一份，且默认走联网语音。</summary>
+    /// <summary>日语也要有自己的一份在线音色。</summary>
     [Fact]
-    public void JapaneseLanguage_HasItsOwnEngineAndVoices()
+    public void JapaneseLanguage_HasItsOwnVoices()
     {
         var config = new AppConfig { Language = "ja-JP" };
         AppConfig.NormalizeAfterLoad(config);
 
-        Assert.Equal("Edge", config.AiTtsEngine);
         Assert.Equal("ja-JP-NanamiNeural", config.EdgeTtsVoice);
         Assert.Equal("ja-JP-KeitaNeural", config.EdgeTtsWarningVoice);
     }
@@ -104,12 +97,26 @@ public sealed class VoiceSettingsPerLanguageTests
         Assert.Contains("Config.ApplySpeechVoicesForLanguage(newLanguage)", code, StringComparison.Ordinal);
         Assert.Contains("SyncSpeechVoiceSelectionsFromConfig()", code, StringComparison.Ordinal);
         Assert.Contains("EdgeNormalVoiceComboBox", code, StringComparison.Ordinal);
-        Assert.Contains("KokoroNormalSpeakerUpDown", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OnlineSpeechUsesEdgeVoiceControls()
+    {
+        string project = ReadRepositoryFile(
+            Path.Combine("src", "ExpressPackingMonitoring", "ExpressPackingMonitoring.csproj"));
+        string xaml = ReadProjectFile(Path.Combine("UI", "SettingsWindow.xaml"));
+
+        Assert.Contains("EdgeTTS.Framework", project, StringComparison.Ordinal);
+        Assert.Contains("EdgeNormalVoiceComboBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("EdgeWarningVoiceComboBox", xaml, StringComparison.Ordinal);
     }
 
     private static string ReadProjectFile(string relativePath) =>
+        ReadRepositoryFile(Path.Combine("src", "ExpressPackingMonitoring", relativePath));
+
+    private static string ReadRepositoryFile(string relativePath) =>
         File.ReadAllText(
-            Path.Combine(FindRepositoryRoot(), "src", "ExpressPackingMonitoring", relativePath),
+            Path.Combine(FindRepositoryRoot(), relativePath),
             Encoding.UTF8);
 
     private static string FindRepositoryRoot()

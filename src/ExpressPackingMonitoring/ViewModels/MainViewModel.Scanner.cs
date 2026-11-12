@@ -236,9 +236,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 EnableSoundPrompt = Config.EnableSoundPrompt,
                 MaximizeVolumeForSpeech = Config.MaximizeVolumeForSpeech,
                 EnableAiTts = Config.EnableAiTts,
-                AiTtsEngine = Config.AiTtsEngine,
-                AiTtsSpeakerId = Config.AiTtsSpeakerId,
-                AiTtsWarningSpeakerId = Config.AiTtsWarningSpeakerId,
                 AiTtsSpeed = Config.AiTtsSpeed,
                 EdgeTtsVoice = Config.EdgeTtsVoice,
                 EdgeTtsWarningVoice = Config.EdgeTtsWarningVoice,
@@ -246,8 +243,6 @@ namespace ExpressPackingMonitoring.ViewModels
                 PlaybackDeviceName = Config.PlaybackDeviceName
             };
             _speechService.UpdateBreakWords(Config.TtsBreakWords);
-            if (Config.EnableAiTts)
-                _speechService.InitAiTts();
             _alertService = new AlertService(
                 PresentAlert,
                 _speechService.PlayAlert,

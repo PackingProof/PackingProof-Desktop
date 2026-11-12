@@ -463,20 +463,6 @@ namespace ExpressPackingMonitoring.Config
 
         // AI 语音合成
         public bool EnableAiTts { get; set; } = true;
-        public string AiTtsEngine { get; set; } = "Edge"; // "Kokoro" or "Edge"
-        // 语音引擎同样按语言分别保存；日语默认走联网语音，因为随包发布的离线模型只有中英文词典。
-        public string AiTtsEngineZhHans { get; set; } = "";
-        public string AiTtsEngineEnUs { get; set; } = "";
-        public string AiTtsEngineJaJp { get; set; } = "";
-        public int AiTtsSpeakerId { get; set; } = 51;        // 普通播报声线
-        public int AiTtsWarningSpeakerId { get; set; } = 50;  // 警告播报声线
-        // Kokoro 声线编号同样按语言分别保存；0 表示未设置，由规范化填入该语言的默认值。
-        public int AiTtsSpeakerIdZhHans { get; set; }
-        public int AiTtsWarningSpeakerIdZhHans { get; set; }
-        public int AiTtsSpeakerIdEnUs { get; set; }
-        public int AiTtsWarningSpeakerIdEnUs { get; set; }
-        public int AiTtsSpeakerIdJaJp { get; set; }
-        public int AiTtsWarningSpeakerIdJaJp { get; set; }
         public float AiTtsSpeed { get; set; } = 1.0f;
         public string EdgeTtsVoice { get; set; } = "zh-CN-XiaoxiaoNeural";
         public string EdgeTtsWarningVoice { get; set; } = "zh-CN-YunjianNeural";
@@ -487,14 +473,10 @@ namespace ExpressPackingMonitoring.Config
         public string EdgeTtsVoiceJaJp { get; set; } = "";
         public string EdgeTtsWarningVoiceJaJp { get; set; } = "";
 
-        // Kokoro 使用同一个多语言模型，声线编号由模型决定，各语言默认值目前相同。
-        public const int DefaultKokoroSpeakerId = 51;
-        public const int DefaultKokoroWarningSpeakerId = 50;
-
         /// <summary>
-        /// 把界面上选中的语音引擎、在线音色与离线声线写回存档字段。
+        /// 把界面上选中的在线音色写回存档字段。
         /// <paramref name="language"/> 是"界面上这些选择所属的界面语言"：刚改过界面语言时，
-        /// 必须传改动前那个语言，否则会把上一语言的声线写进新语言的槽位，两边就串成一份了。
+        /// 必须传改动前那个语言，否则会把上一语言的音色写进新语言的槽位，两边就串成一份了。
         /// 不传则按当前配置语言。
         /// </summary>
         public void StoreSelectedSpeechVoices(string? language = null)
@@ -502,31 +484,22 @@ namespace ExpressPackingMonitoring.Config
             switch (AppLanguage.Resolve(language ?? Language))
             {
                 case AppLanguage.Japanese:
-                    AiTtsEngineJaJp = AiTtsEngine;
                     EdgeTtsVoiceJaJp = EdgeTtsVoice;
                     EdgeTtsWarningVoiceJaJp = EdgeTtsWarningVoice;
-                    AiTtsSpeakerIdJaJp = AiTtsSpeakerId;
-                    AiTtsWarningSpeakerIdJaJp = AiTtsWarningSpeakerId;
                     break;
                 case AppLanguage.Chinese:
-                    AiTtsEngineZhHans = AiTtsEngine;
                     EdgeTtsVoiceZhHans = EdgeTtsVoice;
                     EdgeTtsWarningVoiceZhHans = EdgeTtsWarningVoice;
-                    AiTtsSpeakerIdZhHans = AiTtsSpeakerId;
-                    AiTtsWarningSpeakerIdZhHans = AiTtsWarningSpeakerId;
                     break;
                 default:
-                    AiTtsEngineEnUs = AiTtsEngine;
                     EdgeTtsVoiceEnUs = EdgeTtsVoice;
                     EdgeTtsWarningVoiceEnUs = EdgeTtsWarningVoice;
-                    AiTtsSpeakerIdEnUs = AiTtsSpeakerId;
-                    AiTtsWarningSpeakerIdEnUs = AiTtsWarningSpeakerId;
                     break;
             }
         }
 
         /// <summary>
-        /// 把指定界面语言的语音存档装到界面绑定用的三个字段上（引擎 / 在线音色 / 离线声线）。
+        /// 把指定界面语言的在线音色装到界面绑定字段上。
         /// 加载配置与设置页切换界面语言都走这一条，保证"切过去看到的就是那一语言存下来的"。
         /// 传入 null 用当前语言；返回是否改动过字段。
         /// </summary>
@@ -534,18 +507,6 @@ namespace ExpressPackingMonitoring.Config
         {
             string target = AppLanguage.Resolve(language ?? Language);
             bool changed = false;
-
-            string engine = NormalizeAiTtsEngine(target switch
-            {
-                AppLanguage.Chinese => AiTtsEngineZhHans,
-                AppLanguage.Japanese => AiTtsEngineJaJp,
-                _ => AiTtsEngineEnUs
-            });
-            if (!string.Equals(AiTtsEngine, engine, StringComparison.Ordinal))
-            {
-                AiTtsEngine = engine;
-                changed = true;
-            }
 
             (string voice, string warningVoice) = target switch
             {
@@ -561,23 +522,6 @@ namespace ExpressPackingMonitoring.Config
             if (!string.Equals(EdgeTtsWarningVoice, warningVoice, StringComparison.Ordinal))
             {
                 EdgeTtsWarningVoice = warningVoice;
-                changed = true;
-            }
-
-            (int speakerId, int warningSpeakerId) = target switch
-            {
-                AppLanguage.Chinese => (AiTtsSpeakerIdZhHans, AiTtsWarningSpeakerIdZhHans),
-                AppLanguage.Japanese => (AiTtsSpeakerIdJaJp, AiTtsWarningSpeakerIdJaJp),
-                _ => (AiTtsSpeakerIdEnUs, AiTtsWarningSpeakerIdEnUs)
-            };
-            if (AiTtsSpeakerId != speakerId)
-            {
-                AiTtsSpeakerId = speakerId;
-                changed = true;
-            }
-            if (AiTtsWarningSpeakerId != warningSpeakerId)
-            {
-                AiTtsWarningSpeakerId = warningSpeakerId;
                 changed = true;
             }
 
@@ -905,13 +849,6 @@ namespace ExpressPackingMonitoring.Config
                 changed = true;
             }
 
-            string normalizedEngine = NormalizeAiTtsEngine(config.AiTtsEngine);
-            if (config.AiTtsEngine != normalizedEngine)
-            {
-                config.AiTtsEngine = normalizedEngine;
-                changed = true;
-            }
-
             if (string.IsNullOrWhiteSpace(config.EdgeTtsVoice))
             {
                 config.EdgeTtsVoice = "zh-CN-XiaoxiaoNeural";
@@ -956,30 +893,6 @@ namespace ExpressPackingMonitoring.Config
             }
 
             string effectiveLanguage = AppLanguage.Resolve(config.Language);
-
-            // 引擎也按语言保存：历史单一值迁到中文/英文槽位，日语默认联网语音。
-            string legacyEngine = config.AiTtsEngine;
-            if (string.IsNullOrWhiteSpace(config.AiTtsEngineZhHans)) { config.AiTtsEngineZhHans = legacyEngine; changed = true; }
-            if (string.IsNullOrWhiteSpace(config.AiTtsEngineEnUs)) { config.AiTtsEngineEnUs = legacyEngine; changed = true; }
-            if (string.IsNullOrWhiteSpace(config.AiTtsEngineJaJp)) { config.AiTtsEngineJaJp = "Edge"; changed = true; }
-            string normalizedZhEngine = NormalizeAiTtsEngine(config.AiTtsEngineZhHans);
-            if (config.AiTtsEngineZhHans != normalizedZhEngine) { config.AiTtsEngineZhHans = normalizedZhEngine; changed = true; }
-            string normalizedEnEngine = NormalizeAiTtsEngine(config.AiTtsEngineEnUs);
-            if (config.AiTtsEngineEnUs != normalizedEnEngine) { config.AiTtsEngineEnUs = normalizedEnEngine; changed = true; }
-            string normalizedJaEngine = NormalizeAiTtsEngine(config.AiTtsEngineJaJp);
-            if (config.AiTtsEngineJaJp != normalizedJaEngine) { config.AiTtsEngineJaJp = normalizedJaEngine; changed = true; }
-
-            // Kokoro 声线：先把历史单一值迁到中文槽位，再为每种语言补上各自的默认值。
-            int legacySpeakerId = config.AiTtsSpeakerId > 0 ? config.AiTtsSpeakerId : DefaultKokoroSpeakerId;
-            int legacyWarningSpeakerId = config.AiTtsWarningSpeakerId > 0
-                ? config.AiTtsWarningSpeakerId
-                : DefaultKokoroWarningSpeakerId;
-            if (config.AiTtsSpeakerIdZhHans <= 0) { config.AiTtsSpeakerIdZhHans = legacySpeakerId; changed = true; }
-            if (config.AiTtsWarningSpeakerIdZhHans <= 0) { config.AiTtsWarningSpeakerIdZhHans = legacyWarningSpeakerId; changed = true; }
-            if (config.AiTtsSpeakerIdEnUs <= 0) { config.AiTtsSpeakerIdEnUs = DefaultKokoroSpeakerId; changed = true; }
-            if (config.AiTtsWarningSpeakerIdEnUs <= 0) { config.AiTtsWarningSpeakerIdEnUs = DefaultKokoroWarningSpeakerId; changed = true; }
-            if (config.AiTtsSpeakerIdJaJp <= 0) { config.AiTtsSpeakerIdJaJp = DefaultKokoroSpeakerId; changed = true; }
-            if (config.AiTtsWarningSpeakerIdJaJp <= 0) { config.AiTtsWarningSpeakerIdJaJp = DefaultKokoroWarningSpeakerId; changed = true; }
 
             // 把当前界面语言的存档装到界面绑定用的字段上（与设置页切语言走同一条）
             if (config.ApplySpeechVoicesForLanguage(effectiveLanguage)) changed = true;
@@ -1989,11 +1902,6 @@ namespace ExpressPackingMonitoring.Config
         {
             ArgumentNullException.ThrowIfNull(config);
             config.MobileConnectionSetupVersion = CurrentMobileConnectionSetupVersion;
-        }
-
-        private static string NormalizeAiTtsEngine(string engine)
-        {
-            return string.Equals(engine, "Kokoro", System.StringComparison.OrdinalIgnoreCase) ? "Kokoro" : "Edge";
         }
     }
 }
