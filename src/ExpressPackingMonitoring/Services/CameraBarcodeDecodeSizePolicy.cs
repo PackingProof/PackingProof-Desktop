@@ -35,7 +35,7 @@ internal static class CameraBarcodeDecodeSizePolicy
         int frameHeight,
         bool qrCodeEnabled)
     {
-        if (!ShouldDecode(width, height, qrCodeEnabled))
+        if (width <= 0 || height <= 0 || frameWidth <= 0 || frameHeight <= 0)
             return false;
 
         double ratio = FrameDiagonalRatio(

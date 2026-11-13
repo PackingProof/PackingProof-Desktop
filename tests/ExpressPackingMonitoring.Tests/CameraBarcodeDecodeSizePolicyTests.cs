@@ -69,6 +69,8 @@ public sealed class CameraBarcodeDecodeSizePolicyTests
     [InlineData(600, 20, 3840, 2160, false, true)]
     [InlineData(300, 20, 3840, 2160, false, false)]
     [InlineData(300, 20, 1920, 1080, true, true)]
+    [InlineData(60, 10, 320, 180, false, true)]
+    [InlineData(60, 10, 320, 180, true, true)]
     public void ProductionPolicyAlsoChecksFrameDiagonalPercentage(
         int width,
         int height,
