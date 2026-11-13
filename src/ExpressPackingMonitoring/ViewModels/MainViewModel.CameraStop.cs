@@ -16,7 +16,11 @@ public partial class MainViewModel
 
     private async Task<bool> StopCameraAsync()
     {
-        await _cameraLifecycleGate.WaitAsync().ConfigureAwait(false);
+        if (!await _cameraLifecycleGate.WaitAsync(CameraLifecycleWaitTimeout).ConfigureAwait(false))
+        {
+            RuntimeLog.Warn("Camera", "StopCamera skipped because camera lifecycle wait timed out");
+            return false;
+        }
         try
         {
             return await StopCameraCoreAsync().ConfigureAwait(false);

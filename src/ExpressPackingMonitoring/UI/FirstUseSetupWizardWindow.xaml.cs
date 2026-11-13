@@ -62,6 +62,7 @@ public partial class FirstUseSetupWizardWindow : Window
     private readonly TaskCompletionSource<bool> _cameraCleanupCompletion =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _isClosed;
+    private static readonly TimeSpan CameraPreviewLifecycleTimeout = TimeSpan.FromSeconds(10);
 
     public bool WasSkipped { get; private set; }
     public AppConfig ResultConfig => _config;
@@ -832,7 +833,11 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private async Task StartCameraPreviewFromSelectionAsync(bool enableRecognition)
     {
-        await _cameraPreviewGate.WaitAsync();
+        if (!await _cameraPreviewGate.WaitAsync(CameraPreviewLifecycleTimeout))
+        {
+            SetCameraPreviewStatus("摄像头操作超时，请重新打开配置向导");
+            return;
+        }
         try
         {
             if (_isClosed)
@@ -1226,7 +1231,8 @@ public partial class FirstUseSetupWizardWindow : Window
 
     private async Task<bool> StopCameraPreviewAsync()
     {
-        await _cameraPreviewGate.WaitAsync();
+        if (!await _cameraPreviewGate.WaitAsync(CameraPreviewLifecycleTimeout))
+            return false;
         try
         {
             return await StopCameraPreviewCoreAsync();

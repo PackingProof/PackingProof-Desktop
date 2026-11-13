@@ -58,6 +58,7 @@ public sealed class UiResponsivenessArchitectureTests
         Assert.Contains("await Task.Delay(100)", source, StringComparison.Ordinal);
         Assert.Contains("Task.Run(mfSource.StopAndWait)", source, StringComparison.Ordinal);
         Assert.Contains("Task.Run(networkSource.Stop)", source, StringComparison.Ordinal);
+        Assert.Contains("WaitAsync(CameraLifecycleWaitTimeout)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,7 +100,7 @@ public sealed class UiResponsivenessArchitectureTests
             "MainViewModel.Camera.cs");
 
         Assert.Contains("await Task.Run(StartCamera).ConfigureAwait(false);", source, StringComparison.Ordinal);
-        Assert.Contains("_cameraLifecycleGate.WaitAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("WaitAsync(CameraLifecycleWaitTimeout)", source, StringComparison.Ordinal);
         Assert.Contains("await StartCameraAsync();", source, StringComparison.Ordinal);
         Assert.Contains("_ = StartCameraAndOverlayChannelsAsync();",
             ReadProjectFile("ViewModels", "MainViewModel.Media.cs"),
@@ -141,6 +142,7 @@ public sealed class UiResponsivenessArchitectureTests
             StringComparison.Ordinal);
         Assert.Contains("_ = StartOverlayChannelsAsync();", shell, StringComparison.Ordinal);
         Assert.Contains("_ = StopOverlayChannelsAsync();", shell, StringComparison.Ordinal);
+        Assert.Contains("mf.StopAndWait()", channels, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -153,7 +155,7 @@ public sealed class UiResponsivenessArchitectureTests
         Assert.Contains("private async Task ShowStepAsync(int stepIndex)", source,
             StringComparison.Ordinal);
         Assert.Contains("await StopCameraPreviewAsync()", source, StringComparison.Ordinal);
-        Assert.Contains("_cameraPreviewGate.WaitAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("WaitAsync(CameraPreviewLifecycleTimeout)", source, StringComparison.Ordinal);
         Assert.Contains("WaitForCameraCleanupAsync()", source, StringComparison.Ordinal);
         Assert.Contains("await Task.Delay(50);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Thread.Sleep", source, StringComparison.Ordinal);

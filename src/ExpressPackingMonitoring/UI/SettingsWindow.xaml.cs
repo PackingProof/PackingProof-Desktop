@@ -1280,6 +1280,7 @@ namespace ExpressPackingMonitoring.UI
             {
                 ManualCleanupPreview preview =
                     await Context.PreviewManualCleanupAsync(options);
+                if (_isClosing) return;
                 if (preview.Count <= 0)
                 {
                     AppDialog.Information(this, "没有符合条件的本地录像需要清理", "录像清理");
@@ -1322,17 +1323,21 @@ namespace ExpressPackingMonitoring.UI
                         bool confirmed = false;
                         Dispatcher.Invoke(() =>
                         {
-                            confirmed = AppDialog.Confirm(
-                                this,
-                                $"有 {prompt.UnarchivedCount} 条录像尚未备份到 NAS，继续清理可能导致录像无法恢复。是否继续清理未备份的本地录像？",
-                                "未备份录像",
-                                AppDialogSeverity.Warning,
-                                confirmText: "继续清理",
-                                cancelText: "取消",
-                                isDangerous: true);
+                            if (!_isClosing)
+                            {
+                                confirmed = AppDialog.Confirm(
+                                    this,
+                                    $"有 {prompt.UnarchivedCount} 条录像尚未备份到 NAS，继续清理可能导致录像无法恢复。是否继续清理未备份的本地录像？",
+                                    "未备份录像",
+                                    AppDialogSeverity.Warning,
+                                    confirmText: "继续清理",
+                                    cancelText: "取消",
+                                    isDangerous: true);
+                            }
                         });
                         return confirmed;
                     });
+                if (_isClosing) return;
 
                 string toast =
                     $"已清理 {result.CleanedCount} 条本地录像，释放 {FormatManualCleanupBytes(result.CleanedBytes)}";
@@ -1346,7 +1351,8 @@ namespace ExpressPackingMonitoring.UI
             }
             catch (Exception ex)
             {
-                AppDialog.Error(this, ex.Message, "清理失败");
+                if (!_isClosing)
+                    AppDialog.Error(this, ex.Message, "清理失败");
             }
             finally
             {
@@ -2183,6 +2189,7 @@ namespace ExpressPackingMonitoring.UI
                         AppConfig.NormalizeNetworkTransport(Config.NetworkCameraRtspTransport),
                         Config.Fps > 0 ? Config.Fps : 15);
                     bool connected = await probeSource.StartAsync();
+                    if (_isClosing) return;
                     if (!connected)
                     {
                         Context.ShowToast?.Invoke(
@@ -2203,6 +2210,7 @@ namespace ExpressPackingMonitoring.UI
                 }
                 RecordingProfileRecommendation recommendation =
                     await Context.DetectRecordingProfileAsync(Config, nativeModes);
+                if (_isClosing) return;
                 if (recommendation?.Success != true
                     || recommendation.Mode is not NativeCameraMode recommendedMode)
                 {
@@ -2246,18 +2254,23 @@ namespace ExpressPackingMonitoring.UI
                         recommendedMode.Width,
                         recommendedMode.Height,
                         recommendedMode.Fps);
+                    if (_isClosing) return;
                 }
                 Context.ShowToast?.Invoke("已填入推荐录制规格，保存设置后生效", ToastSeverity.Success);
             }
             catch (Exception ex)
             {
                 RuntimeLog.Error("RecordingProfile", "Settings recording profile detection failed", ex);
-                Context.ShowToast?.Invoke("录制性能检测失败，已保留当前配置", ToastSeverity.Error);
+                if (!_isClosing)
+                    Context.ShowToast?.Invoke("录制性能检测失败，已保留当前配置", ToastSeverity.Error);
             }
             finally
             {
-                DetectRecordingProfileButton.IsEnabled = true;
-                DetectRecordingProfileButton.Content = AppLanguage.Translate("开始检测");
+                if (!_isClosing)
+                {
+                    DetectRecordingProfileButton.IsEnabled = true;
+                    DetectRecordingProfileButton.Content = AppLanguage.Translate("开始检测");
+                }
             }
         }
 
@@ -2717,6 +2730,7 @@ namespace ExpressPackingMonitoring.UI
                     Config.AllowPrereleaseUpdates);
                 UpdateCheckResult result = await service.CheckManualAsync(
                     allowPrerelease: allowPrerelease);
+                if (_isClosing) return;
                 if (result.HasUpdate)
                     ShowUpdateDialog(result);
 
@@ -2726,8 +2740,11 @@ namespace ExpressPackingMonitoring.UI
             catch (Exception ex)
             {
                 RuntimeLog.Error("Update", "Manual update check failed", ex);
-                CheckUpdateButton.Content = AppLanguage.Get("检查失败");
-                CheckUpdateButton.IsEnabled = true;
+                if (!_isClosing)
+                {
+                    CheckUpdateButton.Content = AppLanguage.Get("检查失败");
+                    CheckUpdateButton.IsEnabled = true;
+                }
             }
         }
 

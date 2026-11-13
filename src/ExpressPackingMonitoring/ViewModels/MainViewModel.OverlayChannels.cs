@@ -387,9 +387,6 @@ namespace ExpressPackingMonitoring.ViewModels
             VideoCaptureDevice? usb = channel.UsbSource;
             MfCameraSource? mf = channel.MfSource;
             NetworkCameraSource? network = channel.NetworkSource;
-            channel.UsbSource = null;
-            channel.MfSource = null;
-            channel.NetworkSource = null;
 
             CancellationTokenSource? watch = channel.FrameWatchCts;
             channel.FrameWatchCts = null;
@@ -412,6 +409,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         usb.SignalToStop();
                         usb.WaitForStop();
                     }
+                    if (ReferenceEquals(channel.UsbSource, usb))
+                        channel.UsbSource = null;
                 }
                 catch (Exception ex)
                 {
@@ -429,6 +428,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         network.SourceError -= channel.NetworkErrorHandler;
                     network.Stop();
                     network.Dispose();
+                    if (ReferenceEquals(channel.NetworkSource, network))
+                        channel.NetworkSource = null;
                 }
                 catch (Exception ex)
                 {
@@ -444,8 +445,18 @@ namespace ExpressPackingMonitoring.ViewModels
                         mf.FrameReady -= channel.MfFrameHandler;
                     if (channel.MfErrorHandler != null)
                         mf.SourceError -= channel.MfErrorHandler;
-                    mf.Stop();
-                    mf.Dispose();
+                    if (!mf.StopAndWait())
+                    {
+                        RuntimeLog.Error(
+                            "OverlayChannel",
+                            $"第 {channel.Number} 路 Media Foundation 摄像头未能在超时内释放，保留引用等待后续清理");
+                    }
+                    else
+                    {
+                        mf.Dispose();
+                        if (ReferenceEquals(channel.MfSource, mf))
+                            channel.MfSource = null;
+                    }
                 }
                 catch (Exception ex)
                 {

@@ -340,6 +340,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     double idleMinutes = (DateTime.Now - _lastActivityTime).TotalMinutes;
                     if (idleMinutes >= Config.CameraIdleMinutes && !Config.IsCameraIdleNoSleepTime(DateTime.Now))
                     {
+                        DateTime activityBeforeStop = _lastActivityTime;
                         bool stopped = await StopCameraAsync();
                         await Application.Current.Dispatcher.InvokeAsync(() => {
                             if (_isDisposed
@@ -347,6 +348,7 @@ namespace ExpressPackingMonitoring.ViewModels
                                 || _isCameraSleeping
                                 || IsRecording
                                 || _isSetupWizardActive
+                                || _lastActivityTime != activityBeforeStop
                                 || Config.IsCameraIdleNoSleepTime(DateTime.Now))
                             {
                                 // 停止期间状态已变化时，把刚停下的摄像头接回来，避免录制点下后没有画面。
@@ -382,6 +384,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
         private DateTime _lastFrameTime = DateTime.MinValue;
         private readonly SemaphoreSlim _cameraLifecycleGate = new(1, 1);
+        private static readonly TimeSpan CameraLifecycleWaitTimeout = TimeSpan.FromSeconds(15);
 
         private int BeginPreviewSession(bool clearFrame)
         {
@@ -560,6 +563,8 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (TryStartMediaFoundationCamera(selectedMoniker, previewSessionId))
                     return;
 
+                if (_isDisposed || _shutdownRequested)
+                    return;
                 _videoSource = new VideoCaptureDevice(selectedMoniker);
                 RuntimeLog.Info("Camera", $"StartCamera selected index={targetIndex}, name={videoDevices[targetIndex].Name}");
 
@@ -637,6 +642,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 _videoSource.NewFrame += VideoSource_NewFrame;
                 MarkCameraStarting();
                 _videoSource.Start();
+                if (_isDisposed || _shutdownRequested)
+                {
+                    try { _videoSource.Stop(); } catch { }
+                    _videoSource = null;
+                    return;
+                }
                 MarkCameraReady();
                 RuntimeLog.Info("Camera", $"StartCamera success {_actualCameraWidth}x{_actualCameraHeight}@{_actualCameraFps}, configured={Config.FrameWidth}x{Config.FrameHeight}@{Config.Fps}, running={_videoSource.IsRunning}, previewSession={previewSessionId}");
             }
@@ -657,7 +668,11 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private async Task StartCameraAsync()
         {
-            await _cameraLifecycleGate.WaitAsync().ConfigureAwait(false);
+            if (!await _cameraLifecycleGate.WaitAsync(CameraLifecycleWaitTimeout).ConfigureAwait(false))
+            {
+                RuntimeLog.Warn("Camera", "StartCamera skipped because camera lifecycle wait timed out");
+                return;
+            }
             try
             {
                 if (_isDisposed || _shutdownRequested)
@@ -745,6 +760,13 @@ namespace ExpressPackingMonitoring.ViewModels
                         "Camera",
                         $"Media Foundation 探测通过但启动失败（{source.LastStartFailure}），改用 DirectShow 后端");
                     return false;
+                }
+                if (_isDisposed || _shutdownRequested)
+                {
+                    source.FrameReady -= MfCameraSource_FrameReady;
+                    source.SourceError -= MfCameraSource_SourceError;
+                    source.Dispose();
+                    return true;
                 }
 
                 _mfCameraSource = source;
@@ -854,6 +876,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 RuntimeLog.Warn("Camera", $"StartNetworkCamera failed: {source.LastError}");
                 ShowToast($"网络摄像头连接失败：{source.LastError}", ToastSeverity.Error);
+                source.Dispose();
+                return;
+            }
+            if (_isDisposed || _shutdownRequested)
+            {
                 source.Dispose();
                 return;
             }
