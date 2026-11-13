@@ -6,11 +6,21 @@ namespace ExpressPackingMonitoring.Data
         public string FilePath { get; init; } = "";
         public string ErrorMessage { get; init; } = "";
         public bool AlreadyConverted { get; init; }
+        public bool CanRetryAutomatically { get; init; }
 
         public static MkvConversionResult Ok(string filePath, bool alreadyConverted = false) =>
             new() { Success = true, FilePath = filePath, AlreadyConverted = alreadyConverted };
 
-        public static MkvConversionResult Fail(string errorMessage, string filePath = "") =>
-            new() { Success = false, ErrorMessage = errorMessage, FilePath = filePath };
+        public static MkvConversionResult Fail(
+            string errorMessage,
+            string filePath = "",
+            bool canRetryAutomatically = false) =>
+            new()
+            {
+                Success = false,
+                ErrorMessage = errorMessage,
+                FilePath = filePath,
+                CanRetryAutomatically = canRetryAutomatically
+            };
     }
 }

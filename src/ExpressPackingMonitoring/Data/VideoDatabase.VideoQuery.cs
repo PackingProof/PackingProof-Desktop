@@ -295,6 +295,29 @@ public partial class VideoDatabase
             }
         }
 
+        /// <summary>
+        /// 按活动记录的精确文件路径查询。转换发布前用它取得记录 ID 并进入
+        /// <see cref="VideoLifecycleCoordinator"/> 的所有权锁，与删除/归档互斥。
+        /// </summary>
+        internal VideoRecord GetActiveVideoByFilePath(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return null;
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = VideoRecordSelectColumns + @"
+                    FROM VideoRecords
+                    WHERE IsDeleted = 0 AND FilePath = @filePath
+                    ORDER BY Id DESC
+                    LIMIT 1;";
+                cmd.Parameters.AddWithValue("@filePath", filePath);
+                using var reader = cmd.ExecuteReader();
+                return reader.Read() ? ReadVideoRecord(reader) : null;
+            }
+        }
+
         internal List<OrderNumberExportSource> QueryOrderNumberExportSources(
             DateTime? startDate,
             DateTime? endDate,

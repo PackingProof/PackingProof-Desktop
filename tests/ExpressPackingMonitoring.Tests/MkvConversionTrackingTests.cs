@@ -175,7 +175,7 @@ public sealed class MkvConversionTrackingTests
     }
 
     [Fact]
-    public void AutomaticSuppressionRunsBeforeMp4Probe()
+    public void ExistingMp4ReconciliationRunsBeforeAutomaticSuppression()
     {
         string source = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -186,18 +186,33 @@ public sealed class MkvConversionTrackingTests
         int methodStart = source.IndexOf(
             "private async Task<MkvBatchConversionResult> BatchConvertMkvToMp4CoreAsync",
             StringComparison.Ordinal);
+        int reconciliation = source.IndexOf(
+            "// 对账必须先于失败抑制",
+            methodStart,
+            StringComparison.Ordinal);
         int suppression = source.IndexOf(
             "if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)",
             methodStart,
             StringComparison.Ordinal);
-        int probe = source.IndexOf(
-            "ValidateConvertedMp4(",
-            methodStart,
-            StringComparison.Ordinal);
 
         Assert.True(methodStart >= 0);
-        Assert.InRange(suppression, methodStart, probe - 1);
-        Assert.True(probe > suppression);
+        Assert.True(reconciliation > methodStart);
+        Assert.True(suppression > reconciliation);
+    }
+
+    [Fact]
+    public void RecoverableFailureDoesNotBecomePermanentSuppression()
+    {
+        MkvConversionResult timeout = MkvConversionResult.Fail(
+            "MP4 转换超时",
+            "recording.mkv",
+            canRetryAutomatically: true);
+        MkvConversionResult corruptSource = MkvConversionResult.Fail(
+            "MP4 转换或视频校验失败",
+            "recording.mkv");
+
+        Assert.True(timeout.CanRetryAutomatically);
+        Assert.False(corruptSource.CanRetryAutomatically);
     }
 
     private static MkvConversionFailureState CreateState(

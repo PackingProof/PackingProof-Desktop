@@ -188,6 +188,26 @@ public sealed class MkvConversionSafetyTests
         }
     }
 
+    [Fact]
+    public void ConversionAcquiresRecordingLifecycleOwnershipBeforePublishing()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Conversion.cs"));
+        int lifecycleLock = source.IndexOf(
+            "VideoLifecycleCoordinator.TryEnterAsync(",
+            StringComparison.Ordinal);
+        int publish = source.IndexOf(
+            "File.Move(stagingMp4Path, mp4Path, overwrite: true);",
+            StringComparison.Ordinal);
+
+        Assert.True(lifecycleLock >= 0);
+        Assert.True(publish > lifecycleLock);
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string path = Path.Combine(Path.GetTempPath(), $"ExpressPackingMonitoring.Tests-{Guid.NewGuid():N}");

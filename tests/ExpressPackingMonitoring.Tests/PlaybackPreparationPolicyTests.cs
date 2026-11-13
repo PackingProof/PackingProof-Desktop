@@ -104,6 +104,15 @@ public sealed class PlaybackPreparationPolicyTests : IDisposable
     }
 
     [Fact]
+    public void AudioDiagnosticWithoutWavIsNotARecoverySidecar()
+    {
+        string mkvPath = CreateFile("recording.mkv", "mkv");
+        CreateFile("recording.audio.log", "diagnostic only");
+
+        Assert.False(PlaybackPreparationPolicy.HasRecoverySidecar(mkvPath));
+    }
+
+    [Fact]
     public async Task RecordedMp4PathWithRecoverySidecarUsesValidatedLocalConversion()
     {
         string mkvPath = CreateFile("recording.mkv", "mkv");

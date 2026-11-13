@@ -155,10 +155,11 @@ namespace ExpressPackingMonitoring.ViewModels
                 MkvConversionResult result = ConvertMkvToMp4ForPlayback(
                     sourcePath,
                     cancellationToken,
-                    video?.VideoCodec);
+                    video?.VideoCodec,
+                    video?.RecordId ?? 0);
                 if (result.Success)
                     _db?.ClearMkvConversionFailure(sourcePath);
-                else
+                else if (!result.CanRetryAutomatically)
                     _db?.RecordMkvConversionFailure(
                         sourcePath,
                         DateTime.Now,
@@ -215,31 +216,24 @@ namespace ExpressPackingMonitoring.ViewModels
                 batchResult.MarkProcessedSource(mkvPath);
                 string mp4Path = Path.ChangeExtension(mkvPath, ".mp4");
                 string fileName = Path.GetFileName(mkvPath);
-                MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
-
-                // 已记账的确定性失败先进入抑制，不再调用 FFmpeg 探测或转换。
-                // 旧顺序会先探测损坏 MP4，导致同一条记录在每次录像收尾时重复产生
-                // "moov atom not found" 和约 1 秒的进程开销。
-                MkvAutomaticRetryDecision retryDecision =
-                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
-                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                VideoRecord activeRecord = _db.GetActiveVideoByFilePath(mkvPath);
+                if (activeRecord == null)
                 {
-                    batchResult.SuppressedCount++;
-                    if (File.Exists(mkvPath))
-                        batchResult.AddFinalFile(mkvPath, mkvPath);
-                    _db.MarkArchivePendingByFilePath(mkvPath);
-                    _archiveService?.Wake();
-                    progress?.Report($"[{i + 1}/{total}] 已跳过历史失败录像: {fileName}");
+                    batchResult.SkippedCount++;
+                    progress?.Report($"[{i + 1}/{total}] 录像记录已删除，跳过: {fileName}");
                     continue;
                 }
 
-                // 如果 MKV 已不存在但 MP4 存在，只更新数据库
+                // 对账必须先于失败抑制：历史失败状态不能盖过“MKV 已被另一个
+                // 成功任务移走、有效 MP4 已存在”这一更强事实。
                 if (!File.Exists(mkvPath))
                 {
                     if (File.Exists(mp4Path)
                         && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token))
                     {
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
+                        DeleteAudioDiagnostic(Path.ChangeExtension(mkvPath, ".audio.log"));
+                        _db.ClearMkvConversionFailure(mkvPath);
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
                         _archiveService?.Wake();
                         batchResult.SuccessCount++;
@@ -266,6 +260,21 @@ namespace ExpressPackingMonitoring.ViewModels
                     continue;
                 }
 
+                // 已记账的确定性失败先进入抑制，不再调用 FFmpeg 探测或转换。
+                // 可恢复失败不会写入失败状态，因此不会走到这里。
+                MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
+                MkvAutomaticRetryDecision retryDecision =
+                    MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
+                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                {
+                    batchResult.SuppressedCount++;
+                    batchResult.AddFinalFile(mkvPath, mkvPath);
+                    _db.MarkArchivePendingByFilePath(mkvPath);
+                    _archiveService?.Wake();
+                    progress?.Report($"[{i + 1}/{total}] 已跳过历史失败录像: {fileName}");
+                    continue;
+                }
+
                 // 如果 MP4 已存在，直接删 MKV 并更新数据库；但带 WAV/audio.log 的 MKV 需要重新合并，避免误用录制中生成的半截 MP4。
                 if (File.Exists(mp4Path)
                     && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token)
@@ -280,6 +289,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         try { File.Delete(mkvPath); } catch { }
                         DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
+                        DeleteAudioDiagnostic(Path.ChangeExtension(mkvPath, ".audio.log"));
                         _db.UpdateVideoFilePath(mkvPath, mp4Path);
                         _archiveService?.Wake();
                         batchResult.SuccessCount++;
@@ -293,7 +303,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 MkvConversionResult conversionResult = await Task.Run(() =>
                 {
-                    var result = ConvertMkvToMp4ForPlayback(mkvPath, token);
+                    var result = ConvertMkvToMp4ForPlayback(
+                        mkvPath,
+                        token,
+                        recordId: activeRecord.Id);
                     if (!result.Success)
                         RuntimeLog.Warn("MkvRecover", $"Convert failed file={fileName}, error={result.ErrorMessage}");
                     return result;
@@ -316,7 +329,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 else
                 {
                     DateTime failedAt = DateTime.Now;
-                    _db.RecordMkvConversionFailure(mkvPath, failedAt, conversionResult.ErrorMessage);
+                    bool deterministicFailure = !conversionResult.CanRetryAutomatically;
+                    if (deterministicFailure)
+                        _db.RecordMkvConversionFailure(mkvPath, failedAt, conversionResult.ErrorMessage);
                     batchResult.FailureCount++;
                     string retainedPath = !string.IsNullOrWhiteSpace(conversionResult.FilePath)
                         && File.Exists(conversionResult.FilePath)
@@ -324,14 +339,17 @@ namespace ExpressPackingMonitoring.ViewModels
                             : mkvPath;
                     if (File.Exists(retainedPath))
                         batchResult.AddFinalFile(mkvPath, retainedPath);
-                    failedPaths.Add(mkvPath);
-                    if (MkvConversionRetryPolicy.GetAutomaticRetryDecision(
-                            _db.GetMkvConversionFailureState(mkvPath),
-                            failedAt) == MkvAutomaticRetryDecision.Suppressed)
+                    if (deterministicFailure)
                     {
-                        batchResult.SuppressedCount++;
-                        _db.MarkArchivePendingByFilePath(mkvPath);
-                        _archiveService?.Wake();
+                        failedPaths.Add(mkvPath);
+                        if (MkvConversionRetryPolicy.GetAutomaticRetryDecision(
+                                _db.GetMkvConversionFailureState(mkvPath),
+                                failedAt) == MkvAutomaticRetryDecision.Suppressed)
+                        {
+                            batchResult.SuppressedCount++;
+                            _db.MarkArchivePendingByFilePath(mkvPath);
+                            _archiveService?.Wake();
+                        }
                     }
                     progress?.Report($"[{i + 1}/{total}] 转换失败: {fileName}");
                 }

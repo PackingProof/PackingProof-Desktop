@@ -134,7 +134,6 @@ internal static class PlaybackPreparationPolicy
 
     internal static bool HasRecoverySidecar(string mkvPath) =>
         File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
-        || File.Exists(Path.ChangeExtension(mkvPath, ".audio.log"))
         || File.Exists(Path.ChangeExtension(mkvPath, ".embedded-audio"));
 
     internal static bool CanConvertOnThisMachine(string path)

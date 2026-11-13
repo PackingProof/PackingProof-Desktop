@@ -44,10 +44,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
             MkvConversionResult result = ConvertMkvToMp4ForPlayback(
                 filePath,
-                videoCodec: record.VideoCodec);
+                videoCodec: record.VideoCodec,
+                recordId: record.Id);
             if (result.Success)
                 _db?.ClearMkvConversionFailure(filePath);
-            else
+            else if (!result.CanRetryAutomatically)
                 _db?.RecordMkvConversionFailure(filePath, DateTime.Now, result.ErrorMessage);
             return result;
         }
@@ -55,14 +56,36 @@ namespace ExpressPackingMonitoring.ViewModels
         private MkvConversionResult ConvertMkvToMp4ForPlayback(
             string mkvPath,
             CancellationToken cancellationToken = default,
-            string? videoCodec = null)
+            string? videoCodec = null,
+            long recordId = 0)
         {
             bool lockTaken = false;
+            IDisposable? lifecycleLease = null;
             try
             {
                 _mkvConvertLock.Wait(cancellationToken);
                 lockTaken = true;
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (recordId > 0)
+                {
+                    lifecycleLease = VideoLifecycleCoordinator.TryEnterAsync(
+                            recordId,
+                            TimeSpan.FromSeconds(30),
+                            cancellationToken)
+                        .GetAwaiter()
+                        .GetResult();
+                    if (lifecycleLease == null)
+                    {
+                        return MkvConversionResult.Fail(
+                            "录像正在删除、备份或清理，请稍后重试",
+                            mkvPath,
+                            canRetryAutomatically: true);
+                    }
+
+                    if (_db != null && _db.GetVideoById(recordId) == null)
+                        return MkvConversionResult.Fail("录像记录已删除", mkvPath);
+                }
 
                 if (string.IsNullOrWhiteSpace(mkvPath))
                     return MkvConversionResult.Fail("MKV 文件不存在", mkvPath ?? "");
@@ -94,7 +117,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 string ffmpegPath = FindFFmpeg();
                 if (string.IsNullOrEmpty(ffmpegPath))
-                    return MkvConversionResult.Fail("未找到 FFmpeg，无法转换", mkvPath);
+                    return MkvConversionResult.Fail(
+                        "未找到 FFmpeg，无法转换",
+                        mkvPath,
+                        canRetryAutomatically: true);
 
                 if (audioPlan.Mode == MkvAudioMuxMode.EmbeddedOrVideoOnly
                     && audioLogPath != null)
@@ -106,7 +132,7 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
                 {
-                    if (HasMuxRecoverySidecar(audioPath, audioLogPath))
+                    if (HasExternalAudioSidecar(audioPath))
                     {
                         RuntimeLog.Warn("MkvToMp4", $"Existing MP4 may be incomplete, rebuilding from MKV/WAV file={Path.GetFileName(mkvPath)}");
                         try { File.Delete(mp4Path); } catch { }
@@ -128,6 +154,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         {
                             try { File.Delete(mkvPath); } catch { }
                             DeleteAudioTempFile(audioPath);
+                            DeleteAudioDiagnostic(audioLogPath);
                             _db?.UpdateVideoFilePath(mkvPath, mp4Path);
                             return MkvConversionResult.Ok(mp4Path, alreadyConverted: true);
                         }
@@ -150,9 +177,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     mkvPath,
                     RecordingFileAccessGateQueueTimeout);
                 if (fileGate == null)
-                    return MkvConversionResult.Fail("同一录像已有转换在进行", mkvPath);
+                    return MkvConversionResult.Fail(
+                        "同一录像已有转换在进行",
+                        mkvPath,
+                        canRetryAutomatically: true);
                 if (!RecordingFileAccessGate.WaitUntilFileReleased(mkvPath, RecordingFileAccessGateReleaseTimeout))
-                    return MkvConversionResult.Fail("等待写入方释放文件句柄超时", mkvPath);
+                    return MkvConversionResult.Fail(
+                        "等待写入方释放文件句柄超时",
+                        mkvPath,
+                        canRetryAutomatically: true);
 
                 // 先写同目录临时文件：只有完整进程退出、解码探测通过并刷到磁盘后，
                 // 才把它原子替换成最终 MP4。失败时绝不触碰仍存在的 MKV。
@@ -173,7 +206,10 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     using var process = Process.Start(psi);
                     if (process == null)
-                        return MkvConversionResult.Fail("FFmpeg 进程启动失败", mkvPath);
+                        return MkvConversionResult.Fail(
+                            "FFmpeg 进程启动失败",
+                            mkvPath,
+                            canRetryAutomatically: true);
                     try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch { }
 
                     string stderr;
@@ -194,12 +230,16 @@ namespace ExpressPackingMonitoring.ViewModels
                     {
                         WriteAudioDiagnostic($"Web/后台 MKV 转 MP4 失败: mkv={mkvPath}, wav={audioPath}, stderr={stderr}", audioLogPath);
                         RuntimeLog.Warn("MkvToMp4", $"Convert failed file={Path.GetFileName(mkvPath)}, exited={exited}, exitCode={(exited ? process.ExitCode : -999)}, stderr={TrimForRuntimeLog(stderr)}");
-                        return MkvConversionResult.Fail(exited ? "MP4 转换或视频校验失败" : "MP4 转换超时", mkvPath);
+                        return MkvConversionResult.Fail(
+                            exited ? "MP4 转换或视频校验失败" : "MP4 转换超时",
+                            mkvPath,
+                            canRetryAutomatically: !exited);
                     }
 
                     File.Move(stagingMp4Path, mp4Path, overwrite: true);
                     try { File.Delete(mkvPath); } catch { }
                     DeleteAudioTempFile(audioPath);
+                    DeleteAudioDiagnostic(audioLogPath);
                     DeleteEmbeddedAudioMarker(mkvPath);
                     _db?.UpdateVideoFilePath(mkvPath, mp4Path);
                     RuntimeLog.Info("MkvToMp4", $"Converted file={Path.GetFileName(mkvPath)}, audio={(requireAudio ? "yes" : "no")}");
@@ -218,10 +258,14 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath);
                 RuntimeLog.Error("MkvToMp4", $"Convert exception file={Path.GetFileName(mkvPath ?? "")}", ex);
-                return MkvConversionResult.Fail(ex.Message, mkvPath ?? "");
+                return MkvConversionResult.Fail(
+                    ex.Message,
+                    mkvPath ?? "",
+                    canRetryAutomatically: true);
             }
             finally
             {
+                lifecycleLease?.Dispose();
                 if (lockTaken)
                     _mkvConvertLock.Release();
             }
@@ -415,14 +459,20 @@ namespace ExpressPackingMonitoring.ViewModels
         private static bool HasMuxRecoverySidecar(string mkvPath)
         {
             return File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
-                || File.Exists(Path.ChangeExtension(mkvPath, ".audio.log"))
                 || HasEmbeddedAudioMarker(mkvPath);
         }
 
-        private static bool HasMuxRecoverySidecar(string? audioPath, string? audioLogPath)
+        private static bool HasExternalAudioSidecar(string? audioPath)
         {
-            return (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
-                || (!string.IsNullOrWhiteSpace(audioLogPath) && File.Exists(audioLogPath));
+            return !string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath);
+        }
+
+        private static void DeleteAudioDiagnostic(string? audioLogPath)
+        {
+            if (string.IsNullOrWhiteSpace(audioLogPath))
+                return;
+
+            try { File.Delete(audioLogPath); } catch { }
         }
 
         internal static string BuildMkvToMp4Args(
