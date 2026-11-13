@@ -1,5 +1,6 @@
 using ExpressPackingMonitoring.Services.MediaFoundation;
 using OpenCvSharp;
+using System.Text;
 using Xunit;
 
 namespace ExpressPackingMonitoring.Tests;
@@ -20,6 +21,28 @@ public sealed class MfCameraSourceTests
 
     /// <summary>机器忙或设备刚被别的用例放开时，Media Foundation 启动可能要好几秒。</summary>
     private const int FirstFrameWaitMs = 15000;
+
+    [Fact]
+    public void StopActivelyBreaksPendingReadBeforeJoiningThread()
+    {
+        string source = File.ReadAllText(
+            Path.Combine(
+                FindRepositoryRoot(),
+                "src",
+                "ExpressPackingMonitoring",
+                "Services",
+                "MediaFoundation",
+                "MfCameraSource.cs"),
+            Encoding.UTF8);
+        int flush = source.IndexOf("_reader?.Flush(", StringComparison.Ordinal);
+        int shutdown = source.IndexOf("_mediaSource?.Shutdown()", StringComparison.Ordinal);
+        int join = source.IndexOf("readThread.Join(ReadThreadJoinTimeout)", StringComparison.Ordinal);
+
+        Assert.True(flush >= 0);
+        Assert.True(shutdown > flush);
+        Assert.True(join > shutdown);
+        Assert.Contains("return _stopping;", source, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void StopTimeoutKeepsResourcesAliveUntilCallbackReturns()
@@ -46,11 +69,11 @@ public sealed class MfCameraSourceTests
             Assert.False(source.IsRunning);
             Assert.True(source.UsesGpuConversion); // 停止超时不能释放读取线程仍在使用的资源。
             Assert.False(source.Start()); // 上一轮退出前不能重新使用这些字段。
-            source.Dispose();
-            Assert.True(source.UsesGpuConversion);
         }
         finally { release.Set(); }
-        Assert.True(SpinWait.SpinUntil(() => !source.UsesGpuConversion, TimeSpan.FromSeconds(5)));
+        Assert.True(source.StopAndWait());
+        Assert.False(source.UsesGpuConversion);
+        source.Dispose();
         Assert.False(source.Start());
     }
 
@@ -388,6 +411,18 @@ public sealed class MfCameraSourceTests
 
         IReadOnlyList<MfCaptureDevice> devices = MfCaptureDevice.Enumerate();
         return devices.Count > 0 ? devices[0] : null;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "ExpressPackingMonitoring.sln")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+        throw new DirectoryNotFoundException("Repository root was not found.");
     }
 
     /// <summary>相邻行的平均绝对差。撕裂的画面这个值会异常大。</summary>

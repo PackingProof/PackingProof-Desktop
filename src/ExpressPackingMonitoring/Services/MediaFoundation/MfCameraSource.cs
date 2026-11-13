@@ -55,8 +55,8 @@ public sealed partial class MfCameraSource : IDisposable
     private readonly int _rotationDegrees;
     private readonly object _sync = new();
 
-    /// <summary>等读取线程退出的上限。超时后由读取线程退出时释放资源。</summary>
-    private static readonly TimeSpan ReadThreadJoinTimeout = TimeSpan.FromSeconds(2);
+    /// <summary>等读取线程退出的上限。停止时会先主动打断待处理的 ReadSample。</summary>
+    private static readonly TimeSpan ReadThreadJoinTimeout = TimeSpan.FromSeconds(5);
 
     private MfPlatform? _platform;
     private IMFMediaSource? _mediaSource;
@@ -196,31 +196,41 @@ public sealed partial class MfCameraSource : IDisposable
         }
     }
 
-    internal void Stop()
+    internal bool StopAndWait()
     {
         if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
-        {
-            Task.Run(Stop).GetAwaiter().GetResult();
-            return;
-        }
+            return Task.Run(StopAndWait).GetAwaiter().GetResult();
 
         Thread? readThread;
         lock (_sync)
         {
-            if (_reader == null)
-                return;
+            if (_reader == null && _readThread == null)
+                return true;
 
             _stopping = true;
             readThread = _readThread;
+
+            // ReadSample 是同步阻塞调用。只设置 _stopping 并不会让它返回，
+            // 读取线程会一直握着摄像头，随后回退到 DirectShow 时就会“启动成功但没有帧”。
+            // 在持锁期间主动 Flush/Shutdown，确保读取线程无法同时释放这些 COM 对象。
+            try { _reader?.Flush(MfInterop.MF_SOURCE_READER_FIRST_VIDEO_STREAM); } catch { }
+            try { _mediaSource?.Shutdown(); } catch { }
         }
 
-        // 在锁外等读取线程退出：它在循环里要拿 _sync，持锁等待就是死锁。
+        // 在锁外等读取线程退出：它在 finally 里要拿 _sync，持锁等待就是死锁。
         if (readThread != null && readThread != Thread.CurrentThread && readThread.IsAlive)
         {
             if (!readThread.Join(ReadThreadJoinTimeout))
+            {
                 RuntimeLog.Warn("Camera", "Media Foundation 读取线程未能在超时内退出，资源将在读取结束后释放");
+                return false;
+            }
         }
+
+        return true;
     }
+
+    internal void Stop() => _ = StopAndWait();
 
     public void Dispose()
     {
@@ -231,7 +241,8 @@ public sealed partial class MfCameraSource : IDisposable
 
             _disposed = true;
         }
-        Stop();
+        if (!StopAndWait())
+            RuntimeLog.Warn("Camera", "Media Foundation 资源仍未完全释放");
     }
 
     /// <summary>
@@ -301,7 +312,15 @@ public sealed partial class MfCameraSource : IDisposable
 
             if (hr < 0)
             {
+                if (IsStopping())
+                {
+                    if (samplePointer != IntPtr.Zero)
+                        Marshal.Release(samplePointer);
+                    return;
+                }
                 RaiseError($"读取摄像头帧失败：HRESULT=0x{hr:X8}", DeviceLostFrom(hr));
+                if (samplePointer != IntPtr.Zero)
+                    Marshal.Release(samplePointer);
                 return;
             }
 
@@ -753,6 +772,12 @@ public sealed partial class MfCameraSource : IDisposable
     {
         RuntimeLog.Warn("Camera", $"Media Foundation 采集错误：{description}, deviceLost={deviceLost}");
         SourceError?.Invoke(this, new MfSourceErrorEventArgs(description, deviceLost));
+    }
+
+    private bool IsStopping()
+    {
+        lock (_sync)
+            return _stopping;
     }
 
     /// <summary>MF_E_HW_MFT_FAILURE / MF_E_VIDEO_RECORDING_DEVICE_INVALIDATED 等按掉线处理。</summary>
