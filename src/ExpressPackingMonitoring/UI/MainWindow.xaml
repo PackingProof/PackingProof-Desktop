@@ -385,10 +385,6 @@
                                         <DataTrigger Binding="{Binding IsBarcodeGuideVisible}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
-                                        <!-- 性能检测尚未完成或回退普通识别时不画默认框，避免闪烁 -->
-                                        <DataTrigger Binding="{Binding IsCameraVisionGuideSuppressed}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
                                         <!-- 进的是某一幅副画面的取景编辑屏：这一屏就是为了调裁剪，识别开关关着也要显示取景框 -->
                                         <DataTrigger Binding="{Binding IsOverlayPreviewEditing}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -486,9 +482,6 @@
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsCameraBarcodeGuideEditable}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsCameraVisionGuideSuppressed}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -946,9 +939,6 @@
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsBarcodeGuideVisible}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsCameraVisionGuideSuppressed}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                         <!-- 进的是某一幅副画面的取景编辑屏：这一屏就是为了调裁剪，识别开关关着也要显示取景框 -->

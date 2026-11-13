@@ -72,7 +72,7 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
-    public void VisionDecisionPendingIsTheOnlyTimeTheDefaultGuideIsHidden()
+    public void VisionDecisionKeepsTheDefaultGuideVisible()
     {
         string cameraVision = ReadProjectFile(Path.Combine(
             "ViewModels",
@@ -80,22 +80,21 @@ public sealed class ZoomGuideEditingTests
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
 
         Assert.Contains(
-            "ShouldSuppressRecognitionGuide",
-            cameraVision,
-            StringComparison.Ordinal);
-        Assert.Contains(
             "_cameraVisionBenchmarkRunning",
             cameraVision,
             StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "|| !_cameraVisionModelAvailable",
+        Assert.Contains(
+            "&& !_cameraVisionBenchmarkRunning",
             cameraVision,
             StringComparison.Ordinal);
-        Assert.Equal(
-            3,
-            xaml.Split(
-                "{Binding IsCameraVisionGuideSuppressed}",
-                StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain(
+            "IsCameraVisionGuideSuppressed",
+            cameraVision,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "IsCameraVisionGuideSuppressed",
+            xaml,
+            StringComparison.Ordinal);
     }
 
     /// <summary>设置页里不该再有"最大放大倍数"这类第二个倍率参数。</summary>

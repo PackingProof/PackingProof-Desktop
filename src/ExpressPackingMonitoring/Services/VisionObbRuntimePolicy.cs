@@ -32,18 +32,6 @@ internal static class VisionObbRuntimePolicy
         && enhancedRecognitionEnabled
         && modelAvailable;
 
-    internal static bool ShouldSuppressRecognitionGuide(
-        bool componentAvailable,
-        bool recognitionEnabled,
-        bool useMainBarcodeSource,
-        bool previewGuideEditing,
-        bool benchmarkRunning) =>
-        componentAvailable
-        && recognitionEnabled
-        && useMainBarcodeSource
-        && !previewGuideEditing
-        && benchmarkRunning;
-
     internal static bool ShouldRun(
         bool enhancedBarcodeRecognition,
         bool smartZoom) =>

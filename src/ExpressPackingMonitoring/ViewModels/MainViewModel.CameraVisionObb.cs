@@ -19,18 +19,6 @@ public partial class MainViewModel
 
     public bool IsVisionObbAvailable => VisionObbHost.IsAvailable;
 
-    /// <summary>
-    /// 自动性能检测期间暂时隐藏取景框，避免先闪出默认框再切换。
-    /// 检测完成但模型不可用或自动关闭增强识别后，必须恢复普通虚线取景框。
-    /// </summary>
-    public bool IsCameraVisionGuideSuppressed =>
-        VisionObbRuntimePolicy.ShouldSuppressRecognitionGuide(
-            IsVisionObbAvailable,
-            IsCameraBarcodeRecognitionEnabled,
-            !ShouldUseOverlayChannelForBarcode,
-            IsPreviewGuideEditing,
-            _cameraVisionBenchmarkRunning);
-
     /// <summary>最近一帧主摄像头视觉检测到的旋转框，坐标位于主摄输入帧。</summary>
     public IReadOnlyList<VisionObbDetection> CameraVisionObbDetections
     {
@@ -52,6 +40,7 @@ public partial class MainViewModel
 
     internal bool ShouldRunVisionObb =>
         _cameraVisionStartupReady
+        && !_cameraVisionBenchmarkRunning
         && IsVisionObbAvailable
         && VisionObbRuntimePolicy.ShouldRunMainBarcodeVision(
             Config?.EnableCameraBarcodeRecognition == true
@@ -85,7 +74,8 @@ public partial class MainViewModel
     }
 
     public bool IsCameraVisionGuideMarkerMode =>
-        VisionObbRuntimePolicy.ShouldUseGuideMarkerMode(
+        !_cameraVisionBenchmarkRunning
+        && VisionObbRuntimePolicy.ShouldUseGuideMarkerMode(
             IsVisionObbAvailable,
             IsCameraBarcodeRecognitionEnabled,
             Config?.EnableCameraBarcodeEnhancedRecognition == true
@@ -330,7 +320,7 @@ public partial class MainViewModel
 
     private void NotifyCameraVisionGuideStateChanged()
     {
-        OnPropertyChanged(nameof(IsCameraVisionGuideSuppressed));
+        OnPropertyChanged(nameof(IsCameraVisionGuideMarkerMode));
     }
 
     private void UpdateCameraVisionSmartZoomTarget(
