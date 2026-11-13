@@ -98,6 +98,31 @@ public sealed class VisionSmartZoomPolicyTests
                 modelAvailable));
     }
 
+    [Theory]
+    [InlineData(true, true, true, false, true, true)]
+    [InlineData(true, true, true, false, false, false)]
+    [InlineData(true, true, false, false, true, false)]
+    [InlineData(true, false, true, false, true, false)]
+    [InlineData(false, true, true, false, true, false)]
+    [InlineData(true, true, true, true, true, false)]
+    public void RecognitionGuideIsSuppressedOnlyDuringBenchmark(
+        bool componentAvailable,
+        bool recognitionEnabled,
+        bool useMainBarcodeSource,
+        bool previewGuideEditing,
+        bool benchmarkRunning,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            VisionObbRuntimePolicy.ShouldSuppressRecognitionGuide(
+                componentAvailable,
+                recognitionEnabled,
+                useMainBarcodeSource,
+                previewGuideEditing,
+                benchmarkRunning));
+    }
+
     [Fact]
     public void SelectTarget_PrefersDecodedLabelOverLargerCandidate()
     {

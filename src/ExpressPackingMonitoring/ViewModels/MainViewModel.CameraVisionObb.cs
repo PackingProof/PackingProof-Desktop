@@ -20,19 +20,16 @@ public partial class MainViewModel
     public bool IsVisionObbAvailable => VisionObbHost.IsAvailable;
 
     /// <summary>
-    /// 自动选择增强识别时，性能和模型结论出来前不画传统取景框；检测失败回退普通识别后
-    /// 也保持隐藏，避免先闪出默认框再切换。用户手动关闭增强识别时仍显示传统取景框。
+    /// 自动性能检测期间暂时隐藏取景框，避免先闪出默认框再切换。
+    /// 检测完成但模型不可用或自动关闭增强识别后，必须恢复普通虚线取景框。
     /// </summary>
     public bool IsCameraVisionGuideSuppressed =>
-        IsVisionObbAvailable
-        && IsCameraBarcodeRecognitionEnabled
-        && !ShouldUseOverlayChannelForBarcode
-        && !IsPreviewGuideEditing
-        && (Config?.CameraVisionEnableSource == AppConfig.CameraVisionEnableSourceAuto
-            || Config?.EnableCameraBarcodeEnhancedRecognition == true)
-        && (_cameraVisionBenchmarkRunning
-            || !_cameraVisionModelAvailable
-            || Config?.EnableCameraBarcodeEnhancedRecognition != true);
+        VisionObbRuntimePolicy.ShouldSuppressRecognitionGuide(
+            IsVisionObbAvailable,
+            IsCameraBarcodeRecognitionEnabled,
+            !ShouldUseOverlayChannelForBarcode,
+            IsPreviewGuideEditing,
+            _cameraVisionBenchmarkRunning);
 
     /// <summary>最近一帧主摄像头视觉检测到的旋转框，坐标位于主摄输入帧。</summary>
     public IReadOnlyList<VisionObbDetection> CameraVisionObbDetections
@@ -185,7 +182,12 @@ public partial class MainViewModel
             }
             SetCameraVisionModelAvailable(result.ModelAvailable);
             if (!result.ModelAvailable)
+            {
+                RuntimeLog.Warn(
+                    "CameraVision",
+                    $"增强识别模型不可用，已回退普通扫码：{modelPath}");
                 return;
+            }
             if (!CameraVisionAutoEnablePolicy.ShouldRunBenchmark(
                     Config.CameraBarcodeRecognitionChannel))
             {

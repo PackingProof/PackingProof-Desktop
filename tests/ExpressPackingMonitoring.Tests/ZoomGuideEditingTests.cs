@@ -72,16 +72,25 @@ public sealed class ZoomGuideEditingTests
     }
 
     [Fact]
-    public void VisionDecisionPendingOrFallbackDoesNotFlashDefaultGuide()
+    public void VisionDecisionPendingIsTheOnlyTimeTheDefaultGuideIsHidden()
     {
         string cameraVision = ReadProjectFile(Path.Combine(
             "ViewModels",
             "MainViewModel.CameraVisionObb.cs"));
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
 
-        Assert.Contains("IsCameraVisionGuideSuppressed", cameraVision, StringComparison.Ordinal);
-        Assert.Contains("_cameraVisionBenchmarkRunning", cameraVision, StringComparison.Ordinal);
-        Assert.Contains("_cameraVisionModelAvailable", cameraVision, StringComparison.Ordinal);
+        Assert.Contains(
+            "ShouldSuppressRecognitionGuide",
+            cameraVision,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "_cameraVisionBenchmarkRunning",
+            cameraVision,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "|| !_cameraVisionModelAvailable",
+            cameraVision,
+            StringComparison.Ordinal);
         Assert.Equal(
             3,
             xaml.Split(

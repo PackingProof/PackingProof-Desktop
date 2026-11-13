@@ -77,8 +77,18 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         string? modelPath,
         bool preferDirectMl = true)
     {
-        if (string.IsNullOrWhiteSpace(modelPath) || !File.Exists(modelPath))
+        if (string.IsNullOrWhiteSpace(modelPath))
+        {
+            RuntimeLog.Warn("CameraVision", "增强识别模型路径为空");
             return null;
+        }
+        if (!File.Exists(modelPath))
+        {
+            RuntimeLog.Warn(
+                "CameraVision",
+                $"增强识别模型不存在：{modelPath}");
+            return null;
+        }
 
         InferenceSession? session = null;
         try
