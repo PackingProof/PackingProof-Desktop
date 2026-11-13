@@ -45,6 +45,9 @@ namespace ExpressPackingMonitoring.Config
         public static readonly string WebDebugLogPath = Path.Combine(LogDir, "web_debug.log");
         public static readonly string EncoderDetectLogPath = Path.Combine(LogDir, "encoder_detect.log");
         public static readonly string RuntimeLogPath = Path.Combine(LogDir, "runtime.log");
+        public static readonly string VisionObbDiagnosticLogPath = Path.Combine(
+            LogDir,
+            "vision_obb_diagnostics.log");
         public static readonly string UserCameraVisionModelPath = Path.Combine(
             ModelsDir,
             CameraVisionModelFileName);

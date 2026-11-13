@@ -19,6 +19,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal const double CenterWeight = 0.20;
     internal const double DirectCropMaxResidualAngleDegrees = 10;
     internal const double CropPaddingRatio = 0.04;
+    private const long ObbDiagnosticsMinIntervalMs = 1500;
 
     private readonly CameraBarcodeFrameDecoder _standardDecoder;
     private readonly Func<(bool Enabled, string Path)> _settingsProvider;
@@ -29,6 +30,8 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     private string? _unavailableModelPath;
     private bool _missingModelLogged;
     private bool _disposed;
+    private long _lastObbDiagnosticsAtMs;
+    private string _lastObbDiagnosticsSignature = "";
 
     internal CameraBarcodeObbDecoder(
         CameraBarcodeFrameDecoder standardDecoder,
@@ -201,14 +204,25 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         bool useGuideRegionFallback)
     {
         var orientedCandidates = new List<DecodedObbBarcodeCandidate>();
+        var diagnostics = new List<VisionObbCandidateDiagnostic>();
         var fullFrame = new Rect(0, 0, frame.Width, frame.Height);
         foreach (VisionObbDetection detection in LastObbDetections)
         {
-            if (!CameraBarcodeDecodeSizePolicy.ShouldDecode(
-                    Math.Max(1, (int)Math.Round(detection.Width)),
-                    Math.Max(1, (int)Math.Round(detection.Height)),
-                    _standardDecoder.QrCodeEnabledForDecoding))
+            int width = Math.Max(1, (int)Math.Round(detection.Width));
+            int height = Math.Max(1, (int)Math.Round(detection.Height));
+            bool decodeAllowed = CameraBarcodeDecodeSizePolicy.ShouldDecode(
+                width,
+                height,
+                frame.Width,
+                frame.Height,
+                _standardDecoder.QrCodeEnabledForDecoding);
+            if (!decodeAllowed)
             {
+                diagnostics.Add(DescribeCandidate(
+                    frame,
+                    detection,
+                    decodeAllowed: false,
+                    decoded: false));
                 continue;
             }
 
@@ -228,10 +242,21 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             }
             if (string.IsNullOrWhiteSpace(oriented))
             {
+                diagnostics.Add(DescribeCandidate(
+                    frame,
+                    detection,
+                    decodeAllowed: true,
+                    decoded: false));
                 continue;
             }
+            diagnostics.Add(DescribeCandidate(
+                frame,
+                detection,
+                decodeAllowed: true,
+                decoded: true));
             orientedCandidates.Add(new DecodedObbBarcodeCandidate(oriented, detection));
         }
+        LogCandidateDiagnostics(frame, diagnostics);
 
         ObbBarcodeSelection selection = SelectCandidate(
             orientedCandidates,
@@ -248,6 +273,71 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         string? decoded = _standardDecoder.DecodeGuideRegion(frame, isValid, geometry);
         LastSelectedObbDetection = FindDetectionForDecodedGeometry();
         return decoded;
+    }
+
+    private void LogCandidateDiagnostics(
+        Mat frame,
+        IReadOnlyList<VisionObbCandidateDiagnostic> diagnostics)
+    {
+        if (diagnostics.Count == 0)
+            return;
+
+        long nowMs = Environment.TickCount64;
+        string signature = string.Join(
+            "|",
+            diagnostics.Select(candidate =>
+                $"{candidate.CenterX:F0}:{candidate.CenterY:F0}:"
+                + $"{candidate.Width:F0}:{candidate.Height:F0}:"
+                + $"{candidate.AngleDegrees:F0}:{candidate.Score:F2}:"
+                + $"{candidate.DecodeAllowed}:{candidate.Decoded}"));
+        if (string.Equals(
+                signature,
+                _lastObbDiagnosticsSignature,
+                StringComparison.Ordinal)
+            && nowMs - _lastObbDiagnosticsAtMs < ObbDiagnosticsMinIntervalMs)
+        {
+            return;
+        }
+
+        _lastObbDiagnosticsSignature = signature;
+        _lastObbDiagnosticsAtMs = nowMs;
+        VisionObbDiagnosticLog.Append(diagnostics);
+    }
+
+    private VisionObbCandidateDiagnostic DescribeCandidate(
+        Mat frame,
+        in VisionObbDetection detection,
+        bool decodeAllowed,
+        bool decoded)
+    {
+        int width = Math.Max(1, (int)Math.Round(detection.Width));
+        int height = Math.Max(1, (int)Math.Round(detection.Height));
+        double diagonal = CameraBarcodeDecodeSizePolicy.DiagonalPixels(width, height);
+        double ratio = CameraBarcodeDecodeSizePolicy.FrameDiagonalRatio(
+            width,
+            height,
+            frame.Width,
+            frame.Height);
+        double thresholdPercent =
+            (_standardDecoder.QrCodeEnabledForDecoding
+                ? CameraBarcodeDecodeSizePolicy.QrCodeMinFrameDiagonalRatio
+                : CameraBarcodeDecodeSizePolicy.OneDimensionalMinFrameDiagonalRatio)
+            * 100;
+        return new VisionObbCandidateDiagnostic(
+            frame.Width,
+            frame.Height,
+            CameraBarcodeDecodeSizePolicy.DiagonalPixels(frame.Width, frame.Height),
+            detection.CenterX,
+            detection.CenterY,
+            detection.Width,
+            detection.Height,
+            detection.AngleDegrees,
+            diagonal,
+            ratio * 100,
+            detection.Score,
+            thresholdPercent,
+            decodeAllowed,
+            decoded);
     }
 
     private string? DecodeDetectionPatch(

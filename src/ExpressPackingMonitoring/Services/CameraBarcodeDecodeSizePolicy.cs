@@ -8,16 +8,56 @@ internal static class CameraBarcodeDecodeSizePolicy
 {
     internal const double OneDimensionalMinDiagonal = 90;
     internal const double QrCodeMinDiagonal = 113;
+    internal const double OneDimensionalMinFrameDiagonalRatio = 0.04;
+    internal const double QrCodeMinFrameDiagonalRatio = 0.05;
 
     internal static bool ShouldDecode(int width, int height, bool qrCodeEnabled)
     {
         if (width <= 0 || height <= 0)
             return false;
 
-        double diagonal = Math.Sqrt(
-            ((double)width * width) + ((double)height * height));
+        double diagonal = DiagonalPixels(width, height);
         return qrCodeEnabled
             ? diagonal >= QrCodeMinDiagonal
             : diagonal >= OneDimensionalMinDiagonal;
+    }
+
+    internal static bool ShouldDecode(
+        int width,
+        int height,
+        int frameWidth,
+        int frameHeight,
+        bool qrCodeEnabled)
+    {
+        if (!ShouldDecode(width, height, qrCodeEnabled))
+            return false;
+
+        double ratio = FrameDiagonalRatio(
+            width,
+            height,
+            frameWidth,
+            frameHeight);
+        return ratio >= (qrCodeEnabled
+            ? QrCodeMinFrameDiagonalRatio
+            : OneDimensionalMinFrameDiagonalRatio);
+    }
+
+    internal static double DiagonalPixels(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+            return 0;
+        return Math.Sqrt(((double)width * width) + ((double)height * height));
+    }
+
+    internal static double FrameDiagonalRatio(
+        int width,
+        int height,
+        int frameWidth,
+        int frameHeight)
+    {
+        double frameDiagonal = DiagonalPixels(frameWidth, frameHeight);
+        return frameDiagonal <= 0
+            ? 0
+            : DiagonalPixels(width, height) / frameDiagonal;
     }
 }
