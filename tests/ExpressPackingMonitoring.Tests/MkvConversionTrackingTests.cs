@@ -43,6 +43,33 @@ public sealed class MkvConversionTrackingTests
     }
 
     [Fact]
+    public void RecoverableHistoricalFailureIsRetriedAfterBackoff()
+    {
+        MkvConversionFailureState recent = CreateState(
+            Now.AddDays(-1),
+            Now.AddMinutes(-5),
+            lastError: "未找到 FFmpeg，无法转换");
+        MkvConversionFailureState old = CreateState(
+            Now.AddDays(-1),
+            Now.AddMinutes(-16),
+            lastError: "等待写入方释放文件句柄超时");
+        MkvConversionFailureState flushFailure = CreateState(
+            Now.AddDays(-1),
+            Now.AddMinutes(-5),
+            lastError: "Unable to flush converted MP4");
+
+        Assert.Equal(
+            MkvAutomaticRetryDecision.Deferred,
+            MkvConversionRetryPolicy.GetAutomaticRetryDecision(recent, Now));
+        Assert.Equal(
+            MkvAutomaticRetryDecision.Deferred,
+            MkvConversionRetryPolicy.GetAutomaticRetryDecision(flushFailure, Now));
+        Assert.Equal(
+            MkvAutomaticRetryDecision.Retry,
+            MkvConversionRetryPolicy.GetAutomaticRetryDecision(old, Now));
+    }
+
+    [Fact]
     public void Notification_IsOnceButNewFailureCanNotifyImmediately()
     {
         var newFailure = CreateState(Now, Now);
@@ -175,6 +202,36 @@ public sealed class MkvConversionTrackingTests
     }
 
     [Fact]
+    public void ActiveRecordLookupFindsMp4PathForMkvSidecarRecovery()
+    {
+        string directory = CreateTemporaryDirectory();
+        try
+        {
+            string mp4Path = Path.Combine(directory, "recording.mp4");
+            string mkvPath = Path.ChangeExtension(mp4Path, ".mkv");
+            string databasePath = Path.Combine(directory, "videos.db");
+            using var database = new VideoDatabase(databasePath);
+            long id = database.InsertVideoRecord(
+                "ORDER-1",
+                "发货",
+                "h264",
+                "libx264",
+                mp4Path,
+                Now);
+
+            VideoRecord record = database.GetActiveVideoByFilePath(mkvPath);
+
+            Assert.NotNull(record);
+            Assert.Equal(id, record.Id);
+            Assert.Equal(mp4Path, record.FilePath);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(directory);
+        }
+    }
+
+    [Fact]
     public void ExistingMp4ReconciliationRunsBeforeAutomaticSuppression()
     {
         string source = File.ReadAllText(Path.Combine(
@@ -194,9 +251,15 @@ public sealed class MkvConversionTrackingTests
             "if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)",
             methodStart,
             StringComparison.Ordinal);
+        int existingMp4 = source.IndexOf(
+            "MkvAudioMuxPlan audioPlan = ResolveMkvAudioMuxPlan(mkvPath);",
+            methodStart,
+            StringComparison.Ordinal);
 
         Assert.True(methodStart >= 0);
         Assert.True(reconciliation > methodStart);
+        Assert.True(existingMp4 > reconciliation);
+        Assert.True(suppression > existingMp4);
         Assert.True(suppression > reconciliation);
     }
 
@@ -218,7 +281,8 @@ public sealed class MkvConversionTrackingTests
     private static MkvConversionFailureState CreateState(
         DateTime firstFailedAt,
         DateTime lastAttemptAt,
-        DateTime? lastNotifiedAt = null)
+        DateTime? lastNotifiedAt = null,
+        string lastError = "")
     {
         return new MkvConversionFailureState
         {
@@ -226,6 +290,7 @@ public sealed class MkvConversionTrackingTests
             FirstFailedAt = firstFailedAt,
             LastAttemptAt = lastAttemptAt,
             FailureCount = 1,
+            LastError = lastError,
             LastNotifiedAt = lastNotifiedAt
         };
     }

@@ -260,6 +260,40 @@ namespace ExpressPackingMonitoring.ViewModels
                     continue;
                 }
 
+                // 现有 MP4 也必须先于历史失败抑制做完整校验。只要容器、解码和
+                // 所需音轨都通过，残留 MKV/WAV 不能把一个有效结果重新变成失败。
+                MkvAudioMuxPlan audioPlan = ResolveMkvAudioMuxPlan(mkvPath);
+                bool requireAudio = File.Exists(audioPlan.AudioPath)
+                    || HasEmbeddedAudioMarker(mkvPath);
+                if (File.Exists(mp4Path)
+                    && ValidateConvertedMp4(
+                        ffmpegPath,
+                        mp4Path,
+                        requireAudio,
+                        audioPlan.AudioLogPath,
+                        cancellationToken: token))
+                {
+                    if (!TryFlushFileToDisk(mp4Path))
+                    {
+                        batchResult.DeferredCount++;
+                        batchResult.AddFinalFile(mkvPath, mkvPath);
+                        progress?.Report($"[{i + 1}/{total}] MP4 暂时无法刷盘，稍后重试: {fileName}");
+                        continue;
+                    }
+
+                    try { File.Delete(mkvPath); } catch { }
+                    DeleteAudioTempFile(audioPlan.AudioPath);
+                    DeleteAudioDiagnostic(audioPlan.AudioLogPath);
+                    DeleteEmbeddedAudioMarker(mkvPath);
+                    _db.ClearMkvConversionFailure(mkvPath);
+                    _db.UpdateVideoFilePath(mkvPath, mp4Path);
+                    _archiveService?.Wake();
+                    batchResult.SuccessCount++;
+                    batchResult.AddFinalFile(mkvPath, mp4Path);
+                    progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
+                    continue;
+                }
+
                 // 已记账的确定性失败先进入抑制，不再调用 FFmpeg 探测或转换。
                 // 可恢复失败不会写入失败状态，因此不会走到这里。
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
@@ -274,29 +308,12 @@ namespace ExpressPackingMonitoring.ViewModels
                     progress?.Report($"[{i + 1}/{total}] 已跳过历史失败录像: {fileName}");
                     continue;
                 }
-
-                // 如果 MP4 已存在，直接删 MKV 并更新数据库；但带 WAV/audio.log 的 MKV 需要重新合并，避免误用录制中生成的半截 MP4。
-                if (File.Exists(mp4Path)
-                    && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token)
-                    && TryFlushFileToDisk(mp4Path))
+                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Deferred)
                 {
-                    if (HasMuxRecoverySidecar(mkvPath))
-                    {
-                        RuntimeLog.Warn("MkvRecover", $"Existing MP4 ignored because MKV sidecar remains file={fileName}");
-                        progress?.Report($"[{i + 1}/{total}] 发现疑似半截 MP4，重新合并: {fileName}");
-                    }
-                    else
-                    {
-                        try { File.Delete(mkvPath); } catch { }
-                        DeleteAudioTempFile(Path.ChangeExtension(mkvPath, ".wav"));
-                        DeleteAudioDiagnostic(Path.ChangeExtension(mkvPath, ".audio.log"));
-                        _db.UpdateVideoFilePath(mkvPath, mp4Path);
-                        _archiveService?.Wake();
-                        batchResult.SuccessCount++;
-                        batchResult.AddFinalFile(mkvPath, mp4Path);
-                        progress?.Report($"[{i + 1}/{total}] MP4 已存在，已清理 MKV: {fileName}");
-                        continue;
-                    }
+                    batchResult.DeferredCount++;
+                    batchResult.AddFinalFile(mkvPath, mkvPath);
+                    progress?.Report($"[{i + 1}/{total}] 可恢复失败仍在退避期: {fileName}");
+                    continue;
                 }
 
                 progress?.Report($"[{i + 1}/{total}] 正在转换: {fileName}");

@@ -132,38 +132,33 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (File.Exists(mp4Path) && new FileInfo(mp4Path).Length > 0)
                 {
-                    if (HasExternalAudioSidecar(audioPath))
+                    bool validationPassed = ValidateConvertedMp4(
+                        ffmpegPath,
+                        mp4Path,
+                        requireAudio,
+                        audioLogPath,
+                        cancellationToken);
+                    if (validationPassed && TryFlushFileToDisk(mp4Path))
                     {
-                        RuntimeLog.Warn("MkvToMp4", $"Existing MP4 may be incomplete, rebuilding from MKV/WAV file={Path.GetFileName(mkvPath)}");
-                        try { File.Delete(mp4Path); } catch { }
+                        try { File.Delete(mkvPath); } catch { }
+                        DeleteAudioTempFile(audioPath);
+                        DeleteAudioDiagnostic(audioLogPath);
+                        DeleteEmbeddedAudioMarker(mkvPath);
+                        _db?.UpdateVideoFilePath(mkvPath, mp4Path);
+                        return MkvConversionResult.Ok(mp4Path, alreadyConverted: true);
                     }
-                    else
+                    if (validationPassed)
                     {
-                        bool validationPassed = ValidateConvertedMp4(
-                            ffmpegPath,
-                            mp4Path,
-                            requireAudio,
-                            audioLogPath,
-                            cancellationToken);
-                        bool flushedToDisk = validationPassed && TryFlushFileToDisk(mp4Path);
-                        if (CanUseExistingConvertedMp4(
-                                hasRecoverySidecar: false,
-                                existsAndIsNonEmpty: true,
-                                validationPassed: validationPassed,
-                                flushedToDisk: flushedToDisk))
-                        {
-                            try { File.Delete(mkvPath); } catch { }
-                            DeleteAudioTempFile(audioPath);
-                            DeleteAudioDiagnostic(audioLogPath);
-                            _db?.UpdateVideoFilePath(mkvPath, mp4Path);
-                            return MkvConversionResult.Ok(mp4Path, alreadyConverted: true);
-                        }
+                        return MkvConversionResult.Fail(
+                            "现有 MP4 暂时无法刷盘，稍后重试",
+                            mkvPath,
+                            canRetryAutomatically: true);
+                    }
 
-                        RuntimeLog.Warn(
-                            "MkvToMp4",
-                            $"Existing MP4 failed validation; rebuilding from source file={Path.GetFileName(mkvPath)}");
-                        DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath);
-                    }
+                    RuntimeLog.Warn(
+                        "MkvToMp4",
+                        $"Existing MP4 failed validation; rebuilding from source file={Path.GetFileName(mkvPath)}");
+                    DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath);
                 }
 
                 // 音轨时间线检查用于诊断，不阻断 MP4 容器转换；否则一个可播放的
@@ -214,26 +209,39 @@ namespace ExpressPackingMonitoring.ViewModels
 
                     string stderr;
                     bool exited = WaitForProcessExit(process, GetMediaProcessTimeoutMs(mkvPath, audioPath), cancellationToken, out stderr);
-                    bool ok = exited
-                        && process.ExitCode == 0
-                        && File.Exists(stagingMp4Path)
-                        && new FileInfo(stagingMp4Path).Length > 0
-                        && ValidateConvertedMp4(
+                    if (!exited)
+                    {
+                        WriteAudioDiagnostic($"Web/后台 MKV 转 MP4 失败: mkv={mkvPath}, wav={audioPath}, stderr={stderr}", audioLogPath);
+                        RuntimeLog.Warn("MkvToMp4", $"Convert timed out file={Path.GetFileName(mkvPath)}, stderr={TrimForRuntimeLog(stderr)}");
+                        return MkvConversionResult.Fail(
+                            "MP4 转换超时",
+                            mkvPath,
+                            canRetryAutomatically: true);
+                    }
+                    if (process.ExitCode != 0
+                        || !File.Exists(stagingMp4Path)
+                        || new FileInfo(stagingMp4Path).Length <= 0)
+                    {
+                        WriteAudioDiagnostic($"Web/后台 MKV 转 MP4 失败: mkv={mkvPath}, wav={audioPath}, stderr={stderr}", audioLogPath);
+                        RuntimeLog.Warn("MkvToMp4", $"Convert failed file={Path.GetFileName(mkvPath)}, exitCode={process.ExitCode}, stderr={TrimForRuntimeLog(stderr)}");
+                        return MkvConversionResult.Fail("MP4 转换失败", mkvPath);
+                    }
+                    if (!ValidateConvertedMp4(
                             ffmpegPath,
                             stagingMp4Path,
                             requireAudio,
                             audioLogPath,
-                            cancellationToken)
-                        && TryFlushFileToDisk(stagingMp4Path);
-
-                    if (!ok)
+                            cancellationToken))
                     {
-                        WriteAudioDiagnostic($"Web/后台 MKV 转 MP4 失败: mkv={mkvPath}, wav={audioPath}, stderr={stderr}", audioLogPath);
-                        RuntimeLog.Warn("MkvToMp4", $"Convert failed file={Path.GetFileName(mkvPath)}, exited={exited}, exitCode={(exited ? process.ExitCode : -999)}, stderr={TrimForRuntimeLog(stderr)}");
+                        WriteAudioDiagnostic($"MP4 校验失败: mkv={mkvPath}, stderr={stderr}", audioLogPath);
+                        return MkvConversionResult.Fail("MP4 视频校验失败", mkvPath);
+                    }
+                    if (!TryFlushFileToDisk(stagingMp4Path))
+                    {
                         return MkvConversionResult.Fail(
-                            exited ? "MP4 转换或视频校验失败" : "MP4 转换超时",
+                            "MP4 暂时无法刷盘，稍后重试",
                             mkvPath,
-                            canRetryAutomatically: !exited);
+                            canRetryAutomatically: true);
                     }
 
                     File.Move(stagingMp4Path, mp4Path, overwrite: true);
@@ -460,11 +468,6 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             return File.Exists(Path.ChangeExtension(mkvPath, ".wav"))
                 || HasEmbeddedAudioMarker(mkvPath);
-        }
-
-        private static bool HasExternalAudioSidecar(string? audioPath)
-        {
-            return !string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath);
         }
 
         private static void DeleteAudioDiagnostic(string? audioLogPath)

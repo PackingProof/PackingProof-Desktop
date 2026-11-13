@@ -1,6 +1,7 @@
 #nullable disable
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using ExpressPackingMonitoring.Services;
 
@@ -304,15 +305,22 @@ public partial class VideoDatabase
             if (string.IsNullOrWhiteSpace(filePath))
                 return null;
 
+            string alternatePath = Path.ChangeExtension(
+                filePath,
+                string.Equals(Path.GetExtension(filePath), ".mkv", StringComparison.OrdinalIgnoreCase)
+                    ? ".mp4"
+                    : ".mkv");
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = VideoRecordSelectColumns + @"
                     FROM VideoRecords
-                    WHERE IsDeleted = 0 AND FilePath = @filePath
-                    ORDER BY Id DESC
+                    WHERE IsDeleted = 0
+                      AND (FilePath = @filePath OR FilePath = @alternatePath)
+                    ORDER BY CASE WHEN FilePath = @filePath THEN 0 ELSE 1 END, Id DESC
                     LIMIT 1;";
                 cmd.Parameters.AddWithValue("@filePath", filePath);
+                cmd.Parameters.AddWithValue("@alternatePath", alternatePath);
                 using var reader = cmd.ExecuteReader();
                 return reader.Read() ? ReadVideoRecord(reader) : null;
             }
