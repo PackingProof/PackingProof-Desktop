@@ -61,6 +61,37 @@ public sealed class UiResponsivenessArchitectureTests
     }
 
     [Fact]
+    public void RecordingStopRunsAudioAndFrameQueueCleanupOffTheUiThread()
+    {
+        string recording = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Recording.cs");
+        int stopStart = recording.IndexOf(
+            "private async Task InternalStopRecordingAsync",
+            StringComparison.Ordinal);
+        int stopEnd = recording.IndexOf(
+            "private string ResolveBestStoragePath",
+            stopStart,
+            StringComparison.Ordinal);
+
+        Assert.True(stopStart >= 0);
+        Assert.True(stopEnd > stopStart);
+        string stop = recording[stopStart..stopEnd];
+
+        Assert.Contains("await StopAudioRecordingAsync();", stop, StringComparison.Ordinal);
+        Assert.DoesNotContain("audioFilePath = StopAudioRecording();", stop, StringComparison.Ordinal);
+        Assert.Contains(
+            "await Task.Run(() => DrainRecordingFrameQueue(oldQueue));",
+            stop,
+            StringComparison.Ordinal);
+
+        string audio = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Audio.cs");
+        Assert.Contains("Task.Run(StopAudioRecording)", audio, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BackgroundMkvConversionRunsBelowNormalPriority()
     {
         string source = ReadProjectFile(

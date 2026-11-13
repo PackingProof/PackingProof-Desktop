@@ -403,6 +403,20 @@ namespace ExpressPackingMonitoring.ViewModels
             return null;
         }
 
+        /// <summary>
+        /// 停录入口可能直接来自 UI 线程；WASAPI 停止、设备释放和写入线程收尾都有同步等待，
+        /// 必须放在线程池执行，否则音频设备异常时会把整个界面一起卡住。
+        /// </summary>
+        private async Task<string?> StopAudioRecordingAsync()
+        {
+            long started = Stopwatch.GetTimestamp();
+            string? audioFilePath = await Task.Run(StopAudioRecording).ConfigureAwait(false);
+            RuntimeLog.Info(
+                "Audio",
+                $"Audio stop completed elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0}");
+            return audioFilePath;
+        }
+
         private static void PersistAudioFailureDiagnostic(string audioFilePath, string reason)
         {
             try

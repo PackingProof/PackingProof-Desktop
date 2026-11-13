@@ -131,7 +131,7 @@ namespace ExpressPackingMonitoring.ViewModels
             try { oldQueue?.CompleteAdding(); } catch { }
             oldCts?.Cancel(); // 3. 通知 FFmpeg 线程停止
             directAacForThisRecording = _currentAudioUsesDirectAac;
-            audioFilePath = StopAudioRecording();
+            audioFilePath = await StopAudioRecordingAsync();
             audioFailedForThisRecording = _audioFailedForCurrentRecording;
             audioBytesWrittenForThisRecording = _audioBytesWritten;
 
@@ -154,8 +154,11 @@ namespace ExpressPackingMonitoring.ViewModels
             // 5. 彻底清空内存中的残余 Mat 对象 (防止泄漏的核心)
             if (oldQueue != null)
             {
-                while (oldQueue.TryTake(out var mat)) mat?.Dispose();
-                oldQueue.Dispose();
+                long drainStarted = Stopwatch.GetTimestamp();
+                await Task.Run(() => DrainRecordingFrameQueue(oldQueue));
+                RuntimeLog.Info(
+                    "Recording",
+                    $"Recording frame queue drained elapsedMs={Stopwatch.GetElapsedTime(drainStarted).TotalMilliseconds:F0}");
             }
             oldCts?.Dispose();
 
@@ -873,7 +876,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (_writeTask.IsCompleted) 
                 {
                     RuntimeLog.Warn("Recording", $"Recording writer completed during startup, file={Path.GetFileName(filePath)}");
-                    DeleteAudioTempFile(StopAudioRecording());
+                    DeleteAudioTempFile(await StopAudioRecordingAsync());
                     ClearCurrentAudioLogPath(audioLogPath);
                     IsRecording = false;
                     Debug.WriteLine("[MainVM] 启动检测：_writeTask 已结束，FFmpeg 启动失败");
@@ -1008,6 +1011,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 IsBusy = false;
             }
+        }
+
+        private static void DrainRecordingFrameQueue(BlockingCollection<RecordingVideoFrame> queue)
+        {
+            while (queue.TryTake(out var frame))
+                frame?.Dispose();
+            queue.Dispose();
         }
 
         private void BackgroundFFmpegRecordingLoop(
