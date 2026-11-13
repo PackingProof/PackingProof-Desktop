@@ -210,7 +210,7 @@ public partial class MainViewModel
                 "CameraVision",
                 $"本机性能检测完成：resolution={Config.FrameWidth}x{Config.FrameHeight}, "
                     + $"provider={result.Provider}, "
-                    + $"baselineP95={result.BaselineP95Ms:F2}ms, "
+                    + $"noObbP95={result.BaselineP95Ms:F2}ms, "
                     + $"enhancedP95={result.EnhancedP95Ms:F2}ms, "
                     + $"addedCpu={result.AddedCpuMsPerFrame:F2}ms/frame, "
                     + $"recommended={result.Recommended}, "

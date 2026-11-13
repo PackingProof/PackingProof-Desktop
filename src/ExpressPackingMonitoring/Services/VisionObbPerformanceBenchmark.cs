@@ -102,21 +102,6 @@ internal static class VisionObbPerformanceBenchmark
     {
         frameWidth = Math.Clamp(frameWidth, 320, 7680);
         frameHeight = Math.Clamp(frameHeight, 240, 4320);
-        using IVisionObbDetector? detector = VisionObbHost.DetectorFactory.TryLoad(
-            modelPath,
-            preferDirectMl);
-        if (detector == null)
-        {
-            return new VisionObbBenchmarkResult(
-                ModelAvailable: false,
-                Provider: "",
-                BaselineP95Ms: 0,
-                EnhancedP95Ms: 0,
-                BaselineCpuMsPerFrame: 0,
-                EnhancedCpuMsPerFrame: 0,
-                Recommended: false);
-        }
-
         (Mat blankFrame, VisionObbDetection[] blankDetections) =
             CreateBenchmarkFrame(frameWidth, frameHeight, barcodeCount: 0);
         (Mat singleFrame, VisionObbDetection[] singleDetections) =
@@ -149,11 +134,78 @@ internal static class VisionObbPerformanceBenchmark
         using var bareJdFrameScope = bareJdFrame;
         using var decoder = new CameraBarcodeFrameDecoder();
         using var qrDecoder = new CameraBarcodeFrameDecoder(() => true);
+        using var noObbDecoder = new CameraBarcodeFrameDecoder();
+        using var noObbQrDecoder = new CameraBarcodeFrameDecoder(() => true);
+        using var noObbQuadrilateralDecoder =
+            new CameraBarcodeQuadrilateralDecoder(noObbDecoder);
+        using var noObbQrQuadrilateralDecoder =
+            new CameraBarcodeQuadrilateralDecoder(noObbQrDecoder);
+
+        LatencyMeasurement[] noObbMeasurements =
+        [
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                blankFrame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                singleFrame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                doubleFrame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                sixFrame),
+            MeasureNoObbProduction(
+                noObbQrDecoder,
+                noObbQrQuadrilateralDecoder,
+                qrFrame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                tiltedFrame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                falsePositive1Frame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                falsePositive3Frame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                falsePositive6Frame),
+            MeasureNoObbProduction(
+                noObbDecoder,
+                noObbQuadrilateralDecoder,
+                bareJdFrame)
+        ];
+        LatencyMeasurement noObb = noObbMeasurements
+            .OrderByDescending(measurement => measurement.P95Ms)
+            .First();
+
+        using IVisionObbDetector? detector = VisionObbHost.DetectorFactory.TryLoad(
+            modelPath,
+            preferDirectMl);
+        if (detector == null)
+        {
+            return new VisionObbBenchmarkResult(
+                ModelAvailable: false,
+                Provider: "",
+                BaselineP95Ms: noObb.P95Ms,
+                EnhancedP95Ms: 0,
+                BaselineCpuMsPerFrame: noObb.CpuMsPerFrame,
+                EnhancedCpuMsPerFrame: 0,
+                Recommended: false);
+        }
+
         using var obbDecoder = new CameraBarcodeObbDecoder(decoder);
         using var qrObbDecoder = new CameraBarcodeObbDecoder(qrDecoder);
 
-        LatencyMeasurement baseline = Measure(
-            () => decoder.DecodeGuideRegion(singleFrame, _ => true));
         LatencyMeasurement[] enhancedMeasurements =
         [
             MeasureProduction(
@@ -214,15 +266,34 @@ internal static class VisionObbPerformanceBenchmark
         return new VisionObbBenchmarkResult(
             ModelAvailable: true,
             Provider: detector.ExecutionProvider,
-            BaselineP95Ms: baseline.P95Ms,
+            BaselineP95Ms: noObb.P95Ms,
             EnhancedP95Ms: enhanced.P95Ms,
-            BaselineCpuMsPerFrame: baseline.CpuMsPerFrame,
+            BaselineCpuMsPerFrame: noObb.CpuMsPerFrame,
             EnhancedCpuMsPerFrame: enhanced.CpuMsPerFrame,
             Recommended: ShouldRecommend(
                 detector.ExecutionProvider,
                 enhanced.P95Ms,
                 enhanced.CpuMsPerFrame));
     }
+
+    private static LatencyMeasurement MeasureNoObbProduction(
+        CameraBarcodeFrameDecoder decoder,
+        CameraBarcodeQuadrilateralDecoder quadrilateralDecoder,
+        Mat frame) =>
+        Measure(() =>
+        {
+            string? decoded = decoder.DecodeGuideRegion(
+                frame,
+                _ => true,
+                CameraBarcodeGuideGeometry.Default);
+            if (decoded == null)
+            {
+                quadrilateralDecoder.Decode(
+                    frame,
+                    _ => true,
+                    CameraBarcodeGuideGeometry.Default);
+            }
+        });
 
     internal static bool ShouldRecommend(
         string? provider,

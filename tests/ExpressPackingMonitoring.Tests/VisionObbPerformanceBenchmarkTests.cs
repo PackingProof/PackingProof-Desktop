@@ -30,6 +30,54 @@ public sealed class VisionObbPerformanceBenchmarkTests
     }
 
     [Fact]
+    public void ProductionBenchmarkMeasuresNoObbAcrossTheSameScenarios()
+    {
+        string source = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "VisionObbPerformanceBenchmark.cs"));
+
+        Assert.Contains("MeasureNoObbProduction", source, StringComparison.Ordinal);
+        Assert.Contains("noObbMeasurements", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "BaselineP95Ms: noObb.P95Ms",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CandidateDiagnosticsRecordPixelAndFrameDiagonalPercentage()
+    {
+        string decoder = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "CameraBarcodeObbDecoder.cs"));
+        string diagnosticLog = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Services",
+            "VisionObbDiagnosticLog.cs"));
+        string appPaths = File.ReadAllText(FindRepositoryFile(
+            "src",
+            "ExpressPackingMonitoring",
+            "Config",
+            "AppPaths.cs"));
+
+        Assert.Contains(
+            "VisionObbDiagnosticLog.Append",
+            decoder,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "vision_obb_diagnostics.log",
+            appPaths,
+            StringComparison.Ordinal);
+        Assert.Contains("diagonal_percent", diagnosticLog, StringComparison.Ordinal);
+        Assert.Contains("decode_allowed", diagnosticLog, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CiRunsProductionBenchmarkWithoutRequiringASamplePath()
     {
         string testSource = File.ReadAllText(FindRepositoryFile(

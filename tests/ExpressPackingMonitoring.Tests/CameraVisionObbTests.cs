@@ -519,7 +519,7 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
             output.WriteLine(
                 $"OBB benchmark: resolution={benchmarkWidth}x{benchmarkHeight}, "
                 + $"provider={benchmark.Provider}, "
-                + $"baselineP95={benchmark.BaselineP95Ms:F2}ms, "
+                + $"noObbP95={benchmark.BaselineP95Ms:F2}ms, "
                 + $"enhancedP95={benchmark.EnhancedP95Ms:F2}ms, "
                 + $"addedP95={benchmark.AddedP95Ms:F2}ms, "
                 + $"baselineCpu={benchmark.BaselineCpuMsPerFrame:F2}ms/frame, "
@@ -542,7 +542,7 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
                 output.WriteLine(
                     $"OBB CPU benchmark: resolution={benchmarkWidth}x{benchmarkHeight}, "
                     + $"provider={cpuBenchmark.Provider}, "
-                    + $"baselineP95={cpuBenchmark.BaselineP95Ms:F2}ms, "
+                    + $"noObbP95={cpuBenchmark.BaselineP95Ms:F2}ms, "
                     + $"enhancedP95={cpuBenchmark.EnhancedP95Ms:F2}ms, "
                     + $"addedP95={cpuBenchmark.AddedP95Ms:F2}ms, "
                     + $"baselineCpu={cpuBenchmark.BaselineCpuMsPerFrame:F2}ms/frame, "
