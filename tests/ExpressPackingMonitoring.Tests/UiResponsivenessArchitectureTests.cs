@@ -98,7 +98,7 @@ public sealed class UiResponsivenessArchitectureTests
             "ViewModels",
             "MainViewModel.Camera.cs");
 
-        Assert.Contains("await Task.Run(StartCamera);", source, StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(StartCamera).ConfigureAwait(false);", source, StringComparison.Ordinal);
         Assert.Contains("_cameraLifecycleGate.WaitAsync()", source, StringComparison.Ordinal);
         Assert.Contains("await StartCameraAsync();", source, StringComparison.Ordinal);
         Assert.Contains("_ = StartCameraAndOverlayChannelsAsync();",
