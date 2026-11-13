@@ -46,13 +46,18 @@ namespace ExpressPackingMonitoring.Data
             if (string.IsNullOrWhiteSpace(message))
                 return false;
 
-            return message.Contains("未找到 FFmpeg", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("转换超时", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("文件句柄", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("同一录像已有转换", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("正在删除、备份或清理", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("Unable to flush", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("being used by another process", StringComparison.OrdinalIgnoreCase);
+            string normalized = message.Trim();
+            return normalized is
+                    "未找到 FFmpeg，无法转换"
+                    or "MP4 转换超时"
+                    or "同一录像已有转换在进行"
+                    or "等待写入方释放文件句柄超时"
+                    or "录像正在删除、备份或清理，请稍后重试"
+                    or "现有 MP4 暂时无法刷盘，稍后重试"
+                    or "MP4 暂时无法刷盘，稍后重试"
+                || normalized.StartsWith(
+                    "Unable to flush converted MP4 before deleting source",
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool ShouldNotify(MkvConversionFailureState? state, DateTime now)

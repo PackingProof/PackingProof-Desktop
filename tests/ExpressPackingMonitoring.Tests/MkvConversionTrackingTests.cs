@@ -56,7 +56,7 @@ public sealed class MkvConversionTrackingTests
         MkvConversionFailureState flushFailure = CreateState(
             Now.AddDays(-1),
             Now.AddMinutes(-5),
-            lastError: "Unable to flush converted MP4");
+            lastError: "Unable to flush converted MP4 before deleting source file=recording.mp4, error=locked");
 
         Assert.Equal(
             MkvAutomaticRetryDecision.Deferred,
@@ -248,7 +248,7 @@ public sealed class MkvConversionTrackingTests
             methodStart,
             StringComparison.Ordinal);
         int suppression = source.IndexOf(
-            "if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)",
+            "retryDecision == MkvAutomaticRetryDecision.Suppressed",
             methodStart,
             StringComparison.Ordinal);
         int existingMp4 = source.IndexOf(
@@ -276,6 +276,32 @@ public sealed class MkvConversionTrackingTests
 
         Assert.True(timeout.CanRetryAutomatically);
         Assert.False(corruptSource.CanRetryAutomatically);
+    }
+
+    [Fact]
+    public void BatchReconciliationAndCleanupUseRecordingLifecycleOwnership()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Media.cs"));
+        int methodStart = source.IndexOf(
+            "private async Task<MkvBatchConversionResult> BatchConvertMkvToMp4CoreAsync",
+            StringComparison.Ordinal);
+        int methodEnd = source.IndexOf(
+            "private void ShowMkvFailureToastIfNeeded",
+            methodStart,
+            StringComparison.Ordinal);
+        string method = source[methodStart..methodEnd];
+
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+        Assert.True(
+            method.Split(
+                "VideoLifecycleCoordinator.TryEnterAsync(",
+                StringSplitOptions.None).Length - 1 >= 3);
     }
 
     private static MkvConversionFailureState CreateState(

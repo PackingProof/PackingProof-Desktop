@@ -228,6 +228,21 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 成功任务移走、有效 MP4 已存在”这一更强事实。
                 if (!File.Exists(mkvPath))
                 {
+                    using IDisposable lifecycleLease = await VideoLifecycleCoordinator.TryEnterAsync(
+                        activeRecord.Id,
+                        CameraLifecycleWaitTimeout,
+                        token);
+                    if (lifecycleLease == null)
+                    {
+                        batchResult.DeferredCount++;
+                        progress?.Report($"[{i + 1}/{total}] 录像正在备份或清理，稍后对账: {fileName}");
+                        continue;
+                    }
+                    if (_db.GetVideoById(activeRecord.Id) == null)
+                    {
+                        batchResult.SkippedCount++;
+                        continue;
+                    }
                     if (File.Exists(mp4Path)
                         && ValidateConvertedMp4(ffmpegPath, mp4Path, requireAudio: false, audioLogPath: null, cancellationToken: token))
                     {
@@ -273,6 +288,21 @@ namespace ExpressPackingMonitoring.ViewModels
                         audioPlan.AudioLogPath,
                         cancellationToken: token))
                 {
+                    using IDisposable lifecycleLease = await VideoLifecycleCoordinator.TryEnterAsync(
+                        activeRecord.Id,
+                        CameraLifecycleWaitTimeout,
+                        token);
+                    if (lifecycleLease == null)
+                    {
+                        batchResult.DeferredCount++;
+                        progress?.Report($"[{i + 1}/{total}] 录像正在备份或清理，稍后对账: {fileName}");
+                        continue;
+                    }
+                    if (_db.GetVideoById(activeRecord.Id) == null)
+                    {
+                        batchResult.SkippedCount++;
+                        continue;
+                    }
                     if (!TryFlushFileToDisk(mp4Path))
                     {
                         batchResult.DeferredCount++;
@@ -299,8 +329,25 @@ namespace ExpressPackingMonitoring.ViewModels
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
                 MkvAutomaticRetryDecision retryDecision =
                     MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
-                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                if (!forceRetry
+                    && !File.Exists(mp4Path)
+                    && retryDecision == MkvAutomaticRetryDecision.Suppressed)
                 {
+                    using IDisposable lifecycleLease = await VideoLifecycleCoordinator.TryEnterAsync(
+                        activeRecord.Id,
+                        CameraLifecycleWaitTimeout,
+                        token);
+                    if (lifecycleLease == null)
+                    {
+                        batchResult.DeferredCount++;
+                        progress?.Report($"[{i + 1}/{total}] 录像正在备份或清理，稍后处理: {fileName}");
+                        continue;
+                    }
+                    if (_db.GetVideoById(activeRecord.Id) == null)
+                    {
+                        batchResult.SkippedCount++;
+                        continue;
+                    }
                     batchResult.SuppressedCount++;
                     batchResult.AddFinalFile(mkvPath, mkvPath);
                     _db.MarkArchivePendingByFilePath(mkvPath);
@@ -331,9 +378,6 @@ namespace ExpressPackingMonitoring.ViewModels
 
                 if (conversionResult.Success)
                 {
-                    try { File.Delete(mkvPath); } catch { }
-                    _db.ClearMkvConversionFailure(mkvPath);
-                    _db.UpdateVideoFilePath(mkvPath, mp4Path);
                     _archiveService?.Wake();
                     batchResult.SuccessCount++;
                     batchResult.AddFinalFile(

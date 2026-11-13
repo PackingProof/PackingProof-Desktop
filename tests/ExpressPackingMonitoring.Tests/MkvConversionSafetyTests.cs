@@ -208,6 +208,31 @@ public sealed class MkvConversionSafetyTests
         Assert.True(publish > lifecycleLock);
     }
 
+    [Fact]
+    public void ConversionDoesNotDeleteExistingMp4BeforeStagedReplacement()
+    {
+        string source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "ViewModels",
+            "MainViewModel.Conversion.cs"));
+        int methodStart = source.IndexOf(
+            "private MkvConversionResult ConvertMkvToMp4ForPlayback",
+            StringComparison.Ordinal);
+        int methodEnd = source.IndexOf(
+            "internal static bool IsCompletedConcurrentMkvConversion",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+        Assert.DoesNotContain(
+            "DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath)",
+            source[methodStart..methodEnd],
+            StringComparison.Ordinal);
+    }
+
     private static string CreateTemporaryDirectory()
     {
         string path = Path.Combine(Path.GetTempPath(), $"ExpressPackingMonitoring.Tests-{Guid.NewGuid():N}");

@@ -149,16 +149,15 @@ namespace ExpressPackingMonitoring.ViewModels
                     }
                     if (validationPassed)
                     {
-                        return MkvConversionResult.Fail(
-                            "现有 MP4 暂时无法刷盘，稍后重试",
-                            mkvPath,
-                            canRetryAutomatically: true);
+                        RuntimeLog.Warn(
+                            "MkvToMp4",
+                            $"Existing MP4 is valid but temporarily locked for flush; using it without deleting MKV file={Path.GetFileName(mp4Path)}");
+                        return MkvConversionResult.Ok(mp4Path, alreadyConverted: true);
                     }
 
                     RuntimeLog.Warn(
                         "MkvToMp4",
-                        $"Existing MP4 failed validation; rebuilding from source file={Path.GetFileName(mkvPath)}");
-                    DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath);
+                        $"Existing MP4 failed validation; rebuilding through staging file={Path.GetFileName(mkvPath)}");
                 }
 
                 // 音轨时间线检查用于诊断，不阻断 MP4 容器转换；否则一个可播放的
@@ -264,7 +263,6 @@ namespace ExpressPackingMonitoring.ViewModels
             }
             catch (Exception ex)
             {
-                DeleteIncompleteMp4WhileSourceIsPreserved(mkvPath);
                 RuntimeLog.Error("MkvToMp4", $"Convert exception file={Path.GetFileName(mkvPath ?? "")}", ex);
                 return MkvConversionResult.Fail(
                     ex.Message,
