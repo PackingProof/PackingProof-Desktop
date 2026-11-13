@@ -58,7 +58,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     ShowToast("摄像头停止失败，请重新插拔后重试", ToastSeverity.Error);
                     return;
                 }
-                StartCamera();
+                await StartCameraAsync();
                 _lastRestartAttempt = DateTime.Now;
                 RuntimeLog.Info("Camera", $"RestartCamera done running={IsVideoSourceRunning()}");
             }
@@ -104,7 +104,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         return;
                     }
                     await WaitNetworkCameraReconnectCooldownAsync();
-                    StartCamera();
+                    await StartCameraAsync();
                     _lastRestartAttempt = DateTime.Now;
 
                     if (await WaitForCameraReadyAsync())
@@ -147,7 +147,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         return;
                     }
                     await WaitNetworkCameraReconnectCooldownAsync();
-                    StartCamera();
+                    await StartCameraAsync();
                     _lastRestartAttempt = DateTime.Now;
 
                     if (await WaitForCameraReadyAsync())
@@ -273,7 +273,7 @@ namespace ExpressPackingMonitoring.ViewModels
         /// <summary>
         /// 注册用户活跃信号（扫码/鼠标/键盘/按钮等），如果摄像头休眠中则唤醒
         /// </summary>
-        public void NotifyUserActivity()
+        public async void NotifyUserActivity()
         {
             _lastActivityTime = DateTime.Now;
             if (_isSetupWizardActive)
@@ -287,7 +287,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _cameraWakeGraceUntilUtc = DateTime.UtcNow + CameraWakeGracePeriod;
                 // 先启动再放开休眠标记：休眠期间设备本来就停着、帧时间也是旧的，
                 // 提前放开会让看门狗在启动的这一秒多里排队重连，把刚起来的摄像头又关掉。
-                StartCamera();
+                await StartCameraAsync();
                 IsCameraSleeping = false;
                 ShowToast("摄像头已唤醒");
                 Debug.WriteLine("[Idle] 用户活跃，摄像头唤醒");
@@ -332,7 +332,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             {
                                 // 停止期间状态已变化时，把刚停下的摄像头接回来，避免录制点下后没有画面。
                                 if (!_isDisposed && !_shutdownRequested && !_isCameraSleeping)
-                                    StartCamera();
+                                    _ = StartCameraAsync();
                                 return;
                             }
                             if (!stopped)
@@ -630,6 +630,12 @@ namespace ExpressPackingMonitoring.ViewModels
                 _isCameraStarting = false;
             }
         }
+
+        /// <summary>
+        /// 运行期重连、空闲唤醒和手动重启会枚举设备、探测首帧并启动采集，均在 UI 线程上
+        /// 可能停顿数秒。首屏初始化仍保持同步顺序，交互期间的启动统一放到线程池。
+        /// </summary>
+        private Task StartCameraAsync() => Task.Run(StartCamera);
 
         /// <summary>
         /// 尝试用 Media Foundation 后端启动摄像头。返回 false 表示这条路径不可用，

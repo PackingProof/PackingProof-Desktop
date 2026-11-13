@@ -242,7 +242,7 @@ namespace ExpressPackingMonitoring.ViewModels
                     // 副画面独立于主路：只有这一路真的改了设备/来源/档位/旋转才重开，
                     // 保存别的设置时不要顺手把它掐断一秒（预录里会留下"副画面没了"的接缝）。
                     if (overlayChannelsNeedRestart)
-                        RestartOverlayChannels();
+                        await RestartOverlayChannelsAsync();
                     RefreshArchiveBackupSummary();
                     if (computerNicknameChanged && IsRecordingWorkstation)
                         QueueRecordingWorkstationHeartbeat(force: true);

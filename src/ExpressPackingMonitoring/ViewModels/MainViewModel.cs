@@ -228,9 +228,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 副画面跟着摄像头一起休眠/唤醒：主画面已经黑屏时副画面没有意义，还白耗一路采集。
                 // 唤醒走的是"先 StartCamera 再放开标记"，所以这里启动副路时主路已经就绪。
                 if (value)
-                    StopOverlayChannels();
+                    _ = StopOverlayChannelsAsync();
                 else
-                    StartOverlayChannels();
+                    _ = StartOverlayChannelsAsync();
             }
         }
         private Task _cameraIdleWatchdogTask;

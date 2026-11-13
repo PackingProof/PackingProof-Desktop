@@ -107,7 +107,7 @@ public partial class FirstUseSetupWizardWindow : Window
         Loaded += FirstUseSetupWizardWindow_Loaded;
         Closed += FirstUseSetupWizardWindow_Closed;
         CameraRecognitionPreviewImage.SizeChanged += (_, __) => UpdateCameraRecognitionGuide();
-        ShowStep(0);
+        _ = ShowStepAsync(0);
     }
 
     internal static bool GetInitialCameraRecognitionChoice(AppConfig config)
@@ -279,7 +279,7 @@ public partial class FirstUseSetupWizardWindow : Window
         return tcs.Task;
     }
 
-    private void ShowStep(int stepIndex)
+    private async Task ShowStepAsync(int stepIndex)
     {
         _stepIndex = Math.Clamp(stepIndex, 0, 6);
         ModePage.Visibility = _stepIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -305,15 +305,15 @@ public partial class FirstUseSetupWizardWindow : Window
 
         if (_stepIndex == 1)
         {
-            StartCameraPreviewFromSelection(enableRecognition: false);
+            await StartCameraPreviewFromSelectionAsync(enableRecognition: false);
         }
         else if (_stepIndex == 2 && UseCameraRecognitionRadio.IsChecked == true)
         {
-            StartCameraPreviewFromSelection(enableRecognition: true);
+            await StartCameraPreviewFromSelectionAsync(enableRecognition: true);
         }
         else
         {
-            StopCameraPreview();
+            await StopCameraPreviewAsync();
         }
 
         if (_stepIndex == 4)
@@ -330,7 +330,7 @@ public partial class FirstUseSetupWizardWindow : Window
             ScannerIntroText.Text = UseCameraRecognitionRadio.IsChecked == true
                 ? "没有扫码枪可直接进入下一步；如需使用，可在这里测试扫码枪，作为摄像头识别的后备方案"
                 : "没有扫码枪也可手动输入面单号；如需使用，可在这里测试扫码枪";
-            Dispatcher.BeginInvoke(new Action(() =>
+            _ = Dispatcher.BeginInvoke(new Action(() =>
             {
                 ScanTestTextBox.Focus();
                 ScanTestTextBox.SelectAll();
@@ -355,9 +355,9 @@ public partial class FirstUseSetupWizardWindow : Window
                     CameraStatusText.Visibility = Visibility.Visible;
                     return;
                 }
-                if (!TryLeaveCameraStep())
+                if (!await TryLeaveCameraStepAsync())
                     return;
-                ShowStep(2);
+                await ShowStepAsync(2);
                 return;
             }
 
@@ -368,17 +368,17 @@ public partial class FirstUseSetupWizardWindow : Window
                 CameraStatusText.Visibility = Visibility.Visible;
                 return;
             }
-            if (!TryLeaveCameraStep())
+            if (!await TryLeaveCameraStepAsync())
                 return;
-            ShowStep(2);
+            await ShowStepAsync(2);
             return;
         }
 
         if (_stepIndex == 2)
         {
-            if (!TryLeaveCameraStep())
+            if (!await TryLeaveCameraStepAsync())
                 return;
-            ShowStep(3);
+            await ShowStepAsync(3);
             await EnsureRecommendedCameraProfileAsync();
             return;
         }
@@ -395,7 +395,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 || string.IsNullOrWhiteSpace(selectedCamera.Moniker))
             {
                 AppDialog.Warning(this, "录制主机必须先选择可用摄像头", "摄像头尚未配置");
-                ShowStep(1);
+                await ShowStepAsync(1);
                 return;
             }
             ApplySelections();
@@ -405,19 +405,19 @@ public partial class FirstUseSetupWizardWindow : Window
             return;
         }
 
-        ShowStep(_stepIndex + 1);
+        await ShowStepAsync(_stepIndex + 1);
     }
 
-    private void BackButton_Click(object sender, RoutedEventArgs e)
+    private async void BackButton_Click(object sender, RoutedEventArgs e)
     {
-        if ((_stepIndex == 1 || _stepIndex == 2) && !TryLeaveCameraStep())
+        if ((_stepIndex == 1 || _stepIndex == 2) && !await TryLeaveCameraStepAsync())
             return;
-        ShowStep(_stepIndex - 1);
+        await ShowStepAsync(_stepIndex - 1);
     }
 
-    private bool TryLeaveCameraStep()
+    private async Task<bool> TryLeaveCameraStepAsync()
     {
-        if (StopCameraPreview())
+        if (await StopCameraPreviewAsync())
             return true;
 
         SetCameraPreviewStatus("摄像头未能停止，请重新插拔后再继续");
@@ -431,12 +431,12 @@ public partial class FirstUseSetupWizardWindow : Window
         Close();
     }
 
-        private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (IsNetworkCameraSelected)
             {
                 // 切换到网络摄像头时先断开正在运行的 USB/网络预览，避免旧画面继续显示。
-                if (!StopCameraPreview())
+                if (!await StopCameraPreviewAsync())
                 {
                     SetCameraPreviewStatus("上一个摄像头未能停止，请重新插拔后重试");
                     return;
@@ -461,7 +461,7 @@ public partial class FirstUseSetupWizardWindow : Window
             _evaluatedCameraMoniker = "";
             if (_stepIndex == 1)
         {
-            StartCameraPreviewFromSelection(enableRecognition: false);
+            await StartCameraPreviewFromSelectionAsync(enableRecognition: false);
             }
         }
 
@@ -538,7 +538,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 : $"已旋转 {_config.CameraRotationDegrees}°";
     }
 
-    private void CameraRecognitionChoice_Changed(
+    private async void CameraRecognitionChoice_Changed(
         object sender,
         RoutedEventArgs e)
     {
@@ -550,9 +550,9 @@ public partial class FirstUseSetupWizardWindow : Window
             return;
 
         if (UseCameraRecognitionRadio.IsChecked == true)
-            StartCameraPreviewFromSelection(enableRecognition: true);
+            await StartCameraPreviewFromSelectionAsync(enableRecognition: true);
         else
-            StopCameraPreview();
+            await StopCameraPreviewAsync();
     }
 
     private void UpdateCameraRecognitionChoiceUi()
@@ -826,9 +826,9 @@ public partial class FirstUseSetupWizardWindow : Window
         await EnsureRecommendedCameraProfileAsync(force: true);
     }
 
-    private void StartCameraPreviewFromSelection(bool enableRecognition)
+    private async Task StartCameraPreviewFromSelectionAsync(bool enableRecognition)
     {
-        if (!StopCameraPreview())
+        if (!await StopCameraPreviewAsync())
         {
             SetCameraPreviewStatus("上一个摄像头未能停止，请重新插拔后重试");
             return;
@@ -841,7 +841,7 @@ public partial class FirstUseSetupWizardWindow : Window
 
         if (IsNetworkCameraSelected)
         {
-            StartNetworkCameraPreview(enableRecognition);
+            await StartNetworkCameraPreviewAsync(enableRecognition);
             return;
         }
 
@@ -855,14 +855,20 @@ public partial class FirstUseSetupWizardWindow : Window
         {
             if (enableRecognition)
                 CameraRecognitionSelectedCameraText.Text = camera.Name;
-            _previewCamera = new VideoCaptureDevice(camera.Moniker);
-            if (_previewCamera.VideoCapabilities.Length > 0)
+            VideoCaptureDevice previewCamera = await Task.Run(() =>
             {
-                _previewCamera.VideoResolution = SelectBestCapability(_previewCamera.VideoCapabilities);
-            }
+                var source = new VideoCaptureDevice(camera.Moniker);
+                if (source.VideoCapabilities.Length > 0)
+                {
+                    source.VideoResolution =
+                        SelectBestCapability(source.VideoCapabilities);
+                }
+                return source;
+            });
+            _previewCamera = previewCamera;
 
-            _previewCamera.NewFrame += PreviewCamera_NewFrame;
-            _previewCamera.Start();
+            previewCamera.NewFrame += PreviewCamera_NewFrame;
+            await Task.Run(previewCamera.Start);
             SetCameraPreviewStatus(
                 enableRecognition
                     ? "正在等待摄像头识别画面..."
@@ -871,11 +877,11 @@ public partial class FirstUseSetupWizardWindow : Window
         catch (Exception ex)
         {
             SetCameraPreviewStatus($"摄像头预览启动失败：{ex.Message}");
-            StopCameraPreview();
+            await StopCameraPreviewAsync();
         }
     }
 
-    private async void StartNetworkCameraPreview(bool enableRecognition)
+    private async Task StartNetworkCameraPreviewAsync(bool enableRecognition)
     {
         if (!NetworkCameraAddressEditor.TryGetUrl(out string url, out string error))
         {
@@ -897,7 +903,7 @@ public partial class FirstUseSetupWizardWindow : Window
         NetworkCameraTestButton.IsEnabled = true;
         if (!connected)
         {
-            NetworkPreviewSourceStop();
+            await NetworkPreviewSourceStopAsync();
             SetCameraPreviewStatus($"连接失败：{source.LastError ?? "无法获取画面信息"}");
             return;
         }
@@ -989,7 +995,7 @@ public partial class FirstUseSetupWizardWindow : Window
         }
     }
 
-    private void NetworkPreviewSourceStop()
+    private async Task NetworkPreviewSourceStopAsync()
     {
         NetworkCameraSource source = _networkPreviewSource;
         if (source == null)
@@ -998,16 +1004,16 @@ public partial class FirstUseSetupWizardWindow : Window
         source.StreamInfoReady -= NetworkPreviewSource_StreamInfoReady;
         try
         {
-            source.Stop();
+            await Task.Run(source.Stop);
         }
         catch { }
         if (ReferenceEquals(_networkPreviewSource, source))
             _networkPreviewSource = null;
     }
 
-    private void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
+    private async void NetworkCameraTestButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!StopCameraPreview())
+        if (!await StopCameraPreviewAsync())
         {
             SetCameraPreviewStatus("上一个摄像头未能停止，请稍后重试");
             return;
@@ -1016,7 +1022,7 @@ public partial class FirstUseSetupWizardWindow : Window
         CameraRecognitionPreviewImage.Source = null;
         _cameraBarcodeRecognition.Reset();
         _isRecognitionPreview = false;
-        StartNetworkCameraPreview(enableRecognition: false);
+        await StartNetworkCameraPreviewAsync(enableRecognition: false);
     }
 
     private bool IsNetworkCameraSelected =>
@@ -1202,15 +1208,16 @@ public partial class FirstUseSetupWizardWindow : Window
         return source;
     }
 
-    private bool StopCameraPreview()
+    private async Task<bool> StopCameraPreviewAsync()
     {
         NetworkCameraSource networkSource = _networkPreviewSource;
         if (networkSource != null)
         {
+            networkSource.StreamInfoReady -= NetworkPreviewSource_StreamInfoReady;
             networkSource.FrameReady -= NetworkPreviewSource_FrameReady;
             try
             {
-                networkSource.Stop();
+                await Task.Run(networkSource.Stop);
             }
             catch { }
             if (ReferenceEquals(_networkPreviewSource, networkSource))
@@ -1236,7 +1243,7 @@ public partial class FirstUseSetupWizardWindow : Window
                 camera.SignalToStop();
                 for (int i = 0; i < 20 && camera.IsRunning; i++)
                 {
-                    Thread.Sleep(50);
+                    await Task.Delay(50);
                 }
             }
         }
@@ -1246,7 +1253,12 @@ public partial class FirstUseSetupWizardWindow : Window
         {
             if (_previewCameraForceStopTask == null || _previewCameraForceStopTask.IsCompleted)
                 _previewCameraForceStopTask = Task.Run(() => camera.Stop());
-            try { _previewCameraForceStopTask.Wait(2000); } catch { }
+            Task forceStopTask = _previewCameraForceStopTask;
+            Task finished = await Task.WhenAny(forceStopTask, Task.Delay(2000));
+            if (ReferenceEquals(finished, forceStopTask))
+            {
+                try { await forceStopTask; } catch { }
+            }
         }
 
         if (camera.IsRunning)
@@ -1518,9 +1530,9 @@ public partial class FirstUseSetupWizardWindow : Window
             && mic.Name != "未检测到麦克风";
     }
 
-    private void FirstUseSetupWizardWindow_Closed(object sender, EventArgs e)
+    private async void FirstUseSetupWizardWindow_Closed(object sender, EventArgs e)
     {
-        StopCameraPreview();
+        await StopCameraPreviewAsync();
         StopMicPreview();
         _cameraBarcodeRecognition.Dispose();
     }

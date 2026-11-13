@@ -475,7 +475,7 @@ public sealed class DeploymentStartupTests
         Assert.True(wakeEnd > wakeStart, "找不到唤醒分支的结束位置");
 
         string wakeBranch = source[wakeStart..wakeEnd];
-        int startIndex = wakeBranch.IndexOf("StartCamera();", StringComparison.Ordinal);
+        int startIndex = wakeBranch.IndexOf("await StartCameraAsync();", StringComparison.Ordinal);
         int clearSleepIndex = wakeBranch.IndexOf("IsCameraSleeping = false;", StringComparison.Ordinal);
 
         Assert.True(startIndex >= 0, "唤醒分支没有启动摄像头");
@@ -1721,7 +1721,7 @@ public sealed class DeploymentStartupTests
         Assert.Contains("x:Name=\"RecordingProfileResultText\"", wizard, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"RecordingProfileRetryButton\"", wizard, StringComparison.Ordinal);
 
-        int showDetectionStep = wizardSource.IndexOf("ShowStep(3);", StringComparison.Ordinal);
+        int showDetectionStep = wizardSource.IndexOf("ShowStepAsync(3);", StringComparison.Ordinal);
         int startDetection = wizardSource.IndexOf(
             "await EnsureRecommendedCameraProfileAsync();",
             showDetectionStep,
@@ -1763,7 +1763,7 @@ public sealed class DeploymentStartupTests
             "if (IsNetworkCameraSelected)",
             StringComparison.Ordinal);
         int stopPreview = wizardSource.IndexOf(
-            "StopCameraPreview()",
+            "StopCameraPreviewAsync()",
             networkBranch,
             StringComparison.Ordinal);
         int showPanel = wizardSource.IndexOf(

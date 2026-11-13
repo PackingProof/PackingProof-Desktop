@@ -405,7 +405,7 @@ namespace ExpressPackingMonitoring.ViewModels
             _ => AppLanguage.Get("Main.ClientOther")
         };
 
-        public void CopyMonitorAddress()
+        public async Task CopyMonitorAddressAsync()
         {
             if (!TryGetMobileConnectionUrl(out string url))
             {
@@ -423,7 +423,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 }
                 catch
                 {
-                    Thread.Sleep(80);
+                    await Task.Delay(80);
                 }
             }
 

@@ -137,6 +137,7 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 必须放在锁外，否则处理循环会卡在等锁上，预览跟着停。
         /// </summary>
         private readonly object _overlayChannelSyncLock = new();
+        private readonly SemaphoreSlim _overlayLifecycleGate = new(1, 1);
 
         private int _overlayPlacementVersion;
 
@@ -305,6 +306,9 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
+        internal Task StartOverlayChannelsAsync() =>
+            RunOverlayLifecycleOffUiThreadAsync(StartOverlayChannels);
+
         /// <summary>停止所有叠加画面并释放各自缓存的帧。可重复调用。</summary>
         internal void StopOverlayChannels()
         {
@@ -312,11 +316,30 @@ namespace ExpressPackingMonitoring.ViewModels
                 StopOverlayChannel(channel);
         }
 
+        internal Task StopOverlayChannelsAsync() =>
+            RunOverlayLifecycleOffUiThreadAsync(StopOverlayChannels);
+
         /// <summary>按当前配置重启全部叠加画面：设置里换设备、换来源或换地址后调用。</summary>
         internal void RestartOverlayChannels()
         {
             StopOverlayChannels();
             StartOverlayChannels();
+        }
+
+        internal Task RestartOverlayChannelsAsync() =>
+            RunOverlayLifecycleOffUiThreadAsync(RestartOverlayChannels);
+
+        private async Task RunOverlayLifecycleOffUiThreadAsync(Action operation)
+        {
+            await _overlayLifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await Task.Run(operation).ConfigureAwait(false);
+            }
+            finally
+            {
+                _overlayLifecycleGate.Release();
+            }
         }
 
         private void StartOverlayChannel(OverlayChannel channel)

@@ -92,6 +92,83 @@ public sealed class UiResponsivenessArchitectureTests
     }
 
     [Fact]
+    public void RuntimeCameraRestartRunsDeviceStartupOffTheUiThread()
+    {
+        string source = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Camera.cs");
+
+        Assert.Contains("private Task StartCameraAsync() => Task.Run(StartCamera);", source,
+            StringComparison.Ordinal);
+        Assert.Contains("await StartCameraAsync();", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "await StopCameraAsync();\n                    StartCamera();",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RecordingStorageResolutionAndProbeRunOffTheUiThread()
+    {
+        string source = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Recording.cs");
+
+        Assert.Contains("await Task.Run(() => ResolveBestStoragePlan());", source, StringComparison.Ordinal);
+        Assert.Contains("await IsDirectoryWritableAsync(baseFolder)", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "Task.Run(() => IsDirectoryWritable(dirPath))",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OverlayCameraLifecycleRunsOffTheUiThread()
+    {
+        string channels = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.OverlayChannels.cs");
+        string shell = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.cs");
+
+        Assert.Contains("RunOverlayLifecycleOffUiThreadAsync(StartOverlayChannels);", channels,
+            StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(operation).ConfigureAwait(false);", channels,
+            StringComparison.Ordinal);
+        Assert.Contains("_ = StartOverlayChannelsAsync();", shell, StringComparison.Ordinal);
+        Assert.Contains("_ = StopOverlayChannelsAsync();", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FirstUseWizardCameraLifecycleDoesNotSleepOnTheUiThread()
+    {
+        string source = ReadProjectFile(
+            "UI",
+            "FirstUseSetupWizardWindow.xaml.cs");
+
+        Assert.Contains("private async Task ShowStepAsync(int stepIndex)", source,
+            StringComparison.Ordinal);
+        Assert.Contains("await StopCameraPreviewAsync()", source, StringComparison.Ordinal);
+        Assert.Contains("await Task.Delay(50);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Thread.Sleep", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("_previewCameraForceStopTask.Wait(", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MonitorAddressCopyRetriesUseAsyncDelay()
+    {
+        string source = ReadProjectFile(
+            "ViewModels",
+            "MainViewModel.Integration.cs");
+
+        Assert.Contains("public async Task CopyMonitorAddressAsync()", source,
+            StringComparison.Ordinal);
+        Assert.Contains("await Task.Delay(80);", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Thread.Sleep(80)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BackgroundMkvConversionRunsBelowNormalPriority()
     {
         string source = ReadProjectFile(
@@ -102,6 +179,22 @@ public sealed class UiResponsivenessArchitectureTests
             "process.PriorityClass = ProcessPriorityClass.BelowNormal",
             source,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ManualMkvMaintenanceRunsOnTheThreadPool()
+    {
+        string source = ReadProjectFile("UI", "SettingsWindow.xaml.cs");
+        int conversion = source.IndexOf(
+            "Context.BatchConvertMkvToMp4Async(progress, migrationCts.Token)",
+            StringComparison.Ordinal);
+        int background = source.LastIndexOf(
+            "await Task.Run(() =>",
+            conversion,
+            StringComparison.Ordinal);
+
+        Assert.True(conversion >= 0);
+        Assert.True(background >= 0 && conversion - background < 120);
     }
 
     [Fact]

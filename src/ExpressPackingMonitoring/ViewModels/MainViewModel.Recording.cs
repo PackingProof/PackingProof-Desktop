@@ -540,6 +540,9 @@ namespace ExpressPackingMonitoring.ViewModels
             catch { return false; }
         }
 
+        private Task<bool> IsDirectoryWritableAsync(string dirPath) =>
+            Task.Run(() => IsDirectoryWritable(dirPath));
+
         private void EnsureDirectoryWritable(string dirPath)
         {
             try
@@ -655,12 +658,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 string baseFolder;
                 try
                 {
-                    RecordingStoragePlan storagePlan = ResolveBestStoragePlan();
+                    RecordingStoragePlan storagePlan =
+                        await Task.Run(() => ResolveBestStoragePlan());
                     baseFolder = storagePlan.WorkingRootPath;
                     _currentArchivePath = storagePlan.RequiresNetworkArchive
                         ? storagePlan.ArchiveTarget
                         : "";
-                    if (!IsDirectoryWritable(baseFolder))
+                    if (!await IsDirectoryWritableAsync(baseFolder))
                     {
                         ShowToast("存储路径不可写，请检查磁盘", ToastSeverity.Warning);
                         SpeakWarning(DefaultSpeechCatalog.StoragePathNotWritable);
@@ -677,7 +681,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 string dateFolder = Path.Combine(baseFolder, DateTime.Now.ToString("yyyy-MM-dd"));
                 try
                 {
-                    if (!Directory.Exists(dateFolder)) Directory.CreateDirectory(dateFolder);
+                    await Task.Run(() => Directory.CreateDirectory(dateFolder));
                 }
                 catch (Exception ex)
                 {

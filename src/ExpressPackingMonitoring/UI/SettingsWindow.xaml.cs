@@ -2834,7 +2834,8 @@ namespace ExpressPackingMonitoring.UI
             try
             {
                 MkvBatchConversionResult result =
-                    await Context.BatchConvertMkvToMp4Async(progress, migrationCts.Token);
+                    await Task.Run(() =>
+                        Context.BatchConvertMkvToMp4Async(progress, migrationCts.Token));
                 if (!_isClosing)
                 {
                     MigrationStatusText.Text = FormatMkvMigrationSummary(result);

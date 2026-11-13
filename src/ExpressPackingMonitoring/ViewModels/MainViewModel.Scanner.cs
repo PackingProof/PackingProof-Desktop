@@ -157,7 +157,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 ToggleModeCommand = new RelayCommand(() => { });
                 ToggleRecordingCommand = new RelayCommand(() => { });
                 OpenStatsCommand = new RelayCommand(() => { });
-                CopyMonitorAddressCommand = new RelayCommand(() => { });
+                CopyMonitorAddressCommand = new AsyncRelayCommand(() => Task.CompletedTask);
                 SwitchWorkstationCommand = new RelayCommand(() => { });
                 ClearScanInputCommand = new RelayCommand(() => { });
                 ClearSearchCommand = new RelayCommand(() => { });
@@ -262,7 +262,7 @@ namespace ExpressPackingMonitoring.ViewModels
             ToggleRecordingCommand = new AsyncRelayCommand(ToggleRecordingAsync);
             OpenStatsCommand = new RelayCommand(OpenStatsWindow);
             ResetEncoderDetectCommand = new AsyncRelayCommand(ResetEncoderDetectAsync);
-            CopyMonitorAddressCommand = new RelayCommand(CopyMonitorAddress);
+            CopyMonitorAddressCommand = new AsyncRelayCommand(CopyMonitorAddressAsync);
             SwitchWorkstationCommand = new RelayCommand(SwitchWorkstation);
             ClearScanInputCommand = new RelayCommand(() => ScanInputText = "");
             ClearSearchCommand = new RelayCommand(() => LogSearchText = "");
