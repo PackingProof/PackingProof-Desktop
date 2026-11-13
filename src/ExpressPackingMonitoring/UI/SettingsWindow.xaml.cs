@@ -2075,6 +2075,7 @@ namespace ExpressPackingMonitoring.UI
                 if (!_isRecording)
                 {
                     pausedCamera = await Context.SuspendCameraForSetupWizardAsync();
+                    if (_isClosing) return;
                     if (!pausedCamera)
                         return;
                 }
@@ -2082,6 +2083,7 @@ namespace ExpressPackingMonitoring.UI
                 var wizard = new FirstUseSetupWizardWindow(Config) { Owner = this };
                 bool accepted = wizard.ShowDialog() == true;
                 await wizard.WaitForCameraCleanupAsync();
+                if (_isClosing) return;
                 if (accepted && !wizard.WasSkipped)
                 {
                     Config.FirstUseWizardCompleted = true;

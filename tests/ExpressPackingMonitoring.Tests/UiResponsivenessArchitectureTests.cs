@@ -156,6 +156,7 @@ public sealed class UiResponsivenessArchitectureTests
             StringComparison.Ordinal);
         Assert.Contains("await StopCameraPreviewAsync()", source, StringComparison.Ordinal);
         Assert.Contains("WaitAsync(CameraPreviewLifecycleTimeout)", source, StringComparison.Ordinal);
+        Assert.Contains("await _cameraPreviewGate.WaitAsync();", source, StringComparison.Ordinal);
         Assert.Contains("WaitForCameraCleanupAsync()", source, StringComparison.Ordinal);
         Assert.Contains("await Task.Delay(50);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Thread.Sleep", source, StringComparison.Ordinal);

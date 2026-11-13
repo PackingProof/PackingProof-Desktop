@@ -1570,7 +1570,21 @@ public partial class FirstUseSetupWizardWindow : Window
         _isClosed = true;
         try
         {
-            await StopCameraPreviewAsync();
+            bool stopped = await StopCameraPreviewAsync();
+            if (!stopped)
+            {
+                // 启动操作卡住时先让关闭事件返回；一旦启动操作退出，立即在同一
+                // 生命周期门内再次停源，保证主界面不会在设备仍被向导占用时恢复。
+                await _cameraPreviewGate.WaitAsync();
+                try
+                {
+                    await StopCameraPreviewCoreAsync();
+                }
+                finally
+                {
+                    _cameraPreviewGate.Release();
+                }
+            }
             StopMicPreview();
             _cameraBarcodeRecognition.Dispose();
         }
