@@ -381,7 +381,14 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     setupOwner?.ResumeCapsLockAfterModalWindow();
                 }
-                await wizard.WaitForCameraCleanupAsync();
+                bool cameraReleased = await wizard.WaitForCameraCleanupAsync();
+                if (!cameraReleased)
+                {
+                    pausedCamera = false;
+                    RuntimeLog.Error("SetupWizard", "Wizard camera did not release; main camera remains paused");
+                    ShowToast("配置向导未能释放摄像头，请重新启动程序后再试", ToastSeverity.Error);
+                    return;
+                }
 
                 if (!accepted)
                     return;

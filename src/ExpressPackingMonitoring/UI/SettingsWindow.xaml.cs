@@ -2082,8 +2082,17 @@ namespace ExpressPackingMonitoring.UI
 
                 var wizard = new FirstUseSetupWizardWindow(Config) { Owner = this };
                 bool accepted = wizard.ShowDialog() == true;
-                await wizard.WaitForCameraCleanupAsync();
+                bool cameraReleased = await wizard.WaitForCameraCleanupAsync();
                 if (_isClosing) return;
+                if (!cameraReleased)
+                {
+                    pausedCamera = false;
+                    RuntimeLog.Error("SetupWizard", "Wizard camera did not release; settings camera remains paused");
+                    Context.ShowToast?.Invoke(
+                        "配置向导未能释放摄像头，请重新启动程序后再试",
+                        ToastSeverity.Error);
+                    return;
+                }
                 if (accepted && !wizard.WasSkipped)
                 {
                     Config.FirstUseWizardCompleted = true;
@@ -2588,6 +2597,7 @@ namespace ExpressPackingMonitoring.UI
                     zipPath = service.CreatePackage(out IReadOnlyList<string> packageWarnings);
                     warnings = packageWarnings;
                 });
+                if (_isClosing) return;
 
                 try { Clipboard.SetText(zipPath); } catch { }
                 // 直接打开文件位置：压缩包就在那里，用户自己拖进邮件即可。
@@ -2644,11 +2654,13 @@ namespace ExpressPackingMonitoring.UI
             }
             catch (Exception ex)
             {
-                AppDialog.Error(this, $"打包失败：{ex.Message}", "导出诊断日志");
+                if (!_isClosing)
+                    AppDialog.Error(this, $"打包失败：{ex.Message}", "导出诊断日志");
             }
             finally
             {
-                if (diagnosticButton != null) diagnosticButton.IsEnabled = true;
+                if (diagnosticButton != null && !_isClosing)
+                    diagnosticButton.IsEnabled = true;
             }
         }
 

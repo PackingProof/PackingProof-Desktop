@@ -78,6 +78,7 @@ namespace ExpressPackingMonitoring.ViewModels
             /// 迟到的旧观察直接失效，不会对已经换过的设备报错。
             /// </summary>
             internal CancellationTokenSource? FrameWatchCts;
+            internal CancellationTokenSource? StopRetryCts;
 
             internal bool HasFrame;
             internal System.Windows.Media.Imaging.BitmapSource? PreviewFrame;
@@ -395,6 +396,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 try { watch.Cancel(); } catch { }
                 try { watch.Dispose(); } catch { }
             }
+            CancellationTokenSource? stopRetry = channel.StopRetryCts;
+            channel.StopRetryCts = null;
+            if (stopRetry != null)
+            {
+                try { stopRetry.Cancel(); } catch { }
+                try { stopRetry.Dispose(); } catch { }
+            }
 
             if (usb != null)
             {
@@ -450,6 +458,7 @@ namespace ExpressPackingMonitoring.ViewModels
                         RuntimeLog.Error(
                             "OverlayChannel",
                             $"第 {channel.Number} 路 Media Foundation 摄像头未能在超时内释放，保留引用等待后续清理");
+                        ScheduleOverlayMfStopRetry(channel, mf);
                     }
                     else
                     {
@@ -480,6 +489,64 @@ namespace ExpressPackingMonitoring.ViewModels
 
             // 这一路停了，主界面的拖动框要跟着消失，等重新出帧再出现。
             SetOverlayFrameFlag(channel, false);
+        }
+
+        private void ScheduleOverlayMfStopRetry(OverlayChannel channel, MfCameraSource source)
+        {
+            var cts = new CancellationTokenSource();
+            channel.StopRetryCts = cts;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    for (int attempt = 0; attempt < 10 && !cts.IsCancellationRequested; attempt++)
+                    {
+                        await Task.Delay(500, cts.Token).ConfigureAwait(false);
+                        bool released;
+                        lock (channel.SourceLock)
+                        {
+                            if (!ReferenceEquals(channel.MfSource, source))
+                                return;
+                            released = source.StopAndWait();
+                            if (released)
+                            {
+                                source.Dispose();
+                                channel.MfSource = null;
+                            }
+                        }
+
+                        if (released)
+                        {
+                            RuntimeLog.Info(
+                                "OverlayChannel",
+                                $"第 {channel.Number} 路 Media Foundation 摄像头已在重试中释放");
+                            if (!_isDisposed
+                                && !_shutdownRequested
+                                && !_isCameraSleeping
+                                && IsCurrentOverlayChannel(channel))
+                            {
+                                StartOverlayChannel(channel);
+                            }
+                            return;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception ex)
+                {
+                    RuntimeLog.Warn(
+                        "OverlayChannel",
+                        $"第 {channel.Number} 路 Media Foundation 停源重试异常：{ex.Message}");
+                }
+                finally
+                {
+                    if (ReferenceEquals(channel.StopRetryCts, cts))
+                        channel.StopRetryCts = null;
+                    cts.Dispose();
+                }
+            });
         }
 
         private bool IsNetworkChannelConfigured(OverlayChannel channel) =>

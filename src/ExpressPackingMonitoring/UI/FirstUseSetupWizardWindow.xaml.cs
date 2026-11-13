@@ -1573,26 +1573,30 @@ public partial class FirstUseSetupWizardWindow : Window
             bool stopped = await StopCameraPreviewAsync();
             if (!stopped)
             {
-                // 启动操作卡住时先让关闭事件返回；一旦启动操作退出，立即在同一
-                // 生命周期门内再次停源，保证主界面不会在设备仍被向导占用时恢复。
-                await _cameraPreviewGate.WaitAsync();
-                try
+                // 启动操作卡住时再给一次有界等待。仍拿不到设备就明确返回失败，
+                // 由主界面保持摄像头暂停，不能让清理任务无限挂起。
+                if (await _cameraPreviewGate.WaitAsync(TimeSpan.FromSeconds(3)))
                 {
-                    await StopCameraPreviewCoreAsync();
-                }
-                finally
-                {
-                    _cameraPreviewGate.Release();
+                    try
+                    {
+                        stopped = await StopCameraPreviewCoreAsync();
+                    }
+                    finally
+                    {
+                        _cameraPreviewGate.Release();
+                    }
                 }
             }
             StopMicPreview();
             _cameraBarcodeRecognition.Dispose();
+            _cameraCleanupCompletion.TrySetResult(stopped);
         }
-        finally
+        catch
         {
-            _cameraCleanupCompletion.TrySetResult(true);
+            _cameraCleanupCompletion.TrySetResult(false);
+            throw;
         }
     }
 
-    internal Task WaitForCameraCleanupAsync() => _cameraCleanupCompletion.Task;
+    internal Task<bool> WaitForCameraCleanupAsync() => _cameraCleanupCompletion.Task;
 }
