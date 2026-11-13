@@ -8,6 +8,11 @@
   -->
   <PropertyGroup>
     <Version>0.0.99</Version>
+    <!--
+      本地无网或 nuget.org 审计接口不可达时，NuGet 会把“漏洞数据源连接失败”重复报成
+      NU1900。漏洞审计保持开启；CI 中仍显示该告警，本地只隐藏这条网络连接噪声。
+    -->
+    <NoWarn Condition="'$(CI)' != 'true'">$(NoWarn);NU1900</NoWarn>
   </PropertyGroup>
 
   <!--
