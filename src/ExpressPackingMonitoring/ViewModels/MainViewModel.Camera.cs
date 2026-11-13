@@ -633,9 +633,17 @@ namespace ExpressPackingMonitoring.ViewModels
 
         /// <summary>
         /// 运行期重连、空闲唤醒和手动重启会枚举设备、探测首帧并启动采集，均在 UI 线程上
-        /// 可能停顿数秒。首屏初始化仍保持同步顺序，交互期间的启动统一放到线程池。
+        /// 可能停顿数秒，统一放到线程池执行。
         /// </summary>
         private Task StartCameraAsync() => Task.Run(StartCamera);
+
+        private async Task StartCameraAndOverlayChannelsAsync()
+        {
+            await StartCameraAsync();
+            if (_isDisposed || _shutdownRequested)
+                return;
+            await StartOverlayChannelsAsync();
+        }
 
         /// <summary>
         /// 尝试用 Media Foundation 后端启动摄像头。返回 false 表示这条路径不可用，

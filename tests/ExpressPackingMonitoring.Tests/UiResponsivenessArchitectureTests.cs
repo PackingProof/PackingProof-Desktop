@@ -101,6 +101,9 @@ public sealed class UiResponsivenessArchitectureTests
         Assert.Contains("private Task StartCameraAsync() => Task.Run(StartCamera);", source,
             StringComparison.Ordinal);
         Assert.Contains("await StartCameraAsync();", source, StringComparison.Ordinal);
+        Assert.Contains("_ = StartCameraAndOverlayChannelsAsync();",
+            ReadProjectFile("ViewModels", "MainViewModel.Media.cs"),
+            StringComparison.Ordinal);
         Assert.DoesNotContain(
             "await StopCameraAsync();\n                    StartCamera();",
             source,
