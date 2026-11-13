@@ -541,6 +541,7 @@
   <data name="摄像头停止失败，未继续重连" xml:space="preserve"><value>摄像头停止失败，未继续重连</value></data>
   <data name="摄像头未能进入休眠，请重新插拔后重试" xml:space="preserve"><value>摄像头未能进入休眠，请重新插拔后重试</value></data>
   <data name="摄像头未能停止，暂时无法打开配置向导" xml:space="preserve"><value>摄像头未能停止，暂时无法打开配置向导</value></data>
+  <data name="配置向导未能释放摄像头，请重新启动程序后再试" xml:space="preserve"><value>配置向导未能释放摄像头，请重新启动程序后再试</value></data>
   <data name="摄像头已唤醒" xml:space="preserve"><value>摄像头已唤醒</value></data>
   <data name="摄像头已重连，当前录像已保存，请重新扫码继续" xml:space="preserve"><value>摄像头已重连，当前录像已保存，请重新扫码继续</value></data>
   <data name="视频合成失败，已保留原文件" xml:space="preserve"><value>视频合成失败，已保留原文件</value></data>
