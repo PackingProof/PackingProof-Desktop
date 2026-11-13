@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">false</IncludeVisionObb>
+    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">true</IncludeVisionObb>
     <DefineConstants Condition="'$(IncludeVisionObb)' == 'true'">$(DefineConstants);VISION_OBB</DefineConstants>
     <!-- GPU 渲染结果的回读验证要用指针读映射内存（仅测试路径用到）。 -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

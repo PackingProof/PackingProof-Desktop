@@ -339,7 +339,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Packaging_CanExcludeVisionObbFeaturePack()
+    public void Packaging_IncludesVisionObbByDefaultAndCanExcludeIt()
     {
         string repositoryRoot = FindRepositoryRoot();
         string publishScript = File.ReadAllText(
@@ -360,7 +360,7 @@ public sealed class ReleasePackagingPolicyTests
             publishScript,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"exclude\"",
+            "[string]$VisionObb = \"include\"",
             publishScript,
             StringComparison.Ordinal);
         Assert.Contains("-p:IncludeVisionObb=false", publishScript, StringComparison.Ordinal);
@@ -374,7 +374,7 @@ public sealed class ReleasePackagingPolicyTests
             appProject,
             StringComparison.Ordinal);
         Assert.Contains(
-            "<IncludeVisionObb Condition=\"'$(IncludeVisionObb)' == ''\">false</IncludeVisionObb>",
+            "<IncludeVisionObb Condition=\"'$(IncludeVisionObb)' == ''\">true</IncludeVisionObb>",
             appProject,
             StringComparison.Ordinal);
         Assert.Contains("VISION_OBB", appProject, StringComparison.Ordinal);
@@ -388,7 +388,7 @@ public sealed class ReleasePackagingPolicyTests
     }
 
     [Fact]
-    public void Tests_CanExcludeVisionObbFeaturePack()
+    public void Tests_IncludeVisionObbByDefaultAndCanExcludeIt()
     {
         string repositoryRoot = FindRepositoryRoot();
         string testProject = File.ReadAllText(
@@ -409,7 +409,7 @@ public sealed class ReleasePackagingPolicyTests
             Encoding.UTF8);
 
         Assert.Contains(
-            "<IncludeVisionObb Condition=\"'$(IncludeVisionObb)' == ''\">false</IncludeVisionObb>",
+            "<IncludeVisionObb Condition=\"'$(IncludeVisionObb)' == ''\">true</IncludeVisionObb>",
             testProject,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -429,7 +429,7 @@ public sealed class ReleasePackagingPolicyTests
             testCi,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"exclude\"",
+            "[string]$VisionObb = \"include\"",
             testCi,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -437,7 +437,7 @@ public sealed class ReleasePackagingPolicyTests
             releaseTest,
             StringComparison.Ordinal);
         Assert.Contains(
-            "[string]$VisionObb = \"exclude\"",
+            "[string]$VisionObb = \"include\"",
             releaseTest,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -460,7 +460,7 @@ public sealed class ReleasePackagingPolicyTests
             Path.Combine(repositoryRoot, ".github", "workflows", "release-package.yml"),
             Encoding.UTF8);
         Assert.Contains("vision_obb:", releaseWorkflow, StringComparison.Ordinal);
-        Assert.Contains("default: false", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("default: true", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains(
             "if: ${{ inputs.vision_obb == true }}",
             releaseWorkflow,

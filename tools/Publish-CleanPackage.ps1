@@ -28,7 +28,7 @@ param(
     [switch]$DisablePatch,
     [switch]$SkipStorePackage,
     [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "exclude",
+    [string]$VisionObb = "include",
     [switch]$AllowExperimentalOpenCvStore,
     [string]$StoreIdentityConfigPath = "",
     [string]$OpenCvNativeDllPath = "",

@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = "Debug",
     [ValidateSet("include", "exclude")]
-    [string]$VisionObb = "exclude"
+    [string]$VisionObb = "include"
 )
 
 $ErrorActionPreference = "Stop"

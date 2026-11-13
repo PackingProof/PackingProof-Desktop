@@ -31,7 +31,7 @@
     <FFmpegBaselineVersion>4.4.1-minimal</FFmpegBaselineVersion>
     <FFmpegBaselineExecutable>..\..\package\dependency-cache\ffmpeg\$(FFmpegBaselineVersion)\ffmpeg.exe</FFmpegBaselineExecutable>
     <CameraVisionModelPath>..\..\package\dependency-cache\vision-models\vision-obb.onnx</CameraVisionModelPath>
-    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">false</IncludeVisionObb>
+    <IncludeVisionObb Condition="'$(IncludeVisionObb)' == ''">true</IncludeVisionObb>
     <DefineConstants Condition="'$(IncludeVisionObb)' == 'true'">$(DefineConstants);VISION_OBB</DefineConstants>
     <SatelliteResourceLanguages>en-US;zh-Hans;ja-JP</SatelliteResourceLanguages>
     <ApplicationIcon>app.ico</ApplicationIcon>

@@ -13,9 +13,9 @@ name: 发布包构建
         default: false
         type: boolean
       vision_obb:
-        description: 包含 YOLO-OBB 视觉功能包（默认关闭）
+        description: 包含 YOLO-OBB 视觉功能包（默认开启）
         required: false
-        default: false
+        default: true
         type: boolean
   push:
     tags:

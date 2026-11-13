@@ -2,28 +2,29 @@
 
 增强面单识别是可选的摄像头识别路径。开关打开后：
 
-YOLO-OBB 已拆为可选功能包：主程序只依赖
+YOLO-OBB 默认随应用发布：主程序依赖
 `ExpressPackingMonitoring.Vision.Contracts`，ONNX Runtime、DirectML、模型加载和输出解析位于
-`ExpressPackingMonitoring.Vision.Obb`。默认构建和发布不再包含该功能包；需要重新启用时必须
-显式包含：
+`ExpressPackingMonitoring.Vision.Obb`。默认构建、测试和发布都包含 YOLO11n OBB 模型；
+只有明确需要精简包时才排除：
 
 ```powershell
-pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb include
+pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -VisionObb exclude
 ```
 
-也可以运行 `打包脚本-增量.bat <版本> 0.0.84 vision`。默认排除时设置页隐藏相关选项，
+也可以运行 `打包脚本-增量.bat <版本> 0.0.84 novision`。显式排除时设置页隐藏相关选项，
 普通 ZXing 识别、倾斜码重试、扫码枪和录像流程不受影响。注意 `org.k2fsa.sherpa.onnx`
 仍可能为本地语音功能携带另一份 `onnxruntime.dll`；它与 YOLO 功能包无关。
 
-无视觉功能包的本地验证：
+默认包含视觉功能包的本地验证：
 
 ```powershell
-pwsh -NoProfile -File tools\Test-CI.ps1 -VisionObb exclude
-pwsh -NoProfile -File tools\Test-Release.ps1 -Configuration Release -VisionObb exclude
-pwsh -NoProfile -File tools\Test-Release-Automated.ps1 -VisionObb exclude
+pwsh -NoProfile -File tools\Test-CI.ps1
+pwsh -NoProfile -File tools\Test-Release.ps1 -Configuration Release
+pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 ```
 
-该模式不会编译或引用 `ExpressPackingMonitoring.Vision.Obb`，OBB 专属测试会从测试工程排除；
+显式传 `-VisionObb exclude` 时不会编译或引用
+`ExpressPackingMonitoring.Vision.Obb`，OBB 专属测试会从测试工程排除；
 普通扫码、透视兜底、业务规则、WPF 和 Web 测试继续执行。
 
 1. 从摄像头完整画面中按用户设置的识别区域裁出局部图像，只把这块图像送入
