@@ -11,6 +11,7 @@
     "SharpDX.Direct3D11.dll",
     "SharpDX.dll",
     "SharpDX.DXGI.dll",
+    "sherpa-onnx.dll",
     "System.Design.dll",
     "System.Drawing.Design.dll",
     "System.Windows.Forms.Design.dll",
