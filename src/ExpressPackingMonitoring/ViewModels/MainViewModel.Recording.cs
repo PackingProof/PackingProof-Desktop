@@ -96,6 +96,7 @@ namespace ExpressPackingMonitoring.ViewModels
         {
             if (!IsRecording || _isDisposed) return;
 
+            _visionObbTriggerEvents.RecordStopRequested(_stopReason);
             IsBusy = true;
             BusyText = _shutdownRequested ? "正在关闭程序..." : "正在停止";
             IsRecording = false; // 1. 立即改变 UI 状态
@@ -202,9 +203,16 @@ namespace ExpressPackingMonitoring.ViewModels
                 try
                 {
                     long fileSize = GetCompletedRecordingSizeBytes(filePath, audioFilePath);
-                    double recordDuration = (DateTime.Now - recordStart).TotalSeconds;
+                    DateTime stoppedAt = DateTime.Now;
+                    double recordDuration = (stoppedAt - recordStart).TotalSeconds;
                     int durSec = Math.Max(1, (int)recordDuration);
                     _db?.SaveWallClockDuration(recordId, recordDuration);
+                    _visionObbTriggerEvents.RecordRecordingFinished(
+                        recordId,
+                        recordStart,
+                        stoppedAt,
+                        stopReason,
+                        Config.MinRecordingSeconds);
 
                     // 文件过小和录制过短是两条独立规则，原因要分别写入数据库。
                     long minFileSizeBytes = GetMinVideoFileSizeBytes();
@@ -976,6 +984,9 @@ namespace ExpressPackingMonitoring.ViewModels
                     _currentScanRecord.IsActive = false;
                     _currentScanRecord.Duration = "失败";
                 }
+                _visionObbTriggerEvents.RecordRecordingStarted(
+                    _currentRecordId,
+                    _activePreRecordSeconds);
                 int initialDisplayedSeconds = Math.Max(0, (int)Math.Floor(_activePreRecordSeconds));
                 _currentScanRecord = new ScanRecord(_recordingOrderId, $"{initialDisplayedSeconds}s", DateTime.Now.ToString("HH:mm:ss"), _recordingMode, true);
                 AddRecord(_currentScanRecord);
@@ -990,7 +1001,11 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 // 启动失败或首帧检查回滚时，不能把已复制的预录帧留在待注入列表中
                 if (!IsRecording)
+                {
+                    _visionObbTriggerEvents.RecordPendingStartFailed(
+                        "recording_start_failed");
                     ClearPendingEventRecordingFrames();
+                }
                 IsBusy = false;
             }
         }

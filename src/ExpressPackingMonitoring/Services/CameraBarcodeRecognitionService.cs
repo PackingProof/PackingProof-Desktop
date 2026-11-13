@@ -33,7 +33,12 @@ internal sealed record CameraBarcodeRecognitionStatus(
     bool BarcodeDecodingEvaluated = true,
     bool VisionObbAvailable = false);
 
-internal sealed record CameraBarcodeConfirmedEvent(string Code, CameraBarcodeGeometry? Geometry);
+internal sealed record CameraBarcodeConfirmedEvent(
+    string Code,
+    CameraBarcodeGeometry? Geometry,
+    bool DecodedByVisionObb = false,
+    double? VisionObbDiagonalPixels = null,
+    double? VisionObbDiagonalPercent = null);
 
 internal sealed record CameraBarcodeObservation(
     string CandidateCode = "",
@@ -1802,9 +1807,26 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                 long dropped = Interlocked.Read(ref _droppedFrames);
                 RuntimeLog.Info("CameraBarcode", $"Confirmed {observation.ConfirmedCode}, decode={stopwatch.ElapsedMilliseconds}ms, dropped={dropped}");
                 StatusChanged?.Invoke(status);
+                VisionObbDetection? selectedObb =
+                    _visionProcessor.SelectedObbDetection;
+                double? obbDiagonalPixels = selectedObb is { } selected
+                    ? CameraBarcodeDecodeSizePolicy.DiagonalPixels(
+                        Math.Max(1, (int)Math.Round(selected.Width)),
+                        Math.Max(1, (int)Math.Round(selected.Height)))
+                    : null;
+                double? obbDiagonalPercent = selectedObb is { } percentSelected
+                    ? CameraBarcodeDecodeSizePolicy.FrameDiagonalRatio(
+                        Math.Max(1, (int)Math.Round(percentSelected.Width)),
+                        Math.Max(1, (int)Math.Round(percentSelected.Height)),
+                        frame.Width,
+                        frame.Height) * 100
+                    : null;
                 var confirmedEvent = new CameraBarcodeConfirmedEvent(
                     observation.ConfirmedCode,
-                    GetGeometryForCode(observation.ConfirmedCode, decodedGeometry));
+                    GetGeometryForCode(observation.ConfirmedCode, decodedGeometry),
+                    selectedObb != null,
+                    obbDiagonalPixels,
+                    obbDiagonalPercent);
                 BarcodeConfirmedWithGeometry?.Invoke(confirmedEvent);
                 BarcodeConfirmed?.Invoke(observation.ConfirmedCode);
             }

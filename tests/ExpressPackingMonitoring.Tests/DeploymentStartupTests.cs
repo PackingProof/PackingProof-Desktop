@@ -522,11 +522,11 @@ public sealed class DeploymentStartupTests
             StringComparison.Ordinal);
         Assert.Contains("AsyncRelayCommandOptions.AllowConcurrentExecutions", source, StringComparison.Ordinal);
         Assert.Contains(
-            "private async Task HandleScanAsync(string scanResult, bool fromCamera = false)",
+            "private async Task HandleScanAsync(",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "private async Task HandleScanCoreAsync(string scanResult, bool fromCamera)",
+            "private async Task HandleScanCoreAsync(",
             source,
             StringComparison.Ordinal);
         Assert.DoesNotContain("async void HandleScan", source, StringComparison.Ordinal);

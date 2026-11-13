@@ -8,8 +8,14 @@ internal static class CameraBarcodeDecodeSizePolicy
 {
     internal const double OneDimensionalMinDiagonal = 90;
     internal const double QrCodeMinDiagonal = 113;
-    internal const double OneDimensionalMinFrameDiagonalRatio = 0.04;
-    internal const double QrCodeMinFrameDiagonalRatio = 0.05;
+    internal const double Reference1080pDiagonalPixels = 2202.9071700822983;
+    internal const double MinimumWaybillDiagonalAt1080P = 300;
+    internal const double MinimumObbFrameDiagonalRatio =
+        MinimumWaybillDiagonalAt1080P / Reference1080pDiagonalPixels;
+    internal const double OneDimensionalMinFrameDiagonalRatio =
+        MinimumObbFrameDiagonalRatio;
+    internal const double QrCodeMinFrameDiagonalRatio =
+        MinimumObbFrameDiagonalRatio;
 
     internal static bool ShouldDecode(int width, int height, bool qrCodeEnabled)
     {

@@ -319,10 +319,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             frame.Width,
             frame.Height);
         double thresholdPercent =
-            (_standardDecoder.QrCodeEnabledForDecoding
-                ? CameraBarcodeDecodeSizePolicy.QrCodeMinFrameDiagonalRatio
-                : CameraBarcodeDecodeSizePolicy.OneDimensionalMinFrameDiagonalRatio)
-            * 100;
+            CameraBarcodeDecodeSizePolicy.MinimumObbFrameDiagonalRatio * 100;
         return new VisionObbCandidateDiagnostic(
             frame.Width,
             frame.Height,

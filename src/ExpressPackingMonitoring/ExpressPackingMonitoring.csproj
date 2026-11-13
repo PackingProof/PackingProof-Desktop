@@ -150,6 +150,7 @@
     <Compile Include="Services\VisionObbRuntimePolicy.cs" />
     <Compile Include="Services\VisionObbHost.cs" />
     <Compile Include="Services\VisionObbDiagnosticLog.cs" />
+    <Compile Include="Services\VisionObbTriggerEventLog.cs" />
     <Compile Include="Services\RecordingSampleSelectionPolicy.cs" />
     <Compile Include="Services\RecordingSamplePackageService.cs" />
     <Compile Include="Services\RecordingSampleContributionStore.cs" />

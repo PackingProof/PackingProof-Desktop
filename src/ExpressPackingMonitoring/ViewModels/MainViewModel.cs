@@ -268,6 +268,8 @@ namespace ExpressPackingMonitoring.ViewModels
         private static readonly TimeSpan NetworkCameraReadyProbeTimeout = TimeSpan.FromSeconds(8);
 
         private readonly SemaphoreSlim _recorderLock = new SemaphoreSlim(1, 1);
+        private readonly VisionObbTriggerEventLog _visionObbTriggerEvents = new();
+        private CameraBarcodeConfirmedEvent _pendingCameraBarcodeConfirmation;
         private readonly PrintedRefundLookupCoordinator _printedRefundLookupCoordinator;
         // 一段录像里同一张面单只报一次退款警告：扫码开始、打包过程中、同码停录后拿到的都归到一起。
         private readonly PrintedRefundAlertDedup _printedRefundAlertDedup = new();
@@ -280,6 +282,9 @@ namespace ExpressPackingMonitoring.ViewModels
         private bool _isInputOnCooldown = false;
         private string _pendingScanDuringCooldown = "";
         private bool _pendingScanDuringCooldownFromCamera;
+        private bool _pendingScanDuringCooldownFromVisionObb;
+        private double? _pendingScanDuringCooldownVisionObbDiagonalPixels;
+        private double? _pendingScanDuringCooldownVisionObbDiagonalPercent;
         private CancellationTokenSource _sameCodePostRollCts;
 
         private readonly CameraBarcodeFailedStartSuppression _cameraStartFailedSuppression = new();

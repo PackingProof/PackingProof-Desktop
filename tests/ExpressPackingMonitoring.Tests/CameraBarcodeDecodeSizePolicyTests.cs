@@ -62,12 +62,13 @@ public sealed class CameraBarcodeDecodeSizePolicyTests
     }
 
     [Theory]
-    [InlineData(100, 100, 1920, 1080, false, true)]
-    [InlineData(100, 100, 3840, 2160, false, false)]
-    [InlineData(200, 100, 3840, 2160, false, true)]
-    [InlineData(60, 60, 1280, 720, false, false)]
-    [InlineData(120, 120, 1920, 1080, true, true)]
-    [InlineData(120, 120, 3840, 2160, true, false)]
+    [InlineData(300, 20, 1920, 1080, false, true)]
+    [InlineData(299, 20, 1920, 1080, false, false)]
+    [InlineData(200, 20, 1280, 720, false, true)]
+    [InlineData(198, 20, 1280, 720, false, false)]
+    [InlineData(600, 20, 3840, 2160, false, true)]
+    [InlineData(300, 20, 3840, 2160, false, false)]
+    [InlineData(300, 20, 1920, 1080, true, true)]
     public void ProductionPolicyAlsoChecksFrameDiagonalPercentage(
         int width,
         int height,
@@ -96,5 +97,15 @@ public sealed class CameraBarcodeDecodeSizePolicyTests
             1080);
 
         Assert.Equal(0.1, ratio, 6);
+    }
+
+    [Fact]
+    public void MinimumObbRatioResolvesToThreeHundredPixelsAt1080p()
+    {
+        Assert.Equal(
+            300,
+            CameraBarcodeDecodeSizePolicy.Reference1080pDiagonalPixels
+                * CameraBarcodeDecodeSizePolicy.MinimumObbFrameDiagonalRatio,
+            6);
     }
 }

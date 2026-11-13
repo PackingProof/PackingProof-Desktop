@@ -557,15 +557,28 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 }
 
+                CameraBarcodeConfirmedEvent confirmed =
+                    Interlocked.Exchange(
+                        ref _pendingCameraBarcodeConfirmation,
+                        null);
+                bool decodedByVisionObb = confirmed?.DecodedByVisionObb == true;
                 if (CanSubmitCameraBarcode())
                 {
-                    _ = HandleScanAsync(code, fromCamera: true);
+                    _ = HandleScanAsync(
+                        code,
+                        fromCamera: true,
+                        decodedByVisionObb,
+                        confirmed?.VisionObbDiagonalPixels,
+                        confirmed?.VisionObbDiagonalPercent);
                 }
             }));
         }
 
         private void OnCameraBarcodeConfirmedWithGeometry(CameraBarcodeConfirmedEvent confirmed)
         {
+            Interlocked.Exchange(
+                ref _pendingCameraBarcodeConfirmation,
+                confirmed);
             // 解码条码自身的外接几何只保留诊断日志；智能放大使用状态里携带的
             // “本次选中的单个 OBB 面单”，不会把条码框或同屏其他面单混进来。
             RuntimeLog.Info(
@@ -920,6 +933,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 if (IsRecording)
                 {
+                    _visionObbTriggerEvents.RecordStopRequested(
+                        VisionObbStopOrigin.ManualButton);
                     await StopWithManualAnnouncementAsync();
                     QueuePostStopMux("手动停止");
                     CurrentOrderId = "";
@@ -982,11 +997,21 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async Task HandleScanAsync(string scanResult, bool fromCamera = false)
+        private async Task HandleScanAsync(
+            string scanResult,
+            bool fromCamera = false,
+            bool decodedByVisionObb = false,
+            double? visionObbDiagonalPixels = null,
+            double? visionObbDiagonalPercent = null)
         {
             try
             {
-                await HandleScanCoreAsync(scanResult, fromCamera);
+                await HandleScanCoreAsync(
+                    scanResult,
+                    fromCamera,
+                    decodedByVisionObb,
+                    visionObbDiagonalPixels,
+                    visionObbDiagonalPercent);
             }
             catch (Exception exception)
             {
@@ -997,10 +1022,22 @@ namespace ExpressPackingMonitoring.ViewModels
             }
         }
 
-        private async Task HandleScanCoreAsync(string scanResult, bool fromCamera)
+        private async Task HandleScanCoreAsync(
+            string scanResult,
+            bool fromCamera,
+            bool decodedByVisionObb,
+            double? visionObbDiagonalPixels,
+            double? visionObbDiagonalPercent)
         {
             NotifyUserActivity();
             BarcodeRecordingDecision decision = EvaluateBarcodeRecordingDecision(scanResult, fromCamera);
+            _visionObbTriggerEvents.RecordRecognition(
+                decodedByVisionObb,
+                decision.Action.ToString(),
+                decision.Reason.ToString(),
+                IsRecording,
+                visionObbDiagonalPixels,
+                visionObbDiagonalPercent);
             if (CameraBarcodeRuntimeOptions.ShadowMode)
                 LogBarcodeRecordingComparison(decision, fromCamera, dryRun: false);
 
@@ -1009,6 +1046,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 if (TryQueueScanForRetry(
                         decision.NormalizedValue,
                         fromCamera,
+                        decodedByVisionObb,
+                        visionObbDiagonalPixels,
+                        visionObbDiagonalPercent,
                         "程序忙碌"))
                 {
                     return;
@@ -1053,6 +1093,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 case BarcodeRecordingDecisionReason.CooldownOrderQueued:
                     _pendingScanDuringCooldown = upperResult;
                     _pendingScanDuringCooldownFromCamera = fromCamera;
+                    _pendingScanDuringCooldownFromVisionObb = decodedByVisionObb;
                     RuntimeLog.Info("Scan", $"Scan queued during cooldown: {upperResult}");
                     ShowToast("扫码过快，已保留最后一个单号", ToastSeverity.Warning);
                     return;
@@ -1083,6 +1124,8 @@ namespace ExpressPackingMonitoring.ViewModels
                     return;
                 case BarcodeRecordingDecisionReason.StopCommand:
                     StartInputCooldown();
+                    _visionObbTriggerEvents.RecordStopRequested(
+                        VisionObbStopOrigin.StopCommand);
                     _ = SafeStopRecordingAsync(true, mergeAfterStop: true);
                     return;
                 case BarcodeRecordingDecisionReason.RecordingOrderMissing:
@@ -1134,6 +1177,8 @@ namespace ExpressPackingMonitoring.ViewModels
                         if (_currentScanRecord != null) _currentScanRecord.OrderId = upperResult;
                     }
                     _stopReason = "同码停录";
+                    _visionObbTriggerEvents.RecordStopRequested(
+                        VisionObbStopOrigin.SameCode);
                     if (HasPendingPostRollWindow())
                     {
                         // 同码重复识别只允许首次触发收尾，避免反复重置定时器导致无限录制。
@@ -1183,6 +1228,9 @@ namespace ExpressPackingMonitoring.ViewModels
                 TryQueueScanForRetry(
                     upperResult,
                     fromCamera,
+                    decodedByVisionObb,
+                    visionObbDiagonalPixels,
+                    visionObbDiagonalPercent,
                     "录制切换锁忙");
                 return;
             }
@@ -1190,7 +1238,12 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 CurrentOrderId = upperResult;
                 _sameCodePostRollCts?.Cancel();
-                if (IsRecording) _stopReason = "扫码切换";
+                if (IsRecording)
+                {
+                    _stopReason = "扫码切换";
+                    _visionObbTriggerEvents.RecordStopRequested(
+                        VisionObbStopOrigin.Switch);
+                }
                 // 预录快照必须在录制串行锁内获取，避免并发扫码分别消费同一环形缓冲。
                 List<Mat> pendingPreRecordFrames = null;
                 DateTime? pendingPreRecordStartTime = null;
@@ -1359,18 +1412,34 @@ namespace ExpressPackingMonitoring.ViewModels
             _isInputOnCooldown = false;
             string pending = _pendingScanDuringCooldown;
             bool pendingFromCamera = _pendingScanDuringCooldownFromCamera;
+            bool pendingFromVisionObb = _pendingScanDuringCooldownFromVisionObb;
+            double? pendingVisionObbDiagonalPixels =
+                _pendingScanDuringCooldownVisionObbDiagonalPixels;
+            double? pendingVisionObbDiagonalPercent =
+                _pendingScanDuringCooldownVisionObbDiagonalPercent;
             _pendingScanDuringCooldown = "";
             _pendingScanDuringCooldownFromCamera = false;
+            _pendingScanDuringCooldownFromVisionObb = false;
+            _pendingScanDuringCooldownVisionObbDiagonalPixels = null;
+            _pendingScanDuringCooldownVisionObbDiagonalPercent = null;
             if (!string.IsNullOrWhiteSpace(pending) && !_isDisposed)
             {
                 RuntimeLog.Info("Scan", $"Processing queued scan after cooldown: {pending}");
-                _ = HandleScanAsync(pending, pendingFromCamera);
+                _ = HandleScanAsync(
+                    pending,
+                    pendingFromCamera,
+                    pendingFromVisionObb,
+                    pendingVisionObbDiagonalPixels,
+                    pendingVisionObbDiagonalPercent);
             }
         }
 
         private bool TryQueueScanForRetry(
             string scanValue,
             bool fromCamera,
+            bool decodedByVisionObb,
+            double? visionObbDiagonalPixels,
+            double? visionObbDiagonalPercent,
             string reason)
         {
             string normalized = JdBarcodePolicy.Normalize(scanValue);
@@ -1384,6 +1453,11 @@ namespace ExpressPackingMonitoring.ViewModels
 
             _pendingScanDuringCooldown = normalized;
             _pendingScanDuringCooldownFromCamera = fromCamera;
+            _pendingScanDuringCooldownFromVisionObb = decodedByVisionObb;
+            _pendingScanDuringCooldownVisionObbDiagonalPixels =
+                visionObbDiagonalPixels;
+            _pendingScanDuringCooldownVisionObbDiagonalPercent =
+                visionObbDiagonalPercent;
             ScanInputText = "";
             StartInputCooldown();
             RuntimeLog.Warn(
