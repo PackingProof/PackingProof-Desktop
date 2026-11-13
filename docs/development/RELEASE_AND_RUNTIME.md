@@ -81,7 +81,7 @@
 - 开始构建前先跑 `pwsh -NoProfile -File tools/Check-ReleasePrereqs.ps1` 自检本机发布条件（工作区、标签与版本一致性、启动器基线与逻辑输入指纹、gh/gitee 登录态、dotnet、7-Zip、Inno Setup）。只读检查，不构建、不上传、不打印凭据。启动器逻辑输入变化时它会直接要求先重建基线，避免打包到一半才返工。
 - `.github/workflows/release-package.yml` 只响应 `v*.*.*` 标签或手动触发，不再响应普通 `main` push。GitHub 侧仅对已在本地通过门禁的标签执行一次发布包构建，避免每次提交都耗电打包。CI 配置 `STORE_IDENTITY_NAME` / `STORE_PUBLISHER` Secrets 时会一起构建 Store MSIX；未配置时只构建 Setup，并在日志里明确标记该产物不是正式发布包。
 - 发布工作流不需要额外 FFmpeg Secret。仓库不提交 54MB 精简产物，标签构建会优先使用缓存或本地产物；没有时按清单中的固定 HTTPS 来源下载 Gyan essentials，并校验大小和 SHA256。第三方开发者也因此可以直接构建和出包，只需承担更大的包体积。
-- 发布工作流同样不需要模型 Secret：默认构建、CI 和发布都不准备视觉模型。只有手动触发发布工作流并显式勾选 `vision_obb` 时，`vision-model-baseline.json` 的 `source.repository` 必须指向 `PackingProof/PackingProof-Vision`，`source.urls` 使用该仓库对应 Release 的固定 HTTPS 地址，并按 SHA256 校验。模型未上传到 Vision Release、下载失败或内容漂移时，包含功能包的发布门禁必须失败，不能用开发机缓存或“带开关但没有模型”的包继续发布。
+- 发布工作流同样不需要模型 Secret：正式标签构建和默认手动构建都会准备视觉模型；只有手动触发并显式取消 `vision_obb` 时才生成不含视觉功能包的产物。默认构建要求 `vision-model-baseline.json` 的 `source.repository` 指向 `PackingProof/PackingProof-Vision`，`source.urls` 使用该仓库对应 Release 的固定 HTTPS 地址，并按 SHA256 校验。模型未上传到 Vision Release、下载失败或内容漂移时，包含功能包的发布门禁必须失败，不能用开发机缓存或“带开关但没有模型”的包继续发布。
 - 推荐运行 `打包脚本-增量.bat v<X.Y.Z>`。直接调用时使用；正式发布默认同时构建 Store MSIX，只有本地验证才允许加 `-SkipStorePackage`：
 
 ```powershell
@@ -90,7 +90,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - `<基线版本>` 在 0.0.86 及以后固定为 `0.0.84`；0.0.83/0.0.84 历史发布才使用 `0.0.18`。`tools\打包脚本-增量.bat` 与 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`，不要再复制旧命令里的 `0.0.18`。
 - `-BaselineAppDir` 必须指向真实固定基线的 `app` 子目录并包含 `tools\ffmpeg.exe`。脚本从目录解析实际基线，并强制与更新清单和补丁清单一致，禁止手工伪造。
-- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。发布负载同时保留与最终二进制匹配的 PDB，并生成 `PackingProof_Store_v<X.Y.Z>.appxsym` 供 Partner Center 做崩溃符号化；PDB 不进入 MSIX。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX 和 appxsym 的版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX、旧符号包或旧清单不能借同版本号通过门禁。
+- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。发布负载会收集与最终二进制匹配的 PDB 并生成 `PackingProof_Store_v<X.Y.Z>.appxsym` 供 Partner Center 做崩溃符号化；PDB 不进入 MSIX，也不留在 Setup 的 `app\` 负载中。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX 和 appxsym 的版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX、旧符号包或旧清单不能借同版本号通过门禁。
 - 产物根目录同时生成 `package_integrity_v<X.Y.Z>.json`，记录 Setup 的文件名、大小、SHA256 和本次 exact `app\` 的逐文件指纹；`Publish-Releases.ps1` 会校验 Setup 未被替换，并要求 Setup 与 Store MSIX 指向同一份 exact 应用负载。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
 - 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release；同一版本的 Store MSIX 必须在 Partner Center 完成提交，才算这次发布完成。禁止普通 `main` push 触发发布包工作流。

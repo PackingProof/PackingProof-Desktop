@@ -44,7 +44,7 @@ jobs:
       - name: 安装 .NET SDK（10.0，与本机发布工具链一致）
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: 10.0.400
+          dotnet-version: 10.0.404
 
       - name: 确定并校验发布版本
         env:
@@ -61,7 +61,8 @@ jobs:
           if ($version -notmatch "^\d+\.\d+\.\d+$") {
             throw "version 格式应为 vX.Y.Z 或 X.Y.Z，当前值：$version"
           }
-          $visionObb = if ("${{ inputs.vision_obb }}" -eq "true") { "include" } else { "exclude" }
+          $visionInput = "${{ inputs.vision_obb }}".Trim()
+          $visionObb = if ("$env:EVENT" -eq "push" -or $visionInput -eq "true") { "include" } else { "exclude" }
           "PACKAGE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "VISION_OBB=$visionObb" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "发布版本：$version"
@@ -95,7 +96,7 @@ jobs:
           key: ffmpeg-${{ hashFiles('tools/ffmpeg-baseline.json') }}
 
       - name: 缓存锁定的视觉模型
-        if: ${{ inputs.vision_obb == true }}
+        if: env.VISION_OBB != 'exclude'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: package/dependency-cache/vision-models
@@ -123,7 +124,7 @@ jobs:
         run: pwsh -NoProfile -File tools\Prepare-PinnedFFmpeg.ps1
 
       - name: 准备并校验锁定的视觉模型
-        if: ${{ inputs.vision_obb == true }}
+        if: env.VISION_OBB != 'exclude'
         shell: pwsh
         run: |
           pwsh -NoProfile -File tools\Prepare-PinnedVisionModel.ps1

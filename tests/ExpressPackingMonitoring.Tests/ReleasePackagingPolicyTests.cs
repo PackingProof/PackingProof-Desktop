@@ -462,13 +462,15 @@ public sealed class ReleasePackagingPolicyTests
         Assert.Contains("vision_obb:", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("default: true", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains(
-            "if: ${{ inputs.vision_obb == true }}",
+            "if: env.VISION_OBB != 'exclude'",
             releaseWorkflow,
             StringComparison.Ordinal);
         Assert.Contains(
             "\"-VisionObb\", \"$env:VISION_OBB\"",
             releaseWorkflow,
             StringComparison.Ordinal);
+        Assert.Contains("dotnet-version: 10.0.404", ciWorkflow, StringComparison.Ordinal);
+        Assert.Contains("dotnet-version: 10.0.404", releaseWorkflow, StringComparison.Ordinal);
     }
 
     [Fact]
