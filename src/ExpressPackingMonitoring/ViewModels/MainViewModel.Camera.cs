@@ -275,8 +275,20 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         public async void NotifyUserActivity()
         {
+            try
+            {
+                await NotifyUserActivityAsync();
+            }
+            catch (Exception ex)
+            {
+                RuntimeLog.Error("Camera", "NotifyUserActivity failed", ex);
+            }
+        }
+
+        internal async Task NotifyUserActivityAsync()
+        {
             _lastActivityTime = DateTime.Now;
-            if (_isSetupWizardActive)
+            if (_isSetupWizardActive || _isDisposed || _shutdownRequested)
                 return;
 
             if (_isCameraSleeping)
@@ -288,6 +300,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 先启动再放开休眠标记：休眠期间设备本来就停着、帧时间也是旧的，
                 // 提前放开会让看门狗在启动的这一秒多里排队重连，把刚起来的摄像头又关掉。
                 await StartCameraAsync();
+                if (_isDisposed
+                    || _shutdownRequested
+                    || !IsVideoSourceRunning())
+                {
+                    RuntimeLog.Warn("Camera", "Wake requested, but camera source did not start");
+                    return;
+                }
                 IsCameraSleeping = false;
                 ShowToast("摄像头已唤醒");
                 Debug.WriteLine("[Idle] 用户活跃，摄像头唤醒");
@@ -362,7 +381,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private DateTime _lastFrameTime = DateTime.MinValue;
-        private readonly SemaphoreSlim _cameraStartGate = new(1, 1);
+        private readonly SemaphoreSlim _cameraLifecycleGate = new(1, 1);
 
         private int BeginPreviewSession(bool clearFrame)
         {
@@ -638,14 +657,19 @@ namespace ExpressPackingMonitoring.ViewModels
         /// </summary>
         private async Task StartCameraAsync()
         {
-            await _cameraStartGate.WaitAsync();
+            await _cameraLifecycleGate.WaitAsync().ConfigureAwait(false);
             try
             {
-                await Task.Run(StartCamera);
+                if (_isDisposed || _shutdownRequested)
+                {
+                    RuntimeLog.Info("Camera", "StartCamera skipped during shutdown");
+                    return;
+                }
+                await Task.Run(StartCamera).ConfigureAwait(false);
             }
             finally
             {
-                _cameraStartGate.Release();
+                _cameraLifecycleGate.Release();
             }
         }
 

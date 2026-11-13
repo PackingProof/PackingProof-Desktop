@@ -381,6 +381,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 {
                     setupOwner?.ResumeCapsLockAfterModalWindow();
                 }
+                await wizard.WaitForCameraCleanupAsync();
 
                 if (!accepted)
                     return;

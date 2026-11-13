@@ -925,7 +925,7 @@ namespace ExpressPackingMonitoring.ViewModels
         // ========================== 核心逻辑：手动开始录像 ==========================
         private async Task ToggleRecordingAsync()
         {
-            NotifyUserActivity();
+            await NotifyUserActivityAsync();
             if (IsBusy || _isDisposed || _shutdownRequested) return;
             if (!await _recorderLock.WaitAsync(0)) return;
 
@@ -1029,7 +1029,7 @@ namespace ExpressPackingMonitoring.ViewModels
             double? visionObbDiagonalPixels,
             double? visionObbDiagonalPercent)
         {
-            NotifyUserActivity();
+            await NotifyUserActivityAsync();
             BarcodeRecordingDecision decision = EvaluateBarcodeRecordingDecision(scanResult, fromCamera);
             _visionObbTriggerEvents.RecordRecognition(
                 decodedByVisionObb,

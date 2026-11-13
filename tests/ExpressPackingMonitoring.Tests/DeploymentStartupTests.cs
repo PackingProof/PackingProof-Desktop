@@ -483,6 +483,7 @@ public sealed class DeploymentStartupTests
         Assert.True(
             clearSleepIndex > startIndex,
             "唤醒时必须先启动摄像头，再放开休眠标记，否则看门狗会排队重连");
+        Assert.Contains("!IsVideoSourceRunning()", wakeBranch, StringComparison.Ordinal);
         // 启动期间还要挡住看门狗：StartCamera 自己设置这个标记
         Assert.Contains("_isCameraStarting = true;", source, StringComparison.Ordinal);
     }

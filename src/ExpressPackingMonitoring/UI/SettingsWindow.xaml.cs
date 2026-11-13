@@ -834,6 +834,7 @@ namespace ExpressPackingMonitoring.UI
 
             (bool prepareSucceeded, string errorMessage) =
                 await TryPrepareStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!prepareSucceeded)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
@@ -841,6 +842,7 @@ namespace ExpressPackingMonitoring.UI
             }
             (bool confirmSucceeded, string localError) =
                 await TryConfirmLocalStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!confirmSucceeded)
             {
                 AppDialog.Error(this, localError, "存储位置无效");
@@ -882,6 +884,7 @@ namespace ExpressPackingMonitoring.UI
                     isSystemDrive);
             (bool prepareSucceeded, string errorMessage) =
                 await TryPrepareStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!prepareSucceeded)
             {
                 AppDialog.Error(
@@ -1091,6 +1094,7 @@ namespace ExpressPackingMonitoring.UI
 
             (bool success, string errorMessage) =
                 await TryPrepareStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!success)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
@@ -1098,6 +1102,7 @@ namespace ExpressPackingMonitoring.UI
             }
             (bool confirmSucceeded, string localError) =
                 await TryConfirmLocalStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!confirmSucceeded)
             {
                 AppDialog.Error(this, localError, "存储位置无效");
@@ -1215,6 +1220,7 @@ namespace ExpressPackingMonitoring.UI
 
             (bool success, string errorMessage) =
                 await TryPrepareStoragePathAsync(selectedPath);
+            if (_isClosing) return;
             if (!success)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
@@ -1759,6 +1765,8 @@ namespace ExpressPackingMonitoring.UI
             {
                 return false;
             }
+            if (_isClosing)
+                return false;
 
             // 0. 验证音频。"跟随系统默认"是明确选择，不算未选择。
             if (Capabilities.CanRecordAudio &&
@@ -1895,6 +1903,8 @@ namespace ExpressPackingMonitoring.UI
                 AutoStartService.Apply(Config.AutoStartOnBoot);
             var appliedConfig = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(Config)) ?? new AppConfig();
             bool applied = await Context.ApplyAsync(appliedConfig);
+            if (_isClosing)
+                return applied;
             if (applied)
             {
                 bool enhancedRecognitionDisabled =
@@ -2064,7 +2074,9 @@ namespace ExpressPackingMonitoring.UI
                 }
 
                 var wizard = new FirstUseSetupWizardWindow(Config) { Owner = this };
-                if (wizard.ShowDialog() == true && !wizard.WasSkipped)
+                bool accepted = wizard.ShowDialog() == true;
+                await wizard.WaitForCameraCleanupAsync();
+                if (accepted && !wizard.WasSkipped)
                 {
                     Config.FirstUseWizardCompleted = true;
                     AppConfig.NormalizeAfterLoad(Config);

@@ -16,6 +16,19 @@ public partial class MainViewModel
 
     private async Task<bool> StopCameraAsync()
     {
+        await _cameraLifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await StopCameraCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _cameraLifecycleGate.Release();
+        }
+    }
+
+    private async Task<bool> StopCameraCoreAsync()
+    {
         LogResourceHealthIfDue("camera-stop", force: true);
         // 镜头控制在媒体源失效前回收入口；重连成功后 AttachCameraLens 会重新恢复。
         DetachCameraLens();
@@ -55,11 +68,20 @@ public partial class MainViewModel
             try { mfSource.SourceError -= MfCameraSource_SourceError; } catch { }
             try
             {
-                await Task.Run(mfSource.Dispose).ConfigureAwait(false);
+                bool released = await Task.Run(mfSource.StopAndWait).ConfigureAwait(false);
+                if (!released)
+                {
+                    RuntimeLog.Error(
+                        "Camera",
+                        "Media Foundation camera source did not release within the stop timeout");
+                    return false;
+                }
+                mfSource.Dispose();
             }
             catch (Exception ex)
             {
                 RuntimeLog.Warn("Camera", $"Media Foundation camera stop failed: {ex.Message}");
+                return false;
             }
             if (ReferenceEquals(_mfCameraSource, mfSource))
                 _mfCameraSource = null;
