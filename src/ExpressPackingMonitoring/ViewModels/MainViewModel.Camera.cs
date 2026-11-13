@@ -362,6 +362,7 @@ namespace ExpressPackingMonitoring.ViewModels
         }
 
         private DateTime _lastFrameTime = DateTime.MinValue;
+        private readonly SemaphoreSlim _cameraStartGate = new(1, 1);
 
         private int BeginPreviewSession(bool clearFrame)
         {
@@ -635,7 +636,18 @@ namespace ExpressPackingMonitoring.ViewModels
         /// 运行期重连、空闲唤醒和手动重启会枚举设备、探测首帧并启动采集，均在 UI 线程上
         /// 可能停顿数秒，统一放到线程池执行。
         /// </summary>
-        private Task StartCameraAsync() => Task.Run(StartCamera);
+        private async Task StartCameraAsync()
+        {
+            await _cameraStartGate.WaitAsync();
+            try
+            {
+                await Task.Run(StartCamera);
+            }
+            finally
+            {
+                _cameraStartGate.Release();
+            }
+        }
 
         private async Task StartCameraAndOverlayChannelsAsync()
         {

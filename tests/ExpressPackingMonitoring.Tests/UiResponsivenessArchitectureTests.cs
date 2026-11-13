@@ -98,8 +98,8 @@ public sealed class UiResponsivenessArchitectureTests
             "ViewModels",
             "MainViewModel.Camera.cs");
 
-        Assert.Contains("private Task StartCameraAsync() => Task.Run(StartCamera);", source,
-            StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(StartCamera);", source, StringComparison.Ordinal);
+        Assert.Contains("_cameraStartGate.WaitAsync()", source, StringComparison.Ordinal);
         Assert.Contains("await StartCameraAsync();", source, StringComparison.Ordinal);
         Assert.Contains("_ = StartCameraAndOverlayChannelsAsync();",
             ReadProjectFile("ViewModels", "MainViewModel.Media.cs"),
@@ -198,6 +198,17 @@ public sealed class UiResponsivenessArchitectureTests
 
         Assert.True(conversion >= 0);
         Assert.True(background >= 0 && conversion - background < 120);
+    }
+
+    [Fact]
+    public void SettingsStorageProbingRunsOffTheUiThread()
+    {
+        string source = ReadProjectFile("UI", "SettingsWindow.xaml.cs");
+
+        Assert.Contains("TryPrepareStoragePathAsync(", source, StringComparison.Ordinal);
+        Assert.Contains("TryConfirmLocalStoragePathAsync(", source, StringComparison.Ordinal);
+        Assert.Contains("_recordingCacheSummaryRefresh.Request(", source, StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(() =>", source, StringComparison.Ordinal);
     }
 
     [Fact]

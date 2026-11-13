@@ -172,6 +172,8 @@ namespace ExpressPackingMonitoring.UI
             Interval = TimeSpan.FromSeconds(5)
         };
         private readonly CoalescingBackgroundRefresh _integrationStatusRefresh = new();
+        private readonly CoalescingBackgroundRefresh _recordingCacheSummaryRefresh = new();
+        private int _recordingCacheSummaryRevision;
         private const string FeedbackEmail = FeedbackContact.Email;
 
         public SettingsWindow(MainViewModel mainVM, AppConfig clonedConfig, double diskUsagePercent, string diskUsageText, bool isRecording = false)
@@ -822,7 +824,7 @@ namespace ExpressPackingMonitoring.UI
 
         private static string NormalizeGpuSetting(string setting) => EncodingHelper.NormalizeGpuSetting(setting);
 
-        private void BtnBrowsePath_Click(object sender, RoutedEventArgs e)
+        private async void BtnBrowsePath_Click(object sender, RoutedEventArgs e)
         {
             EnsurePrimaryStorageLocationExists();
             var primary = Config.StorageLocations[0];
@@ -830,12 +832,16 @@ namespace ExpressPackingMonitoring.UI
             string selectedPath = SelectDefaultStoragePathFromDrive();
             if (string.IsNullOrWhiteSpace(selectedPath)) return;
 
-            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            (bool prepareSucceeded, string errorMessage) =
+                await TryPrepareStoragePathAsync(selectedPath);
+            if (!prepareSucceeded)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
-            if (!TryConfirmLocalStoragePath(selectedPath, out string localError))
+            (bool confirmSucceeded, string localError) =
+                await TryConfirmLocalStoragePathAsync(selectedPath);
+            if (!confirmSucceeded)
             {
                 AppDialog.Error(this, localError, "存储位置无效");
                 return;
@@ -844,7 +850,7 @@ namespace ExpressPackingMonitoring.UI
             primary.Path = selectedPath;
         }
 
-        private void BtnBrowseRecordingCache_Click(object sender, RoutedEventArgs e)
+        private async void BtnBrowseRecordingCache_Click(object sender, RoutedEventArgs e)
         {
             if (_isRecording)
             {
@@ -874,7 +880,9 @@ namespace ExpressPackingMonitoring.UI
                 RecordingWorkstationCachePolicy.GetSuggestedPath(
                     dialog.SelectedRootPath,
                     isSystemDrive);
-            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            (bool prepareSucceeded, string errorMessage) =
+                await TryPrepareStoragePathAsync(selectedPath);
+            if (!prepareSucceeded)
             {
                 AppDialog.Error(
                     this,
@@ -913,32 +921,56 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            if (!TryGetRecordingCacheSnapshot(
-                    out RecordingCacheSpaceSnapshot snapshot,
-                    out string error))
+            int revision = Interlocked.Increment(ref _recordingCacheSummaryRevision);
+            _recordingCacheSummaryRefresh.Request(
+                "本地缓存空间",
+                () => RefreshRecordingCacheStorageSummaryAsync(revision));
+        }
+
+        private async Task RefreshRecordingCacheStorageSummaryAsync(int revision)
+        {
+            var (snapshotFound, snapshot, error) = await Task.Run(() =>
             {
-                RecordingCacheUsageProgress.TargetValue = 100;
-                RecordingCacheUsageText.Text = "本地缓存位置不可用";
-                RecordingCacheSafeCapacityText.Text = error;
-                RecordingCacheDriveHintText.Text =
-                    "请选择健康、可写的本机固定磁盘";
+                bool success = TryGetRecordingCacheSnapshot(
+                    out RecordingCacheSpaceSnapshot snapshot,
+                    out string error);
+                return (success, snapshot, error);
+            });
+            if (_isClosing
+                || revision != Volatile.Read(ref _recordingCacheSummaryRevision))
+            {
                 return;
             }
 
-            RecordingCacheUsageProgress.TargetValue = snapshot.UsagePercent;
-            RecordingCacheUsageText.Text = Context.FormatRecordingCacheUsage?.Invoke(snapshot)
-                ?? $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
-            RecordingCacheSafeCapacityText.Text =
-                AppLanguage.Format(
-                    "此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整",
-                    FormatGb(snapshot.EffectiveLimitBytes));
-            StorageLocation location =
-                RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)!;
-            string root = Path.GetPathRoot(Path.GetFullPath(location.Path)) ?? "";
-            RecordingCacheDriveHintText.Text =
-                StorageSpacePolicy.IsSystemDrive(root)
-                    ? $"当前使用系统盘，系统会保留至少 {FormatGb(snapshot.ReserveBytes)}，不会占满磁盘"
-                    : $"系统会为此磁盘保留至少 {FormatGb(snapshot.ReserveBytes)}";
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_isClosing)
+                    return;
+                if (!snapshotFound)
+                {
+                    RecordingCacheUsageProgress.TargetValue = 100;
+                    RecordingCacheUsageText.Text = "本地缓存位置不可用";
+                    RecordingCacheSafeCapacityText.Text = error;
+                    RecordingCacheDriveHintText.Text =
+                        "请选择健康、可写的本机固定磁盘";
+                    return;
+                }
+
+                RecordingCacheUsageProgress.TargetValue = snapshot.UsagePercent;
+                RecordingCacheUsageText.Text = Context.FormatRecordingCacheUsage?.Invoke(snapshot)
+                    ?? $"已缓存 {FormatGb(snapshot.CacheBytes)} / 上限 {Config.RecordingCacheMaxGB} GB";
+                RecordingCacheSafeCapacityText.Text =
+                    AppLanguage.Format(
+                        "此磁盘当前建议最多 {0}，实际使用会随磁盘剩余空间动态调整",
+                        FormatGb(snapshot.EffectiveLimitBytes));
+                StorageLocation location =
+                    RecordingWorkstationCachePolicy.GetConfiguredLocation(Config)!;
+                string root = Path.GetPathRoot(Path.GetFullPath(location.Path)) ?? "";
+                RecordingCacheDriveHintText.Text =
+                    StorageSpacePolicy.IsSystemDrive(root)
+                        ? $"当前使用系统盘，系统会保留至少 {FormatGb(snapshot.ReserveBytes)}，不会占满磁盘"
+                        : $"系统会为此磁盘保留至少 {FormatGb(snapshot.ReserveBytes)}";
+            });
         }
 
         private bool TryGetRecordingCacheSnapshot(
@@ -990,12 +1022,17 @@ namespace ExpressPackingMonitoring.UI
         private static string FormatGb(long bytes) =>
             $"{Math.Max(0, bytes) / (double)StorageSpacePolicy.BytesPerGiB:F1} GB";
 
-        private bool ValidateRecordingCacheSettings()
+        private async Task<bool> ValidateRecordingCacheSettingsAsync()
         {
             Config.RecordingCachePolicy = "KeepWithinSize";
-            if (!TryGetRecordingCacheSnapshot(
+            var (snapshotFound, snapshot, error) = await Task.Run(() =>
+            {
+                bool success = TryGetRecordingCacheSnapshot(
                     out RecordingCacheSpaceSnapshot snapshot,
-                    out string error))
+                    out string error);
+                return (success, snapshot, error);
+            });
+            if (!snapshotFound)
             {
                 AppDialog.Error(
                     this,
@@ -1028,12 +1065,7 @@ namespace ExpressPackingMonitoring.UI
             return true;
         }
 
-        private bool IsPathWritable(string path)
-        {
-            return TryPrepareStoragePath(path, out _);
-        }
-
-        private void BtnAddStorage_Click(object sender, RoutedEventArgs e)
+        private async void BtnAddStorage_Click(object sender, RoutedEventArgs e)
         {
             string selectedPath = SelectDefaultStoragePathFromDrive();
             if (string.IsNullOrWhiteSpace(selectedPath)) return;
@@ -1057,12 +1089,16 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            (bool success, string errorMessage) =
+                await TryPrepareStoragePathAsync(selectedPath);
+            if (!success)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
             }
-            if (!TryConfirmLocalStoragePath(selectedPath, out string localError))
+            (bool confirmSucceeded, string localError) =
+                await TryConfirmLocalStoragePathAsync(selectedPath);
+            if (!confirmSucceeded)
             {
                 AppDialog.Error(this, localError, "存储位置无效");
                 return;
@@ -1082,7 +1118,7 @@ namespace ExpressPackingMonitoring.UI
             UpdateStorageButtonStates();
         }
 
-        private void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
+        private async void BtnAddNetworkStorage_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new StoragePathSelectionDialog(
                 title: "添加备份位置",
@@ -1177,7 +1213,9 @@ namespace ExpressPackingMonitoring.UI
                 return;
             }
 
-            if (!TryPrepareStoragePath(selectedPath, out string errorMessage))
+            (bool success, string errorMessage) =
+                await TryPrepareStoragePathAsync(selectedPath);
+            if (!success)
             {
                 AppDialog.Error(this, $"无法创建或写入目录：\n{selectedPath}\n\n原因：{errorMessage}", "存储错误");
                 return;
@@ -1356,6 +1394,14 @@ namespace ExpressPackingMonitoring.UI
                 return false;
             }
         }
+
+        private Task<(bool Success, string ErrorMessage)> TryPrepareStoragePathAsync(
+            string path) =>
+            Task.Run(() =>
+            {
+                bool success = TryPrepareStoragePath(path, out string errorMessage);
+                return (success, errorMessage);
+            });
 
         private void BtnRemoveStorage_Click(object sender, RoutedEventArgs e)
         {
@@ -1709,7 +1755,7 @@ namespace ExpressPackingMonitoring.UI
             }
 
             if (Capabilities.CanConfigureRecordingCache
-                && !ValidateRecordingCacheSettings())
+                && !await ValidateRecordingCacheSettingsAsync())
             {
                 return false;
             }
@@ -1967,6 +2013,14 @@ namespace ExpressPackingMonitoring.UI
             errorMessage = "";
             return true;
         }
+
+        private Task<(bool Success, string ErrorMessage)> TryConfirmLocalStoragePathAsync(
+            string path) =>
+            Task.Run(() =>
+            {
+                bool success = TryConfirmLocalStoragePath(path, out string errorMessage);
+                return (success, errorMessage);
+            });
 
         private bool TryNormalizeCameraIdleNoSleepPeriod(
             int periodNumber,
@@ -2445,6 +2499,7 @@ namespace ExpressPackingMonitoring.UI
             _integrationStatusTimer.Stop();
             _integrationStatusTimer.Tick -= IntegrationStatusTimer_Tick;
             _integrationStatusRefresh.Dispose();
+            _recordingCacheSummaryRefresh.Dispose();
             var migrationCts = Interlocked.Exchange(ref _migrationCts, null);
             try { migrationCts?.Cancel(); } catch (ObjectDisposedException) { }
             _previewSpeechService?.Stop();
