@@ -228,6 +228,15 @@ namespace ExpressPackingMonitoring.ViewModels
                 // 成功任务移走、有效 MP4 已存在”这一更强事实。
                 if (!File.Exists(mkvPath))
                 {
+                    if (!forceRetry
+                        && MkvConversionRetryPolicy.ShouldDeferCorruptMp4Probe(
+                            _db.GetMkvConversionFailureState(mkvPath),
+                            DateTime.Now))
+                    {
+                        batchResult.DeferredCount++;
+                        progress?.Report($"[{i + 1}/{total}] 损坏 MP4 仍在探测退避期: {fileName}");
+                        continue;
+                    }
                     using IDisposable lifecycleLease = await VideoLifecycleCoordinator.TryEnterAsync(
                         activeRecord.Id,
                         CameraLifecycleWaitTimeout,
@@ -264,7 +273,7 @@ namespace ExpressPackingMonitoring.ViewModels
                             _db?.RecordMkvConversionFailure(
                                 mkvPath,
                                 DateTime.Now,
-                                "MP4 结构损坏且没有 MKV 可重新合并");
+                                MkvConversionRetryPolicy.CorruptMp4WithoutSourceError);
                             RuntimeLog.Warn(
                                 "MkvRecover",
                                 $"MP4 探测不过且没有 MKV 可重建，已记账等待重试策略抑制 file={fileName}");
@@ -329,9 +338,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 MkvConversionFailureState failureState = _db.GetMkvConversionFailureState(mkvPath);
                 MkvAutomaticRetryDecision retryDecision =
                     MkvConversionRetryPolicy.GetAutomaticRetryDecision(failureState, DateTime.Now);
-                if (!forceRetry
-                    && !File.Exists(mp4Path)
-                    && retryDecision == MkvAutomaticRetryDecision.Suppressed)
+                if (!forceRetry && retryDecision == MkvAutomaticRetryDecision.Suppressed)
                 {
                     using IDisposable lifecycleLease = await VideoLifecycleCoordinator.TryEnterAsync(
                         activeRecord.Id,

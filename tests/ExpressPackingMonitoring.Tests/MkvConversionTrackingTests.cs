@@ -57,6 +57,10 @@ public sealed class MkvConversionTrackingTests
             Now.AddDays(-1),
             Now.AddMinutes(-5),
             lastError: "Unable to flush converted MP4 before deleting source file=recording.mp4, error=locked");
+        MkvConversionFailureState legacyValidationFailure = CreateState(
+            Now.AddDays(-1),
+            Now.AddMinutes(-5),
+            lastError: "MP4 转换或视频校验失败");
 
         Assert.Equal(
             MkvAutomaticRetryDecision.Deferred,
@@ -64,6 +68,9 @@ public sealed class MkvConversionTrackingTests
         Assert.Equal(
             MkvAutomaticRetryDecision.Deferred,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(flushFailure, Now));
+        Assert.Equal(
+            MkvAutomaticRetryDecision.Deferred,
+            MkvConversionRetryPolicy.GetAutomaticRetryDecision(legacyValidationFailure, Now));
         Assert.Equal(
             MkvAutomaticRetryDecision.Retry,
             MkvConversionRetryPolicy.GetAutomaticRetryDecision(old, Now));
@@ -79,6 +86,22 @@ public sealed class MkvConversionTrackingTests
         Assert.True(MkvConversionRetryPolicy.ShouldNotify(newFailure, Now));
         Assert.False(MkvConversionRetryPolicy.ShouldNotify(notifiedToday, Now));
         Assert.False(MkvConversionRetryPolicy.ShouldNotify(notifiedYesterday, Now));
+    }
+
+    [Fact]
+    public void CorruptMp4WithoutSourceIsNotProbedOnEveryPass()
+    {
+        MkvConversionFailureState recent = CreateState(
+            Now.AddHours(-2),
+            Now.AddHours(-1),
+            lastError: MkvConversionRetryPolicy.CorruptMp4WithoutSourceError);
+        MkvConversionFailureState old = CreateState(
+            Now.AddDays(-3),
+            Now.AddHours(-25),
+            lastError: MkvConversionRetryPolicy.CorruptMp4WithoutSourceError);
+
+        Assert.True(MkvConversionRetryPolicy.ShouldDeferCorruptMp4Probe(recent, Now));
+        Assert.False(MkvConversionRetryPolicy.ShouldDeferCorruptMp4Probe(old, Now));
     }
 
     [Fact]

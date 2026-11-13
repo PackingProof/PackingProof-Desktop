@@ -20,6 +20,9 @@ namespace ExpressPackingMonitoring.Data
     public static class MkvConversionRetryPolicy
     {
         private static readonly TimeSpan RecoverableRetryInterval = TimeSpan.FromMinutes(15);
+        private static readonly TimeSpan CorruptMp4ProbeInterval = TimeSpan.FromHours(24);
+        internal const string CorruptMp4WithoutSourceError =
+            "MP4 结构损坏且没有 MKV 可重新合并";
 
         public static MkvAutomaticRetryDecision GetAutomaticRetryDecision(
             MkvConversionFailureState? state,
@@ -50,6 +53,8 @@ namespace ExpressPackingMonitoring.Data
             return normalized is
                     "未找到 FFmpeg，无法转换"
                     or "MP4 转换超时"
+                    or "MP4 转换或视频校验失败"
+                    or "FFmpeg 进程启动失败"
                     or "同一录像已有转换在进行"
                     or "等待写入方释放文件句柄超时"
                     or "录像正在删除、备份或清理，请稍后重试"
@@ -69,6 +74,16 @@ namespace ExpressPackingMonitoring.Data
 
             return true;
         }
+
+        public static bool ShouldDeferCorruptMp4Probe(
+            MkvConversionFailureState? state,
+            DateTime now) =>
+            state?.LastAttemptAt != null
+            && string.Equals(
+                state.LastError,
+                CorruptMp4WithoutSourceError,
+                StringComparison.Ordinal)
+            && now - state.LastAttemptAt.Value < CorruptMp4ProbeInterval;
     }
 
     public sealed class MkvBatchConversionResult
