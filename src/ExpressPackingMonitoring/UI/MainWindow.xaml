@@ -347,6 +347,21 @@
                             平时只读显示（设置里可关），进"调整放大位置"编辑态时改用上面那个
                             可拖动的取景框显示，避免两个框叠在一起。
                         -->
+                        <Grid x:Name="DefaultZoomGuideBoxHost"
+                              Width="0"
+                              Height="0"
+                              Panel.ZIndex="9"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False">
+                            <Rectangle x:Name="DefaultZoomGuideBox"
+                                       RadiusX="6"
+                                       RadiusY="6"
+                                       StrokeThickness="2"
+                                       StrokeDashArray="4 3"
+                                       Stroke="{StaticResource ZoomGuideStroke}"
+                                       Fill="{StaticResource ZoomGuideFill}"/>
+                        </Grid>
                         <Grid x:Name="ZoomGuideBoxHost"
                               Width="0"
                               Height="0"

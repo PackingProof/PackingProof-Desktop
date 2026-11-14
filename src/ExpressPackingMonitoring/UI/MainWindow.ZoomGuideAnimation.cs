@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 namespace ExpressPackingMonitoring.UI;
 
@@ -9,8 +11,11 @@ public partial class MainWindow
     private const double ZoomGuideImmediateMoveRatio = 0.18;
     private const double ZoomGuideSmoothTimeSeconds = 0.28;
     private const double ZoomGuideMaxSpeed = 900;
+    private const double ZoomGuideLostCrossFadeMs = 1000;
+    private const double ZoomGuideAcquiredCrossFadeMs = 500;
     private bool _zoomGuideAnimationRunning;
     private bool _zoomGuideHasCurrentRect;
+    private bool? _zoomGuideSmartMode;
     private Rect _zoomGuideCurrentRect;
     private Rect _zoomGuideTargetRect;
     private Rect? _zoomGuidePendingRect;
@@ -20,6 +25,71 @@ public partial class MainWindow
     private double _zoomGuideVelocityY;
     private double _zoomGuideVelocityWidth;
     private double _zoomGuideVelocityHeight;
+
+    internal static bool RequiresZoomGuideFade(
+        bool? currentSmartMode,
+        bool nextSmartMode) =>
+        currentSmartMode != nextSmartMode;
+
+    internal static double ResolveZoomGuideCrossFadeMs(bool useSmartTarget) =>
+        useSmartTarget
+            ? ZoomGuideAcquiredCrossFadeMs
+            : ZoomGuideLostCrossFadeMs;
+
+    private void StartZoomGuideCrossFade(
+        Rect defaultTarget,
+        Rect? smartTarget)
+    {
+        bool useSmartTarget = smartTarget.HasValue;
+        if (smartTarget is { } currentSmartTarget)
+            SetZoomGuideRectDirect(ZoomGuideBoxHost, currentSmartTarget);
+        else
+            SetZoomGuideRectDirect(DefaultZoomGuideBoxHost, defaultTarget);
+
+        double crossFadeMs = ResolveZoomGuideCrossFadeMs(useSmartTarget);
+        FadeZoomGuideBox(
+            DefaultZoomGuideBoxHost,
+            useSmartTarget ? 0 : 1,
+            crossFadeMs);
+        FadeZoomGuideBox(
+            ZoomGuideBoxHost,
+            useSmartTarget ? 1 : 0,
+            crossFadeMs);
+        _zoomGuideSmartMode = useSmartTarget;
+    }
+
+    private void SetZoomGuideRectDirect(Grid host, Rect target)
+    {
+        if (ReferenceEquals(host, ZoomGuideBoxHost))
+        {
+            StopZoomGuideAnimation();
+            _zoomGuideCurrentRect = target;
+            _zoomGuideTargetRect = target;
+            _zoomGuideHasCurrentRect = true;
+            _zoomGuidePendingRect = null;
+            ResetZoomGuideVelocity();
+        }
+        ApplyZoomGuideRect(host, target);
+        host.Visibility = Visibility.Visible;
+    }
+
+    private static void FadeZoomGuideBox(
+        Grid host,
+        double targetOpacity,
+        double durationMs)
+    {
+        host.Visibility = Visibility.Visible;
+        double currentOpacity = host.Opacity;
+        var fade = new DoubleAnimation(
+            currentOpacity,
+            targetOpacity,
+            TimeSpan.FromMilliseconds(durationMs))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        host.BeginAnimation(UIElement.OpacityProperty, fade);
+    }
 
     private void SetZoomGuideTargetRect(Rect target)
     {
@@ -35,7 +105,7 @@ public partial class MainWindow
             _zoomGuideCurrentRect = target;
             _zoomGuideTargetRect = target;
             _zoomGuideHasCurrentRect = true;
-            ApplyZoomGuideRect(target);
+            ApplyZoomGuideRect(ZoomGuideBoxHost, target);
             return;
         }
 
@@ -45,7 +115,7 @@ public partial class MainWindow
             _zoomGuideTargetRect = target;
             _zoomGuidePendingRect = null;
             ResetZoomGuideVelocity();
-            ApplyZoomGuideRect(target);
+            ApplyZoomGuideRect(ZoomGuideBoxHost, target);
             StopZoomGuideAnimation();
             return;
         }
@@ -130,7 +200,7 @@ public partial class MainWindow
             y,
             Math.Max(1, width),
             Math.Max(1, height));
-        ApplyZoomGuideRect(_zoomGuideCurrentRect);
+        ApplyZoomGuideRect(ZoomGuideBoxHost, _zoomGuideCurrentRect);
         if (_zoomGuidePendingRect == null
             && AreZoomGuideRectsClose(
                 _zoomGuideCurrentRect,
@@ -138,35 +208,44 @@ public partial class MainWindow
                 0.5))
         {
             _zoomGuideCurrentRect = _zoomGuideTargetRect;
-            ApplyZoomGuideRect(_zoomGuideCurrentRect);
+            ApplyZoomGuideRect(ZoomGuideBoxHost, _zoomGuideCurrentRect);
             StopZoomGuideAnimation();
         }
     }
 
-    private void ApplyZoomGuideRect(Rect rect)
+    private static void ApplyZoomGuideRect(Grid boxHost, Rect rect)
     {
-        ZoomGuideBoxHost.Width = rect.Width;
-        ZoomGuideBoxHost.Height = rect.Height;
-        if (ZoomGuideBoxHost.Parent is not FrameworkElement host)
+        boxHost.Width = rect.Width;
+        boxHost.Height = rect.Height;
+        if (boxHost.Parent is not FrameworkElement host)
             return;
 
-        var transform = ZoomGuideBoxHost.RenderTransform as TranslateTransform
+        var transform = boxHost.RenderTransform as TranslateTransform
             ?? new TranslateTransform();
         transform.X = rect.X - ((host.ActualWidth - rect.Width) / 2.0);
         transform.Y = rect.Y - ((host.ActualHeight - rect.Height) / 2.0);
-        ZoomGuideBoxHost.RenderTransform = transform;
+        boxHost.RenderTransform = transform;
     }
 
     private void HideZoomGuideBox()
     {
         StopZoomGuideAnimation();
+        HideZoomGuideHost(DefaultZoomGuideBoxHost);
+        HideZoomGuideHost(ZoomGuideBoxHost);
         _zoomGuideHasCurrentRect = false;
+        _zoomGuideSmartMode = null;
         _zoomGuidePendingRect = null;
         ResetZoomGuideVelocity();
-        ZoomGuideBoxHost.Width = 0;
-        ZoomGuideBoxHost.Height = 0;
-        ZoomGuideBoxHost.Visibility = Visibility.Collapsed;
-        ZoomGuideBoxHost.RenderTransform = null;
+    }
+
+    private static void HideZoomGuideHost(Grid host)
+    {
+        host.BeginAnimation(UIElement.OpacityProperty, null);
+        host.Opacity = 1;
+        host.Width = 0;
+        host.Height = 0;
+        host.Visibility = Visibility.Collapsed;
+        host.RenderTransform = null;
     }
 
     private void StopZoomGuideAnimation()

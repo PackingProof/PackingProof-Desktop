@@ -282,6 +282,8 @@ public sealed class ZoomGuideEditingTests
     {
         string xaml = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml"));
 
+        Assert.Contains("x:Name=\"DefaultZoomGuideBoxHost\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"DefaultZoomGuideBox\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ZoomGuideBoxHost\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ZoomGuideBox\"", xaml, StringComparison.Ordinal);
         Assert.Contains("{StaticResource ZoomGuideStroke}", xaml, StringComparison.Ordinal);
@@ -340,7 +342,8 @@ public sealed class ZoomGuideEditingTests
     {
         string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
 
-        Assert.Contains("CameraVisionSmartZoomTarget is { } smartTarget", code, StringComparison.Ordinal);
+        Assert.Contains("? vm.CameraVisionSmartZoomTarget", code, StringComparison.Ordinal);
+        Assert.Contains("if (smartTarget is { } target)", code, StringComparison.Ordinal);
         Assert.Contains("VisionSmartZoomPolicy.ResolveTargetRect", code, StringComparison.Ordinal);
         Assert.Contains(
             "nameof(MainViewModel.CameraVisionSmartZoomTarget)",
@@ -390,6 +393,40 @@ public sealed class ZoomGuideEditingTests
         Assert.Contains("ZoomGuideTargetStabilityMs", animation, StringComparison.Ordinal);
         Assert.Contains("IsSameZoomGuideTarget", animation, StringComparison.Ordinal);
         Assert.Contains("ZoomGuideMaxSpeed", animation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZoomGuideTargetModeChangesFadeInsteadOfScaling()
+    {
+        string code = ReadProjectFile(Path.Combine("UI", "MainWindow.xaml.cs"));
+        string animation = ReadProjectFile(Path.Combine(
+            "UI",
+            "MainWindow.ZoomGuideAnimation.cs"));
+
+        Assert.True(MainWindow.RequiresZoomGuideFade(null, true));
+        Assert.True(MainWindow.RequiresZoomGuideFade(true, false));
+        Assert.False(MainWindow.RequiresZoomGuideFade(false, false));
+        Assert.Equal(500, MainWindow.ResolveZoomGuideCrossFadeMs(useSmartTarget: true));
+        Assert.Equal(1000, MainWindow.ResolveZoomGuideCrossFadeMs(useSmartTarget: false));
+        Assert.Contains(
+            "RequiresZoomGuideFade(_zoomGuideSmartMode, usingSmartTarget)",
+            code,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "StartZoomGuideCrossFade(defaultTargetRect, smartTargetRect);",
+            code,
+            StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideLostCrossFadeMs = 1000", animation, StringComparison.Ordinal);
+        Assert.Contains("ZoomGuideAcquiredCrossFadeMs = 500", animation, StringComparison.Ordinal);
+        Assert.Contains(
+            "FadeZoomGuideBox(",
+            animation,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "host.BeginAnimation(UIElement.OpacityProperty, fade);",
+            animation,
+            StringComparison.Ordinal);
+        Assert.Contains("DoubleAnimation(", animation, StringComparison.Ordinal);
     }
 
     [Fact]

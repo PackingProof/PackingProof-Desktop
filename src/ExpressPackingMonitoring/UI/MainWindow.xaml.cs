@@ -471,23 +471,31 @@ namespace ExpressPackingMonitoring.UI
             }
 
             Rect videoRect = CameraBarcodeGuideLayout.GetVideoRect(sourceW, sourceH, actualW, actualH);
-            Rect boxRect = CameraBarcodeGuideLayout.ToDisplayRect(vm.ZoomGuideGeometry, videoRect);
-            if (vm.Config is { EnableVisionObbSmartZoom: true }
-                && vm.CameraVisionSmartZoomTarget is { } smartTarget)
+            Rect defaultBoxRect = CameraBarcodeGuideLayout.ToDisplayRect(
+                vm.ZoomGuideGeometry,
+                videoRect);
+            Rect? smartBoxRect = null;
+            VisionObbDetection? smartTarget =
+                vm.Config is { EnableVisionObbSmartZoom: true }
+                    ? vm.CameraVisionSmartZoomTarget
+                    : null;
+            if (smartTarget is { } target)
             {
                 Rect sourceBox = VisionSmartZoomPolicy.ResolveTargetRect(
-                    smartTarget,
+                    target,
                     (int)Math.Round(sourceW),
                     (int)Math.Round(sourceH));
                 if (!sourceBox.IsEmpty)
                 {
-                    boxRect = new Rect(
+                    smartBoxRect = new Rect(
                         videoRect.X + (sourceBox.X / sourceW * videoRect.Width),
                         videoRect.Y + (sourceBox.Y / sourceH * videoRect.Height),
                         sourceBox.Width / sourceW * videoRect.Width,
                         sourceBox.Height / sourceH * videoRect.Height);
                 }
             }
+            bool usingSmartTarget = smartBoxRect.HasValue;
+            Rect boxRect = smartBoxRect ?? defaultBoxRect;
             if (boxRect.IsEmpty || boxRect.Width <= 0 || boxRect.Height <= 0)
             {
                 HideZoomGuideBox();
@@ -498,12 +506,30 @@ namespace ExpressPackingMonitoring.UI
                 return;
 
             Point videoOriginInHost = VideoImage.TranslatePoint(new Point(0, 0), zoomGuideHost);
-            ZoomGuideBoxHost.Visibility = Visibility.Visible;
-            SetZoomGuideTargetRect(new Rect(
-                videoOriginInHost.X + boxRect.X,
-                videoOriginInHost.Y + boxRect.Y,
-                boxRect.Width,
-                boxRect.Height));
+            Rect ToHostRect(Rect rect) => new(
+                videoOriginInHost.X + rect.X,
+                videoOriginInHost.Y + rect.Y,
+                rect.Width,
+                rect.Height);
+            Rect defaultTargetRect = ToHostRect(defaultBoxRect);
+            Rect? smartTargetRect = smartBoxRect is { } smart
+                ? ToHostRect(smart)
+                : null;
+            if (RequiresZoomGuideFade(_zoomGuideSmartMode, usingSmartTarget))
+            {
+                StartZoomGuideCrossFade(defaultTargetRect, smartTargetRect);
+            }
+            else if (smartTargetRect is { } targetRect)
+            {
+                ZoomGuideBoxHost.Visibility = Visibility.Visible;
+                SetZoomGuideTargetRect(targetRect);
+            }
+            else
+            {
+                SetZoomGuideRectDirect(
+                    DefaultZoomGuideBoxHost,
+                    defaultTargetRect);
+            }
         }
 
         private void UpdateCameraBarcodeGuide(MainViewModel vm)
