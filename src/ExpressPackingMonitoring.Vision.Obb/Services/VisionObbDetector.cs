@@ -33,6 +33,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
     private readonly string _outputName;
     private readonly bool _channelsFirst;
     private readonly VisionObbOutputLayout _outputLayout;
+    private readonly int _classCount;
     private readonly float _scoreThreshold;
     private readonly float _nmsThreshold;
     private readonly string _executionProvider;
@@ -56,6 +57,7 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         string outputName,
         bool channelsFirst,
         VisionObbOutputLayout outputLayout,
+        int classCount,
         float scoreThreshold,
         float nmsThreshold,
         string executionProvider)
@@ -65,12 +67,14 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         _outputName = outputName;
         _channelsFirst = channelsFirst;
         _outputLayout = outputLayout;
+        _classCount = classCount;
         _scoreThreshold = scoreThreshold;
         _nmsThreshold = nmsThreshold;
         _executionProvider = executionProvider;
     }
 
     public string ExecutionProvider => _executionProvider;
+    public int ClassCount => _classCount;
     public VisionObbDetectorTiming LastTiming { get; private set; }
     internal int LastRawCandidateCount { get; private set; }
     internal int LastFilteredDetectionCount { get; private set; }
@@ -121,15 +125,20 @@ internal sealed class VisionObbDetector : IVisionObbDetector
             {
                 throw new InvalidDataException(contractError);
             }
+            int classCount = ResolveClassCount(
+                outputDimensions,
+                channelsFirst,
+                outputLayout);
             RuntimeLog.Info(
                 "CameraVision",
-                $"增强识别模型已加载：{modelPath}, provider={executionProvider}");
+                $"增强识别模型已加载：{modelPath}, provider={executionProvider}, classes={classCount}");
             return new VisionObbDetector(
                 session,
                 inputName,
                 outputName,
                 channelsFirst,
                 outputLayout,
+                classCount,
                 scoreThreshold,
                 nmsThreshold,
                 executionProvider);
@@ -142,6 +151,24 @@ internal sealed class VisionObbDetector : IVisionObbDetector
                 $"增强识别模型加载失败（{ex.GetType().Name}）：{ex.Message}");
             return null;
         }
+    }
+
+    internal static int ResolveClassCount(
+        int[]? outputDimensions,
+        bool channelsFirst,
+        VisionObbOutputLayout outputLayout)
+    {
+        if (outputDimensions == null || outputDimensions.Length < 3)
+            return 1;
+        int channels = channelsFirst
+            ? outputDimensions[1]
+            : outputDimensions[2];
+        return outputLayout switch
+        {
+            VisionObbOutputLayout.Yolox => Math.Max(1, channels - 6),
+            VisionObbOutputLayout.Rtmdet => 1,
+            _ => Math.Max(1, channels - 5)
+        };
     }
 
     internal static bool TryResolveContract(
@@ -488,6 +515,8 @@ internal sealed class VisionObbDetector : IVisionObbDetector
         {
             if (kept.Any(existing =>
                 {
+                    if (existing.ClassId != candidate.ClassId)
+                        return false;
                     (float iou, float containment) = RotatedOverlap(
                         candidate,
                         existing);

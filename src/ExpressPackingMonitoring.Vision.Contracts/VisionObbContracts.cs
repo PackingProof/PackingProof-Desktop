@@ -37,6 +37,40 @@ public static class VisionObbGeometry
         }
         return corners;
     }
+
+    public static bool Contains(
+        in VisionObbDetection container,
+        in VisionObbDetection contained,
+        double tolerancePixels = 3)
+    {
+        if (tolerancePixels < 0 || !double.IsFinite(tolerancePixels))
+            tolerancePixels = 0;
+        Point[] outer = ToCorners(container)
+            .Select(point => new Point(
+                (int)Math.Round(point.X),
+                (int)Math.Round(point.Y)))
+            .ToArray();
+        return ToCorners(contained).All(corner =>
+            Cv2.PointPolygonTest(
+                outer,
+                new Point((int)Math.Round(corner.X), (int)Math.Round(corner.Y)),
+                true) >= -tolerancePixels);
+    }
+}
+
+public static class VisionObbClassIds
+{
+    public const int Waybill = 0;
+    public const int Barcode = 1;
+}
+
+public static class VisionObbClassPolicy
+{
+    public static bool IsWaybill(in VisionObbDetection detection) =>
+        detection.ClassId == VisionObbClassIds.Waybill;
+
+    public static bool IsBarcode(in VisionObbDetection detection) =>
+        detection.ClassId == VisionObbClassIds.Barcode;
 }
 
 public static class VisionObbModelPolicy
@@ -44,7 +78,7 @@ public static class VisionObbModelPolicy
     public const int InputSize = 640;
     public const float ScoreThreshold = 0.35f;
     public const float NmsThreshold = 0.45f;
-    public const int MaxDetections = 6;
+    public const int MaxDetections = 12;
 }
 
 public sealed record VisionModelMetadata(
@@ -59,6 +93,7 @@ public readonly record struct VisionObbDetectorTiming(
 public interface IVisionObbDetector : IDisposable
 {
     string ExecutionProvider { get; }
+    int ClassCount => 1;
     VisionObbDetectorTiming LastTiming => default;
     IReadOnlyList<VisionObbDetection> Detect(Mat frame);
 }

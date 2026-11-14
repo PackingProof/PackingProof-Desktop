@@ -21,19 +21,35 @@ internal static class VisionSmartZoomPolicy
         int frameHeight,
         VisionObbDetection? previousTarget = null)
     {
+        VisionObbDetection[] waybills = detections
+            .Where(detection => VisionObbClassPolicy.IsWaybill(detection))
+            .ToArray();
         if (decodedSelection is { } decoded)
-            return decoded;
-        if (detections.Count == 0)
+        {
+            if (VisionObbClassPolicy.IsWaybill(decoded))
+                return decoded;
+            if (VisionObbClassPolicy.IsBarcode(decoded))
+            {
+                VisionObbDetection? containing = waybills
+                    .Where(waybill => VisionObbGeometry.Contains(waybill, decoded))
+                    .OrderBy(waybill => Math.Max(1, waybill.Width * waybill.Height))
+                    .Cast<VisionObbDetection?>()
+                    .FirstOrDefault();
+                if (containing is { } mapped)
+                    return mapped;
+            }
+        }
+        if (waybills.Length == 0)
             return null;
-        if (detections.Count == 1)
-            return detections[0];
+        if (waybills.Length == 1)
+            return waybills[0];
         if (frameWidth <= 0 || frameHeight <= 0)
             return null;
 
         var frame = new OpenCvSharp.Rect(0, 0, frameWidth, frameHeight);
-        double maxArea = detections.Max(detection =>
+        double maxArea = waybills.Max(detection =>
             Math.Max(1, detection.Width * detection.Height));
-        VisionObbDetection best = detections
+        VisionObbDetection best = waybills
             .OrderByDescending(detection =>
                 CameraBarcodeObbDecoder.CalculateScore(
                     detection,
@@ -49,7 +65,7 @@ internal static class VisionSmartZoomPolicy
         {
             VisionObbDetection? previousMatch = null;
             double nearestDistance = double.PositiveInfinity;
-            foreach (VisionObbDetection detection in detections)
+            foreach (VisionObbDetection detection in waybills)
             {
                 double distance = Math.Sqrt(
                     Math.Pow(detection.CenterX - previous.CenterX, 2)

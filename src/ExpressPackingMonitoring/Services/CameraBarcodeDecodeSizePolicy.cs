@@ -2,20 +2,18 @@ namespace ExpressPackingMonitoring.Services;
 
 /// <summary>
 /// 按旋转框的实际像素跨度判断是否值得进入 ZXing。
-/// 长条面单或透视裁切即使短边偏小，对角线仍可能保留足够的条码像素。
+/// 条码候选即使短边偏小，对角线仍可能保留足够的条码像素。
 /// </summary>
 internal static class CameraBarcodeDecodeSizePolicy
 {
     internal const double OneDimensionalMinDiagonal = 90;
     internal const double QrCodeMinDiagonal = 113;
     internal const double Reference1080pDiagonalPixels = 2202.9071700822983;
-    internal const double MinimumWaybillDiagonalAt1080P = 300;
-    internal const double MinimumObbFrameDiagonalRatio =
-        MinimumWaybillDiagonalAt1080P / Reference1080pDiagonalPixels;
+    internal const double BarcodeMinFrameDiagonalRatio = 0.085;
     internal const double OneDimensionalMinFrameDiagonalRatio =
-        MinimumObbFrameDiagonalRatio;
+        BarcodeMinFrameDiagonalRatio;
     internal const double QrCodeMinFrameDiagonalRatio =
-        MinimumObbFrameDiagonalRatio;
+        BarcodeMinFrameDiagonalRatio;
 
     internal static bool ShouldDecode(int width, int height, bool qrCodeEnabled)
     {

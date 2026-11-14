@@ -100,6 +100,108 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void MultiClassDecodeOnlyUsesBarcodeInsideWaybill()
+    {
+        using var barcode = CreateBarcodeMat("YT123456789012");
+        using var frame = new Mat(
+            new Size(960, 540),
+            MatType.CV_8UC3,
+            Scalar.White);
+        int x = (frame.Width - barcode.Width) / 2;
+        int y = (frame.Height - barcode.Height) / 2;
+        using (Mat target = frame.SubMat(
+                   new Rect(x, y, barcode.Width, barcode.Height)))
+        {
+            barcode.CopyTo(target);
+        }
+
+        var waybill = new VisionObbDetection(
+            CenterX: frame.Width / 2.0,
+            CenterY: frame.Height / 2.0,
+            Width: barcode.Width + 80,
+            Height: barcode.Height + 80,
+            AngleDegrees: 0,
+            Score: 0.96f,
+            ClassId: VisionObbClassIds.Waybill);
+        var barcodeDetection = new VisionObbDetection(
+            CenterX: x + barcode.Width / 2.0,
+            CenterY: y + barcode.Height / 2.0,
+            Width: barcode.Width,
+            Height: barcode.Height,
+            AngleDegrees: 0,
+            Score: 0.95f,
+            ClassId: VisionObbClassIds.Barcode);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(decoder);
+
+        string? decoded = obbDecoder.DecodeDetectedRegions(
+            frame,
+            [waybill, barcodeDetection],
+            _ => true,
+            useGuideRegionFallback: false);
+
+        Assert.Equal("YT123456789012", decoded);
+        Assert.Equal(barcodeDetection, obbDecoder.LastSelectedObbDetection);
+    }
+
+    [Fact]
+    public void MultiClassDecodeRejectsBarcodeOutsideWaybill()
+    {
+        using var barcode = CreateBarcodeMat("YT123456789012");
+        using var frame = new Mat(
+            new Size(960, 540),
+            MatType.CV_8UC3,
+            Scalar.White);
+        int x = 40;
+        int y = 40;
+        using (Mat target = frame.SubMat(
+                   new Rect(x, y, barcode.Width, barcode.Height)))
+        {
+            barcode.CopyTo(target);
+        }
+
+        var distantWaybill = new VisionObbDetection(
+            CenterX: 760,
+            CenterY: 430,
+            Width: 220,
+            Height: 120,
+            AngleDegrees: 0,
+            Score: 0.96f,
+            ClassId: VisionObbClassIds.Waybill);
+        var barcodeDetection = new VisionObbDetection(
+            CenterX: x + barcode.Width / 2.0,
+            CenterY: y + barcode.Height / 2.0,
+            Width: barcode.Width,
+            Height: barcode.Height,
+            AngleDegrees: 0,
+            Score: 0.95f,
+            ClassId: VisionObbClassIds.Barcode);
+        using var decoder = new CameraBarcodeFrameDecoder();
+        using var obbDecoder = new CameraBarcodeObbDecoder(decoder);
+
+        Assert.Null(obbDecoder.DecodeDetectedRegions(
+            frame,
+            [distantWaybill, barcodeDetection],
+            _ => true,
+            useGuideRegionFallback: false));
+    }
+
+    [Fact]
+    public void QuietZonePaddingExpandsTheLongAxisOnly()
+    {
+        using var image = new Mat(
+            new Size(100, 30),
+            MatType.CV_8UC3,
+            Scalar.Black);
+        using Mat padded = CameraBarcodeObbDecoder.AddQuietZone(
+            image,
+            CameraBarcodeObbDecoder.QuietZoneRatio);
+
+        Assert.Equal(116, padded.Width);
+        Assert.Equal(30, padded.Height);
+    }
+
+    [Fact]
     public void CachedObbDetectionsCanDecodeTheNextFrameWithoutAnotherModelRun()
     {
         using var barcode = CreateBarcodeMat("YT123456789012");

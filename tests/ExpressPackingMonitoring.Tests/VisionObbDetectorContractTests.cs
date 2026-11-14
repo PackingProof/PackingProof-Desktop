@@ -72,4 +72,22 @@ public sealed class VisionObbDetectorContractTests
         Assert.False(channelsFirst);
         Assert.Equal(VisionObbOutputLayout.Rtmdet, outputLayout);
     }
+
+    [Theory]
+    [InlineData(new[] { 1, 6, 8400 }, true, 0, 1)]
+    [InlineData(new[] { 1, 7, 8400 }, true, 0, 2)]
+    [InlineData(new[] { 1, 8, 8400 }, true, 1, 2)]
+    public void DetectorClassCountFollowsTheOutputContract(
+        int[] dimensions,
+        bool channelsFirst,
+        int outputLayoutValue,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            VisionObbDetector.ResolveClassCount(
+                dimensions,
+                channelsFirst,
+                (VisionObbOutputLayout)outputLayoutValue));
+    }
 }

@@ -263,6 +263,23 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void SuppressOverlapsKeepsContainedDifferentClasses()
+    {
+        var waybill = new VisionObbDetection(
+            100, 100, 200, 100, 0, 0.90f, VisionObbClassIds.Waybill);
+        var barcode = new VisionObbDetection(
+            100, 100, 100, 40, 0, 0.95f, VisionObbClassIds.Barcode);
+
+        List<VisionObbDetection> kept = VisionObbDetector.SuppressOverlaps(
+            [barcode, waybill],
+            VisionObbDetector.NmsThreshold);
+
+        Assert.Equal(2, kept.Count);
+        Assert.Contains(kept, detection => detection.ClassId == VisionObbClassIds.Waybill);
+        Assert.Contains(kept, detection => detection.ClassId == VisionObbClassIds.Barcode);
+    }
+
+    [Fact]
     public void SuppressOverlapsKeepsCrossingRotatedLabelsWithSimilarBounds()
     {
         var diagonal = new VisionObbDetection(100, 100, 200, 20, 45, 0.90f);

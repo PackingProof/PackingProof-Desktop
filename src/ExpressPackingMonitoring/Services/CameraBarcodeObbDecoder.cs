@@ -26,6 +26,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal const double CenterWeight = 0.20;
     internal const double DirectCropMaxResidualAngleDegrees = 10;
     internal const double CropPaddingRatio = 0.04;
+    internal const double QuietZoneRatio = 0.08;
     private const long ObbDiagnosticsMinIntervalMs = 1500;
     private const double SlowGuideLogThresholdMs = 50;
 
@@ -42,6 +43,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     private string _lastObbDiagnosticsSignature = "";
     private double _lastDetectionMs;
     private int _lastDetectionCount;
+    private int _lastDetectorClassCount = 1;
     private VisionObbDetectorTiming _lastDetectorTiming;
 
     internal CameraBarcodeObbDecoder(
@@ -110,6 +112,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         _loadedPath = null;
         _unavailableModelPath = null;
         _missingModelLogged = false;
+        _lastDetectorClassCount = 1;
         LastObbDetections = [];
         LastSelectedObbDetection = null;
     }
@@ -150,6 +153,17 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             useGuideRegionFallback: false);
         if (decoded != null)
             return decoded;
+
+        if (HasBarcodeClassSupport())
+        {
+            LastSelectedObbDetection = null;
+            LogStandaloneGuideDiagnostic(
+                frame,
+                "barcode_candidates_failed",
+                0,
+                decoded: false);
+            return null;
+        }
 
         // 检测框只代表候选区域，不能作为“画面里一定有码”的证据。
         // 所有 OBB 裁图都失败后必须回到原始取景区域，避免假框阻断正常 ZXing。
@@ -204,6 +218,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
                     Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                 _lastDetectorTiming = detector.LastTiming;
                 _lastDetectionCount = detected.Count;
+                _lastDetectorClassCount = detector.ClassCount;
                 LastObbDetections = detected
                     .Take(VisionObbModelPolicy.MaxDetections)
                     .Select(detection => TranslateDetection(
@@ -222,6 +237,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         {
             _lastDetectionMs = 0;
             _lastDetectionCount = 0;
+            _lastDetectorClassCount = 1;
             _lastDetectorTiming = default;
         }
         return (LastObbDetections, detector != null);
@@ -269,7 +285,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         var timingDiagnostics = new List<VisionObbTimingDiagnostic>();
         var fullFrame = new Rect(0, 0, frame.Width, frame.Height);
         int candidateIndex = 0;
-        foreach (VisionObbDetection detection in LastObbDetections)
+        foreach (VisionObbDetection detection in SelectDecodeCandidates())
         {
             int width = Math.Max(1, (int)Math.Round(detection.Width));
             int height = Math.Max(1, (int)Math.Round(detection.Height));
@@ -390,6 +406,26 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         return decoded;
     }
 
+    private IReadOnlyList<VisionObbDetection> SelectDecodeCandidates()
+    {
+        if (!HasBarcodeClassSupport())
+            return LastObbDetections;
+
+        VisionObbDetection[] waybills = LastObbDetections
+            .Where(detection => VisionObbClassPolicy.IsWaybill(detection))
+            .ToArray();
+        return LastObbDetections
+            .Where(detection => VisionObbClassPolicy.IsBarcode(detection))
+            .Where(barcode => waybills.Any(waybill =>
+                VisionObbGeometry.Contains(waybill, barcode)))
+            .ToArray();
+    }
+
+    private bool HasBarcodeClassSupport() =>
+        _lastDetectorClassCount > 1
+        || LastObbDetections.Any(detection =>
+            VisionObbClassPolicy.IsBarcode(detection));
+
     private void LogCandidateDiagnostics(
         IReadOnlyList<VisionObbCandidateDiagnostic> diagnostics,
         IReadOnlyList<VisionObbTimingDiagnostic> timingDiagnostics)
@@ -435,7 +471,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             frame.Width,
             frame.Height);
         double thresholdPercent =
-            CameraBarcodeDecodeSizePolicy.MinimumObbFrameDiagonalRatio * 100;
+            (_standardDecoder.QrCodeEnabledForDecoding
+                ? CameraBarcodeDecodeSizePolicy.QrCodeMinFrameDiagonalRatio
+                : CameraBarcodeDecodeSizePolicy.OneDimensionalMinFrameDiagonalRatio)
+            * 100;
         return new VisionObbCandidateDiagnostic(
             frame.Width,
             frame.Height,
@@ -523,9 +562,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         Func<string, bool>? isValid)
     {
         long patchStarted = Stopwatch.GetTimestamp();
-        using Mat patch = useDirectCrop
+        using Mat sourcePatch = useDirectCrop
             ? CreateAxisAlignedPatch(frame, detection)
             : CreateUprightPatch(frame, detection);
+        using Mat patch = AddQuietZone(sourcePatch, QuietZoneRatio);
         double patchMs = Stopwatch.GetElapsedTime(patchStarted).TotalMilliseconds;
         string patchMode = useDirectCrop ? "direct_crop" : "perspective";
         if (patch.Empty())
@@ -556,6 +596,44 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
             patchMode,
             patchMs,
             Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds);
+    }
+
+    internal static Mat AddQuietZone(Mat image, double ratio)
+    {
+        if (image == null || image.IsDisposed || image.Empty())
+            return new Mat();
+        if (ratio <= 0 || !double.IsFinite(ratio))
+            return image.Clone();
+
+        int padding = Math.Max(
+            1,
+            (int)Math.Ceiling(Math.Max(image.Width, image.Height) * ratio));
+        var padded = new Mat();
+        if (image.Width >= image.Height)
+        {
+            Cv2.CopyMakeBorder(
+                image,
+                padded,
+                0,
+                0,
+                padding,
+                padding,
+                BorderTypes.Constant,
+                Scalar.White);
+        }
+        else
+        {
+            Cv2.CopyMakeBorder(
+                image,
+                padded,
+                padding,
+                padding,
+                0,
+                0,
+                BorderTypes.Constant,
+                Scalar.White);
+        }
+        return padded;
     }
 
     internal static ObbBarcodeSelection SelectCandidate(

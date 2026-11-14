@@ -159,6 +159,38 @@ public sealed class VisionSmartZoomPolicyTests
     }
 
     [Fact]
+    public void SelectTarget_IgnoresBarcodeAndMapsDecodedBarcodeToContainingWaybill()
+    {
+        var waybill = new VisionObbDetection(
+            300, 200, 220, 140, 8, 0.95f, VisionObbClassIds.Waybill);
+        var otherWaybill = new VisionObbDetection(
+            570, 220, 180, 110, -5, 0.98f, VisionObbClassIds.Waybill);
+        var barcode = new VisionObbDetection(
+            295, 190, 120, 36, 8, 0.93f, VisionObbClassIds.Barcode);
+
+        VisionObbDetection? selected = VisionSmartZoomPolicy.SelectTarget(
+            [waybill, otherWaybill, barcode],
+            barcode,
+            frameWidth: 800,
+            frameHeight: 600);
+
+        Assert.Equal(waybill, selected);
+    }
+
+    [Fact]
+    public void SelectTarget_BarcodeAloneIsNeverAQuadZoomTarget()
+    {
+        var barcode = new VisionObbDetection(
+            320, 240, 160, 50, 5, 0.95f, VisionObbClassIds.Barcode);
+
+        Assert.Null(VisionSmartZoomPolicy.SelectTarget(
+            [barcode],
+            decodedSelection: null,
+            frameWidth: 640,
+            frameHeight: 480));
+    }
+
+    [Fact]
     public void TargetRectKeepsFrameAspectAndEnclosesRotatedLabelWithPadding()
     {
         var selected = new VisionObbDetection(

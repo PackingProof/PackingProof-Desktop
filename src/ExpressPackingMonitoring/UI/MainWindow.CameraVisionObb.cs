@@ -26,6 +26,8 @@ public partial class MainWindow
     private static readonly Brush VisionObbCandidateFill = new SolidColorBrush(Color.FromArgb(64, 245, 158, 11));
     private static readonly Brush VisionObbConfirmedStroke = new SolidColorBrush(Color.FromRgb(34, 197, 94));
     private static readonly Brush VisionObbConfirmedFill = new SolidColorBrush(Color.FromArgb(64, 34, 197, 94));
+    private static readonly Brush VisionBarcodeStroke = new SolidColorBrush(Color.FromRgb(0, 200, 83));
+    private static readonly Brush VisionBarcodeFill = new SolidColorBrush(Color.FromArgb(24, 0, 200, 83));
     private readonly List<AnimatedVisionObbBox> _animatedVisionObbBoxes = [];
     private bool _visionObbAnimationRunning;
     private int _nextVisionObbTrackId = 1;
@@ -36,6 +38,7 @@ public partial class MainWindow
     private sealed class AnimatedVisionObbBox
     {
         internal int Id { get; init; }
+        internal int ClassId { get; set; }
         internal required Rectangle Shape { get; init; }
         internal required RotateTransform Rotation { get; init; }
         internal required Point[] StartPoints { get; set; }
@@ -119,6 +122,9 @@ public partial class MainWindow
         Point[][] targets = vm.CameraVisionObbDetections
             .Select(detection => BuildObbDisplayPoints(detection, origin, scale))
             .ToArray();
+        int[] targetClassIds = vm.CameraVisionObbDetections
+            .Select(detection => detection.ClassId)
+            .ToArray();
         int selectedTargetIndex = -1;
         if (vm.CameraVisionSelectedObbDetection is { } selected)
         {
@@ -133,6 +139,7 @@ public partial class MainWindow
         }
         SynchronizeAnimatedVisionObbBoxes(
             targets,
+            targetClassIds,
             selectedTargetIndex,
             _visionObbAnimationDurationMs);
         UpdateVisionObbBoxColors(vm);
@@ -140,6 +147,7 @@ public partial class MainWindow
 
     private void SynchronizeAnimatedVisionObbBoxes(
         IReadOnlyList<Point[]> targets,
+        IReadOnlyList<int> targetClassIds,
         int selectedTargetIndex,
         double animationDurationMs)
     {
@@ -182,6 +190,7 @@ public partial class MainWindow
             UpdateTrackFromTarget(
                 match.Track,
                 targets[match.TargetIndex],
+                targetClassIds[match.TargetIndex],
                 nowMs,
                 animationDurationMs);
         }
@@ -192,6 +201,7 @@ public partial class MainWindow
                 continue;
             targetTracks[targetIndex] = CreateTrack(
                 targets[targetIndex],
+                targetClassIds[targetIndex],
                 nowMs,
                 animationDurationMs);
         }
@@ -224,6 +234,7 @@ public partial class MainWindow
     private void UpdateTrackFromTarget(
         AnimatedVisionObbBox track,
         Point[] target,
+        int classId,
         long nowMs,
         double animationDurationMs)
     {
@@ -241,6 +252,7 @@ public partial class MainWindow
 
         track.LastCenter = targetCenter;
         track.LastSeenMs = nowMs;
+        track.ClassId = classId;
         track.Hidden = false;
         track.Shape.Visibility = Visibility.Visible;
         track.DurationMs = animationDurationMs;
@@ -249,6 +261,7 @@ public partial class MainWindow
 
     private AnimatedVisionObbBox CreateTrack(
         Point[] target,
+        int classId,
         long nowMs,
         double animationDurationMs)
     {
@@ -274,6 +287,7 @@ public partial class MainWindow
         var created = new AnimatedVisionObbBox
         {
             Id = _nextVisionObbTrackId++,
+            ClassId = classId,
             Shape = rectangle,
             Rotation = rotation,
             StartPoints = start,
@@ -374,6 +388,12 @@ public partial class MainWindow
     {
         foreach (AnimatedVisionObbBox box in _animatedVisionObbBoxes)
         {
+            if (box.ClassId == VisionObbClassIds.Barcode)
+            {
+                box.Shape.Stroke = VisionBarcodeStroke;
+                box.Shape.Fill = VisionBarcodeFill;
+                continue;
+            }
             bool selected = ReferenceEquals(box, _selectedVisionObbTrack);
             VisionObbVisualState state = ResolveVisionObbBoxVisualState(
                 vm.IsCameraBarcodeCandidate,
