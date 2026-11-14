@@ -866,6 +866,10 @@ namespace ExpressPackingMonitoring.ViewModels
                             RecordingFramePipelineStage.PreRecordEnqueue,
                             Volatile.Read(ref _latestFrameSequence));
                     }
+                    // 同码停录在录制期间暂停预录采样。回灌结束后重新起统计窗口，
+                    // 不能把录制时长算进预录帧率，否则会被误报成采集掉帧。
+                    if (!ShouldCaptureEventRecordingBufferFrame())
+                        ResetPreRecordCaptureStatsWindow();
                 }
                 StartRecordingFrameProgressWatchdog(_writeCts.Token, _recordingStartTimestamp);
                 PublishPreRecordBufferStatus(force: true);
@@ -1329,6 +1333,16 @@ namespace ExpressPackingMonitoring.ViewModels
             _preRecordStatsQuietWindows = 0;
         }
 
+        private void ResetPreRecordCaptureStatsWindow()
+        {
+            _preRecordStatsFrames = 0;
+            _preRecordStatsMissingOverlayFrames = 0;
+            _preRecordStatsQuietWindows = 0;
+            _preRecordStatsWindowStartTicks = 0;
+            _preRecordStatsLastFrameTicks = 0;
+            _preRecordStatsMaxGapMs = 0;
+        }
+
         /// <summary>
         /// 把预录帧逐帧贴副画面、画水印、送进录像队列。
         ///
@@ -1432,11 +1446,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 _preRecordRollingTransitionPending = false;
                 _preRecordProgressStartTicks = 0;
                 // 缓冲重新攒，诊断计数也跟着归零，后面的日志才对得上这段缓冲。
-                _preRecordStatsFrames = 0;
-                _preRecordStatsMissingOverlayFrames = 0;
-                _preRecordStatsQuietWindows = 0;
-                _preRecordStatsWindowStartTicks = 0;
-                _preRecordStatsMaxGapMs = 0;
+                ResetPreRecordCaptureStatsWindow();
             }
             Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
             {
