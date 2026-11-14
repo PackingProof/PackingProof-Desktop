@@ -565,10 +565,10 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         long patchStarted = Stopwatch.GetTimestamp();
         using Mat sourcePatch = useDirectCrop
             ? CreateAxisAlignedPatch(frame, detection)
-            : CreateUprightPatch(frame, detection);
+            : CreateRotatedPatch(frame, detection);
         using Mat patch = AddQuietZone(sourcePatch, QuietZoneRatio);
         double patchMs = Stopwatch.GetElapsedTime(patchStarted).TotalMilliseconds;
-        string patchMode = useDirectCrop ? "direct_crop" : "perspective";
+        string patchMode = useDirectCrop ? "direct_crop" : "affine_rotate";
         if (patch.Empty())
             return new ObbPatchDecodeAttempt(null, patchMode, patchMs, 0);
 
@@ -872,7 +872,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         return new Mat(frame, new Rect(left, top, right - left, bottom - top));
     }
 
-    internal static Mat CreateUprightPatch(Mat frame, in VisionObbDetection detection)
+    internal static Mat CreateRotatedPatch(Mat frame, in VisionObbDetection detection)
     {
         int width = Math.Max(1, (int)Math.Round(detection.Width));
         int height = Math.Max(1, (int)Math.Round(detection.Height));
@@ -882,18 +882,19 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
         int outputWidth = Math.Clamp(width + padding * 2, 8, 4096);
         int outputHeight = Math.Clamp(height + padding * 2, 8, 4096);
 
-        Point2f[] source = VisionObbGeometry.ToCorners(detection);
+        Point2f[] source = VisionObbGeometry.ToCorners(detection)
+            .Take(3)
+            .ToArray();
         Point2f[] destination =
         [
             new(padding, padding),
             new(padding + width, padding),
-            new(padding + width, padding + height),
-            new(padding, padding + height)
+            new(padding + width, padding + height)
         ];
 
-        using Mat transform = Cv2.GetPerspectiveTransform(source, destination);
+        using Mat transform = Cv2.GetAffineTransform(source, destination);
         var patch = new Mat();
-        Cv2.WarpPerspective(
+        Cv2.WarpAffine(
             frame,
             patch,
             transform,

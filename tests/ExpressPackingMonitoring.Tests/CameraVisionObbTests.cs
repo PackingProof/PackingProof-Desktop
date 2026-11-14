@@ -314,7 +314,7 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
             MatType.CV_8UC3,
             Scalar.Black);
         var detection = new VisionObbDetection(120, 120, 100, 30, 25, 0.95f);
-        using Mat patch = CameraBarcodeObbDecoder.CreateUprightPatch(frame, detection);
+        using Mat patch = CameraBarcodeObbDecoder.CreateRotatedPatch(frame, detection);
 
         Assert.InRange(patch.Width, 108, 116);
         Assert.InRange(patch.Height, 38, 46);

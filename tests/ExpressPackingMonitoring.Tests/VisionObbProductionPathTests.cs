@@ -312,12 +312,12 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void LargeAngleUprightCropDecodesRotatedBarcode()
+    public void LargeAngleRotatedCropDecodesBarcode()
     {
         const double angle = 20;
         using var frame = CreateRotatedBarcodeFrame(angle);
         var detection = CreateDetection(angle);
-        using Mat patch = CameraBarcodeObbDecoder.CreateUprightPatch(
+        using Mat patch = CameraBarcodeObbDecoder.CreateRotatedPatch(
             frame,
             detection);
         using var decoder = new CameraBarcodeFrameDecoder();
