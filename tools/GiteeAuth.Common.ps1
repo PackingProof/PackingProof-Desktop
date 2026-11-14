@@ -1,5 +1,5 @@
-# Gitee 发布认证的令牌来源：优先使用仓库根目录 .env 的 GITEE_RELEASE_TOKEN，
-# 未配置时回退 GITEE_TOKEN（兼容既有发布环境）。
+# Gitee 发布认证使用独立 Release Bot：优先环境变量和仓库外 bot token 文件，
+# 再回退 .env 的发布令牌及既有 CLI 登录态。
 #
 # 只把它注入当前进程环境供 gitee CLI 使用，不打印、不写盘、不提交。
 # gitee CLI 优先使用 GITEE_TOKEN，其次才用它自己保存的登录态；登录态按身份字符串
@@ -9,12 +9,28 @@
 function Import-GiteeTokenFromEnvFile {
     param([Parameter(Mandatory = $true)] [string]$RepoRoot)
 
-    foreach ($name in @("GITEE_RELEASE_TOKEN", "GITEE_TOKEN")) {
-        $value = [Environment]::GetEnvironmentVariable($name)
-        if (-not [string]::IsNullOrWhiteSpace($value)) {
-            $env:GITEE_TOKEN = $value.Trim()
-            return "环境变量 $name"
+    $releaseToken = [Environment]::GetEnvironmentVariable("GITEE_RELEASE_TOKEN")
+    if (-not [string]::IsNullOrWhiteSpace($releaseToken)) {
+        $env:GITEE_TOKEN = $releaseToken.Trim()
+        return "环境变量 GITEE_RELEASE_TOKEN"
+    }
+
+    $botTokenPath = $env:PACKINGPROOF_GITEE_RELEASE_BOT_TOKEN_FILE
+    if ([string]::IsNullOrWhiteSpace($botTokenPath)) {
+        $botTokenPath = Join-Path $env:USERPROFILE ".config\PackingProof\gitee-release-bot\token.txt"
+    }
+    if (Test-Path -LiteralPath $botTokenPath -PathType Leaf) {
+        $botToken = ([IO.File]::ReadAllText($botTokenPath, [Text.Encoding]::UTF8)).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($botToken)) {
+            $env:GITEE_TOKEN = $botToken
+            return "Gitee Release Bot token file"
         }
+    }
+
+    $legacyEnvironmentToken = [Environment]::GetEnvironmentVariable("GITEE_TOKEN")
+    if (-not [string]::IsNullOrWhiteSpace($legacyEnvironmentToken)) {
+        $env:GITEE_TOKEN = $legacyEnvironmentToken.Trim()
+        return "环境变量 GITEE_TOKEN"
     }
 
     $envPath = Join-Path $RepoRoot ".env"
@@ -31,6 +47,15 @@ function Import-GiteeTokenFromEnvFile {
                     return ".env $name"
                 }
             }
+        }
+    }
+
+    $legacyKeyFile = Join-Path $env:USERPROFILE ".gitee\apikey.txt"
+    if (Test-Path -LiteralPath $legacyKeyFile -PathType Leaf) {
+        $token = ([IO.File]::ReadAllText($legacyKeyFile, [Text.Encoding]::UTF8)).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($token)) {
+            $env:GITEE_TOKEN = $token
+            return "legacy Gitee key file"
         }
     }
 

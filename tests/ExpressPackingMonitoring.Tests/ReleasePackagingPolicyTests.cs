@@ -999,8 +999,13 @@ public sealed class ReleasePackagingPolicyTests
             Encoding.UTF8);
 
         Assert.Contains("\"GITHUB_RELEASE_TOKEN\"", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("packingproof-release-bot", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("private_key_file", releaseAuth, StringComparison.Ordinal);
+        Assert.Contains("access_tokens", releaseAuth, StringComparison.Ordinal);
         Assert.Contains("Test-GitHubReleaseAuthentication", releaseAuth, StringComparison.Ordinal);
-        Assert.Contains("\"GITEE_RELEASE_TOKEN\", \"GITEE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("gitee-release-bot", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("\"GITEE_RELEASE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
+        Assert.Contains("\"GITEE_TOKEN\"", giteeAuth, StringComparison.Ordinal);
         Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", prereqs, StringComparison.Ordinal);
         Assert.DoesNotContain("gh auth status", prereqs, StringComparison.Ordinal);
         Assert.Contains("Import-GitHubReleaseTokenFromEnvFile", publish, StringComparison.Ordinal);
