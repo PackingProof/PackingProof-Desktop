@@ -28,6 +28,7 @@ namespace ExpressPackingMonitoring.ViewModels
                 return;
 
             _smartZoomObbTarget = ResolveSmartZoomTarget();
+            _zoomStartLogged = false;
             SetZoomPhase(Config.ZoomDelaySeconds > 0 ? ZoomPhase.Waiting : ZoomPhase.ZoomingIn);
             Debug.WriteLine($"[Zoom] 触发放大: ID={CurrentOrderId}, Delay={Config.ZoomDelaySeconds}s");
         }
@@ -64,6 +65,8 @@ namespace ExpressPackingMonitoring.ViewModels
             bool wasZooming = IsZoomingActive;
             _zoomPhase = phase;
             _zoomPhaseStartTime = DateTime.Now;
+            if (phase != ZoomPhase.ZoomingIn)
+                _zoomStartLogged = false;
             if (wasZooming == IsZoomingActive)
                 return;
 
@@ -133,12 +136,13 @@ namespace ExpressPackingMonitoring.ViewModels
                 currentFrame.Width,
                 currentFrame.Height,
                 zoomBox);
-            if (_zoomPhase == ZoomPhase.ZoomingIn)
+            if (_zoomPhase == ZoomPhase.ZoomingIn && !_zoomStartLogged)
             {
                 RuntimeLog.Info(
                     "Zoom",
                     $"Applying {(usingSmartTarget ? "OBB" : "guide")} zoom scale={zoomScale:F2}, "
                         + $"box=({zoomBox.X:F1},{zoomBox.Y:F1},{zoomBox.Width:F1},{zoomBox.Height:F1})");
+                _zoomStartLogged = true;
             }
 
             Mat processedFrame = currentFrame;

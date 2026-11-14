@@ -379,6 +379,7 @@ namespace ExpressPackingMonitoring.ViewModels
         private enum ZoomPhase { None, Waiting, ZoomingIn, Holding, ZoomingOut }
         private ZoomPhase _zoomPhase = ZoomPhase.None;
         private DateTime _zoomPhaseStartTime;
+        private bool _zoomStartLogged;
         /// <summary>
         /// 当前放大特写时画中画的淡出系数（0~100）。处理循环按缩放阶段逐帧更新，
         /// 预录回灌那条线程也要读，所以用 volatile int 保证读到的是完整的一份。

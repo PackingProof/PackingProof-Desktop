@@ -186,6 +186,24 @@ public sealed class ZoomGuideEditingTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ZoomStartTimingIsLoggedOncePerTransition()
+    {
+        string viewModel = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.cs"));
+        string zoom = ReadProjectFile(Path.Combine("ViewModels", "MainViewModel.Zoom.cs"));
+
+        Assert.Contains("private bool _zoomStartLogged;", viewModel, StringComparison.Ordinal);
+        Assert.Contains("_zoomStartLogged = false;", zoom, StringComparison.Ordinal);
+        int guard = zoom.IndexOf(
+            "if (_zoomPhase == ZoomPhase.ZoomingIn && !_zoomStartLogged)",
+            StringComparison.Ordinal);
+        Assert.True(guard > 0, "未找到放大开始日志的一次性守卫");
+        int log = zoom.IndexOf("RuntimeLog.Info(", guard, StringComparison.Ordinal);
+        int logged = zoom.IndexOf("_zoomStartLogged = true;", guard, StringComparison.Ordinal);
+        Assert.True(log > guard, "放大开始日志不在一次性守卫内");
+        Assert.True(logged > log, "放大开始日志写入后没有关闭一次性守卫");
+    }
+
     private static int CountOccurrences(string source, string value)
     {
         int count = 0;
