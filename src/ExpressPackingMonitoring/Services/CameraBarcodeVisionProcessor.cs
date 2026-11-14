@@ -9,16 +9,11 @@ namespace ExpressPackingMonitoring.Services;
 /// </summary>
 internal sealed class CameraBarcodeVisionProcessor : IDisposable
 {
-    private static readonly TimeSpan QuadrilateralFallbackInterval =
-        TimeSpan.FromMilliseconds(300);
-
     private readonly CameraBarcodeObbDecoder _decoder;
-    private readonly CameraBarcodeQuadrilateralDecoder _quadrilateralDecoder;
     private readonly Func<bool> _cameraBarcodeDecodingEnabledProvider;
     private readonly Func<bool> _visionObbDecodingEnabledProvider;
     private readonly object _gate = new();
     private CameraBarcodeGeometry? _lastDecodedGeometry;
-    private DateTimeOffset _lastQuadrilateralAttemptAt;
 
     internal CameraBarcodeVisionProcessor(
         CameraBarcodeFrameDecoder standardDecoder,
@@ -32,7 +27,6 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
             visionObbProvider,
             visionObbDecodingEnabledProvider,
             detectorFactory);
-        _quadrilateralDecoder = new CameraBarcodeQuadrilateralDecoder(standardDecoder);
         _cameraBarcodeDecodingEnabledProvider =
             cameraBarcodeDecodingEnabledProvider ?? (() => true);
         _visionObbDecodingEnabledProvider =
@@ -100,21 +94,9 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
                 return decoded;
             }
 
-            if (!ShouldRunQuadrilateralFallback(enhancedVisionEnabled))
-                return null;
-
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            if (now - _lastQuadrilateralAttemptAt < QuadrilateralFallbackInterval)
-                return null;
-            _lastQuadrilateralAttemptAt = now;
-            decoded = _quadrilateralDecoder.Decode(frame, isValid, geometry);
-            _lastDecodedGeometry = _quadrilateralDecoder.LastGeometry;
-            return decoded;
+            return null;
         }
     }
-
-    internal static bool ShouldRunQuadrilateralFallback(bool enhancedVisionEnabled) =>
-        !enhancedVisionEnabled;
 
     internal void ReleaseDetector()
     {
@@ -136,7 +118,6 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
 
     public void Dispose()
     {
-        _quadrilateralDecoder.Dispose();
         _decoder.Dispose();
     }
 }

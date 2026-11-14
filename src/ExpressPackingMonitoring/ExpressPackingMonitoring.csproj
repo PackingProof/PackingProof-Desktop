@@ -162,7 +162,6 @@
     <Compile Include="Services\CameraBarcodeFastDecoder.cs" />
     <Compile Include="Services\CameraBarcodeDecodeSizePolicy.cs" />
     <Compile Include="Services\CameraBarcodeVisionProcessor.cs" />
-    <Compile Include="Services\CameraBarcodeQuadrilateralDecoder.cs" />
     <Compile Include="Services\CoalescingBackgroundRefresh.cs" />
     <Compile Include="Services\VisionObbPerformanceBenchmark.cs" />
     <Compile Include="Services\CameraBarcodeObbDecoder.cs" />

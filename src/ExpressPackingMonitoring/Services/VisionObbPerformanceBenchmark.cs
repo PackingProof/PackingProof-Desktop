@@ -136,52 +136,38 @@ internal static class VisionObbPerformanceBenchmark
         using var qrDecoder = new CameraBarcodeFrameDecoder(() => true);
         using var noObbDecoder = new CameraBarcodeFrameDecoder();
         using var noObbQrDecoder = new CameraBarcodeFrameDecoder(() => true);
-        using var noObbQuadrilateralDecoder =
-            new CameraBarcodeQuadrilateralDecoder(noObbDecoder);
-        using var noObbQrQuadrilateralDecoder =
-            new CameraBarcodeQuadrilateralDecoder(noObbQrDecoder);
 
         LatencyMeasurement[] noObbMeasurements =
         [
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 blankFrame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 singleFrame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 doubleFrame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 sixFrame),
             MeasureNoObbProduction(
                 noObbQrDecoder,
-                noObbQrQuadrilateralDecoder,
                 qrFrame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 tiltedFrame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 falsePositive1Frame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 falsePositive3Frame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 falsePositive6Frame),
             MeasureNoObbProduction(
                 noObbDecoder,
-                noObbQuadrilateralDecoder,
                 bareJdFrame)
         ];
         LatencyMeasurement noObb = noObbMeasurements
@@ -278,21 +264,13 @@ internal static class VisionObbPerformanceBenchmark
 
     private static LatencyMeasurement MeasureNoObbProduction(
         CameraBarcodeFrameDecoder decoder,
-        CameraBarcodeQuadrilateralDecoder quadrilateralDecoder,
         Mat frame) =>
         Measure(() =>
         {
-            string? decoded = decoder.DecodeGuideRegion(
+            decoder.DecodeGuideRegion(
                 frame,
                 _ => true,
                 CameraBarcodeGuideGeometry.Default);
-            if (decoded == null)
-            {
-                quadrilateralDecoder.Decode(
-                    frame,
-                    _ => true,
-                    CameraBarcodeGuideGeometry.Default);
-            }
         });
 
     internal static bool ShouldRecommend(

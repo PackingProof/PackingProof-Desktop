@@ -19,19 +19,6 @@ namespace ExpressPackingMonitoring.Tests;
 [Collection("WPF render tests")]
 public sealed class CameraVisionGuideRoiTests
 {
-    [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    public void QuadrilateralFallbackOnlyRunsWhenEnhancedVisionIsOff(
-        bool enhancedVisionEnabled,
-        bool expected)
-    {
-        Assert.Equal(
-            expected,
-            CameraBarcodeVisionProcessor.ShouldRunQuadrilateralFallback(
-                enhancedVisionEnabled));
-    }
-
 #if VISION_OBB
     [Fact]
     public void RealModelSmoke_UsesOnlyTheGuideCrop()
