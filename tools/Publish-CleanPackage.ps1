@@ -1832,17 +1832,23 @@ else {
     $storeProductDir = Join-Path $storeOutputRoot ("PackingProof_Store_v" + $normalizedVersion)
     $storePackagePath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".msix")
     $storeSymbolPath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".appxsym")
+    $storeUploadPath = Join-Path $storeProductDir ("PackingProof_Store_v" + $normalizedVersion + ".msixupload")
     if (-not (Test-Path -LiteralPath $storePackagePath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package $storePackagePath"
     }
     if (-not (Test-Path -LiteralPath $storeSymbolPath -PathType Leaf)) {
         throw "Store symbol validation failed: missing package $storeSymbolPath"
     }
+    if (-not (Test-Path -LiteralPath $storeUploadPath -PathType Leaf)) {
+        throw "Store upload validation failed: missing package $storeUploadPath"
+    }
 
     $storePackageHash = (Get-FileHash -LiteralPath $storePackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $storePackageSize = (Get-Item -LiteralPath $storePackagePath).Length
     $storeSymbolHash = (Get-FileHash -LiteralPath $storeSymbolPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $storeSymbolSize = (Get-Item -LiteralPath $storeSymbolPath).Length
+    $storeUploadHash = (Get-FileHash -LiteralPath $storeUploadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $storeUploadSize = (Get-Item -LiteralPath $storeUploadPath).Length
     $storeMarkerPath = Join-Path $storeProductDir "payload\PackingProof.PackageEdition.json"
     if (-not (Test-Path -LiteralPath $storeMarkerPath -PathType Leaf)) {
         throw "Store MSIX validation failed: missing package edition marker $storeMarkerPath"
@@ -1889,6 +1895,26 @@ else {
     finally {
         $storeSymbolArchive.Dispose()
     }
+    $storeUploadArchive = [System.IO.Compression.ZipFile]::OpenRead($storeUploadPath)
+    try {
+        $uploadExpected = @{
+            ([System.IO.Path]::GetFileName($storePackagePath)) = $storePackageSize
+            ([System.IO.Path]::GetFileName($storeSymbolPath)) = $storeSymbolSize
+        }
+        $uploadEntries = @($storeUploadArchive.Entries | Where-Object { -not $_.FullName.EndsWith("/") })
+        if ($uploadEntries.Count -ne $uploadExpected.Count) {
+            throw "Store msixupload validation failed: unexpected entry count"
+        }
+        foreach ($uploadEntry in $uploadEntries) {
+            if (-not $uploadExpected.ContainsKey($uploadEntry.FullName) -or
+                [long]$uploadEntry.Length -ne [long]$uploadExpected[$uploadEntry.FullName]) {
+                throw "Store msixupload validation failed: unexpected entry $($uploadEntry.FullName)"
+            }
+        }
+    }
+    finally {
+        $storeUploadArchive.Dispose()
+    }
 
     $storeManifest = [ordered]@{
         app_release_version = $normalizedVersion
@@ -1901,6 +1927,9 @@ else {
         symbol_file = Split-Path -Leaf $storeSymbolPath
         symbol_sha256 = $storeSymbolHash
         symbol_size = $storeSymbolSize
+        upload_file = Split-Path -Leaf $storeUploadPath
+        upload_sha256 = $storeUploadHash
+        upload_size = $storeUploadSize
         app_payload_sha256 = $appPayloadFingerprint
         app_payload_file_count = $appPayloadManifestFiles.Count
         signed = $true
@@ -2096,7 +2125,13 @@ if (-not [string]::Equals($setupSignatureStatus, "Valid", [System.StringComparis
 }
 if (-not [string]::IsNullOrWhiteSpace($storePackagePath)) {
     $releaseInfoLines += ""
-    $releaseInfoLines += "Microsoft Store MSIX (submit via Partner Center; do not upload to Git Release):"
+    $releaseInfoLines += "Microsoft Store upload package (submit via Partner Center; do not upload to Git Release):"
+    $releaseInfoLines += $storeUploadPath
+    $releaseInfoLines += "Store upload package SHA256:"
+    $releaseInfoLines += $storeUploadHash
+    $releaseInfoLines += "Store upload package size: $storeUploadSize bytes"
+    $releaseInfoLines += ""
+    $releaseInfoLines += "Store MSIX (source payload, do not upload separately):"
     $releaseInfoLines += $storePackagePath
     $releaseInfoLines += "Store package identity: $storePackageIdentity"
     $releaseInfoLines += "Store package version: $storePackageVersion"
@@ -2200,7 +2235,9 @@ Write-Host "Commit checklist created: $($commitChecklist.Path)"
 Write-Host "Release notes: $releaseNotesPath"
 if (-not [string]::IsNullOrWhiteSpace($storePackagePath)) {
     Write-Host "Microsoft Store MSIX created: $storePackagePath"
+    Write-Host "Microsoft Store upload package created: $storeUploadPath"
     Write-Host "Store package SHA256: $storePackageHash"
+    Write-Host "Store upload package SHA256: $storeUploadHash"
 }
 else {
     Write-Host "Microsoft Store MSIX skipped (local verification only)"
@@ -2212,7 +2249,7 @@ Write-Host "  2. 逐条核对 $(Split-Path -Leaf $commitChecklist.Path)：$($com
 Write-Host "  3. 填写 $(Split-Path -Leaf $updateJsonPath) 的 title 与 notes（面向启动器显示的简洁摘要）"
 Write-Host "  4. 运行 pwsh -NoProfile -File tools\Publish-Releases.ps1 -ValidateOnly 自检后再正式发布"
 if (-not [string]::IsNullOrWhiteSpace($storePackagePath)) {
-    Write-Host "  5. 将 Microsoft Store MSIX 上传到 Partner Center，并与 GitHub/Gitee Release 同一版本一起提交"
+    Write-Host "  5. 将 Microsoft Store msixupload 上传到 Partner Center，并与 GitHub/Gitee Release 同一版本一起提交"
 }
 Write-Host "Root items:"
 Get-ChildItem -LiteralPath $outputFullPath | Sort-Object PSIsContainer, Name | Select-Object Name, Mode, Length | Format-Table -AutoSize

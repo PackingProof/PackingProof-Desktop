@@ -47,14 +47,14 @@
 - 自包含发布形态核对：`app\` 有 `coreclr.dll`/`hostfxr.dll`、包根没有 `runtime\`、`app\runtime-seed\layout.json` 与布局清单逐文件一致；`pwsh -NoProfile -File tools\Test-RuntimeLayoutSeed.ps1` 全绿（含"框架依赖的探针带 DOTNET_ROOT 从落成的布局加载运行时"）
 - 升级时序字段核对：带 `root=runtime` 载荷的补丁必须声明 `required_launcher_protocol >= 2`；`launcher_package.required_app_protocol` 只在"新启动器需要更新的主程序"时才填
 - 清理列表核对：包内 `patch_manifest.json` 的 `deletes` 与 `tools\app-patch-retire-list.json`（累计退役清单）一致、不含白名单（`tts_cache` / `ffmpeg.exe` / `libvlc`）、不含主程序核心文件；**退役清单若有变化要随发布一起提交**；用 `pwsh -NoProfile -File tools\Test-UpgradeFromLegacyLauncher.ps1 -LegacyLauncherPath <新启动器> -PackageDir <产物目录> -SimulateSecondInstance` 验证"装完才启动 + 12 个旧文件确实清掉"
-- 发布流程顺序：改动经 PR 合并到主干并通过本地 CI → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验（含 Store MSIX）→ 推送标签到 GitHub 与 Gitee → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 将同版本 Store MSIX 提交 Partner Center。Gitee 安装包按完整 Setup 是否严格小于 100MB 分流：小于时直接上传完整 Setup，达到时才生成并上传 no-runtime 安装向导；禁止普通 `main` push 触发发布包工作流
-- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、《问题修复》只写上一正式版就存在的缺陷（本版自己引入又修掉的不写）、下载与更新说明与实际上传资产一致（含 Gitee 实际使用的完整 Setup 或 no-runtime 安装向导、Microsoft Store MSIX、macOS DMG，且不写已不存在的免安装整包）、且与 `update_vX.Y.Z.json` 的标题和说明同步
+- 发布流程顺序：改动经 PR 合并到主干并通过本地 CI → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 以标签身份完成一次 Release 构建、全量测试、自动验收和发布包校验（含 Store `.msixupload`）→ 推送标签到 GitHub 与 Gitee → 创建并同步 Release（含 Mac 侧上传的 macOS DMG）→ 将同版本 Store `.msixupload` 提交 Partner Center。Gitee 安装包按完整 Setup 是否严格小于 100MB 分流：小于时直接上传完整 Setup，达到时才生成并上传 no-runtime 安装向导；禁止普通 `main` push 触发发布包工作流
+- 发布笔记按 `RELEASE_NOTES_TEMPLATE.md` 填写：更新内容三类齐全、《问题修复》只写上一正式版就存在的缺陷（本版自己引入又修掉的不写）、下载与更新说明与实际上传资产一致（含 Gitee 实际使用的完整 Setup 或 no-runtime 安装向导、Microsoft Store `.msixupload`、macOS DMG，且不写已不存在的免安装整包）、且与 `update_vX.Y.Z.json` 的标题和说明同步
 - 预览版本必须在 GitHub 与 Gitee 上将 Release 标记为 prerelease，发布笔记正文首行注明“预览版”；正式版本不得标记 prerelease
 - 更新日志范围：预览版只写本预览版增量内容；正式版必须汇总上一个正式版以来（含中间所有预览版）的全部更新内容
 - 生成 AppPatch 前必须验证固定基线 FFmpeg 的大小和 SHA256 位于兼容白名单，并确认当前保留的每个 LibVLC 必需文件在基线中存在且哈希一致；基线多出的旧 VLC 插件可以保留
 - 兼容基线生成的 AppPatch 不得包含 `tools/ffmpeg.exe`、任何 `libvlc/` 文件或 VLC 删除记录；无法证明兼容时不得生成大型补丁，更新 JSON 必须关闭 Patch、清空补丁信息并引导用户下载完整版本
 - AppPatch 包含 `patch_manifest.json`、`files/`、`双击更新主程序.cmd`、`apply_app_patch.ps1` 和主程序更新说明，不再生成或嵌套 ManualUpdate 包
-- Store MSIX 必须与 Setup 来自同一次 `app\` 负载；核对 `package\store\PackingProof_Store_v<X.Y.Z>\PackingProof_Store_v<X.Y.Z>.msix`、`store_package_v<X.Y.Z>.json` 的身份/版本/SHA256、`app_payload_sha256` 与本次 Setup `app\` 一致，以及包内 `PackingProof.PackageEdition.json`、AppxManifest 身份/版本和“无 AppPatch/LauncherPatch 脚本”守卫；同时核对 `package_integrity_v<X.Y.Z>.json` 的 Setup SHA256/大小和 exact `app\` 指纹
+- Store MSIX 必须与 Setup 来自同一次 `app\` 负载；核对 `package\store\PackingProof_Store_v<X.Y.Z>\PackingProof_Store_v<X.Y.Z>.msixupload` 只包含同目录的 MSIX 与 `.appxsym`，并核对 `store_package_v<X.Y.Z>.json` 的身份/版本/SHA256、`app_payload_sha256` 与本次 Setup `app\` 一致，以及包内 `PackingProof.PackageEdition.json`、AppxManifest 身份/版本和“无 AppPatch/LauncherPatch 脚本”守卫；同时核对 `package_integrity_v<X.Y.Z>.json` 的 Setup SHA256/大小和 exact `app\` 指纹
 - 使用 Git 比较当前启动器逻辑输入与 `tools/launcher-baseline.json` 对应的 `launcher-vX.Y.Z` 组件标签；组件标签只推送普通 Git 标签，不创建独立 Release
 - 启动器未变化时不执行 Native AOT 重编译、不生成或上传本版本 LauncherPatch；完整包根启动器必须与锁定基线 EXE 的大小和 SHA256 完全一致
 - 启动器变化时先运行 `tools/Publish-LauncherBaseline.ps1` 建立不可变基线；LauncherPatch 只包含根启动器、`launcher_patch_manifest.json`、`双击更新启动器.cmd`、`apply_launcher_patch.ps1` 和启动器更新说明

@@ -237,7 +237,7 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 
-      - name: 上传 Microsoft Store MSIX
+      - name: 上传 Microsoft Store 提交包
         if: ${{ env.STORE_PACKAGE_READY == '1' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -245,6 +245,7 @@ jobs:
           path: |
             package/store/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*.msix
             package/store/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*.appxsym
+            package/store/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*/PackingProof_Store_v${{ env.PACKAGE_VERSION }}*.msixupload
           if-no-files-found: error
           retention-days: ${{ github.event_name == 'push' && '14' || '90' }}
 

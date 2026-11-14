@@ -231,6 +231,7 @@ Assert-SetupPayloadIntegrity `
 $storeManifestPath = Join-Path $packageRoot $artifactNames.StoreManifestFileName
 $storePackagePath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StorePackageFileName
 $storeSymbolPath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StoreSymbolFileName
+$storeUploadPath = Join-Path $artifactNames.StorePackageRoot $artifactNames.StoreUploadFileName
 # 精简 OpenCV 未获 Store 渠道放行时必须用 -SkipStorePackage 出包；
 # 当前正式发布仍强制校验同一版本的 Store 包。
 $storePackageRequired = -not $UpdateNotes -and -not $Prerelease
@@ -243,8 +244,13 @@ if (-not (Test-Path -LiteralPath $storeManifestPath -PathType Leaf)) {
 }
 else {
     $storeManifest = Get-Content -LiteralPath $storeManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $storeUploadExpected = $storePackageRequired -or
+        -not [string]::IsNullOrWhiteSpace([string]$storeManifest.upload_file)
     if (-not (Test-Path -LiteralPath $storePackagePath -PathType Leaf)) {
         throw "Store 包清单存在但 MSIX 不存在：$storePackagePath"
+    }
+    if ($storeUploadExpected -and -not (Test-Path -LiteralPath $storeUploadPath -PathType Leaf)) {
+        throw "Store 包清单存在但 msixupload 不存在：$storeUploadPath"
     }
     $symbolPackageExpected = -not $UpdateNotes -or -not [string]::IsNullOrWhiteSpace([string]$storeManifest.symbol_file)
     if ($symbolPackageExpected -and -not (Test-Path -LiteralPath $storeSymbolPath -PathType Leaf)) {
@@ -255,6 +261,10 @@ else {
     if ($symbolPackageExpected) {
         $storeSymbolHash = (Get-FileHash -LiteralPath $storeSymbolPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $storeSymbolSize = (Get-Item -LiteralPath $storeSymbolPath).Length
+    }
+    if ($storeUploadExpected) {
+        $storeUploadHash = (Get-FileHash -LiteralPath $storeUploadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $storeUploadSize = (Get-Item -LiteralPath $storeUploadPath).Length
     }
     if ([string]$storeManifest.package_file -ne (Split-Path -Leaf $storePackagePath)) {
         throw "Store 包清单文件名与 MSIX 不一致：$($storeManifest.package_file)"
@@ -282,6 +292,34 @@ else {
         }
         finally {
             $storeSymbolArchive.Dispose()
+        }
+    }
+    if ($storeUploadExpected) {
+        if ([string]$storeManifest.upload_file -ne (Split-Path -Leaf $storeUploadPath) -or
+            [string]$storeManifest.upload_sha256 -ne $storeUploadHash -or
+            [long]$storeManifest.upload_size -ne $storeUploadSize) {
+            throw "Store msixupload 的文件名、大小或 SHA256 与清单不一致，拒绝发布"
+        }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $storeUploadArchive = [System.IO.Compression.ZipFile]::OpenRead($storeUploadPath)
+        try {
+            $uploadExpected = @{
+                ([System.IO.Path]::GetFileName($storePackagePath)) = $storePackageSize
+                ([System.IO.Path]::GetFileName($storeSymbolPath)) = $storeSymbolSize
+            }
+            $uploadEntries = @($storeUploadArchive.Entries | Where-Object { -not $_.FullName.EndsWith("/") })
+            if ($uploadEntries.Count -ne $uploadExpected.Count) {
+                throw "Store msixupload 条目数不正确，拒绝发布"
+            }
+            foreach ($uploadEntry in $uploadEntries) {
+                if (-not $uploadExpected.ContainsKey($uploadEntry.FullName) -or
+                    [long]$uploadEntry.Length -ne [long]$uploadExpected[$uploadEntry.FullName]) {
+                    throw "Store msixupload 条目不正确：$($uploadEntry.FullName)"
+                }
+            }
+        }
+        finally {
+            $storeUploadArchive.Dispose()
         }
     }
 
@@ -334,8 +372,9 @@ else {
     $storePackageIncluded = $true
     if ($storePackageRequired) {
         $notesTextForStore = Get-Content -LiteralPath $notesFullPath -Raw -Encoding UTF8
-        if (-not $notesTextForStore.Contains("PackingProof_Store_", [System.StringComparison]::Ordinal)) {
-            throw "发布笔记缺少 Microsoft Store MSIX 资产说明；请在《下载与更新说明》中写明 PackingProof_Store_vX.Y.Z.msix 提交到 Partner Center"
+        if (-not $notesTextForStore.Contains("PackingProof_Store_", [System.StringComparison]::Ordinal) -or
+            -not $notesTextForStore.Contains(".msixupload", [System.StringComparison]::Ordinal)) {
+            throw "发布笔记缺少 Microsoft Store 资产说明；请在《下载与更新说明》中写明 PackingProof_Store_vX.Y.Z.msixupload 提交到 Partner Center"
         }
     }
 }

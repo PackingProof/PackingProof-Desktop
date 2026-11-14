@@ -193,6 +193,72 @@ function Assert-RequiredStoreSymbols {
     }
 }
 
+function New-StoreUploadArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$MsixPath,
+        [Parameter(Mandatory = $true)][string]$SymbolPath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (Test-Path -LiteralPath $DestinationPath -PathType Leaf) {
+        Remove-Item -LiteralPath $DestinationPath -Force
+    }
+
+    $archive = [System.IO.Compression.ZipFile]::Open(
+        $DestinationPath,
+        [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        foreach ($sourcePath in @($MsixPath, $SymbolPath)) {
+            $entry = $archive.CreateEntry(
+                [System.IO.Path]::GetFileName($sourcePath),
+                [System.IO.Compression.CompressionLevel]::Optimal)
+            $entryStream = $entry.Open()
+            $sourceStream = [System.IO.File]::OpenRead($sourcePath)
+            try {
+                $sourceStream.CopyTo($entryStream)
+            }
+            finally {
+                $sourceStream.Dispose()
+                $entryStream.Dispose()
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
+function Assert-StoreUploadArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$UploadPath,
+        [Parameter(Mandatory = $true)][string]$MsixPath,
+        [Parameter(Mandatory = $true)][string]$SymbolPath
+    )
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($UploadPath)
+    try {
+        $expected = @{
+            ([System.IO.Path]::GetFileName($MsixPath)) = (Get-Item -LiteralPath $MsixPath).Length
+            ([System.IO.Path]::GetFileName($SymbolPath)) = (Get-Item -LiteralPath $SymbolPath).Length
+        }
+        $entries = @($archive.Entries | Where-Object { -not $_.FullName.EndsWith("/") })
+        if ($entries.Count -ne $expected.Count) {
+            throw "MSIX 上传包条目数不正确：$UploadPath"
+        }
+        foreach ($entry in $entries) {
+            if (-not $expected.ContainsKey($entry.FullName) -or
+                [long]$entry.Length -ne [long]$expected[$entry.FullName]) {
+                throw "MSIX 上传包条目不正确：$($entry.FullName)"
+            }
+        }
+    }
+    finally {
+        $archive.Dispose()
+    }
+}
+
 $makeappx = Resolve-SdkTool -Name "makeappx.exe"
 $makepri = Resolve-SdkTool -Name "makepri.exe"
 $signtool = Resolve-SdkTool -Name "signtool.exe"
@@ -210,6 +276,7 @@ if (-not $productDir.StartsWith($expectedPrefix, [System.StringComparison]::Ordi
 $payloadDir = Join-Path $productDir "payload"
 $msixPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".msix")
 $appxsymPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".appxsym")
+$msixUploadPath = Join-Path $productDir ("PackingProof_Store_v" + $Version + ".msixupload")
 $symbolStagingDir = Join-Path $productDir ".appxsym-staging"
 
 $useExistingPayload = -not [string]::IsNullOrWhiteSpace($AppPayloadDir)
@@ -466,10 +533,21 @@ finally {
     $symbolArchive.Dispose()
 }
 
+New-StoreUploadArchive `
+    -MsixPath $msixPath `
+    -SymbolPath $appxsymPath `
+    -DestinationPath $msixUploadPath
+Assert-StoreUploadArchive `
+    -UploadPath $msixUploadPath `
+    -MsixPath $msixPath `
+    -SymbolPath $appxsymPath
+
 $hash = (Get-FileHash -LiteralPath $msixPath -Algorithm SHA256).Hash
 $sizeMb = [Math]::Round((Get-Item -LiteralPath $msixPath).Length / 1MB, 1)
 $symbolSizeMb = [Math]::Round((Get-Item -LiteralPath $appxsymPath).Length / 1MB, 1)
 $symbolHash = (Get-FileHash -LiteralPath $appxsymPath -Algorithm SHA256).Hash
+$uploadSizeMb = [Math]::Round((Get-Item -LiteralPath $msixUploadPath).Length / 1MB, 1)
+$uploadHash = (Get-FileHash -LiteralPath $msixUploadPath -Algorithm SHA256).Hash
 
 Write-Host ""
 Write-Host "MSIX 已生成"
@@ -479,6 +557,9 @@ Write-Host "  SHA256：$hash"
 Write-Host "  符号包：$appxsymPath"
 Write-Host "  符号包大小：$symbolSizeMb MB"
 Write-Host "  符号包 SHA256：$symbolHash"
+Write-Host "  商店上传包：$msixUploadPath"
+Write-Host "  商店上传包大小：$uploadSizeMb MB"
+Write-Host "  商店上传包 SHA256：$uploadHash"
 Write-Host "  Identity：$IdentityName"
 Write-Host "  Publisher：$Publisher"
 Write-Host "  Version：$packageVersion"

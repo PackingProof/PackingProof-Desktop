@@ -30,6 +30,9 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("Remove-Item -LiteralPath $runtimeSeedDir -Recurse -Force", script, StringComparison.Ordinal);
         Assert.Contains("[string]$SymbolsDir", script, StringComparison.Ordinal);
         Assert.Contains(".appxsym", script, StringComparison.Ordinal);
+        Assert.Contains(".msixupload", script, StringComparison.Ordinal);
+        Assert.Contains("New-StoreUploadArchive", script, StringComparison.Ordinal);
+        Assert.Contains("Assert-StoreUploadArchive", script, StringComparison.Ordinal);
         Assert.Contains("PackingProofCollectStoreSymbols=true", script, StringComparison.Ordinal);
         Assert.Contains("-p:DebugType=portable", script, StringComparison.Ordinal);
         Assert.Contains("-p:DebugSymbols=true", script, StringComparison.Ordinal);
@@ -108,9 +111,12 @@ public sealed class StoreEditionPackagingGuardTests
         Assert.Contains("app_payload_file_count", publishScript, StringComparison.Ordinal);
         Assert.Contains("symbol_sha256", publishScript, StringComparison.Ordinal);
         Assert.Contains("symbol_size", publishScript, StringComparison.Ordinal);
+        Assert.Contains("upload_sha256", publishScript, StringComparison.Ordinal);
+        Assert.Contains("upload_size", publishScript, StringComparison.Ordinal);
         Assert.Contains("PDB files must be submitted through the appxsym package", publishScript, StringComparison.Ordinal);
         Assert.Contains("Get-AppPayloadFingerprint", versionCommon, StringComparison.Ordinal);
         Assert.Contains("StoreSymbolFileName", versionCommon, StringComparison.Ordinal);
+        Assert.Contains("StoreUploadFileName", versionCommon, StringComparison.Ordinal);
         Assert.Contains("Assert-AppPayloadMatchesArchive", releaseScript, StringComparison.Ordinal);
         Assert.Contains("-ExcludeRelativePrefixes @(\"runtime-seed/\")", releaseScript, StringComparison.Ordinal);
         Assert.Contains("app_payload_sha256", releaseScript, StringComparison.Ordinal);
@@ -138,9 +144,11 @@ public sealed class StoreEditionPackagingGuardTests
             && skipStoreBranch > staleManifestRemoval,
             "构建 Setup 前必须先删除同版本旧 Store 清单");
         Assert.Contains("正式发布必须包含 Microsoft Store 包", releaseScript, StringComparison.Ordinal);
-        Assert.Contains("Microsoft Store MSIX (submit via Partner Center", publishScript, StringComparison.Ordinal);
+        Assert.Contains("Microsoft Store upload package (submit via Partner Center", publishScript, StringComparison.Ordinal);
         Assert.Contains("Store 符号包中没有 PDB 文件，拒绝发布", releaseScript, StringComparison.Ordinal);
+        Assert.Contains("Store msixupload 条目数不正确，拒绝发布", releaseScript, StringComparison.Ordinal);
         Assert.Contains("*.appxsym", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("*.msixupload", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("store-package.local.json", prereqs, StringComparison.Ordinal);
         Assert.Contains("makeappx.exe", prereqs, StringComparison.Ordinal);
         Assert.Contains("makepri.exe", prereqs, StringComparison.Ordinal);

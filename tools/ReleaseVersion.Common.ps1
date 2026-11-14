@@ -60,6 +60,7 @@ function Get-ReleaseArtifactNames {
         StorePackageRoot = Join-Path $RepoRoot "package\store\PackingProof_Store_v$normalizedVersion"
         StorePackageFileName = "PackingProof_Store_v$normalizedVersion.msix"
         StoreSymbolFileName = "PackingProof_Store_v$normalizedVersion.appxsym"
+        StoreUploadFileName = "PackingProof_Store_v$normalizedVersion.msixupload"
         StoreManifestFileName = "store_package_$releaseTag.json"
     }
 }

@@ -4,7 +4,7 @@
 
 ## 运行时与发布包布局
 
-- 发布脚本默认同时生成目录包、Setup 和 Microsoft Store MSIX；三份产物必须来自同一次应用负载。完整 7z 与完整 ZIP 仅在分别传入 `-IncludeSevenZip`、`-IncludeFullZip` 时作为本地产物生成，都不上传到 Release。清爽包根目录主要包含 `ExpressPackingMonitoring.exe` 与 `app\`；应用负载、依赖、Web 文件、LibVLC 和 `tools\ffmpeg.exe` 位于 `app\`。Store MSIX 只提交 Partner Center，不上传 GitHub/Gitee Release。
+- 发布脚本默认同时生成目录包、Setup 和 Microsoft Store 提交包；三份产物必须来自同一次应用负载。完整 7z 与完整 ZIP 仅在分别传入 `-IncludeSevenZip`、`-IncludeFullZip` 时作为本地产物生成，都不上传到 Release。清爽包根目录主要包含 `ExpressPackingMonitoring.exe` 与 `app\`；应用负载、依赖、Web 文件、LibVLC 和 `tools\ffmpeg.exe` 位于 `app\`。Partner Center 只接收包含 MSIX 与符号的 `.msixupload`，不上传 GitHub/Gitee Release。
 - 运行时数据统一存放在 `%LOCALAPPDATA%\ExpressPackingMonitoring\`。发布包不得包含 `config.json`、`videos.db`、缓存、日志、录像或其他本机状态。
 - 应用自包含运行时默认固定在 **10.0.13**（`Publish-CleanPackage.ps1 -AppRuntimeFrameworkVersion`），共享运行时布局也优先取应用声明的精确补丁版本；启动器 AOT 工具链单独跟随当前 SDK。这样升级启动器安全补丁不会把整套新 .NET/WPF 塞进 AppPatch。需要升级应用运行时时必须显式修改该参数，并把它当作完整包/Store 级升级处理，不能只靠缺文件的增量包。
 - 共享运行时布局（安装目录下的 `runtime\`）用来让桌面端与 QQ 机器人共用同一份 .NET 运行时：`runtime\dotnet.exe` + `runtime\host\fxr\<版本>\hostfxr.dll` + `runtime\shared\Microsoft.NETCore.App|<WindowsDesktop.App>\<版本>\`，外加记录框架版本、逐文件 SHA256 与老布局迁移映射的 `runtime\layout.json`。自包含应用里的运行时是私有的，别的程序借不到；只有共享框架布局能被多个程序复用。用 `tools\Build-SharedRuntimeLayout.ps1` 生成并自检，`tools\Test-SharedRuntimeLayout.ps1` 可单独复核。
@@ -74,7 +74,7 @@
 
 - 发布版本维护在仓根 `Directory.Build.props` 的 `<Version>`（所有工程继承同一份，工程文件不得自己再写 `<Version>`；`ProjectVersionSourceTests` 守这条），并与 `vX.Y.Z` 标签一致。之所以收敛成一处：应用显示版本、更新判断读的是 `Config/AppVersion.cs`，而它跟 `Logging/RuntimeLog.cs` 一起被编进 **Core** 程序集，Core 与主程序各写一份版本时开发构建会读到旧号（0.0.79 之后界面一直显示 0.0.78，Mac 打包也拿 Core 的版本号），正式包因为发布脚本全局覆盖 `InformationalVersion` 才看不出来。对应版本标签位于 `HEAD` 且工作区干净时，正式产物和 `InformationalVersion` 只使用纯版本号；未打对应标签的测试包使用 Git 标准的 `-<距最近标签提交数>-g<短CommitID>` 后缀，脏工作区再追加 `-dirty`。AppPatch、更新清单和包内协议版本始终使用纯语义版本，完整 Commit ID 继续写入程序集元数据。基线、完整包和 AppPatch 必须复用同一次发布生成的主程序文件，保证测试包身份可追溯且不影响更新比较。
 - 代码改动一律走远程 PR，只有发布准备阶段仅更新 `Directory.Build.props` 版本号的 chore 可以直接提交到 `main`；该提交不得夹带代码、配置、测试或文档修改。提到哪个平台按问题来源决定：我们自己发现的 **bug** 先在 GitHub 开 issue，再提 PR 并在说明里关联那个 issue；性能、功能、工具、文档这类**不是 bug** 的改动直接提 PR，不必为了留痕再补一个 issue。别人在某平台提的 issue，PR 就提到那个平台（Gitee 的 issue 提 Gitee PR，GitHub 的 issue 提 GitHub PR）。PR 默认两边都提；目标可以用仓库根目录 `.env` 的 `PR_TARGET_HOST`（`gitee` / `github` / `both`，默认 `both`）或命令行 `-Target` 覆盖。用 `pwsh -NoProfile -File tools\Submit-ChangePr.ps1 -Title "<PR 标题>" [-Merge] -Confirmed` 推送分支、创建 PR，用快进合并（提交原样保留）、把主干对齐到同一个提交；**不加 `-Confirmed` 只打印计划并拒绝执行**，提交 PR 前必须先经人工确认。
-- 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（快进合并，提交原样保留，不改写 SHA，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 先按 `docs/development/RELEASE_CHECKLIST.md` 做变更审计（竞态/性能/关键路径），再以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物 → **把同一次构建出的 Microsoft Store MSIX 提交 Partner Center**。**Gitee 安装包按完整 Setup 大小分流：严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则再生成并上传 no-runtime 安装包**（`pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee`；该脚本也会识别小体积完整 Setup 并直接复用）。macOS 包由 Mac 侧 `tools/Publish-MacRelease.sh` 挂到同一个 Release。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
+- 发布顺序固定为：在功能分支提交并保持工作区干净 → 运行本地 CI → 提 PR 并合并到主干（快进合并，提交原样保留，不改写 SHA，不 squash）→ 同步主干 → 在合并后的提交上创建本地 `vX.Y.Z` 标签 → 先按 `docs/development/RELEASE_CHECKLIST.md` 做变更审计（竞态/性能/关键路径），再以该标签身份执行一次 Release 构建、全量测试、自动验收、打包和产物校验 → 只推送该标签到 GitHub/Gitee → 创建 Release 并上传已校验产物 → **把同一次构建出的 Microsoft Store `.msixupload` 提交 Partner Center**。**Gitee 安装包按完整 Setup 大小分流：严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则再生成并上传 no-runtime 安装包**（`pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee`；该脚本也会识别小体积完整 Setup 并直接复用）。macOS 包由 Mac 侧 `tools/Publish-MacRelease.sh` 挂到同一个 Release。标签必须指向已在主干上的提交且先于正式构建：既避免先构建测试身份再为正式标签重复编译，也避免 PR rebase 之后标签悬空。
 - 打包脚本会在产物目录生成 `release_commits_v<X.Y.Z>.txt`（上一个正式版以来的全部提交，仅本地核对、不上传），并按需生成或保留 `RELEASE_NOTES_v<X.Y.Z>.md`；重新打包不会再冲掉已经写好的发布笔记。
 - 发布脚本 `tools/Publish-Releases.ps1` 属于门禁的一部分：它校验发布笔记的分段与占位符、校验 `update_v<X.Y.Z>.json` 的 `title` 与 `notes` 是否已填写，并在打印提交清单后要求显式传入 `-ConfirmCommitCoverage`。只想自检用 `-ValidateOnly`，已经发布过的版本要补正文用 `-UpdateNotes`（只更新正文与标题，不重复上传附件）。
 - 本地 CI 命令为 `pwsh -NoProfile -File tools/Test-CI.ps1`，它与 `.github/workflows/ci.yml` 保持同一还原、构建、单元测试和 JavaScript 语法检查门禁。发布前必须先通过本地 CI，再运行 `tools/Test-Release-Automated.ps1`；任一失败都不得推送标签或发布。
@@ -90,10 +90,10 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 - `<基线版本>` 在 0.0.86 及以后固定为 `0.0.84`；0.0.83/0.0.84 历史发布才使用 `0.0.18`。`tools\打包脚本-增量.bat` 与 `tools\Publish-CleanPackage.ps1` 的默认补丁基线都必须是 `0.0.84`，不要再复制旧命令里的 `0.0.18`。
 - `-BaselineAppDir` 必须指向真实固定基线的 `app` 子目录并包含 `tools\ffmpeg.exe`。脚本从目录解析实际基线，并强制与更新清单和补丁清单一致，禁止手工伪造。
-- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。发布负载会收集与最终二进制匹配的 PDB 并生成 `PackingProof_Store_v<X.Y.Z>.appxsym` 供 Partner Center 做崩溃符号化；PDB 不进入 MSIX，也不留在 Setup 的 `app\` 负载中。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX 和 appxsym 的版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX、旧符号包或旧清单不能借同版本号通过门禁。
+- Store MSIX 复用同一次 Release 的 `app\` 负载构建，不重新 `dotnet publish`；本地身份取 `tools\store-package.local.json`，缺身份或 SDK 工具时 `Check-ReleasePrereqs.ps1` 会提前阻断。发布负载会收集与最终二进制匹配的 PDB，生成 `PackingProof_Store_v<X.Y.Z>.appxsym`，再把 MSIX 与符号包组成 `PackingProof_Store_v<X.Y.Z>.msixupload` 供 Partner Center 一次上传；Partner Center 不接受独立 `.appxsym`，后续正式提交只使用 `.msixupload`。PDB 不进入 MSIX，也不留在 Setup 的 `app\` 负载中。产物目录同时生成 `store_package_v<X.Y.Z>.json`，记录 MSIX、符号包、组合上传包的版本、大小、SHA256，以及 Setup `app\` 的逐文件指纹；`Publish-Releases.ps1` 会解开 MSIX 与本次 Setup 负载逐个文件比对，旧 MSIX、旧符号包、旧组合上传包或旧清单不能借同版本号通过门禁。
 - 产物根目录同时生成 `package_integrity_v<X.Y.Z>.json`，记录 Setup 的文件名、大小、SHA256 和本次 exact `app\` 的逐文件指纹；`Publish-Releases.ps1` 会校验 Setup 未被替换，并要求 Setup 与 Store MSIX 指向同一份 exact 应用负载。
 - `-ReuseExistingLauncherBaseline` 只用于同一发布标签重发；普通新版本不传。
-- 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release；同一版本的 Store MSIX 必须在 Partner Center 完成提交，才算这次发布完成。禁止普通 `main` push 触发发布包工作流。
+- 正式标签构建通过后，只把 `vX.Y.Z` 标签推送到 GitHub 与组织 Gitee 仓库 `PackingProof/PackingProof-Desktop`（`main` 已在 PR 合并时更新，不再直接推送提交），然后创建 Release；同一版本的 Store `.msixupload` 必须在 Partner Center 完成提交，才算这次发布完成。禁止普通 `main` push 触发发布包工作流。
 - 发布前执行 `pwsh -NoProfile -File tools/Test-Release-Automated.ps1`。不得在未完成真实设备检查时传 `-ConfirmManualCoreChecks`。
 - 采集链路的现场结论（走哪条后端、GPU 转换有没有真生效、每帧整帧拷贝要花多少）用 `pwsh -NoProfile -File tools/Diagnose-CameraPipeline.ps1` 一次跑出来：报告与探针日志写到输出目录，只读配置、录像和现场 `runtime.log`。整帧拷贝那一段不需要摄像头、也不用退出主程序，随手可跑；GPU/CPU 对照要独占摄像头，脚本会提示先关程序。
 - `docs/development/RELEASE_CHECKLIST.md` 是发布前 AI/自动化照着跑的清单（命令与产物校验）；需要人和设备才能做的现场检查在 `docs/development/RELEASE_FIELD_CHECKS.md`，发布时提醒执行但不阻断，也不用写进发布说明。
@@ -104,7 +104,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 - 发布笔记必须使用 `docs/development/RELEASE_NOTES_TEMPLATE.md`，并**逐条**核对 `release_commits_v<X.Y.Z>.txt` 里的全部提交（等价于 `git log --oneline <上一正式版标签>..HEAD`）。按“功能与体验 / 问题修复 / 兼容与工程”填写，覆盖所有用户可见变化；纯工程或测试提交也要在《兼容与工程》里落到文字，不能只写几条最重要的就交付。《问题修复》只写**上一个正式版就存在**的缺陷；本版自己引入又在本版修掉的回归不算问题修复（对用户来说那只是新功能还没定稿），把最终行为并进对应功能的《功能与体验》，纯内部返工不写。
 - 发布笔记写到该版本自己的产物目录 `package/PackingProof+v<X.Y.Z>/RELEASE_NOTES_v<X.Y.Z>.md`，在打包生成产物目录之后写入。禁止放在仓库根目录，也禁止提交进仓库；`package/*` 已被 Git 忽略。打包脚本会在文件不存在时按模板生成骨架，在文件已存在时原样保留，正常流程不需要手工改文件名。
 - 标题固定为 `v<X.Y.Z> <一句话内容>`，且这句话必须点出本版本最核心的变化（本版投入最大的功能，或用户最痛的问题），例如「采集预览迁移 GPU 与存储判定重做」；只写版本号或只写“体验优化”都会被发布脚本拒绝（未传 `-Title` 直接报错）。
-- 《下载与更新说明》必须与本次实际上传的资产逐条对齐：GitHub 的 Setup、Gitee 直接上传的完整 Setup 或 no-runtime 安装包（按 100MB 阈值二选一）、Microsoft Store 的 MSIX、macOS 的 DMG、建立新启动器基线时的 LauncherPatch；少写一项就属于发布不规范，多写未上传的资产、或写已经不存在的分发方式（例如整包 ZIP 免安装包）同样算错。
+- 《下载与更新说明》必须与本次实际上传的资产逐条对齐：GitHub 的 Setup、Gitee 直接上传的完整 Setup 或 no-runtime 安装包（按 100MB 阈值二选一）、Microsoft Store 的 `.msixupload`、macOS 的 DMG、建立新启动器基线时的 LauncherPatch；少写一项就属于发布不规范，多写未上传的资产、或写已经不存在的分发方式（例如整包 ZIP 免安装包）同样算错。
 - 条目顺序按重要性从高到低：本版重点功能 → 重要修复 → 小优化与文案调整；`update_v<X.Y.Z>.json` 的 `notes` 保持同一顺序。同一件事（同一模块的默认值、迁移、提示、界面入口等）必须合并成一条，不允许拆成多条重复描述。预览版需在 GitHub 与 Gitee 标记 prerelease；预览版只写本次增量，正式版汇总上一正式版以来所有预览版。
 - `update_vX.Y.Z.json` 的 `title` 与 Release 标题完全一致，`notes` 必须已经填写，发布脚本会直接拒绝“请填写更新标题”这类占位内容。`notes` 是供启动器直接显示的纯文本字符串数组，每项只写一条简洁、用户可见的变化；禁止 Markdown 标题、列表减号、序号、换行排版和“下载某某包更新”等说明。`notes` 按模块归并、控制在 15~20 条以内，但必须覆盖本版本全部用户可见变化，不能只写几条最重要的；超过 20 条发布脚本会拒绝。
 - `update_vX.Y.Z.json` 的 `download_source` 控制增量包默认从哪个平台下载：`github`（出包缺省，便于观察 Release 附件下载量）、`gitee`（国内网络或大补丁可显式指定）或 `auto`（跟随更新清单来源）。无论选哪个，GitHub 连续下载失败后都会自动回退 Gitee。出包时通过 `Publish-CleanPackage.ps1 -DownloadSource github|gitee|auto` 写入。
@@ -117,7 +117,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 | GitHub | Setup、update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；macOS 包 `PackingProof-macOS-<版本>.dmg`（在 Mac 上用 `tools/Publish-MacRelease.sh` 上传） |
 | Gitee `PackingProof/PackingProof-Desktop` | update JSON、可选 `PackingProof_AppPatch`；仅新启动器基线时上传 LauncherPatch；完整 Setup 严格小于 100MB 时直接上传 `PackingProof_Setup_vX.Y.Z.exe`，否则由下面的 no-runtime 包补安装入口；macOS 包 `PackingProof-macOS-<版本>.dmg` 同上 |
 | Gitee no-runtime（仅完整 Setup 达到 100MB 时） | `PackingProof_Setup_no-runtime_vX.Y.Z.exe`：不含 .NET 运行时的安装向导，给只能下载 100MB 以内附件的 Gitee 用户使用。用 `pwsh -NoProfile -File tools\Publish-NoRuntimePackage.ps1 -Tag vX.Y.Z -UploadGitee` 生成并上传；根启动器是 AOT 原生、直接复用正式包里的那一份，`app\` 由该脚本**自己**跑一次 `dotnet publish --self-contained false` 得到（不能再复用正式包的 app，那是自包含的、会把运行时也带进去），并从正式包里补上 `tools\ffmpeg.exe`、WinTts 程序集与 `tts_cache`（这类安装靠机器上的 .NET 10 Desktop Runtime 跑，也没有种子可落共享布局，扩展直接走系统运行时）。AppPatch 本身是自包含形态，这类目录吃到补丁后会变成自包含，往后一切正常。默认不上传 ZIP 免安装包（`PackingProof_no-runtime_vX.Y.Z.zip`），确有需要时加 `-IncludeZip` |
-| Microsoft Store / Partner Center | `PackingProof_Store_vX.Y.Z.msix` 与 `PackingProof_Store_vX.Y.Z.appxsym`：与 Setup 共用同一次 `app\` 负载，身份/版本/哈希记录在 `store_package_vX.Y.Z.json`；两者一起提交 Partner Center，不上传 GitHub/Gitee Release。正式发布必须提交，不能把它们当成可选的旁路产物 |
+| Microsoft Store / Partner Center | `PackingProof_Store_vX.Y.Z.msixupload`：内部包含与 Setup 同一次 `app\` 负载生成的 MSIX 与 `.appxsym`，身份/版本/哈希记录在 `store_package_vX.Y.Z.json`；只提交 Partner Center，不上传 GitHub/Gitee Release。正式发布必须提交，不能把它当成可选的旁路产物 |
 
 - 完整 7z 与完整 ZIP 都不再上传到任何 Release，默认也不生成，仅在本地确有需要时分别传入 `-IncludeSevenZip` 和 `-IncludeFullZip`。对外分发只有 Setup（Gitee 侧在完整 Setup 小于 100MB 时直接复用，否则换成 no-runtime 安装向导）、AppPatch、update JSON 与 macOS DMG；普通用户通过启动器自动更新，无需手动下载清单。
 
@@ -129,7 +129,7 @@ pwsh -NoProfile -File tools\Publish-CleanPackage.ps1 -Version <X.Y.Z> -PatchBase
 
 ## 重发同一版本（热修已发布版本）
 
-正常发布跑：`Publish-CleanPackage.ps1`（同时出 Setup 与 Store MSIX）→ `Publish-Releases.ps1`（建 Release 传 Git 资产并校验 Store 包）→ Partner Center 上传同版本 MSIX。完整 Setup 严格小于 100MB 时，`Publish-Releases.ps1` 会直接把它传到 Gitee，不再需要额外的 no-runtime 步骤；达到 100MB 时才追加
+正常发布跑：`Publish-CleanPackage.ps1`（同时出 Setup 与 Store 提交包）→ `Publish-Releases.ps1`（建 Release 传 Git 资产并校验 Store 包）→ Partner Center 上传同版本 `.msixupload`。完整 Setup 严格小于 100MB 时，`Publish-Releases.ps1` 会直接把它传到 Gitee，不再需要额外的 no-runtime 步骤；达到 100MB 时才追加
 `Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（Gitee no-runtime 包）。
 **给已经发出去的版本补修复**是另一件事，已经收敛成一条命令（重建 → 替换两边资产 → 按尺寸补齐 Gitee 安装入口）：
 
@@ -151,7 +151,7 @@ pwsh -NoProfile -File tools\Republish-SameVersion.ps1 -Version <X.Y.Z> -Title "<
 4. 两边替换资产：`Publish-Releases.ps1 -UpdateNotes -ReplaceAssets` —— GitHub 用 `gh release upload --clobber`；
    Gitee 先删同名旧附件再上传（Gitee 不会覆盖同名附件）；同一命令会校验本次重建出的 `store_package_v<X.Y.Z>.json` 与 MSIX
 5. Gitee 安装包：完整 Setup 严格小于 100MB 时由 `Publish-Releases.ps1` 直接上传并删除旧的 no-runtime 安装包；达到 100MB 时才重做 `Publish-NoRuntimePackage.ps1 -Tag v<X.Y.Z> -UploadGitee`（上传前同样先删同名旧附件）
-6. Microsoft Store：把本次重建的 `PackingProof_Store_v<X.Y.Z>.msix` 和匹配的 `.appxsym` 一起重新提交 Partner Center，不能沿用旧包或旧符号
+6. Microsoft Store：把本次重建的 `PackingProof_Store_v<X.Y.Z>.msixupload` 重新提交 Partner Center，不能沿用旧包或旧符号
 7. macOS 侧：在 Mac 上 `SIGN_IDENTITY="Developer ID Application: ..." NOTARIZE=1 tools/Publish-MacRelease.sh <版本> both`。
    **签名必须在 Mac 桌面会话的终端里跑**：SSH 会话拿不到登录钥匙串里的签名私钥，会报 `errSecInternalComponent`
 

@@ -48,6 +48,6 @@
 
 - 安装向导：PackingProof_Setup_v<X.Y.Z>.exe（GitHub 必传；Gitee 在完整 Setup 严格小于 100MB 时同样提供。未签名时注明：未签名，SmartScreen 可能提示未知发布者）
 - Gitee no-runtime（仅完整 Setup 达到 100MB 时保留）：PackingProof_Setup_no-runtime_v<X.Y.Z>.exe（不含 .NET 运行时，机器需已安装 .NET 10 桌面运行时；未生成时删除本行）
-- Microsoft Store：PackingProof_Store_v<X.Y.Z>.msix（提交 Partner Center，认证通过后由 Microsoft Store 分发；不上传 GitHub/Gitee Release）
+- Microsoft Store：PackingProof_Store_v<X.Y.Z>.msixupload（内含 MSIX 与符号包，提交 Partner Center；不上传 GitHub/Gitee Release）
 - 已安装用户：启动器会自动下载 AppPatch；如需手动更新，可完整解压 AppPatch 后双击包内更新脚本
 - <仅新启动器基线时保留>：本版本建立新启动器基线 launcher-v<X.Y.Z>，升级后的主程序会自动应用 LauncherPatch
