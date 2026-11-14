@@ -29,12 +29,12 @@ public sealed class VisionObbProductionPathTests(ITestOutputHelper output)
 
     [Theory]
     [InlineData(0, true)]
-    [InlineData(10, true)]
-    [InlineData(80, true)]
-    [InlineData(10.01, false)]
+    [InlineData(1, true)]
+    [InlineData(89, true)]
+    [InlineData(1.01, false)]
+    [InlineData(80, false)]
     [InlineData(45, false)]
-    [InlineData(79, false)]
-    public void DirectCropIsLimitedToTenDegreeResidual(
+    public void DirectCropIsLimitedToOneDegreeResidual(
         double angle,
         bool expected)
     {

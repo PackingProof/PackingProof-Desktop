@@ -24,7 +24,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal const double AreaWeight = 0.45;
     internal const double ConfidenceWeight = 0.35;
     internal const double CenterWeight = 0.20;
-    internal const double DirectCropMaxResidualAngleDegrees = 10;
+    internal const double DirectCropMaxResidualAngleDegrees = 1;
     internal const double CropPaddingRatio = 0.04;
     internal const double QuietZoneRatio = 0.08;
     private const long ObbDiagnosticsMinIntervalMs = 1500;
