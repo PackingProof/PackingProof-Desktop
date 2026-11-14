@@ -31,7 +31,8 @@ internal sealed record CameraBarcodeRecognitionStatus(
     IReadOnlyList<VisionObbDetection>? ObbDetections = null,
     VisionObbDetection? SelectedObbDetection = null,
     bool BarcodeDecodingEvaluated = true,
-    bool VisionObbAvailable = false);
+    bool VisionObbAvailable = false,
+    bool SupportsBarcodeDetection = false);
 
 internal sealed record CameraBarcodeConfirmedEvent(
     string Code,
@@ -1727,7 +1728,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                             : _visionProcessor.ObbDetections,
                         SelectedObbDetection: _visionProcessor.SelectedObbDetection,
                         BarcodeDecodingEvaluated: false,
-                        VisionObbAvailable: _visionProcessor.VisionObbAvailable));
+                        VisionObbAvailable: _visionProcessor.VisionObbAvailable,
+                        SupportsBarcodeDetection:
+                            _visionProcessor.SupportsBarcodeDetection));
                 }
                 return;
             }
@@ -1809,7 +1812,9 @@ internal sealed class CameraBarcodeRecognitionService : IDisposable
                         ? null
                         : _visionProcessor.ObbDetections,
                     SelectedObbDetection = _visionProcessor.SelectedObbDetection,
-                    VisionObbAvailable = _visionProcessor.VisionObbAvailable
+                    VisionObbAvailable = _visionProcessor.VisionObbAvailable,
+                    SupportsBarcodeDetection =
+                        _visionProcessor.SupportsBarcodeDetection
                 };
             if (observation.ConfirmedCode.Length > 0)
             {

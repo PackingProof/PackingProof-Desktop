@@ -16,6 +16,8 @@ public partial class MainWindow
     private const double MaxObbAnimationDurationMs = 240;
     private const double VisionObbCornerRadius = 6;
     private const double VisionGuideStrokeThickness = 3;
+    private const double VisionBarcodeLineStrokeThickness = 2;
+    internal const string VisionBarcodeLineStrokeResourceKey = "CameraGuideStroke";
     private const double VisionGuideCornerRadius = 8;
     private const double VisionGuideCornerLength = 28;
     private const double VisionGuideMidpointLength = 18;
@@ -26,8 +28,8 @@ public partial class MainWindow
     private static readonly Brush VisionObbCandidateFill = new SolidColorBrush(Color.FromArgb(64, 245, 158, 11));
     private static readonly Brush VisionObbConfirmedStroke = new SolidColorBrush(Color.FromRgb(34, 197, 94));
     private static readonly Brush VisionObbConfirmedFill = new SolidColorBrush(Color.FromArgb(64, 34, 197, 94));
-    private static readonly Brush VisionBarcodeStroke = new SolidColorBrush(Color.FromRgb(0, 200, 83));
-    private static readonly Brush VisionBarcodeFill = new SolidColorBrush(Color.FromArgb(24, 0, 200, 83));
+    private static readonly Brush VisionObbNoBarcodeStroke = new SolidColorBrush(Color.FromRgb(156, 163, 175));
+    private static readonly Brush VisionObbNoBarcodeFill = new SolidColorBrush(Color.FromArgb(20, 156, 163, 175));
     private readonly List<AnimatedVisionObbBox> _animatedVisionObbBoxes = [];
     private bool _visionObbAnimationRunning;
     private int _nextVisionObbTrackId = 1;
@@ -39,7 +41,9 @@ public partial class MainWindow
     {
         internal int Id { get; init; }
         internal int ClassId { get; set; }
+        internal VisionObbDetection Detection { get; set; }
         internal required Rectangle Shape { get; init; }
+        internal Line? BarcodeLine { get; set; }
         internal required RotateTransform Rotation { get; init; }
         internal required Point[] StartPoints { get; set; }
         internal required Point[] TargetPoints { get; set; }
@@ -66,6 +70,16 @@ public partial class MainWindow
         double Angle,
         Point TopLeft,
         double CornerRadius);
+
+    internal readonly record struct VisionObbLineFrame(
+        Point StartPoint,
+        Point EndPoint);
+
+    internal readonly record struct VisionObbBoxColorPalette(
+        string StrokeKey,
+        string FillKey,
+        Brush Stroke,
+        Brush Fill);
 
     private void UpdateCameraVisionObbBoxes(
         MainViewModel vm,
@@ -140,6 +154,7 @@ public partial class MainWindow
         SynchronizeAnimatedVisionObbBoxes(
             targets,
             targetClassIds,
+            vm.CameraVisionObbDetections,
             selectedTargetIndex,
             _visionObbAnimationDurationMs);
         UpdateVisionObbBoxColors(vm);
@@ -148,6 +163,7 @@ public partial class MainWindow
     private void SynchronizeAnimatedVisionObbBoxes(
         IReadOnlyList<Point[]> targets,
         IReadOnlyList<int> targetClassIds,
+        IReadOnlyList<VisionObbDetection> targetDetections,
         int selectedTargetIndex,
         double animationDurationMs)
     {
@@ -157,6 +173,8 @@ public partial class MainWindow
             if (!box.Hidden || nowMs - box.LastSeenMs <= ObbTrackRetentionMs)
                 return false;
             CameraVisionObbLayer.Children.Remove(box.Shape);
+            if (box.BarcodeLine != null)
+                CameraVisionObbLayer.Children.Remove(box.BarcodeLine);
             return true;
         });
 
@@ -191,6 +209,7 @@ public partial class MainWindow
                 match.Track,
                 targets[match.TargetIndex],
                 targetClassIds[match.TargetIndex],
+                targetDetections[match.TargetIndex],
                 nowMs,
                 animationDurationMs);
         }
@@ -202,6 +221,7 @@ public partial class MainWindow
             targetTracks[targetIndex] = CreateTrack(
                 targets[targetIndex],
                 targetClassIds[targetIndex],
+                targetDetections[targetIndex],
                 nowMs,
                 animationDurationMs);
         }
@@ -235,6 +255,7 @@ public partial class MainWindow
         AnimatedVisionObbBox track,
         Point[] target,
         int classId,
+        VisionObbDetection detection,
         long nowMs,
         double animationDurationMs)
     {
@@ -253,15 +274,26 @@ public partial class MainWindow
         track.LastCenter = targetCenter;
         track.LastSeenMs = nowMs;
         track.ClassId = classId;
+        track.Detection = detection;
         track.Hidden = false;
-        track.Shape.Visibility = Visibility.Visible;
         track.DurationMs = animationDurationMs;
-        StartBoxAnimation(track, target, nowMs, removeWhenFinished: false);
+        if (classId == VisionObbClassIds.Barcode && track.BarcodeLine == null)
+        {
+            track.BarcodeLine = CreateBarcodeLine();
+            CameraVisionObbLayer.Children.Add(track.BarcodeLine);
+        }
+        UpdateTrackVisibility(track);
+        StartBoxAnimation(
+            track,
+            target,
+            nowMs,
+            removeWhenFinished: false);
     }
 
     private AnimatedVisionObbBox CreateTrack(
         Point[] target,
         int classId,
+        VisionObbDetection detection,
         long nowMs,
         double animationDurationMs)
     {
@@ -288,6 +320,7 @@ public partial class MainWindow
         {
             Id = _nextVisionObbTrackId++,
             ClassId = classId,
+            Detection = detection,
             Shape = rectangle,
             Rotation = rotation,
             StartPoints = start,
@@ -299,6 +332,13 @@ public partial class MainWindow
             StartOpacity = 0,
             TargetOpacity = 1
         };
+        if (classId == VisionObbClassIds.Barcode)
+        {
+            rectangle.Visibility = Visibility.Collapsed;
+            created.BarcodeLine = CreateBarcodeLine();
+            CameraVisionObbLayer.Children.Add(created.BarcodeLine);
+        }
+        UpdateTrackVisibility(created);
         StartBoxAnimation(created, target, nowMs, removeWhenFinished: false);
         _animatedVisionObbBoxes.Add(created);
         return created;
@@ -390,37 +430,69 @@ public partial class MainWindow
         {
             if (box.ClassId == VisionObbClassIds.Barcode)
             {
-                box.Shape.Stroke = VisionBarcodeStroke;
-                box.Shape.Fill = VisionBarcodeFill;
+                box.Shape.Stroke = null;
+                box.Shape.Fill = null;
+                box.Shape.Visibility = Visibility.Collapsed;
+                if (box.BarcodeLine != null)
+                {
+                    box.BarcodeLine.Stroke =
+                        TryFindResource(VisionBarcodeLineStrokeResourceKey) as Brush
+                        ?? VisionObbIdleStroke;
+                    box.BarcodeLine.Visibility = Visibility.Visible;
+                }
                 continue;
             }
+            box.Shape.Visibility = Visibility.Visible;
+            if (box.BarcodeLine != null)
+                box.BarcodeLine.Visibility = Visibility.Collapsed;
+            bool hasBarcode = !vm.CameraVisionSupportsBarcodeDetection
+                || HasBarcodeInsideWaybill(
+                    box.Detection,
+                    vm.CameraVisionObbDetections);
             bool selected = ReferenceEquals(box, _selectedVisionObbTrack);
             VisionObbVisualState state = ResolveVisionObbBoxVisualState(
                 vm.IsCameraBarcodeCandidate,
                 vm.IsCameraBarcodeConfirmed,
-                selected);
-            (string StrokeKey, string FillKey, Brush Stroke, Brush Fill) colors = state switch
-            {
-                VisionObbVisualState.Confirmed => (
-                    "CameraConfirmedStroke",
-                    "VisionObbConfirmedFill",
-                    VisionObbConfirmedStroke,
-                    VisionObbConfirmedFill),
-                VisionObbVisualState.Candidate => (
-                    "CameraCandidateStroke",
-                    "VisionObbCandidateFill",
-                    VisionObbCandidateStroke,
-                    VisionObbCandidateFill),
-                _ => (
-                    "CameraGuideStroke",
-                    "VisionObbIdleFill",
-                    VisionObbIdleStroke,
-                    VisionObbIdleFill)
-            };
+                selected,
+                hasBarcode);
+            VisionObbBoxColorPalette colors = ResolveVisionObbBoxColorPalette(state);
             box.Shape.Stroke = TryFindResource(colors.StrokeKey) as Brush ?? colors.Stroke;
             box.Shape.Fill = TryFindResource(colors.FillKey) as Brush ?? colors.Fill;
         }
     }
+
+    internal static VisionObbBoxColorPalette ResolveVisionObbBoxColorPalette(
+        VisionObbVisualState state) =>
+        state switch
+        {
+            VisionObbVisualState.NoBarcode => new(
+                "VisionObbNoBarcodeStroke",
+                "VisionObbNoBarcodeFill",
+                VisionObbNoBarcodeStroke,
+                VisionObbNoBarcodeFill),
+            VisionObbVisualState.Confirmed => new(
+                "CameraConfirmedStroke",
+                "VisionObbConfirmedFill",
+                VisionObbConfirmedStroke,
+                VisionObbConfirmedFill),
+            VisionObbVisualState.Candidate => new(
+                "CameraCandidateStroke",
+                "VisionObbCandidateFill",
+                VisionObbCandidateStroke,
+                VisionObbCandidateFill),
+            _ => new(
+                "CameraGuideStroke",
+                "VisionObbIdleFill",
+                VisionObbIdleStroke,
+                VisionObbIdleFill)
+        };
+
+    internal static bool HasBarcodeInsideWaybill(
+        VisionObbDetection waybill,
+        IReadOnlyList<VisionObbDetection> detections) =>
+        detections.Any(detection =>
+            VisionObbClassPolicy.IsBarcode(detection)
+            && VisionObbGeometry.Contains(waybill, detection));
 
     internal static VisionObbVisualState ResolveVisionObbVisualState(
         bool candidate,
@@ -434,8 +506,21 @@ public partial class MainWindow
     internal static VisionObbVisualState ResolveVisionObbBoxVisualState(
         bool candidate,
         bool confirmed,
-        bool selected)
-        => selected
+        bool selected) =>
+        ResolveVisionObbBoxVisualState(
+            candidate,
+            confirmed,
+            selected,
+            hasBarcode: true);
+
+    internal static VisionObbVisualState ResolveVisionObbBoxVisualState(
+        bool candidate,
+        bool confirmed,
+        bool selected,
+        bool hasBarcode)
+        => !hasBarcode
+            ? VisionObbVisualState.NoBarcode
+            : selected
             ? ResolveVisionObbVisualState(candidate, confirmed)
             : VisionObbVisualState.Idle;
 
@@ -483,8 +568,10 @@ public partial class MainWindow
                 box.Shape,
                 box.Rotation,
                 box.CurrentPoints);
-            box.Shape.Opacity = box.StartOpacity
-                                + (box.TargetOpacity - box.StartOpacity) * eased;
+            double opacity = box.StartOpacity
+                             + (box.TargetOpacity - box.StartOpacity) * eased;
+            box.Shape.Opacity = opacity;
+            UpdateBarcodeLine(box);
             if (progress < 1)
             {
                 running = true;
@@ -495,6 +582,8 @@ public partial class MainWindow
             {
                 box.Hidden = true;
                 box.Shape.Visibility = Visibility.Collapsed;
+                if (box.BarcodeLine != null)
+                    box.BarcodeLine.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -536,6 +625,109 @@ public partial class MainWindow
             angle,
             new Point(center.X - width / 2, center.Y - height / 2),
             Math.Min(VisionObbCornerRadius, Math.Min(width, height) / 2));
+    }
+
+    internal static VisionObbLineFrame ResolveBarcodeLine(
+        IReadOnlyList<Point> points)
+    {
+        if (points.Count != 4)
+            return new VisionObbLineFrame(new Point(), new Point());
+
+        int longestEdgeIndex = 0;
+        double longestEdgeLength = 0;
+        for (int index = 0; index < points.Count; index++)
+        {
+            double edgeLength = Distance(points[index], points[(index + 1) % points.Count]);
+            if (edgeLength > longestEdgeLength)
+            {
+                longestEdgeLength = edgeLength;
+                longestEdgeIndex = index;
+            }
+        }
+
+        int preferredEdgeIndex = ResolvePreferredBarcodeLongEdge(
+            points,
+            longestEdgeIndex);
+        Point start = points[preferredEdgeIndex];
+        Point end = points[(preferredEdgeIndex + 1) % points.Count];
+        if (start.Y > end.Y
+            || (Math.Abs(start.Y - end.Y) <= 0.5 && start.X > end.X))
+        {
+            (start, end) = (end, start);
+        }
+        return new VisionObbLineFrame(start, end);
+    }
+
+    private static int ResolvePreferredBarcodeLongEdge(
+        IReadOnlyList<Point> points,
+        int longestEdgeIndex)
+    {
+        int oppositeEdgeIndex = (longestEdgeIndex + 2) % points.Count;
+        Point primaryCenter = GetEdgeCenter(points, longestEdgeIndex);
+        Point oppositeCenter = GetEdgeCenter(points, oppositeEdgeIndex);
+        Point start = points[longestEdgeIndex];
+        Point end = points[(longestEdgeIndex + 1) % points.Count];
+        double dx = Math.Abs(end.X - start.X);
+        double dy = Math.Abs(end.Y - start.Y);
+        if (dy >= dx)
+        {
+            return oppositeCenter.X < primaryCenter.X
+                ? oppositeEdgeIndex
+                : longestEdgeIndex;
+        }
+        if (Math.Abs(oppositeCenter.Y - primaryCenter.Y) > 0.5)
+        {
+            return oppositeCenter.Y > primaryCenter.Y
+                ? oppositeEdgeIndex
+                : longestEdgeIndex;
+        }
+        return oppositeCenter.X < primaryCenter.X
+            ? oppositeEdgeIndex
+            : longestEdgeIndex;
+    }
+
+    private static Point GetEdgeCenter(
+        IReadOnlyList<Point> points,
+        int edgeIndex)
+    {
+        Point start = points[edgeIndex];
+        Point end = points[(edgeIndex + 1) % points.Count];
+        return new Point(
+            (start.X + end.X) / 2,
+            (start.Y + end.Y) / 2);
+    }
+
+    private static Line CreateBarcodeLine()
+        => new()
+        {
+            Stroke = VisionObbIdleStroke,
+            StrokeThickness = VisionBarcodeLineStrokeThickness,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            Fill = null,
+            IsHitTestVisible = false,
+            Opacity = 0
+        };
+
+    private static void UpdateBarcodeLine(AnimatedVisionObbBox box)
+    {
+        if (box.BarcodeLine is not { } line || box.ClassId != VisionObbClassIds.Barcode)
+            return;
+        VisionObbLineFrame frame = ResolveBarcodeLine(box.CurrentPoints);
+        line.X1 = frame.StartPoint.X;
+        line.Y1 = frame.StartPoint.Y;
+        line.X2 = frame.EndPoint.X;
+        line.Y2 = frame.EndPoint.Y;
+        line.Opacity = box.Shape.Opacity;
+        line.Visibility = Visibility.Visible;
+    }
+
+    private static void UpdateTrackVisibility(AnimatedVisionObbBox box)
+    {
+        bool barcode = box.ClassId == VisionObbClassIds.Barcode;
+        box.Shape.Visibility = barcode ? Visibility.Collapsed : Visibility.Visible;
+        if (box.BarcodeLine != null)
+            box.BarcodeLine.Visibility = barcode ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void SetRectangleFrame(
@@ -732,5 +924,6 @@ public enum VisionObbVisualState
 {
     Idle,
     Candidate,
-    Confirmed
+    Confirmed,
+    NoBarcode
 }

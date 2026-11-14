@@ -425,6 +425,165 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
                 selected));
     }
 
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    public void WaybillWithoutBarcodeUsesNoBarcodeState(
+        bool candidate,
+        bool confirmed,
+        bool selected)
+    {
+        Assert.Equal(
+            VisionObbVisualState.NoBarcode,
+            MainWindow.ResolveVisionObbBoxVisualState(
+                candidate,
+                confirmed,
+                selected,
+                hasBarcode: false));
+    }
+
+    [Fact]
+    public void BarcodeLinePrefersLowerLongEdge()
+    {
+        WpfPoint[] points =
+        [
+            new(0, 10),
+            new(100, 10),
+            new(100, 40),
+            new(0, 40)
+        ];
+
+        MainWindow.VisionObbLineFrame line = MainWindow.ResolveBarcodeLine(points);
+
+        Assert.Equal(new WpfPoint(0, 40), line.StartPoint);
+        Assert.Equal(new WpfPoint(100, 40), line.EndPoint);
+    }
+
+    [Fact]
+    public void BarcodeLinePrefersLeftLongEdgeWhenLowerEdgeIsTied()
+    {
+        WpfPoint[] points =
+        [
+            new(10, 0),
+            new(40, 0),
+            new(40, 100),
+            new(10, 100)
+        ];
+
+        MainWindow.VisionObbLineFrame line = MainWindow.ResolveBarcodeLine(points);
+
+        Assert.Equal(new WpfPoint(10, 0), line.StartPoint);
+        Assert.Equal(new WpfPoint(10, 100), line.EndPoint);
+    }
+
+    [Fact]
+    public void BarcodeLineKeepsLeftEdgeForSlightlyTiltedVerticalBarcode()
+    {
+        VisionObbDetection detection = new(
+            CenterX: 100,
+            CenterY: 100,
+            Width: 100,
+            Height: 30,
+            AngleDegrees: -80,
+            Score: 0.95f,
+            ClassId: VisionObbClassIds.Barcode);
+        WpfPoint[] points = VisionObbGeometry.ToCorners(detection)
+            .Select(point => new WpfPoint(point.X, point.Y))
+            .ToArray();
+
+        MainWindow.VisionObbLineFrame line =
+            MainWindow.ResolveBarcodeLine(points);
+
+        double lineCenterX = (line.StartPoint.X + line.EndPoint.X) / 2;
+        Assert.True(lineCenterX < detection.CenterX);
+        Assert.True(
+            Math.Abs(line.EndPoint.Y - line.StartPoint.Y)
+            > Math.Abs(line.EndPoint.X - line.StartPoint.X));
+    }
+
+    [Fact]
+    public void BarcodeLineChoiceSurvivesCornerOrderChanges()
+    {
+        WpfPoint[] clockwise =
+        [
+            new(10, 0),
+            new(40, 0),
+            new(40, 100),
+            new(10, 100)
+        ];
+        WpfPoint[] reversed =
+        [
+            new(10, 100),
+            new(40, 100),
+            new(40, 0),
+            new(10, 0)
+        ];
+
+        MainWindow.VisionObbLineFrame first =
+            MainWindow.ResolveBarcodeLine(clockwise);
+        MainWindow.VisionObbLineFrame second =
+            MainWindow.ResolveBarcodeLine(reversed);
+
+        Assert.Equal(
+            [first.StartPoint, first.EndPoint],
+            [second.StartPoint, second.EndPoint]);
+    }
+
+    [Fact]
+    public void BarcodeLineUsesTheDefaultBlueGuideResource()
+    {
+        Assert.Equal(
+            "CameraGuideStroke",
+            MainWindow.VisionBarcodeLineStrokeResourceKey);
+    }
+
+    [Fact]
+    public void NoBarcodePaletteUsesDedicatedGrayResources()
+    {
+        MainWindow.VisionObbBoxColorPalette palette =
+            MainWindow.ResolveVisionObbBoxColorPalette(
+                VisionObbVisualState.NoBarcode);
+
+        Assert.Equal("VisionObbNoBarcodeStroke", palette.StrokeKey);
+        Assert.Equal("VisionObbNoBarcodeFill", palette.FillKey);
+        Assert.NotEqual("CameraGuideStroke", palette.StrokeKey);
+
+        string tokens = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "ExpressPackingMonitoring",
+            "Themes",
+            "ColorTokens.xaml"));
+        Assert.Contains(
+            "x:Key=\"VisionObbNoBarcodeStroke\"",
+            tokens,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "x:Key=\"VisionObbNoBarcodeFill\"",
+            tokens,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WaybillWithoutContainedBarcodeHasNoBarcode()
+    {
+        var waybill = new VisionObbDetection(
+            100, 100, 200, 100, 0, 0.95f, VisionObbClassIds.Waybill);
+        var barcodeInside = new VisionObbDetection(
+            100, 100, 80, 20, 0, 0.95f, VisionObbClassIds.Barcode);
+        var barcodeOutside = new VisionObbDetection(
+            260, 100, 80, 20, 0, 0.95f, VisionObbClassIds.Barcode);
+
+        Assert.True(MainWindow.HasBarcodeInsideWaybill(
+            waybill,
+            [waybill, barcodeInside]));
+        Assert.False(MainWindow.HasBarcodeInsideWaybill(
+            waybill,
+            [waybill, barcodeOutside]));
+    }
+
     [Fact]
     public void WeightedScoreBalancesAreaConfidenceAndCenter()
     {
@@ -608,5 +767,22 @@ public sealed class VisionObbDetectorTests(ITestOutputHelper output)
         output.WriteLine(
             $"OBB sample decode: total={Stopwatch.GetElapsedTime(decodeStarted).TotalMilliseconds:F1}ms, "
             + $"decoded={sampleDecoded != null}");
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            if (File.Exists(Path.Combine(
+                    directory.FullName,
+                    "ExpressPackingMonitoring.sln")))
+            {
+                return directory.FullName;
+            }
+            directory = directory.Parent;
+        }
+        throw new DirectoryNotFoundException(
+            "ExpressPackingMonitoring repository root was not found.");
     }
 }

@@ -647,6 +647,8 @@ namespace ExpressPackingMonitoring.ViewModels
 
             SetCameraVisionModelAvailable(status.VisionObbAvailable);
             CameraVisionObbDetections = status.ObbDetections ?? [];
+            CameraVisionSupportsBarcodeDetection =
+                status.SupportsBarcodeDetection;
             UpdateCameraVisionSmartZoomTarget();
         }
 
@@ -682,6 +684,8 @@ namespace ExpressPackingMonitoring.ViewModels
             {
                 SetCameraVisionModelAvailable(status.VisionObbAvailable);
                 CameraVisionObbDetections = status.ObbDetections ?? [];
+                CameraVisionSupportsBarcodeDetection =
+                    status.SupportsBarcodeDetection;
                 if (status.SelectedObbDetection is { } selected)
                     CameraVisionSelectedObbDetection = selected;
                 else if (!IsCameraBarcodeConfirmed)
@@ -745,6 +749,7 @@ namespace ExpressPackingMonitoring.ViewModels
             IsCameraBarcodeConfirmed = false;
             CameraVisionObbDetections = [];
             CameraVisionSelectedObbDetection = null;
+            CameraVisionSupportsBarcodeDetection = false;
             CameraVisionSmartZoomTarget = null;
             CameraBarcodeStatusText = "将面单条形码放入框内";
         }

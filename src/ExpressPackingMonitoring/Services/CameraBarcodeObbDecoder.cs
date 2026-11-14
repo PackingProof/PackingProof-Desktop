@@ -62,6 +62,7 @@ internal sealed class CameraBarcodeObbDecoder : IDisposable
     internal VisionObbDetection? LastSelectedObbDetection { get; private set; }
     internal CameraBarcodeGeometry? LastGeometry => _standardDecoder.LastGeometry;
     internal bool IsDetectorAvailable => _detector != null;
+    internal bool SupportsBarcodeDetection => _lastDetectorClassCount > 1;
     internal int PixelBufferAllocationCount => _standardDecoder.PixelBufferAllocationCount;
 
     internal string? DecodeGuideRegion(

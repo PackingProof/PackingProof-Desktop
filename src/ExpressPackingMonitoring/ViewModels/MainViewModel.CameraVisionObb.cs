@@ -13,6 +13,7 @@ public partial class MainViewModel
     private IReadOnlyList<VisionObbDetection> _cameraVisionObbDetections = [];
     private VisionObbDetection? _cameraVisionSelectedObbDetection;
     private VisionObbDetection? _cameraVisionSmartZoomTarget;
+    private bool _cameraVisionSupportsBarcodeDetection;
     private bool _cameraVisionBenchmarkRunning;
     private bool _cameraVisionModelAvailable;
     private bool _cameraVisionStartupReady;
@@ -36,6 +37,14 @@ public partial class MainViewModel
     {
         get => _cameraVisionSmartZoomTarget;
         private set => SetProperty(ref _cameraVisionSmartZoomTarget, value);
+    }
+
+    public bool CameraVisionSupportsBarcodeDetection
+    {
+        get => _cameraVisionSupportsBarcodeDetection;
+        private set => SetProperty(
+            ref _cameraVisionSupportsBarcodeDetection,
+            value);
     }
 
     internal bool ShouldRunVisionObb =>

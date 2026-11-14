@@ -57,6 +57,8 @@
     <Color x:Key="VisionObbIdleFillColor">#303B82F6</Color>
     <Color x:Key="VisionObbCandidateFillColor">#40F59E0B</Color>
     <Color x:Key="VisionObbConfirmedFillColor">#4010B981</Color>
+    <Color x:Key="VisionObbNoBarcodeStrokeColor">#FF9CA3AF</Color>
+    <Color x:Key="VisionObbNoBarcodeFillColor">#149CA3AF</Color>
     <!-- 放大取景框：与识别框（蓝）、识别中（黄）、已识别（绿）都区分开的紫色，
          编辑态与平时只读显示共用同一套颜色，用户一眼能看出哪个框在管放大位置 -->
     <Color x:Key="ZoomGuideStrokeColor">#FF8B5CF6</Color>
@@ -92,6 +94,8 @@
     <SolidColorBrush x:Key="VisionObbIdleFill" Color="{StaticResource VisionObbIdleFillColor}"/>
     <SolidColorBrush x:Key="VisionObbCandidateFill" Color="{StaticResource VisionObbCandidateFillColor}"/>
     <SolidColorBrush x:Key="VisionObbConfirmedFill" Color="{StaticResource VisionObbConfirmedFillColor}"/>
+    <SolidColorBrush x:Key="VisionObbNoBarcodeStroke" Color="{StaticResource VisionObbNoBarcodeStrokeColor}"/>
+    <SolidColorBrush x:Key="VisionObbNoBarcodeFill" Color="{StaticResource VisionObbNoBarcodeFillColor}"/>
     <SolidColorBrush x:Key="ZoomGuideStroke" Color="{StaticResource ZoomGuideStrokeColor}"/>
     <SolidColorBrush x:Key="ZoomGuideFill" Color="{StaticResource ZoomGuideFillColor}"/>
     <SolidColorBrush x:Key="WarningOverlay" Color="{StaticResource WarningOverlayColor}"/>

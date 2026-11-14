@@ -38,6 +38,8 @@ internal sealed class CameraBarcodeVisionProcessor : IDisposable
     internal VisionObbDetection? SelectedObbDetection =>
         _decoder.LastSelectedObbDetection;
     internal bool VisionObbAvailable => _decoder.IsDetectorAvailable;
+    internal bool SupportsBarcodeDetection =>
+        _decoder.SupportsBarcodeDetection;
     internal CameraBarcodeGeometry? DecodedGeometry => _lastDecodedGeometry;
 
     internal string? ProcessFrame(

@@ -36,7 +36,8 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 5. 裁正后的 Barcode 长边左右各补 `8%` 纯白静区，再交给 ZXing
 6. 小角度快速解码失败后直接放弃该候选，不使用慢速扫描或整帧兜底
 7. 双类别模型只解码通过面单包含校验的 Barcode，不再把整个 Waybill 当作条码候选
-8. 把 Waybill 和 Barcode 旋转框画在预览画面上，Barcode 使用独立颜色
+8. 把 Waybill 旋转框画在预览画面上；Barcode 不画完整框，只沿最长边绘制一条蓝色线。
+   长边偏竖直时固定选择左边，偏水平时固定选择下边
 
 开关关闭时完全不加载模型，也不执行 OBB 推理。
 
@@ -66,8 +67,10 @@ pwsh -NoProfile -File tools\Test-Release-Automated.ps1
 框颜色沿用摄像头识别状态：
 
 - 蓝色：仅检测到面单位置和角度
+- 灰色：检测到 Waybill，但当前帧没有任何 Barcode 完整落在该面单内
 - 黄色：当前选中并识别出待确认单号的那一个框
-- 绿色：Barcode 框，或最终确认单号所对应的 Waybill 框
+- 蓝色：默认面单框，或 Barcode 最长边的检测线
+- 绿色：最终确认单号所对应的 Waybill 框
 
 其他同时存在的面单框保持蓝色，不会跟着一起变色。
 

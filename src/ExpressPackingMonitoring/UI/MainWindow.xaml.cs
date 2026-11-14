@@ -299,6 +299,10 @@ namespace ExpressPackingMonitoring.UI
                         {
                             Dispatcher.BeginInvoke(new Action(() => UpdateCameraVisionObbBoxes(vm)));
                         }
+                        else if (args.PropertyName == nameof(MainViewModel.CameraVisionSupportsBarcodeDetection))
+                        {
+                            Dispatcher.BeginInvoke(new Action(() => UpdateVisionObbBoxColors(vm)));
+                        }
                         else if (args.PropertyName == nameof(MainViewModel.CameraVisionSmartZoomTarget))
                         {
                             Dispatcher.BeginInvoke(new Action(() => UpdateZoomGuideBox(vm)));
